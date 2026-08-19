@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
-
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/widgets/app_brand_mark.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
-import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
 
@@ -48,9 +45,6 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Center(child: AppBrandMark(size: 40)),
-                const SizedBox(height: AppSpacing.xxl),
-
                 const Text('Sign in to your account').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text('Enter your credentials below').muted,
@@ -111,9 +105,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
 
                 const SizedBox(height: AppSpacing.xxl),
-                const Text(
-                  'This is an experimental app. Use with caution.',
-                ).muted.small,
+                Center(
+                  child: const Text(
+                    'This is an experimental app. Use with caution.',
+                  ).muted.small,
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Center(
                   child: AppButton(

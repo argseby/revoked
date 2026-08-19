@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -68,7 +67,7 @@ class _AppTextFieldState extends State<AppTextField> {
     Widget? suffix = widget.trailing;
     if (widget.passwordToggle) {
       suffix = Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        padding: const EdgeInsets.all(AppSpacing.sm),
         child: AppButton(
           icon: _obscured ? AppIcons.eye : AppIcons.eyeSlash,
           tooltip: _obscured ? 'Show' : 'Hide',
