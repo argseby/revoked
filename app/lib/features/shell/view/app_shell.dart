@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
@@ -74,9 +72,9 @@ class _AppShellState extends State<AppShell> {
         title: const Row(children: [WorkspaceChip()]),
         actions: const [
           _SearchButton(),
-          AppSpacing.gapSm,
+          AppSpacing.gapXs,
           _NotificationBell(),
-          AppSpacing.gapSm,
+          AppSpacing.gapXs,
           AccountButton(),
           SizedBox(width: AppSpacing.lg),
         ],

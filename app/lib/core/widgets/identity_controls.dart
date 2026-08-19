@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 
 /// Compact chip showing the active organization (workspace) with a quick
 /// switcher. Switching updates the backend and refreshes the session so the

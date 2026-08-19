@@ -128,14 +128,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         const SizedBox(height: AppSpacing.xxl),
         _buildConnection(context),
-
-        const SizedBox(height: AppSpacing.xl),
-        _SignOutButton(
-          onSignOut: () async {
-            await auth.logout();
-            if (context.mounted) context.go(AppRoutes.login);
-          },
-        ),
       ],
     );
   }
