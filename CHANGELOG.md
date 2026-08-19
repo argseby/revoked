@@ -1,3 +1,10 @@
+## v0.3.0 (2026-08-19)
+
+### ✨ Features
+- feat(docs): updated description and added support for current packages
+
+---
+
 ## v0.2.1 (2026-08-19)
 
 ### 🐛 Bug Fixes
