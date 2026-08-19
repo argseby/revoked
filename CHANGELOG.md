@@ -1,3 +1,10 @@
+## v0.2.1 (2026-08-19)
+
+### 🐛 Bug Fixes
+- fix(ci): attach desktop builds to the release
+
+---
+
 ## v0.2.0 (2026-08-19)
 
 ### ✨ Features
