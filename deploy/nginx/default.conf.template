@@ -1,0 +1,74 @@
+# Reverse proxy for the revoked API.
+#
+# One thing here is not cosmetic: X-Forwarded-For. The public-surface rate
+# limits (password gates, probes, challenges) are keyed by client IP, and
+# without a trusted-proxy configuration every request looks like it came from
+# this container — one shared bucket, so ten wrong gate passwords from anyone
+# would lock out everyone. After the stack is up, set
+#   Settings -> Application -> trusted proxy headers = X-Forwarded-For
+# in the PocketBase admin UI (http://<host>/_/). Leave "use leftmost IP" off:
+# with a single proxy hop the rightmost entry is the one nginx appended, and
+# the leftmost is whatever the client sent.
+
+# When something else already terminates TLS in front of this (Nginx Proxy
+# Manager, Traefik, Cloudflare), it has already said what the client's scheme
+# and host were. Overwriting those with this hop's values would report every
+# request as plain http.
+map $http_x_forwarded_proto $revoked_forwarded_proto {
+    default $scheme;
+    "~.+"   $http_x_forwarded_proto;
+}
+
+map $http_x_forwarded_host $revoked_forwarded_host {
+    default $host;
+    "~.+"   $http_x_forwarded_host;
+}
+
+upstream revoked_api {
+    server api:${API_PORT};
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name _;
+
+    # Let's Encrypt HTTP-01, served before any redirect so renewals keep working.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Uncomment once a certificate exists, together with the TLS block below.
+    # location / {
+    #     return 301 https://$host$request_uri;
+    # }
+
+    location / {
+        proxy_pass http://revoked_api;
+        include /etc/nginx/conf.d/revoked_proxy.inc;
+    }
+}
+
+# ---- TLS --------------------------------------------------------------------
+# Uncomment after issuing a certificate, e.g.
+#   docker run --rm -v certbot_webroot:/var/www/certbot -v /etc/letsencrypt:/etc/letsencrypt \
+#     certbot/certbot certonly --webroot -w /var/www/certbot -d example.com
+# and publish port 443 in docker-compose.yml.
+#
+# server {
+#     listen 443 ssl;
+#     listen [::]:443 ssl;
+#     http2 on;
+#     server_name example.com;
+#
+#     ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+#     ssl_protocols       TLSv1.2 TLSv1.3;
+#     ssl_prefer_server_ciphers off;
+#
+#     location / {
+#         proxy_pass http://revoked_api;
+#         include /etc/nginx/conf.d/revoked_proxy.inc;
+#     }
+# }

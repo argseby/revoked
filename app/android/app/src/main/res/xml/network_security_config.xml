@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A self-hosted server is often reached over plain HTTP on a LAN before it has
+  a certificate, and the app's own default base URL is http://127.0.0.1:3000.
+  API 28+ blocks cleartext outright, so those installs failed with no
+  explanation. Cleartext is permitted only for loopback and private ranges;
+  everything on the public internet still requires TLS.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false"/>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">10.0.3.2</domain>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,98 @@
+# revoked — API stack.
+#
+# Create the shared network once, or reuse the one your reverse proxy already
+# has, then bring it up:
+#
+#   docker network create proxy-network
+#   cp .env.example .env    # DOMAIN is required — the server refuses to boot without it
+#   docker compose up -d --build
+#   docker compose logs api # prints the _revoked TXT record to publish
+#
+# Nothing is published to the host. A published port is reachable at the
+# machine's IP and skips whatever TLS the reverse proxy terminates; the proxy
+# reaches this container by name over PROXY_NETWORK instead, so the port only
+# has to be free inside the container.
+#
+#   Nginx Proxy Manager: forward hostname ${CONTAINER_NAME}, port ${API_PORT},
+#   scheme http — with the NPM container attached to PROXY_NETWORK too.
+#
+# No reverse proxy on this host? `docker compose --profile proxy up -d` adds
+# the bundled nginx on :80, the only thing that publishes a port.
+#
+# Variables are mapped explicitly rather than through `env_file:` so this works
+# unchanged under Portainer, which passes stack variables as environment and
+# writes no .env of its own. The CLI reads ./.env for these automatically.
+
+services:
+  api:
+    build: .
+    container_name: ${CONTAINER_NAME:-revoked-api}
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      # Explicit: main.go otherwise resolves this against the working
+      # directory, which only happens to match --dir.
+      SERVER_KEY_PATH: /pb/pb_data/server_root.pem
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      USER_EMAIL: ${USER_EMAIL:-}
+      USER_PASSWORD: ${USER_PASSWORD:-}
+      ALLOW_SIGNUPS: ${ALLOW_SIGNUPS:-false}
+      ALLOW_PRIVATE_CALLBACKS: ${ALLOW_PRIVATE_CALLBACKS:-false}
+      RATELIMIT_GATE_ATTEMPTS: ${RATELIMIT_GATE_ATTEMPTS:-10}
+      RATELIMIT_PROBE_REQUESTS: ${RATELIMIT_PROBE_REQUESTS:-120}
+      RATELIMIT_CHALLENGE_REQUESTS: ${RATELIMIT_CHALLENGE_REQUESTS:-60}
+    command:
+      - serve
+      - --http=0.0.0.0:${API_PORT:-3000}
+      - --dir=/pb/pb_data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -qO- http://127.0.0.1:${API_PORT:-3000}/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    volumes:
+      - pb_data:/pb/pb_data
+    networks:
+      - default
+      - proxy
+
+  nginx:
+    profiles: [proxy]
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      # Uncomment together with the TLS block in deploy/nginx/default.conf.template.
+      # - "${HTTPS_PORT:-443}:443"
+    environment:
+      # The nginx image renders /etc/nginx/templates/*.template with envsubst.
+      # The filter is essential: without it envsubst would also eat $host,
+      # $scheme and every other nginx variable in the file.
+      API_PORT: ${API_PORT:-3000}
+      NGINX_ENVSUBST_FILTER: API_PORT
+    volumes:
+      - ./deploy/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # Included by default.conf; nginx only auto-loads *.conf from conf.d, so
+      # this one is inert on its own.
+      - ./deploy/nginx/revoked_proxy.inc:/etc/nginx/conf.d/revoked_proxy.inc:ro
+      - certbot_webroot:/var/www/certbot
+      # - /etc/letsencrypt:/etc/letsencrypt:ro
+
+networks:
+  # Shared with the reverse proxy, and created outside this file so several
+  # stacks can sit on it.
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy-network}
+
+volumes:
+  # Losing this volume means losing the CA key, and every identity this server
+  # ever issued stops verifying. Back it up.
+  pb_data:
+  certbot_webroot:

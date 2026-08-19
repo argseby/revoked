@@ -1,0 +1,2326 @@
+import 'package:flutter/material.dart';
+
+import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:mobx/mobx.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:revoked_app/core/widgets/app_checkbox.dart';
+import 'package:revoked_app/core/widgets/app_dialog.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_error_text.dart';
+import 'package:revoked_app/core/widgets/app_load_error.dart';
+import 'package:revoked_app/core/widgets/app_tile.dart';
+import 'package:revoked_app/features/vault/store/vault_store.dart';
+import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/core/models/section.dart';
+import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
+import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/widgets/app_screen_header.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/app_entity_card.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
+import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/text_formatters.dart';
+import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
+
+class VaultScreen extends StatefulWidget {
+  final String? editingShareId;
+  final String? shareFilterId;
+
+  const VaultScreen({super.key, this.editingShareId, this.shareFilterId});
+
+  @override
+  State<VaultScreen> createState() => _VaultScreenState();
+}
+
+class _VaultScreenState extends State<VaultScreen> {
+  String? editingSectionId;
+  late TableStore<models.Record> _tableController;
+  late final ReactionDisposer _tableDisposer;
+
+  @override
+  void initState() {
+    super.initState();
+    final store = Stores.vault;
+
+    _tableController = TableStore<models.Record>(
+      getSourceItems: () => store.records.toList(),
+      fieldGetters: {
+        'label': (r) => r.label,
+        'key': (r) => r.key,
+        'value': (r) => r.value,
+        'type': (r) => r.type,
+        'format': (r) => r.format,
+        'created': (r) => r.created ?? '',
+      },
+      defaultSort: 'created_desc',
+    );
+    _tableDisposer = reaction(
+      (_) => [
+        _tableController.searchQuery,
+        _tableController.sortBy,
+        ..._tableController.filters,
+      ],
+      (_) => setState(() {}),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      store.loadRecords();
+      if (widget.editingShareId != null || widget.shareFilterId != null) {
+        Stores.shares.loadShares();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tableDisposer();
+    _tableController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = Stores.vault;
+    final authStore = Stores.auth;
+
+    final outerPad = AppSpacing.screenH(context);
+    final scrollbarMargin = AppSpacing.scrollbarMargin(context);
+    final innerPad = outerPad - scrollbarMargin;
+    final horizontalPad = EdgeInsets.symmetric(horizontal: outerPad);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: horizontalPad,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: AppSpacing.md),
+              Observer(
+                builder: (_) {
+                  final count = store.recordCount;
+                  final Widget primaryAction;
+                  if (editingSectionId != null) {
+                    primaryAction = AppButton(
+                      label: 'Done',
+                      onTap: () => setState(() => editingSectionId = null),
+                    );
+                  } else if (widget.editingShareId != null ||
+                      widget.shareFilterId != null) {
+                    primaryAction = AppButton(
+                      label: 'Done',
+                      onTap: () => context.go(AppRoutes.shares),
+                    );
+                  } else {
+                    primaryAction = AppButton(
+                      icon: AppIcons.plus,
+                      tooltip: 'New record',
+                      onTap: () =>
+                          _showCreateOptionsSheet(context, store, authStore),
+                    );
+                  }
+                  return AppScreenHeader(
+                    title: 'Vault',
+                    badgeLabel: '$count ${count == 1 ? 'record' : 'records'}',
+                    actions: [
+                      FilterButton<models.Record>(
+                        controller: _tableController,
+                        columns: const [
+                          DataTableColumn(value: 'label', label: 'Label'),
+                          DataTableColumn(value: 'key', label: 'Key'),
+                          DataTableColumn(value: 'value', label: 'Value'),
+                          DataTableColumn(value: 'type', label: 'Type'),
+                          DataTableColumn(value: 'format', label: 'Format'),
+                        ],
+                        helper: Row(
+                          children: [
+                            Icon(
+                              AppIcons.info,
+                              size: 14,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: const Text(
+                                'Filters on Value, Type, or Format only apply to Records, while Label and Key apply to both.',
+                              ).muted.small,
+                            ),
+                          ],
+                        ),
+                      ),
+                      primaryAction,
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+
+        Expanded(
+          child: Observer(
+            builder: (_) {
+              if (store.isLoading &&
+                  store.records.isEmpty &&
+                  store.sections.isEmpty) {
+                return const Center(child: AppSpinner(large: true));
+              }
+
+              if (store.errorMessage != null) {
+                return Padding(
+                  padding: horizontalPad,
+                  child: AppLoadError(
+                    title: 'Failed to load data',
+                    message: store.errorMessage!,
+                    onRetry: store.loadRecords,
+                  ),
+                );
+              }
+
+              if (store.records.isEmpty && store.sections.isEmpty) {
+                return AppEmptyState(
+                  icon: AppIcons.safe,
+                  title: 'Your vault is empty',
+                  subtitle:
+                      'Get started by creating a section or your first record.',
+                  action: AppButton(
+                    label: 'Create your first entry',
+                    onTap: () =>
+                        _showCreateOptionsSheet(context, store, authStore),
+                  ),
+                );
+              }
+
+              if (editingSectionId != null) {
+                // Render standard Record selection mode!
+                return Padding(
+                  padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
+                  child: ListView(
+                    padding: EdgeInsets.only(
+                      left: innerPad,
+                      right: innerPad,
+                      bottom: 120,
+                    ),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: AppRadius.allMd,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              AppIcons.plusSlashMinus,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Editing section: ${store.sections.firstWhere((s) => s.id == editingSectionId).name}. Select entries below to include them in this section.',
+                              ).small,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (store.records.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xxl),
+                          child: Center(
+                            child: const Text('No records created yet.').muted,
+                          ),
+                        )
+                      else if (_tableController.filteredItems.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xxl),
+                          child: Center(
+                            child: const Text(
+                              'No records match your filters.',
+                            ).muted,
+                          ),
+                        )
+                      else
+                        ..._tableController.filteredItems.map((record) {
+                          Section? editingSection = store.sections.firstWhere(
+                            (s) => s.id == editingSectionId,
+                          );
+
+                          return _RecordCard(
+                            record: record,
+                            isSelectableMode: true,
+                            isSelected: editingSection.records.contains(
+                              record.id,
+                            ),
+                            onToggleSelect: (bool selected) async {
+                              final newRecords = List<String>.from(
+                                editingSection.records,
+                              );
+                              if (selected && !newRecords.contains(record.id)) {
+                                newRecords.add(record.id);
+                              } else if (!selected) {
+                                newRecords.remove(record.id);
+                              }
+                              final ok = await store.updateSection(
+                                editingSection.id,
+                                {'records': newRecords},
+                              );
+                              if (ok && context.mounted) {
+                                AppToast.success(
+                                  context,
+                                  selected
+                                      ? 'Added record to section'
+                                      : 'Removed record from section',
+                                );
+                              }
+                            },
+                            onCopy: () {
+                              Clipboard.setData(
+                                ClipboardData(text: record.value),
+                              );
+                              AppToast.success(context, 'Copied to clipboard');
+                            },
+                            onEdit: () {},
+                            onDelete: () =>
+                                _confirmDeleteRecord(context, store, record.id),
+                            onDuplicate: () => _showCreateSheet(
+                              context,
+                              store,
+                              authStore,
+                              initialRecord: record,
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
+                );
+              }
+
+              // Render beautiful unified view!
+              final rawFilteredRecords = _tableController.filteredItems;
+
+              final sharesStore = Stores.shares;
+              Link? activeShareFilter;
+              if (widget.shareFilterId != null &&
+                  sharesStore.shares.isNotEmpty) {
+                try {
+                  activeShareFilter = sharesStore.shares.firstWhere(
+                    (s) => s.id == widget.shareFilterId,
+                  );
+                } catch (_) {}
+              }
+
+              Link? activeShareEdit;
+              if (widget.editingShareId != null &&
+                  sharesStore.shares.isNotEmpty) {
+                try {
+                  activeShareEdit = sharesStore.shares.firstWhere(
+                    (s) => s.id == widget.editingShareId,
+                  );
+                } catch (_) {}
+              }
+
+              // Let's filter records and sections if shareFilterId is active!
+              List<models.Record> filteredRecords = rawFilteredRecords;
+              List<Section> sectionsSource = store.sections.toList();
+
+              if (activeShareFilter != null) {
+                final allowedSectionIds = activeShareFilter.sections.toSet();
+                final allowedRecordIdsFromSections = store.sections
+                    .where((s) => allowedSectionIds.contains(s.id))
+                    .expand((s) => s.records)
+                    .toSet();
+                final allowedRecordIds = activeShareFilter.records
+                    .toSet()
+                    .union(allowedRecordIdsFromSections);
+
+                filteredRecords = rawFilteredRecords
+                    .where((r) => allowedRecordIds.contains(r.id))
+                    .toList();
+                sectionsSource = store.sections
+                    .where((s) => allowedSectionIds.contains(s.id))
+                    .toList();
+              }
+
+              // Find which sections are visible
+              final searchQuery = _tableController.searchQuery.toLowerCase();
+              final visibleSections = sectionsSource.where((section) {
+                // Get records in this section that also match the filters
+                final sectionRecords = section.records
+                    .map((id) {
+                      try {
+                        return filteredRecords.firstWhere((r) => r.id == id);
+                      } catch (_) {
+                        return null;
+                      }
+                    })
+                    .whereType<models.Record>()
+                    .toList();
+
+                final matchesSearch =
+                    section.name.toLowerCase().contains(searchQuery) ||
+                    section.key.toLowerCase().contains(searchQuery);
+                final matchesFilters = _sectionMatchesFilters(
+                  section,
+                  _tableController.filters,
+                );
+                return (matchesSearch && matchesFilters) ||
+                    sectionRecords.isNotEmpty;
+              }).toList();
+
+              // Sort sections if active sort applies to them
+              final sortBy = _tableController.sortBy;
+              if (sortBy.isNotEmpty) {
+                final parts = sortBy.split('_');
+                if (parts.length >= 2) {
+                  final col = parts.sublist(0, parts.length - 1).join('_');
+                  final dir = parts.last;
+
+                  if (col == 'label' || col == 'key' || col == 'created') {
+                    visibleSections.sort((a, b) {
+                      String valA = '';
+                      String valB = '';
+                      if (col == 'label') {
+                        valA = a.name;
+                        valB = b.name;
+                      } else if (col == 'key') {
+                        valA = a.key;
+                        valB = b.key;
+                      } else if (col == 'created') {
+                        valA = a.created ?? '';
+                        valB = b.created ?? '';
+                      }
+
+                      final comp = valA.toLowerCase().compareTo(
+                        valB.toLowerCase(),
+                      );
+                      return dir == 'asc' ? comp : -comp;
+                    });
+                  }
+                }
+              }
+
+              final assignedRecordIds = store.sections
+                  .expand((s) => s.records)
+                  .toSet();
+              final ungroupedRecords = filteredRecords
+                  .where((r) => !assignedRecordIds.contains(r.id))
+                  .toList();
+
+              // If absolutely nothing matches the filter anywhere in the sections or ungrouped lists, show search empty state
+              final hasAnyMatching =
+                  visibleSections.isNotEmpty || ungroupedRecords.isNotEmpty;
+
+              if (!hasAnyMatching) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xxl),
+                  child: Center(
+                    child: const Text('No items match your filters.').muted,
+                  ),
+                );
+              }
+
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
+                child: ListView(
+                  padding: EdgeInsets.only(
+                    left: innerPad,
+                    right: innerPad,
+                    bottom: 120,
+                  ),
+                  children: [
+                    if (activeShareFilter != null)
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: AppRadius.allMd,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              AppIcons.funnel,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Filtering by public share: "${activeShareFilter.label}". Only items shared are displayed.',
+                              ).small,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            AppButton(
+                              label: 'Clear',
+                              onTap: () => context.go(AppRoutes.vault),
+                              style: AppButtonStyle.accent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (activeShareEdit != null)
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1),
+                          borderRadius: AppRadius.allMd,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              AppIcons.plusSlashMinus,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: Text(
+                                'Editing public share: "${activeShareEdit.label}". Select sections and records below to include them in this public share.',
+                              ).small,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            AppButton(
+                              label: 'Done',
+                              onTap: () => context.go(AppRoutes.shares),
+                              style: AppButtonStyle.accent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    // Sections List
+                    ...visibleSections.map((section) {
+                      final sectionRecords = section.records
+                          .map((id) {
+                            try {
+                              return filteredRecords.firstWhere(
+                                (r) => r.id == id,
+                              );
+                            } catch (_) {
+                              return null;
+                            }
+                          })
+                          .whereType<models.Record>()
+                          .toList();
+
+                      return _SectionCard(
+                        section: section,
+                        sectionRecords: sectionRecords,
+                        onAddRecords: () =>
+                            setState(() => editingSectionId = section.id),
+                        onRename: () =>
+                            _showRenameSectionSheet(context, store, section),
+                        onDelete: () =>
+                            _confirmDeleteSection(context, store, section.id),
+                        onDuplicate: () => _showCreateSectionSheet(
+                          context,
+                          store,
+                          authStore,
+                          initialSection: section,
+                        ),
+                        isSelectableMode: activeShareEdit != null,
+                        isSelected:
+                            activeShareEdit != null &&
+                            activeShareEdit.sections.contains(section.id),
+                        onToggleSelect: activeShareEdit == null
+                            ? null
+                            : (selected) async {
+                                final share = activeShareEdit;
+                                if (share == null) return;
+                                final newSections = List<String>.from(
+                                  share.sections,
+                                );
+                                final newRecords = List<String>.from(
+                                  share.records,
+                                );
+                                if (selected) {
+                                  if (!newSections.contains(section.id)) {
+                                    newSections.add(section.id);
+                                  }
+                                  for (final rId in section.records) {
+                                    if (!newRecords.contains(rId)) {
+                                      newRecords.add(rId);
+                                    }
+                                  }
+                                } else {
+                                  newSections.remove(section.id);
+                                  for (final rId in section.records) {
+                                    newRecords.remove(rId);
+                                  }
+                                }
+                                await sharesStore.updateShare(share.id, {
+                                  'sections': newSections,
+                                  'records': newRecords,
+                                });
+                                if (context.mounted) {
+                                  AppToast.success(
+                                    context,
+                                    selected
+                                        ? 'Added section to public share'
+                                        : 'Removed section from public share',
+                                  );
+                                }
+                              },
+                        recordCardBuilder: (record) {
+                          return _RecordCard(
+                            record: record,
+                            isSelectableMode: activeShareEdit != null,
+                            isSelected:
+                                activeShareEdit != null &&
+                                activeShareEdit.records.contains(record.id),
+                            onToggleSelect: activeShareEdit == null
+                                ? null
+                                : (selected) async {
+                                    final share = activeShareEdit;
+                                    if (share == null) return;
+                                    final newRecords = List<String>.from(
+                                      share.records,
+                                    );
+                                    if (selected) {
+                                      if (!newRecords.contains(record.id)) {
+                                        newRecords.add(record.id);
+                                      }
+                                    } else {
+                                      newRecords.remove(record.id);
+                                    }
+                                    await sharesStore.updateShare(share.id, {
+                                      'records': newRecords,
+                                    });
+                                    if (context.mounted) {
+                                      AppToast.success(
+                                        context,
+                                        selected
+                                            ? 'Added record to public share'
+                                            : 'Removed record from public share',
+                                      );
+                                    }
+                                  },
+                            onCopy: () {
+                              Clipboard.setData(
+                                ClipboardData(text: record.value),
+                              );
+                              AppToast.success(context, 'Copied to clipboard');
+                            },
+                            onEdit: () =>
+                                _showEditRecordSheet(context, store, record),
+                            onDelete: () =>
+                                _confirmDeleteRecord(context, store, record.id),
+                            onDuplicate: () => _showCreateSheet(
+                              context,
+                              store,
+                              authStore,
+                              initialRecord: record,
+                            ),
+                          );
+                        },
+                      );
+                    }),
+
+                    // Ungrouped Records List
+                    if (ungroupedRecords.isNotEmpty) ...[
+                      if (visibleSections.isNotEmpty)
+                        const SizedBox(height: AppSpacing.xxl),
+                      Row(
+                        children: [
+                          Icon(
+                            AppIcons.folder,
+                            size: 16,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          const Text('Ungrouped Records').muted,
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      ...ungroupedRecords.map((record) {
+                        return _RecordCard(
+                          record: record,
+                          isSelectableMode: activeShareEdit != null,
+                          isSelected:
+                              activeShareEdit != null &&
+                              activeShareEdit.records.contains(record.id),
+                          onToggleSelect: activeShareEdit == null
+                              ? null
+                              : (selected) async {
+                                  final share = activeShareEdit;
+                                  if (share == null) return;
+                                  final newRecords = List<String>.from(
+                                    share.records,
+                                  );
+                                  if (selected) {
+                                    if (!newRecords.contains(record.id)) {
+                                      newRecords.add(record.id);
+                                    }
+                                  } else {
+                                    newRecords.remove(record.id);
+                                  }
+                                  await sharesStore.updateShare(share.id, {
+                                    'records': newRecords,
+                                  });
+                                  if (context.mounted) {
+                                    AppToast.success(
+                                      context,
+                                      selected
+                                          ? 'Added record to public share'
+                                          : 'Removed record from public share',
+                                    );
+                                  }
+                                },
+                          onCopy: () {
+                            Clipboard.setData(
+                              ClipboardData(text: record.value),
+                            );
+                            AppToast.success(context, 'Copied to clipboard');
+                          },
+                          onEdit: () =>
+                              _showEditRecordSheet(context, store, record),
+                          onDelete: () =>
+                              _confirmDeleteRecord(context, store, record.id),
+                          onDuplicate: () => _showCreateSheet(
+                            context,
+                            store,
+                            authStore,
+                            initialRecord: record,
+                          ),
+                        );
+                      }),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCreateOptionsSheet(
+    BuildContext context,
+    VaultStore store,
+    AuthStore authStore,
+  ) {
+    showAppSheet(
+      context: context,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xxl,
+            vertical: AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Create New').header,
+              const SizedBox(height: AppSpacing.xxs),
+              const Text('Select what you would like to create.').muted.small,
+              const SizedBox(height: AppSpacing.xxl),
+              AppTile(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                leading: _CreateChoiceIcon(icon: AppIcons.folderPlus),
+                title: const Text('New Section'),
+                subtitle: const Text(
+                  'Group records together within a section.',
+                ).muted.small,
+                trailing: Icon(
+                  AppIcons.arrowRight,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showCreateSectionSheet(context, store, authStore);
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppTile(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                leading: _CreateChoiceIcon(icon: AppIcons.filePlus),
+                title: const Text('New Record'),
+                subtitle: const Text(
+                  'Create a new key-value digital record.',
+                ).muted.small,
+                trailing: Icon(
+                  AppIcons.arrowRight,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showCreateSheet(context, store, authStore);
+                },
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppTile(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                leading: _CreateChoiceIcon(icon: AppIcons.cardList),
+                title: const Text('From Template'),
+                subtitle: const Text(
+                  'Generate structure from a workspace template.',
+                ).muted.small,
+                trailing: Icon(
+                  AppIcons.arrowRight,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showFromTemplateSheet(context, store, authStore);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFromTemplateSheet(
+    BuildContext context,
+    VaultStore store,
+    AuthStore authStore,
+  ) {
+    final templatesStore = Stores.templates;
+    // Pre-load templates to make sure we have the latest
+    templatesStore.loadTemplates(authStore.activeWorkspace ?? '');
+
+    showAppSheet(
+      context: context,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Container(
+          constraints: const BoxConstraints(maxWidth: 460),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xxl,
+            vertical: AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Create from Template').header,
+              const SizedBox(height: AppSpacing.xxs),
+              const Text(
+                'Select a structural blueprint to instantiate sections and records in your vault.',
+              ).muted.small,
+              const SizedBox(height: AppSpacing.xl),
+
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: Observer(
+                  builder: (_) {
+                    if (templatesStore.isLoading &&
+                        templatesStore.templates.isEmpty) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(AppSpacing.xxl),
+                          child: AppSpinner(large: true),
+                        ),
+                      );
+                    }
+
+                    if (templatesStore.templates.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.huge,
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                AppIcons.cardList,
+                                size: 32,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              const Text('No templates available'),
+                              const SizedBox(height: AppSpacing.xxs),
+                              Text(
+                                'Admins can configure templates in Settings.',
+                                textAlign: TextAlign.center,
+                              ).muted.small,
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: templatesStore.templates.length,
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (_, index) {
+                        final template = templatesStore.templates[index];
+                        final sections =
+                            template.schema['sections'] as List<dynamic>? ?? [];
+                        final records =
+                            template.schema['records'] as List<dynamic>? ?? [];
+
+                        return AppTile(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.sm,
+                          ),
+                          leading: Icon(
+                            AppIcons.cardList,
+                            color: theme.colorScheme.primary,
+                            size: 18,
+                          ),
+                          title: Text(template.name),
+                          subtitle: Text(
+                            '${sections.length} sections • ${records.length} root records',
+                          ).muted.small,
+                          trailing: Icon(
+                            AppIcons.chevronRight,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          onTap: () async {
+                            AppToast.success(
+                              context,
+                              'Instantiating template blueprints...',
+                            );
+
+                            final ok = await store.createFromTemplate(
+                              template: template,
+                              user: authStore.userId,
+                              workspace: authStore.activeWorkspace ?? '',
+                            );
+
+                            if (sheetContext.mounted) {
+                              Navigator.of(sheetContext).pop();
+                            }
+
+                            if (ok && context.mounted) {
+                              AppToast.success(
+                                context,
+                                'Vault items generated successfully!',
+                              );
+                            } else if (context.mounted) {
+                              AppToast.error(
+                                context,
+                                'Generation failed',
+                                subtitle: store.errorMessage ?? 'Unknown error',
+                              );
+                            }
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFieldLabel(
+    BuildContext context,
+    String text, {
+    bool isRequired = false,
+    String? explanation,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(text),
+            if (isRequired)
+              Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.xxs),
+                child: const AppErrorText('*'),
+              ),
+          ],
+        ),
+        if (explanation != null) ...[
+          const SizedBox(height: AppSpacing.xxs),
+          Text(explanation).muted.small,
+        ],
+      ],
+    );
+  }
+
+  void _showCreateSectionSheet(
+    BuildContext context,
+    VaultStore store,
+    AuthStore authStore, {
+    Section? initialSection,
+  }) {
+    store.clearError();
+    final keyCtrl = TextEditingController(
+      text: initialSection != null ? '${initialSection.key}_1' : '',
+    );
+    final nameCtrl = TextEditingController(text: initialSection?.name ?? '');
+    String? localError;
+    String? keyWarning;
+    String? suggestedKey;
+    bool isSubmitting = false;
+
+    void validateKey(String input, StateSetter setSheetState) {
+      if (input.isEmpty) {
+        setSheetState(() {
+          keyWarning = null;
+          suggestedKey = null;
+        });
+        return;
+      }
+
+      final exists = store.sections.any((s) => s.key == input);
+      if (exists) {
+        final alt = _generateAlternativeKey(input, true, store);
+        setSheetState(() {
+          keyWarning = 'This key is already taken.';
+          suggestedKey = alt;
+        });
+      } else {
+        setSheetState(() {
+          keyWarning = null;
+          suggestedKey = null;
+        });
+      }
+    }
+
+    bool checkedOnStart = false;
+
+    showAppSheet(
+      context: context,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            if (!checkedOnStart && keyCtrl.text.isNotEmpty) {
+              checkedOnStart = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                validateKey(keyCtrl.text, setSheetState);
+              });
+            }
+            return Observer(
+              builder: (observerContext) {
+                final _ = store.errorMessage;
+                final theme = Theme.of(ctx);
+                final isDup = initialSection != null;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xxl,
+                        0,
+                        AppSpacing.xxl,
+                        AppSpacing.lg,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            isDup ? 'Duplicate Section' : 'New Section',
+                          ).header,
+                          AppButton(
+                            icon: AppIcons.x,
+                            tooltip: 'Close',
+                            style: AppButtonStyle.accent,
+                            onTap: isSubmitting
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const AppDivider(),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(AppSpacing.xxl),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              isDup
+                                  ? 'Duplicate this section with a new unique key.'
+                                  : 'Group records together within a section.',
+                            ).muted,
+                            const SizedBox(height: AppSpacing.xl),
+
+                            _buildFieldLabel(
+                              ctx,
+                              'Name',
+                              isRequired: true,
+                              explanation:
+                                  'A friendly display name for your section.',
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            AppTextField(
+                              controller: nameCtrl,
+                              hint: 'My Section',
+                              onChanged: (_) => setSheetState(() {}),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+
+                            _buildFieldLabel(
+                              ctx,
+                              'Key',
+                              isRequired: true,
+                              explanation:
+                                  'A stable identifier used for system references.',
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            AppTextField(
+                              controller: keyCtrl,
+                              hint: 'section_key',
+                              inputFormatters: [KeyInputFormatter()],
+                              onChanged: (v) => validateKey(v, setSheetState),
+                            ),
+                            if (keyWarning != null) ...[
+                              const SizedBox(height: AppSpacing.xxs),
+                              Row(
+                                children: [
+                                  Icon(
+                                    AppIcons.exclamation,
+                                    size: 14,
+                                    color: theme.colorScheme.error,
+                                  ),
+                                  const SizedBox(width: AppSpacing.xxs),
+                                  Expanded(child: AppErrorText(keyWarning!)),
+                                ],
+                              ),
+                            ],
+                            if (suggestedKey != null) ...[
+                              const SizedBox(height: AppSpacing.xxs),
+                              Row(
+                                children: [
+                                  Icon(
+                                    AppIcons.lightbulb,
+                                    size: 14,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: AppSpacing.xxs),
+                                  const Text('Suggestion: ').small,
+                                  AppButton(
+                                    label: suggestedKey!,
+                                    style: AppButtonStyle.accent,
+                                    size: AppButtonSize.small,
+                                    onTap: () {
+                                      keyCtrl.text = suggestedKey!;
+                                      validateKey(suggestedKey!, setSheetState);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: AppSpacing.lg),
+
+                            ApiPreview(
+                              spec: VaultStore.createSectionSpec(
+                                key: keyCtrl.text.trim(),
+                                name: nameCtrl.text.trim(),
+                                records: initialSection?.records ?? const [],
+                                user: authStore.userId,
+                                workspace: authStore.activeWorkspace ?? '',
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+
+                            if (localError != null ||
+                                store.errorMessage != null) ...[
+                              AppAlert(
+                                destructive: true,
+                                leading: const Icon(AppIcons.exclamation),
+                                title: const Text('Error'),
+                                content: Text(
+                                  localError ?? store.errorMessage!,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const AppDivider(),
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.xxl),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          AppButton(
+                            label: 'Cancel',
+                            onTap: isSubmitting
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(),
+                            style: AppButtonStyle.accent,
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          AppButton(
+                            label: isDup ? 'Duplicate' : 'Create Section',
+                            busy: isSubmitting,
+                            onTap:
+                                (nameCtrl.text.isEmpty ||
+                                    keyCtrl.text.isEmpty ||
+                                    keyWarning != null)
+                                ? null
+                                : () async {
+                                    final keyInput = keyCtrl.text.trim();
+                                    final nameInput = nameCtrl.text.trim();
+
+                                    setSheetState(() {
+                                      isSubmitting = true;
+                                      localError = null;
+                                    });
+
+                                    final ok = await store.createSection(
+                                      key: keyInput,
+                                      name: nameInput,
+                                      recordIds: initialSection?.records ?? [],
+                                      user: authStore.userId,
+                                      workspace:
+                                          authStore.activeWorkspace ?? '',
+                                    );
+
+                                    if (ok && ctx.mounted) {
+                                      Navigator.of(sheetContext).pop();
+                                      AppToast.success(
+                                        context,
+                                        initialSection != null
+                                            ? 'Section duplicated successfully'
+                                            : 'Section created successfully',
+                                      );
+                                    } else {
+                                      if (ctx.mounted) {
+                                        setSheetState(() {
+                                          isSubmitting = false;
+                                        });
+                                      }
+                                    }
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Record-create / duplicate moved to a 2-step bottom sheet
+  // (record_create_sheet.dart) so the form no longer overflows on phones.
+  void _showCreateSheet(
+    BuildContext context,
+    VaultStore store,
+    AuthStore authStore, {
+    models.Record? initialRecord,
+  }) {
+    openRecordCreateSheet(
+      context: context,
+      store: store,
+      authStore: authStore,
+      initialRecord: initialRecord,
+    );
+  }
+
+  bool _sectionMatchesFilters(Section section, List<DataTableFilter> filters) {
+    for (final f in filters) {
+      if (f.value.isEmpty) continue;
+      String? val;
+      if (f.column == 'label') {
+        val = section.name;
+      } else if (f.column == 'key') {
+        val = section.key;
+      } else if (f.column == 'created') {
+        val = section.created ?? '';
+      }
+
+      if (val != null) {
+        final target = f.value.toLowerCase();
+        final source = val.toLowerCase();
+        bool match = true;
+        switch (f.operator) {
+          case 'equals':
+            match = source == target;
+            break;
+          case 'contains':
+            match = source.contains(target);
+            break;
+          case 'starts_with':
+            match = source.startsWith(target);
+            break;
+          case 'ends_with':
+            match = source.endsWith(target);
+            break;
+        }
+        if (!match) return false;
+      }
+    }
+    return true;
+  }
+
+  String _generateAlternativeKey(
+    String baseKey,
+    bool isSection,
+    VaultStore store,
+  ) {
+    String sanitized = baseKey.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
+    if (sanitized.isEmpty) {
+      sanitized = isSection ? 'section' : 'key';
+    }
+
+    int counter = 1;
+    while (true) {
+      final candidate = '${sanitized}_$counter';
+      final exists = isSection
+          ? store.sections.any((s) => s.key == candidate)
+          : store.records.any((r) => r.key == candidate);
+      if (!exists) {
+        return candidate;
+      }
+      counter++;
+    }
+  }
+
+  void _showRenameSectionSheet(
+    BuildContext context,
+    VaultStore store,
+    Section section,
+  ) {
+    store.clearError();
+    final nameCtrl = TextEditingController(text: section.name);
+    String? localError;
+    bool isSubmitting = false;
+
+    showAppSheet(
+      context: context,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) => Observer(
+            builder: (observerContext) {
+              final _ = store.errorMessage;
+              final theme = Theme.of(ctx);
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xxl,
+                      0,
+                      AppSpacing.xxl,
+                      AppSpacing.lg,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Rename Section').header,
+                        AppButton(
+                          icon: AppIcons.x,
+                          tooltip: 'Close',
+                          style: AppButtonStyle.accent,
+                          onTap: isSubmitting
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const AppDivider(),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(AppSpacing.xxl),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            'Change the display name of this section.',
+                          ).muted,
+                          const SizedBox(height: AppSpacing.xl),
+
+                          _buildFieldLabel(
+                            ctx,
+                            'Name',
+                            isRequired: true,
+                            explanation:
+                                'A friendly display name for your section.',
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          AppTextField(
+                            controller: nameCtrl,
+                            hint: 'My Section',
+                            onChanged: (_) => setSheetState(() {}),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+
+                          _buildFieldLabel(
+                            ctx,
+                            'Key',
+                            isRequired: true,
+                            explanation:
+                                'A stable identifier used for system references.',
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: AppSpacing.sm,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: AppRadius.allMd,
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                            ),
+                            child: Text(section.key).mono.muted.small,
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+
+                          ApiPreview(
+                            spec: VaultStore.updateSectionSpec(section.id, {
+                              'name': nameCtrl.text.trim(),
+                            }),
+                            title: 'API request · update',
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+
+                          if (localError != null ||
+                              store.errorMessage != null) ...[
+                            AppAlert(
+                              destructive: true,
+                              leading: const Icon(AppIcons.exclamation),
+                              title: const Text('Error'),
+                              content: Text(localError ?? store.errorMessage!),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const AppDivider(),
+                  Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xxl),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        AppButton(
+                          label: 'Cancel',
+                          onTap: isSubmitting
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(),
+                          style: AppButtonStyle.accent,
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        AppButton(
+                          label: 'Save Changes',
+                          busy: isSubmitting,
+                          onTap: nameCtrl.text.trim().isEmpty
+                              ? null
+                              : () async {
+                                  final nameInput = nameCtrl.text.trim();
+                                  setSheetState(() {
+                                    isSubmitting = true;
+                                    localError = null;
+                                  });
+
+                                  final ok = await store.updateSection(
+                                    section.id,
+                                    {'name': nameInput},
+                                  );
+
+                                  if (ok && ctx.mounted) {
+                                    Navigator.of(sheetContext).pop();
+                                    AppToast.success(
+                                      context,
+                                      'Section updated successfully',
+                                    );
+                                  } else {
+                                    if (ctx.mounted) {
+                                      setSheetState(() {
+                                        isSubmitting = false;
+                                      });
+                                    }
+                                  }
+                                },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showEditRecordSheet(
+    BuildContext context,
+    VaultStore store,
+    models.Record record,
+  ) {
+    store.clearError();
+    final labelCtrl = TextEditingController(text: record.label);
+    final valueCtrl = TextEditingController(text: record.value);
+    String selectedType = record.type;
+    String selectedFormat = record.format;
+    bool isSubmitting = false;
+    String? typeWarning;
+    String? detectedType;
+
+    showAppSheet(
+      context: context,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            void validateAndDetectType(String value) {
+              setSheetState(() {
+                typeWarning = RecordTypeUtils.validateValue(
+                  selectedType,
+                  value,
+                );
+                final detected = RecordTypeUtils.detectType(value);
+                if (detected != 'text' && detected != selectedType) {
+                  detectedType = detected;
+                } else {
+                  detectedType = null;
+                }
+              });
+            }
+
+            return Observer(
+              builder: (observerContext) {
+                final _ = store.errorMessage;
+                final theme = Theme.of(ctx);
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xxl,
+                        0,
+                        AppSpacing.xxl,
+                        AppSpacing.lg,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Edit Record').header,
+                          AppButton(
+                            icon: AppIcons.x,
+                            tooltip: 'Close',
+                            style: AppButtonStyle.accent,
+                            onTap: isSubmitting
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const AppDivider(),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(AppSpacing.xxl),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Modify record parameters in your workspace.',
+                            ).muted,
+                            const SizedBox(height: AppSpacing.xl),
+
+                            _buildFieldLabel(
+                              ctx,
+                              'Label',
+                              isRequired: true,
+                              explanation:
+                                  'A friendly display name for this record.',
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            AppTextField(
+                              controller: labelCtrl,
+                              hint: 'My Secret',
+                              onChanged: (_) => setSheetState(() {}),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+
+                            _buildFieldLabel(
+                              ctx,
+                              'Key',
+                              isRequired: true,
+                              explanation:
+                                  'A stable identifier for sharing and templates.',
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: AppSpacing.sm,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    theme.colorScheme.surfaceContainerHighest,
+                                borderRadius: AppRadius.allMd,
+                                border: Border.all(
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                              ),
+                              child: Text(record.key).mono.muted.small,
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+
+                            _buildFieldLabel(
+                              ctx,
+                              'Value',
+                              isRequired: true,
+                              explanation:
+                                  'The actual sensitive data or configuration value.',
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            AppTextField(
+                              controller: valueCtrl,
+                              hint: 'sk-1234...',
+                              onChanged: (v) => validateAndDetectType(v),
+                            ),
+                            if (typeWarning != null) ...[
+                              const SizedBox(height: AppSpacing.xs),
+                              AppErrorText(typeWarning!),
+                            ],
+                            const SizedBox(height: AppSpacing.lg),
+
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        ctx,
+                                        'Type',
+                                        explanation:
+                                            'How this data should be interpreted.',
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          if (detectedType != null)
+                                            AppButton(
+                                              icon: AppIcons.stars,
+                                              label:
+                                                  'Auto: ${detectedType!.toUpperCase()}',
+                                              size: AppButtonSize.small,
+                                              onTap: () {
+                                                setSheetState(() {
+                                                  selectedType = detectedType!;
+                                                  validateAndDetectType(
+                                                    valueCtrl.text,
+                                                  );
+                                                });
+                                              },
+                                            ),
+                                          ...RecordTypeUtils.supportedTypes.map(
+                                            (type) {
+                                              final isSelected =
+                                                  selectedType == type;
+                                              return isSelected
+                                                  ? AppButton(
+                                                      label: type.toUpperCase(),
+                                                      onTap: () {},
+                                                    )
+                                                  : AppButton(
+                                                      label: type.toUpperCase(),
+                                                      onTap: () {
+                                                        setSheetState(() {
+                                                          selectedType = type;
+                                                          validateAndDetectType(
+                                                            valueCtrl.text,
+                                                          );
+                                                        });
+                                                      },
+                                                      style:
+                                                          AppButtonStyle.accent,
+                                                    );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _buildFieldLabel(
+                                        ctx,
+                                        'Hidden Value',
+                                        explanation: 'Mask value on screen.',
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      AppButton(
+                                        icon: selectedFormat == 'hidden'
+                                            ? AppIcons.eyeSlash
+                                            : AppIcons.eye,
+                                        label: selectedFormat == 'hidden'
+                                            ? 'Hidden'
+                                            : 'Visible',
+                                        style: AppButtonStyle.accent,
+                                        onTap: () {
+                                          setSheetState(() {
+                                            selectedFormat =
+                                                selectedFormat == 'hidden'
+                                                ? 'default'
+                                                : 'hidden';
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSpacing.xl),
+
+                            if (store.errorMessage != null) ...[
+                              AppAlert(
+                                destructive: true,
+                                leading: const Icon(AppIcons.exclamation),
+                                title: const Text('Error'),
+                                content: Text(store.errorMessage!),
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                            ],
+
+                            ApiPreview(
+                              spec: VaultStore.updateRecordSpec(record.id, {
+                                'value': valueCtrl.text.trim(),
+                                'label': labelCtrl.text.trim(),
+                                'type': selectedType,
+                                'format': selectedFormat,
+                              }),
+                              title: 'API request · update',
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const AppDivider(),
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.xxl),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          AppButton(
+                            label: 'Cancel',
+                            onTap: isSubmitting
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(),
+                            style: AppButtonStyle.accent,
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          AppButton(
+                            label: 'Save Changes',
+                            busy: isSubmitting,
+                            onTap:
+                                (valueCtrl.text.trim().isEmpty ||
+                                    labelCtrl.text.trim().isEmpty ||
+                                    typeWarning != null)
+                                ? null
+                                : () async {
+                                    setSheetState(() {
+                                      isSubmitting = true;
+                                    });
+
+                                    final ok = await store
+                                        .updateRecord(record.id, {
+                                          'value': valueCtrl.text.trim(),
+                                          'label': labelCtrl.text.trim(),
+                                          'type': selectedType,
+                                          'format': selectedFormat,
+                                        });
+
+                                    if (ok && ctx.mounted) {
+                                      Navigator.of(sheetContext).pop();
+                                      AppToast.success(
+                                        context,
+                                        'Record updated successfully',
+                                      );
+                                    } else {
+                                      if (ctx.mounted) {
+                                        setSheetState(() {
+                                          isSubmitting = false;
+                                        });
+                                      }
+                                    }
+                                  },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteRecord(
+    BuildContext context,
+    VaultStore store,
+    String id,
+  ) async {
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Delete record',
+      message:
+          'This action cannot be undone. This will permanently delete the record.',
+      content: ApiPreview(
+        spec: VaultStore.deleteRecordSpec(id),
+        title: 'API request · delete',
+      ),
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+    final ok = await store.deleteRecord(id);
+    if (ok && context.mounted) {
+      AppToast.success(context, 'Record deleted successfully');
+    }
+  }
+
+  Future<void> _confirmDeleteSection(
+    BuildContext context,
+    VaultStore store,
+    String id,
+  ) async {
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Delete section',
+      message:
+          'This action cannot be undone. This will permanently delete '
+          'the section.',
+      content: ApiPreview(
+        spec: VaultStore.deleteSectionSpec(id),
+        title: 'API request · delete',
+      ),
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+    final ok = await store.deleteSection(id);
+    if (ok && context.mounted) {
+      AppToast.success(context, 'Section deleted successfully');
+    }
+  }
+}
+
+/// A tappable "N shares" pill that opens the who-has-access sheet.
+class _AccessTag extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const _AccessTag({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: AppRadius.allPill,
+      onTap: onTap,
+      child: AppBadge(
+        icon: AppIcons.share,
+        label: '$count ${count == 1 ? 'share' : 'shares'}',
+        accent: Theme.of(context).colorScheme.primary,
+      ),
+    );
+  }
+}
+
+/// Bottom sheet listing the active links that expose a vault entry or section,
+/// showing the domain behind each and a jump to manage it.
+void _showVaultAccessSheet(
+  BuildContext context, {
+  required String title,
+  required List<Link> links,
+}) {
+  final base = Stores.api.baseUrl;
+  final host = Uri.tryParse(base)?.host ?? '';
+  showAppSheet(
+    context: context,
+    builder: (sheetCtx) => Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xxs,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Who has access').header,
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            '${links.length} active link${links.length == 1 ? '' : 's'} '
+            'expose "$title".',
+          ).muted.small,
+          const SizedBox(height: AppSpacing.md),
+          for (final l in links)
+            _VaultAccessRow(
+              link: l,
+              host: host.isEmpty ? base : host,
+              onOpen: () {
+                Navigator.of(sheetCtx).pop();
+                context.go('${AppRoutes.shares}?filterSlug=${l.slug}');
+              },
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _VaultAccessRow extends StatelessWidget {
+  final Link link;
+  final String host;
+  final VoidCallback onOpen;
+  const _VaultAccessRow({
+    required this.link,
+    required this.host,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final label = link.label.isEmpty ? link.slug : link.label;
+    final kind = link.request.isEmpty ? 'Manual share' : 'From a request';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: InkWell(
+        borderRadius: AppRadius.allMd,
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.10),
+                  borderRadius: AppRadius.allMd,
+                ),
+                child: Icon(AppIcons.link, size: 18, color: scheme.primary),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ).small,
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      '$kind · $host/s/${link.slug}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ).mono.muted.small,
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Icon(
+                AppIcons.chevronRight,
+                size: 16,
+                color: scheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final Section section;
+  final List<models.Record> sectionRecords;
+  final VoidCallback onAddRecords;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+  final VoidCallback onDuplicate;
+  final bool isSelectableMode;
+  final bool isSelected;
+  final ValueChanged<bool>? onToggleSelect;
+  final Widget Function(models.Record) recordCardBuilder;
+
+  const _SectionCard({
+    required this.section,
+    required this.sectionRecords,
+    required this.onAddRecords,
+    required this.onRename,
+    required this.onDelete,
+    required this.onDuplicate,
+    required this.recordCardBuilder,
+    this.isSelectableMode = false,
+    this.isSelected = false,
+    this.onToggleSelect,
+  });
+
+  List<AppSheetAction> _sectionActions() => [
+    AppSheetAction(
+      icon: AppIcons.plusSlashMinus,
+      label: 'Add or remove records',
+      primary: true,
+      onTap: onAddRecords,
+    ),
+    AppSheetAction(icon: AppIcons.pen, label: 'Rename', onTap: onRename),
+    AppSheetAction(
+      icon: AppIcons.nodePlus,
+      label: 'Duplicate',
+      onTap: onDuplicate,
+    ),
+    AppSheetAction(
+      icon: AppIcons.trash,
+      label: 'Delete',
+      destructive: true,
+      onTap: onDelete,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final tags = <Widget>[
+      AppBadge(
+        icon: AppIcons.cardList,
+        label: '${section.records.length} records',
+      ),
+      if (section.isRequested)
+        AppBadge(
+          icon: AppIcons.inboxFill,
+          label: 'Requested by ${section.requestedBy}',
+        ),
+    ];
+
+    final accessLinks = Stores.shares.linksForSection(section.id);
+    if (accessLinks.isNotEmpty) {
+      tags.add(
+        _AccessTag(
+          count: accessLinks.length,
+          onTap: () => _showVaultAccessSheet(
+            context,
+            title: section.name.isEmpty ? section.key : section.name,
+            links: accessLinks,
+          ),
+        ),
+      );
+    }
+
+    return AppEntityCard(
+      icon: AppIcons.folder,
+      leading: isSelectableMode
+          ? AppCheckbox(
+              value: isSelected,
+              onChanged: (value) => onToggleSelect?.call(value ?? false),
+            )
+          : null,
+      title: section.name,
+      subtitle: section.key,
+      subtitleMono: true,
+      date: AppEntityCard.formatDate(section.created),
+      tags: tags,
+      expandedBody: sectionRecords.isEmpty
+          ? const Text('No records in this section yet.').muted.small
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final record in sectionRecords) recordCardBuilder(record),
+              ],
+            ),
+      actions: isSelectableMode ? const [] : _sectionActions(),
+    );
+  }
+}
+
+class _RecordCard extends StatefulWidget {
+  final dynamic record;
+  final bool isSelectableMode;
+  final bool isSelected;
+  final ValueChanged<bool>? onToggleSelect;
+  final VoidCallback onCopy;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onDuplicate;
+
+  const _RecordCard({
+    required this.record,
+    this.isSelectableMode = false,
+    this.isSelected = false,
+    this.onToggleSelect,
+    required this.onCopy,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onDuplicate,
+  });
+
+  @override
+  State<_RecordCard> createState() => _RecordCardState();
+}
+
+class _RecordCardState extends State<_RecordCard> {
+  bool _isObscured = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _isObscured = widget.record.isHidden;
+  }
+
+  @override
+  void didUpdateWidget(covariant _RecordCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.record.id != oldWidget.record.id ||
+        widget.record.isHidden != oldWidget.record.isHidden) {
+      _isObscured = widget.record.isHidden;
+    }
+  }
+
+  List<AppSheetAction> _recordActions() {
+    return [
+      AppSheetAction(
+        icon: AppIcons.copy,
+        label: 'Copy value',
+        primary: true,
+        onTap: widget.onCopy,
+      ),
+      AppSheetAction(icon: AppIcons.pen, label: 'Edit', onTap: widget.onEdit),
+      AppSheetAction(
+        icon: AppIcons.nodePlus,
+        label: 'Duplicate',
+        onTap: widget.onDuplicate,
+      ),
+      AppSheetAction(
+        icon: AppIcons.trash,
+        label: 'Delete',
+        destructive: true,
+        onTap: widget.onDelete,
+      ),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isSelectableMode) return _buildSelectable(context);
+
+    final r = widget.record;
+    final tags = <Widget>[AppBadge(label: r.type)];
+    if (r.isHidden) {
+      tags.add(const AppBadge(icon: AppIcons.eyeSlash, label: 'Hidden'));
+    }
+    if (r.isAlias) {
+      tags.add(const AppBadge(icon: AppIcons.link, label: 'Alias'));
+    }
+    if (r.isRequested) {
+      tags.add(
+        AppBadge(
+          icon: AppIcons.inboxFill,
+          label: 'Requested by ${r.requestedBy}',
+        ),
+      );
+    }
+
+    final accessLinks = Stores.shares.linksForRecord(r.id);
+    if (accessLinks.isNotEmpty) {
+      tags.add(
+        _AccessTag(
+          count: accessLinks.length,
+          onTap: () => _showVaultAccessSheet(
+            context,
+            title: r.label.isEmpty ? r.key : r.label,
+            links: accessLinks,
+          ),
+        ),
+      );
+    }
+
+    return AppEntityCard(
+      icon: AppIcons.key,
+      title: r.label,
+      subtitle: r.key,
+      subtitleMono: true,
+      date: AppEntityCard.formatDate(r.created),
+      body: _valueBox(context),
+      tags: tags,
+      actions: _recordActions(),
+    );
+  }
+
+  /// Resolves an alias record to its parent (value carrier) within the loaded
+  /// vault, so the value box shows the forwarded value instead of nothing.
+  models.Record? _aliasParent(BuildContext context) {
+    final id = widget.record.aliasOf as String?;
+    if (id == null || id.isEmpty) return null;
+    for (final p in Stores.vault.records) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  Widget _valueBox(BuildContext context) {
+    final theme = Theme.of(context);
+    final isHiddenFormat = widget.record.isHidden;
+    // Aliases carry no value of their own — show the parent's (forwarded) value.
+    final value = widget.record.isAlias
+        ? (_aliasParent(context)?.value ?? '')
+        : widget.record.value as String;
+    final display = value.isEmpty ? '—' : value;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: AppRadius.allSm,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _isObscured ? '••••••••••••••••' : display,
+            ).mono.muted.small,
+          ),
+          if (isHiddenFormat) ...[
+            const SizedBox(width: AppSpacing.sm),
+            AppButton(
+              icon: _isObscured ? AppIcons.eye : AppIcons.eyeSlash,
+              tooltip: _isObscured ? 'Show' : 'Hide',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () => setState(() => _isObscured = !_isObscured),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectable(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppCheckbox(
+              value: widget.isSelected,
+              onChanged: (value) => widget.onToggleSelect?.call(value ?? false),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.record.label),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(widget.record.key).mono.muted.small,
+                ],
+              ),
+            ),
+            AppBadge(label: widget.record.type),
+            if (widget.record.isHidden) ...[
+              const SizedBox(width: AppSpacing.xs),
+              const AppBadge(label: 'hidden', variant: AppBadgeVariant.outline),
+            ],
+            if (widget.record.isAlias) ...[
+              const SizedBox(width: AppSpacing.xs),
+              const AppBadge(label: 'alias', variant: AppBadgeVariant.outline),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The tinted square behind each choice in the "Create New" sheet.
+class _CreateChoiceIcon extends StatelessWidget {
+  final IconData icon;
+  const _CreateChoiceIcon({required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.1),
+        borderRadius: AppRadius.allSm,
+      ),
+      child: Icon(icon, color: scheme.primary),
+    );
+  }
+}

@@ -1,0 +1,13 @@
+# The build needs the Go module only; everything else is noise that would bust
+# the layer cache on every unrelated change.
+app/
+tests/pb_test_data/
+pb_data/
+.env
+.git/
+.github/
+.idea/
+*.md
+Dockerfile
+docker-compose.yml
+deploy/

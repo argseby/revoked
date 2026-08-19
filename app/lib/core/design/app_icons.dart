@@ -1,0 +1,77 @@
+import 'package:flutter/material.dart';
+
+/// Maps the Bootstrap icon names the app used (via shadcn_flutter) onto the
+/// closest Material Icons. Keeping the original camelCase names means the
+/// migration was a pure prefix swap at call sites: `BootstrapIcons.x` ->
+/// `AppIcons.x`. All values are standard Material 3 icons.
+abstract class AppIcons {
+  static const IconData arrowClockwise = Icons.refresh;
+  static const IconData arrowRepeat = Icons.autorenew;
+  static const IconData arrowLeft = Icons.arrow_back;
+  static const IconData arrowRight = Icons.arrow_forward;
+  static const IconData bell = Icons.notifications_outlined;
+  static const IconData bellSlash = Icons.notifications_off_outlined;
+  static const IconData boxArrowLeft = Icons.logout;
+  static const IconData brightnessAuto = Icons.brightness_auto_outlined;
+  static const IconData brightnessDark = Icons.dark_mode_outlined;
+  static const IconData brightnessLight = Icons.light_mode_outlined;
+  static const IconData cardList = Icons.list_alt;
+  static const IconData check = Icons.check;
+  static const IconData checkCircle = Icons.check_circle_outline;
+  static const IconData chevronDown = Icons.keyboard_arrow_down;
+  static const IconData chevronLeft = Icons.chevron_left;
+  static const IconData chevronRight = Icons.chevron_right;
+  static const IconData chevronUp = Icons.keyboard_arrow_up;
+  static const IconData circle = Icons.circle_outlined;
+  static const IconData clock = Icons.schedule;
+  static const IconData collection = Icons.collections_bookmark_outlined;
+  static const IconData copy = Icons.content_copy;
+  static const IconData exclamation = Icons.priority_high;
+  static const IconData exclamationOctagon = Icons.report_outlined;
+  static const IconData exclamationTriangle = Icons.warning_amber_rounded;
+  static const IconData eye = Icons.visibility_outlined;
+  static const IconData eyeSlash = Icons.visibility_off_outlined;
+  static const IconData filePlus = Icons.note_add_outlined;
+  static const IconData fileText = Icons.description_outlined;
+  static const IconData folder = Icons.folder_outlined;
+  static const IconData folderPlus = Icons.create_new_folder_outlined;
+  static const IconData folderSymlink = Icons.drive_file_move_outlined;
+  static const IconData funnel = Icons.filter_alt_outlined;
+  static const IconData funnelFill = Icons.filter_alt;
+  static const IconData hash = Icons.numbers;
+  static const IconData inboxFill = Icons.inbox;
+  static const IconData info = Icons.info_outline;
+  static const IconData key = Icons.key_outlined;
+  static const IconData lightbulb = Icons.lightbulb_outline;
+  static const IconData link = Icons.link;
+  static const IconData linkSlash = Icons.link_off;
+  static const IconData lock = Icons.lock_outline;
+  static const IconData server = Icons.dns_outlined;
+  static const IconData nodePlus = Icons.hub_outlined;
+  static const IconData pause = Icons.pause;
+  static const IconData pen = Icons.edit_outlined;
+  static const IconData pencil = Icons.edit;
+  static const IconData personBoundingBox = Icons.account_box_outlined;
+  static const IconData envelope = Icons.alternate_email;
+  static const IconData personGear = Icons.manage_accounts_outlined;
+  static const IconData personWorkspace = Icons.workspaces_outlined;
+  static const IconData play = Icons.play_arrow;
+  static const IconData plus = Icons.add;
+  static const IconData plusSlashMinus = Icons.exposure;
+  static const IconData recordCircleFill = Icons.fiber_manual_record;
+  static const IconData safe = Icons.shield_outlined;
+  static const IconData search = Icons.search;
+  static const IconData send = Icons.send_outlined;
+  static const IconData share = Icons.share_outlined;
+  static const IconData shieldCheck = Icons.verified_user_outlined;
+  static const IconData shieldLock = Icons.gpp_good_outlined;
+  static const IconData sortDown = Icons.arrow_downward;
+  static const IconData stars = Icons.auto_awesome;
+  static const IconData tag = Icons.sell_outlined;
+  static const IconData table = Icons.table_chart_outlined;
+  static const IconData globe = Icons.public_outlined;
+  static const IconData threeDotsVertical = Icons.more_vert;
+  static const IconData trash = Icons.delete_outline;
+  static const IconData x = Icons.close;
+  static const IconData xCircle = Icons.cancel_outlined;
+}

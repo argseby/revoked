@@ -1,0 +1,148 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  repository-projects: write
+
+jobs:
+  release:
+    name: Bump Version & Tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          TAG=$(git tag --sort=-v:refname | head -n 1)
+          if [ -z "$TAG" ]; then
+            TAG="v0.0.0"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $TAG"
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          LATEST=${{ steps.latest_tag.outputs.tag }}
+          
+          # Range safety for first run
+          if git rev-parse "$LATEST" >/dev/null 2>&1; then
+            RANGE="${LATEST}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+          
+          COMMITS=$(git log $RANGE --pretty=format:"%s")
+          
+          BUMP="patch"
+          if echo "$COMMITS" | grep -qiE "^breaking(\(.+\))?!?:"; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          fi
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
+          echo "Bump level: $BUMP"
+
+      - name: Calculate new version
+        id: version
+        run: |
+          LATEST=${{ steps.latest_tag.outputs.tag }}
+          BUMP=${{ steps.bump.outputs.bump }}
+          
+          VERSION=${LATEST#v}
+          MAJOR=$(echo $VERSION | cut -d. -f1 || echo 0)
+          MINOR=$(echo $VERSION | cut -d. -f2 || echo 0)
+          PATCH=$(echo $VERSION | cut -d. -f3 || echo 0)
+          
+          if [ "$BUMP" = "major" ]; then
+            if [ "$MAJOR" -eq 0 ]; then
+              # DEV GUARD: Stay in 0.x.x range for breaking changes
+              MINOR=$((MINOR + 1)); PATCH=0
+            else
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+            fi
+          elif [ "$BUMP" = "minor" ]; then
+            MINOR=$((MINOR + 1)); PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LATEST=${{ steps.latest_tag.outputs.tag }}
+          NEW=${{ steps.version.outputs.new_version }}
+          DATE=$(date +%Y-%m-%d)
+          
+          if git rev-parse "$LATEST" >/dev/null 2>&1; then
+            RANGE="${LATEST}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+          
+          echo "## ${NEW} (${DATE})" > NEW_ENTRY.md
+          echo "" >> NEW_ENTRY.md
+          
+          git log $RANGE --pretty=format:"- %s" > all_commits.txt
+          
+          if grep -qiE "^- breaking" all_commits.txt; then
+            echo "### ⚠️ Breaking Changes" >> NEW_ENTRY.md
+            grep -iE "^- breaking" all_commits.txt >> NEW_ENTRY.md
+            echo "" >> NEW_ENTRY.md
+          fi
+          
+          if grep -qiE "^- feat" all_commits.txt; then
+            echo "### ✨ Features" >> NEW_ENTRY.md
+            grep -iE "^- feat" all_commits.txt >> NEW_ENTRY.md
+            echo "" >> NEW_ENTRY.md
+          fi
+          
+          if grep -qiE "^- fix" all_commits.txt; then
+            echo "### 🐛 Bug Fixes" >> NEW_ENTRY.md
+            grep -iE "^- fix" all_commits.txt >> NEW_ENTRY.md
+            echo "" >> NEW_ENTRY.md
+          fi
+          
+          touch CHANGELOG.md
+          echo -e "---\n" >> NEW_ENTRY.md
+          cat NEW_ENTRY.md CHANGELOG.md > temp_changelog.md
+          mv temp_changelog.md CHANGELOG.md
+
+      - name: Commit changelog & tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore: release ${{ steps.version.outputs.new_version }} [skip ci]"
+          git tag ${{ steps.version.outputs.new_version }} -m "Release ${{ steps.version.outputs.new_version }}"
+          git push origin main --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.new_version }}
+          generate_release_notes: true
+          body_path: NEW_ENTRY.md
+
+      - name: Trigger docs rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+          repository: revokedlink/docs
+          event-type: api-released
+          client-payload: '{"version": "${{ steps.version.outputs.new_version }}"}'

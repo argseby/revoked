@@ -1,0 +1,318 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:revoked_app/core/config/app_config.dart';
+
+/// Exception thrown when an API call fails.
+///
+/// `code` mirrors the stable error codes emitted by the backend's
+/// `appErrorResponse` helper (e.g. `link_password_required`,
+/// `handshake_invalid`, `request_completed`). Code is empty when the
+/// server returned a non-coded error (PocketBase's generic envelope).
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+  final String code;
+  final Map<String, dynamic>? data;
+
+  ApiException(this.statusCode, this.message, {this.code = '', this.data});
+
+  @override
+  String toString() =>
+      'ApiException($statusCode${code.isEmpty ? '' : ', $code'}): $message';
+}
+
+/// Represents an API response with both the decoded body and raw headers.
+class ApiResponse {
+  final dynamic body;
+  final Map<String, String> headers;
+
+  ApiResponse(this.body, this.headers);
+}
+
+/// Low-level HTTP client for PocketBase API.
+/// Handles auth token injection and response parsing.
+class ApiClient {
+  final http.Client _httpClient;
+  final FlutterSecureStorage _secure;
+
+  static const _tokenKey = 'pb_auth_token';
+  static const _userKey = 'pb_user_data';
+  static const _baseUrlKey = 'server_base_url';
+
+  /// Prefix of the per-slug handshake tokens. They authorise a specific
+  /// viewer against a specific link, so they are account state and must not
+  /// outlive a session on a shared device.
+  static const handshakeKeyPrefix = 'handshake_';
+
+  /// Every request is bounded. A server that accepts the connection and then
+  /// stalls would otherwise leave the caller waiting forever, which on the
+  /// startup path meant a permanently blank screen.
+  static const Duration timeout = Duration(seconds: 15);
+
+  String? _authToken;
+  Map<String, dynamic>? _userData;
+  String _baseUrl = AppConfig.baseUrl;
+
+  /// Called when the server rejects our credentials mid-session, so the app
+  /// can drop to the login screen instead of showing error toasts forever.
+  void Function()? onUnauthorized;
+
+  ApiClient({http.Client? httpClient, FlutterSecureStorage? secureStorage})
+    : _httpClient = httpClient ?? http.Client(),
+      _secure = secureStorage ?? const FlutterSecureStorage();
+
+  /// Current backend base URL. Persisted and user-configurable from the login
+  /// screen's server settings; defaults to [AppConfig.baseUrl].
+  String get baseUrl => _baseUrl;
+
+  /// The compiled-in default base URL (for "reset to default").
+  String get defaultBaseUrl => AppConfig.baseUrl;
+  String? get authToken => _authToken;
+  Map<String, dynamic>? get userData => _userData;
+  bool get isAuthenticated => _authToken != null && _authToken!.isNotEmpty;
+
+  /// Load persisted auth state. The session token and the cached user record
+  /// live in the keychain, not in preferences: a token is a bearer credential
+  /// for the whole account, and preferences are world-readable on a rooted
+  /// device and swept up by backups.
+  Future<void> loadAuthState() async {
+    _authToken = await _secure.read(key: _tokenKey);
+    final userJson = await _secure.read(key: _userKey);
+    if (userJson != null) {
+      _userData = jsonDecode(userJson) as Map<String, dynamic>;
+    }
+
+    // Anything left in preferences by a build that stored it there.
+    final prefs = await SharedPreferences.getInstance();
+    if (_authToken == null) {
+      final legacy = prefs.getString(_tokenKey);
+      final legacyUser = prefs.getString(_userKey);
+      if (legacy != null) {
+        _authToken = legacy;
+        await _secure.write(key: _tokenKey, value: legacy);
+      }
+      if (legacyUser != null) {
+        _userData = jsonDecode(legacyUser) as Map<String, dynamic>;
+        await _secure.write(key: _userKey, value: legacyUser);
+      }
+    }
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
+  }
+
+  /// Persist auth state.
+  Future<void> saveAuthState(String token, Map<String, dynamic> user) async {
+    _authToken = token;
+    _userData = user;
+    await _secure.write(key: _tokenKey, value: token);
+    await _secure.write(key: _userKey, value: jsonEncode(user));
+  }
+
+  /// Clear auth state, including the per-link handshake tokens. Those are
+  /// tied to whoever was signed in: left behind, the next account on the
+  /// device inherits access to the links the previous one unlocked.
+  Future<void> clearAuthState() async {
+    _authToken = null;
+    _userData = null;
+    await _secure.delete(key: _tokenKey);
+    await _secure.delete(key: _userKey);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
+    for (final key in prefs.getKeys().toList()) {
+      if (key.startsWith(handshakeKeyPrefix)) await prefs.remove(key);
+    }
+  }
+
+  /// Load the persisted backend base URL (falls back to the compiled default).
+  /// Call once at startup before any request.
+  Future<void> loadServerConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_baseUrlKey);
+    if (saved != null && saved.trim().isNotEmpty) {
+      _baseUrl = saved.trim();
+    }
+  }
+
+  /// Point the client at a new backend and persist it. Returns the normalized
+  /// URL that was stored.
+  Future<String> setBaseUrl(String raw) async {
+    final normalized = normalizeServerUrl(raw);
+    _baseUrl = normalized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_baseUrlKey, normalized);
+    return normalized;
+  }
+
+  /// Normalizes a user-entered server address into a base URL: prepends a
+  /// scheme when missing (http:// for a bare host/IP) and strips a trailing
+  /// slash. Empty input falls back to the compiled default.
+  static String normalizeServerUrl(String raw) {
+    var s = raw.trim();
+    if (s.isEmpty) return AppConfig.baseUrl;
+    if (!s.startsWith('http://') && !s.startsWith('https://')) {
+      s = 'http://$s';
+    }
+    while (s.endsWith('/')) {
+      s = s.substring(0, s.length - 1);
+    }
+    return s;
+  }
+
+  Map<String, String> _buildHeaders([Map<String, String>? extra]) => {
+    'Content-Type': 'application/json',
+    if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+    ...?extra,
+  };
+
+  /// GET request.
+  Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
+    final uri = Uri.parse(
+      '$baseUrl$path',
+    ).replace(queryParameters: queryParams);
+    final response = await _send(
+      _httpClient.get(uri, headers: _buildHeaders()),
+    );
+    return _handleResponse(response);
+  }
+
+  /// GET request returning both body and headers.
+  Future<ApiResponse> getWithHeaders(
+    String path, {
+    Map<String, String>? queryParams,
+    Map<String, String>? headers,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl$path',
+    ).replace(queryParameters: queryParams);
+    final response = await _send(
+      _httpClient.get(uri, headers: _buildHeaders(headers)),
+    );
+    final decodedBody = _handleResponse(response);
+    return ApiResponse(decodedBody, response.headers);
+  }
+
+  /// POST request.
+  Future<dynamic> post(String path, {Map<String, dynamic>? body}) async {
+    final response = await postWithHeaders(path, body: body);
+    return response.body;
+  }
+
+  /// POST request returning both body and headers.
+  Future<ApiResponse> postWithHeaders(
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await _send(
+      _httpClient.post(
+        uri,
+        headers: _buildHeaders(headers),
+        body: body != null ? jsonEncode(body) : null,
+      ),
+    );
+    final decodedBody = _handleResponse(response);
+    return ApiResponse(decodedBody, response.headers);
+  }
+
+  /// PATCH request.
+  Future<dynamic> patch(String path, {Map<String, dynamic>? body}) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await _send(
+      _httpClient.patch(
+        uri,
+        headers: _buildHeaders(),
+        body: body != null ? jsonEncode(body) : null,
+      ),
+    );
+    return _handleResponse(response);
+  }
+
+  /// DELETE request.
+  Future<dynamic> delete(String path) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final response = await _send(
+      _httpClient.delete(uri, headers: _buildHeaders()),
+    );
+    if (response.statusCode == 204) return null;
+    return _handleResponse(response);
+  }
+
+  /// Bounds a request and turns a timeout into an ApiException, so callers
+  /// see one failure type rather than a TimeoutException leaking through.
+  Future<http.Response> _send(Future<http.Response> request) async {
+    try {
+      return await request.timeout(timeout);
+    } on TimeoutException {
+      throw ApiException(
+        408,
+        'The server did not respond in time.',
+        code: 'request_timeout',
+      );
+    }
+  }
+
+  dynamic _handleResponse(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isEmpty) return null;
+      return jsonDecode(response.body);
+    }
+
+    String message = 'Request failed';
+    String code = '';
+    Map<String, dynamic>? data;
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        data = decoded;
+        // Custom app-error envelope: {"code": "...", "message": "...", "status": int}
+        if (decoded['code'] is String &&
+            (decoded['code'] as String).isNotEmpty) {
+          code = decoded['code'] as String;
+        }
+        if (decoded['message'] is String) {
+          message = decoded['message'] as String;
+        }
+        // Hooks carry their code one level down, as
+        // {"data": {"<field>": {"code": "...", "message": "..."}}} — the shape
+        // PocketBase gives a validation error. Without this the typed codes
+        // the backend goes to the trouble of emitting never reach the app.
+        if (code.isEmpty && decoded['data'] is Map<String, dynamic>) {
+          for (final entry
+              in (decoded['data'] as Map<String, dynamic>).values) {
+            if (entry is Map<String, dynamic> &&
+                entry['code'] is String &&
+                (entry['code'] as String).isNotEmpty) {
+              code = entry['code'] as String;
+              if (entry['message'] is String) {
+                message = entry['message'] as String;
+              }
+              break;
+            }
+          }
+        }
+      }
+    } catch (_) {
+      // body wasn't JSON; keep generic message
+    }
+
+    // A rejected session is not a per-screen error: without this every screen
+    // shows its own failure toast forever while the session stays dead.
+    if (response.statusCode == 401 && isAuthenticated) {
+      onUnauthorized?.call();
+    }
+
+    throw ApiException(response.statusCode, message, code: code, data: data);
+  }
+
+  void dispose() {
+    _httpClient.close();
+  }
+}
