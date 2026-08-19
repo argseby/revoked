@@ -1,14 +1,19 @@
 
 > [!WARNING]
-> Back in 2019 I've participated in a founding competition with this idea, that I now developed in GO and Flutter. It's actively maintained and developed, but more as **Proof-of-Concept**, than a ready to run **SAAS**. Feel free to use it for your use-cases.
+> While this project is in active development, it's more a **proof-of-concept**. Feel free to use it for your use-cases, but don't expect production-ready support.
 <div align="center">
   <h1>revoked</h1>
 
 [![License: ELv2](https://img.shields.io/badge/License-Elastic_v2-blue.svg)](https://www.elastic.co/licensing/elastic-license)
 [![Status: Experimental](https://img.shields.io/badge/status-experimental-yellow)](#)
+[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](#)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#)
+
+
+
 </div>
 
-**Revoked** replaces stale copies of data with a reference, that resolves its current value at read time and stops working the moment you revoke it. While the idea is not new, the following table describes the features my implementation tries to solve.
+Revoked replaces stale copies of data with a reference that resolves its current value at read time and stops working the moment you revoke it. Everything lives in your own self-hosted instance under your own domain — recipients hold a link, never your data, so what they see is always current and never leaves your control. Shares and Requests are the same revocable contract, each one bound to a cryptographic identity anchored in your domain's DNS, so both sides can prove who is really asking before anyone answers.
 
 | Area           | Feature                   | What it does                                                                                                                              |
 |----------------|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
