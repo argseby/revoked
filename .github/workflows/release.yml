@@ -13,6 +13,8 @@ jobs:
   release:
     name: Bump Version & Tag
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.new_version }}
 
     steps:
       - name: Checkout
@@ -146,3 +148,13 @@ jobs:
           repository: revokedlink/docs
           event-type: api-released
           client-payload: '{"version": "${{ steps.version.outputs.new_version }}"}'
+
+  desktop:
+    name: Desktop builds
+    needs: release
+    if: needs.release.outputs.version != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/desktop.yml
+    with:
+      tag: ${{ needs.release.outputs.version }}

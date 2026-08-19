@@ -1,8 +1,26 @@
 name: Desktop builds
 on:
+  # Called by release.yml straight after it tags. A tag pushed with
+  # GITHUB_TOKEN raises no push event — GitHub suppresses it to stop workflows
+  # triggering each other — so waiting for `push: tags` never fired.
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag to attach the builds to.
+        type: string
+        required: true
+  # For a tag pushed by a person, which is not suppressed.
   push:
     tags: ['v*']
+  # Manual run. Give it an existing tag to attach the builds to that release;
+  # leave it empty to just build and leave the artifacts on the run summary.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish to (e.g. v0.2.0). Empty = build only.'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -74,7 +92,9 @@ jobs:
   release:
     name: Attach to the release
     needs: [linux, windows]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Skipped on a manual run, which has no tag to attach to; the artifacts
+    # are still on the run summary.
+    if: inputs.tag != '' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -84,5 +104,6 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: dist/*
           fail_on_unmatched_files: true
