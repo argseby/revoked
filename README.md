@@ -44,6 +44,7 @@
 | `cmd/`, `util/`, `migrations/`, `tests/` | The Go API, built on [PocketBase](https://pocketbase.io) |
 | `app/` | The Flutter client (Android, iOS, macOS, Linux) |
 | `deploy/`, `Dockerfile`, `docker-compose.yml` | Running it on a server |
+| `app/packaging/` | Desktop scheme registration and install helpers |
 
 ## Development
 
@@ -106,6 +107,28 @@ challenge path already wired up.
 Use a **git-backed** stack, not the web editor — `build: .` needs the
 repository as its build context. Compose path `docker-compose.yml`, and put the
 `.env` values in Portainer's *Environment variables* section.
+
+## Desktop downloads
+
+Tagging `v*` builds Linux and Windows bundles and attaches them to the release
+(`.github/workflows/desktop.yml`). Flutter cannot cross-compile a desktop
+target, so each is built on its own runner.
+
+Both need one manual step after extraction, because a desktop build does not
+register a URL scheme by itself — and without it every `revoked://` link the
+product hands out silently does nothing:
+
+```sh
+./packaging/install.sh                      # Linux: installs to ~/.local and registers the scheme
+```
+
+On Windows, run an installer or apply `packaging/register-scheme.reg` with the
+paths edited to match where you extracted it. See `app/packaging/README.md`.
+
+Linux needs `libsecret` at runtime (GNOME Keyring or KWallet); without it the
+app runs but cannot store an identity's private key. Windows builds are
+unsigned unless a certificate is configured, so SmartScreen will warn on first
+run.
 
 ## After the first boot
 

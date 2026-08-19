@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00
+
+; Registers revoked:// so the links this product hands out actually open the
+; app. An installer normally writes this; if you extracted the zip by hand,
+; edit both paths to match where you put it, then double-click this file.
+[HKEY_CURRENT_USER\Software\Classes\revoked]
+@="URL:Revoked Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\revoked\DefaultIcon]
+@="\"C:\\Program Files\\Revoked\\revoked_app.exe\",0"
+
+[HKEY_CURRENT_USER\Software\Classes\revoked\shell\open\command]
+@="\"C:\\Program Files\\Revoked\\revoked_app.exe\" \"%1\""

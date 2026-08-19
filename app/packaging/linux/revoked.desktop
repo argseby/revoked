@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Revoked
+Comment=Share and collect data as revocable, always-current grants
+Exec=revoked %u
+Icon=revoked
+Terminal=false
+Categories=Utility;Security;Network;
+# Without this the app installs and runs, but every revoked:// link the
+# product hands out is inert — the same failure Android had before its intent
+# filter existed. %u above passes the URL through to the running instance.
+MimeType=x-scheme-handler/revoked;
