@@ -52,24 +52,16 @@ abstract class AppRoutes {
 class AppRouter {
   AppRouter._();
 
+  /// Where the app was headed when it was sent to the splash. A deep link
+  /// arrives on the first frame, before the stored session has been checked,
+  /// so the destination has to survive that wait.
+  static String? _pendingLocation;
+
   static GoRouter create(AuthStore authStore) {
     return GoRouter(
       initialLocation: AppRoutes.vault,
       refreshListenable: _AuthRefreshNotifier(authStore),
       redirect: (context, state) {
-        // Until the stored session has been checked, "logged out" is not yet
-        // true — routing on it would bounce a returning user to the login
-        // screen for as long as the refresh takes.
-        if (!authStore.isInitialized) {
-          return state.matchedLocation == AppRoutes.splash
-              ? null
-              : AppRoutes.splash;
-        }
-        if (state.matchedLocation == AppRoutes.splash) {
-          return authStore.isAuthenticated ? AppRoutes.vault : AppRoutes.login;
-        }
-
-        final isLoggedIn = authStore.isAuthenticated;
         bool isPublic(String s) =>
             s.startsWith('/share/') ||
             s.startsWith('/request/') ||
@@ -78,6 +70,31 @@ class AppRouter {
             s.startsWith('/i/');
         final isPublicRoute =
             isPublic(state.matchedLocation) || isPublic(state.uri.path);
+
+        // Until the stored session has been checked, "logged out" is not yet
+        // true — routing on it would bounce a returning user to the login
+        // screen for as long as the refresh takes.
+        //
+        // A public route is exempt: it needs no session, and sending it to the
+        // splash discarded where it was going. That is what stopped a
+        // revoked:// link opening the request it named — the link arrives on
+        // the first frame, before the session check has finished.
+        if (!authStore.isInitialized && !isPublicRoute) {
+          if (state.matchedLocation != AppRoutes.splash) {
+            _pendingLocation = state.uri.toString();
+            return AppRoutes.splash;
+          }
+          return null;
+        }
+        if (state.matchedLocation == AppRoutes.splash) {
+          // Resume whatever was asked for before the session was known.
+          final pending = _pendingLocation;
+          _pendingLocation = null;
+          if (pending != null && pending != AppRoutes.splash) return pending;
+          return authStore.isAuthenticated ? AppRoutes.vault : AppRoutes.login;
+        }
+
+        final isLoggedIn = authStore.isAuthenticated;
         final isAuthRoute =
             state.matchedLocation == AppRoutes.login ||
             state.matchedLocation == AppRoutes.register;
