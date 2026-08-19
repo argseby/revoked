@@ -1,3 +1,11 @@
+## v0.4.0 (2026-08-19)
+
+### ✨ Features
+- feat(deploy): added routing test
+- feat(deploy): force single instance for linux&windows and remember link on router
+
+---
+
 ## v0.3.0 (2026-08-19)
 
 ### ✨ Features
