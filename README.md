@@ -174,15 +174,29 @@ keep it to itself: it is the one file whose disclosure cannot be undone.
 
 ## Contributing
 
-[Conventional Commits](https://www.conventionalcommits.org); the release
-workflow derives the version bump from them.
+[Conventional Commits](https://www.conventionalcommits.org), written as
+`type(scope): message` — the scope is a free-form label (`app`, `api`,
+`docs`, `site`, …) and never affects versioning; only the **type** does.
 
-| Prefix | Bump |
-|---|---|
-| `fix:` | patch |
-| `feat:` | minor |
-| `breaking:` | major |
-| `chore:` / `docs:` | none |
+| Type | Version bump | Lands in the changelog as |
+|---|---|---|
+| `breaking:` (or `breaking!:`) | major (minor while still 0.x) | ⚠️ Breaking Changes |
+| `feat:` | minor | ✨ Features |
+| `fix:` | patch | 🐛 Bug Fixes |
+| `docs:` `chore:` `ci:` `refactor:` `test:` `style:` `perf:` | **none — no release** | not listed |
+
+A push to `main` whose commits contain no `fix`/`feat`/`breaking` produces
+no tag and no release at all.
+
+**What runs when:**
+
+- **Every PR and push** (`main`/`dev`): CI — Go build + tests, Flutter
+  analyze + tests.
+- **Merge to `main` with a `fix`/`feat`/`breaking` commit**: the release
+  workflow tags, writes the changelog, creates the GitHub release, then
+  builds the Linux and Windows desktop apps and attaches them to it.
+- **Merge to `main` touching only `docs/`**: the docs site redeploys to
+  Pages; no version, no release, no desktop builds.
 
 Work on `dev` or `type/short-description` branches and open a PR into `dev`.
 `main` is protected and triggers releases.
