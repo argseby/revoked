@@ -13,7 +13,6 @@ import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
@@ -24,6 +23,7 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/widgets/qr_sheet.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 
@@ -101,12 +101,6 @@ class _SharesScreenState extends State<SharesScreen> {
                           DataTableColumn(value: 'slug', label: 'Slug'),
                           DataTableColumn(value: 'status', label: 'Status'),
                         ],
-                      ),
-
-                      AppButton(
-                        icon: AppIcons.plus,
-                        tooltip: 'New share link',
-                        onTap: () => openShareCreateSheet(context: context),
                       ),
                     ],
                   );
@@ -291,6 +285,13 @@ class _ShareCard extends StatelessWidget {
           Clipboard.setData(ClipboardData(text: publicUrl));
           AppToast.success(context, 'Copied share link to clipboard');
         },
+      ),
+      AppSheetAction(
+        icon: AppIcons.qrCode,
+        label: 'QR code',
+        enabled: isActive,
+        onTap: () =>
+            showQrSheet(context: context, title: 'Share link', link: publicUrl),
       ),
       AppSheetAction(
         icon: AppIcons.funnel,
