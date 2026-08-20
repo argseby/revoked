@@ -129,12 +129,16 @@ jobs:
             exit 0
           fi
           echo "$KEYSTORE_B64" | base64 -d > android/release.jks
-          cat > android/key.properties <<EOF
-          storeFile=release.jks
-          storePassword=$STORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          EOF
+          # Java .properties treats a backslash as an escape, so a password
+          # containing one arrives at Gradle mangled and the keystore is
+          # rejected. Escape it rather than constrain what passwords work.
+          esc() { printf '%s' "${1//\\/\\\\}"; }
+          {
+            printf 'storeFile=release.jks\n'
+            printf 'storePassword=%s\n' "$(esc "$STORE_PASSWORD")"
+            printf 'keyPassword=%s\n' "$(esc "$KEY_PASSWORD")"
+            printf 'keyAlias=%s\n' "$(esc "$KEY_ALIAS")"
+          } > android/key.properties
           echo "signed=true" >> $GITHUB_OUTPUT
 
       - run: flutter pub get
