@@ -150,3 +150,11 @@ doc/api/
 site/
 .venv/
 __pycache__/
+
+# Android release signing - written by CI from secrets, never committed.
+key.properties
+*.jks
+*.keystore
+# Any loose file holding a keystore password.
+keystore
+keystore.txt

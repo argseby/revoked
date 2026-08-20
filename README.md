@@ -113,11 +113,29 @@ Use a **git-backed** stack, not the web editor — `build: .` needs the
 repository as its build context. Compose path `docker-compose.yml`, and put the
 `.env` values in Portainer's *Environment variables* section.
 
-## Desktop downloads
+## Downloads
 
-Tagging `v*` builds Linux and Windows bundles and attaches them to the release
-(`.github/workflows/desktop.yml`). Flutter cannot cross-compile a desktop
-target, so each is built on its own runner.
+A release builds Linux, Windows and Android artifacts and attaches them to
+it (`.github/workflows/desktop.yml`). Flutter cannot cross-compile a
+desktop target, so each is built on its own runner.
+
+Android refuses to install an unsigned APK, so every build is signed with
+something. With the keystore in repository secrets (`ANDROID_KEYSTORE_BASE64`,
+`ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`) it is
+signed with yours. Without them CI falls back to a debug key it generates
+fresh each run: the APK installs, but cannot update an earlier install, and
+the reinstall that forces wipes the identity private keys — which never left
+the device and cannot be regenerated. That artifact is named
+`-testing-only` for exactly this reason. None of this involves Play Store.
+
+Create the keystore once and keep the file safe; losing it means no future
+build can update an installed app:
+
+```bash
+keytool -genkey -v -keystore revoked-release.jks -keyalg RSA \
+  -keysize 2048 -validity 10000 -alias revoked
+base64 -w0 revoked-release.jks   # paste into ANDROID_KEYSTORE_BASE64
+```
 
 Both need one manual step after extraction, because a desktop build does not
 register a URL scheme by itself — and without it every `revoked://` link the
