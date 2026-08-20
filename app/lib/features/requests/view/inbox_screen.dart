@@ -4,6 +4,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/widgets/qr_sheet.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/status_colors.dart';
@@ -13,7 +14,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
@@ -84,15 +84,6 @@ class _InboxScreenState extends State<InboxScreen> {
                           DataTableColumn(value: 'slug', label: 'Slug'),
                           DataTableColumn(value: 'status', label: 'Status'),
                         ],
-                      ),
-                      AppButton(
-                        icon: AppIcons.plus,
-                        tooltip: 'New request',
-                        onTap: () => openRequestCreateSheet(
-                          context: context,
-                          store: reqStore,
-                          authStore: Stores.auth,
-                        ),
                       ),
                     ],
                   );
@@ -317,6 +308,15 @@ class _InboxCardState extends State<_InboxCard> {
           Clipboard.setData(ClipboardData(text: requestUrl));
           AppToast.success(context, 'Request URL copied');
         },
+      ),
+      AppSheetAction(
+        icon: AppIcons.qrCode,
+        label: 'QR code',
+        onTap: () => showQrSheet(
+          context: context,
+          title: 'Request link',
+          link: requestUrl,
+        ),
       ),
       AppSheetAction(
         icon: AppIcons.pencil,

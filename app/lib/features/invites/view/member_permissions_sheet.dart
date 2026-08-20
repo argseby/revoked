@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 
 import 'package:revoked_app/core/design/spacing.dart';
@@ -98,94 +99,125 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
   Widget _build(BuildContext context) {
     final grantable = Stores.invites.grantable;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                0,
-              ),
-              child: Text(widget.member.email).header,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xxs,
+              AppSpacing.xl,
+              AppSpacing.md,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                0,
-              ),
-              child: Text('Choose what they may do here.').muted.small,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.member.email).header,
+                const SizedBox(height: AppSpacing.xxs),
+                const Text('Choose what they may do here.').muted.small,
+              ],
             ),
+          ),
+          const AppDivider(),
 
-            if (_wouldDropAdmin)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.md,
-                  AppSpacing.xl,
-                  0,
-                ),
-                child: AppAlert(
-                  destructive: true,
-                  title: const Text('Someone must be able to invite'),
-                  content: Text(
-                    'This is the only member who can invite others. Give someone else that permission first.',
-                  ).small,
-                ),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_wouldDropAdmin)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.md,
+                        AppSpacing.xl,
+                        0,
+                      ),
+                      child: AppAlert(
+                        destructive: true,
+                        title: const Text('Someone must be able to invite'),
+                        content: Text(
+                          'This is the only member who can invite others. Give someone else that permission first.',
+                        ).small,
+                      ),
+                    ),
+
+                  const AppFormSectionHeader('Permissions'),
+                  for (final permission in grantable)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xl,
+                      ),
+                      child: PermissionCheckRow(
+                        permission: permission,
+                        selected: Stores.invites.memberDraft.contains(
+                          permission.key,
+                        ),
+                        onChanged: (on) => Stores.invites
+                            .toggleMemberPermission(permission.key, on),
+                      ),
+                    ),
+
+                  if (_beyondCaller.isNotEmpty) ...[
+                    const AppFormSectionHeader('Granted by someone else'),
+                    for (final permission in _beyondCaller)
+                      AppTile(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xl,
+                          vertical: AppSpacing.sm,
+                        ),
+                        title: Text(permission.label),
+                        subtitle: Text(
+                          'You cannot change this, because you do not hold it yourself.',
+                        ).muted.small,
+                      ),
+                  ],
+
+                  const SizedBox(height: AppSpacing.lg),
+                ],
               ),
+            ),
+          ),
+          const AppDivider(),
 
-            const AppFormSectionHeader('Permissions'),
-            for (final permission in grantable)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                child: PermissionCheckRow(
-                  permission: permission,
-                  selected: Stores.invites.memberDraft.contains(permission.key),
-                  onChanged: (on) =>
-                      Stores.invites.toggleMemberPermission(permission.key, on),
-                ),
-              ),
-
-            if (_beyondCaller.isNotEmpty) ...[
-              const AppFormSectionHeader('Granted by someone else'),
-              for (final permission in _beyondCaller)
-                AppTile(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                    vertical: AppSpacing.sm,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.md,
+              AppSpacing.xl,
+              AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Cancel',
+                    style: AppButtonStyle.accent,
+                    onTap: Stores.invites.isSavingMember
+                        ? null
+                        : () => Navigator.of(context).pop(),
                   ),
-                  title: Text(permission.label),
-                  subtitle: Text(
-                    'You cannot change this, because you do not hold it yourself.',
-                  ).muted.small,
                 ),
-            ],
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xl,
-                AppSpacing.xl,
-                AppSpacing.xxl,
-              ),
-              child: AppButton(
-                label: Stores.invites.isSavingMember
-                    ? 'Saving…'
-                    : 'Save permissions',
-                onTap: (Stores.invites.isSavingMember || _wouldDropAdmin)
-                    ? null
-                    : _save,
-              ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppButton(
+                    label: 'Save',
+                    busy: Stores.invites.isSavingMember,
+                    onTap: (Stores.invites.isSavingMember || _wouldDropAdmin)
+                        ? null
+                        : _save,
+                  ),
+                ),
+              ],
             ),
-            AppSpacing.gapSm,
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

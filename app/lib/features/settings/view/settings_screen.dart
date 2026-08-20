@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/models/workspace.dart';
-import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_avatar.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
@@ -33,6 +29,9 @@ import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
+import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
+import 'package:revoked_app/features/templates/view/templates_screen.dart';
+import 'package:revoked_app/core/widgets/trust_panel.dart';
 
 /// The Account tab — a single, calm, scrollable surface grouped into sections
 /// (profile, workspaces, identities, developer tools, connection) instead of
@@ -129,8 +128,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: 'Match your system, or force light or dark.',
         ),
         _buildAppearance(context),
+
+        const SizedBox(height: AppSpacing.xxl),
+        const _GroupHeader(
+          title: 'Session',
+          subtitle: 'Sign out of this device, or close your account for good.',
+        ),
+        _buildAccountActions(context),
       ],
     );
+  }
+
+  Widget _buildAccountActions(BuildContext context) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Signing out leaves everything on the server — sign back in any '
+            'time to pick up where you left off.',
+          ).muted.small,
+          AppSpacing.gapMd,
+          AppButton(
+            icon: AppIcons.boxArrowLeft,
+            label: 'Log out',
+            style: AppButtonStyle.accent,
+            onTap: () async {
+              final confirmed = await showAppDialog(
+                context: context,
+                title: 'Log out?',
+                message:
+                    'Your session on this device ends. Everything stays '
+                    'on the server - log back in any time.',
+                confirmLabel: 'Log out',
+              );
+              if (confirmed) await Stores.auth.logout();
+            },
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+
+          const AppDivider(),
+          const SizedBox(height: AppSpacing.xxl),
+
+          const Text(
+            'Deleting your account removes your workspaces, records and '
+            'identities, and stops every share and request link you created. '
+            'It cannot be undone.',
+          ).muted.small,
+          AppSpacing.gapMd,
+          Observer(
+            builder: (_) => AppButton(
+              icon: AppIcons.trash,
+              label: 'Delete account',
+              style: AppButtonStyle.destructive,
+              busy: Stores.auth.isDeletingAccount,
+              onTap: () => _confirmDeleteAccount(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Delete your account?',
+      message:
+          'Your workspaces, records and identities are deleted, and every '
+          'share and request link you created stops working — anyone still '
+          'holding one loses access immediately. This cannot be undone.',
+      confirmLabel: 'Delete account',
+      cancelLabel: 'Keep it',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+
+    if (!await Stores.auth.deleteAccount() && context.mounted) {
+      AppToast.error(
+        context,
+        'Could not delete the account',
+        subtitle: Stores.auth.errorMessage,
+      );
+    }
   }
 
   Widget _workspaceTab(
@@ -154,20 +234,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         const SizedBox(height: AppSpacing.xxl),
         _GroupHeader(
-          title: 'Members',
-          subtitle: 'Who has access, and what they may do.',
+          title: 'Pending invites',
+          subtitle: 'Keys handed out but not yet used.',
           action: _AddButton(
             onPressed: () => _openCreateInvite(context, activeId),
           ),
         ),
-        _MembersSection(workspaceId: activeId),
+        _InvitesSection(workspaceId: activeId),
 
         const SizedBox(height: AppSpacing.xxl),
         const _GroupHeader(
-          title: 'Pending invites',
-          subtitle: 'Keys handed out but not yet used.',
+          title: 'Members',
+          subtitle: 'Who has access, and what they may do.',
         ),
-        _InvitesSection(workspaceId: activeId),
+        _MembersSection(workspaceId: activeId),
 
         const SizedBox(height: AppSpacing.xxl),
         _GroupHeader(
@@ -188,16 +268,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _GroupHeader(
           title: 'API keys',
           subtitle: 'Credentials for programmatic access.',
-          action: _AddButton(onPressed: () => context.go(AppRoutes.apiKeys)),
+          action: _AddButton(onPressed: () => openApiKeyCreateSheet(context)),
         ),
         const _ApiKeysSummary(),
 
         const SizedBox(height: AppSpacing.xxl),
-        const _GroupHeader(
+        _GroupHeader(
           title: 'Templates',
           subtitle: 'Reusable blueprints for requests.',
+          action: _AddButton(onPressed: () => openTemplateEditorSheet(context)),
         ),
-        _buildTemplatesTile(context),
+        const _TemplatesSummary(),
 
         const SizedBox(height: AppSpacing.xxl),
         const _GroupHeader(
@@ -207,25 +288,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const _DomainVerificationCard(),
         const SizedBox(height: AppSpacing.md),
         _buildConnection(context),
-      ],
-    );
-  }
-
-  Widget _buildTemplatesTile(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return _GroupCard(
-      rows: [
-        _Tile(
-          leading: const _IconAvatar(icon: AppIcons.cardList),
-          title: 'Request templates',
-          subtitle: 'Define what a request asks for.',
-          onTap: () => context.go(AppRoutes.templates),
-          trailing: Icon(
-            AppIcons.chevronRight,
-            size: 16,
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
       ],
     );
   }
@@ -252,13 +314,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           AppEntityCard(
             icon: AppIcons.personWorkspace,
             title: ws.name,
-            tags: [
-              if (ws.id == activeId)
-                const AppBadge(
-                  label: 'Active',
-                  variant: AppBadgeVariant.primary,
-                ),
-            ],
+            titleBadge: ws.id == activeId
+                ? const AppBadge(
+                    label: 'Active',
+                    variant: AppBadgeVariant.primary,
+                  )
+                : null,
             actions: [
               if (ws.id != activeId)
                 AppSheetAction(
@@ -274,6 +335,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
       ],
     );
+  }
+
+  TrustCheckState _identityClaimState(String domain) {
+    final verdict = Stores.settings.domainVerdict;
+    if (verdict?.state == TrustState.verified && verdict?.domain == domain) {
+      return TrustCheckState.verified;
+    }
+    return TrustCheckState.failed;
   }
 
   Widget _buildIdentities(BuildContext context) {
@@ -294,14 +363,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           AppEntityCard(
             icon: AppIcons.personBoundingBox,
             title: id.name,
-            subtitle: id.domainAtIssue.isNotEmpty
-                ? '${id.shortFingerprint} · ${id.domainAtIssue}'
-                : id.shortFingerprint,
+            subtitle: id.shortFingerprint,
             subtitleMono: true,
             tags: [
-              if (id.isPrimary)
-                const AppBadge(icon: AppIcons.stars, label: 'Primary'),
+              if (id.domainAtIssue.isNotEmpty)
+                TrustClaimText(
+                  domain: id.domainAtIssue,
+                  state: _identityClaimState(id.domainAtIssue),
+                ),
             ],
+            titleBadge: id.isPrimary
+                ? const AppBadge(icon: AppIcons.stars, label: 'Primary')
+                : null,
             actions: [
               AppSheetAction(
                 icon: AppIcons.copy,
@@ -330,13 +403,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                   },
                 ),
-              if (!id.isPrimary)
-                AppSheetAction(
-                  icon: AppIcons.trash,
-                  label: 'Delete',
-                  destructive: true,
-                  onTap: () => store.deleteIdentity(id.id),
-                ),
+              AppSheetAction(
+                icon: AppIcons.trash,
+                label: 'Delete',
+                destructive: true,
+                // The primary signs by default; demote it first.
+                enabled: !id.isPrimary,
+                onTap: () => store.deleteIdentity(id.id),
+              ),
             ],
           ),
       ],
@@ -652,8 +726,6 @@ class _ProfileCard extends StatelessWidget {
     return AppCard(
       child: Row(
         children: [
-          AppAvatar(source: email, size: AppAvatarSize.large, emphasized: true),
-          const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -687,15 +759,6 @@ class _ProfileCard extends StatelessWidget {
                       ).muted.small,
                     ],
                   ),
-                AppSpacing.gapSm,
-                AppButton(
-                  size: .small,
-                  onTap: () async {
-                    await Stores.auth.logout();
-                  },
-                  label: 'Logout',
-                  style: .destructive,
-                ),
               ],
             ),
           ),
@@ -715,11 +778,7 @@ class _GroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(
-        bottom: AppSpacing.md,
-        left: AppSpacing.xxs,
-        right: AppSpacing.xxs,
-      ),
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -762,104 +821,6 @@ class _AddButton extends StatelessWidget {
 }
 
 /// Wraps a list of [_Tile]s in a bordered card with hairline dividers between.
-class _GroupCard extends StatelessWidget {
-  final List<Widget> rows;
-  const _GroupCard({required this.rows});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) const AppDivider(inset: true),
-            rows[i],
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// One row inside a [_GroupCard]: leading visual, title (+ optional badge),
-/// optional subtitle, optional trailing control.
-/// One row inside a [_GroupCard]: a leading visual, a title and subtitle, and
-/// a trailing affordance. For navigating somewhere — anything with actions of
-/// its own is an [AppEntityCard] instead.
-class _Tile extends StatelessWidget {
-  final Widget leading;
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
-  final VoidCallback? onTap;
-
-  const _Tile({
-    required this.leading,
-    required this.title,
-    this.subtitle,
-    this.trailing,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final row = Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
-      child: Row(
-        children: [
-          leading,
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (subtitle != null) ...[
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    subtitle!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ).muted.small,
-                ],
-              ],
-            ),
-          ),
-          if (trailing != null) ...[
-            const SizedBox(width: AppSpacing.md),
-            trailing!,
-          ],
-        ],
-      ),
-    );
-
-    if (onTap == null) return row;
-    return InkWell(onTap: onTap, borderRadius: AppRadius.allMd, child: row);
-  }
-}
-
-class _IconAvatar extends StatelessWidget {
-  final IconData icon;
-  const _IconAvatar({required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: scheme.primary.withValues(alpha: 0.10),
-        borderRadius: AppRadius.allMd,
-      ),
-      child: Icon(icon, size: 20, color: scheme.primary),
-    );
-  }
-}
 
 class _LoadingCard extends StatelessWidget {
   const _LoadingCard();
@@ -1075,12 +1036,28 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
             onChanged: Stores.settings.setIdentityPrimary,
             inset: false,
           ),
-          const SizedBox(height: AppSpacing.md),
-          AppButton(
-            icon: AppIcons.shieldCheck,
-            label: 'Generate keys',
-            busy: Stores.settings.isSubmittingDrawer,
-            onTap: _submit,
+          const SizedBox(height: AppSpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: Stores.settings.isSubmittingDrawer
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppButton(
+                  icon: AppIcons.shieldCheck,
+                  label: 'Generate keys',
+                  busy: Stores.settings.isSubmittingDrawer,
+                  onTap: _submit,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1090,14 +1067,25 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
 
 /// The Developer tab's view of API keys: the same card language as the rest of
 /// settings, with the full management screen one tap away.
-class _ApiKeysSummary extends StatelessWidget {
+class _ApiKeysSummary extends StatefulWidget {
   const _ApiKeysSummary();
+
+  @override
+  State<_ApiKeysSummary> createState() => _ApiKeysSummaryState();
+}
+
+class _ApiKeysSummaryState extends State<_ApiKeysSummary> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Stores.apiKeys.loadApiKeys();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final store = Stores.apiKeys;
-    final scheme = Theme.of(context).colorScheme;
-
     return Observer(
       builder: (_) {
         if (store.isLoading && store.apiKeys.isEmpty) {
@@ -1110,26 +1098,81 @@ class _ApiKeysSummary extends StatelessWidget {
             hint: 'Create one to reach this workspace programmatically.',
           );
         }
-        return _GroupCard(
-          rows: [
-            for (final key in store.apiKeys)
-              _Tile(
-                leading: const _IconAvatar(icon: AppIcons.key),
-                title: key.label,
-                subtitle: key.neverExpires
-                    ? 'Never expires'
-                    : 'Expires ${AppEntityCard.formatDate(key.expiresAt) ?? key.expiresAt}',
-                onTap: () => context.go(AppRoutes.apiKeys),
-                trailing: Icon(
-                  AppIcons.chevronRight,
-                  size: 16,
-                  color: scheme.onSurfaceVariant,
-                ),
+        return Column(
+          children: [for (final key in store.apiKeys) ApiKeyCard(apiKey: key)],
+        );
+      },
+    );
+  }
+}
+
+/// The workspace's templates as expanding cards, edited in place.
+class _TemplatesSummary extends StatefulWidget {
+  const _TemplatesSummary();
+
+  @override
+  State<_TemplatesSummary> createState() => _TemplatesSummaryState();
+}
+
+class _TemplatesSummaryState extends State<_TemplatesSummary> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Stores.templates.loadTemplates(Stores.auth.activeWorkspace ?? '');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = Stores.templates;
+    return Observer(
+      builder: (_) {
+        if (store.isLoading && store.templates.isEmpty) {
+          return const _LoadingCard();
+        }
+        if (store.templates.isEmpty) {
+          return const _EmptyCard(
+            icon: AppIcons.cardList,
+            label: 'No templates yet',
+            hint: 'Define what a request asks for, once.',
+          );
+        }
+        return Column(
+          children: [
+            for (final template in store.templates)
+              AppEntityCard(
+                icon: AppIcons.cardList,
+                title: template.name,
+                subtitle: _schemaSummary(template),
+                actions: [
+                  AppSheetAction(
+                    icon: AppIcons.pencil,
+                    label: 'Edit',
+                    primary: true,
+                    onTap: () => openTemplateEditorSheet(
+                      context,
+                      initialTemplate: template,
+                    ),
+                  ),
+                  AppSheetAction(
+                    icon: AppIcons.trash,
+                    label: 'Delete',
+                    destructive: true,
+                    onTap: () => confirmDeleteTemplate(context, template.id),
+                  ),
+                ],
               ),
           ],
         );
       },
     );
+  }
+
+  String _schemaSummary(dynamic template) {
+    final sections = template.schema['sections'] as List<dynamic>? ?? [];
+    final records = template.schema['records'] as List<dynamic>? ?? [];
+    return '${sections.length} sections · ${records.length} root records';
   }
 }
 

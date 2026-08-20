@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -112,15 +111,6 @@ class ServerSettingsSheet extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: AppSpacing.xxs),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AppButton(
-              label: 'Reset to default',
-              style: AppButtonStyle.accent,
-              onTap: store.resetToDefault,
-            ),
           ),
         ],
       ),

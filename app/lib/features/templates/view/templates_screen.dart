@@ -32,6 +32,36 @@ import 'package:revoked_app/features/templates/store/template_draft.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 
+/// Opens the template editor drawer - create when [initialTemplate] is null,
+/// edit otherwise. Exposed so the settings Developer tab opens it in place.
+void openTemplateEditorSheet(
+  BuildContext context, {
+  Template? initialTemplate,
+}) {
+  showAppSheet(
+    context: context,
+    builder: (sheetContext) => _TemplateEditorSheet(
+      templatesStore: Stores.templates,
+      authStore: Stores.auth,
+      initialTemplate: initialTemplate,
+    ),
+  );
+}
+
+/// Delete with the standard confirmation; shared with the settings list.
+Future<void> confirmDeleteTemplate(BuildContext context, String id) async {
+  final confirmed = await showAppDialog(
+    context: context,
+    title: 'Delete template',
+    message:
+        'Are you sure you want to permanently delete this template? '
+        'Requests already created from it keep working.',
+    confirmLabel: 'Delete',
+    destructive: true,
+  );
+  if (confirmed) await Stores.templates.deleteTemplate(id);
+}
+
 class TemplatesScreen extends StatefulWidget {
   const TemplatesScreen({super.key});
 
