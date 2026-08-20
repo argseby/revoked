@@ -48,6 +48,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
     final ok = await Stores.settings.createWorkspace(
       name: name,
       slug: _slugify(name),
+
       userId: auth.userId,
     );
     if (!ok) {
@@ -58,7 +59,6 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
     }
 
     _store.nameController.clear();
-    _store.identityNameController.clear();
     _store.isBusy = false;
 
     if (!context.mounted) return;
