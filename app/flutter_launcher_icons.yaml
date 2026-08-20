@@ -1,0 +1,30 @@
+# Launcher icons for every platform, generated from one source.
+#
+#   dart run flutter_launcher_icons
+#
+# assets/icon/source_artwork.png is the original wide artwork; app_icon.png
+# is its square crop and app_icon_foreground.png the extracted mark.
+# Regenerate after changing assets/icon/*. The outputs are committed, because
+# the platform build systems read them directly and CI does not run this.
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+
+  android: true
+  # The mark alone, on the plate colour: Android masks adaptive icons, so a
+  # foreground carrying the artwork's own rounded plate would show a plate
+  # inside a plate.
+  adaptive_icon_background: "#1D232E"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+
+  ios: true
+  # iOS rejects icons with an alpha channel.
+  remove_alpha_ios: true
+
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
