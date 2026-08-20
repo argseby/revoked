@@ -53,6 +53,14 @@ abstract final class Stores {
     crypto = CryptoService();
     handshake = HandshakeService(api, crypto);
     domainVerification = DomainVerificationService(crypto: crypto);
+    // Awaited, not fired off: a deep link can mount its screen in the same
+    // frame as init finishes, and an unloaded cache reads as "no verdict"
+    // - which is exactly the spinner it exists to avoid. Bounded so a
+    // stalled preferences plugin cannot hold up startup.
+    await domainVerification.loadCache().timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {},
+    );
 
     theme = ThemeStore();
     await theme.load();
