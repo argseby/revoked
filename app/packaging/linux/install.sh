@@ -20,16 +20,38 @@ fi
 PREFIX="${PREFIX:-$HOME/.local}"
 APPDIR="$PREFIX/lib/revoked"
 
+# Replace rather than merge: copying over an existing install leaves
+# files a newer build no longer ships - stale libraries and assets that
+# then load in preference to nothing at all.
+rm -rf "$APPDIR"
 mkdir -p "$APPDIR" "$PREFIX/bin" "$PREFIX/share/applications"
 cp -r "$BUNDLE/." "$APPDIR/"
 
 ln -sf "$APPDIR/revoked_app" "$PREFIX/bin/revoked"
 
+# Wayland ignores icons a window sets for itself; the compositor matches
+# the window's app_id to a .desktop file *by filename*. app_id here is the
+# GApplication id, so the entry has to be named for it or the taskbar
+# falls back to a generic icon however well the icon is installed.
+DESKTOP_ID="com.revoked.revoked_app"
 sed "s|^Exec=revoked|Exec=$PREFIX/bin/revoked|" \
-    "$SCRIPT_DIR/revoked.desktop" > "$PREFIX/share/applications/revoked.desktop"
+    "$SCRIPT_DIR/revoked.desktop" > "$PREFIX/share/applications/$DESKTOP_ID.desktop"
+# An older install used the short name; leave no duplicate behind.
+rm -f "$PREFIX/share/applications/revoked.desktop"
+
+# Icon themes are indexed per size; without these the launcher shows a
+# generic placeholder even though the .desktop names an icon.
+for SIZE in 16 32 48 64 128 256 512; do
+    ICON_DIR="$PREFIX/share/icons/hicolor/${SIZE}x${SIZE}/apps"
+    if [ -f "$SCRIPT_DIR/icons/revoked-$SIZE.png" ]; then
+        mkdir -p "$ICON_DIR"
+        cp "$SCRIPT_DIR/icons/revoked-$SIZE.png" "$ICON_DIR/revoked.png"
+    fi
+done
+gtk-update-icon-cache -f -t "$PREFIX/share/icons/hicolor" 2>/dev/null || true
 
 update-desktop-database "$PREFIX/share/applications" 2>/dev/null || true
-xdg-mime default revoked.desktop x-scheme-handler/revoked 2>/dev/null || true
+xdg-mime default "$DESKTOP_ID.desktop" x-scheme-handler/revoked 2>/dev/null || true
 
 echo "Installed to $APPDIR"
 echo "Binary:  $PREFIX/bin/revoked"

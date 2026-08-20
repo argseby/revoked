@@ -36,6 +36,12 @@ class AppButton extends StatelessWidget {
 
   final String? tooltip;
 
+  /// Height of a button at each size. Exposed so surfaces that sit a button
+  /// next to plain text can reserve the same height whether or not a button is
+  /// actually there, instead of collapsing to the text's own height.
+  static const double normalExtent = 40;
+  static const double smallExtent = 32;
+
   const AppButton({
     super.key,
     this.label,
@@ -59,7 +65,7 @@ class AppButton extends StatelessWidget {
     final small = size == AppButtonSize.small;
     final iconOnly = label == null;
     final iconSize = small ? 16.0 : 18.0;
-    final extent = small ? 32.0 : 40.0;
+    final extent = small ? smallExtent : normalExtent;
 
     final (Color background, Color foreground) = switch (style) {
       AppButtonStyle.primary => (scheme.primary, scheme.onPrimary),

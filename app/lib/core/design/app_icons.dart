@@ -26,6 +26,8 @@ abstract class AppIcons {
   static const IconData clock = Icons.schedule;
   static const IconData collection = Icons.collections_bookmark_outlined;
   static const IconData copy = Icons.content_copy;
+  static const IconData qrCode = Icons.qr_code_2;
+  static const IconData qrScan = Icons.qr_code_scanner;
   static const IconData exclamation = Icons.priority_high;
   static const IconData exclamationOctagon = Icons.report_outlined;
   static const IconData exclamationTriangle = Icons.warning_amber_rounded;

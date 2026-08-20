@@ -39,39 +39,46 @@ class AppScreenHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              if (onBack != null) ...[
-                AppButton(
-                  icon: AppIcons.arrowLeft,
-                  style: AppButtonStyle.accent,
-                  tooltip: 'Back',
-                  onTap: onBack,
-                ),
-                AppSpacing.gapXs,
-              ],
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ).header,
-                    ),
-                    if (badgeLabel != null) ...[
-                      AppSpacing.gapSm,
-                      AppBadge(label: badgeLabel!),
+          // Reserved whether or not this screen passes actions, so a header
+          // without them does not sit tighter than one with them.
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: AppButton.normalExtent,
+            ),
+            child: Row(
+              children: [
+                if (onBack != null) ...[
+                  AppButton(
+                    icon: AppIcons.arrowLeft,
+                    style: AppButtonStyle.accent,
+                    tooltip: 'Back',
+                    onTap: onBack,
+                  ),
+                  AppSpacing.gapXs,
+                ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ).header,
+                      ),
+                      if (badgeLabel != null) ...[
+                        AppSpacing.gapSm,
+                        AppBadge(label: badgeLabel!),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              for (final action in actions ?? const <Widget>[]) ...[
-                AppSpacing.gapXs,
-                action,
+                for (final action in actions ?? const <Widget>[]) ...[
+                  AppSpacing.gapXs,
+                  action,
+                ],
               ],
-            ],
+            ),
           ),
           if (subtitle != null) ...[
             AppSpacing.gapXxs,

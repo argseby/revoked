@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -100,137 +101,170 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
   Widget _build(BuildContext context) {
     final store = Stores.invites;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                0,
-              ),
-              child: Text('Invite someone').header,
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xxs,
+              AppSpacing.xl,
+              AppSpacing.md,
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                0,
-              ),
-              child: Text(
-                'They will see exactly what you grant before they accept.',
-              ).muted.small,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Invite someone').header,
+                const SizedBox(height: AppSpacing.xxs),
+                const Text(
+                  'They will see exactly what you grant before they accept.',
+                ).muted.small,
+              ],
             ),
+          ),
+          const AppDivider(),
 
-            const AppFormSectionHeader('Who'),
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenH(context),
-              ),
+          Flexible(
+            child: SingleChildScrollView(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AppTextField(
-                    controller: _store.labelController,
-                    label: 'Name this invite',
-                    hint: 'e.g. Accountant',
+                  const AppFormSectionHeader('Who'),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screenH(context),
+                    ),
+                    child: Column(
+                      children: [
+                        AppTextField(
+                          controller: _store.labelController,
+                          label: 'Name this invite',
+                          hint: 'e.g. Accountant',
+                        ),
+                        AppSpacing.gapSm,
+                        AppTextField(
+                          controller: _store.emailController,
+                          label: 'Lock to an email (optional)',
+                          hint: 'name@example.com',
+                        ),
+                      ],
+                    ),
                   ),
-                  AppSpacing.gapSm,
-                  AppTextField(
-                    controller: _store.emailController,
-                    label: 'Lock to an email (optional)',
-                    hint: 'name@example.com',
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.sm,
+                      AppSpacing.xl,
+                      0,
+                    ),
+                    child: Text(
+                      'Locking to an email means a forwarded key cannot be used by anyone else.',
+                    ).muted.small,
                   ),
+
+                  AppFormToggleRow(
+                    icon: AppIcons.key,
+                    label: 'Single use',
+                    subtitle: 'The key stops working once someone joins.',
+                    value: _store.draftSingleUse,
+                    onChanged: _store.setDraftSingleUse,
+                  ),
+
+                  const AppFormSectionHeader('What they may do'),
+                  Observer(
+                    builder: (_) {
+                      if (store.catalogue.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.all(AppSpacing.xl),
+                          child: Text('Loading permissions…'),
+                        );
+                      }
+                      return Column(
+                        children: [
+                          for (final p in store.catalogue)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.xl,
+                              ),
+                              child: PermissionCheckRow(
+                                permission: p,
+                                selected: _store.draftPermissions.contains(
+                                  p.key,
+                                ),
+                                onChanged: (on) =>
+                                    _store.toggleDraftPermission(p.key, on),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  if (_store.draftPermissions.isNotEmpty &&
+                      store.catalogue.any(
+                        (p) =>
+                            p.destructive &&
+                            _store.draftPermissions.contains(p.key),
+                      ))
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.md,
+                        AppSpacing.xl,
+                        0,
+                      ),
+                      child: AppAlert(
+                        destructive: true,
+                        title: const Text('This invite hands over control'),
+                        content: Text(
+                          'At least one permission lets the holder change who else can get in.',
+                        ).small,
+                      ),
+                    ),
+
+                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.sm,
-                AppSpacing.xl,
-                0,
-              ),
-              child: Text(
-                'Locking to an email means a forwarded key cannot be used by anyone else.',
-              ).muted.small,
-            ),
+          ),
+          const AppDivider(),
 
-            AppFormToggleRow(
-              icon: AppIcons.key,
-              label: 'Single use',
-              subtitle: 'The key stops working once someone joins.',
-              value: _store.draftSingleUse,
-              onChanged: _store.setDraftSingleUse,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.md,
+              AppSpacing.xl,
+              AppSpacing.md,
             ),
-
-            const AppFormSectionHeader('What they may do'),
-            Observer(
-              builder: (_) {
-                if (store.catalogue.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(AppSpacing.xl),
-                    child: Text('Loading permissions…'),
-                  );
-                }
-                return Column(
-                  children: [
-                    for (final p in store.catalogue)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.xl,
-                        ),
-                        child: PermissionCheckRow(
-                          permission: p,
-                          selected: _store.draftPermissions.contains(p.key),
-                          onChanged: (on) =>
-                              _store.toggleDraftPermission(p.key, on),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-
-            if (_store.draftPermissions.isNotEmpty &&
-                store.catalogue.any(
-                  (p) =>
-                      p.destructive && _store.draftPermissions.contains(p.key),
-                ))
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.md,
-                  AppSpacing.xl,
-                  0,
+            child: Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Cancel',
+                    style: AppButtonStyle.accent,
+                    onTap: _store.isCreating
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                  ),
                 ),
-                child: AppAlert(
-                  destructive: true,
-                  title: const Text('This invite hands over control'),
-                  content: Text(
-                    'At least one permission lets the holder change who else can get in.',
-                  ).small,
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppButton(
+                    label: 'Create invite',
+                    busy: _store.isCreating,
+                    onTap: _store.isCreating ? null : _submit,
+                  ),
                 ),
-              ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xl,
-                AppSpacing.xl,
-                AppSpacing.xxl,
-              ),
-              child: AppButton(
-                label: _store.isCreating ? 'Creating…' : 'Create invite',
-                onTap: _store.isCreating ? null : _submit,
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

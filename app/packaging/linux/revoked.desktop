@@ -6,6 +6,10 @@ Exec=revoked %u
 Icon=revoked
 Terminal=false
 Categories=Utility;Security;Network;
+# Ties the running window to this entry. Without it the taskbar shows a
+# generic icon even when the icon itself is installed correctly - the
+# value must match g_set_prgname() in the Linux runner.
+StartupWMClass=com.revoked.revoked_app
 # Without this the app installs and runs, but every revoked:// link the
 # product hands out is inert — the same failure Android had before its intent
 # filter existed. %u above passes the URL through to the running instance.

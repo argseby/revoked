@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -42,7 +44,10 @@ class DomainVerificationService {
   /// Every hop in the chain is bounded. Unbounded, a server that accepts the
   /// connection and then stalls leaves the verdict pending forever, and the
   /// submit gate waiting on it with it.
-  static const Duration _networkTimeout = Duration(seconds: 8);
+  /// Per hop. A healthy check finishes in about a tenth of a second, so
+  /// this only ever bounds a broken one - and it bounds a wait a person
+  /// is sitting through, not a background job.
+  static const Duration _networkTimeout = Duration(seconds: 5);
 
   /// TXT records carrying `v=revoked1; k=sha256/<hex>`.
   static final RegExp _txtPattern = RegExp(
@@ -59,6 +64,115 @@ class DomainVerificationService {
   }) : _http = httpClient ?? http.Client(),
        _crypto = crypto;
 
+  /// Verdicts already reached, by domain+fingerprint, surviving restarts.
+  ///
+  /// A cached verdict is a **hint for rendering, never the answer to
+  /// submit on**. Callers show it immediately so the screen is not blank,
+  /// and always re-run [verify] behind it; the submit gate waits on that
+  /// fresh result. Otherwise a rotated or compromised key - or a verdict
+  /// obtained once through an intercepting proxy - would keep vouching
+  /// for a server long after it stopped deserving it.
+  final Map<String, _CachedVerdict> _cache = {};
+
+  /// How long a stored verdict may be shown before it is treated as
+  /// unknown. Short enough that a key rotation surfaces within a day even
+  /// if revalidation never gets a chance to run.
+  static const cacheTtl = Duration(hours: 24);
+
+  static const _prefsKey = 'trust_verdict_cache';
+
+  /// Fetches in flight, so two callers for one domain share one round-trip.
+  /// Entries are dropped as they complete - this dedupes concurrent work, it
+  /// does not cache results.
+  final Map<String, Future<String?>> _pinInFlight = {};
+  final Map<String, Future<_ServerInfo>> _infoInFlight = {};
+
+  Future<T> _shared<T>(
+    Map<String, Future<T>> inFlight,
+    String domain,
+    Future<T> Function() start,
+  ) {
+    final existing = inFlight[domain];
+    if (existing != null) return existing;
+    final future = start();
+    inFlight[domain] = future;
+    void drop() {
+      if (identical(inFlight[domain], future)) inFlight.remove(domain);
+    }
+
+    // then(onError:) rather than whenComplete: whenComplete re-raises
+    // into a derived future nobody listens to, which reports as an
+    // unhandled async error even though every real caller catches.
+    future.then<void>((_) => drop(), onError: (Object _) => drop());
+    return future;
+  }
+
+  /// Starts the two network hops for [domain] before anything needs them.
+  ///
+  /// The full check cannot run until the probe returns the requester's
+  /// fingerprint, but neither hop depends on it - and a link already names
+  /// the server it lives on. Calling this as the screen opens overlaps the
+  /// DNS work with the probe instead of queueing behind it.
+  void prewarm(String domain) {
+    if (domain.isEmpty) return;
+    // Errors are re-raised to whoever awaits the real check; swallow them
+    // here so a prewarm nobody consumed is not an unhandled async error.
+    _shared(
+      _pinInFlight,
+      domain,
+      () => _lookupTxtFingerprint(domain),
+    ).catchError((Object _) => null);
+    _shared(
+      _infoInFlight,
+      domain,
+      () => _fetchServerInfo(domain),
+    ).catchError((Object _) => _ServerInfo.empty);
+  }
+
+  /// Reads stored verdicts once at startup. Failure is not an error - an
+  /// unreadable cache simply means every check runs fresh.
+  Future<void> loadCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey);
+      if (raw == null) return;
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final now = DateTime.now();
+      decoded.forEach((key, value) {
+        final entry = _CachedVerdict.fromJson(value as Map<String, dynamic>);
+        if (entry != null && now.difference(entry.checkedAt) < cacheTtl) {
+          _cache[key] = entry;
+        }
+      });
+    } catch (_) {
+      _cache.clear();
+    }
+  }
+
+  /// The stored verdict for this pair, if one is still within [cacheTtl].
+  /// Synchronous so a screen can render it on its first frame.
+  TrustVerdict? cachedVerdict({
+    required String claimedDomain,
+    required String identityFingerprint,
+  }) {
+    final entry = _cache['$claimedDomain|$identityFingerprint'];
+    if (entry == null) return null;
+    if (DateTime.now().difference(entry.checkedAt) >= cacheTtl) return null;
+    return entry.verdict;
+  }
+
+  Future<void> _persist() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _prefsKey,
+        jsonEncode(_cache.map((k, v) => MapEntry(k, v.toJson()))),
+      );
+    } catch (_) {
+      // A cache that cannot be written costs a re-check, nothing more.
+    }
+  }
+
   /// Runs the full verification chain.
   ///
   /// [claimedDomain] is the domain the request probe said it came from.
@@ -67,6 +181,64 @@ class DomainVerificationService {
   /// (hex-encoded as the server emits it). Pass empty string for
   /// pre-DNS identities — the verdict will be [TrustState.unverified].
   Future<TrustVerdict> verify({
+    required String claimedDomain,
+    required String identityFingerprint,
+    required String parentSignatureHex,
+  }) async {
+    // No cache read here: verify() is the fresh path callers gate on.
+    // Rendering from cache is [cachedVerdict], chosen explicitly.
+    final key = '$claimedDomain|$identityFingerprint';
+    final verdict = await _verifyWithDeadline(
+      claimedDomain: claimedDomain,
+      identityFingerprint: identityFingerprint,
+      parentSignatureHex: parentSignatureHex,
+    );
+    // Only a conclusive answer is worth keeping; a transient network
+    // failure must not pin "unverified" until the TTL expires.
+    if (verdict.state == TrustState.verified ||
+        verdict.state == TrustState.spoofed) {
+      _cache[key] = _CachedVerdict(verdict, DateTime.now());
+      // Awaited: an unflushed write is lost if the app closes right
+      // after, which is exactly when a verdict is worth keeping. The
+      // write is a few milliseconds against a network walk.
+      await _persist();
+    } else {
+      // A previously good verdict that no longer holds must not linger.
+      if (_cache.remove(key) != null) await _persist();
+    }
+    return verdict;
+  }
+
+  /// The whole walk is bounded, not just its individual hops: two 8-second
+  /// timeouts plus signature work could otherwise hold the UI on "Checking…"
+  /// far longer than anyone waits. A deadline reached is an unverified
+  /// identity, which the caller already knows how to render.
+  /// Backstop above the per-hop budget: the hops normally surface their
+  /// own timeouts first, and this only catches a walk that stalls
+  /// somewhere else.
+  static const _overallDeadline = Duration(seconds: 8);
+
+  Future<TrustVerdict> _verifyWithDeadline({
+    required String claimedDomain,
+    required String identityFingerprint,
+    required String parentSignatureHex,
+  }) {
+    return _verify(
+      claimedDomain: claimedDomain,
+      identityFingerprint: identityFingerprint,
+      parentSignatureHex: parentSignatureHex,
+    ).timeout(
+      _overallDeadline,
+      onTimeout: () => TrustVerdict.unverified(
+        domain: claimedDomain,
+        reason:
+            'The domain check did not finish in time. The network or the '
+            'DNS resolvers may be unreachable.',
+      ),
+    );
+  }
+
+  Future<TrustVerdict> _verify({
     required String claimedDomain,
     required String identityFingerprint,
     required String parentSignatureHex,
@@ -89,9 +261,26 @@ class DomainVerificationService {
       );
     }
 
+    // The DNS pin and the server's assertion are independent fetches, so
+    // they run together: serially, every check paid both round-trips end
+    // to end while the responder waited on a spinner.
+    final pinFuture = _shared(
+      _pinInFlight,
+      claimedDomain,
+      () => _lookupTxtFingerprint(claimedDomain),
+    );
+    final infoFuture = _shared(
+      _infoInFlight,
+      claimedDomain,
+      () => _fetchServerInfo(claimedDomain),
+    );
+    // Claim both errors now; an unawaited failure on the other branch
+    // would otherwise surface as an unhandled async error.
+    unawaited(infoFuture.catchError((Object _) => _ServerInfo.empty));
+
     final String? dnsFingerprint;
     try {
-      dnsFingerprint = await _lookupTxtFingerprint(claimedDomain);
+      dnsFingerprint = await pinFuture;
     } on _VerificationError catch (e) {
       return TrustVerdict.dnsMissing(domain: claimedDomain, reason: e.message);
     }
@@ -106,7 +295,7 @@ class DomainVerificationService {
 
     final _ServerInfo info;
     try {
-      info = await _fetchServerInfo(claimedDomain);
+      info = await infoFuture;
     } on _VerificationError catch (e) {
       return TrustVerdict.unverified(domain: claimedDomain, reason: e.message);
     }
@@ -167,16 +356,49 @@ class DomainVerificationService {
   /// exist; throws [_VerificationError] when the DNS lookup itself
   /// fails (network down, blocked, etc.) — the caller renders those
   /// two outcomes differently.
-  Future<String?> _lookupTxtFingerprint(String domain) async {
+  Future<String?> _lookupTxtFingerprint(String domain) {
+    // The resolvers race, but only a *found* record wins outright. "No record
+    // here" is not authoritative while another resolver may still have it -
+    // propagation between public resolvers is uneven, and treating the first
+    // empty answer as the truth reported published records as missing.
+    final completer = Completer<String?>();
+    var pending = _dohEndpoints.length;
+    var anyAnsweredEmpty = false;
     _VerificationError? lastFailure;
-    for (final endpoint in _dohEndpoints) {
-      try {
-        return await _lookupVia(endpoint, domain);
-      } on _VerificationError catch (e) {
-        lastFailure = e;
+
+    void settleIfDone() {
+      if (pending > 0 || completer.isCompleted) return;
+      if (anyAnsweredEmpty) {
+        // Every resolver reachable agreed there is no record.
+        completer.complete(null);
+      } else {
+        completer.completeError(
+          lastFailure ?? _VerificationError('DNS lookup failed.'),
+        );
       }
     }
-    throw lastFailure ?? _VerificationError('DNS lookup failed.');
+
+    for (final endpoint in _dohEndpoints) {
+      _lookupVia(endpoint, domain).then(
+        (value) {
+          pending--;
+          if (value != null) {
+            if (!completer.isCompleted) completer.complete(value);
+            return;
+          }
+          anyAnsweredEmpty = true;
+          settleIfDone();
+        },
+        onError: (Object e) {
+          pending--;
+          lastFailure = e is _VerificationError
+              ? e
+              : _VerificationError('DNS lookup failed: $e');
+          settleIfDone();
+        },
+      );
+    }
+    return completer.future;
   }
 
   Future<String?> _lookupVia(String endpoint, String domain) async {
@@ -269,9 +491,57 @@ class _ServerInfo {
     required this.publicKeyPem,
     required this.claimedFingerprint,
   });
+
+  /// Placeholder for the parallel branch whose error the awaiting side
+  /// re-raises; never reaches a verdict.
+  static const empty = _ServerInfo(publicKeyPem: '', claimedFingerprint: '');
 }
 
 class _VerificationError implements Exception {
   final String message;
   _VerificationError(this.message);
+}
+
+/// A stored verdict and when it was reached.
+class _CachedVerdict {
+  final TrustVerdict verdict;
+  final DateTime checkedAt;
+
+  const _CachedVerdict(this.verdict, this.checkedAt);
+
+  Map<String, dynamic> toJson() => {
+    'state': verdict.state.name,
+    'domain': verdict.domain,
+    'reason': verdict.reason,
+    'rootFingerprint': verdict.rootFingerprint,
+    'identityFingerprint': verdict.identityFingerprint,
+    'checkedAt': checkedAt.toIso8601String(),
+  };
+
+  /// Null for anything unreadable or for a state that is never cached, so a
+  /// tampered or outdated file degrades to "no cache" rather than to a wrong
+  /// verdict.
+  static _CachedVerdict? fromJson(Map<String, dynamic> json) {
+    final checkedAt = DateTime.tryParse(json['checkedAt'] as String? ?? '');
+    final domain = json['domain'] as String? ?? '';
+    final reason = json['reason'] as String? ?? '';
+    if (checkedAt == null || domain.isEmpty) return null;
+
+    return switch (json['state'] as String? ?? '') {
+      'verified' when (json['rootFingerprint'] as String? ?? '').isNotEmpty =>
+        _CachedVerdict(
+          TrustVerdict.verified(
+            domain: domain,
+            rootFingerprint: json['rootFingerprint'] as String,
+            identityFingerprint: json['identityFingerprint'] as String? ?? '',
+          ),
+          checkedAt,
+        ),
+      'spoofed' => _CachedVerdict(
+        TrustVerdict.spoofed(domain: domain, reason: reason),
+        checkedAt,
+      ),
+      _ => null,
+    };
+  }
 }

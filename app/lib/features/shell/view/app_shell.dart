@@ -4,11 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_expandable_fab.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
+import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
+import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
+import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 class AppShell extends StatefulWidget {
   final Widget child;
@@ -63,9 +68,43 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Widget? _createButton(BuildContext context) {
+    return switch (_selectedIndex) {
+      0 => AppExpandableFab(
+        tooltip: 'Create in your vault',
+        actions: vaultCreateFabActions(context),
+      ),
+      1 => FloatingActionButton(
+        tooltip: 'New share link',
+        onPressed: () => openShareCreateSheet(context: context),
+        child: const Icon(AppIcons.plus),
+      ),
+      2 => FloatingActionButton(
+        tooltip: 'New request',
+        onPressed: () => openRequestCreateSheet(
+          context: context,
+          store: Stores.requests,
+          authStore: Stores.auth,
+        ),
+        child: const Icon(AppIcons.plus),
+      ),
+      // Account: nothing to create.
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButtonLocation: .endFloat,
+      // One create button for the whole shell, dispatching on the active
+      // tab - the screens' own headers keep only their filter. It yields
+      // while any sheet is up, so it never overlaps a sheet's actions.
+      floatingActionButton: Observer(
+        builder: (_) => SheetTracker.anyOpen
+            ? const SizedBox.shrink()
+            : _createButton(context) ?? const SizedBox.shrink(),
+      ),
       appBar: AppBar(
         titleSpacing: AppSpacing.lg,
         title: const Row(children: [WorkspaceChip()]),
@@ -89,7 +128,7 @@ class _AppShellState extends State<AppShell> {
           ),
           NavigationDestination(
             icon: Icon(AppIcons.personGear),
-            label: 'Account',
+            label: 'Settings',
           ),
         ],
       ),
@@ -146,7 +185,7 @@ class _SearchButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppButton(
-      icon: AppIcons.search,
+      icon: AppIcons.link,
       style: AppButtonStyle.accent,
       tooltip: 'Open a link',
       onTap: () => openLinkSearchSheet(context),

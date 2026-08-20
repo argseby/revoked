@@ -31,6 +31,10 @@ class AppEntityCard extends StatefulWidget {
   /// Sits before [icon] — a selection checkbox, nothing else so far.
   final Widget? leading;
 
+  /// Sits directly beside the title - a state the reader must not have to
+  /// open the card to see (Active, Primary). The title ellipsizes first.
+  final Widget? titleBadge;
+
   final String title;
   final String? subtitle;
 
@@ -61,6 +65,7 @@ class AppEntityCard extends StatefulWidget {
     required this.title,
     this.onTap,
     this.leading,
+    this.titleBadge,
     this.subtitle,
     this.subtitleMono = false,
     this.date,
@@ -143,10 +148,20 @@ class _AppEntityCardState extends State<AppEntityCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        w.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              w.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (w.titleBadge != null) ...[
+                            AppSpacing.gapSm,
+                            w.titleBadge!,
+                          ],
+                        ],
                       ),
                       if (hasMeta) ...[
                         AppSpacing.gapXxs,

@@ -52,6 +52,26 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "Revoked");
   }
 
+  // Flutter's runner sets no icon, so the taskbar falls back to a generic
+  // one. Prefer the icon shipped in the bundle - it works straight from an
+  // extracted tarball - and fall back to the themed name that install.sh
+  // registers under hicolor.
+  {
+    g_autofree gchar* exe = g_file_read_link("/proc/self/exe", nullptr);
+    if (exe != nullptr) {
+      g_autofree gchar* dir = g_path_get_dirname(exe);
+      g_autofree gchar* icon =
+          g_build_filename(dir, "data", "app_icon.png", nullptr);
+      if (g_file_test(icon, G_FILE_TEST_EXISTS)) {
+        gtk_window_set_icon_from_file(window, icon, nullptr);
+      } else {
+        gtk_window_set_default_icon_name("revoked");
+      }
+    } else {
+      gtk_window_set_default_icon_name("revoked");
+    }
+  }
+
   gtk_window_set_default_size(window, 1280, 720);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

@@ -55,7 +55,12 @@ func BindAuditLogHooks(app core.App) {
 //
 // Its callers have already advanced the chain with e.Next(), so it must never
 // call e.Next() again. Audit failures never block the operation they describe.
-func logAuditAction(app core.App, e *core.RecordRequestEvent, action string, oldData any, newData any) error {
+//
+// Both snapshots pass through util.RedactAuditData first: an audit row outlives
+// and outtravels the record it describes, so a secret written into one — a
+// vault value, a submitted gate password — would persist in plaintext under a
+// collection nobody thinks of as secret storage.
+func logAuditAction(app core.App, e *core.RecordRequestEvent, action string, oldData map[string]any, newData map[string]any) error {
 	auditCollection, err := app.FindCollectionByNameOrId(util.Coll.AuditLogs)
 	if err != nil {
 		app.Logger().Error("Audit log collection missing", "error", err)
@@ -76,6 +81,9 @@ func logAuditAction(app core.App, e *core.RecordRequestEvent, action string, old
 	auditRecord.Set(util.Fields.AuditLog.Action, action)
 	auditRecord.Set(util.Fields.AuditLog.Collection, e.Collection.Name)
 	auditRecord.Set(util.Fields.AuditLog.RecordId, e.Record.Id)
+
+	oldData = util.RedactAuditData(e.Collection.Name, oldData)
+	newData = util.RedactAuditData(e.Collection.Name, newData)
 
 	if oldData != nil {
 		oldDataJSON, _ := json.Marshal(oldData)

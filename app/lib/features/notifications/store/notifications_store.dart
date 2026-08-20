@@ -28,6 +28,10 @@ abstract class _NotificationsStore with Store {
   String? errorMessage;
 
   @computed
+  /// @computed, not a bare getter: a plain getter over an empty list
+  /// registers no dependency, so the bell that reads it never lights up
+  /// when the first notification arrives.
+  @computed
   int get unreadCount => notifications.where((n) => !n.read).length;
 
   @action

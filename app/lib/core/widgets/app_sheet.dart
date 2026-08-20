@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/state/sheet_tracker.dart';
 
 /// Opens a modal bottom sheet. Replaces shadcn's
 /// `openSheet(context:, position: OverlayPosition.bottom, builder:)`.
@@ -11,7 +12,8 @@ Future<T?> showAppSheet<T>({
   bool isScrollControlled = true,
 }) {
   final scheme = Theme.of(context).colorScheme;
-  return showModalBottomSheet<T>(
+  SheetTracker.opened();
+  final future = showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
     showDragHandle: true,
@@ -28,8 +30,16 @@ Future<T?> showAppSheet<T>({
     ),
     constraints: const BoxConstraints(maxWidth: 640),
     builder: (ctx) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+      // Keyboard on top of the gesture-nav inset: without the second term
+      // a sheet's bottom row of buttons sits under the home indicator.
+      padding: EdgeInsets.only(
+        bottom:
+            MediaQuery.of(ctx).viewInsets.bottom +
+            MediaQuery.of(ctx).viewPadding.bottom,
+      ),
       child: builder(ctx),
     ),
   );
+  future.whenComplete(SheetTracker.closed);
+  return future;
 }

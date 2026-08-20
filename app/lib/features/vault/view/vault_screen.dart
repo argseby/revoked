@@ -28,7 +28,6 @@ import 'package:revoked_app/core/widgets/app_screen_header.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
-import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
@@ -105,7 +104,7 @@ class _VaultScreenState extends State<VaultScreen> {
               Observer(
                 builder: (_) {
                   final count = store.recordCount;
-                  final Widget primaryAction;
+                  final Widget? primaryAction;
                   if (store.editingSectionId != null) {
                     primaryAction = AppButton(
                       label: 'Done',
@@ -118,12 +117,8 @@ class _VaultScreenState extends State<VaultScreen> {
                       onTap: () => context.go(AppRoutes.shares),
                     );
                   } else {
-                    primaryAction = AppButton(
-                      icon: AppIcons.plus,
-                      tooltip: 'New record',
-                      onTap: () =>
-                          _showCreateOptionsSheet(context, store, authStore),
-                    );
+                    // Creation lives on the shell's floating button now.
+                    primaryAction = null;
                   }
                   return AppScreenHeader(
                     title: 'Vault',
@@ -156,7 +151,7 @@ class _VaultScreenState extends State<VaultScreen> {
                           ],
                         ),
                       ),
-                      primaryAction,
+                      ?primaryAction,
                     ],
                   );
                 },
@@ -698,232 +693,6 @@ class _VaultScreenState extends State<VaultScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  void _showCreateOptionsSheet(
-    BuildContext context,
-    VaultStore store,
-    AuthStore authStore,
-  ) {
-    showAppSheet(
-      context: context,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        return Container(
-          constraints: const BoxConstraints(maxWidth: 420),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xxl,
-            vertical: AppSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Create New').header,
-              const SizedBox(height: AppSpacing.xxs),
-              const Text('Select what you would like to create.').muted.small,
-              const SizedBox(height: AppSpacing.xxl),
-              AppTile(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                leading: _CreateChoiceIcon(icon: AppIcons.folderPlus),
-                title: const Text('New Section'),
-                subtitle: const Text(
-                  'Group records together within a section.',
-                ).muted.small,
-                trailing: Icon(
-                  AppIcons.arrowRight,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  openSectionCreateSheet(
-                    context: context,
-                    store: store,
-                    authStore: authStore,
-                  );
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTile(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                leading: _CreateChoiceIcon(icon: AppIcons.filePlus),
-                title: const Text('New Record'),
-                subtitle: const Text(
-                  'Create a new key-value digital record.',
-                ).muted.small,
-                trailing: Icon(
-                  AppIcons.arrowRight,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _showCreateSheet(context, store, authStore);
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTile(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-                leading: _CreateChoiceIcon(icon: AppIcons.cardList),
-                title: const Text('From Template'),
-                subtitle: const Text(
-                  'Generate structure from a workspace template.',
-                ).muted.small,
-                trailing: Icon(
-                  AppIcons.arrowRight,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _showFromTemplateSheet(context, store, authStore);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showFromTemplateSheet(
-    BuildContext context,
-    VaultStore store,
-    AuthStore authStore,
-  ) {
-    final templatesStore = Stores.templates;
-    // Pre-load templates to make sure we have the latest
-    templatesStore.loadTemplates(authStore.activeWorkspace ?? '');
-
-    showAppSheet(
-      context: context,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        return Container(
-          constraints: const BoxConstraints(maxWidth: 460),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xxl,
-            vertical: AppSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Create from Template').header,
-              const SizedBox(height: AppSpacing.xxs),
-              const Text(
-                'Select a structural blueprint to instantiate sections and records in your vault.',
-              ).muted.small,
-              const SizedBox(height: AppSpacing.xl),
-
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300),
-                child: Observer(
-                  builder: (_) {
-                    if (templatesStore.isLoading &&
-                        templatesStore.templates.isEmpty) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(AppSpacing.xxl),
-                          child: AppSpinner(large: true),
-                        ),
-                      );
-                    }
-
-                    if (templatesStore.templates.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppSpacing.huge,
-                          ),
-                          child: Column(
-                            children: [
-                              Icon(
-                                AppIcons.cardList,
-                                size: 32,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              const Text('No templates available'),
-                              const SizedBox(height: AppSpacing.xxs),
-                              Text(
-                                'Admins can configure templates in Settings.',
-                                textAlign: TextAlign.center,
-                              ).muted.small,
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: templatesStore.templates.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: AppSpacing.sm),
-                      itemBuilder: (_, index) {
-                        final template = templatesStore.templates[index];
-                        final sections =
-                            template.schema['sections'] as List<dynamic>? ?? [];
-                        final records =
-                            template.schema['records'] as List<dynamic>? ?? [];
-
-                        return AppTile(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppSpacing.sm,
-                          ),
-                          leading: Icon(
-                            AppIcons.cardList,
-                            color: theme.colorScheme.primary,
-                            size: 18,
-                          ),
-                          title: Text(template.name),
-                          subtitle: Text(
-                            '${sections.length} sections • ${records.length} root records',
-                          ).muted.small,
-                          trailing: Icon(
-                            AppIcons.chevronRight,
-                            size: 14,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          onTap: () async {
-                            AppToast.success(
-                              context,
-                              'Instantiating template blueprints...',
-                            );
-
-                            final ok = await store.createFromTemplate(
-                              template: template,
-                              user: authStore.userId,
-                              workspace: authStore.activeWorkspace ?? '',
-                            );
-
-                            if (sheetContext.mounted) {
-                              Navigator.of(sheetContext).pop();
-                            }
-
-                            if (ok && context.mounted) {
-                              AppToast.success(
-                                context,
-                                'Vault items generated successfully!',
-                              );
-                            } else if (context.mounted) {
-                              AppToast.error(
-                                context,
-                                'Generation failed',
-                                subtitle: store.errorMessage ?? 'Unknown error',
-                              );
-                            }
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -1805,20 +1574,3 @@ class _RecordCardState extends State<_RecordCard> {
 }
 
 /// The tinted square behind each choice in the "Create New" sheet.
-class _CreateChoiceIcon extends StatelessWidget {
-  final IconData icon;
-  const _CreateChoiceIcon({required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: scheme.primary.withValues(alpha: 0.1),
-        borderRadius: AppRadius.allSm,
-      ),
-      child: Icon(icon, color: scheme.primary),
-    );
-  }
-}
