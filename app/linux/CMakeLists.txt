@@ -94,6 +94,13 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# The window (taskbar) icon. GTK sets no icon by default, and the themed
+# lookup only works once install.sh has populated hicolor - this covers
+# running the extracted bundle directly.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/linux/icons/revoked-256.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" RENAME "app_icon.png"
+  COMPONENT Runtime)
+
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)
 

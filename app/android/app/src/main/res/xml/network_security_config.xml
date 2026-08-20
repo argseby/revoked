@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  A self-hosted server is often reached over plain HTTP on a LAN before it has
-  a certificate, and the app's own default base URL is http://127.0.0.1:3000.
-  API 28+ blocks cleartext outright, so those installs failed with no
-  explanation. Cleartext is permitted only for loopback and private ranges;
-  everything on the public internet still requires TLS.
+  A self-hosted server is reached over plain HTTP on a LAN before it has a
+  certificate - a phone pointed at http://192.168.x.x:3000 is the normal first
+  contact with your own hub, and API 28+ blocks cleartext outright.
+
+  Android's config cannot express "cleartext for private ranges only" (domain
+  entries take literal names, no CIDR), so the OS-level gate is opened and the
+  https floor is enforced where it can be precise: in code.
+  ApiClient.publicBaseFor forces https for every link-named origin that is not
+  loopback, so a revoked:// link can never downgrade anyone to http. Only the
+  base URL the operator types themselves may be plain http - which is exactly
+  the LAN case this exists for.
 -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false"/>
-
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
-        <domain includeSubdomains="true">10.0.3.2</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true"/>
 </network-security-config>
