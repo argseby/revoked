@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:flutter/widgets.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
@@ -16,6 +17,14 @@ abstract class _AuthStore with Store {
   final ApiClient _api;
 
   _AuthStore(this._api);
+
+  // The sign-in and sign-up fields. Owned here so the screens are stateless
+  // and a typed address survives a rebuild.
+  final ObservableTextController loginEmail = ObservableTextController();
+  final ObservableTextController loginPassword = ObservableTextController();
+  final ObservableTextController registerEmail = ObservableTextController();
+  final ObservableTextController registerPassword = ObservableTextController();
+  final ObservableTextController registerConfirm = ObservableTextController();
 
   @observable
   User? currentUser;
@@ -104,14 +113,15 @@ abstract class _AuthStore with Store {
   /// keypair is generated on the device and only the public half uploaded — a
   /// server-generated identity would have no private key here and could never
   /// sign. Failure is not fatal: an identity can be created later by hand.
-  Future<void> ensureIdentity() async {
+  Future<void> ensureIdentity({String? name}) async {
     if ((activeWorkspace ?? '').isEmpty) return;
     final identities = Stores.identities;
     await identities.loadIdentities();
     if (identities.identities.isNotEmpty) return;
     try {
+      final chosen = name?.trim() ?? '';
       await identities.createIdentity(
-        name: _defaultIdentityName(),
+        name: chosen.isNotEmpty ? chosen : _defaultIdentityName(),
         isPrimary: true,
       );
     } catch (e) {

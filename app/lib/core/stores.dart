@@ -8,6 +8,9 @@ import 'package:revoked_app/core/services/workspace_context.dart';
 import 'package:revoked_app/core/theme/theme_store.dart';
 import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/features/auth/store/server_settings_store.dart';
+import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
+import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
@@ -39,6 +42,9 @@ abstract final class Stores {
   static late final NotificationsStore notifications;
   static late final SettingsStore settings;
   static late final InvitesStore invites;
+  static late final ServerSettingsStore serverSettings;
+  static late final LinkSearchStore linkSearch;
+  static late final OnboardingStore onboarding;
 
   static Future<void> init() async {
     api = ApiClient();
@@ -63,6 +69,9 @@ abstract final class Stores {
     notifications = NotificationsStore(api);
     settings = SettingsStore(api);
     invites = InvitesStore(api);
+    serverSettings = ServerSettingsStore(api);
+    linkSearch = LinkSearchStore();
+    onboarding = OnboardingStore();
 
     // Deliberately not awaited here: restoring the session is a network call,
     // and awaiting it before runApp meant the first frame waited on the

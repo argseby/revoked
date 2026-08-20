@@ -2,16 +2,21 @@ package routes
 
 import (
 	"net/http"
+	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
 )
 
+// root is threaded in so the probe can publish this server's domain claim and
+// root fingerprint — without them a viewer has nothing to walk the DNS chain
+// against, and a signed share is indistinguishable from an unsigned one.
+//
 // PublicLinksRoute exposes the per-slug endpoint for a link's data. All gating
 // (status, expiry, max views, password, handshake) is enforced here, never by client
 // code, and there is deliberately no list/scan endpoint — the slug is the only way in.
-func PublicLinksRoute(app core.App) {
+func PublicLinksRoute(app core.App, root *server.RootKey) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 
 		// Probe: existence and gates only, never data.
@@ -29,6 +34,15 @@ func PublicLinksRoute(app core.App) {
 				return resourceErrorResponse(re, errResp)
 			}
 
+			sharer := map[string]any{}
+			if idRec, idErr := app.FindRecordById(util.Coll.Identities, link.GetString(util.Fields.Link.Identity)); idErr == nil && idRec != nil {
+				sharer["identityId"] = idRec.Id
+				sharer["name"] = idRec.GetString(util.Fields.Identity.Name)
+				sharer["fingerprint"] = idRec.GetString(util.Fields.Identity.Fingerprint)
+				sharer["parentSignature"] = idRec.GetString(util.Fields.Identity.ParentSignature)
+				sharer["domainAtIssue"] = idRec.GetString(util.Fields.Identity.DomainAtIssue)
+			}
+
 			return re.JSON(http.StatusOK, map[string]any{
 				"slug":             link.GetString(util.Fields.Link.Slug),
 				"label":            link.GetString(util.Fields.Link.Label),
@@ -36,6 +50,11 @@ func PublicLinksRoute(app core.App) {
 				"requiresPassword": link.GetString(util.Fields.Link.Password) != "",
 				"requireHandshake": link.GetBool(util.Fields.Link.RequireHandshake),
 				"identity":         link.GetString(util.Fields.Link.Identity),
+				"sharer":           sharer,
+				"server": map[string]any{
+					"domain":          root.Domain(),
+					"rootFingerprint": root.Fingerprint(),
+				},
 			})
 		})
 

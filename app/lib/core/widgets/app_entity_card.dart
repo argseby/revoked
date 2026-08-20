@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/motion.dart';
 import 'package:revoked_app/core/design/radius.dart';
@@ -49,10 +51,15 @@ class AppEntityCard extends StatefulWidget {
   /// section's records, a template's blueprint.
   final Widget? expandedBody;
 
+  /// Overrides the card's own expand-on-tap. Selection mode uses this so the
+  /// whole card toggles, not just the checkbox in its corner.
+  final VoidCallback? onTap;
+
   const AppEntityCard({
     super.key,
     required this.icon,
     required this.title,
+    this.onTap,
     this.leading,
     this.subtitle,
     this.subtitleMono = false,
@@ -85,15 +92,23 @@ class _AppEntityCardState extends State<AppEntityCard> {
   static const double _leadIconSize = 18;
   static const double _bodyIndent = _leadIconSize + AppSpacing.md;
 
-  bool _expanded = false;
+  final Local<bool> _expandedState = Local(false);
+
+  bool get _expanded => _expandedState.value;
 
   bool get _expandable =>
       widget.actions.isNotEmpty || widget.expandedBody != null;
 
-  void _toggle() => setState(() => _expanded = !_expanded);
+  VoidCallback? get _cardTap => widget.onTap ?? (_expandable ? _toggle : null);
+
+  void _toggle() => _expandedState.value = !_expanded;
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final w = widget;
     final hasMeta =
@@ -103,7 +118,7 @@ class _AppEntityCardState extends State<AppEntityCard> {
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      onTap: _expandable ? _toggle : null,
+      onTap: _cardTap,
       child: AnimatedSize(
         duration: AppMotion.duration,
         curve: AppMotion.curve,

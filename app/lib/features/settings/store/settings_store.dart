@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
@@ -19,6 +21,45 @@ abstract class _SettingsStore with Store {
   final ObservableList<Workspace> workspaces = ObservableList<Workspace>();
   final ObservableList<WorkspaceMember> memberships =
       ObservableList<WorkspaceMember>();
+
+  @observable
+  bool isCheckingDomain = false;
+
+  @observable
+  TrustVerdict? domainVerdict;
+
+  @observable
+  String? domainError;
+
+  @action
+  void startDomainCheck() {
+    isCheckingDomain = true;
+    domainVerdict = null;
+    domainError = null;
+  }
+
+  @action
+  void finishDomainCheck({TrustVerdict? verdict, String? error}) {
+    isCheckingDomain = false;
+    domainVerdict = verdict;
+    domainError = error;
+  }
+
+  final ObservableTextController workspaceName = ObservableTextController();
+  final ObservableTextController workspaceSlug = ObservableTextController();
+  final ObservableTextController identityName = ObservableTextController();
+
+  @observable
+  bool identityIsPrimary = false;
+
+  @observable
+  bool isSubmittingDrawer = false;
+
+  @action
+  void setIdentityPrimary(bool value) => identityIsPrimary = value;
+
+  @action
+  void setSubmitting(bool value) => isSubmittingDrawer = value;
 
   @observable
   bool isLoading = false;

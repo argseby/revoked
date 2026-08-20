@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/status_colors.dart';
@@ -103,6 +102,7 @@ class _SharesScreenState extends State<SharesScreen> {
                           DataTableColumn(value: 'status', label: 'Status'),
                         ],
                       ),
+
                       AppButton(
                         icon: AppIcons.plus,
                         tooltip: 'New share link',
@@ -137,12 +137,7 @@ class _SharesScreenState extends State<SharesScreen> {
                   return AppEmptyState(
                     icon: AppIcons.share,
                     title: 'No shared links',
-                    subtitle:
-                        'Create a public share link to securely expose selected vault items.',
-                    action: AppButton(
-                      label: 'Create your first link',
-                      onTap: () => openShareCreateSheet(context: context),
-                    ),
+                    subtitle: 'Tap + to securely share data from your vault.',
                   );
                 }
 
@@ -266,16 +261,26 @@ class _ShareCard extends StatelessWidget {
   });
 
   List<AppSheetAction> _shareActions(BuildContext context) {
-    final publicUrl = DeepLinks.share(share.slug);
+    final publicUrl = DeepLinks.share(
+      share.slug,
+      origin: Stores.api.originAuthority,
+    );
     final isActive = share.status == 'active';
     final isPaused = share.status == 'paused';
     final isRevoked = share.status == 'revoked';
 
     return [
+      if (!isRevoked)
+        AppSheetAction(
+          icon: AppIcons.plusSlashMinus,
+          label: 'Add or remove records',
+          primary: true,
+          onTap: () => context.go('${AppRoutes.vault}?editShareId=${share.id}'),
+        ),
       AppSheetAction(
         icon: AppIcons.server,
         label: 'Web & API',
-        primary: true,
+        primary: false,
         onTap: () => _showApiAccessSheet(context),
       ),
       AppSheetAction(
@@ -292,12 +297,7 @@ class _ShareCard extends StatelessWidget {
         label: 'Shared records',
         onTap: () => context.go('${AppRoutes.vault}?shareFilterId=${share.id}'),
       ),
-      if (!isRevoked)
-        AppSheetAction(
-          icon: AppIcons.plusSlashMinus,
-          label: 'Edit records',
-          onTap: () => context.go('${AppRoutes.vault}?editShareId=${share.id}'),
-        ),
+
       AppSheetAction(icon: AppIcons.pencil, label: 'Edit', onTap: onEdit),
       AppSheetAction(
         icon: AppIcons.nodePlus,

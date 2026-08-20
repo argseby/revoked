@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/features/templates/store/template_draft.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -20,6 +22,81 @@ abstract class _TemplatesStore with Store {
       '/api/collections/${AppConfig.templatesCollection}/records';
 
   final ObservableList<Template> templates = ObservableList<Template>();
+
+  final ObservableTextController editorName = ObservableTextController();
+  final ObservableTextController editorJson = ObservableTextController();
+
+  @observable
+  bool editorIsJsonMode = false;
+
+  final ObservableList<TemplateFieldDraft> rootFields =
+      ObservableList<TemplateFieldDraft>();
+  final ObservableList<TemplateSectionDraft> sections =
+      ObservableList<TemplateSectionDraft>();
+
+  /// Top-level schema keys that are neither `records` nor `sections`, kept
+  /// verbatim so JSON-authored extras survive a visual-mode save.
+  final Map<String, dynamic> extraSchemaKeys = {};
+
+  @observable
+  bool isSubmittingTemplate = false;
+
+  @observable
+  String? editorJsonError;
+
+  @action
+  void setJsonMode(bool value) => editorIsJsonMode = value;
+
+  @action
+  void setTemplateSubmitting(bool value) => isSubmittingTemplate = value;
+
+  @action
+  void setJsonError(String? value) => editorJsonError = value;
+
+  /// Signals that a draft changed in a way the editor must redraw — the field
+  /// models are plain objects, so mutating one is invisible to MobX.
+  @observable
+  int editorRevision = 0;
+
+  @action
+  void touchEditor() => editorRevision++;
+
+  @action
+  void addRootField() => rootFields.add(TemplateFieldDraft());
+
+  @action
+  void removeRootField(int index) => rootFields.removeAt(index).dispose();
+
+  @action
+  void addSection() => sections.add(TemplateSectionDraft());
+
+  @action
+  void removeSection(int index) => sections.removeAt(index).dispose();
+
+  @action
+  void resetEditor({
+    String name = '',
+    String json = '',
+    List<TemplateFieldDraft> fields = const [],
+    List<TemplateSectionDraft> sectionDrafts = const [],
+    Map<String, dynamic> extras = const {},
+  }) {
+    editorName.text = name;
+    editorJson.text = json;
+    editorIsJsonMode = false;
+    rootFields
+      ..clear()
+      ..addAll(fields);
+    sections
+      ..clear()
+      ..addAll(sectionDrafts);
+    extraSchemaKeys
+      ..clear()
+      ..addAll(extras);
+    isSubmittingTemplate = false;
+    editorJsonError = null;
+    editorRevision = 0;
+  }
 
   @observable
   bool isLoading = false;

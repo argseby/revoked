@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -65,8 +67,11 @@ class SheetView extends StatefulWidget {
 }
 
 class _SheetViewState extends State<SheetView> {
-  int? _sortCol;
-  bool _asc = true;
+  final Local<int?> _sortColState = Local(null);
+  final Local<bool> _ascState = Local(true);
+
+  int? get _sortCol => _sortColState.value;
+  bool get _asc => _ascState.value;
 
   final _hController = ScrollController();
   final _vController = ScrollController();
@@ -100,20 +105,22 @@ class _SheetViewState extends State<SheetView> {
   }
 
   void _onHeaderTap(int col) {
-    setState(() {
-      if (_sortCol == col) {
-        _asc = !_asc;
-      } else {
-        _sortCol = col;
-        _asc = true;
-      }
-    });
+    if (_sortCol == col) {
+      _ascState.value = !_asc;
+    } else {
+      _sortColState.value = col;
+      _ascState.value = true;
+    }
   }
 
   double get _totalWidth => widget.columns.fold(0.0, (sum, c) => sum + c.width);
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final rows = _sortedRows;
     return Scrollbar(
       controller: _hController,

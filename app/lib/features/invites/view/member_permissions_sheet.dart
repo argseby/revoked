@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/widgets/app_button.dart';
 
@@ -45,8 +46,11 @@ class _MemberPermissionsSheet extends StatefulWidget {
 }
 
 class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
-  late final Set<String> _selected = widget.member.permissionKeys.toSet();
-  bool _saving = false;
+  @override
+  void initState() {
+    super.initState();
+    Stores.invites.startMemberEdit(widget.member.permissionKeys);
+  }
 
   /// Permissions the member holds that the caller cannot grant. They stay
   /// selected and are shown read-only, so saving never silently strips access
@@ -56,20 +60,21 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
       .toList();
 
   bool get _wouldDropAdmin =>
-      widget.member.isLastAdmin && !_selected.contains('members:add');
+      widget.member.isLastAdmin &&
+      !Stores.invites.memberDraft.contains('members:add');
 
   Future<void> _save() async {
     if (_wouldDropAdmin) return;
 
-    setState(() => _saving = true);
     final store = Stores.invites;
+    store.isSavingMember = true;
     final ok = await store.updateMemberPermissions(
       widget.workspaceId,
       widget.member.id,
-      _selected.toList(),
+      store.memberDraft.toList(),
     );
     if (!mounted) return;
-    setState(() => _saving = false);
+    store.isSavingMember = false;
 
     if (!ok) {
       AppToast.error(
@@ -84,6 +89,13 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // The whole sheet is reactive: ticking a permission changes both the row
+    // and whether Save is allowed, and the last-admin guard reads the same
+    // draft. Wrapping fragments separately would only spread that around.
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final grantable = Stores.invites.grantable;
 
     return SafeArea(
@@ -134,14 +146,9 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
                 child: PermissionCheckRow(
                   permission: permission,
-                  selected: _selected.contains(permission.key),
-                  onChanged: (on) => setState(() {
-                    if (on) {
-                      _selected.add(permission.key);
-                    } else {
-                      _selected.remove(permission.key);
-                    }
-                  }),
+                  selected: Stores.invites.memberDraft.contains(permission.key),
+                  onChanged: (on) =>
+                      Stores.invites.toggleMemberPermission(permission.key, on),
                 ),
               ),
 
@@ -168,8 +175,12 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                 AppSpacing.xxl,
               ),
               child: AppButton(
-                label: _saving ? 'Saving…' : 'Save permissions',
-                onTap: (_saving || _wouldDropAdmin) ? null : _save,
+                label: Stores.invites.isSavingMember
+                    ? 'Saving…'
+                    : 'Save permissions',
+                onTap: (Stores.invites.isSavingMember || _wouldDropAdmin)
+                    ? null
+                    : _save,
               ),
             ),
             AppSpacing.gapSm,

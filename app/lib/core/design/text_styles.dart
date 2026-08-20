@@ -10,6 +10,7 @@ class AppText extends StatelessWidget {
   final String data;
   final bool _header;
   final bool _small;
+  final bool _bold;
   final bool _muted;
   final bool _mono;
   final bool _selectable;
@@ -23,6 +24,7 @@ class AppText extends StatelessWidget {
     bool header = false,
     bool small = false,
     bool muted = false,
+    bool bold = false,
     bool mono = false,
     bool selectable = false,
     this.textAlign,
@@ -31,6 +33,7 @@ class AppText extends StatelessWidget {
   }) : _header = header,
        _small = small,
        _muted = muted,
+       _bold = bold,
        _mono = mono,
        _selectable = selectable;
 
@@ -38,6 +41,7 @@ class AppText extends StatelessWidget {
     bool? header,
     bool? small,
     bool? muted,
+    bool? bold,
     bool? mono,
     bool? selectable,
   }) {
@@ -48,6 +52,7 @@ class AppText extends StatelessWidget {
       small: small ?? _small,
       muted: muted ?? _muted,
       mono: mono ?? _mono,
+      bold: bold ?? _bold,
       selectable: selectable ?? _selectable,
       textAlign: textAlign,
       maxLines: maxLines,
@@ -59,6 +64,7 @@ class AppText extends StatelessWidget {
   AppText get small => _copy(small: true, header: false);
   AppText get muted => _copy(muted: true);
   AppText get mono => _copy(mono: true);
+  AppText get bold => _copy(bold: true);
 
   /// Lets the reader copy the text — fingerprints, keys, generated slugs.
   AppText get selectable => _copy(selectable: true);
@@ -68,7 +74,11 @@ class AppText extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final style = TextStyle(
       fontSize: _header ? 18 : (_small ? 12 : 14),
-      fontWeight: _header ? FontWeight.w700 : FontWeight.w400,
+      fontWeight: _header
+          ? FontWeight.w700
+          : _bold
+          ? FontWeight.w600
+          : FontWeight.w400,
       // Non-muted text inherits, so buttons and alerts keep their own color.
       color: _muted ? scheme.onSurfaceVariant : null,
       fontFamily: _mono ? 'monospace' : null,

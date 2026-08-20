@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/config/app_config.dart';
@@ -124,6 +125,194 @@ abstract class _VaultStore with Store {
 
   @observable
   String? errorMessage;
+
+  /// The section whose membership is being edited, if any. Drives the whole
+  /// screen's mode, so it belongs with the data it filters.
+  @observable
+  String? editingSectionId;
+
+  @action
+  void editSection(String? id) => editingSectionId = id;
+
+  final ObservableTextController recordKey = ObservableTextController();
+  final ObservableTextController recordValue = ObservableTextController();
+  final ObservableTextController recordLabel = ObservableTextController();
+
+  @observable
+  String recordType = 'text';
+
+  @observable
+  String recordFormat = 'default';
+
+  @observable
+  String? recordKeyWarning;
+
+  @observable
+  String? recordSuggestedKey;
+
+  @observable
+  String? recordTypeWarning;
+
+  @observable
+  String? recordDetectedType;
+
+  /// When duplicating a record that lives in a section, the new one joins it.
+  @observable
+  String? recordOriginSectionId;
+
+  @observable
+  bool isSubmittingRecord = false;
+
+  @action
+  void setRecordType(String value) => recordType = value;
+
+  @action
+  void setRecordFormat(String value) => recordFormat = value;
+
+  @action
+  void setRecordKeyCheck({String? warning, String? suggestion}) {
+    recordKeyWarning = warning;
+    recordSuggestedKey = suggestion;
+  }
+
+  @action
+  void setRecordTypeCheck({String? warning, String? detected}) {
+    recordTypeWarning = warning;
+    recordDetectedType = detected;
+  }
+
+  @action
+  void setSubmittingRecord(bool value) => isSubmittingRecord = value;
+
+  /// Prepares the drawer for a new record, or for duplicating [from].
+  @action
+  void startRecordDraft({models.Record? from, String? sectionId}) {
+    recordKey.text = from != null ? '${from.key}_1' : '';
+    recordValue.text = from?.value ?? '';
+    recordLabel.text = from?.label ?? '';
+    recordType = from?.type ?? 'text';
+    recordFormat = from?.format ?? 'default';
+    recordOriginSectionId = sectionId;
+    recordKeyWarning = null;
+    recordSuggestedKey = null;
+    recordTypeWarning = null;
+    recordDetectedType = null;
+    isSubmittingRecord = false;
+  }
+
+  final ObservableTextController sectionKey = ObservableTextController();
+  final ObservableTextController sectionName = ObservableTextController();
+
+  @observable
+  String? sectionKeyWarning;
+
+  @observable
+  String? sectionSuggestedKey;
+
+  @observable
+  String? sectionError;
+
+  @observable
+  bool isSubmittingSection = false;
+
+  /// Prepares the drawer for a new section, or for duplicating [from].
+  @action
+  void startSectionDraft({Section? from}) {
+    sectionKey.text = from != null ? '${from.key}_1' : '';
+    sectionName.text = from?.name ?? '';
+    sectionKeyWarning = null;
+    sectionSuggestedKey = null;
+    sectionError = null;
+    isSubmittingSection = false;
+  }
+
+  @action
+  void setSectionKeyCheck({String? warning, String? suggestion}) {
+    sectionKeyWarning = warning;
+    sectionSuggestedKey = suggestion;
+  }
+
+  @action
+  void setSectionError(String? value) => sectionError = value;
+
+  @action
+  void setSubmittingSection(bool value) => isSubmittingSection = value;
+
+  final ObservableTextController renameSectionName = ObservableTextController();
+
+  @observable
+  String? renameSectionError;
+
+  @observable
+  bool isRenamingSection = false;
+
+  @action
+  void startSectionRename(Section section) {
+    renameSectionName.text = section.name;
+    renameSectionError = null;
+    isRenamingSection = false;
+  }
+
+  @action
+  void setRenameSectionError(String? value) => renameSectionError = value;
+
+  @action
+  void setRenamingSection(bool value) => isRenamingSection = value;
+
+  final ObservableTextController editRecordLabel = ObservableTextController();
+  final ObservableTextController editRecordValue = ObservableTextController();
+
+  @observable
+  String editRecordType = 'text';
+
+  @observable
+  String editRecordFormat = 'default';
+
+  @observable
+  String? editRecordTypeWarning;
+
+  @observable
+  String? editRecordDetectedType;
+
+  @observable
+  bool isSubmittingEditRecord = false;
+
+  @action
+  void startRecordEdit(models.Record record) {
+    editRecordLabel.text = record.label;
+    editRecordValue.text = record.value;
+    editRecordType = record.type;
+    editRecordFormat = record.format;
+    editRecordTypeWarning = null;
+    editRecordDetectedType = null;
+    isSubmittingEditRecord = false;
+  }
+
+  @action
+  void setEditRecordType(String value) => editRecordType = value;
+
+  @action
+  void setEditRecordFormat(String value) => editRecordFormat = value;
+
+  @action
+  void setEditRecordTypeCheck({String? warning, String? detected}) {
+    editRecordTypeWarning = warning;
+    editRecordDetectedType = detected;
+  }
+
+  @action
+  void setSubmittingEditRecord(bool value) => isSubmittingEditRecord = value;
+
+  /// Records whose hidden value the user has chosen to reveal, by id. Keyed
+  /// rather than held per-card so no card carries state of its own.
+  final ObservableSet<String> revealedRecords = ObservableSet<String>();
+
+  bool isRevealed(String id) => revealedRecords.contains(id);
+
+  @action
+  void toggleRevealed(String id) {
+    if (!revealedRecords.remove(id)) revealedRecords.add(id);
+  }
 
   @computed
   int get recordCount => records.length;

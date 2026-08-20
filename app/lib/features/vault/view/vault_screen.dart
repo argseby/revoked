@@ -1,45 +1,42 @@
 import 'package:flutter/material.dart';
-
-import 'package:revoked_app/core/design/radius.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:mobx/mobx.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/models/section.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
+import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_tile.dart';
-import 'package:revoked_app/features/vault/store/vault_store.dart';
-import 'package:revoked_app/features/auth/store/auth_store.dart';
-import 'package:revoked_app/core/models/section.dart';
-import 'package:revoked_app/core/models/record.dart' as models;
-import 'package:revoked_app/core/models/link.dart';
-import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
-import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_screen_header.dart';
-import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_alert.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
-import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
-import 'package:revoked_app/core/widgets/text_formatters.dart';
-import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
-import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
+import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
+import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
 
 class VaultScreen extends StatefulWidget {
   final String? editingShareId;
@@ -52,9 +49,7 @@ class VaultScreen extends StatefulWidget {
 }
 
 class _VaultScreenState extends State<VaultScreen> {
-  String? editingSectionId;
   late TableStore<models.Record> _tableController;
-  late final ReactionDisposer _tableDisposer;
 
   @override
   void initState() {
@@ -73,14 +68,6 @@ class _VaultScreenState extends State<VaultScreen> {
       },
       defaultSort: 'created_desc',
     );
-    _tableDisposer = reaction(
-      (_) => [
-        _tableController.searchQuery,
-        _tableController.sortBy,
-        ..._tableController.filters,
-      ],
-      (_) => setState(() {}),
-    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       store.loadRecords();
@@ -92,7 +79,6 @@ class _VaultScreenState extends State<VaultScreen> {
 
   @override
   void dispose() {
-    _tableDisposer();
     _tableController.dispose();
     super.dispose();
   }
@@ -120,10 +106,10 @@ class _VaultScreenState extends State<VaultScreen> {
                 builder: (_) {
                   final count = store.recordCount;
                   final Widget primaryAction;
-                  if (editingSectionId != null) {
+                  if (store.editingSectionId != null) {
                     primaryAction = AppButton(
                       label: 'Done',
-                      onTap: () => setState(() => editingSectionId = null),
+                      onTap: () => store.editSection(null),
                     );
                   } else if (widget.editingShareId != null ||
                       widget.shareFilterId != null) {
@@ -203,17 +189,11 @@ class _VaultScreenState extends State<VaultScreen> {
                 return AppEmptyState(
                   icon: AppIcons.safe,
                   title: 'Your vault is empty',
-                  subtitle:
-                      'Get started by creating a section or your first record.',
-                  action: AppButton(
-                    label: 'Create your first entry',
-                    onTap: () =>
-                        _showCreateOptionsSheet(context, store, authStore),
-                  ),
+                  subtitle: 'Tap + to create a section or record.',
                 );
               }
 
-              if (editingSectionId != null) {
+              if (store.editingSectionId != null) {
                 // Render standard Record selection mode!
                 return Padding(
                   padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
@@ -243,7 +223,7 @@ class _VaultScreenState extends State<VaultScreen> {
                             const SizedBox(width: AppSpacing.sm),
                             Expanded(
                               child: Text(
-                                'Editing section: ${store.sections.firstWhere((s) => s.id == editingSectionId).name}. Select entries below to include them in this section.',
+                                'Editing section: ${store.sections.firstWhere((s) => s.id == store.editingSectionId).name}. Select entries below to include them in this section.',
                               ).small,
                             ),
                           ],
@@ -268,7 +248,7 @@ class _VaultScreenState extends State<VaultScreen> {
                       else
                         ..._tableController.filteredItems.map((record) {
                           Section? editingSection = store.sections.firstWhere(
-                            (s) => s.id == editingSectionId,
+                            (s) => s.id == store.editingSectionId,
                           );
 
                           return _RecordCard(
@@ -509,16 +489,9 @@ class _VaultScreenState extends State<VaultScreen> {
                                 'Editing public share: "${activeShareEdit.label}". Select sections and records below to include them in this public share.',
                               ).small,
                             ),
-                            const SizedBox(width: AppSpacing.sm),
-                            AppButton(
-                              label: 'Done',
-                              onTap: () => context.go(AppRoutes.shares),
-                              style: AppButtonStyle.accent,
-                            ),
                           ],
                         ),
                       ),
-                    // Sections List
                     ...visibleSections.map((section) {
                       final sectionRecords = section.records
                           .map((id) {
@@ -536,16 +509,18 @@ class _VaultScreenState extends State<VaultScreen> {
                       return _SectionCard(
                         section: section,
                         sectionRecords: sectionRecords,
-                        onAddRecords: () =>
-                            setState(() => editingSectionId = section.id),
-                        onRename: () =>
-                            _showRenameSectionSheet(context, store, section),
+                        onAddRecords: () => store.editSection(section.id),
+                        onRename: () => openSectionRenameSheet(
+                          context: context,
+                          store: store,
+                          section: section,
+                        ),
                         onDelete: () =>
                             _confirmDeleteSection(context, store, section.id),
-                        onDuplicate: () => _showCreateSectionSheet(
-                          context,
-                          store,
-                          authStore,
+                        onDuplicate: () => openSectionCreateSheet(
+                          context: context,
+                          store: store,
+                          authStore: authStore,
                           initialSection: section,
                         ),
                         isSelectableMode: activeShareEdit != null,
@@ -646,7 +621,6 @@ class _VaultScreenState extends State<VaultScreen> {
                       );
                     }),
 
-                    // Ungrouped Records List
                     if (ungroupedRecords.isNotEmpty) ...[
                       if (visibleSections.isNotEmpty)
                         const SizedBox(height: AppSpacing.xxl),
@@ -763,7 +737,11 @@ class _VaultScreenState extends State<VaultScreen> {
                 ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
-                  _showCreateSectionSheet(context, store, authStore);
+                  openSectionCreateSheet(
+                    context: context,
+                    store: store,
+                    authStore: authStore,
+                  );
                 },
               ),
               const SizedBox(height: AppSpacing.md),
@@ -977,273 +955,6 @@ class _VaultScreenState extends State<VaultScreen> {
     );
   }
 
-  void _showCreateSectionSheet(
-    BuildContext context,
-    VaultStore store,
-    AuthStore authStore, {
-    Section? initialSection,
-  }) {
-    store.clearError();
-    final keyCtrl = TextEditingController(
-      text: initialSection != null ? '${initialSection.key}_1' : '',
-    );
-    final nameCtrl = TextEditingController(text: initialSection?.name ?? '');
-    String? localError;
-    String? keyWarning;
-    String? suggestedKey;
-    bool isSubmitting = false;
-
-    void validateKey(String input, StateSetter setSheetState) {
-      if (input.isEmpty) {
-        setSheetState(() {
-          keyWarning = null;
-          suggestedKey = null;
-        });
-        return;
-      }
-
-      final exists = store.sections.any((s) => s.key == input);
-      if (exists) {
-        final alt = _generateAlternativeKey(input, true, store);
-        setSheetState(() {
-          keyWarning = 'This key is already taken.';
-          suggestedKey = alt;
-        });
-      } else {
-        setSheetState(() {
-          keyWarning = null;
-          suggestedKey = null;
-        });
-      }
-    }
-
-    bool checkedOnStart = false;
-
-    showAppSheet(
-      context: context,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            if (!checkedOnStart && keyCtrl.text.isNotEmpty) {
-              checkedOnStart = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                validateKey(keyCtrl.text, setSheetState);
-              });
-            }
-            return Observer(
-              builder: (observerContext) {
-                final _ = store.errorMessage;
-                final theme = Theme.of(ctx);
-                final isDup = initialSection != null;
-
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xxl,
-                        0,
-                        AppSpacing.xxl,
-                        AppSpacing.lg,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            isDup ? 'Duplicate Section' : 'New Section',
-                          ).header,
-                          AppButton(
-                            icon: AppIcons.x,
-                            tooltip: 'Close',
-                            style: AppButtonStyle.accent,
-                            onTap: isSubmitting
-                                ? null
-                                : () => Navigator.of(sheetContext).pop(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const AppDivider(),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(AppSpacing.xxl),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              isDup
-                                  ? 'Duplicate this section with a new unique key.'
-                                  : 'Group records together within a section.',
-                            ).muted,
-                            const SizedBox(height: AppSpacing.xl),
-
-                            _buildFieldLabel(
-                              ctx,
-                              'Name',
-                              isRequired: true,
-                              explanation:
-                                  'A friendly display name for your section.',
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            AppTextField(
-                              controller: nameCtrl,
-                              hint: 'My Section',
-                              onChanged: (_) => setSheetState(() {}),
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-
-                            _buildFieldLabel(
-                              ctx,
-                              'Key',
-                              isRequired: true,
-                              explanation:
-                                  'A stable identifier used for system references.',
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            AppTextField(
-                              controller: keyCtrl,
-                              hint: 'section_key',
-                              inputFormatters: [KeyInputFormatter()],
-                              onChanged: (v) => validateKey(v, setSheetState),
-                            ),
-                            if (keyWarning != null) ...[
-                              const SizedBox(height: AppSpacing.xxs),
-                              Row(
-                                children: [
-                                  Icon(
-                                    AppIcons.exclamation,
-                                    size: 14,
-                                    color: theme.colorScheme.error,
-                                  ),
-                                  const SizedBox(width: AppSpacing.xxs),
-                                  Expanded(child: AppErrorText(keyWarning!)),
-                                ],
-                              ),
-                            ],
-                            if (suggestedKey != null) ...[
-                              const SizedBox(height: AppSpacing.xxs),
-                              Row(
-                                children: [
-                                  Icon(
-                                    AppIcons.lightbulb,
-                                    size: 14,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                  const SizedBox(width: AppSpacing.xxs),
-                                  const Text('Suggestion: ').small,
-                                  AppButton(
-                                    label: suggestedKey!,
-                                    style: AppButtonStyle.accent,
-                                    size: AppButtonSize.small,
-                                    onTap: () {
-                                      keyCtrl.text = suggestedKey!;
-                                      validateKey(suggestedKey!, setSheetState);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                            const SizedBox(height: AppSpacing.lg),
-
-                            ApiPreview(
-                              spec: VaultStore.createSectionSpec(
-                                key: keyCtrl.text.trim(),
-                                name: nameCtrl.text.trim(),
-                                records: initialSection?.records ?? const [],
-                                user: authStore.userId,
-                                workspace: authStore.activeWorkspace ?? '',
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-
-                            if (localError != null ||
-                                store.errorMessage != null) ...[
-                              AppAlert(
-                                destructive: true,
-                                leading: const Icon(AppIcons.exclamation),
-                                title: const Text('Error'),
-                                content: Text(
-                                  localError ?? store.errorMessage!,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.lg),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                    const AppDivider(),
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.xxl),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          AppButton(
-                            label: 'Cancel',
-                            onTap: isSubmitting
-                                ? null
-                                : () => Navigator.of(sheetContext).pop(),
-                            style: AppButtonStyle.accent,
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          AppButton(
-                            label: isDup ? 'Duplicate' : 'Create Section',
-                            busy: isSubmitting,
-                            onTap:
-                                (nameCtrl.text.isEmpty ||
-                                    keyCtrl.text.isEmpty ||
-                                    keyWarning != null)
-                                ? null
-                                : () async {
-                                    final keyInput = keyCtrl.text.trim();
-                                    final nameInput = nameCtrl.text.trim();
-
-                                    setSheetState(() {
-                                      isSubmitting = true;
-                                      localError = null;
-                                    });
-
-                                    final ok = await store.createSection(
-                                      key: keyInput,
-                                      name: nameInput,
-                                      recordIds: initialSection?.records ?? [],
-                                      user: authStore.userId,
-                                      workspace:
-                                          authStore.activeWorkspace ?? '',
-                                    );
-
-                                    if (ok && ctx.mounted) {
-                                      Navigator.of(sheetContext).pop();
-                                      AppToast.success(
-                                        context,
-                                        initialSection != null
-                                            ? 'Section duplicated successfully'
-                                            : 'Section created successfully',
-                                      );
-                                    } else {
-                                      if (ctx.mounted) {
-                                        setSheetState(() {
-                                          isSubmitting = false;
-                                        });
-                                      }
-                                    }
-                                  },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
   // Record-create / duplicate moved to a 2-step bottom sheet
   // (record_create_sheet.dart) so the form no longer overflows on phones.
   void _showCreateSheet(
@@ -1296,239 +1007,30 @@ class _VaultScreenState extends State<VaultScreen> {
     return true;
   }
 
-  String _generateAlternativeKey(
-    String baseKey,
-    bool isSection,
-    VaultStore store,
-  ) {
-    String sanitized = baseKey.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
-    if (sanitized.isEmpty) {
-      sanitized = isSection ? 'section' : 'key';
-    }
-
-    int counter = 1;
-    while (true) {
-      final candidate = '${sanitized}_$counter';
-      final exists = isSection
-          ? store.sections.any((s) => s.key == candidate)
-          : store.records.any((r) => r.key == candidate);
-      if (!exists) {
-        return candidate;
-      }
-      counter++;
-    }
-  }
-
-  void _showRenameSectionSheet(
-    BuildContext context,
-    VaultStore store,
-    Section section,
-  ) {
-    store.clearError();
-    final nameCtrl = TextEditingController(text: section.name);
-    String? localError;
-    bool isSubmitting = false;
-
-    showAppSheet(
-      context: context,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) => Observer(
-            builder: (observerContext) {
-              final _ = store.errorMessage;
-              final theme = Theme.of(ctx);
-
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xxl,
-                      0,
-                      AppSpacing.xxl,
-                      AppSpacing.lg,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Rename Section').header,
-                        AppButton(
-                          icon: AppIcons.x,
-                          tooltip: 'Close',
-                          style: AppButtonStyle.accent,
-                          onTap: isSubmitting
-                              ? null
-                              : () => Navigator.of(sheetContext).pop(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const AppDivider(),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(AppSpacing.xxl),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Text(
-                            'Change the display name of this section.',
-                          ).muted,
-                          const SizedBox(height: AppSpacing.xl),
-
-                          _buildFieldLabel(
-                            ctx,
-                            'Name',
-                            isRequired: true,
-                            explanation:
-                                'A friendly display name for your section.',
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          AppTextField(
-                            controller: nameCtrl,
-                            hint: 'My Section',
-                            onChanged: (_) => setSheetState(() {}),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-
-                          _buildFieldLabel(
-                            ctx,
-                            'Key',
-                            isRequired: true,
-                            explanation:
-                                'A stable identifier used for system references.',
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.md,
-                              vertical: AppSpacing.sm,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: AppRadius.allMd,
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                            ),
-                            child: Text(section.key).mono.muted.small,
-                          ),
-                          const SizedBox(height: AppSpacing.xl),
-
-                          ApiPreview(
-                            spec: VaultStore.updateSectionSpec(section.id, {
-                              'name': nameCtrl.text.trim(),
-                            }),
-                            title: 'API request · update',
-                          ),
-                          const SizedBox(height: AppSpacing.xl),
-
-                          if (localError != null ||
-                              store.errorMessage != null) ...[
-                            AppAlert(
-                              destructive: true,
-                              leading: const Icon(AppIcons.exclamation),
-                              title: const Text('Error'),
-                              content: Text(localError ?? store.errorMessage!),
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  const AppDivider(),
-                  Padding(
-                    padding: const EdgeInsets.all(AppSpacing.xxl),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        AppButton(
-                          label: 'Cancel',
-                          onTap: isSubmitting
-                              ? null
-                              : () => Navigator.of(sheetContext).pop(),
-                          style: AppButtonStyle.accent,
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        AppButton(
-                          label: 'Save Changes',
-                          busy: isSubmitting,
-                          onTap: nameCtrl.text.trim().isEmpty
-                              ? null
-                              : () async {
-                                  final nameInput = nameCtrl.text.trim();
-                                  setSheetState(() {
-                                    isSubmitting = true;
-                                    localError = null;
-                                  });
-
-                                  final ok = await store.updateSection(
-                                    section.id,
-                                    {'name': nameInput},
-                                  );
-
-                                  if (ok && ctx.mounted) {
-                                    Navigator.of(sheetContext).pop();
-                                    AppToast.success(
-                                      context,
-                                      'Section updated successfully',
-                                    );
-                                  } else {
-                                    if (ctx.mounted) {
-                                      setSheetState(() {
-                                        isSubmitting = false;
-                                      });
-                                    }
-                                  }
-                                },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
   void _showEditRecordSheet(
     BuildContext context,
     VaultStore store,
     models.Record record,
   ) {
     store.clearError();
-    final labelCtrl = TextEditingController(text: record.label);
-    final valueCtrl = TextEditingController(text: record.value);
-    String selectedType = record.type;
-    String selectedFormat = record.format;
-    bool isSubmitting = false;
-    String? typeWarning;
-    String? detectedType;
+    store.startRecordEdit(record);
 
     showAppSheet(
       context: context,
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
+        return Builder(
+          builder: (ctx) {
             void validateAndDetectType(String value) {
-              setSheetState(() {
-                typeWarning = RecordTypeUtils.validateValue(
-                  selectedType,
+              final detected = RecordTypeUtils.detectType(value);
+              store.setEditRecordTypeCheck(
+                warning: RecordTypeUtils.validateValue(
+                  store.editRecordType,
                   value,
-                );
-                final detected = RecordTypeUtils.detectType(value);
-                if (detected != 'text' && detected != selectedType) {
-                  detectedType = detected;
-                } else {
-                  detectedType = null;
-                }
-              });
+                ),
+                detected: detected != 'text' && detected != store.editRecordType
+                    ? detected
+                    : null,
+              );
             }
 
             return Observer(
@@ -1542,20 +1044,31 @@ class _VaultScreenState extends State<VaultScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xxl,
-                        0,
-                        AppSpacing.xxl,
-                        AppSpacing.lg,
+                        AppSpacing.xl,
+                        AppSpacing.xxs,
+                        AppSpacing.xl,
+                        AppSpacing.md,
                       ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Edit Record').header,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Edit record').header,
+                                const SizedBox(height: AppSpacing.xxs),
+                                const Text(
+                                  'Modify record parameters in your workspace.',
+                                ).muted.small,
+                              ],
+                            ),
+                          ),
                           AppButton(
                             icon: AppIcons.x,
                             tooltip: 'Close',
                             style: AppButtonStyle.accent,
-                            onTap: isSubmitting
+                            onTap: store.isSubmittingEditRecord
                                 ? null
                                 : () => Navigator.of(sheetContext).pop(),
                           ),
@@ -1570,11 +1083,6 @@ class _VaultScreenState extends State<VaultScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Text(
-                              'Modify record parameters in your workspace.',
-                            ).muted,
-                            const SizedBox(height: AppSpacing.xl),
-
                             _buildFieldLabel(
                               ctx,
                               'Label',
@@ -1584,9 +1092,8 @@ class _VaultScreenState extends State<VaultScreen> {
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             AppTextField(
-                              controller: labelCtrl,
+                              controller: store.editRecordLabel,
                               hint: 'My Secret',
-                              onChanged: (_) => setSheetState(() {}),
                             ),
                             const SizedBox(height: AppSpacing.lg),
 
@@ -1625,13 +1132,13 @@ class _VaultScreenState extends State<VaultScreen> {
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             AppTextField(
-                              controller: valueCtrl,
+                              controller: store.editRecordValue,
                               hint: 'sk-1234...',
                               onChanged: (v) => validateAndDetectType(v),
                             ),
-                            if (typeWarning != null) ...[
+                            if (store.editRecordTypeWarning != null) ...[
                               const SizedBox(height: AppSpacing.xs),
-                              AppErrorText(typeWarning!),
+                              AppErrorText(store.editRecordTypeWarning!),
                             ],
                             const SizedBox(height: AppSpacing.lg),
 
@@ -1654,25 +1161,26 @@ class _VaultScreenState extends State<VaultScreen> {
                                         spacing: 8,
                                         runSpacing: 8,
                                         children: [
-                                          if (detectedType != null)
+                                          if (store.editRecordDetectedType !=
+                                              null)
                                             AppButton(
                                               icon: AppIcons.stars,
                                               label:
-                                                  'Auto: ${detectedType!.toUpperCase()}',
+                                                  'Auto: ${store.editRecordDetectedType!.toUpperCase()}',
                                               size: AppButtonSize.small,
                                               onTap: () {
-                                                setSheetState(() {
-                                                  selectedType = detectedType!;
-                                                  validateAndDetectType(
-                                                    valueCtrl.text,
-                                                  );
-                                                });
+                                                store.setEditRecordType(
+                                                  store.editRecordDetectedType!,
+                                                );
+                                                validateAndDetectType(
+                                                  store.editRecordValue.text,
+                                                );
                                               },
                                             ),
                                           ...RecordTypeUtils.supportedTypes.map(
                                             (type) {
                                               final isSelected =
-                                                  selectedType == type;
+                                                  store.editRecordType == type;
                                               return isSelected
                                                   ? AppButton(
                                                       label: type.toUpperCase(),
@@ -1681,12 +1189,14 @@ class _VaultScreenState extends State<VaultScreen> {
                                                   : AppButton(
                                                       label: type.toUpperCase(),
                                                       onTap: () {
-                                                        setSheetState(() {
-                                                          selectedType = type;
-                                                          validateAndDetectType(
-                                                            valueCtrl.text,
-                                                          );
-                                                        });
+                                                        store.setEditRecordType(
+                                                          type,
+                                                        );
+                                                        validateAndDetectType(
+                                                          store
+                                                              .editRecordValue
+                                                              .text,
+                                                        );
                                                       },
                                                       style:
                                                           AppButtonStyle.accent,
@@ -1711,21 +1221,19 @@ class _VaultScreenState extends State<VaultScreen> {
                                       ),
                                       const SizedBox(height: AppSpacing.xs),
                                       AppButton(
-                                        icon: selectedFormat == 'hidden'
+                                        icon: store.editRecordFormat == 'hidden'
                                             ? AppIcons.eyeSlash
                                             : AppIcons.eye,
-                                        label: selectedFormat == 'hidden'
+                                        label:
+                                            store.editRecordFormat == 'hidden'
                                             ? 'Hidden'
                                             : 'Visible',
                                         style: AppButtonStyle.accent,
-                                        onTap: () {
-                                          setSheetState(() {
-                                            selectedFormat =
-                                                selectedFormat == 'hidden'
-                                                ? 'default'
-                                                : 'hidden';
-                                          });
-                                        },
+                                        onTap: () => store.setEditRecordFormat(
+                                          store.editRecordFormat == 'hidden'
+                                              ? 'default'
+                                              : 'hidden',
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1746,10 +1254,10 @@ class _VaultScreenState extends State<VaultScreen> {
 
                             ApiPreview(
                               spec: VaultStore.updateRecordSpec(record.id, {
-                                'value': valueCtrl.text.trim(),
-                                'label': labelCtrl.text.trim(),
-                                'type': selectedType,
-                                'format': selectedFormat,
+                                'value': store.editRecordValue.text.trim(),
+                                'label': store.editRecordLabel.text.trim(),
+                                'type': store.editRecordType,
+                                'format': store.editRecordFormat,
                               }),
                               title: 'API request · update',
                             ),
@@ -1766,7 +1274,7 @@ class _VaultScreenState extends State<VaultScreen> {
                         children: [
                           AppButton(
                             label: 'Cancel',
-                            onTap: isSubmitting
+                            onTap: store.isSubmittingEditRecord
                                 ? null
                                 : () => Navigator.of(sheetContext).pop(),
                             style: AppButtonStyle.accent,
@@ -1774,23 +1282,23 @@ class _VaultScreenState extends State<VaultScreen> {
                           const SizedBox(width: AppSpacing.md),
                           AppButton(
                             label: 'Save Changes',
-                            busy: isSubmitting,
+                            busy: store.isSubmittingEditRecord,
                             onTap:
-                                (valueCtrl.text.trim().isEmpty ||
-                                    labelCtrl.text.trim().isEmpty ||
-                                    typeWarning != null)
+                                (store.editRecordValue.text.trim().isEmpty ||
+                                    store.editRecordLabel.text.trim().isEmpty ||
+                                    store.editRecordTypeWarning != null)
                                 ? null
                                 : () async {
-                                    setSheetState(() {
-                                      isSubmitting = true;
-                                    });
+                                    store.setSubmittingEditRecord(true);
 
                                     final ok = await store
                                         .updateRecord(record.id, {
-                                          'value': valueCtrl.text.trim(),
-                                          'label': labelCtrl.text.trim(),
-                                          'type': selectedType,
-                                          'format': selectedFormat,
+                                          'value': store.editRecordValue.text
+                                              .trim(),
+                                          'label': store.editRecordLabel.text
+                                              .trim(),
+                                          'type': store.editRecordType,
+                                          'format': store.editRecordFormat,
                                         });
 
                                     if (ok && ctx.mounted) {
@@ -1800,11 +1308,7 @@ class _VaultScreenState extends State<VaultScreen> {
                                         'Record updated successfully',
                                       );
                                     } else {
-                                      if (ctx.mounted) {
-                                        setSheetState(() {
-                                          isSubmitting = false;
-                                        });
-                                      }
+                                      store.setSubmittingEditRecord(false);
                                     }
                                   },
                           ),
@@ -2080,6 +1584,7 @@ class _SectionCard extends StatelessWidget {
 
     return AppEntityCard(
       icon: AppIcons.folder,
+      onTap: isSelectableMode ? () => onToggleSelect?.call(!isSelected) : null,
       leading: isSelectableMode
           ? AppCheckbox(
               value: isSelected,
@@ -2130,22 +1635,10 @@ class _RecordCard extends StatefulWidget {
 }
 
 class _RecordCardState extends State<_RecordCard> {
-  bool _isObscured = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _isObscured = widget.record.isHidden;
-  }
-
-  @override
-  void didUpdateWidget(covariant _RecordCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.record.id != oldWidget.record.id ||
-        widget.record.isHidden != oldWidget.record.isHidden) {
-      _isObscured = widget.record.isHidden;
-    }
-  }
+  /// Hidden records start masked; the store remembers the ones the user chose
+  /// to reveal, so the card itself holds nothing.
+  bool get _isObscured =>
+      widget.record.isHidden && !Stores.vault.isRevealed(widget.record.id);
 
   List<AppSheetAction> _recordActions() {
     return [
@@ -2229,6 +1722,10 @@ class _RecordCardState extends State<_RecordCard> {
   }
 
   Widget _valueBox(BuildContext context) {
+    return Observer(builder: (_) => _valueBoxBody(context));
+  }
+
+  Widget _valueBoxBody(BuildContext context) {
     final theme = Theme.of(context);
     final isHiddenFormat = widget.record.isHidden;
     // Aliases carry no value of their own — show the parent's (forwarded) value.
@@ -2260,7 +1757,7 @@ class _RecordCardState extends State<_RecordCard> {
               tooltip: _isObscured ? 'Show' : 'Hide',
               style: AppButtonStyle.accent,
               size: AppButtonSize.small,
-              onTap: () => setState(() => _isObscured = !_isObscured),
+              onTap: () => Stores.vault.toggleRevealed(widget.record.id),
             ),
           ],
         ],
@@ -2272,6 +1769,7 @@ class _RecordCardState extends State<_RecordCard> {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: AppCard(
+        onTap: () => widget.onToggleSelect?.call(!widget.isSelected),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

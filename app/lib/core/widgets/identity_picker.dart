@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
-import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -12,7 +11,9 @@ import 'package:revoked_app/core/stores.dart';
 /// Used wherever a flow needs the user to choose which identity signs an
 /// action — creating a verified share, unlocking a handshake-gated link. It
 /// self-loads identities from the store and shows each one's short fingerprint
-/// and (when present) its DNS-verified issuing domain.
+/// and (when present) the domain it was issued under. Deliberately no
+/// "verified" mark: whether that domain's DNS really pins the issuing root is
+/// a live check the picker does not run, so it must not claim the answer.
 class IdentityPicker extends StatefulWidget {
   final String? selectedId;
   final ValueChanged<String?> onChanged;
@@ -71,9 +72,8 @@ class _IdentityPickerState extends State<IdentityPicker> {
                     id.domainAtIssue == widget.requireDomain,
                 title: id.name,
                 subtitle: id.domainAtIssue.isNotEmpty
-                    ? '${id.shortFingerprint} · ${id.domainAtIssue}'
+                    ? '${id.shortFingerprint} · issued by ${id.domainAtIssue}'
                     : id.shortFingerprint,
-                verified: id.domainAtIssue.isNotEmpty,
                 onTap: () => widget.onChanged(id.id),
               ),
             if (widget.allowNone)
@@ -83,7 +83,6 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 enabled: true,
                 title: 'No signing identity',
                 subtitle: 'Share without a verifiable origin',
-                verified: false,
                 onTap: () => widget.onChanged(null),
               ),
           ],
@@ -98,7 +97,6 @@ class _IdentityPickerState extends State<IdentityPicker> {
     required bool enabled,
     required String title,
     required String subtitle,
-    required bool verified,
     required VoidCallback onTap,
   }) {
     return Opacity(
@@ -139,10 +137,6 @@ class _IdentityPickerState extends State<IdentityPicker> {
                     ],
                   ),
                 ),
-                if (verified) ...[
-                  AppSpacing.gapSm,
-                  Icon(AppIcons.shieldCheck, size: 16, color: scheme.primary),
-                ],
               ],
             ),
           ),

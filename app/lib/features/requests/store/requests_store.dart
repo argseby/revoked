@@ -1,3 +1,7 @@
+import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/core/models/trust_verdict.dart';
+import 'package:revoked_app/core/models/record.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -115,6 +119,252 @@ abstract class _RequestsStore with Store {
   /// Responses grouped by request id. Filled on demand by [loadResponses].
   final ObservableMap<String, List<Map<String, dynamic>>> responsesByRequest =
       ObservableMap<String, List<Map<String, dynamic>>>();
+
+  // The unauthenticated view of one /r/<slug> link. The trust verdict here
+  // gates submission, so it is store state like everything else it depends on.
+
+  final ObservableTextController responderName = ObservableTextController();
+  final ObservableTextController responderPassword = ObservableTextController();
+  final ObservableTextController responderIdentifier =
+      ObservableTextController();
+
+  @observable
+  bool isLoadingPublic = true;
+
+  @observable
+  bool isSubmittingPublic = false;
+
+  @observable
+  bool publicSuccess = false;
+
+  @observable
+  Map<String, dynamic>? publicProbe;
+
+  /// Origin the open link named; null when it lives on the signed-in server.
+  String? publicOrigin;
+
+  @observable
+  ObservableList<RequestTemplateItem> publicTemplate =
+      ObservableList<RequestTemplateItem>();
+
+  @observable
+  AppErrorMessage? publicTerminalError;
+
+  @observable
+  String? publicFormError;
+
+  /// Result of the domain check against the probe's server claim. Null while
+  /// in flight; populated even on failure so the badge can say why.
+  @observable
+  TrustVerdict? publicTrustVerdict;
+
+  @observable
+  bool isVerifyingTrust = false;
+
+  /// The responder's vault records (empty for guests).
+  @observable
+  ObservableList<Record> responderVault = ObservableList<Record>();
+
+  /// templateKey -> linked vault record id.
+  final ObservableMap<String, String> publicLinked =
+      ObservableMap<String, String>();
+
+  /// templateKeys the responder chose not to forward.
+  final ObservableSet<String> publicExcluded = ObservableSet<String>();
+
+  /// The responder's existing response link, if any.
+  @observable
+  Map<String, dynamic>? publicExistingLink;
+
+  @observable
+  String? publicIdentityId;
+
+  /// Bumped when a template controller or extra field is edited, which MobX
+  /// cannot observe on its own.
+  @observable
+  int publicRevision = 0;
+
+  @action
+  void touchPublic() => publicRevision++;
+
+  @action
+  void setPublicIdentity(String? v) => publicIdentityId = v;
+
+  @action
+  void setPublicFormError(String? v) => publicFormError = v;
+
+  @action
+  void setSubmittingPublic(bool v) => isSubmittingPublic = v;
+
+  @action
+  void setPublicSuccess(bool v) => publicSuccess = v;
+
+  @action
+  void setPublicExistingLink(Map<String, dynamic>? v) => publicExistingLink = v;
+
+  @action
+  void setPublicTrust({TrustVerdict? verdict, bool verifying = false}) {
+    publicTrustVerdict = verdict;
+    isVerifyingTrust = verifying;
+  }
+
+  @action
+  void resetPublicView() {
+    responderName.clear();
+    responderPassword.clear();
+    responderIdentifier.clear();
+    isLoadingPublic = true;
+    isSubmittingPublic = false;
+    publicSuccess = false;
+    publicProbe = null;
+    publicOrigin = null;
+    publicTemplate.clear();
+    publicTerminalError = null;
+    publicFormError = null;
+    publicTrustVerdict = null;
+    isVerifyingTrust = false;
+    responderVault.clear();
+    publicLinked.clear();
+    publicExcluded.clear();
+    publicExistingLink = null;
+    publicIdentityId = null;
+    publicRevision = 0;
+  }
+
+  final ObservableTextController draftLabel = ObservableTextController();
+  final ObservableTextController draftSlug = ObservableTextController();
+  final ObservableTextController draftPassword = ObservableTextController();
+  final ObservableTextController draftIdentifier = ObservableTextController();
+  final ObservableTextController draftCallback = ObservableTextController();
+  final ObservableTextController draftMaxResponses = ObservableTextController();
+
+  @observable
+  String? draftIdentityId;
+
+  @observable
+  String? draftTemplateId;
+
+  @observable
+  bool draftRequireHandshake = false;
+
+  /// 'any' or 'from_root'; only meaningful when a handshake is required.
+  @observable
+  String draftIdentityScope = 'any';
+
+  @observable
+  bool draftAllowExtraFields = false;
+
+  @observable
+  DateTime? draftExpiresAt;
+
+  @observable
+  String? draftSlugWarning;
+
+  @observable
+  String? draftSuggestedSlug;
+
+  @observable
+  bool isCheckingSlug = false;
+
+  @observable
+  bool isSubmittingRequest = false;
+
+  @action
+  void setDraftIdentity(String? v) => draftIdentityId = v;
+
+  @action
+  void setDraftTemplate(String? v) => draftTemplateId = v;
+
+  @action
+  void setDraftHandshake(bool v) => draftRequireHandshake = v;
+
+  @action
+  void setDraftIdentityScope(String v) => draftIdentityScope = v;
+
+  @action
+  void setDraftAllowExtraFields(bool v) => draftAllowExtraFields = v;
+
+  @action
+  void setDraftExpiry(DateTime? v) => draftExpiresAt = v;
+
+  @action
+  void setDraftSlugCheck({String? warning, String? suggestion}) {
+    draftSlugWarning = warning;
+    draftSuggestedSlug = suggestion;
+  }
+
+  @action
+  void setCheckingSlug(bool v) => isCheckingSlug = v;
+
+  @action
+  void setSubmittingRequest(bool v) => isSubmittingRequest = v;
+
+  @action
+  void startRequestDraft({
+    String label = '',
+    String slug = '',
+    String identifier = '',
+    String callback = '',
+    String maxResponses = '',
+    String? identityId,
+    String? templateId,
+    bool requireHandshake = false,
+    String identityScope = 'any',
+    bool allowExtraFields = false,
+    DateTime? expiresAt,
+  }) {
+    draftLabel.text = label;
+    draftSlug.text = slug;
+    draftPassword.clear();
+    draftIdentifier.text = identifier;
+    draftCallback.text = callback;
+    draftMaxResponses.text = maxResponses;
+    draftIdentityId = identityId;
+    draftTemplateId = templateId;
+    draftRequireHandshake = requireHandshake;
+    draftIdentityScope = identityScope;
+    draftAllowExtraFields = allowExtraFields;
+    draftExpiresAt = expiresAt;
+    draftSlugWarning = null;
+    draftSuggestedSlug = null;
+    isCheckingSlug = false;
+    isSubmittingRequest = false;
+  }
+
+  /// True while the Data screen's full load is running.
+  @observable
+  bool isLoadingData = false;
+
+  /// Loads everything the Data screen renders: requests, their responses and
+  /// the vault it cross-references.
+  @action
+  Future<void> loadDataScreen(Future<void> Function() loadVault) async {
+    isLoadingData = true;
+    try {
+      await loadRequests();
+      await loadAllResponses();
+      await loadVault();
+    } finally {
+      isLoadingData = false;
+    }
+  }
+
+  /// True while the responses for one request are being fetched, so the
+  /// screen showing them does not have to track that itself.
+  @observable
+  bool isLoadingSheet = false;
+
+  /// Loads a request and its responses for the spreadsheet view.
+  @action
+  Future<void> loadSheet(String requestId) async {
+    isLoadingSheet = true;
+    try {
+      if (requests.isEmpty) await loadRequests();
+      await loadResponses(requestId);
+    } finally {
+      isLoadingSheet = false;
+    }
+  }
 
   @observable
   bool isLoading = false;
@@ -289,8 +539,12 @@ abstract class _RequestsStore with Store {
   }
 
   /// Public probe — reveals what gates apply without exposing data.
-  Future<Map<String, dynamic>> getPublicRequestProbe(String slug) async {
-    final data = await _api.get('/api/public/requests/$slug');
+  Future<Map<String, dynamic>> getPublicRequestProbe(
+    String slug, {
+    String? origin,
+  }) async {
+    publicOrigin = origin;
+    final data = await _api.getFromOrigin(origin, '/api/public/requests/$slug');
     return data as Map<String, dynamic>;
   }
 
@@ -310,7 +564,8 @@ abstract class _RequestsStore with Store {
     Map<String, dynamic>? data,
     Map<String, String>? mappings,
   }) async {
-    return _api.postWithHeaders(
+    return _api.postFromOrigin(
+      publicOrigin,
       '/api/public/requests/$slug',
       body: {
         'password': ?password,

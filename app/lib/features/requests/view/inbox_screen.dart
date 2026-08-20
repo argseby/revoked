@@ -1,28 +1,28 @@
 import 'package:flutter/material.dart';
-
-import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
-
-import 'package:revoked_app/core/stores.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/widgets/app_dialog.dart';
-import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/features/requests/store/requests_store.dart';
-import 'package:revoked_app/core/models/request.dart';
-import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/app_screen_header.dart';
-import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
-import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
+import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/status_colors.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/utils/deep_links.dart';
+import 'package:revoked_app/core/design/status_colors.dart';
+import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/utils/deep_links.dart';
+import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_dialog.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
+import 'package:revoked_app/core/widgets/app_entity_card.dart';
+import 'package:revoked_app/core/widgets/app_load_error.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
+import 'package:revoked_app/core/widgets/app_screen_header.dart';
+import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -33,11 +33,21 @@ class InboxScreen extends StatefulWidget {
 }
 
 class _InboxScreenState extends State<InboxScreen> {
-  String _filter = 'all';
+  late final TableStore<DataRequest> _table;
 
   @override
   void initState() {
     super.initState();
+    _table = TableStore<DataRequest>(
+      getSourceItems: () => Stores.requests.requests.toList(),
+      fieldGetters: {
+        'label': (r) => r.label,
+        'slug': (r) => r.slug,
+        'status': (r) => r.status,
+        'created': (r) => r.created ?? '',
+      },
+      defaultSort: 'created_desc',
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Stores.requests.loadRequests();
     });
@@ -67,15 +77,13 @@ class _InboxScreenState extends State<InboxScreen> {
                     title: 'Request',
                     badgeLabel: '$count ${count == 1 ? 'request' : 'requests'}',
                     actions: [
-                      AppButton(
-                        icon: _filter != 'all'
-                            ? AppIcons.funnelFill
-                            : AppIcons.funnel,
-                        tooltip: 'Filter by status',
-                        style: _filter != 'all'
-                            ? AppButtonStyle.primary
-                            : AppButtonStyle.accent,
-                        onTap: () => _openStatusFilter(context),
+                      FilterButton<DataRequest>(
+                        controller: _table,
+                        columns: const [
+                          DataTableColumn(value: 'label', label: 'Label'),
+                          DataTableColumn(value: 'slug', label: 'Slug'),
+                          DataTableColumn(value: 'status', label: 'Status'),
+                        ],
                       ),
                       AppButton(
                         icon: AppIcons.plus,
@@ -111,10 +119,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   );
                 }
 
-                final filtered = reqStore.requests.where((req) {
-                  if (_filter == 'all') return true;
-                  return req.status == _filter;
-                }).toList();
+                final filtered = _table.filteredItems;
 
                 if (filtered.isEmpty) {
                   return AppEmptyState(
@@ -125,16 +130,6 @@ class _InboxScreenState extends State<InboxScreen> {
                     subtitle: reqStore.requests.isEmpty
                         ? 'Tap + to create a data request and start collecting peer data.'
                         : 'Try selecting a different filter.',
-                    action: reqStore.requests.isEmpty
-                        ? AppButton(
-                            label: 'Create your first request',
-                            onTap: () => openRequestCreateSheet(
-                              context: context,
-                              store: reqStore,
-                              authStore: Stores.auth,
-                            ),
-                          )
-                        : null,
                   );
                 }
 
@@ -156,6 +151,24 @@ class _InboxScreenState extends State<InboxScreen> {
                         editRequest: req,
                       ),
                       onRevoke: () async {
+                        final confirmed = await showAppDialog(
+                          context: context,
+                          title: 'Revoke request?',
+                          message:
+                              'The link stops working immediately and collects '
+                              'no further responses. Data already collected is '
+                              'kept.',
+                          content: ApiPreview(
+                            spec: RequestsStore.updateRequestSpec(
+                              req.id,
+                              const {'status': 'revoked'},
+                            ),
+                            title: 'API request · revoke',
+                          ),
+                          confirmLabel: 'Revoke',
+                          destructive: true,
+                        );
+                        if (!confirmed || !context.mounted) return;
                         final ok = await reqStore.updateRequest(req.id, {
                           'status': 'revoked',
                         });
@@ -207,29 +220,6 @@ class _InboxScreenState extends State<InboxScreen> {
       ],
     );
   }
-
-  /// Status filter, hidden behind the header funnel (like the other tabs)
-  /// instead of an always-visible chip row that ate a row of space.
-  void _openStatusFilter(BuildContext context) {
-    showAppOptionsSheet(
-      context: context,
-      title: 'Filter by status',
-      actions: [
-        for (final o in const [
-          ('all', 'All'),
-          ('active', 'Active'),
-          ('completed', 'Completed'),
-          ('expired', 'Expired'),
-          ('revoked', 'Revoked'),
-        ])
-          AppSheetAction(
-            icon: _filter == o.$1 ? AppIcons.checkCircle : AppIcons.circle,
-            label: o.$2,
-            onTap: () => setState(() => _filter = o.$1),
-          ),
-      ],
-    );
-  }
 }
 
 class _InboxCard extends StatefulWidget {
@@ -254,7 +244,10 @@ class _InboxCardState extends State<_InboxCard> {
   Widget build(BuildContext context) {
     final req = widget.request;
     final isClosed = req.status == 'revoked' || req.status == 'expired';
-    final requestUrl = DeepLinks.request(req.slug);
+    final requestUrl = DeepLinks.request(
+      req.slug,
+      origin: Stores.api.originAuthority,
+    );
 
     return AppEntityCard(
       icon: AppIcons.inboxFill,

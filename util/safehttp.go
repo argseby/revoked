@@ -13,9 +13,11 @@ import (
 	"time"
 )
 
-// AllowPrivateCallbacksEnv opts a deployment out of the private-network block,
-// for LAN-only installs. Off by default: on a public host the same capability is
-// a server-side request forgery primitive.
+// AllowPrivateCallbacksEnv opts a deployment out of the private-network and
+// loopback block, for LAN-only installs and local development. Off by default:
+// on a public host the same capability is a server-side request forgery
+// primitive. Link-local (cloud metadata), multicast and unspecified addresses
+// stay blocked regardless.
 const AllowPrivateCallbacksEnv = "ALLOW_PRIVATE_CALLBACKS"
 
 // ErrCallbackURLBlocked is returned when a callback target is refused by policy.
@@ -33,9 +35,18 @@ func isBlockedIP(ip net.IP) bool {
 	if ip == nil {
 		return true
 	}
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+	// Link-local (the 169.254.169.254 metadata endpoint), multicast and
+	// unspecified stay blocked even when the operator opens private ranges —
+	// no legitimate callback lives there on any deployment.
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
 		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
 		return true
+	}
+	// Loopback is the same operator decision as the private ranges: on a
+	// public host it reaches this server's own admin API, on a LAN/dev box it
+	// is where the hook under test actually runs.
+	if ip.IsLoopback() {
+		return !privateCallbacksAllowed()
 	}
 	// IPv4-mapped IPv6 (::ffff:127.0.0.1) must be judged on the mapped address.
 	if v4 := ip.To4(); v4 != nil {

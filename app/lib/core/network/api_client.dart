@@ -172,6 +172,87 @@ class ApiClient {
   };
 
   /// GET request.
+  /// This server's host[:port], the form links embed so a recipient on any
+  /// instance knows where the link lives.
+  String get originAuthority => Uri.tryParse(baseUrl)?.authority ?? '';
+
+  /// Whether [origin] names the server this client is signed into.
+  bool isOwnOrigin(String? origin) {
+    final o = origin?.trim().toLowerCase() ?? '';
+    return o.isEmpty || o == originAuthority.toLowerCase();
+  }
+
+  static bool _isLoopbackHost(String host) =>
+      host == 'localhost' || host == '127.0.0.1' || host == '::1';
+
+  /// Resolves a link-embedded origin (host[:port], no scheme) to a base URL.
+  /// https is forced for anything that is not loopback: the origin arrived
+  /// inside an unauthenticated link, and TLS is the only thing proving the
+  /// fetch reaches the host it names. Returns null for a malformed origin.
+  static String? publicBaseFor(String origin) {
+    final o = origin.trim();
+    if (o.isEmpty || o.contains('/') || o.contains('@')) return null;
+    final u = Uri.tryParse('https://$o');
+    if (u == null || u.host.isEmpty) return null;
+    final scheme = _isLoopbackHost(u.host) ? 'http' : 'https';
+    return '$scheme://${u.authority}';
+  }
+
+  /// GET that a link-embedded [origin] routes to its own server.
+  ///
+  /// The foreign path never attaches the session token — the token is a
+  /// credential for *this* server, and a link is exactly the vector an
+  /// attacker would use to make the app hand it to theirs. A foreign 401 also
+  /// must not end the local session.
+  Future<dynamic> getFromOrigin(
+    String? origin,
+    String path, {
+    Map<String, String>? queryParams,
+  }) async {
+    if (isOwnOrigin(origin)) return get(path, queryParams: queryParams);
+    final base = publicBaseFor(origin!);
+    if (base == null) {
+      throw ApiException(
+        0,
+        'The link names an invalid server.',
+        code: 'invalid_origin',
+      );
+    }
+    final uri = Uri.parse('$base$path').replace(queryParameters: queryParams);
+    final response = await _send(
+      _httpClient.get(uri, headers: {'Content-Type': 'application/json'}),
+    );
+    return _handleResponse(response, foreign: true);
+  }
+
+  /// POST counterpart of [getFromOrigin]; same credential rules.
+  Future<ApiResponse> postFromOrigin(
+    String? origin,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    if (isOwnOrigin(origin)) return postWithHeaders(path, body: body);
+    final base = publicBaseFor(origin!);
+    if (base == null) {
+      throw ApiException(
+        0,
+        'The link names an invalid server.',
+        code: 'invalid_origin',
+      );
+    }
+    final response = await _send(
+      _httpClient.post(
+        Uri.parse('$base$path'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body ?? {}),
+      ),
+    );
+    return ApiResponse(
+      _handleResponse(response, foreign: true),
+      response.headers,
+    );
+  }
+
   Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
     final uri = Uri.parse(
       '$baseUrl$path',
@@ -259,7 +340,7 @@ class ApiClient {
     }
   }
 
-  dynamic _handleResponse(http.Response response) {
+  dynamic _handleResponse(http.Response response, {bool foreign = false}) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) return null;
       return jsonDecode(response.body);
@@ -305,7 +386,7 @@ class ApiClient {
 
     // A rejected session is not a per-screen error: without this every screen
     // shows its own failure toast forever while the session stays dead.
-    if (response.statusCode == 401 && isAuthenticated) {
+    if (response.statusCode == 401 && isAuthenticated && !foreign) {
       onUnauthorized?.call();
     }
 

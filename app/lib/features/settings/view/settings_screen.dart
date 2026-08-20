@@ -40,7 +40,10 @@ import 'package:revoked_app/features/settings/store/settings_store.dart';
 /// of the app; signing out lives quietly at the bottom rather than as a red
 /// button up top.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  /// 0 = Account, 1 = Workspace, 2 = Developer.
+  final int initialTab;
+
+  const SettingsScreen({super.key, this.initialTab = 0});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -84,6 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             builder: (context) {
               final activeId = auth.activeWorkspace ?? '';
               return AppTabs(
+                initialIndex: widget.initialTab,
                 labels: const ['Account', 'Workspace', 'Developer'],
                 views: [
                   _accountTab(context, settings, auth, activeId),
@@ -125,17 +129,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: 'Match your system, or force light or dark.',
         ),
         _buildAppearance(context),
-
-        const SizedBox(height: AppSpacing.xxl),
-        _buildConnection(context),
-
-        const SizedBox(height: AppSpacing.xl),
-        _SignOutButton(
-          onSignOut: () async {
-            await auth.logout();
-            if (context.mounted) context.go(AppRoutes.login);
-          },
-        ),
       ],
     );
   }
@@ -212,6 +205,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: 'Prove this server controls its domain over DNS.',
         ),
         const _DomainVerificationCard(),
+        const SizedBox(height: AppSpacing.md),
+        _buildConnection(context),
       ],
     );
   }
@@ -234,8 +229,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
-
-  // --- Workspaces -----------------------------------------------------------
 
   Widget _buildWorkspaces(
     BuildContext context,
@@ -283,8 +276,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- Identities -----------------------------------------------------------
-
   Widget _buildIdentities(BuildContext context) {
     final store = Stores.identities;
     if (store.isLoading && store.identities.isEmpty) {
@@ -325,7 +316,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 AppSheetAction(
                   icon: AppIcons.stars,
                   label: 'Set as primary',
-                  onTap: () => store.togglePrimary(id.id),
+                  onTap: () async {
+                    final ok = await store.setPrimary(id.id);
+                    if (!context.mounted) return;
+                    if (ok) {
+                      AppToast.success(context, 'Primary identity updated');
+                    } else {
+                      AppToast.error(
+                        context,
+                        'Could not set primary identity',
+                        subtitle: store.errorMessage,
+                      );
+                    }
+                  },
                 ),
               if (!id.isPrimary)
                 AppSheetAction(
@@ -339,10 +342,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
-
-  // --- Developer ------------------------------------------------------------
-
-  // --- Appearance ----------------------------------------------------------
 
   Widget _buildAppearance(BuildContext context) {
     final controller = Stores.theme;
@@ -378,8 +377,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- Connection (read-only) ----------------------------------------------
-
   Widget _buildConnection(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     String host;
@@ -394,12 +391,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Icon(AppIcons.server, size: 13, color: scheme.onSurfaceVariant),
         const SizedBox(width: AppSpacing.xs),
-        Text('Connected to $host').muted.small,
+        Flexible(
+          child: Text('Connected to $host. Sign out to change').muted.small,
+        ),
       ],
     );
   }
-
-  // --- Create sheets --------------------------------------------------------
 
   void _openCreateWorkspace(SettingsStore settings, AuthStore auth) {
     showAppSheet(
@@ -556,44 +553,29 @@ class _DomainVerificationCard extends StatefulWidget {
 }
 
 class _DomainVerificationCardState extends State<_DomainVerificationCard> {
-  bool _checking = false;
-  TrustVerdict? _verdict;
-  String? _error;
-
   Future<void> _verify() async {
-    setState(() {
-      _checking = true;
-      _verdict = null;
-      _error = null;
-    });
+    final store = Stores.settings;
+    store.startDomainCheck();
     try {
       final server = await Stores.api.get('/api/server');
       final domain = (server is Map && server['domain'] is String)
           ? server['domain'] as String
           : '';
       if (domain.isEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _error = 'This server does not advertise a domain to verify.';
-          _checking = false;
-        });
+        store.finishDomainCheck(
+          error: 'This server does not advertise a domain to verify.',
+        );
         return;
       }
       final res = await Stores.api.post(
         '/api/verify-peer',
         body: {'domain': domain},
       );
-      if (!mounted) return;
-      setState(() {
-        _verdict = _verdictFrom(res as Map<String, dynamic>);
-        _checking = false;
-      });
+      store.finishDomainCheck(
+        verdict: _verdictFrom(res as Map<String, dynamic>),
+      );
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _checking = false;
-      });
+      store.finishDomainCheck(error: e.toString());
     }
   }
 
@@ -618,6 +600,10 @@ class _DomainVerificationCardState extends State<_DomainVerificationCard> {
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -627,20 +613,20 @@ class _DomainVerificationCardState extends State<_DomainVerificationCard> {
             'pins its root key. Run it after setting up DNS to confirm '
             'recipients can verify you.',
           ).muted.small,
-          if (_verdict != null) ...[
+          if (Stores.settings.domainVerdict != null) ...[
             const SizedBox(height: AppSpacing.md),
-            AppTrustBadge(verdict: _verdict!),
+            AppTrustBadge(verdict: Stores.settings.domainVerdict!),
           ],
-          if (_error != null) ...[
+          if (Stores.settings.domainError != null) ...[
             const SizedBox(height: AppSpacing.md),
-            AppErrorText(_error!),
+            AppErrorText(Stores.settings.domainError!),
           ],
           const SizedBox(height: AppSpacing.md),
           AppButton(
             icon: AppIcons.shieldCheck,
             label: 'Verify DNS setup',
             style: AppButtonStyle.accent,
-            busy: _checking,
+            busy: Stores.settings.isCheckingDomain,
             onTap: _verify,
           ),
         ],
@@ -648,10 +634,6 @@ class _DomainVerificationCardState extends State<_DomainVerificationCard> {
     );
   }
 }
-
-// ===========================================================================
-// Profile
-// ===========================================================================
 
 class _ProfileCard extends StatelessWidget {
   final String email;
@@ -698,15 +680,22 @@ class _ProfileCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          active?.name ?? 'No active workspace',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ).muted.small,
-                      ),
+                      Text(
+                        active?.name ?? 'No active workspace',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ).muted.small,
                     ],
                   ),
+                AppSpacing.gapSm,
+                AppButton(
+                  size: .small,
+                  onTap: () async {
+                    await Stores.auth.logout();
+                  },
+                  label: 'Logout',
+                  style: .destructive,
+                ),
               ],
             ),
           ),
@@ -715,10 +704,6 @@ class _ProfileCard extends StatelessWidget {
     );
   }
 }
-
-// ===========================================================================
-// Section scaffolding
-// ===========================================================================
 
 class _GroupHeader extends StatelessWidget {
   final String title;
@@ -923,28 +908,6 @@ class _EmptyCard extends StatelessWidget {
   }
 }
 
-class _SignOutButton extends StatelessWidget {
-  final Future<void> Function() onSignOut;
-  const _SignOutButton({required this.onSignOut});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: AppButton(
-        icon: AppIcons.boxArrowLeft,
-        label: 'Sign out',
-        style: AppButtonStyle.destructive,
-        onTap: onSignOut,
-      ),
-    );
-  }
-}
-
-// ===========================================================================
-// Create sheets
-// ===========================================================================
-
 String _slugify(String s) =>
     s.toLowerCase().replaceAll(' ', '-').replaceAll(RegExp(r'[^a-z0-9\-]'), '');
 
@@ -959,29 +922,25 @@ class _CreateWorkspaceSheet extends StatefulWidget {
 }
 
 class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
-  final _name = TextEditingController();
-  final _slug = TextEditingController();
-  bool _busy = false;
-
   @override
   void initState() {
     super.initState();
-    _name.addListener(() => _slug.text = _slugify(_name.text));
-  }
-
-  @override
-  void dispose() {
-    _name.dispose();
-    _slug.dispose();
-    super.dispose();
+    Stores.settings.workspaceName.addListener(
+      () => Stores.settings.workspaceSlug.text = _slugify(
+        Stores.settings.workspaceName.text,
+      ),
+    );
   }
 
   Future<void> _submit() async {
-    if (_name.text.trim().isEmpty || _slug.text.trim().isEmpty) return;
-    setState(() => _busy = true);
+    if (Stores.settings.workspaceName.text.trim().isEmpty ||
+        Stores.settings.workspaceSlug.text.trim().isEmpty) {
+      return;
+    }
+    Stores.settings.setSubmitting(true);
     final ok = await widget.settings.createWorkspace(
-      name: _name.text.trim(),
-      slug: _slug.text.trim(),
+      name: Stores.settings.workspaceName.text.trim(),
+      slug: Stores.settings.workspaceSlug.text.trim(),
       userId: widget.auth.userId,
     );
     if (!mounted) return;
@@ -991,13 +950,17 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
       Navigator.of(context).pop();
       AppToast.success(context, 'Workspace created');
     } else {
-      setState(() => _busy = false);
+      Stores.settings.setSubmitting(false);
       AppToast.error(context, 'Could not create workspace');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xl,
@@ -1017,12 +980,15 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
           const SizedBox(height: AppSpacing.lg),
           const Text('Name').small,
           const SizedBox(height: AppSpacing.xs),
-          AppTextField(controller: _name, hint: 'My Team'),
+          AppTextField(
+            controller: Stores.settings.workspaceName,
+            hint: 'My Team',
+          ),
           const SizedBox(height: AppSpacing.md),
           const Text('Slug').small,
           const SizedBox(height: AppSpacing.xs),
           AppTextField(
-            controller: _slug,
+            controller: Stores.settings.workspaceSlug,
             hint: 'my-team',
             inputFormatters: [
               TextInputFormatter.withFunction((oldValue, newValue) {
@@ -1035,7 +1001,11 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
-          AppButton(label: 'Create workspace', busy: _busy, onTap: _submit),
+          AppButton(
+            label: 'Create workspace',
+            busy: Stores.settings.isSubmittingDrawer,
+            onTap: _submit,
+          ),
         ],
       ),
     );
@@ -1050,35 +1020,29 @@ class _CreateIdentitySheet extends StatefulWidget {
 }
 
 class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
-  final _name = TextEditingController();
-  bool _primary = false;
-  bool _busy = false;
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
   Future<void> _submit() async {
-    if (_name.text.trim().isEmpty) return;
-    setState(() => _busy = true);
+    if (Stores.settings.identityName.text.trim().isEmpty) return;
+    Stores.settings.setSubmitting(true);
     final ok = await Stores.identities.createIdentity(
-      name: _name.text.trim(),
-      isPrimary: _primary,
+      name: Stores.settings.identityName.text.trim(),
+      isPrimary: Stores.settings.identityIsPrimary,
     );
     if (!mounted) return;
     if (ok) {
       Navigator.of(context).pop();
       AppToast.success(context, 'Identity generated');
     } else {
-      setState(() => _busy = false);
+      Stores.settings.setSubmitting(false);
       AppToast.error(context, 'Could not generate identity');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xl,
@@ -1099,20 +1063,23 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
           const SizedBox(height: AppSpacing.lg),
           const Text('Profile name').small,
           const SizedBox(height: AppSpacing.xs),
-          AppTextField(controller: _name, hint: 'e.g. Personal, Recruiter'),
+          AppTextField(
+            controller: Stores.settings.identityName,
+            hint: 'e.g. Recruiter, Max Musterman, Personal',
+          ),
           const SizedBox(height: AppSpacing.sm),
           AppFormToggleRow(
             label: 'Set as primary identity',
-            subtitle: 'Used by default when signing shares.',
-            value: _primary,
-            onChanged: (v) => setState(() => _primary = v),
+            subtitle: 'Used by default when signing shares or requests.',
+            value: Stores.settings.identityIsPrimary,
+            onChanged: Stores.settings.setIdentityPrimary,
             inset: false,
           ),
           const SizedBox(height: AppSpacing.md),
           AppButton(
             icon: AppIcons.shieldCheck,
             label: 'Generate keys',
-            busy: _busy,
+            busy: Stores.settings.isSubmittingDrawer,
             onTap: _submit,
           ),
         ],

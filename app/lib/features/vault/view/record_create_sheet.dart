@@ -1,24 +1,23 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
-
-import 'package:revoked_app/core/widgets/app_divider.dart';
-import 'package:revoked_app/core/widgets/app_error_text.dart';
-import 'package:revoked_app/core/widgets/app_tile.dart';
-import 'package:revoked_app/features/vault/store/vault_store.dart';
-import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
+import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
-import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
 
 /// Opens the record-create / duplicate drawer.
 void openRecordCreateSheet({
@@ -64,88 +63,50 @@ class _RecordCreateDrawer extends StatefulWidget {
 }
 
 class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
-  late final TextEditingController _keyCtrl;
-  late final TextEditingController _valueCtrl;
-  late final TextEditingController _labelCtrl;
-  String _selectedType = 'text';
-  String _selectedFormat = 'default';
-
-  String? _keyWarning;
-  String? _suggestedKey;
-
-  String? _typeWarning;
-  String? _detectedType;
-
-  /// If duplicating a record that lives in a section, link the new record
-  /// to the same section on save.
-  String? _originSectionId;
-
-  bool _isSubmitting = false;
+  VaultStore get _store => widget.store;
 
   @override
   void initState() {
     super.initState();
     final r = widget.initialRecord;
-    _keyCtrl = TextEditingController(text: r != null ? '${r.key}_1' : '');
-    _valueCtrl = TextEditingController(text: r?.value ?? '');
-    _labelCtrl = TextEditingController(text: r?.label ?? '');
+    String? sectionId;
     if (r != null) {
-      _selectedType = r.type;
-      _selectedFormat = r.format;
       for (final sec in widget.store.sections) {
         if (sec.records.contains(r.id)) {
-          _originSectionId = sec.id;
+          sectionId = sec.id;
           break;
         }
       }
+    }
+    _store.startRecordDraft(from: r, sectionId: sectionId);
+    if (r != null) {
       // Defer key validation until after first build so the warning shows.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _validateKey(_keyCtrl.text);
+        _validateKey(_store.recordKey.text);
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _keyCtrl.dispose();
-    _valueCtrl.dispose();
-    _labelCtrl.dispose();
-    super.dispose();
   }
 
   void _validateKey(String input) {
     if (input.isEmpty) {
-      setState(() {
-        _keyWarning = null;
-        _suggestedKey = null;
-      });
+      _store.setRecordKeyCheck();
       return;
     }
     final exists = widget.store.records.any((r) => r.key == input);
-    if (exists) {
-      final alt = _generateAlternativeKey(input);
-      setState(() {
-        _keyWarning = 'This key is already taken.';
-        _suggestedKey = alt;
-      });
-    } else {
-      setState(() {
-        _keyWarning = null;
-        _suggestedKey = null;
-      });
-    }
+    _store.setRecordKeyCheck(
+      warning: exists ? 'This key is already taken.' : null,
+      suggestion: exists ? _generateAlternativeKey(input) : null,
+    );
   }
 
   void _validateAndDetectType(String value) {
-    setState(() {
-      _typeWarning = RecordTypeUtils.validateValue(_selectedType, value);
-      final detected = RecordTypeUtils.detectType(value);
-      if (detected != 'text' && detected != _selectedType) {
-        _detectedType = detected;
-      } else {
-        _detectedType = null;
-      }
-    });
+    final detected = RecordTypeUtils.detectType(value);
+    _store.setRecordTypeCheck(
+      warning: RecordTypeUtils.validateValue(_store.recordType, value),
+      detected: (detected != 'text' && detected != _store.recordType)
+          ? detected
+          : null,
+    );
   }
 
   String _generateAlternativeKey(String baseKey) {
@@ -162,23 +123,23 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   }
 
   bool _canSubmit() {
-    return _labelCtrl.text.trim().isNotEmpty &&
-        _keyCtrl.text.trim().isNotEmpty &&
-        _valueCtrl.text.trim().isNotEmpty &&
-        _keyWarning == null &&
-        _typeWarning == null;
+    return _store.recordLabel.text.trim().isNotEmpty &&
+        _store.recordKey.text.trim().isNotEmpty &&
+        _store.recordValue.text.trim().isNotEmpty &&
+        _store.recordKeyWarning == null &&
+        _store.recordTypeWarning == null;
   }
 
   Future<void> _submit() async {
     if (!_canSubmit()) return;
-    setState(() => _isSubmitting = true);
+    _store.setSubmittingRecord(true);
 
     final ok = await widget.store.createRecord(
-      key: _keyCtrl.text.trim(),
-      value: _valueCtrl.text,
-      label: _labelCtrl.text.trim(),
-      type: _selectedType,
-      format: _selectedFormat,
+      key: _store.recordKey.text.trim(),
+      value: _store.recordValue.text,
+      label: _store.recordLabel.text.trim(),
+      type: _store.recordType,
+      format: _store.recordFormat,
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
     );
@@ -193,19 +154,19 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
           subtitle: widget.store.errorMessage,
         );
       }
-      setState(() => _isSubmitting = false);
+      _store.setSubmittingRecord(false);
       return;
     }
 
     // If we duplicated a record that lived inside a section, attach the
     // new record to that section so the relationship survives.
-    if (_originSectionId != null) {
+    if (_store.recordOriginSectionId != null) {
       final newId = widget.store.records.first.id;
       final sec = widget.store.sections.firstWhere(
-        (s) => s.id == _originSectionId,
+        (s) => s.id == _store.recordOriginSectionId,
         orElse: () => widget.store.sections.first,
       );
-      if (sec.id == _originSectionId) {
+      if (sec.id == _store.recordOriginSectionId) {
         final merged = List<String>.from(sec.records)..add(newId);
         await widget.store.updateSection(sec.id, {'records': merged});
       }
@@ -224,6 +185,10 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final isDup = widget.initialRecord != null;
 
     return ConstrainedBox(
@@ -232,8 +197,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.xl,
@@ -256,7 +221,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
           ),
           const AppDivider(),
 
-          // Body
           Flexible(
             child: ListView(
               shrinkWrap: true,
@@ -270,15 +234,14 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
                 const AppFormSectionHeader('Display'),
                 AppFormToggleRow(
-                  icon: _selectedFormat == 'hidden'
+                  icon: _store.recordFormat == 'hidden'
                       ? AppIcons.eyeSlash
                       : AppIcons.eye,
                   label: 'Hidden value',
                   subtitle: 'Mask the value when shown in the vault.',
-                  value: _selectedFormat == 'hidden',
-                  onChanged: (on) => setState(
-                    () => _selectedFormat = on ? 'hidden' : 'default',
-                  ),
+                  value: _store.recordFormat == 'hidden',
+                  onChanged: (on) =>
+                      _store.setRecordFormat(on ? 'hidden' : 'default'),
                 ),
 
                 const AppFormSectionHeader('Developer'),
@@ -291,11 +254,11 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   ),
                   child: ApiPreview(
                     spec: VaultStore.createRecordSpec(
-                      key: _keyCtrl.text.trim(),
-                      value: _valueCtrl.text,
-                      label: _labelCtrl.text.trim(),
-                      type: _selectedType,
-                      format: _selectedFormat,
+                      key: _store.recordKey.text.trim(),
+                      value: _store.recordValue.text,
+                      label: _store.recordLabel.text.trim(),
+                      type: _store.recordType,
+                      format: _store.recordFormat,
                       user: widget.authStore.userId,
                       workspace: widget.authStore.activeWorkspace ?? '',
                     ),
@@ -306,7 +269,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
           ),
           const AppDivider(),
 
-          // Footer
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.xl,
@@ -319,7 +281,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 Expanded(
                   child: AppButton(
                     label: 'Cancel',
-                    onTap: _isSubmitting
+                    onTap: _store.isSubmittingRecord
                         ? null
                         : () => Navigator.of(context).pop(),
                     style: AppButtonStyle.accent,
@@ -328,8 +290,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
-                    label: isDup ? 'Duplicate' : 'Create',
-                    busy: _isSubmitting,
+                    label: isDup ? 'Duplicate Record' : 'Create Record',
+                    busy: _store.isSubmittingRecord,
                     onTap: _canSubmit() ? _submit : null,
                   ),
                 ),
@@ -341,10 +303,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     );
   }
 
-  // --- Rows ------------------------------------------------------------
-
   Widget _buildLabelRow() {
-    final v = _labelCtrl.text.trim();
+    final v = _store.recordLabel.text.trim();
     return AppFormRow(
       icon: AppIcons.fileText,
       label: 'Label',
@@ -356,71 +316,68 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
           context: context,
           title: 'Label',
           description: 'A friendly display name for this record.',
-          controller: _labelCtrl,
+          controller: _store.recordLabel,
           hint: 'e.g. Production API Key',
         );
-        if (mounted) setState(() {});
       },
     );
   }
 
   Widget _buildKeyRow() {
-    final k = _keyCtrl.text.trim();
+    final k = _store.recordKey.text.trim();
     return AppFormRow(
       icon: AppIcons.hash,
       label: 'Key',
-      valueText: k.isEmpty ? 'Required' : (_keyWarning ?? k),
+      valueText: k.isEmpty ? 'Required' : (_store.recordKeyWarning ?? k),
       isPlaceholder: k.isEmpty,
-      isError: k.isEmpty || _keyWarning != null,
+      isError: k.isEmpty || _store.recordKeyWarning != null,
       onTap: _editKey,
     );
   }
 
   Widget _buildValueRow() {
-    final v = _valueCtrl.text;
+    final v = _store.recordValue.text;
     final empty = v.trim().isEmpty;
-    final summary = _selectedFormat == 'hidden' ? '••••••••' : v;
+    final summary = _store.recordFormat == 'hidden' ? '••••••••' : v;
     return AppFormRow(
       icon: AppIcons.key,
       label: 'Value',
-      valueText: empty ? 'Required' : (_typeWarning ?? summary),
+      valueText: empty ? 'Required' : (_store.recordTypeWarning ?? summary),
       isPlaceholder: empty,
-      isError: empty || _typeWarning != null,
+      isError: empty || _store.recordTypeWarning != null,
       onTap: _editValue,
     );
   }
 
   Widget _buildTypeRow() {
-    final base = _selectedType.toUpperCase();
+    final base = _store.recordType.toUpperCase();
     return AppFormRow(
       icon: AppIcons.tag,
       label: 'Type',
-      valueText: _detectedType != null
-          ? '$base · suggested ${_detectedType!.toUpperCase()}'
+      valueText: _store.recordDetectedType != null
+          ? '$base · suggested ${_store.recordDetectedType!.toUpperCase()}'
           : base,
       onTap: _pickType,
     );
   }
-
-  // --- Sub-sheets ------------------------------------------------------
 
   Future<void> _editValue() async {
     await showAppEditSheet(
       context: context,
       title: 'Value',
       description: 'The actual sensitive data or configuration value.',
-      controller: _valueCtrl,
+      controller: _store.recordValue,
       hint: 'sk-123456789...',
     );
-    if (mounted) _validateAndDetectType(_valueCtrl.text);
+    if (mounted) _validateAndDetectType(_store.recordValue.text);
   }
 
   Future<void> _editKey() async {
     await showAppSheet(
       context: context,
       builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheet) {
+        return Observer(
+          builder: (ctx) {
             return Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xl,
@@ -439,29 +396,27 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   ).muted.small,
                   const SizedBox(height: AppSpacing.lg),
                   AppTextField(
-                    controller: _keyCtrl,
+                    controller: _store.recordKey,
                     hint: 'prod_api_key',
                     autofocus: true,
                     inputFormatters: [KeyInputFormatter()],
                     onChanged: (v) {
                       _validateKey(v);
-                      setSheet(() {});
                     },
                   ),
-                  if (_keyWarning != null) ...[
+                  if (_store.recordKeyWarning != null) ...[
                     const SizedBox(height: AppSpacing.sm),
-                    AppErrorText(_keyWarning!),
+                    AppErrorText(_store.recordKeyWarning!),
                   ],
-                  if (_suggestedKey != null) ...[
+                  if (_store.recordSuggestedKey != null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: AppButton(
-                        label: 'Use suggested: $_suggestedKey',
+                        label: 'Use suggested: $_store.recordSuggestedKey',
                         onTap: () {
-                          _keyCtrl.text = _suggestedKey!;
-                          _validateKey(_keyCtrl.text);
-                          setSheet(() {});
+                          _store.recordKey.text = _store.recordSuggestedKey!;
+                          _validateKey(_store.recordKey.text);
                         },
                         style: AppButtonStyle.accent,
                       ),
@@ -471,7 +426,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   AppButton(
                     label: 'Done',
                     onTap:
-                        (_keyCtrl.text.trim().isNotEmpty && _keyWarning == null)
+                        (_store.recordKey.text.trim().isNotEmpty &&
+                            _store.recordKeyWarning == null)
                         ? () => Navigator.of(sheetCtx).pop()
                         : null,
                   ),
@@ -482,7 +438,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         );
       },
     );
-    if (mounted) setState(() {});
   }
 
   Future<void> _pickType() async {
@@ -503,8 +458,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
               child: Text('Value type').header,
             ),
             ...RecordTypeUtils.supportedTypes.map((t) {
-              final selected = t == _selectedType;
-              final suggested = t == _detectedType;
+              final selected = t == _store.recordType;
+              final suggested = t == _store.recordDetectedType;
               return AppTile(
                 padding: _pickerRowPadding,
                 title: Text(t.toUpperCase()),
@@ -526,8 +481,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       },
     );
     if (picked != null && mounted) {
-      _selectedType = picked;
-      _validateAndDetectType(_valueCtrl.text);
+      _store.recordType = picked;
+      _validateAndDetectType(_store.recordValue.text);
     }
   }
 }

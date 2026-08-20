@@ -35,26 +35,20 @@ class RequestSheetScreen extends StatefulWidget {
 }
 
 class _RequestSheetScreenState extends State<RequestSheetScreen> {
-  bool _loading = true;
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Stores.requests.loadSheet(widget.requestId),
+    );
   }
 
   @override
   void didUpdateWidget(covariant RequestSheetScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.requestId != widget.requestId) _load();
-  }
-
-  Future<void> _load() async {
-    if (mounted) setState(() => _loading = true);
-    final store = Stores.requests;
-    if (store.requests.isEmpty) await store.loadRequests();
-    await store.loadResponses(widget.requestId);
-    if (mounted) setState(() => _loading = false);
+    if (oldWidget.requestId != widget.requestId) {
+      Stores.requests.loadSheet(widget.requestId);
+    }
   }
 
   String _requestLabel() {
@@ -249,7 +243,9 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
           padding: EdgeInsets.fromLTRB(pad, AppSpacing.md, pad, 0),
           child: Observer(
             builder: (_) {
-              final data = _loading ? null : _pivot(context);
+              final data = Stores.requests.isLoadingSheet
+                  ? null
+                  : _pivot(context);
               final count = data?.rows.length ?? 0;
               return AppScreenHeader(
                 title: _requestLabel(),
@@ -272,25 +268,26 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
         ),
         const SizedBox(height: AppSpacing.sm),
         Expanded(
-          child: _loading
-              ? const Center(child: AppSpinner(large: true))
-              : Observer(
-                  builder: (_) {
-                    final data = _pivot(context);
-                    if (data.rows.isEmpty) {
-                      return const AppEmptyState(
-                        icon: AppIcons.cardList,
-                        title: 'No responses yet',
-                        subtitle:
-                            'When people respond to this request, each one shows up here as a row.',
-                      );
-                    }
-                    return Padding(
-                      padding: EdgeInsets.fromLTRB(pad, 0, pad, AppSpacing.lg),
-                      child: SheetView(columns: data.columns, rows: data.rows),
-                    );
-                  },
-                ),
+          child: Observer(
+            builder: (_) {
+              if (Stores.requests.isLoadingSheet) {
+                return const Center(child: AppSpinner(large: true));
+              }
+              final data = _pivot(context);
+              if (data.rows.isEmpty) {
+                return const AppEmptyState(
+                  icon: AppIcons.cardList,
+                  title: 'No responses yet',
+                  subtitle:
+                      'When people respond to this request, each one shows up here as a row.',
+                );
+              }
+              return Padding(
+                padding: EdgeInsets.fromLTRB(pad, 0, pad, AppSpacing.lg),
+                child: SheetView(columns: data.columns, rows: data.rows),
+              );
+            },
+          ),
         ),
       ],
     );

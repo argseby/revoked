@@ -1,7 +1,7 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -18,6 +18,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
+import 'package:revoked_app/features/shares/store/shares_store.dart';
 
 void openShareCreateSheet({
   required BuildContext context,
@@ -43,16 +44,7 @@ class _ShareCreateForm extends StatefulWidget {
 }
 
 class _ShareCreateFormState extends State<_ShareCreateForm> {
-  late final TextEditingController _labelCtrl;
-  late final TextEditingController _slugCtrl;
-  late final TextEditingController _passwordCtrl;
-  late final TextEditingController _maxViewsCtrl;
-  DateTime? _expiresAt;
-  String? _identityId;
-  bool _requireHandshake = false;
-
-  String? _slugWarning;
-  bool _isSubmitting = false;
+  SharesStore get _store => Stores.shares;
 
   String _generateRandomSlug() {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -70,60 +62,55 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   void initState() {
     super.initState();
     final link = widget.editShare ?? widget.initialShare;
-    _labelCtrl = TextEditingController(
-      text: link != null
+    _store.startShareDraft(
+      label: link != null
           ? (widget.editShare != null ? link.label : '${link.label} Copy')
           : '',
+      slug: widget.editShare != null
+          ? widget.editShare!.slug
+          : _generateRandomSlug(),
+      maxViews: (link?.maxViews ?? 0) > 0 ? link!.maxViews.toString() : '',
+      expiresAt: link?.expiresAt != null
+          ? DateTime.tryParse(link!.expiresAt!)
+          : null,
+      // PocketBase returns "" for an unset relation, which `??` does not catch;
+      // an empty id matches no option, so editing an unsigned share showed the
+      // picker with nothing selected at all.
+      identityId: switch (link?.identity) {
+        final String id when id.isNotEmpty => id,
+        // Editing keeps the share's own answer, including "unsigned".
+        _ when widget.editShare != null => null,
+        _ => Stores.identities.primaryIdentity?.id,
+      },
+      requireHandshake: link?.requireHandshake ?? false,
     );
-    final defaultSlug = widget.editShare != null
-        ? widget.editShare!.slug
-        : _generateRandomSlug();
-    _slugCtrl = TextEditingController(text: defaultSlug);
-    _passwordCtrl = TextEditingController();
-    _maxViewsCtrl = TextEditingController(
-      text: (link?.maxViews ?? 0) > 0 ? link!.maxViews.toString() : '',
-    );
-    _expiresAt = link?.expiresAt != null
-        ? DateTime.tryParse(link!.expiresAt!)
-        : null;
-    _identityId = link?.identity;
-    _requireHandshake = link?.requireHandshake ?? false;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_slugCtrl.text.isNotEmpty && widget.editShare == null) {
-        _validateSlug(_slugCtrl.text);
+      if (_store.draftSlug.text.isNotEmpty && widget.editShare == null) {
+        _validateSlug(_store.draftSlug.text);
       }
     });
   }
 
-  @override
-  void dispose() {
-    _labelCtrl.dispose();
-    _slugCtrl.dispose();
-    _passwordCtrl.dispose();
-    _maxViewsCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _validateSlug(String input) async {
     if (input.isEmpty) {
-      setState(() => _slugWarning = null);
+      _store.setDraftSlugWarning(null);
       return;
     }
     final taken = await Stores.shares.isSlugTaken(input);
     if (!mounted) return;
     if (taken &&
         (widget.editShare == null || widget.editShare!.slug != input)) {
-      setState(() => _slugWarning = 'This slug is already taken.');
+      _store.setDraftSlugWarning('This slug is already taken.');
     } else {
-      setState(() => _slugWarning = null);
+      _store.setDraftSlugWarning(null);
     }
   }
 
   bool _canSubmit() {
-    return _labelCtrl.text.trim().isNotEmpty &&
-        _slugCtrl.text.trim().isNotEmpty &&
-        _slugWarning == null;
+    return _store.draftLabel.text.trim().isNotEmpty &&
+        _store.draftSlug.text.trim().isNotEmpty &&
+        _store.draftSlugWarning == null;
   }
 
   /// The exact API request the current form would issue — drives the live
@@ -131,45 +118,48 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   ApiRequestSpec _buildSpec() {
     if (widget.editShare != null) {
       final updates = <String, dynamic>{
-        'label': _labelCtrl.text.trim(),
-        'slug': _slugCtrl.text.trim(),
-        'maxViews': int.tryParse(_maxViewsCtrl.text) ?? 0,
-        if (_passwordCtrl.text.isNotEmpty) 'password': _passwordCtrl.text,
-        'expiresAt': _expiresAt?.toIso8601String() ?? '',
-        'identity': _identityId ?? '',
-        'requireHandshake': _requireHandshake,
+        'label': _store.draftLabel.text.trim(),
+        'slug': _store.draftSlug.text.trim(),
+        'maxViews': int.tryParse(_store.draftMaxViews.text) ?? 0,
+        if (_store.draftPassword.text.isNotEmpty)
+          'password': _store.draftPassword.text,
+        'expiresAt': _store.draftExpiresAt?.toIso8601String() ?? '',
+        'identity': _store.draftIdentityId ?? '',
+        'requireHandshake': _store.draftRequireHandshake,
       };
       return Stores.shares.updateShareSpec(widget.editShare!.id, updates);
     }
     return Stores.shares.createShareSpec(
-      slug: _slugCtrl.text.trim(),
-      label: _labelCtrl.text.trim(),
+      slug: _store.draftSlug.text.trim(),
+      label: _store.draftLabel.text.trim(),
       user: Stores.auth.userId,
       workspace: Stores.auth.activeWorkspace ?? '',
       sections: widget.initialShare?.sections ?? const [],
       records: widget.initialShare?.records ?? const [],
-      password: _passwordCtrl.text.isNotEmpty ? _passwordCtrl.text : null,
-      maxViews: int.tryParse(_maxViewsCtrl.text),
-      expiresAt: _expiresAt,
-      identityId: _identityId,
-      requireHandshake: _requireHandshake,
+      password: _store.draftPassword.text.isNotEmpty
+          ? _store.draftPassword.text
+          : null,
+      maxViews: int.tryParse(_store.draftMaxViews.text),
+      expiresAt: _store.draftExpiresAt,
+      identityId: _store.draftIdentityId,
+      requireHandshake: _store.draftRequireHandshake,
     );
   }
 
   Future<bool> _submit() async {
     if (widget.editShare != null) {
       final updates = <String, dynamic>{
-        'label': _labelCtrl.text.trim(),
-        'slug': _slugCtrl.text.trim(),
-        'maxViews': int.tryParse(_maxViewsCtrl.text) ?? 0,
-        'identity': _identityId ?? '',
-        'requireHandshake': _requireHandshake,
+        'label': _store.draftLabel.text.trim(),
+        'slug': _store.draftSlug.text.trim(),
+        'maxViews': int.tryParse(_store.draftMaxViews.text) ?? 0,
+        'identity': _store.draftIdentityId ?? '',
+        'requireHandshake': _store.draftRequireHandshake,
       };
-      if (_passwordCtrl.text.isNotEmpty) {
-        updates['password'] = _passwordCtrl.text;
+      if (_store.draftPassword.text.isNotEmpty) {
+        updates['password'] = _store.draftPassword.text;
       }
-      if (_expiresAt != null) {
-        updates['expiresAt'] = _expiresAt!.toIso8601String();
+      if (_store.draftExpiresAt != null) {
+        updates['expiresAt'] = _store.draftExpiresAt!.toIso8601String();
       } else {
         updates['expiresAt'] = '';
       }
@@ -189,17 +179,19 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     }
 
     final ok = await Stores.shares.createShare(
-      slug: _slugCtrl.text.trim(),
-      label: _labelCtrl.text.trim(),
+      slug: _store.draftSlug.text.trim(),
+      label: _store.draftLabel.text.trim(),
       user: Stores.auth.userId,
       workspace: Stores.auth.activeWorkspace ?? '',
       sections: widget.initialShare?.sections ?? [],
       records: widget.initialShare?.records ?? [],
-      password: _passwordCtrl.text.isNotEmpty ? _passwordCtrl.text : null,
-      maxViews: int.tryParse(_maxViewsCtrl.text),
-      expiresAt: _expiresAt,
-      identityId: _identityId,
-      requireHandshake: _requireHandshake,
+      password: _store.draftPassword.text.isNotEmpty
+          ? _store.draftPassword.text
+          : null,
+      maxViews: int.tryParse(_store.draftMaxViews.text),
+      expiresAt: _store.draftExpiresAt,
+      identityId: _store.draftIdentityId,
+      requireHandshake: _store.draftRequireHandshake,
     );
     if (!mounted) return false;
     if (!ok) {
@@ -218,18 +210,22 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   }
 
   Future<void> _onSubmit() async {
-    setState(() => _isSubmitting = true);
+    _store.setSubmittingShare(true);
     final ok = await _submit();
     if (!mounted) return;
     if (ok) {
       Navigator.of(context).pop();
     } else {
-      setState(() => _isSubmitting = false);
+      _store.setSubmittingShare(false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final isEdit = widget.editShare != null;
     final isDup = widget.initialShare != null;
     final title = isEdit
@@ -237,7 +233,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         : (isDup ? 'Duplicate share' : 'New share link');
     final completeLabel = isEdit
         ? 'Save changes'
-        : (isDup ? 'Duplicate' : 'Create share');
+        : (isDup ? 'Duplicate Share' : 'Create Share');
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -319,7 +315,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                   child: AppButton(
                     label: 'Cancel',
                     style: AppButtonStyle.accent,
-                    onTap: _isSubmitting
+                    onTap: _store.isSubmittingShare
                         ? null
                         : () => Navigator.of(context).pop(),
                   ),
@@ -328,7 +324,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                 Expanded(
                   child: AppButton(
                     label: completeLabel,
-                    busy: _isSubmitting,
+                    busy: _store.isSubmittingShare,
                     onTap: _canSubmit() ? _onSubmit : null,
                   ),
                 ),
@@ -340,10 +336,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     );
   }
 
-  // --- Rows ------------------------------------------------------------
-
   Widget _buildLabelRow() {
-    final v = _labelCtrl.text.trim();
+    final v = _store.draftLabel.text.trim();
     return AppFormRow(
       icon: AppIcons.fileText,
       label: 'Label',
@@ -355,44 +349,42 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           context: context,
           title: 'Label',
           description: 'A friendly name for this share link.',
-          controller: _labelCtrl,
+          controller: _store.draftLabel,
           hint: 'Vendor Onboarding',
         );
-        if (mounted) setState(() {});
       },
     );
   }
 
   Widget _buildSlugRow() {
-    final slug = _slugCtrl.text.trim();
+    final slug = _store.draftSlug.text.trim();
     return AppFormRow(
       icon: AppIcons.link,
       label: 'URL slug',
-      valueText: slug.isEmpty ? 'Required' : (_slugWarning ?? slug),
+      valueText: slug.isEmpty ? 'Required' : (_store.draftSlugWarning ?? slug),
       isPlaceholder: slug.isEmpty,
-      isError: slug.isEmpty || _slugWarning != null,
+      isError: slug.isEmpty || _store.draftSlugWarning != null,
       onTap: _editSlug,
     );
   }
 
   Widget _buildMaxViewsRow() {
-    final v = _maxViewsCtrl.text.trim();
+    final v = _store.draftMaxViews.text.trim();
     return AppFormRow(
       icon: AppIcons.collection,
       label: 'Maximum views',
       valueText: v.isEmpty ? 'Unlimited' : v,
       isPlaceholder: v.isEmpty,
-      onClear: () => setState(() => _maxViewsCtrl.clear()),
+      onClear: _store.draftMaxViews.clear,
       onTap: () async {
         await showAppEditSheet(
           context: context,
           title: 'Maximum views',
           description: 'Auto-expire the link after this many views.',
-          controller: _maxViewsCtrl,
+          controller: _store.draftMaxViews,
           hint: 'e.g. 5 — leave blank for unlimited',
           keyboardType: TextInputType.number,
         );
-        if (mounted) setState(() {});
       },
     );
   }
@@ -401,31 +393,32 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     return AppFormRow(
       icon: AppIcons.clock,
       label: 'Expiration date',
-      valueText: _expiresAt == null ? 'Never' : _formatDate(_expiresAt!),
-      isPlaceholder: _expiresAt == null,
-      onClear: () => setState(() => _expiresAt = null),
+      valueText: _store.draftExpiresAt == null
+          ? 'Never'
+          : _formatDate(_store.draftExpiresAt!),
+      isPlaceholder: _store.draftExpiresAt == null,
+      onClear: () => _store.setDraftExpiry(null),
       onTap: _pickExpiry,
     );
   }
 
   Widget _buildPasswordRow() {
-    final has = _passwordCtrl.text.isNotEmpty;
+    final has = _store.draftPassword.text.isNotEmpty;
     return AppFormRow(
       icon: AppIcons.lock,
       label: 'Password',
       valueText: has ? '••••••••' : 'Not set',
       isPlaceholder: !has,
-      onClear: () => setState(() => _passwordCtrl.clear()),
+      onClear: _store.draftPassword.clear,
       onTap: () async {
         await showAppEditSheet(
           context: context,
           title: 'Password',
           description: 'Recipients must enter this before viewing the share.',
-          controller: _passwordCtrl,
+          controller: _store.draftPassword,
           hint: 'Leave blank for no password',
           passwordToggle: true,
         );
-        if (mounted) setState(() {});
       },
     );
   }
@@ -450,9 +443,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           ).muted.small,
           AppSpacing.gapMd,
           IdentityPicker(
-            selectedId: _identityId,
+            selectedId: _store.draftIdentityId,
             allowNone: true,
-            onChanged: (v) => setState(() => _identityId = v),
+            onChanged: _store.setDraftIdentity,
           ),
           AppSpacing.gapXxs,
           AppFormToggleRow(
@@ -460,8 +453,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
             subtitle:
                 'Viewers must prove control of a cryptographic identity '
                 '(handshake) before the data is revealed.',
-            value: _requireHandshake,
-            onChanged: (v) => setState(() => _requireHandshake = v),
+            value: _store.draftRequireHandshake,
+            onChanged: _store.setDraftHandshake,
             inset: false,
           ),
         ],
@@ -469,14 +462,12 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     );
   }
 
-  // --- Sub-sheets ------------------------------------------------------
-
   Future<void> _editSlug() async {
     await showAppSheet(
       context: context,
       builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheet) {
+        return Observer(
+          builder: (ctx) {
             return Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xl,
@@ -498,13 +489,12 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                     children: [
                       Expanded(
                         child: AppTextField(
-                          controller: _slugCtrl,
+                          controller: _store.draftSlug,
                           hint: 'vendor-onboarding-2024',
                           autofocus: true,
                           inputFormatters: [SlugInputFormatter()],
                           onChanged: (v) async {
                             await _validateSlug(v);
-                            setSheet(() {});
                           },
                         ),
                       ),
@@ -515,23 +505,22 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                         tooltip: 'Generate a random slug',
                         onTap: () async {
                           final s = _generateRandomSlug();
-                          _slugCtrl.text = s;
+                          _store.draftSlug.text = s;
                           await _validateSlug(s);
-                          setSheet(() {});
                         },
                       ),
                     ],
                   ),
-                  if (_slugWarning != null) ...[
+                  if (_store.draftSlugWarning != null) ...[
                     AppSpacing.gapSm,
-                    Text(_slugWarning!).small,
+                    Text(_store.draftSlugWarning!).small,
                   ],
                   AppSpacing.gapLg,
                   AppButton(
                     label: 'Done',
                     onTap:
-                        (_slugCtrl.text.trim().isNotEmpty &&
-                            _slugWarning == null)
+                        (_store.draftSlug.text.trim().isNotEmpty &&
+                            _store.draftSlugWarning == null)
                         ? () => Navigator.of(sheetCtx).pop()
                         : null,
                   ),
@@ -542,21 +531,18 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         );
       },
     );
-    if (mounted) setState(() {});
   }
 
   Future<void> _pickExpiry() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _expiresAt ?? now.add(const Duration(days: 7)),
+      initialDate: _store.draftExpiresAt ?? now.add(const Duration(days: 7)),
       firstDate: now,
       lastDate: now.add(const Duration(days: 365 * 5)),
     );
-    if (picked != null && mounted) setState(() => _expiresAt = picked);
+    if (picked != null) _store.setDraftExpiry(picked);
   }
-
-  // --- Helpers ---------------------------------------------------------
 
   String _formatDate(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';

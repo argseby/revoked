@@ -37,6 +37,26 @@ class DataTableFilter {
   }
 }
 
+/// One entry in the sort dropdown: the key [TableStore.sortBy] holds, and how
+/// it reads to the user.
+class DataTableSortOption {
+  final String key;
+  final String label;
+
+  const DataTableSortOption(this.key, this.label);
+}
+
+/// Every sort a table with [columns] offers: each column both ways, then
+/// newest/oldest. Built here so the dropdown and `sortBy` cannot drift.
+List<DataTableSortOption> sortOptionsFor(List<DataTableColumn> columns) => [
+  const DataTableSortOption('created_desc', 'Newest first'),
+  const DataTableSortOption('created_asc', 'Oldest first'),
+  for (final c in columns) ...[
+    DataTableSortOption('${c.value}_asc', '${c.label} (A–Z)'),
+    DataTableSortOption('${c.value}_desc', '${c.label} (Z–A)'),
+  ],
+];
+
 /// Search, filter and sort over an in-memory list.
 ///
 /// Page-scoped: the page that needs a table creates one and disposes it there,
@@ -106,6 +126,14 @@ abstract class _TableStore<T> with Store {
   @action
   void setSort(String sort) {
     sortBy = sort;
+  }
+
+  /// What the filter drawer reports while it covers the list it is filtering.
+  String get matchSummary {
+    final total = getSourceItems().length;
+    final shown = filteredItems.length;
+    if (shown == total) return '$total ${total == 1 ? 'item' : 'items'}';
+    return 'Showing $shown of $total';
   }
 
   List<T> get filteredItems {

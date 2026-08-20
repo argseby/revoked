@@ -6,14 +6,22 @@ class AppTabs extends StatelessWidget {
   final List<String> labels;
   final List<Widget> views;
 
-  const AppTabs({super.key, required this.labels, required this.views})
-    : assert(labels.length == views.length, 'one view per tab');
+  /// Which tab opens first - lets a route deep-link into one.
+  final int initialIndex;
+
+  const AppTabs({
+    super.key,
+    required this.labels,
+    required this.views,
+    this.initialIndex = 0,
+  }) : assert(labels.length == views.length, 'one view per tab');
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: labels.length,
+      initialIndex: initialIndex.clamp(0, labels.length - 1),
       child: Column(
         children: [
           TabBar(

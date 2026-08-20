@@ -158,18 +158,14 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
     ApiKeysStore store,
     AuthStore authStore,
   ) {
-    final labelCtrl = TextEditingController();
-    final selected = <String>{};
-    // Days until the key stops working; null means it never expires.
-    int? expiresInDays = 90;
-
+    store.resetDraft();
     Stores.invites.loadCatalogue();
 
     showAppSheet(
       context: context,
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) => SingleChildScrollView(
+        return Observer(
+          builder: (ctx) => SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -201,7 +197,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
                     horizontal: AppSpacing.xl,
                   ),
                   child: AppTextField(
-                    controller: labelCtrl,
+                    controller: store.draftLabel,
                     label: 'Name this key',
                     hint: 'e.g. Production server',
                   ),
@@ -213,7 +209,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
                     horizontal: AppSpacing.xl,
                   ),
                   child: AppSegmented<int?>(
-                    value: expiresInDays,
+                    value: store.draftExpiresInDays,
                     items: [
                       for (final option in _expiryOptions)
                         AppSegmentedItem(
@@ -221,7 +217,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
                           label: option.label,
                         ),
                     ],
-                    onChanged: (v) => setSheetState(() => expiresInDays = v),
+                    onChanged: store.setDraftExpiry,
                   ),
                 ),
 
@@ -244,14 +240,11 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
                             ),
                             child: PermissionCheckRow(
                               permission: permission,
-                              selected: selected.contains(permission.key),
-                              onChanged: (on) => setSheetState(() {
-                                if (on) {
-                                  selected.add(permission.key);
-                                } else {
-                                  selected.remove(permission.key);
-                                }
-                              }),
+                              selected: store.draftScopes.contains(
+                                permission.key,
+                              ),
+                              onChanged: (on) =>
+                                  store.toggleDraftScope(permission.key, on),
                             ),
                           ),
                       ],
@@ -269,7 +262,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
                   child: AppButton(
                     label: 'Create key',
                     onTap: () async {
-                      if (labelCtrl.text.trim().isEmpty || selected.isEmpty) {
+                      if (!store.canCreateDraft) {
                         AppToast.error(
                           ctx,
                           'Name the key and grant at least one permission.',
@@ -277,11 +270,11 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
                         return;
                       }
                       final ok = await store.createApiKey(
-                        label: labelCtrl.text.trim(),
+                        label: store.draftLabel.text.trim(),
                         user: authStore.userId,
                         workspace: authStore.activeWorkspace ?? '',
-                        scopes: selected.toList(),
-                        expiresAt: _expiryTimestamp(expiresInDays),
+                        scopes: store.draftScopes.toList(),
+                        expiresAt: _expiryTimestamp(store.draftExpiresInDays),
                       );
                       if (!ctx.mounted) return;
                       if (!ok) {
@@ -308,7 +301,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
           ),
         );
       },
-    ).whenComplete(labelCtrl.dispose);
+    );
   }
 
   /// The key is shown once: only its hash is stored server-side.

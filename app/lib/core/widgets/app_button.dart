@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -73,7 +72,12 @@ class AppButton extends StatelessWidget {
 
     final AppText? text = iconOnly
         ? null
-        : AppText(label!, maxLines: 1, overflow: TextOverflow.ellipsis);
+        : AppText(
+            label!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            bold: true,
+          );
 
     final Widget content = busy
         ? AppSpinner(color: foreground)

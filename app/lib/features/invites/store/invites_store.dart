@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
@@ -50,6 +51,104 @@ abstract class _InvitesStore with Store {
   /// of showing an empty list or spinning forever.
   @observable
   AppErrorMessage? membersError;
+
+  // Owned here rather than by the sheet, so a half-filled invite survives the
+  // drawer being closed and reopened.
+
+  final ObservableTextController labelController = ObservableTextController();
+  final ObservableTextController emailController = ObservableTextController();
+
+  /// Permission keys ticked in the create form.
+  final ObservableSet<String> draftPermissions = ObservableSet<String>();
+
+  @observable
+  bool draftSingleUse = true;
+
+  @observable
+  bool isCreating = false;
+
+  @computed
+  bool get draftGrantsDestructive =>
+      catalogue.any((p) => p.destructive && draftPermissions.contains(p.key));
+
+  @action
+  void toggleDraftPermission(String key, bool on) {
+    if (on) {
+      draftPermissions.add(key);
+    } else {
+      draftPermissions.remove(key);
+    }
+  }
+
+  @action
+  void setDraftSingleUse(bool value) => draftSingleUse = value;
+
+  @action
+  void resetDraft() {
+    labelController.clear();
+    emailController.clear();
+    draftPermissions.clear();
+    draftSingleUse = true;
+    isCreating = false;
+  }
+
+  @observable
+  bool isPreviewing = true;
+
+  @observable
+  bool isAccepting = false;
+
+  @observable
+  InvitePreview? acceptPreview;
+
+  @observable
+  AppErrorMessage? acceptError;
+
+  /// Fetches what an invite token grants, before the recipient decides.
+  @action
+  Future<void> previewInvite(String token) async {
+    isPreviewing = true;
+    acceptError = null;
+    try {
+      acceptPreview = await preview(token);
+    } catch (e) {
+      acceptError = AppErrorMessage.fromException(e);
+    } finally {
+      isPreviewing = false;
+    }
+  }
+
+  @action
+  void startAccepting() => isAccepting = true;
+
+  @action
+  void failAccepting(AppErrorMessage error) {
+    isAccepting = false;
+    if (error.isTerminal) acceptError = error;
+  }
+
+  /// Permission keys ticked while editing one member.
+  final ObservableSet<String> memberDraft = ObservableSet<String>();
+
+  @observable
+  bool isSavingMember = false;
+
+  @action
+  void startMemberEdit(Iterable<String> current) {
+    memberDraft
+      ..clear()
+      ..addAll(current);
+    isSavingMember = false;
+  }
+
+  @action
+  void toggleMemberPermission(String key, bool on) {
+    if (on) {
+      memberDraft.add(key);
+    } else {
+      memberDraft.remove(key);
+    }
+  }
 
   @action
   Future<void> loadCatalogue() async {

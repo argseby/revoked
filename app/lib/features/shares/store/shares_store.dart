@@ -1,3 +1,6 @@
+import 'package:revoked_app/core/models/trust_verdict.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -20,6 +23,139 @@ abstract class _SharesStore with Store {
 
   String get _basePath =>
       '/api/collections/${AppConfig.linksCollection}/records';
+
+  final ObservableTextController draftLabel = ObservableTextController();
+  final ObservableTextController draftSlug = ObservableTextController();
+  final ObservableTextController draftPassword = ObservableTextController();
+  final ObservableTextController draftMaxViews = ObservableTextController();
+
+  @observable
+  DateTime? draftExpiresAt;
+
+  @observable
+  String? draftIdentityId;
+
+  @observable
+  bool draftRequireHandshake = false;
+
+  @observable
+  String? draftSlugWarning;
+
+  @observable
+  bool isSubmittingShare = false;
+
+  @action
+  void setDraftExpiry(DateTime? value) => draftExpiresAt = value;
+
+  @action
+  void setDraftIdentity(String? value) => draftIdentityId = value;
+
+  @action
+  void setDraftHandshake(bool value) => draftRequireHandshake = value;
+
+  @action
+  void setDraftSlugWarning(String? value) => draftSlugWarning = value;
+
+  @action
+  void setSubmittingShare(bool value) => isSubmittingShare = value;
+
+  @action
+  void startShareDraft({
+    String label = '',
+    String slug = '',
+    String maxViews = '',
+    DateTime? expiresAt,
+    String? identityId,
+    bool requireHandshake = false,
+  }) {
+    draftLabel.text = label;
+    draftSlug.text = slug;
+    draftPassword.clear();
+    draftMaxViews.text = maxViews;
+    draftExpiresAt = expiresAt;
+    draftIdentityId = identityId;
+    draftRequireHandshake = requireHandshake;
+    draftSlugWarning = null;
+    isSubmittingShare = false;
+  }
+
+  // The unauthenticated view of one /s/<slug> link.
+
+  final ObservableTextController sharePassword = ObservableTextController();
+
+  @observable
+  bool isLoadingShare = true;
+
+  @observable
+  bool isUnlockingShare = false;
+
+  /// Probe result for the slug.
+  @observable
+  Map<String, dynamic>? shareProbe;
+
+  /// Origin the open link named; null when it lives on the signed-in server.
+  String? shareOrigin;
+
+  /// The DNS walk over the sharer's signing identity. Null while unchecked;
+  /// an unsigned share never produces one.
+  @observable
+  TrustVerdict? shareTrustVerdict;
+
+  @observable
+  bool isVerifyingShareTrust = false;
+
+  @action
+  void startShareTrust() {
+    isVerifyingShareTrust = true;
+    shareTrustVerdict = null;
+  }
+
+  @action
+  void finishShareTrust(TrustVerdict? verdict) {
+    shareTrustVerdict = verdict;
+    isVerifyingShareTrust = false;
+  }
+
+  /// Successful submission result with records/sections.
+  @observable
+  Map<String, dynamic>? shareData;
+
+  /// Terminal failure — wrong slug, revoked, expired, max views hit.
+  @observable
+  AppErrorMessage? shareTerminalError;
+
+  @observable
+  String? sharePasswordHint;
+
+  @observable
+  String? shareIdentityId;
+
+  /// Records whose hidden value the viewer chose to reveal, by key.
+  final ObservableSet<String> revealedShareValues = ObservableSet<String>();
+
+  @action
+  void toggleShareValue(String key) {
+    if (!revealedShareValues.remove(key)) revealedShareValues.add(key);
+  }
+
+  @action
+  void setShareIdentity(String? value) => shareIdentityId = value;
+
+  @action
+  void resetShareView() {
+    sharePassword.clear();
+    isLoadingShare = true;
+    isUnlockingShare = false;
+    shareProbe = null;
+    shareOrigin = null;
+    shareTrustVerdict = null;
+    isVerifyingShareTrust = false;
+    shareData = null;
+    shareTerminalError = null;
+    sharePasswordHint = null;
+    shareIdentityId = null;
+    revealedShareValues.clear();
+  }
 
   @observable
   ObservableList<Link> shares = ObservableList<Link>();
@@ -150,8 +286,12 @@ abstract class _SharesStore with Store {
 
   /// Public probe — never returns the shared records, only the gates that
   /// must be satisfied (password? handshake? identity?).
-  Future<Map<String, dynamic>> getPublicLinkProbe(String slug) async {
-    final data = await _api.get('/api/public/links/$slug');
+  Future<Map<String, dynamic>> getPublicLinkProbe(
+    String slug, {
+    String? origin,
+  }) async {
+    shareOrigin = origin;
+    final data = await _api.getFromOrigin(origin, '/api/public/links/$slug');
     return data as Map<String, dynamic>;
   }
 
@@ -166,7 +306,8 @@ abstract class _SharesStore with Store {
     String? challengeNonce,
     String? challengeSignature,
   }) async {
-    return _api.postWithHeaders(
+    return _api.postFromOrigin(
+      shareOrigin,
       '/api/public/links/$slug',
       body: {
         'password': ?password,

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -69,15 +72,17 @@ class _ApiAccessSheet extends StatefulWidget {
 }
 
 class _ApiAccessSheetState extends State<_ApiAccessSheet> {
-  _Format _format = _Format.api;
-  late String? _selectedKey;
-  final _passwordCtrl = TextEditingController();
-  final _keyCtrl = TextEditingController();
+  final Local<_Format> _formatState = Local(_Format.api);
+  late final Local<String?> _selectedKeyState = Local(widget.target.presetKey);
+  final _passwordCtrl = ObservableTextController();
+  final _keyCtrl = ObservableTextController();
+
+  _Format get _format => _formatState.value;
+  String? get _selectedKey => _selectedKeyState.value;
 
   @override
   void initState() {
     super.initState();
-    _selectedKey = widget.target.presetKey;
     if (_selectedKey != null) _keyCtrl.text = _selectedKey!;
   }
 
@@ -160,6 +165,10 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final t = widget.target;
     return SafeArea(
       child: SingleChildScrollView(
@@ -229,7 +238,7 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
             title: b.$3,
             subtitle: b.$4,
             selected: _format == b.$1,
-            onTap: () => setState(() => _format = b.$1),
+            onTap: () => _formatState.value = b.$1,
           ),
       ],
     );
@@ -251,7 +260,7 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
           AppSelect<String?>(
             value: _selectedKey,
             placeholder: 'All fields',
-            onChanged: (v) => setState(() => _selectedKey = v),
+            onChanged: (v) => _selectedKeyState.value = v,
             items: [
               const AppSelectItem<String?>(null, Text('All fields')),
               for (final k in keys) AppSelectItem<String?>(k, Text(k)),
@@ -261,7 +270,6 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
           AppTextField(
             controller: _keyCtrl,
             hint: 'Field key (blank = all fields)',
-            onChanged: (_) => setState(() {}),
           ),
       ],
     );
@@ -277,7 +285,6 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
           controller: _passwordCtrl,
           hint: 'Type it to get a ready-to-use URL',
           passwordToggle: true,
-          onChanged: (_) => setState(() {}),
         ),
       ],
     );

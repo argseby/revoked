@@ -1,17 +1,19 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
 
-import 'package:revoked_app/core/design/radius.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/models/template.dart';
+import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/template.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -25,12 +27,10 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
-import 'package:revoked_app/core/api/api_request_spec.dart';
-import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
-import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/features/templates/store/template_draft.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
+import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 
 class TemplatesScreen extends StatefulWidget {
   const TemplatesScreen({super.key});
@@ -158,7 +158,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
                           const SizedBox(height: AppSpacing.xxs),
                           Text(
                             isAdmin
-                                ? 'Create a template to define shared structure.'
+                                ? 'Tap + to create a new structural template.'
                                 : 'Contact your workspace admin to add structural templates.',
                           ).muted.small,
                         ],
@@ -438,9 +438,7 @@ class _TemplateRecordRow extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Editor sheet — visual builder + JSON (advanced) editing the same schema.
-// ---------------------------------------------------------------------------
 
 /// Which editing surface the template sheet is showing.
 enum _TemplateEditMode { visual, json }
@@ -449,97 +447,6 @@ enum _TemplateEditMode { visual, json }
 ///
 /// Mirrors a record map in the schema: keys `label`, `key`, `type`,
 /// `required`, plus pass-through `format`/`reason`/`value` so round-tripping
-/// through the visual builder never drops metadata authored in JSON mode.
-class _FieldModel {
-  final TextEditingController labelCtrl;
-  final TextEditingController keyCtrl;
-  String type;
-  bool required;
-
-  // Preserved verbatim from JSON; the visual builder doesn't edit these but
-  // must not silently discard them on save.
-  String format;
-  String reason;
-  String value;
-
-  _FieldModel({
-    String label = '',
-    String key = '',
-    this.type = 'text',
-    this.required = false,
-    this.format = 'default',
-    this.reason = '',
-    this.value = '',
-  }) : labelCtrl = TextEditingController(text: label),
-       keyCtrl = TextEditingController(text: key);
-
-  factory _FieldModel.fromMap(Map<dynamic, dynamic> m) {
-    final rawType = (m['type'] as String? ?? 'text').trim();
-    return _FieldModel(
-      label: (m['label'] as String? ?? '').trim(),
-      key: (m['key'] as String? ?? '').trim(),
-      type: RecordTypeUtils.supportedTypes.contains(rawType) ? rawType : 'text',
-      required: m['required'] as bool? ?? false,
-      format: (m['format'] as String? ?? 'default').trim(),
-      reason: (m['reason'] as String? ?? '').trim(),
-      value: (m['value'] as String? ?? '').trim(),
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'label': labelCtrl.text.trim(),
-    'key': keyCtrl.text.trim(),
-    'type': type,
-    'format': format,
-    'required': required,
-    'reason': reason,
-    if (value.isNotEmpty) 'value': value,
-  };
-
-  void dispose() {
-    labelCtrl.dispose();
-    keyCtrl.dispose();
-  }
-}
-
-/// Mutable in-memory model for one section (named group of fields).
-class _SectionModel {
-  final TextEditingController nameCtrl;
-  final TextEditingController keyCtrl;
-  final List<_FieldModel> fields;
-
-  _SectionModel({String name = '', String key = '', List<_FieldModel>? fields})
-    : nameCtrl = TextEditingController(text: name),
-      keyCtrl = TextEditingController(text: key),
-      fields = fields ?? [];
-
-  factory _SectionModel.fromMap(Map<dynamic, dynamic> m) {
-    final rawRecords = m['records'] as List<dynamic>? ?? const [];
-    return _SectionModel(
-      name: (m['name'] as String? ?? '').trim(),
-      key: (m['key'] as String? ?? '').trim(),
-      fields: rawRecords
-          .whereType<Map>()
-          .map((r) => _FieldModel.fromMap(r))
-          .toList(),
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'name': nameCtrl.text.trim(),
-    'key': keyCtrl.text.trim(),
-    'records': fields.map((f) => f.toMap()).toList(),
-  };
-
-  void dispose() {
-    nameCtrl.dispose();
-    keyCtrl.dispose();
-    for (final f in fields) {
-      f.dispose();
-    }
-  }
-}
-
 class _TemplateEditorSheet extends StatefulWidget {
   final TemplatesStore templatesStore;
   final AuthStore authStore;
@@ -556,48 +463,20 @@ class _TemplateEditorSheet extends StatefulWidget {
 }
 
 class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _jsonCtrl;
-
-  _TemplateEditMode _mode = _TemplateEditMode.visual;
-
-  // Visual-mode model.
-  final List<_FieldModel> _rootFields = [];
-  final List<_SectionModel> _sections = [];
-
-  // Any top-level schema keys that are neither `records` nor `sections` are
-  // preserved verbatim so JSON-authored extras survive a visual-mode save.
-  final Map<String, dynamic> _extraSchemaKeys = {};
-
-  bool _submitting = false;
-  String? _jsonError;
+  TemplatesStore get _store => Stores.templates;
 
   bool get _isEdit => widget.initialTemplate != null;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.initialTemplate?.name ?? '');
-
     final schema = widget.initialTemplate?.schema ?? _defaultSchema();
+    _store.resetEditor(
+      name: widget.initialTemplate?.name ?? '',
+      json: _encodeSchema(schema),
+    );
     _loadSchemaIntoModel(schema);
-    _jsonCtrl = TextEditingController(text: _encodeSchema(schema));
   }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _jsonCtrl.dispose();
-    for (final f in _rootFields) {
-      f.dispose();
-    }
-    for (final s in _sections) {
-      s.dispose();
-    }
-    super.dispose();
-  }
-
-  // --- Schema <-> model ------------------------------------------------
 
   Map<String, dynamic> _defaultSchema() => {
     'records': [
@@ -619,29 +498,29 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   /// Replaces the visual model with the contents of [schema]. Disposes the
   /// previous controllers first.
   void _loadSchemaIntoModel(Map<String, dynamic> schema) {
-    for (final f in _rootFields) {
+    for (final f in _store.rootFields) {
       f.dispose();
     }
-    for (final s in _sections) {
+    for (final s in _store.sections) {
       s.dispose();
     }
-    _rootFields.clear();
-    _sections.clear();
-    _extraSchemaKeys.clear();
+    _store.rootFields.clear();
+    _store.sections.clear();
+    _store.extraSchemaKeys.clear();
 
     final records = schema['records'] as List<dynamic>? ?? const [];
     for (final r in records.whereType<Map>()) {
-      _rootFields.add(_FieldModel.fromMap(r));
+      _store.rootFields.add(TemplateFieldDraft.fromMap(r));
     }
 
     final sections = schema['sections'] as List<dynamic>? ?? const [];
     for (final s in sections.whereType<Map>()) {
-      _sections.add(_SectionModel.fromMap(s));
+      _store.sections.add(TemplateSectionDraft.fromMap(s));
     }
 
     for (final entry in schema.entries) {
       if (entry.key != 'records' && entry.key != 'sections') {
-        _extraSchemaKeys[entry.key] = entry.value;
+        _store.extraSchemaKeys[entry.key] = entry.value;
       }
     }
   }
@@ -650,50 +529,51 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   /// records and no name are dropped; `sections` is always emitted (possibly
   /// empty) for shape stability, matching the existing default schema.
   Map<String, dynamic> _buildSchemaFromModel() {
-    final sections = _sections
+    final sections = _store.sections
         .where((s) => s.nameCtrl.text.trim().isNotEmpty || s.fields.isNotEmpty)
         .map((s) => s.toMap())
         .toList();
 
     return {
-      ..._extraSchemaKeys,
-      'records': _rootFields.map((f) => f.toMap()).toList(),
+      ..._store.extraSchemaKeys,
+      'records': _store.rootFields.map((f) => f.toMap()).toList(),
       'sections': sections,
     };
   }
 
-  // --- Mode switching --------------------------------------------------
-
   void _switchMode(_TemplateEditMode next) {
-    if (next == _mode) return;
+    if (next ==
+        (_store.editorIsJsonMode
+            ? _TemplateEditMode.json
+            : _TemplateEditMode.visual)) {
+      return;
+    }
 
     if (next == _TemplateEditMode.json) {
       // Visual -> JSON: serialise the live model so JSON reflects edits.
-      _jsonCtrl.text = _encodeSchema(_buildSchemaFromModel());
-      setState(() {
-        _jsonError = null;
-        _mode = next;
-      });
+      _store.editorJson.text = _encodeSchema(_buildSchemaFromModel());
+      _store.setJsonError(null);
+      _store.setJsonMode(next == _TemplateEditMode.json);
     } else {
       // JSON -> Visual: parse, guard invalid JSON with a clear error.
       final parsed = _tryParseJson();
-      if (parsed == null) return; // _jsonError already set + toast shown.
+      if (parsed == null) {
+        return; // _store.editorJsonError already set + toast shown.
+      }
       _loadSchemaIntoModel(parsed);
-      setState(() {
-        _jsonError = null;
-        _mode = next;
-      });
+      _store.setJsonError(null);
+      _store.setJsonMode(next == _TemplateEditMode.json);
     }
   }
 
-  /// Parses the JSON text field. On failure sets [_jsonError], shows a toast,
+  /// Parses the JSON text field. On failure sets [_store.editorJsonError], shows a toast,
   /// and returns null.
   Map<String, dynamic>? _tryParseJson() {
-    final text = _jsonCtrl.text.trim();
+    final text = _store.editorJson.text.trim();
     try {
       final decoded = jsonDecode(text);
       if (decoded is! Map<String, dynamic>) {
-        setState(() => _jsonError = 'Schema must be a JSON object ({ ... }).');
+        _store.setJsonError('Schema must be a JSON object ({ ... }).');
         AppToast.error(
           context,
           'Invalid schema',
@@ -703,23 +583,24 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
       }
       return decoded;
     } catch (e) {
-      setState(() => _jsonError = e.toString());
+      _store.setJsonError(e.toString());
       AppToast.error(context, 'Invalid JSON structure', subtitle: e.toString());
       return null;
     }
   }
 
-  // --- Save ------------------------------------------------------------
-
   Future<void> _save() async {
-    final name = _nameCtrl.text.trim();
+    final name = _store.editorName.text.trim();
     if (name.isEmpty) {
       AppToast.error(context, 'Name cannot be empty');
       return;
     }
 
     final Map<String, dynamic> schema;
-    if (_mode == _TemplateEditMode.json) {
+    if ((_store.editorIsJsonMode
+            ? _TemplateEditMode.json
+            : _TemplateEditMode.visual) ==
+        _TemplateEditMode.json) {
       final parsed = _tryParseJson();
       if (parsed == null) return;
       schema = parsed;
@@ -727,7 +608,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
       schema = _buildSchemaFromModel();
     }
 
-    setState(() => _submitting = true);
+    _store.setTemplateSubmitting(true);
     bool ok;
     if (_isEdit) {
       ok = await widget.templatesStore.updateTemplate(
@@ -751,7 +632,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         _isEdit ? 'Template updated' : 'Template created',
       );
     } else {
-      setState(() => _submitting = false);
+      _store.setTemplateSubmitting(false);
       AppToast.error(
         context,
         _isEdit ? 'Could not update template' : 'Could not create template',
@@ -763,7 +644,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   /// The exact API request this editor would issue — drives the live developer
   /// preview (create vs update), mirroring [_save].
   ApiRequestSpec _buildSpec() {
-    final name = _nameCtrl.text.trim();
+    final name = _store.editorName.text.trim();
     final schema = _previewSchema();
     if (_isEdit) {
       return Stores.templates.updateTemplateSpec(
@@ -781,9 +662,12 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 
   /// Best-effort schema for the preview — no side effects (unlike [_save]).
   Map<String, dynamic> _previewSchema() {
-    if (_mode == _TemplateEditMode.json) {
+    if ((_store.editorIsJsonMode
+            ? _TemplateEditMode.json
+            : _TemplateEditMode.visual) ==
+        _TemplateEditMode.json) {
       try {
-        final parsed = jsonDecode(_jsonCtrl.text);
+        final parsed = jsonDecode(_store.editorJson.text);
         if (parsed is Map<String, dynamic>) return parsed;
       } catch (_) {}
       return const {};
@@ -791,15 +675,22 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
     return _buildSchemaFromModel();
   }
 
-  // --- Build -----------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
+    // Mode, the draft lists, submit state and the JSON error all live in the
+    // store; editorRevision covers mutations to the plain draft objects that
+    // MobX cannot see by itself.
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
+    _store.editorRevision; // touch: draft edits are otherwise unobservable
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       child: Column(
+        crossAxisAlignment: .start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
@@ -835,16 +726,19 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
                 const Text('Template name').small,
                 const SizedBox(height: AppSpacing.xs),
                 AppTextField(
-                  controller: _nameCtrl,
+                  controller: _store.editorName,
                   hint: 'e.g. AWS Project Setup',
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => _store.touchEditor(),
                 ),
                 const SizedBox(height: AppSpacing.lg),
 
                 _buildModeToggle(),
                 const SizedBox(height: AppSpacing.lg),
 
-                if (_mode == _TemplateEditMode.visual)
+                if ((_store.editorIsJsonMode
+                        ? _TemplateEditMode.json
+                        : _TemplateEditMode.visual) ==
+                    _TemplateEditMode.visual)
                   _buildVisualEditor()
                 else
                   _buildJsonEditor(),
@@ -873,7 +767,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
                 Expanded(
                   child: AppButton(
                     label: 'Cancel',
-                    onTap: _submitting
+                    onTap: _store.isSubmittingTemplate
                         ? null
                         : () => Navigator.of(context).pop(),
                     style: AppButtonStyle.accent,
@@ -883,7 +777,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
                 Expanded(
                   child: AppButton(
                     label: _isEdit ? 'Save changes' : 'Create template',
-                    busy: _submitting,
+                    busy: _store.isSubmittingTemplate,
                     onTap: _save,
                   ),
                 ),
@@ -897,7 +791,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 
   Widget _buildModeToggle() {
     return AppSegmented<_TemplateEditMode>(
-      value: _mode,
+      value: (_store.editorIsJsonMode
+          ? _TemplateEditMode.json
+          : _TemplateEditMode.visual),
       items: const [
         AppSegmentedItem(
           value: _TemplateEditMode.visual,
@@ -914,8 +810,6 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
     );
   }
 
-  // --- Visual editor ---------------------------------------------------
-
   Widget _buildVisualEditor() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -923,7 +817,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         Row(
           children: [
             Expanded(child: const Text('Fields').small),
-            Text('${_rootFields.length}').muted.small,
+            Text('${_store.rootFields.length}').muted.small,
           ],
         ),
         const SizedBox(height: AppSpacing.xxs),
@@ -932,19 +826,17 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         ).muted.small,
         const SizedBox(height: AppSpacing.sm),
 
-        if (_rootFields.isEmpty)
+        if (_store.rootFields.isEmpty)
           _buildEmptyHint('No fields yet. Add one below.')
         else
           ...List.generate(
-            _rootFields.length,
+            _store.rootFields.length,
             (i) => Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: _FieldEditorCard(
-                field: _rootFields[i],
-                onRemove: () => setState(() {
-                  _rootFields.removeAt(i).dispose();
-                }),
-                onChanged: () => setState(() {}),
+                field: _store.rootFields[i],
+                onRemove: () => _store.removeRootField(i),
+                onChanged: _store.touchEditor,
               ),
             ),
           ),
@@ -954,7 +846,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
           icon: AppIcons.plus,
           label: 'Add field',
           style: AppButtonStyle.accent,
-          onTap: () => setState(() => _rootFields.add(_FieldModel())),
+          onTap: _store.addRootField,
         ),
 
         const SizedBox(height: AppSpacing.xxl),
@@ -964,7 +856,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         Row(
           children: [
             Expanded(child: const Text('Sections').small),
-            Text('${_sections.length}').muted.small,
+            Text('${_store.sections.length}').muted.small,
           ],
         ),
         const SizedBox(height: AppSpacing.xxs),
@@ -974,15 +866,13 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         const SizedBox(height: AppSpacing.sm),
 
         ...List.generate(
-          _sections.length,
+          _store.sections.length,
           (i) => Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
             child: _SectionEditorCard(
-              section: _sections[i],
-              onRemove: () => setState(() {
-                _sections.removeAt(i).dispose();
-              }),
-              onChanged: () => setState(() {}),
+              section: _store.sections[i],
+              onRemove: () => _store.removeSection(i),
+              onChanged: _store.touchEditor,
             ),
           ),
         ),
@@ -992,7 +882,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
           icon: AppIcons.folderPlus,
           label: 'Add section',
           style: AppButtonStyle.accent,
-          onTap: () => setState(() => _sections.add(_SectionModel())),
+          onTap: _store.addSection,
         ),
       ],
     );
@@ -1015,8 +905,6 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
     );
   }
 
-  // --- JSON editor -----------------------------------------------------
-
   Widget _buildJsonEditor() {
     final scheme = Theme.of(context).colorScheme;
     return Column(
@@ -1036,23 +924,23 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         const Text('Switching back to Visual parses this JSON.').muted.small,
         const SizedBox(height: AppSpacing.sm),
         AppTextField(
-          controller: _jsonCtrl,
+          controller: _store.editorJson,
           maxLines: 16,
           minLines: 10,
           mono: true,
           hint: '{\n  "records": [...],\n  "sections": [...]\n}',
           onChanged: (_) {
-            if (_jsonError != null) setState(() => _jsonError = null);
+            if (_store.editorJsonError != null) _store.setJsonError(null);
           },
         ),
-        if (_jsonError != null) ...[
+        if (_store.editorJsonError != null) ...[
           const SizedBox(height: AppSpacing.sm),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(AppIcons.exclamationTriangle, size: 14, color: scheme.error),
               const SizedBox(width: AppSpacing.xs),
-              Expanded(child: AppErrorText(_jsonError!)),
+              Expanded(child: AppErrorText(_store.editorJsonError!)),
             ],
           ),
         ],
@@ -1063,7 +951,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 
 /// Editable card for a single field (record): label, key, type, required.
 class _FieldEditorCard extends StatelessWidget {
-  final _FieldModel field;
+  final TemplateFieldDraft field;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
 
@@ -1148,7 +1036,7 @@ class _FieldEditorCard extends StatelessWidget {
 
 /// Editable card for a section: name, key, and its own list of fields.
 class _SectionEditorCard extends StatelessWidget {
-  final _SectionModel section;
+  final TemplateSectionDraft section;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
 
@@ -1225,7 +1113,7 @@ class _SectionEditorCard extends StatelessWidget {
               style: AppButtonStyle.accent,
               size: AppButtonSize.small,
               onTap: () {
-                section.fields.add(_FieldModel());
+                section.fields.add(TemplateFieldDraft());
                 onChanged();
               },
             ),

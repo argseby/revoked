@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
-
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
-
-import 'package:revoked_app/core/stores.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-
+import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/notification.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 
 void openNotificationsSheet(BuildContext context) {
@@ -99,7 +96,6 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                     return _NotificationCard(
                       notification: notif,
                       onMarkRead: () => store.markRead(notif.id, read: true),
-                      onDelete: () => store.delete(notif.id),
                     );
                   },
                 );
@@ -115,12 +111,10 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
 class _NotificationCard extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onMarkRead;
-  final VoidCallback onDelete;
 
   const _NotificationCard({
     required this.notification,
     required this.onMarkRead,
-    required this.onDelete,
   });
 
   @override
@@ -162,23 +156,13 @@ class _NotificationCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.md),
-          Column(
-            children: [
-              if (isUnread)
-                AppButton(
-                  icon: AppIcons.check,
-                  tooltip: 'Mark read',
-                  style: AppButtonStyle.accent,
-                  onTap: onMarkRead,
-                ),
-              AppButton(
-                icon: AppIcons.trash,
-                tooltip: 'Delete',
-                style: AppButtonStyle.accent,
-                onTap: onDelete,
-              ),
-            ],
-          ),
+          if (isUnread)
+            AppButton(
+              icon: AppIcons.check,
+              tooltip: 'Mark read',
+              style: AppButtonStyle.accent,
+              onTap: onMarkRead,
+            ),
         ],
       ),
     );
