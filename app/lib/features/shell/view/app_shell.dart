@@ -74,8 +74,6 @@ class _AppShellState extends State<AppShell> {
           AppSpacing.gapXs,
           _NotificationBell(),
           AppSpacing.gapXs,
-          AccountButton(),
-          SizedBox(width: AppSpacing.lg),
         ],
       ),
       body: widget.child,

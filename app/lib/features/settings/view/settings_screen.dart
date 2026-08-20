@@ -40,7 +40,10 @@ import 'package:revoked_app/features/settings/store/settings_store.dart';
 /// of the app; signing out lives quietly at the bottom rather than as a red
 /// button up top.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  /// 0 = Account, 1 = Workspace, 2 = Developer.
+  final int initialTab;
+
+  const SettingsScreen({super.key, this.initialTab = 0});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -84,6 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             builder: (context) {
               final activeId = auth.activeWorkspace ?? '';
               return AppTabs(
+                initialIndex: widget.initialTab,
                 labels: const ['Account', 'Workspace', 'Developer'],
                 views: [
                   _accountTab(context, settings, auth, activeId),
@@ -676,15 +680,22 @@ class _ProfileCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          active?.name ?? 'No active workspace',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ).muted.small,
-                      ),
+                      Text(
+                        active?.name ?? 'No active workspace',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ).muted.small,
                     ],
                   ),
+                AppSpacing.gapSm,
+                AppButton(
+                  size: .small,
+                  onTap: () async {
+                    await Stores.auth.logout();
+                  },
+                  label: 'Logout',
+                  style: .destructive,
+                ),
               ],
             ),
           ),

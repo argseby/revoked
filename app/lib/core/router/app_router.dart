@@ -30,6 +30,7 @@ abstract class AppRoutes {
   static const requestSheet = '/request-sheet';
   static const shares = '/shares';
   static const settings = '/settings';
+  static const settingsWorkspace = '/settings?tab=workspace';
   static const apiKeys = '/settings/api-keys';
   static const templates = '/settings/templates';
   static const share = '/share/:slug';
@@ -260,8 +261,19 @@ class AppRouter {
             ),
             GoRoute(
               path: AppRoutes.settings,
-              pageBuilder: (context, state) =>
-                  const NoTransitionPage(child: SettingsScreen()),
+              pageBuilder: (context, state) {
+                final tab = switch (state.uri.queryParameters['tab']) {
+                  'workspace' => 1,
+                  'developer' => 2,
+                  _ => 0,
+                };
+                return NoTransitionPage(
+                  child: SettingsScreen(
+                    key: ValueKey('settings-tab-$tab'),
+                    initialTab: tab,
+                  ),
+                );
+              },
               routes: [
                 GoRoute(
                   path: 'api-keys',
