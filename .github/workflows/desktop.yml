@@ -104,8 +104,23 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          files: dist/*
-          fail_on_unmatched_files: true
+      # Immutable releases freeze assets at publish time, so the binaries
+      # go onto the draft and publishing is the very last thing that
+      # happens - nobody ever sees a release without its downloads.
+      - name: Upload to draft, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if ! IS_DRAFT=$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null); then
+            # A hand-pushed tag arrives with no release at all.
+            gh release create "$TAG" --draft --generate-notes --title "$TAG"
+            IS_DRAFT=true
+          fi
+          if [ "$IS_DRAFT" != "true" ]; then
+            echo "::error::$TAG is already published and immutable - assets can no longer be attached. Cut a new release."
+            exit 1
+          fi
+          gh release upload "$TAG" dist/* --clobber
+          gh release edit "$TAG" --draft=false --latest
