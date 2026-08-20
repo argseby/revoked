@@ -38,6 +38,9 @@ abstract class _AuthStore with Store {
   @observable
   bool isInitialized = false;
 
+  @observable
+  bool isDeletingAccount = false;
+
   @computed
   bool get isAuthenticated => currentUser != null;
 
@@ -146,6 +149,27 @@ abstract class _AuthStore with Store {
   Future<void> logout() async {
     await _api.clearAuthState();
     currentUser = null;
+  }
+
+  /// Closes the account on the server, which purges everything it could still
+  /// be reached through, then drops the local session.
+  @action
+  Future<bool> deleteAccount() async {
+    isDeletingAccount = true;
+    errorMessage = null;
+    try {
+      await _api.delete('/api/account');
+      await logout();
+      return true;
+    } on ApiException catch (e) {
+      errorMessage = e.code == AppErrorCode.lastAdminProtected
+          ? 'You are the only person left who can manage a workspace you '
+                'share. Hand that over, or remove the other members, first.'
+          : e.message;
+      return false;
+    } finally {
+      isDeletingAccount = false;
+    }
   }
 
   @action
