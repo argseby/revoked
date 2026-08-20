@@ -33,7 +33,7 @@ func Bind(app core.App, root *server.RootKey) {
 	hooks.BindAuditLogHooks(app)
 
 	routes.HealthzRoute(app)
-	routes.PublicLinksRoute(app)
+	routes.PublicLinksRoute(app, root)
 	routes.PublicRequestsRoute(app, root)
 	routes.PublicInvitesRoute(app)
 	routes.PermissionsRoute(app)
