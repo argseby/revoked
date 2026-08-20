@@ -47,17 +47,22 @@ jobs:
           
           COMMITS=$(git log $RANGE --pretty=format:"%s")
           
-          BUMP="patch"
+          # No fix/feat/breaking in the range means nothing shippable
+          # changed - docs/chore/ci pushes must not cut phantom releases.
+          BUMP="none"
           if echo "$COMMITS" | grep -qiE "^breaking(\(.+\))?!?:"; then
             BUMP="major"
           elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
             BUMP="minor"
+          elif echo "$COMMITS" | grep -qiE "^fix(\(.+\))?:"; then
+            BUMP="patch"
           fi
           echo "bump=$BUMP" >> $GITHUB_OUTPUT
           echo "Bump level: $BUMP"
 
       - name: Calculate new version
         id: version
+        if: steps.bump.outputs.bump != 'none'
         run: |
           LATEST=${{ steps.latest_tag.outputs.tag }}
           BUMP=${{ steps.bump.outputs.bump }}
@@ -86,6 +91,7 @@ jobs:
 
       - name: Generate changelog
         id: changelog
+        if: steps.bump.outputs.bump != 'none'
         run: |
           LATEST=${{ steps.latest_tag.outputs.tag }}
           NEW=${{ steps.version.outputs.new_version }}
@@ -126,6 +132,7 @@ jobs:
           mv temp_changelog.md CHANGELOG.md
 
       - name: Commit changelog & tag
+        if: steps.bump.outputs.bump != 'none'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -135,19 +142,12 @@ jobs:
           git push origin main --tags
 
       - name: Create GitHub Release
+        if: steps.bump.outputs.bump != 'none'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.new_version }}
           generate_release_notes: true
           body_path: NEW_ENTRY.md
-
-      - name: Trigger docs rebuild
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.DOCS_DISPATCH_TOKEN }}
-          repository: revokedlink/docs
-          event-type: api-released
-          client-payload: '{"version": "${{ steps.version.outputs.new_version }}"}'
 
   desktop:
     name: Desktop builds
