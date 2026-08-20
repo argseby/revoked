@@ -1,3 +1,10 @@
+## v0.5.2 (2026-08-20)
+
+### 🐛 Bug Fixes
+- fix(ci): add "none" bump to versions & remove docs rebuild
+
+---
+
 ## v0.5.1 (2026-08-20)
 
 ---
