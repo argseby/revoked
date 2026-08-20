@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -153,18 +152,18 @@ class AppTrustBadge extends StatelessWidget {
         );
       case TrustState.spoofed:
         return _BadgePalette(
-          background: theme.colorScheme.error.withValues(alpha: 0.12),
-          border: theme.colorScheme.error.withValues(alpha: 0.5),
-          foreground: theme.colorScheme.error,
+          background: theme.colorScheme.danger.withValues(alpha: 0.12),
+          border: theme.colorScheme.danger.withValues(alpha: 0.5),
+          foreground: theme.colorScheme.danger,
           icon: Icons.gpp_bad_outlined,
         );
       case TrustState.dnsMissing:
       case TrustState.unverified:
         return _BadgePalette(
-          background: theme.colorScheme.warning.withValues(alpha: 0.12),
-          border: theme.colorScheme.warning.withValues(alpha: 0.5),
-          foreground: theme.colorScheme.warning,
-          icon: Icons.warning_amber_outlined,
+          background: theme.colorScheme.danger.withValues(alpha: 0.12),
+          border: theme.colorScheme.danger.withValues(alpha: 0.5),
+          foreground: theme.colorScheme.danger,
+          icon: Icons.warning_amber,
         );
     }
   }

@@ -43,6 +43,9 @@ class AppSelect<T> extends StatelessWidget {
         child: DropdownButton<T>(
           value: value,
           borderRadius: AppRadius.allMd,
+          // The field's own border already shows focus; the button's default
+          // focus fill is a rectangle that ignores the rounded field.
+          focusColor: Colors.transparent,
           isExpanded: true,
           isDense: isDense,
           hint: placeholder == null ? null : Text(placeholder!),

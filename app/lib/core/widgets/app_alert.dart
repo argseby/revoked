@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 
@@ -24,9 +23,11 @@ class AppAlert extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final bg = destructive
-        ? scheme.errorContainer
+        ? scheme.errorContainer.withOpacity(0.75)
         : scheme.surfaceContainerHighest;
-    final fg = destructive ? scheme.onErrorContainer : scheme.onSurface;
+    final fg = destructive
+        ? scheme.onErrorContainer.withOpacity(0.8)
+        : scheme.onSurface;
     final border = destructive
         ? scheme.error.withValues(alpha: 0.4)
         : scheme.outlineVariant;
