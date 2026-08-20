@@ -23,10 +23,10 @@ class AppAlert extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final bg = destructive
-        ? scheme.errorContainer.withOpacity(0.75)
+        ? scheme.errorContainer.withValues(alpha: 0.75)
         : scheme.surfaceContainerHighest;
     final fg = destructive
-        ? scheme.onErrorContainer.withOpacity(0.8)
+        ? scheme.onErrorContainer.withValues(alpha: 0.8)
         : scheme.onSurface;
     final border = destructive
         ? scheme.error.withValues(alpha: 0.4)
