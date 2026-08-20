@@ -5,6 +5,9 @@ Revoked replaces stale copies of data with a reference that resolves its current
 
 ## Sections
 
+- **[Setup](setup/index.md)** — running your own server: install, the `.env`
+  reference, DNS, reverse proxy, accounts, backups.
 - **[API](api/callbacks.md)** — server-side integration: callbacks, public
   endpoints, verification.
+- **[App](app/index.md)** — the client, per platform.
 
