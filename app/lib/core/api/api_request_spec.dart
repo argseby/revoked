@@ -12,15 +12,16 @@ class ApiRequestSpec {
   final Map<String, dynamic>? body;
 
   /// How an external caller authenticates. API keys are the API-first path
-  /// The app itself sends its session token as `Authorization: Bearer`; an
-  /// API key is sent as `X-API-Key: <key>` instead.
+  /// The preview exists for external consumers, and they authenticate with
+  /// an API key - so the shown header is `X-API-Key`. The app's own session
+  /// uses `Authorization: Bearer`, but nobody copies a curl for that.
   final String authHeader;
 
   const ApiRequestSpec({
     required this.method,
     required this.path,
     this.body,
-    this.authHeader = 'Authorization: Bearer <YOUR_TOKEN>',
+    this.authHeader = 'X-API-Key: <YOUR_API_KEY>',
   });
 
   String fullUrl(String baseUrl) => '$baseUrl$path';
