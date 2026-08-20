@@ -94,6 +94,14 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# The installer and its assets, so a locally built bundle can be installed
+# the same way a released tarball is. CI copies these in separately for
+# the tarball; without this a local build has no packaging/ at all.
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/linux/"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/packaging"
+  COMPONENT Runtime
+  USE_SOURCE_PERMISSIONS)
+
 # The window (taskbar) icon. GTK sets no icon by default, and the themed
 # lookup only works once install.sh has populated hicolor - this covers
 # running the extracted bundle directly.

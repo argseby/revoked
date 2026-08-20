@@ -20,6 +20,10 @@ fi
 PREFIX="${PREFIX:-$HOME/.local}"
 APPDIR="$PREFIX/lib/revoked"
 
+# Replace rather than merge: copying over an existing install leaves
+# files a newer build no longer ships - stale libraries and assets that
+# then load in preference to nothing at all.
+rm -rf "$APPDIR"
 mkdir -p "$APPDIR" "$PREFIX/bin" "$PREFIX/share/applications"
 cp -r "$BUNDLE/." "$APPDIR/"
 
