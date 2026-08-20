@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
@@ -137,6 +139,35 @@ abstract class _SharesStore with Store {
 
   /// Records whose hidden value the viewer chose to reveal, by key.
   final ObservableSet<String> revealedShareValues = ObservableSet<String>();
+
+  /// Shared file records currently being fetched, keyed by record id, so each
+  /// row shows its own busy state.
+  final ObservableSet<String> downloadingShareRecordIds =
+      ObservableSet<String>();
+
+  /// Fetches a shared file's bytes with the single-use token the resolve
+  /// minted. Same credential rule as every public call: never a session token.
+  @action
+  Future<Uint8List?> downloadSharedFile({
+    required String? origin,
+    required String slug,
+    required String recordId,
+    required String token,
+  }) async {
+    downloadingShareRecordIds.add(recordId);
+    try {
+      return await _api.getPublicBytes(
+        origin,
+        '/api/public/links/$slug/files/$recordId',
+        queryParams: {'dl': token},
+      );
+    } catch (e) {
+      errorMessage = e.toString();
+      return null;
+    } finally {
+      downloadingShareRecordIds.remove(recordId);
+    }
+  }
 
   @action
   void toggleShareValue(String key) {

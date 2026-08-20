@@ -27,6 +27,7 @@ import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/core/widgets/requirement_list.dart';
 import 'package:revoked_app/core/widgets/identity_summary_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:revoked_app/core/files/file_saver.dart';
 
 /// Public link viewer.
 ///
@@ -664,7 +665,11 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           const Text('Shared Records').header,
           AppSpacing.gapMd,
           ...records.map(
-            (r) => _PublicRecordCard(record: r as Map<String, dynamic>),
+            (r) => _PublicRecordCard(
+              record: r as Map<String, dynamic>,
+              slug: widget.shareSlug,
+              origin: widget.origin,
+            ),
           ),
           AppSpacing.gapXxl,
         ],
@@ -672,7 +677,11 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           const Text('Shared Sections').header,
           AppSpacing.gapMd,
           ...sections.map(
-            (s) => _PublicSectionCard(section: s as Map<String, dynamic>),
+            (s) => _PublicSectionCard(
+              section: s as Map<String, dynamic>,
+              slug: widget.shareSlug,
+              origin: widget.origin,
+            ),
           ),
         ],
         if (records.isEmpty && sections.isEmpty)
@@ -730,8 +739,14 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
 
 class _PublicSectionCard extends StatelessWidget {
   final Map<String, dynamic> section;
+  final String slug;
+  final String? origin;
 
-  const _PublicSectionCard({required this.section});
+  const _PublicSectionCard({
+    required this.section,
+    required this.slug,
+    required this.origin,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -773,7 +788,15 @@ class _PublicSectionCard extends StatelessWidget {
                         ).muted.small,
                       ),
                     ]
-                  : inline.map((r) => _PublicRecordCard(record: r)).toList(),
+                  : inline
+                        .map(
+                          (r) => _PublicRecordCard(
+                            record: r,
+                            slug: slug,
+                            origin: origin,
+                          ),
+                        )
+                        .toList(),
             ),
           ),
         ],
@@ -784,12 +807,97 @@ class _PublicSectionCard extends StatelessWidget {
 
 class _PublicRecordCard extends StatelessWidget {
   final Map<String, dynamic> record;
+  final String slug;
+  final String? origin;
 
-  const _PublicRecordCard({required this.record});
+  const _PublicRecordCard({
+    required this.record,
+    required this.slug,
+    required this.origin,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Observer(builder: (_) => _build(context));
+  }
+
+  Future<void> _downloadFile(BuildContext context) async {
+    final recordId = record['id'] as String? ?? '';
+    final token = record['downloadToken'] as String? ?? '';
+    final filename = record['file'] as String? ?? 'file';
+    if (recordId.isEmpty || token.isEmpty) {
+      AppToast.error(
+        context,
+        'Download unavailable',
+        subtitle: 'Reopen the link to request a new download.',
+      );
+      return;
+    }
+    final bytes = await Stores.shares.downloadSharedFile(
+      origin: origin,
+      slug: slug,
+      recordId: recordId,
+      token: token,
+    );
+    if (!context.mounted) return;
+    if (bytes == null) {
+      AppToast.error(
+        context,
+        'Could not download file',
+        subtitle:
+            'The download may have been used already — reopen the link to request a new one.',
+      );
+      return;
+    }
+    final ok = await saveFileToDevice(
+      bytes: bytes,
+      filename: filename,
+      mime: record['mime'] as String?,
+    );
+    if (ok && context.mounted) AppToast.success(context, 'File saved');
+  }
+
+  Widget _fileBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final recordId = record['id'] as String? ?? '';
+    final filename = record['file'] as String? ?? '';
+    final size = (record['size'] as num?)?.toInt() ?? 0;
+    final mime = (record['mime'] as String? ?? '').split(';').first;
+    final busy = Stores.shares.downloadingShareRecordIds.contains(recordId);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: AppRadius.allMd,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            AppIcons.fileText,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          AppSpacing.gapSm,
+          Expanded(
+            child: Text(
+              '$filename · ${formatBytes(size)}'
+              '${mime.isEmpty ? '' : ' · $mime'}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ).mono.small,
+          ),
+          AppSpacing.gapSm,
+          AppButton(
+            icon: AppIcons.download,
+            label: 'Download',
+            size: AppButtonSize.small,
+            busy: busy,
+            onTap: busy ? null : () => _downloadFile(context),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _build(BuildContext context) {
@@ -799,6 +907,7 @@ class _PublicRecordCard extends StatelessWidget {
     final value = record['value'] as String? ?? '';
     final type = record['type'] as String? ?? 'text';
     final format = record['format'] as String? ?? 'default';
+    final isFile = type == 'file';
     final isHiddenFormat = format == 'hidden';
     final isObscured =
         isHiddenFormat && !Stores.shares.revealedShareValues.contains(key);
@@ -823,46 +932,51 @@ class _PublicRecordCard extends StatelessWidget {
                   ),
                 ),
                 AppBadge(label: type),
-                AppSpacing.gapSm,
-                AppButton(
-                  icon: AppIcons.copy,
-                  style: AppButtonStyle.accent,
-                  tooltip: 'Copy value',
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: value));
-                    AppToast.success(context, 'Copied to clipboard');
-                  },
-                ),
+                if (!isFile) ...[
+                  AppSpacing.gapSm,
+                  AppButton(
+                    icon: AppIcons.copy,
+                    style: AppButtonStyle.accent,
+                    tooltip: 'Copy value',
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: value));
+                      AppToast.success(context, 'Copied to clipboard');
+                    },
+                  ),
+                ],
               ],
             ),
             AppSpacing.gapMd,
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: AppRadius.allMd,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: isObscured
-                        ? const Text('••••••••••••••••').mono.small.muted
-                        : Text(value).mono.small,
-                  ),
-                  if (isHiddenFormat) ...[
-                    AppSpacing.gapSm,
-                    AppButton(
-                      icon: isObscured ? AppIcons.eye : AppIcons.eyeSlash,
-                      tooltip: isObscured ? 'Show' : 'Hide',
-                      style: AppButtonStyle.accent,
-                      size: AppButtonSize.small,
-                      onTap: () => Stores.shares.toggleShareValue(key),
+            if (isFile)
+              _fileBody(context)
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  borderRadius: AppRadius.allMd,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: isObscured
+                          ? const Text('••••••••••••••••').mono.small.muted
+                          : Text(value).mono.small,
                     ),
+                    if (isHiddenFormat) ...[
+                      AppSpacing.gapSm,
+                      AppButton(
+                        icon: isObscured ? AppIcons.eye : AppIcons.eyeSlash,
+                        tooltip: isObscured ? 'Show' : 'Hide',
+                        style: AppButtonStyle.accent,
+                        size: AppButtonSize.small,
+                        onTap: () => Stores.shares.toggleShareValue(key),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
           ],
         ),
       ),

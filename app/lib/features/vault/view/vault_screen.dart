@@ -36,6 +36,8 @@ import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
+import 'package:revoked_app/core/files/file_saver.dart';
+import 'package:file_picker/file_picker.dart';
 
 class VaultScreen extends StatefulWidget {
   final String? editingShareId;
@@ -1409,7 +1411,74 @@ class _RecordCardState extends State<_RecordCard> {
   bool get _isObscured =>
       widget.record.isHidden && !Stores.vault.isRevealed(widget.record.id);
 
+  Future<void> _downloadFile() async {
+    final r = widget.record;
+    final bytes = await Stores.vault.fetchRecordFileBytes(r);
+    if (bytes == null) {
+      if (mounted) {
+        AppToast.error(
+          context,
+          'Could not download file',
+          subtitle: Stores.vault.errorMessage,
+        );
+      }
+      return;
+    }
+    final ok = await saveFileToDevice(
+      bytes: bytes,
+      filename: r.file ?? 'file',
+      mime: r.mime,
+    );
+    if (ok && mounted) AppToast.success(context, 'File saved');
+  }
+
+  Future<void> _replaceFile() async {
+    final picked = await FilePicker.pickFile();
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    final ok = await Stores.vault.updateRecordFile(
+      widget.record.id,
+      picked.name,
+      bytes,
+    );
+    if (!mounted) return;
+    if (ok) {
+      AppToast.success(
+        context,
+        'File replaced',
+        subtitle: 'Every active share now serves the new file.',
+      );
+    } else {
+      AppToast.error(
+        context,
+        'Could not replace file',
+        subtitle: Stores.vault.errorMessage,
+      );
+    }
+  }
+
   List<AppSheetAction> _recordActions() {
+    if (widget.record.isFile) {
+      return [
+        AppSheetAction(
+          icon: AppIcons.download,
+          label: 'Download',
+          primary: true,
+          onTap: _downloadFile,
+        ),
+        AppSheetAction(
+          icon: AppIcons.arrowRepeat,
+          label: 'Replace file',
+          onTap: _replaceFile,
+        ),
+        AppSheetAction(
+          icon: AppIcons.trash,
+          label: 'Delete',
+          destructive: true,
+          onTap: widget.onDelete,
+        ),
+      ];
+    }
     return [
       AppSheetAction(
         icon: AppIcons.copy,
@@ -1496,6 +1565,39 @@ class _RecordCardState extends State<_RecordCard> {
 
   Widget _valueBoxBody(BuildContext context) {
     final theme = Theme.of(context);
+    if (widget.record.isFile) {
+      final r = widget.record;
+      final mime = (r.mime ?? '').split(';').first;
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: AppRadius.allSm,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              AppIcons.fileText,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                '${r.file ?? ''} · ${formatBytes(r.size)}'
+                '${mime.isEmpty ? '' : ' · $mime'}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ).mono.muted.small,
+            ),
+          ],
+        ),
+      );
+    }
     final isHiddenFormat = widget.record.isHidden;
     // Aliases carry no value of their own — show the parent's (forwarded) value.
     final value = widget.record.isAlias

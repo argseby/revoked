@@ -27,6 +27,14 @@ class Record {
   /// always empty — the real value lives on the referenced parent.
   final String? aliasOf;
 
+  /// File records: the stored filename; `value` is always empty for them.
+  final String? file;
+
+  /// Salted sha256 of the file's content — the currency check for downloads.
+  final String? contentHash;
+  final String? mime;
+  final int size;
+
   Record({
     required this.id,
     required this.key,
@@ -40,6 +48,10 @@ class Record {
     this.updated,
     this.requestedBy,
     this.aliasOf,
+    this.file,
+    this.contentHash,
+    this.mime,
+    this.size = 0,
   });
 
   factory Record.fromJson(Map<String, dynamic> json) {
@@ -60,10 +72,15 @@ class Record {
           ? requestedByRaw
           : null,
       aliasOf: (aliasRaw is String && aliasRaw.isNotEmpty) ? aliasRaw : null,
+      file: json['file'] as String?,
+      contentHash: json['contentHash'] as String?,
+      mime: json['mime'] as String?,
+      size: (json['size'] as num?)?.toInt() ?? 0,
     );
   }
 
   bool get isHidden => format == 'hidden';
   bool get isRequested => requestedBy != null && requestedBy!.isNotEmpty;
   bool get isAlias => aliasOf != null && aliasOf!.isNotEmpty;
+  bool get isFile => type == 'file';
 }

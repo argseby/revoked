@@ -5,6 +5,7 @@ class RecordTypeUtils {
     'url',
     'boolean',
     'datetime',
+    'file',
   ];
 
   static String detectType(String value) {
