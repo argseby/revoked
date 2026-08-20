@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/services/deep_link_service.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
+import 'package:revoked_app/core/utils/paste_link_shortcut.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/shell/store/link_search_store.dart';
+import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +48,20 @@ class _RevokedAppState extends State<RevokedApp> {
     if (location != null) _router.go(location);
   }
 
+  /// Ctrl+V with no field focused: if the clipboard holds a revoked link,
+  /// open the drawer already carrying it. Junk on the clipboard opens
+  /// nothing - a paste that goes nowhere is better than a mystery drawer.
+  Future<void> _handleGlobalPaste() async {
+    final adoption = await Stores.linkSearch.adoptClipboardLink();
+    if (adoption == ClipboardAdoption.none) return;
+    final ctx = AppRouter.rootNavigatorKey.currentContext;
+    if (ctx == null || !ctx.mounted) return;
+    if (adoption == ClipboardAdoption.adopted) {
+      AppToast.success(ctx, 'Link taken from your clipboard');
+    }
+    await openLinkSearchSheet(ctx);
+  }
+
   @override
   void dispose() {
     _deepLinks.dispose();
@@ -61,6 +78,10 @@ class _RevokedAppState extends State<RevokedApp> {
         darkTheme: AppTheme.build(Brightness.dark),
         themeMode: Stores.theme.mode,
         routerConfig: _router,
+        builder: (context, child) => PasteLinkShortcut(
+          onTrigger: _handleGlobalPaste,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
     );
   }
