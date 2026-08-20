@@ -173,8 +173,8 @@ class LinkSearchSheet extends StatelessWidget {
             const Text('Open a link').header,
             const SizedBox(height: AppSpacing.xxs),
             const Text(
-              'Paste a Revoked share or request link. Verify checks the '
-              'sender\'s DNS and the link\'s security before you open it.',
+              'Paste a Revoked share or request link. Use CTRL + V to open this Dialog from anywhere in this app. Verify checks the '
+              'sender\'s DNS and the link\'s security before you open it. ',
             ).muted.small,
             const SizedBox(height: AppSpacing.lg),
             _buildField(context, scheme),
