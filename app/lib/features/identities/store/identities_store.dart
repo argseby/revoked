@@ -1,5 +1,4 @@
 import 'package:mobx/mobx.dart';
-
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/network/api_client.dart';
@@ -28,8 +27,12 @@ abstract class _IdentitiesStore with Store {
   String? errorMessage;
 
   @computed
-  Identity? get primaryIdentity =>
-      identities.isNotEmpty ? identities.first : null;
+  Identity? get primaryIdentity {
+    for (final identity in identities) {
+      if (identity.isPrimary) return identity;
+    }
+    return identities.isNotEmpty ? identities.first : null;
+  }
 
   @action
   Future<void> loadIdentities() async {
@@ -146,11 +149,23 @@ abstract class _IdentitiesStore with Store {
   }
 
   @action
-  void togglePrimary(String id) {
+  Future<bool> setPrimary(String id) async {
+    final previous = identities.toList();
+    errorMessage = null;
     for (var i = 0; i < identities.length; i++) {
       // copyWith so domainAtIssue (and other server fields) survive the
       // primary flip — rebuilding by hand wiped them, breaking from_root.
       identities[i] = identities[i].copyWith(isPrimary: identities[i].id == id);
+    }
+    try {
+      await _api.patch('$_basePath/$id', body: {'isPrimary': true});
+      return true;
+    } catch (e) {
+      identities
+        ..clear()
+        ..addAll(previous);
+      errorMessage = e.toString();
+      return false;
     }
   }
 }
