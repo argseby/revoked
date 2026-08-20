@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/pocketbase/dbx"
 )
 
 // Regression tests for SEC-1..SEC-7: each one fails against the pre-fix code,
@@ -309,4 +310,96 @@ func TestPasswordGateIsRateLimited(t *testing.T) {
 		WithJSON(map[string]any{"password": "wrong-guess"}).
 		Expect().Status(http.StatusTooManyRequests).
 		JSON().Object().Value("code").String().IsEqual(util.Errors.RateLimited.ErrorCode)
+}
+
+// SEC-8: audit snapshots must never retain secret material. The hook stores
+// each write's record as JSON, so without redaction a vault value or a
+// submitted gate password persists in plaintext under auditLogs — readable
+// long after the secret itself was rotated or revoked.
+func TestAuditLogsNeverRetainSecrets(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	wsID := activeWorkspaceOf(t, api, userID, token)
+
+	// Canaries: unique enough that finding one in a snapshot is proof of a leak.
+	const (
+		valueV1    = "sk-audit-canary-original-77f1"
+		valueV2    = "sk-audit-canary-rotated-b3c9"
+		passwordV1 = "gate-audit-canary-original-4d20"
+		passwordV2 = "gate-audit-canary-rotated-9e57"
+	)
+
+	recID := extractID(t, baseURL, util.Coll.Records, token, map[string]any{
+		util.Fields.Record.Key:       "audit-canary",
+		util.Fields.Record.Value:     valueV1,
+		util.Fields.Record.Label:     "Audit canary",
+		util.Fields.Record.Type:      "text",
+		util.Fields.Record.Format:    "default",
+		util.Fields.Record.User:      userID,
+		util.Fields.Record.Workspace: wsID,
+	})
+	api.Update(util.Coll.Records, recID, token, map[string]any{
+		util.Fields.Record.Value: valueV2,
+	}).Expect().Status(http.StatusOK)
+
+	identityID, _ := newIdentity(t, baseURL, token, "audit-canary-id", userID, wsID)
+	linkID := extractID(t, baseURL, util.Coll.Links, token, map[string]any{
+		util.Fields.Link.Slug:      "audit-canary-" + uuid.New().String()[:8],
+		util.Fields.Link.Label:     "Audit canary link",
+		util.Fields.Link.Status:    util.StatusActive,
+		util.Fields.Link.User:      userID,
+		util.Fields.Link.Workspace: wsID,
+		util.Fields.Link.Identity:  identityID,
+		util.Fields.Link.Password:  passwordV1,
+		util.Fields.Link.Records:   []string{recID},
+	})
+	api.Update(util.Coll.Links, linkID, token, map[string]any{
+		util.Fields.Link.Password: passwordV2,
+	}).Expect().Status(http.StatusOK)
+
+	rows, err := app.FindAllRecords(util.Coll.AuditLogs,
+		dbx.HashExp{util.Fields.AuditLog.Workspace: wsID})
+	if err != nil {
+		t.Fatalf("Failed to read audit logs: %v", err)
+	}
+	if len(rows) < 4 {
+		t.Fatalf("expected audit rows for 2 creates + 2 updates, found %d", len(rows))
+	}
+
+	for _, row := range rows {
+		snapshot := row.GetString(util.Fields.AuditLog.OldData) +
+			row.GetString(util.Fields.AuditLog.NewData)
+		for _, canary := range []string{valueV1, valueV2, passwordV1, passwordV2} {
+			if strings.Contains(snapshot, canary) {
+				t.Fatalf("audit row %s (%s %s) retained a secret: %s",
+					row.Id,
+					row.GetString(util.Fields.AuditLog.Action),
+					row.GetString(util.Fields.AuditLog.Collection),
+					canary)
+			}
+		}
+	}
+
+	// Redaction must not blank the trail: the record's create row still names
+	// what changed, with the secret replaced by the marker.
+	for _, row := range rows {
+		if row.GetString(util.Fields.AuditLog.Collection) != util.Coll.Records ||
+			row.GetString(util.Fields.AuditLog.Action) != "create" {
+			continue
+		}
+		newData := row.GetString(util.Fields.AuditLog.NewData)
+		if !strings.Contains(newData, util.AuditRedacted) {
+			t.Fatalf("record create snapshot lacks the redaction marker: %s", newData)
+		}
+		if !strings.Contains(newData, "Audit canary") {
+			t.Fatalf("record create snapshot lost its non-secret fields: %s", newData)
+		}
+		return
+	}
+	t.Fatal("no audit row found for the record create")
 }
