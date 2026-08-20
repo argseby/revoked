@@ -3,8 +3,8 @@
 #   docs/api/callbacks.md  ->  /api/callbacks/
 # Navigation is generated from the folder tree; add a file and it appears.
 site_name: Revoked
-site_url: https://s-kiu.github.io/revoked/
-repo_url: https://github.com/s-kiu/revoked
+site_url: https://argseby.github.io/revoked/
+repo_url: https://github.com/argseby/revoked
 docs_dir: docs
 # run.py (the webhook listener) owns 8000; the docs preview stays clear.
 dev_addr: 127.0.0.1:8100
