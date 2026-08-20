@@ -2,7 +2,6 @@ import 'package:revoked_app/core/network/api_client.dart';
 
 /// Stable error codes emitted by the backend (`util/errors.go`).
 abstract class AppErrorCode {
-  // Workspace / auth
   static const notAuthorized = 'not_authorized';
   static const notAuthenticated = 'not_authenticated';
   static const duplicateWorkspaceMember = 'duplicate_workspace_member';
@@ -19,7 +18,6 @@ abstract class AppErrorCode {
   static const activeWorkspaceMismatch = 'active_workspace_mismatch';
   static const workspaceNotFound = 'workspace_not_found';
 
-  // Access & invites
   static const missingPermission = 'missing_permission';
   static const permissionEscalation = 'permission_escalation';
   static const lastAdminProtected = 'last_admin_protected';
@@ -43,7 +41,6 @@ abstract class AppErrorCode {
   static const validationInsufficientPermissions =
       'validation_insufficient_permissions';
 
-  // Links
   static const linkNotFound = 'link_not_found';
   static const linkRevoked = 'link_revoked';
   static const linkExpired = 'link_expired';
@@ -52,7 +49,6 @@ abstract class AppErrorCode {
   static const linkPasswordRequired = 'link_password_required';
   static const linkPasswordInvalid = 'link_password_invalid';
 
-  // Requests
   static const requestNotFound = 'request_not_found';
   static const requestRevoked = 'request_revoked';
   static const requestExpired = 'request_expired';
@@ -62,7 +58,6 @@ abstract class AppErrorCode {
   static const requestPasswordInvalid = 'request_password_invalid';
   static const requestIdentifierMissing = 'request_identifier_missing';
 
-  // Handshake / identity
   static const handshakeRequired = 'handshake_required';
   static const handshakeInvalid = 'handshake_invalid';
   static const identityNotFound = 'identity_not_found';
@@ -112,7 +107,6 @@ class AppErrorMessage {
 
   static AppErrorMessage _mapApiException(ApiException e) {
     switch (e.code) {
-      // --- Invites
       case AppErrorCode.inviteNotFound:
         return AppErrorMessage(
           title: 'Invite not found',
@@ -166,18 +160,14 @@ class AppErrorMessage {
           code: e.code,
         );
 
-      // --- Registration
       case AppErrorCode.signupsDisabled:
         return AppErrorMessage(
           title: 'This server is invite-only',
-          description:
-              'It does not accept new registrations. Ask whoever runs it to '
-              'create an account for you, then sign in.',
+          description: 'Account creations are disabled by the operator. ',
           code: e.code,
           isTerminal: true,
         );
 
-      // --- Workspace
       case AppErrorCode.invalidActiveWorkspace:
         return AppErrorMessage(
           title: 'No active workspace',
@@ -252,7 +242,6 @@ class AppErrorMessage {
           code: e.code,
         );
 
-      // --- Access
       case AppErrorCode.missingPermission:
       case AppErrorCode.accessDenied:
         return AppErrorMessage(
@@ -289,7 +278,6 @@ class AppErrorMessage {
           isAuthError: true,
         );
 
-      // --- Links
       case AppErrorCode.linkNotFound:
         return AppErrorMessage(
           title: 'Link not found',
@@ -344,7 +332,6 @@ class AppErrorMessage {
           code: e.code,
         );
 
-      // --- Requests
       case AppErrorCode.requestNotFound:
         return AppErrorMessage(
           title: 'Request not found',
@@ -403,7 +390,6 @@ class AppErrorMessage {
           code: e.code,
         );
 
-      // --- Handshake / identity
       case AppErrorCode.handshakeRequired:
         return AppErrorMessage(
           title: 'Handshake required',
@@ -438,7 +424,6 @@ class AppErrorMessage {
           code: e.code,
         );
 
-      // --- Auth / workspace
       case AppErrorCode.notAuthenticated:
         return AppErrorMessage(
           title: 'Please sign in',

@@ -137,12 +137,7 @@ class _SharesScreenState extends State<SharesScreen> {
                   return AppEmptyState(
                     icon: AppIcons.share,
                     title: 'No shared links',
-                    subtitle:
-                        'Create a public share link to securely expose selected vault items.',
-                    action: AppButton(
-                      label: 'Create your first link',
-                      onTap: () => openShareCreateSheet(context: context),
-                    ),
+                    subtitle: 'Tap + to securely share data from your vault.',
                   );
                 }
 
@@ -266,7 +261,10 @@ class _ShareCard extends StatelessWidget {
   });
 
   List<AppSheetAction> _shareActions(BuildContext context) {
-    final publicUrl = DeepLinks.share(share.slug);
+    final publicUrl = DeepLinks.share(
+      share.slug,
+      origin: Stores.api.originAuthority,
+    );
     final isActive = share.status == 'active';
     final isPaused = share.status == 'paused';
     final isRevoked = share.status == 'revoked';

@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 
@@ -50,6 +50,10 @@ abstract class AppRoutes {
 }
 
 class AppRouter {
+  /// Root navigator, so app-level actions (the global paste shortcut) can
+  /// open sheets without a screen's context.
+  static final rootNavigatorKey = GlobalKey<NavigatorState>();
+
   AppRouter._();
 
   /// Where the app was headed when it was sent to the splash. A deep link
@@ -59,6 +63,7 @@ class AppRouter {
 
   static GoRouter create(AuthStore authStore) {
     return GoRouter(
+      navigatorKey: rootNavigatorKey,
       initialLocation: AppRoutes.vault,
       refreshListenable: _AuthRefreshNotifier(authStore),
       redirect: (context, state) {
@@ -131,28 +136,31 @@ class AppRouter {
         ),
         GoRoute(
           path: AppRoutes.share,
-          builder: (context, state) {
-            final slug = state.pathParameters['slug'] ?? '';
-            return PublicShareScreen(shareSlug: slug);
-          },
+          builder: (context, state) => PublicShareScreen(
+            shareSlug: state.pathParameters['slug'] ?? '',
+            origin: state.uri.queryParameters['o'],
+          ),
         ),
         GoRoute(
           path: AppRoutes.request,
-          builder: (context, state) {
-            final slug = state.pathParameters['slug'] ?? '';
-            return PublicRequestScreen(requestSlug: slug);
-          },
+          builder: (context, state) => PublicRequestScreen(
+            requestSlug: state.pathParameters['slug'] ?? '',
+            origin: state.uri.queryParameters['o'],
+          ),
         ),
         // Short canonical aliases.
         GoRoute(
           path: AppRoutes.shortShare,
-          builder: (context, state) =>
-              PublicShareScreen(shareSlug: state.pathParameters['slug'] ?? ''),
+          builder: (context, state) => PublicShareScreen(
+            shareSlug: state.pathParameters['slug'] ?? '',
+            origin: state.uri.queryParameters['o'],
+          ),
         ),
         GoRoute(
           path: AppRoutes.shortRequest,
           builder: (context, state) => PublicRequestScreen(
             requestSlug: state.pathParameters['slug'] ?? '',
+            origin: state.uri.queryParameters['o'],
           ),
         ),
         // Readable while signed out so the recipient can see what an invite
@@ -164,8 +172,10 @@ class AppRouter {
         ),
         GoRoute(
           path: AppRoutes.invite,
-          builder: (context, state) =>
-              InviteAcceptScreen(token: state.pathParameters['token'] ?? ''),
+          builder: (context, state) => InviteAcceptScreen(
+            token: state.pathParameters['token'] ?? '',
+            origin: state.uri.queryParameters['o'],
+          ),
         ),
         // Fallbacks for public URLs missing slugs
         GoRoute(
