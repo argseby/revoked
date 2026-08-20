@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/radius.dart';
 
 /// Builds the app's Material 3 theme for a given [Brightness], so light and dark
@@ -10,7 +9,7 @@ class AppTheme {
   /// Deep green: `active` renders as [ColorScheme.primary], so the traffic-light
   /// reading of a status list — green active, amber paused, red revoked — falls
   /// out of the scheme instead of being painted on top of it.
-  static const Color seed = Color(0xFF00674F);
+  static const Color seed = Color(0xAC19A676);
 
   static ThemeData build(Brightness brightness) {
     final scheme = ColorScheme.fromSeed(

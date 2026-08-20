@@ -16,6 +16,23 @@ extension AppColorRoles on ColorScheme {
       ? _warningContainerLight
       : _warningContainerDark;
 
+  /// Security alarm — an unverified or spoofed domain.
+  ///
+  /// Deliberately not [error]: the seeded error tone is `#FFB4AB` on a dark
+  /// surface, which reads as salmon rather than red. A phishing warning has to
+  /// look like a stop sign, so this is a saturated red picked per brightness
+  /// for legibility rather than derived from the seed.
+  Color get danger =>
+      brightness == Brightness.light ? _dangerLight : _dangerDark;
+
+  /// [danger] as a filled bar. Fixed across brightness — it is paired with
+  /// [onDangerFill] rather than sitting on the page background, so it stays
+  /// legible either way.
+  Color get dangerFill => _dangerFill;
+
+  /// Text and icons drawn on [dangerFill].
+  Color get onDangerFill => _onDangerFill;
+
   /// The error role legible against [inverseSurface]. A surface painted in the
   /// opposite brightness needs the opposite scheme's error, not this one's.
   Color get inverseError =>
@@ -26,6 +43,11 @@ const Color _warningLight = Color(0xFF7A5900);
 const Color _warningDark = Color(0xFFF2C24B);
 const Color _warningContainerLight = Color(0xFFFFDF9E);
 const Color _warningContainerDark = Color(0xFF5C4200);
+
+const Color _dangerLight = Color(0xFFC62828);
+const Color _dangerDark = Color(0xFFFF6259);
+const Color _dangerFill = Color(0xFFD32F2F);
+const Color _onDangerFill = Color(0xFFFFFFFF);
 
 // Material 3's own baseline error tones, kept as constants so [inverseError]
 // does not have to build a second ColorScheme on every toast.
