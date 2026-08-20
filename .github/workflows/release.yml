@@ -155,5 +155,9 @@ jobs:
     permissions:
       contents: write
     uses: ./.github/workflows/desktop.yml
+    # A called workflow gets none of the caller's secrets by default, so
+    # without this the Android signing keys are empty on the release path
+    # and every published APK falls back to a throwaway debug key.
+    secrets: inherit
     with:
       tag: ${{ needs.release.outputs.version }}
