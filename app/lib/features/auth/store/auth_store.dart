@@ -55,7 +55,13 @@ abstract class _AuthStore with Store {
     isLoading = true;
     errorMessage = null;
     try {
-      currentUser = await _tryRestoreSession();
+      // Backstop for the whole restore: `finally` only runs when the
+      // awaited future settles, so any hung platform call in the chain
+      // would otherwise hold the splash forever.
+      currentUser = await _tryRestoreSession().timeout(
+        const Duration(seconds: 25),
+        onTimeout: () => null,
+      );
     } catch (e) {
       currentUser = null;
     } finally {

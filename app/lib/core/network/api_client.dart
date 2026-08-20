@@ -80,9 +80,17 @@ class ApiClient {
   /// live in the keychain, not in preferences: a token is a bearer credential
   /// for the whole account, and preferences are world-readable on a rooted
   /// device and swept up by backups.
+  /// Keychain reads are unbounded platform calls, and flutter_secure_storage
+  /// is known to hang on some Android devices. A keychain that never answers
+  /// must degrade to "signed out", not wedge the splash forever - the
+  /// restore path sits before the first screen the user can interact with.
+  Future<String?> _secureRead(String key) => _secure
+      .read(key: key)
+      .timeout(const Duration(seconds: 5), onTimeout: () => null);
+
   Future<void> loadAuthState() async {
-    _authToken = await _secure.read(key: _tokenKey);
-    final userJson = await _secure.read(key: _userKey);
+    _authToken = await _secureRead(_tokenKey);
+    final userJson = await _secureRead(_userKey);
     if (userJson != null) {
       _userData = jsonDecode(userJson) as Map<String, dynamic>;
     }
@@ -92,13 +100,25 @@ class ApiClient {
     if (_authToken == null) {
       final legacy = prefs.getString(_tokenKey);
       final legacyUser = prefs.getString(_userKey);
-      if (legacy != null) {
-        _authToken = legacy;
-        await _secure.write(key: _tokenKey, value: legacy);
-      }
-      if (legacyUser != null) {
-        _userData = jsonDecode(legacyUser) as Map<String, dynamic>;
-        await _secure.write(key: _userKey, value: legacyUser);
+      // Migration writes are best-effort: the in-memory state is already
+      // set, so a hung keychain write costs a retry next launch, never the
+      // session and never the splash.
+      try {
+        if (legacy != null) {
+          _authToken = legacy;
+          await _secure
+              .write(key: _tokenKey, value: legacy)
+              .timeout(const Duration(seconds: 5));
+        }
+        if (legacyUser != null) {
+          _userData = jsonDecode(legacyUser) as Map<String, dynamic>;
+          await _secure
+              .write(key: _userKey, value: legacyUser)
+              .timeout(const Duration(seconds: 5));
+        }
+      } on TimeoutException {
+        // kept in prefs; migrated on a launch where the keychain answers
+        return;
       }
     }
     await prefs.remove(_tokenKey);

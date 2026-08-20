@@ -301,8 +301,14 @@ class _AuthRefreshNotifier extends ChangeNotifier {
   late final ReactionDisposer _disposer;
 
   _AuthRefreshNotifier(AuthStore store) {
+    // Every observable the redirect reads, not just the login flag. The
+    // redirect only re-runs when this notifies - watching isAuthenticated
+    // alone froze a signed-out start on the splash forever, because a
+    // no-session initialize() completes with the flag still false and
+    // nothing ever woke the router to notice isInitialized had flipped.
     _disposer = reaction(
-      (_) => store.isAuthenticated,
+      (_) =>
+          (store.isInitialized, store.isAuthenticated, store.activeWorkspace),
       (_) => notifyListeners(),
     );
   }
