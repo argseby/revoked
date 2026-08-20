@@ -45,4 +45,5 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.ChallengeRoute(app)
 	routes.ServerInfoRoute(app, root)
 	routes.VerifyPeerRoute(app)
+	routes.DeleteAccountRoute(app)
 }
