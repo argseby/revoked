@@ -1,59 +1,33 @@
 import 'package:flutter/material.dart';
-
-import 'package:revoked_app/core/design/radius.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
-import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
 
 /// First run: an account has no workspace until it either creates one or joins
 /// one, so this asks which — rather than silently provisioning a workspace the
 /// person may not want and then having them join a second one anyway.
-class WorkspaceOnboardingScreen extends StatefulWidget {
+class WorkspaceOnboardingScreen extends StatelessWidget {
   const WorkspaceOnboardingScreen({super.key});
 
-  @override
-  State<WorkspaceOnboardingScreen> createState() =>
-      _WorkspaceOnboardingScreenState();
-}
-
-enum _Choice { undecided, create, join }
-
-class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
-  _Choice _choice = _Choice.undecided;
-
-  final _nameCtrl = TextEditingController();
-  final _keyCtrl = TextEditingController();
-
-  bool _busy = false;
-  String? _error;
-
-  /// What the pasted key grants, shown before it is accepted.
-  InvitePreview? _preview;
-  bool _previewing = false;
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _keyCtrl.dispose();
-    super.dispose();
-  }
+  OnboardingStore get _store => Stores.onboarding;
 
   /// Accepts either a bare token or a full `revoked://i/<token>` link.
   String get _token {
-    final raw = _keyCtrl.text.trim();
+    final raw = _store.keyController.text.trim();
     final location = DeepLinks.locationFor(Uri.tryParse(raw) ?? Uri());
     if (location != null && location.startsWith('/i/')) {
       return location.substring(3);
@@ -61,17 +35,14 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     return raw;
   }
 
-  Future<void> _createWorkspace() async {
-    final name = _nameCtrl.text.trim();
+  Future<void> _createWorkspace(BuildContext context) async {
+    final name = _store.nameController.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = 'Give your workspace a name.');
+      _store.fail('Give your workspace a name.');
       return;
     }
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    _store.startBusy();
 
     final auth = Stores.auth;
     final ok = await Stores.settings.createWorkspace(
@@ -79,84 +50,72 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
       slug: _slugify(name),
       userId: auth.userId,
     );
-    if (!mounted) return;
-
     if (!ok) {
-      setState(() {
-        _busy = false;
-        _error =
-            Stores.settings.errorMessage ?? 'Could not create the workspace.';
-      });
+      _store.stopBusy(
+        Stores.settings.errorMessage ?? 'Could not create the workspace.',
+      );
       return;
     }
 
-    await _adoptFirstWorkspace();
+    _store.nameController.clear();
+    _store.identityNameController.clear();
+    _store.isBusy = false;
+
+    if (!context.mounted) return;
+    await _adoptFirstWorkspace(context);
   }
 
   Future<void> _peekInvite() async {
     if (_token.isEmpty) return;
-    setState(() {
-      _previewing = true;
-      _error = null;
-      _preview = null;
-    });
+    _store.startPreview();
     try {
       final preview = await Stores.invites.preview(_token);
-      if (!mounted) return;
-      setState(() {
-        _preview = preview;
-        _previewing = false;
-      });
+      _store.finishPreview(result: preview);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _previewing = false;
-        _error = AppErrorMessage.fromException(e).description;
-      });
+      _store.finishPreview(
+        message: AppErrorMessage.fromException(e).description,
+      );
     }
   }
 
-  Future<void> _joinWorkspace() async {
+  Future<void> _joinWorkspace(BuildContext context) async {
     if (_token.isEmpty) {
-      setState(() => _error = 'Paste the invite key you were given.');
+      _store.fail('Paste the invite key you were given.');
       return;
     }
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    _store.startBusy();
     try {
       await Stores.invites.accept(_token);
-      if (!mounted) return;
-      await _adoptFirstWorkspace();
+      if (!context.mounted) return;
+      await _adoptFirstWorkspace(context);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _error = AppErrorMessage.fromException(e).description;
-      });
+      _store.stopBusy(AppErrorMessage.fromException(e).description);
     }
   }
 
   /// Re-reads the session so the new membership becomes the active context,
   /// then gives the account a signing identity now that one can be scoped to a
   /// workspace, and finally loads the workspace's data.
-  Future<void> _adoptFirstWorkspace() async {
+  Future<void> _adoptFirstWorkspace(BuildContext context) async {
     final auth = Stores.auth;
     await auth.initialize();
-    await auth.ensureIdentity();
+    await auth.ensureIdentity(name: _store.identityNameController.text);
     await Stores.workspaceContext.reload();
-    if (!mounted) return;
+    if (!context.mounted) return;
     AppToast.success(context, 'You are all set.');
     context.go(AppRoutes.vault);
   }
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Set up your workspace'),
+        title: const AppText('Set up your workspace', header: true),
         automaticallyImplyLeading: false,
       ),
       body: SafeArea(
@@ -168,17 +127,19 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
               'Start your own, or join one you have been invited to.',
             ).muted.small,
             AppSpacing.gapLg,
-            if (_error != null) ...[
+            if (_store.error != null) ...[
               AppAlert(
                 destructive: true,
                 title: const Text('That did not work'),
-                content: Text(_error!).small,
+                content: Text(_store.error!).small,
               ),
               AppSpacing.gapMd,
             ],
-            if (_choice == _Choice.undecided) ..._chooser(context),
-            if (_choice == _Choice.create) ..._createForm(context),
-            if (_choice == _Choice.join) ..._joinForm(context),
+            if (_store.choice == OnboardingChoice.undecided)
+              ..._chooser(context),
+            if (_store.choice == OnboardingChoice.create)
+              ..._createForm(context),
+            if (_store.choice == OnboardingChoice.join) ..._joinForm(context),
           ],
         ),
       ),
@@ -190,57 +151,89 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
       icon: AppIcons.personWorkspace,
       title: 'Create a workspace',
       subtitle: 'Start fresh with your own vault.',
-      onTap: () => setState(() => _choice = _Choice.create),
+      onTap: () => _store.choose(OnboardingChoice.create),
     ),
     AppSpacing.gapMd,
     _ChoiceCard(
       icon: AppIcons.key,
       title: 'Join with an invite',
       subtitle: 'Paste the key someone shared with you.',
-      onTap: () => setState(() => _choice = _Choice.join),
+      onTap: () => _store.choose(OnboardingChoice.join),
     ),
   ];
 
   List<Widget> _createForm(BuildContext context) => [
     AppTextField(
-      controller: _nameCtrl,
+      controller: _store.nameController,
       label: 'Workspace name',
       hint: 'e.g. Acme, or your own name',
     ),
-    AppSpacing.gapLg,
-    AppButton(
-      label: _busy ? 'Creating…' : 'Create workspace',
-      onTap: _busy ? null : _createWorkspace,
+    AppSpacing.gapMd,
+    AppTextField(
+      controller: _store.identityNameController,
+      label: 'Your name',
+      hint: 'e.g. Ada Lovelace',
     ),
-    _backButton(),
+    AppSpacing.gapXxs,
+    const Text(
+      'This is the name on your signing identity — everyone you share with or '
+      'request from sees it.',
+    ).muted.small,
+    AppSpacing.gapLg,
+
+    Row(
+      children: [
+        Expanded(child: _backButton()),
+        AppSpacing.gapSm,
+
+        Expanded(
+          child: AppButton(
+            label: _store.isBusy ? 'Creating…' : 'Create workspace',
+            onTap:
+                _store.isBusy ||
+                    (_store.nameController.text.isEmpty ||
+                        _store.identityNameController.text.isEmpty)
+                ? null
+                : () => _createWorkspace(context),
+          ),
+        ),
+      ],
+    ),
   ];
 
   List<Widget> _joinForm(BuildContext context) => [
     AppTextField(
-      controller: _keyCtrl,
+      controller: _store.keyController,
       label: 'Invite key',
       hint: 'revoked://i/… or the key itself',
     ),
     AppSpacing.gapSm,
     AppButton(
-      label: _previewing ? 'Checking…' : 'Check this invite',
-      onTap: _previewing ? null : _peekInvite,
+      label: _store.isPreviewing ? 'Checking…' : 'Check this invite',
+      onTap: _store.isPreviewing || _store.keyController.text.isEmpty
+          ? null
+          : _peekInvite,
+      icon: AppIcons.shieldCheck,
       style: AppButtonStyle.accent,
     ),
-    if (_previewing) ...[AppSpacing.gapMd, const Center(child: AppSpinner())],
-    if (_preview != null) ...[
+    AppSpacing.gapMd,
+    if (_store.isPreviewing) ...[
+      AppSpacing.gapMd,
+      const Center(child: AppSpinner()),
+    ],
+    if (_store.preview != null) ...[
       AppSpacing.gapMd,
       AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(_preview!.workspaceName),
-            if (_preview!.invitedBy != null) ...[
+            Text(_store.preview!.workspaceName),
+            if (_store.preview!.invitedBy != null) ...[
               const SizedBox(height: AppSpacing.xxs),
-              Text('Invited by ${_preview!.invitedBy}').muted.small,
+              Text('Invited by ${_store.preview!.invitedBy}').muted.small,
             ],
             AppSpacing.gapSm,
-            for (final permission in _preview!.permissions)
+            for (final permission in _store.preview!.permissions)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.xxs),
                 child: Text('• ${permission.label}').muted.small,
@@ -249,23 +242,26 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
         ),
       ),
     ],
-    AppSpacing.gapLg,
-    AppButton(
-      label: _busy ? 'Joining…' : 'Join workspace',
-      onTap: _busy ? null : _joinWorkspace,
+    Row(
+      children: [
+        Expanded(child: _backButton()),
+        AppSpacing.gapLg,
+
+        Expanded(
+          child: AppButton(
+            label: _store.isBusy ? 'Joining…' : 'Join workspace',
+            onTap: _store.isBusy || _store.keyController.text.isEmpty
+                ? null
+                : () => _joinWorkspace(context),
+          ),
+        ),
+      ],
     ),
-    _backButton(),
   ];
 
   Widget _backButton() => AppButton(
     label: 'Back',
-    onTap: _busy
-        ? null
-        : () => setState(() {
-            _choice = _Choice.undecided;
-            _preview = null;
-            _error = null;
-          }),
+    onTap: _store.isBusy ? null : _store.restart,
     style: AppButtonStyle.accent,
   );
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +8,6 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
@@ -24,44 +24,23 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 class InviteAcceptScreen extends StatefulWidget {
   final String token;
 
-  const InviteAcceptScreen({super.key, required this.token});
+  /// host[:port] the invite says it lives on; null = the signed-in server.
+  final String? origin;
+
+  const InviteAcceptScreen({super.key, required this.token, this.origin});
 
   @override
   State<InviteAcceptScreen> createState() => _InviteAcceptScreenState();
 }
 
 class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
-  bool _loading = true;
-  bool _accepting = false;
-  InvitePreview? _preview;
-  AppErrorMessage? _error;
-
   @override
   void initState() {
     super.initState();
-    _probe();
+    if (Stores.api.isOwnOrigin(widget.origin)) _probe();
   }
 
-  Future<void> _probe() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final preview = await Stores.invites.preview(widget.token);
-      if (!mounted) return;
-      setState(() {
-        _preview = preview;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = AppErrorMessage.fromException(e);
-        _loading = false;
-      });
-    }
-  }
+  Future<void> _probe() => Stores.invites.previewInvite(widget.token);
 
   Future<void> _accept() async {
     if (!Stores.auth.isAuthenticated) {
@@ -69,7 +48,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
       return;
     }
 
-    setState(() => _accepting = true);
+    Stores.invites.startAccepting();
     try {
       await Stores.invites.accept(widget.token);
       // Joining changes what this account can reach, so the workspace-scoped
@@ -79,16 +58,15 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
       if (!mounted) return;
       AppToast.success(
         context,
-        'You joined ${_preview?.workspaceName ?? 'the workspace'}.',
+        'You joined ${Stores.invites.acceptPreview?.workspaceName ?? 'the workspace'}.',
       );
       context.go(AppRoutes.vault);
     } catch (e) {
       if (!mounted) return;
       final err = AppErrorMessage.fromException(e);
-      setState(() {
-        _accepting = false;
-        if (err.isTerminal) _error = err;
-      });
+      Stores.invites.failAccepting(err);
+      // A terminal error replaces the page; anything else is transient and
+      // only worth a toast.
       if (!err.isTerminal) AppToast.error(context, err.description);
     }
   }
@@ -97,14 +75,44 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Workspace invite')),
-      body: SafeArea(child: _body(context)),
+      body: SafeArea(child: Observer(builder: (_) => _body(context))),
     );
   }
 
   Widget _body(BuildContext context) {
-    if (_loading) return const Center(child: AppSpinner());
+    // Membership is an account on one server. An invite minted elsewhere
+    // cannot be accepted by this session - the account does not exist there.
+    if (!Stores.api.isOwnOrigin(widget.origin)) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppSpacing.screenH(context)),
+          child: AppCard(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  AppIcons.server,
+                  size: 40,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                AppSpacing.gapLg,
+                const Text('This invite belongs to another server').header,
+                AppSpacing.gapSm,
+                Text(
+                  'It was created on ${widget.origin}, but you are signed '
+                  'into ${Stores.api.originAuthority}. Switch servers on '
+                  'the login screen and open the invite again.',
+                  textAlign: TextAlign.center,
+                ).muted.small,
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    if (Stores.invites.isPreviewing) return const Center(child: AppSpinner());
 
-    final error = _error;
+    final error = Stores.invites.acceptError;
     if (error != null) {
       return Center(
         child: Padding(
@@ -137,7 +145,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
       );
     }
 
-    final preview = _preview!;
+    final preview = Stores.invites.acceptPreview!;
     final signedIn = Stores.auth.isAuthenticated;
 
     return ListView(
@@ -236,12 +244,12 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
           ),
         AppSpacing.gapMd,
         AppButton(
-          label: _accepting
+          label: Stores.invites.isAccepting
               ? 'Joining…'
               : signedIn
               ? 'Join ${preview.workspaceName}'
               : 'Sign in to accept',
-          onTap: _accepting ? null : _accept,
+          onTap: Stores.invites.isAccepting ? null : _accept,
         ),
         AppSpacing.gapSm,
         AppButton(

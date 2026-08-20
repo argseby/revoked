@@ -3,6 +3,7 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/api_key.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'api_keys_store.g.dart';
 
@@ -30,6 +31,37 @@ abstract class _ApiKeysStore with Store {
   /// shown once, never retrievable again.
   @observable
   String? lastCreatedPlainToken;
+
+  final ObservableTextController draftLabel = ObservableTextController();
+
+  final ObservableSet<String> draftScopes = ObservableSet<String>();
+
+  /// Days until the key stops working; null means it never expires.
+  @observable
+  int? draftExpiresInDays = 90;
+
+  @computed
+  bool get canCreateDraft =>
+      draftLabel.text.trim().isNotEmpty && draftScopes.isNotEmpty;
+
+  @action
+  void resetDraft() {
+    draftLabel.clear();
+    draftScopes.clear();
+    draftExpiresInDays = 90;
+  }
+
+  @action
+  void toggleDraftScope(String key, bool on) {
+    if (on) {
+      draftScopes.add(key);
+    } else {
+      draftScopes.remove(key);
+    }
+  }
+
+  @action
+  void setDraftExpiry(int? days) => draftExpiresInDays = days;
 
   @action
   Future<void> loadApiKeys() async {

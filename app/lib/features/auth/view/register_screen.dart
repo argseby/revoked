@@ -14,25 +14,8 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends StatelessWidget {
   const RegisterScreen({super.key});
-
-  @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
-}
-
-class _RegisterScreenState extends State<RegisterScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmController = TextEditingController();
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +56,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const Text('Email'),
                 const SizedBox(height: AppSpacing.xs),
                 AppTextField(
-                  controller: _emailController,
+                  controller: Stores.auth.registerEmail,
                   hint: 'name@example.com',
                   keyboardType: TextInputType.emailAddress,
                 ),
@@ -82,7 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const Text('Password'),
                 const SizedBox(height: AppSpacing.xs),
                 AppTextField(
-                  controller: _passwordController,
+                  controller: Stores.auth.registerPassword,
                   hint: 'Password',
                   obscureText: true,
                   passwordToggle: true,
@@ -92,7 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const Text('Confirm Password'),
                 const SizedBox(height: AppSpacing.xs),
                 AppTextField(
-                  controller: _confirmController,
+                  controller: Stores.auth.registerConfirm,
                   hint: 'Confirm Password',
                   obscureText: true,
                   passwordToggle: true,
@@ -103,7 +86,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   builder: (_) => AppButton(
                     label: 'Sign Up',
                     busy: authStore.isLoading,
-                    onTap: () => _handleRegister(authStore),
+                    onTap: () => _handleRegister(context, authStore),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
@@ -125,15 +108,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Center(
-                  child: AppButton(
-                    icon: AppIcons.server,
-                    label: 'Server: ${_serverLabel()}',
-                    style: AppButtonStyle.accent,
-                    size: AppButtonSize.small,
-                    onTap: () async {
-                      await openServerSettingsSheet(context);
-                      if (mounted) setState(() {});
-                    },
+                  child: Observer(
+                    builder: (_) => AppButton(
+                      icon: AppIcons.server,
+                      label: 'Server: ${Stores.serverSettings.savedLabel}',
+                      style: AppButtonStyle.accent,
+                      size: AppButtonSize.small,
+                      onTap: () => openServerSettingsSheet(context),
+                    ),
                   ),
                 ),
               ],
@@ -144,27 +126,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  String _serverLabel() {
-    final url = Stores.api.baseUrl;
-    return Uri.tryParse(url)?.authority ?? url;
-  }
-
-  Future<void> _handleRegister(AuthStore store) async {
-    if (_emailController.text.isEmpty ||
-        _passwordController.text.isEmpty ||
-        _confirmController.text.isEmpty) {
+  Future<void> _handleRegister(BuildContext context, AuthStore store) async {
+    if (Stores.auth.registerEmail.text.isEmpty ||
+        Stores.auth.registerPassword.text.isEmpty ||
+        Stores.auth.registerConfirm.text.isEmpty) {
       return;
     }
-    if (_passwordController.text != _confirmController.text) {
+    if (Stores.auth.registerPassword.text != Stores.auth.registerConfirm.text) {
       AppToast.error(context, 'Passwords do not match');
       return;
     }
     final success = await store.register(
-      _emailController.text.trim(),
-      _passwordController.text,
-      _confirmController.text,
+      Stores.auth.registerEmail.text.trim(),
+      Stores.auth.registerPassword.text,
+      Stores.auth.registerConfirm.text,
     );
-    if (success && mounted) {
+    if (success && context.mounted) {
+      Stores.auth.registerEmail.clear();
+      Stores.auth.registerPassword.clear();
+      Stores.auth.registerConfirm.clear();
+
       context.go(AppRoutes.vault);
     }
   }

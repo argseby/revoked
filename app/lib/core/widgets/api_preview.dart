@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -30,10 +32,14 @@ class ApiPreview extends StatefulWidget {
 }
 
 class _ApiPreviewState extends State<ApiPreview> {
-  bool _expanded = false;
+  final Local<bool> _expanded = Local(false);
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final base = Stores.api.baseUrl;
     final spec = widget.spec;
@@ -44,7 +50,7 @@ class _ApiPreviewState extends State<ApiPreview> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: () => _expanded.value = !_expanded.value,
             borderRadius: AppRadius.allLg,
             child: Padding(
               padding: const EdgeInsets.symmetric(
@@ -70,7 +76,7 @@ class _ApiPreviewState extends State<ApiPreview> {
                     ),
                   ),
                   AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
+                    turns: _expanded.value ? 0.5 : 0,
                     duration: AppMotion.duration,
                     curve: AppMotion.curve,
                     child: Icon(
@@ -83,7 +89,7 @@ class _ApiPreviewState extends State<ApiPreview> {
               ),
             ),
           ),
-          if (_expanded) ...[
+          if (_expanded.value) ...[
             const AppDivider(),
             Padding(
               padding: const EdgeInsets.fromLTRB(

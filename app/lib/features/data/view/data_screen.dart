@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:mobx/mobx.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/app_dialog.dart';
+import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/router/app_router.dart';
@@ -80,9 +82,7 @@ class DataScreen extends StatefulWidget {
 }
 
 class _DataScreenState extends State<DataScreen> {
-  late final ReactionDisposer _tableDisposer;
   late final TableStore<DataItem> _table;
-  bool _loading = true;
 
   @override
   void initState() {
@@ -101,31 +101,14 @@ class _DataScreenState extends State<DataScreen> {
       },
       defaultSort: 'created_desc',
     );
-    _tableDisposer = reaction(
-      (_) => [_table.searchQuery, _table.sortBy, ..._table.filters],
-      (_) => setState(() {}),
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  @override
-  void didUpdateWidget(covariant DataScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.requestId != widget.requestId) setState(() {});
-  }
-
-  Future<void> _load() async {
-    if (mounted) setState(() => _loading = true);
-    final requests = Stores.requests;
-    await requests.loadRequests();
-    await requests.loadAllResponses();
-    await Stores.vault.loadRecords();
-    if (mounted) setState(() => _loading = false);
-  }
+  Future<void> _load() =>
+      Stores.requests.loadDataScreen(Stores.vault.loadRecords);
 
   @override
   void dispose() {
-    _tableDisposer();
     _table.dispose();
     super.dispose();
   }
@@ -309,88 +292,87 @@ class _DataScreenState extends State<DataScreen> {
         ),
 
         // Overview of how many connections are live vs revoked vs from vault.
-        if (!_loading)
-          Observer(
+        Observer(
+          builder: (_) {
+            if (Stores.requests.isLoadingData) return const SizedBox.shrink();
+            final all = _buildItems();
+            final live = all.where((d) => d.status == GrantStatus.live).length;
+            final revoked = all
+                .where((d) => d.status == GrantStatus.revoked)
+                .length;
+            final vault = all
+                .where((d) => d.status == GrantStatus.vault)
+                .length;
+            if (all.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, 0),
+              child: Wrap(
+                spacing: AppSpacing.xs,
+                children: [
+                  _StatChip(status: GrantStatus.live, count: live),
+                  _StatChip(status: GrantStatus.revoked, count: revoked),
+                  _StatChip(status: GrantStatus.vault, count: vault),
+                ],
+              ),
+            );
+          },
+        ),
+
+        Expanded(
+          child: Observer(
             builder: (_) {
-              final all = _buildItems();
-              final live = all
-                  .where((d) => d.status == GrantStatus.live)
-                  .length;
-              final revoked = all
-                  .where((d) => d.status == GrantStatus.revoked)
-                  .length;
-              final vault = all
-                  .where((d) => d.status == GrantStatus.vault)
-                  .length;
-              if (all.isEmpty) return const SizedBox.shrink();
-              return Padding(
-                padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, 0),
-                child: Wrap(
-                  spacing: AppSpacing.xs,
-                  children: [
-                    _StatChip(status: GrantStatus.live, count: live),
-                    _StatChip(status: GrantStatus.revoked, count: revoked),
-                    _StatChip(status: GrantStatus.vault, count: vault),
-                  ],
+              if (Stores.requests.isLoadingData) {
+                return const Center(child: AppSpinner(large: true));
+              }
+              final items = _table.filteredItems;
+              if (items.isEmpty) {
+                return AppEmptyState(
+                  icon: AppIcons.cardList,
+                  title: widget.requestId != null
+                      ? 'No responses yet'
+                      : 'No connections yet',
+                  subtitle: widget.requestId != null
+                      ? 'Data people send in response to this request will appear here, grouped by who sent it.'
+                      : 'Data shared with you and your own vault records will show up here.',
+                );
+              }
+              // Per-request view: group every response by who sent it —
+              // by signing identity, or an anonymous bucket per submission.
+              if (widget.requestId != null) {
+                final groups = _groupByResponder(items);
+                return ListView.separated(
+                  padding: EdgeInsets.fromLTRB(
+                    pad,
+                    AppSpacing.md,
+                    pad,
+                    AppSpacing.huge,
+                  ),
+                  itemCount: groups.length,
+                  separatorBuilder: (_, _) =>
+                      const SizedBox(height: AppSpacing.md),
+                  itemBuilder: (_, i) => _ResponderGroup(
+                    items: groups[i],
+                    onTapItem: (it) => _showDetail(context, it),
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: EdgeInsets.fromLTRB(
+                  pad,
+                  AppSpacing.md,
+                  pad,
+                  AppSpacing.huge,
+                ),
+                itemCount: items.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: AppSpacing.sm),
+                itemBuilder: (_, i) => _DataRow(
+                  item: items[i],
+                  onTap: () => _showDetail(context, items[i]),
                 ),
               );
             },
           ),
-
-        Expanded(
-          child: _loading
-              ? const Center(child: AppSpinner(large: true))
-              : Observer(
-                  builder: (_) {
-                    final items = _table.filteredItems;
-                    if (items.isEmpty) {
-                      return AppEmptyState(
-                        icon: AppIcons.cardList,
-                        title: widget.requestId != null
-                            ? 'No responses yet'
-                            : 'No connections yet',
-                        subtitle: widget.requestId != null
-                            ? 'Data people send in response to this request will appear here, grouped by who sent it.'
-                            : 'Data shared with you and your own vault records will show up here.',
-                      );
-                    }
-                    // Per-request view: group every response by who sent it —
-                    // by signing identity, or an anonymous bucket per submission.
-                    if (widget.requestId != null) {
-                      final groups = _groupByResponder(items);
-                      return ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                          pad,
-                          AppSpacing.md,
-                          pad,
-                          AppSpacing.huge,
-                        ),
-                        itemCount: groups.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpacing.md),
-                        itemBuilder: (_, i) => _ResponderGroup(
-                          items: groups[i],
-                          onTapItem: (it) => _showDetail(context, it),
-                        ),
-                      );
-                    }
-                    return ListView.separated(
-                      padding: EdgeInsets.fromLTRB(
-                        pad,
-                        AppSpacing.md,
-                        pad,
-                        AppSpacing.huge,
-                      ),
-                      itemCount: items.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: AppSpacing.sm),
-                      itemBuilder: (_, i) => _DataRow(
-                        item: items[i],
-                        onTap: () => _showDetail(context, items[i]),
-                      ),
-                    );
-                  },
-                ),
         ),
       ],
     );
@@ -519,12 +501,27 @@ class _DataScreenState extends State<DataScreen> {
   }
 
   Future<void> _revokeSource(BuildContext sheetCtx, DataItem item) async {
+    final confirmed = await showAppDialog(
+      context: sheetCtx,
+      title: 'Revoke request?',
+      message:
+          'The link stops working immediately and collects no further '
+          'responses. Data already collected is kept.',
+      content: ApiPreview(
+        spec: RequestsStore.updateRequestSpec(item.requestId, const {
+          'status': 'revoked',
+        }),
+        title: 'API request · revoke',
+      ),
+      confirmLabel: 'Revoke',
+      destructive: true,
+    );
+    if (!confirmed || !sheetCtx.mounted) return;
     final ok = await Stores.requests.updateRequest(item.requestId, {
       'status': 'revoked',
     });
     if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
     if (!mounted) return;
-    setState(() {});
     if (ok) {
       AppToast.success(context, 'Source request revoked');
     } else {

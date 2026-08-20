@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 
 /// Material 3 text field. Replaces shadcn's `TextField`, mapping its
@@ -54,26 +56,27 @@ class AppTextField extends StatefulWidget {
 }
 
 class _AppTextFieldState extends State<AppTextField> {
-  late bool _obscured;
-
-  @override
-  void initState() {
-    super.initState();
-    _obscured = widget.obscureText || widget.passwordToggle;
-  }
+  late final Local<bool> _obscured = Local(
+    widget.obscureText || widget.passwordToggle,
+  );
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
+    final obscured = _obscured.value;
     Widget? suffix = widget.trailing;
     if (widget.passwordToggle) {
       suffix = Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: AppButton(
-          icon: _obscured ? AppIcons.eye : AppIcons.eyeSlash,
-          tooltip: _obscured ? 'Show' : 'Hide',
+          icon: obscured ? AppIcons.eye : AppIcons.eyeSlash,
+          tooltip: obscured ? 'Show' : 'Hide',
           style: AppButtonStyle.accent,
           size: AppButtonSize.small,
-          onTap: () => setState(() => _obscured = !_obscured),
+          onTap: () => _obscured.value = !obscured,
         ),
       );
     }
@@ -81,13 +84,13 @@ class _AppTextFieldState extends State<AppTextField> {
     return TextFormField(
       controller: widget.controller,
       initialValue: widget.controller == null ? widget.initialValue : null,
-      obscureText: _obscured,
+      obscureText: obscured,
       keyboardType: widget.keyboardType,
       inputFormatters: widget.inputFormatters,
       onChanged: widget.onChanged,
       onFieldSubmitted: widget.onSubmitted,
       style: widget.mono ? const TextStyle(fontFamily: 'monospace') : null,
-      maxLines: _obscured ? 1 : widget.maxLines,
+      maxLines: obscured ? 1 : widget.maxLines,
       minLines: widget.minLines,
       autofocus: widget.autofocus,
       enabled: widget.enabled,

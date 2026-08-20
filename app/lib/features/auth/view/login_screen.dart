@@ -13,23 +13,8 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
-
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Text('Email'),
                 const SizedBox(height: AppSpacing.xs),
                 AppTextField(
-                  controller: _emailController,
+                  controller: Stores.auth.loginEmail,
                   hint: 'name@example.com',
                   keyboardType: TextInputType.emailAddress,
                 ),
@@ -79,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const Text('Password'),
                 const SizedBox(height: AppSpacing.xs),
                 AppTextField(
-                  controller: _passwordController,
+                  controller: Stores.auth.loginPassword,
                   hint: 'Password',
                   obscureText: true,
                   passwordToggle: true,
@@ -90,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   builder: (_) => AppButton(
                     label: 'Sign In',
                     busy: authStore.isLoading,
-                    onTap: () => _handleLogin(authStore),
+                    onTap: () => _handleLogin(context, authStore),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
@@ -112,15 +97,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Center(
-                  child: AppButton(
-                    icon: AppIcons.server,
-                    label: 'Server: ${_serverLabel()}',
-                    style: AppButtonStyle.accent,
-                    size: AppButtonSize.small,
-                    onTap: () async {
-                      await openServerSettingsSheet(context);
-                      if (mounted) setState(() {});
-                    },
+                  child: Observer(
+                    builder: (_) => AppButton(
+                      icon: AppIcons.server,
+                      label: 'Server: ${Stores.serverSettings.savedLabel}',
+                      style: AppButtonStyle.accent,
+                      size: AppButtonSize.small,
+                      onTap: () => openServerSettingsSheet(context),
+                    ),
                   ),
                 ),
               ],
@@ -131,20 +115,19 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  String _serverLabel() {
-    final url = Stores.api.baseUrl;
-    return Uri.tryParse(url)?.authority ?? url;
-  }
-
-  Future<void> _handleLogin(AuthStore store) async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+  Future<void> _handleLogin(BuildContext context, AuthStore store) async {
+    if (Stores.auth.loginEmail.text.isEmpty ||
+        Stores.auth.loginPassword.text.isEmpty) {
       return;
     }
     final success = await store.login(
-      _emailController.text.trim(),
-      _passwordController.text,
+      Stores.auth.loginEmail.text.trim(),
+      Stores.auth.loginPassword.text,
     );
-    if (success && mounted) {
+    if (success && context.mounted) {
+      Stores.auth.loginEmail.clear();
+      Stores.auth.loginPassword.clear();
+
       context.go(AppRoutes.vault);
     }
   }

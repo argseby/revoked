@@ -8,6 +8,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -42,42 +43,34 @@ class _InviteCreateSheet extends StatefulWidget {
 }
 
 class _InviteCreateSheetState extends State<_InviteCreateSheet> {
-  final _labelCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _selected = <String>{};
-  bool _singleUse = true;
-  bool _submitting = false;
+  InvitesStore get _store => Stores.invites;
 
   @override
   void initState() {
     super.initState();
+    Stores.invites.resetDraft();
     Stores.invites.loadCatalogue();
-  }
-
-  @override
-  void dispose() {
-    _labelCtrl.dispose();
-    _emailCtrl.dispose();
-    super.dispose();
   }
 
   Future<void> _submit() async {
     final store = Stores.invites;
-    if (_selected.isEmpty) {
+    if (_store.draftPermissions.isEmpty) {
       AppToast.error(context, 'Choose at least one permission to grant.');
       return;
     }
 
-    setState(() => _submitting = true);
+    _store.isCreating = true;
     final ok = await store.create(
       workspace: widget.workspaceId,
-      label: _labelCtrl.text.trim().isEmpty ? 'Invite' : _labelCtrl.text.trim(),
-      permissions: _selected.toList(),
-      email: _emailCtrl.text.trim(),
-      maxUses: _singleUse ? 1 : null,
+      label: _store.labelController.text.trim().isEmpty
+          ? 'Invite'
+          : _store.labelController.text.trim(),
+      permissions: _store.draftPermissions.toList(),
+      email: _store.emailController.text.trim(),
+      maxUses: _store.draftSingleUse ? 1 : null,
     );
     if (!mounted) return;
-    setState(() => _submitting = false);
+    _store.isCreating = false;
 
     if (!ok) {
       final err = store.error;
@@ -99,6 +92,12 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Ticking a permission changes the row, the destructive warning and
+    // whether Create is enabled, so the body is reactive as a whole.
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final store = Stores.invites;
 
     return SafeArea(
@@ -136,13 +135,13 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
               child: Column(
                 children: [
                   AppTextField(
-                    controller: _labelCtrl,
+                    controller: _store.labelController,
                     label: 'Name this invite',
                     hint: 'e.g. Accountant',
                   ),
                   AppSpacing.gapSm,
                   AppTextField(
-                    controller: _emailCtrl,
+                    controller: _store.emailController,
                     label: 'Lock to an email (optional)',
                     hint: 'name@example.com',
                   ),
@@ -165,8 +164,8 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
               icon: AppIcons.key,
               label: 'Single use',
               subtitle: 'The key stops working once someone joins.',
-              value: _singleUse,
-              onChanged: (v) => setState(() => _singleUse = v),
+              value: _store.draftSingleUse,
+              onChanged: _store.setDraftSingleUse,
             ),
 
             const AppFormSectionHeader('What they may do'),
@@ -187,14 +186,9 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                         ),
                         child: PermissionCheckRow(
                           permission: p,
-                          selected: _selected.contains(p.key),
-                          onChanged: (on) => setState(() {
-                            if (on) {
-                              _selected.add(p.key);
-                            } else {
-                              _selected.remove(p.key);
-                            }
-                          }),
+                          selected: _store.draftPermissions.contains(p.key),
+                          onChanged: (on) =>
+                              _store.toggleDraftPermission(p.key, on),
                         ),
                       ),
                   ],
@@ -202,9 +196,10 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
               },
             ),
 
-            if (_selected.isNotEmpty &&
+            if (_store.draftPermissions.isNotEmpty &&
                 store.catalogue.any(
-                  (p) => p.destructive && _selected.contains(p.key),
+                  (p) =>
+                      p.destructive && _store.draftPermissions.contains(p.key),
                 ))
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -230,8 +225,8 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                 AppSpacing.xxl,
               ),
               child: AppButton(
-                label: _submitting ? 'Creating…' : 'Create invite',
-                onTap: _submitting ? null : _submit,
+                label: _store.isCreating ? 'Creating…' : 'Create invite',
+                onTap: _store.isCreating ? null : _submit,
               ),
             ),
           ],
@@ -244,7 +239,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
 /// The key is shown once. The server keeps only a hash, so a key that is not
 /// copied here cannot be recovered — a new invite has to be made instead.
 Future<void> _showTokenDialog(BuildContext context, String token) async {
-  final link = DeepLinks.invite(token);
+  final link = DeepLinks.invite(token, origin: Stores.api.originAuthority);
   final copy = await showAppDialog(
     context: context,
     title: 'Share this key',

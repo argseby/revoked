@@ -1,37 +1,37 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
+import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/widgets/app_alert.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:go_router/go_router.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
-
-import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/models/request_template.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/models/request_template.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
-import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
-import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
+import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Responder-facing screen for `/api/public/requests/:slug`.
 ///
@@ -55,7 +55,14 @@ import 'package:revoked_app/features/requests/store/requests_store.dart';
 class PublicRequestScreen extends StatefulWidget {
   final String requestSlug;
 
-  const PublicRequestScreen({super.key, required this.requestSlug});
+  /// host[:port] the link says it lives on; null = the signed-in server.
+  final String? origin;
+
+  const PublicRequestScreen({
+    super.key,
+    required this.requestSlug,
+    this.origin,
+  });
 
   @override
   State<PublicRequestScreen> createState() => _PublicRequestScreenState();
@@ -64,65 +71,28 @@ class PublicRequestScreen extends StatefulWidget {
 class _PublicRequestScreenState extends State<PublicRequestScreen> {
   static final _keyPattern = RegExp(r'^[a-z0-9_-]+$');
 
-  bool _isLoading = true;
-  bool _isSubmitting = false;
-  bool _success = false;
-
-  Map<String, dynamic>? _probe;
-  List<RequestTemplateItem> _template = const [];
-  AppErrorMessage? _terminalError;
-  String? _formError;
-
-  /// Result of DomainVerificationService against the probe's server
-  /// claim. Null while the lookup is in flight; populated even on
-  /// failure so the badge can explain *why* it failed.
-  TrustVerdict? _trustVerdict;
+  RequestsStore get _store => Stores.requests;
 
   /// The in-flight domain check, so a submit can wait for it.
   Future<void>? _trustCheck;
-  bool _verifyingTrust = false;
-
-  final _senderNameCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  final _identifierCtrl = TextEditingController();
 
   /// Per-template-entry controllers, keyed by the entry's server id.
-  final Map<String, TextEditingController> _templateCtrls = {};
+  final Map<String, ObservableTextController> _templateCtrls = {};
 
   /// Optional / extra fields keyed by a synthetic uuid.
   final List<_ExtraField> _extraFields = [];
 
-  /// The signed-in responder's vault records (empty for guests). Powers
-  /// key-match prefill and the "use a vault entry" alias picker.
-  List<models.Record> _vaultRecords = const [];
-
-  /// templateKey → linked vault record id. A linked field forwards a living
-  /// reference (the server aliases it when the keys differ) instead of a copy.
-  final Map<String, String> _linked = {};
-
-  /// Optional templateKeys the responder chose NOT to forward.
-  final Set<String> _excluded = {};
-
-  /// The responder's existing response link for this request, if any — so we
-  /// can show "already responded" and update it in place instead of duplicating.
-  Map<String, dynamic>? _existingLink;
-
-  /// The identity the responder signs with when the request requires a verified
-  /// identity. Defaults to the primary, or a root-issued one when the request
-  /// is restricted to this server's root.
-  String? _selectedIdentityId;
-
   @override
   void initState() {
     super.initState();
+    // The store is a singleton, so the previous request's answers, links and
+    // trust verdict are still in it.
+    _store.resetPublicView();
     _probeRequest();
   }
 
   @override
   void dispose() {
-    _senderNameCtrl.dispose();
-    _passwordCtrl.dispose();
-    _identifierCtrl.dispose();
     for (final c in _templateCtrls.values) {
       c.dispose();
     }
@@ -131,6 +101,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     }
     super.dispose();
   }
+
+  /// True when the link lives on a server this session holds no account on.
+  bool get _isForeign => !Stores.api.isOwnOrigin(widget.origin);
 
   String _handshakeKey() => 'handshake_request_${widget.requestSlug}';
 
@@ -145,36 +118,46 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   }
 
   Future<void> _probeRequest() async {
-    setState(() {
-      _isLoading = true;
-      _terminalError = null;
+    runInAction(() {
+      _store.isLoadingPublic = true;
+      _store.publicTerminalError = null;
     });
     try {
-      _probe = await Stores.requests.getPublicRequestProbe(widget.requestSlug);
-      _template = RequestsStore.parseTemplateFromProbe(_probe!);
+      final probe = await Stores.requests.getPublicRequestProbe(
+        widget.requestSlug,
+        origin: widget.origin,
+      );
+      final template = RequestsStore.parseTemplateFromProbe(probe);
       _templateCtrls
         ..clear()
         ..addEntries(
-          _template
+          template
               .where((t) => t.isRecord)
-              .map((t) => MapEntry(t.key, TextEditingController())),
+              .map((t) => MapEntry(t.key, ObservableTextController())),
         );
-      await _prefillFromVault();
-      setState(() => _isLoading = false);
-      // Fire-and-forget the trust verification so the form is usable
-      // while DNS is in flight. The submit button defers to the verdict
-      // once it lands.
+      runInAction(() {
+        _store.publicProbe = probe;
+        _store.publicTemplate
+          ..clear()
+          ..addAll(template);
+        _store.isLoadingPublic = false;
+      });
+      // The probe is everything the form needs to render. The vault prefill
+      // and the DNS walk are conveniences behind up to four more authenticated
+      // round-trips; awaiting them here left the screen on its spinner for as
+      // long as they took — or forever if a session had gone stale.
+      unawaited(_prefillFromVault());
       _trustCheck = _verifyTrust();
       unawaited(_trustCheck!);
     } on ApiException catch (e) {
-      setState(() {
-        _terminalError = AppErrorMessage.fromException(e);
-        _isLoading = false;
+      runInAction(() {
+        _store.publicTerminalError = AppErrorMessage.fromException(e);
+        _store.isLoadingPublic = false;
       });
     } catch (e) {
-      setState(() {
-        _terminalError = AppErrorMessage.fromException(e);
-        _isLoading = false;
+      runInAction(() {
+        _store.publicTerminalError = AppErrorMessage.fromException(e);
+        _store.isLoadingPublic = false;
       });
     }
   }
@@ -183,40 +166,66 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   /// key already exists — so the value is prefilled and forwarded as a living
   /// reference rather than re-typed.
   Future<void> _prefillFromVault() async {
+    // The vault, identities and any existing response live on the signed-in
+    // server; against a foreign origin those lookups would be nonsense.
+    if (_isForeign) return;
     if (!Stores.auth.isAuthenticated) return;
     try {
       await Stores.vault.loadRecords();
-      _vaultRecords = Stores.vault.records.toList();
+      if (!mounted) return;
+      runInAction(() {
+        _store.responderVault
+          ..clear()
+          ..addAll(Stores.vault.records);
+      });
+
       await Stores.identities.loadIdentities();
-      _initSelectedIdentity();
-      for (final item in _template.where((t) => t.isRecord)) {
-        final match = _matchVaultRecord(item.key);
-        if (match != null) _linked[item.key] = match.id;
-      }
+      if (!mounted) return;
+      runInAction(() {
+        if (_store.publicIdentityId == null) _initSelectedIdentity();
+        for (final item in _store.publicTemplate.where((t) => t.isRecord)) {
+          // The form is already on screen, so never overwrite an answer the
+          // responder has started typing or a choice they made.
+          if (_answered(item.key)) continue;
+          final match = _matchVaultRecord(item.key);
+          if (match != null) _store.publicLinked[item.key] = match.id;
+        }
+      });
 
       // Already answered this request? Surface it and prefill from the existing
       // grant so re-submitting updates in place instead of creating a duplicate.
-      final requestId = _probe?['requestId'] as String? ?? '';
-      if (requestId.isNotEmpty) {
-        final existing = await Stores.requests.getMyLinkForRequest(requestId);
-        if (existing != null &&
-            (existing['status'] as String? ?? '') != 'revoked') {
-          _existingLink = existing;
-          final grants = existing['grants'];
-          if (grants is Map) {
-            grants.forEach((k, v) {
-              if (v is String && v.isNotEmpty) _linked[k.toString()] = v;
-            });
-          }
-        }
+      final requestId = _store.publicProbe?['requestId'] as String? ?? '';
+      if (requestId.isEmpty) return;
+      final existing = await Stores.requests.getMyLinkForRequest(requestId);
+      if (!mounted) return;
+      if (existing == null ||
+          (existing['status'] as String? ?? '') == 'revoked') {
+        return;
       }
+      runInAction(() {
+        _store.publicExistingLink = existing;
+        final grants = existing['grants'];
+        if (grants is Map) {
+          grants.forEach((k, v) {
+            if (v is String && v.isNotEmpty && !_answered(k.toString())) {
+              _store.publicLinked[k.toString()] = v;
+            }
+          });
+        }
+      });
     } catch (_) {
       // Vault / existing-link lookups are conveniences; ignore failures.
     }
   }
 
+  /// Whether the responder has already put something in [key] themselves.
+  bool _answered(String key) =>
+      (_templateCtrls[key]?.text.trim().isNotEmpty ?? false) ||
+      _store.publicLinked.containsKey(key) ||
+      _store.publicExcluded.contains(key);
+
   Map<String, dynamic>? get _requester {
-    final r = _probe?['requester'];
+    final r = _store.publicProbe?['requester'];
     return r is Map<String, dynamic> ? r : null;
   }
 
@@ -233,7 +242,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   Future<TrustVerdict> _awaitTrustVerdict() async {
     final pending = _trustCheck;
     if (pending != null) await pending;
-    return _trustVerdict ??
+    return _store.publicTrustVerdict ??
         TrustVerdict.unverified(
           domain: _serverDomain,
           reason:
@@ -243,7 +252,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   }
 
   Future<void> _verifyTrust() async {
-    final probe = _probe;
+    final probe = _store.publicProbe;
     if (probe == null) return;
     final server = probe['server'];
     final requester = _requester;
@@ -253,7 +262,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     final fingerprint = requester?['fingerprint'] as String? ?? '';
     final parentSig = requester?['parentSignature'] as String? ?? '';
 
-    setState(() => _verifyingTrust = true);
+    runInAction(() => _store.isVerifyingTrust = true);
     TrustVerdict verdict;
     try {
       verdict = await Stores.domainVerification.verify(
@@ -271,23 +280,28 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       );
     }
     if (!mounted) return;
-    setState(() {
-      _trustVerdict = verdict;
-      _verifyingTrust = false;
+    runInAction(() {
+      _store.publicTrustVerdict = verdict;
+      _store.isVerifyingTrust = false;
     });
   }
 
-  bool get _requiresPassword => _probe?['requiresPassword'] as bool? ?? false;
-  bool get _requireHandshake => _probe?['requireHandshake'] as bool? ?? false;
-  bool get _allowExtraFields => _probe?['allowExtraFields'] as bool? ?? false;
-  bool get _hasIdentifier => _probe?['requiresIdentifier'] as bool? ?? false;
+  bool get _requiresPassword =>
+      _store.publicProbe?['requiresPassword'] as bool? ?? false;
+  bool get _requireHandshake =>
+      _store.publicProbe?['requireHandshake'] as bool? ?? false;
+  bool get _allowExtraFields =>
+      _store.publicProbe?['allowExtraFields'] as bool? ?? false;
+  bool get _hasIdentifier =>
+      _store.publicProbe?['requiresIdentifier'] as bool? ?? false;
 
   /// 'any' (default) or 'from_root' — which identities the request accepts.
-  String get _identityScope => _probe?['identityScope'] as String? ?? 'any';
+  String get _identityScope =>
+      _store.publicProbe?['identityScope'] as String? ?? 'any';
 
   /// The requester's server (root) domain, from the probe.
   String get _serverDomain {
-    final s = _probe?['server'];
+    final s = _store.publicProbe?['server'];
     return s is Map<String, dynamic> ? (s['domain'] as String? ?? '') : '';
   }
 
@@ -307,7 +321,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   bool _selectedIdentityQualifies() {
     if (_identityScope != 'from_root') return true;
     for (final i in Stores.identities.identities) {
-      if (i.id == _selectedIdentityId) return i.domainAtIssue == _serverDomain;
+      if (i.id == _store.publicIdentityId) {
+        return i.domainAtIssue == _serverDomain;
+      }
     }
     return true; // no match → defer to the identity/auth checks
   }
@@ -317,7 +333,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   void _initSelectedIdentity() {
     final ids = Stores.identities.identities;
     if (ids.isEmpty) {
-      _selectedIdentityId = null;
+      _store.publicIdentityId = null;
       return;
     }
     final rootOnly = _identityScope == 'from_root';
@@ -329,12 +345,12 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       if (i.isPrimary) primaryPick ??= i.id;
       if (rootOnly && i.domainAtIssue == _serverDomain) rootPick ??= i.id;
     }
-    _selectedIdentityId =
+    _store.publicIdentityId =
         (rootOnly ? rootPick : null) ?? primaryPick ?? firstId;
   }
 
   Future<void> _submit() async {
-    if (_probe == null) return;
+    if (_store.publicProbe == null) return;
 
     // Trust gate. A spoofed verdict is a hard block — the requester is
     // actively lying about which domain they belong to and the user
@@ -353,7 +369,10 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       final verdict = await _awaitTrustVerdict();
 
       if (verdict.state == TrustState.spoofed) {
-        setState(() => _formError = 'Submission blocked: ${verdict.reason}');
+        runInAction(
+          () =>
+              _store.publicFormError = 'Submission blocked: ${verdict.reason}',
+        );
         return;
       }
       if (verdict.state != TrustState.verified &&
@@ -362,17 +381,17 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       }
     }
 
-    if (_requiresPassword && _passwordCtrl.text.trim().isEmpty) {
-      setState(() => _formError = 'Password is required.');
+    if (_requiresPassword && _store.responderPassword.text.trim().isEmpty) {
+      runInAction(() => _store.publicFormError = 'Password is required.');
       return;
     }
-    if (_hasIdentifier && _identifierCtrl.text.trim().isEmpty) {
-      setState(() => _formError = 'Identifier is required.');
+    if (_hasIdentifier && _store.responderIdentifier.text.trim().isEmpty) {
+      runInAction(() => _store.publicFormError = 'Identifier is required.');
       return;
     }
     if (_requireHandshake && !_selectedIdentityQualifies()) {
-      setState(
-        () => _formError =
+      runInAction(
+        () => _store.publicFormError =
             'This request only accepts identities issued by '
             '${_serverDomain.isEmpty ? 'this server' : _serverDomain}. '
             'Pick a different identity.',
@@ -382,12 +401,15 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
     // Required template fields must be satisfied — either linked to a vault
     // entry or typed in. (Required fields can't be stripped.)
-    for (final item in _template.where((t) => t.isRecord && t.required)) {
-      if (_linked.containsKey(item.key)) continue;
+    for (final item in _store.publicTemplate.where(
+      (t) => t.isRecord && t.required,
+    )) {
+      if (_store.publicLinked.containsKey(item.key)) continue;
       final ctrl = _templateCtrls[item.key];
       if (ctrl?.text.trim().isEmpty ?? true) {
-        setState(
-          () => _formError = 'Required field "${item.label}" cannot be empty.',
+        runInAction(
+          () => _store.publicFormError =
+              'Required field "${item.label}" cannot be empty.',
         );
         return;
       }
@@ -398,8 +420,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       final k = f.keyCtrl.text.trim();
       if (k.isEmpty) continue;
       if (!_keyPattern.hasMatch(k)) {
-        setState(
-          () => _formError =
+        runInAction(
+          () => _store.publicFormError =
               'Extra field key "$k" must use lowercase letters, digits, '
               'underscores or hyphens only.',
         );
@@ -407,16 +429,18 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       }
     }
 
-    setState(() {
-      _isSubmitting = true;
-      _formError = null;
+    runInAction(() {
+      _store.isSubmittingPublic = true;
+      _store.publicFormError = null;
     });
 
     final data = <String, dynamic>{};
     final mappings = <String, String>{};
-    for (final item in _template.where((t) => t.isRecord)) {
-      if (_excluded.contains(item.key)) continue; // responder stripped it
-      final linkedId = _linked[item.key];
+    for (final item in _store.publicTemplate.where((t) => t.isRecord)) {
+      if (_store.publicExcluded.contains(item.key)) {
+        continue; // responder stripped it
+      }
+      final linkedId = _store.publicLinked[item.key];
       if (linkedId != null) {
         mappings[item.key] = linkedId; // forward a living vault reference
       } else {
@@ -430,6 +454,17 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       if (k.isNotEmpty) data[k] = v;
     }
 
+    if (_requireHandshake && _isForeign) {
+      // Identities live on the server that issued them; this link's server
+      // has never seen any of this device's keys.
+      _store.setPublicFormError(
+        'This request requires a verified identity, and it lives on a '
+        'different server than the one you are signed into. Cross-server '
+        'verification is not supported yet.',
+      );
+      return;
+    }
+
     try {
       final stored = await _loadStoredHandshake();
       String? guestCert;
@@ -440,14 +475,14 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       // or stale token can't lock the responder out — the signature alone
       // re-establishes the handshake on the server.
       final identityId = _requireHandshake
-          ? (_selectedIdentityId ?? Stores.identities.primaryIdentity?.id)
+          ? (_store.publicIdentityId ?? Stores.identities.primaryIdentity?.id)
           : null;
       if (_requireHandshake) {
         if (identityId == null || identityId.isEmpty) {
-          setState(() {
-            _formError =
+          runInAction(() {
+            _store.publicFormError =
                 'This request requires authentication. Sign in and create an identity first.';
-            _isSubmitting = false;
+            _store.isSubmittingPublic = false;
           });
           return;
         }
@@ -460,9 +495,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
       if (!_requireHandshake && _hasIdentifier) {
         final ephemeral = Stores.crypto.generateIdentity(
-          commonName: _senderNameCtrl.text.trim().isEmpty
+          commonName: _store.responderName.text.trim().isEmpty
               ? 'guest-${widget.requestSlug}'
-              : _senderNameCtrl.text.trim(),
+              : _store.responderName.text.trim(),
         );
         guestCert = ephemeral.publicKeyPem;
         final fp = Stores.crypto.sha256Hex(ephemeral.publicKeyPem);
@@ -476,20 +511,20 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
       final response = await Stores.requests.submitPublicRequest(
         widget.requestSlug,
-        password: _passwordCtrl.text.trim().isEmpty
+        password: _store.responderPassword.text.trim().isEmpty
             ? null
-            : _passwordCtrl.text.trim(),
-        identifier: _identifierCtrl.text.trim().isEmpty
+            : _store.responderPassword.text.trim(),
+        identifier: _store.responderIdentifier.text.trim().isEmpty
             ? null
-            : _identifierCtrl.text.trim(),
+            : _store.responderIdentifier.text.trim(),
         handshakeToken: stored,
         identityId: identityId,
         challengeNonce: challenge?.nonce,
         challengeSignature: challenge?.signature,
         guestCertificate: guestCert,
-        senderName: _senderNameCtrl.text.trim().isEmpty
+        senderName: _store.responderName.text.trim().isEmpty
             ? null
-            : _senderNameCtrl.text.trim(),
+            : _store.responderName.text.trim(),
         data: data,
         mappings: mappings.isEmpty ? null : mappings,
       );
@@ -508,13 +543,13 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       }
 
       if (!mounted) return;
-      setState(() {
-        _success = true;
-        _isSubmitting = false;
+      runInAction(() {
+        _store.publicSuccess = true;
+        _store.isSubmittingPublic = false;
       });
       AppToast.success(
         context,
-        _existingLink != null ? 'Response updated' : 'Submitted',
+        _store.publicExistingLink != null ? 'Response updated' : 'Submitted',
       );
     } on ApiException catch (e) {
       debugPrint(
@@ -522,27 +557,34 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       );
       final msg = AppErrorMessage.fromException(e);
       if (!mounted) return;
-      setState(() {
+      runInAction(() {
         if (msg.isTerminal) {
-          _terminalError = msg;
+          _store.publicTerminalError = msg;
         } else {
-          _formError = msg.description;
+          _store.publicFormError = msg.description;
         }
-        _isSubmitting = false;
+        _store.isSubmittingPublic = false;
       });
     } catch (e, st) {
       debugPrint('[request submit] error: $e\n$st');
       if (!mounted) return;
-      setState(() {
-        _formError = e.toString();
-        _isSubmitting = false;
+      runInAction(() {
+        _store.publicFormError = e.toString();
+        _store.isSubmittingPublic = false;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
     final theme = Theme.of(context);
+    // The responder's own typing lives in TextEditingControllers the form
+    // reads directly; this counter is what makes those edits observable.
+    _store.publicRevision;
 
     return Scaffold(
       body: SafeArea(
@@ -573,8 +615,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
                       }
                     },
                   ),
-                  const SizedBox(width: AppSpacing.xxs),
-                  const Text('Revoked').header,
                   const Spacer(),
                   // When signed in, show which account/workspace this request
                   // will be filled as, with a quick switcher. Otherwise show
@@ -608,7 +648,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   }
 
   Widget _buildBody(ThemeData theme) {
-    if (_isLoading) {
+    if (_store.isLoadingPublic) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -620,13 +660,14 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         ),
       );
     }
-    if (_terminalError != null && _terminalError!.isTerminal) {
-      return _buildTerminal(theme, _terminalError!);
+    if (_store.publicTerminalError != null &&
+        _store.publicTerminalError!.isTerminal) {
+      return _buildTerminal(theme, _store.publicTerminalError!);
     }
-    if (_success) {
+    if (_store.publicSuccess) {
       return _buildSuccess(theme);
     }
-    if (_probe == null) {
+    if (_store.publicProbe == null) {
       return _buildTerminal(
         theme,
         const AppErrorMessage(
@@ -708,7 +749,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   }
 
   Widget _buildForm(ThemeData theme) {
-    final label = _probe!['label'] as String? ?? 'Data request';
+    final label = _store.publicProbe!['label'] as String? ?? 'Data request';
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -763,7 +804,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         ? '${fp.substring(0, 8)}…${fp.substring(fp.length - 8)}'
         : fp;
 
-    final templateRecords = _template.where((t) => t.isRecord).toList();
+    final templateRecords = _store.publicTemplate
+        .where((t) => t.isRecord)
+        .toList();
     final fieldNames = templateRecords.map((t) => t.label).join(', ');
 
     final tags = <Widget>[
@@ -806,7 +849,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               '${templateRecords.length} ${templateRecords.length == 1 ? 'field' : 'fields'}',
           tooltip: 'Requested: $fieldNames',
         ),
-      if (_existingLink != null)
+      if (_store.publicExistingLink != null)
         _InfoTag(
           icon: AppIcons.checkCircle,
           label: 'Already responded',
@@ -820,49 +863,108 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(AppIcons.shieldCheck, color: scheme.primary, size: 22),
+              Icon(
+                _trustProven ? AppIcons.shieldCheck : AppIcons.exclamation,
+                color: _trustProven ? scheme.primary : scheme.danger,
+                size: 22,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(child: Text(label).header),
             ],
           ),
-          if (name.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            const Text('Requested by').muted.small,
-            const SizedBox(height: AppSpacing.xxs),
-            Text(domain.isEmpty ? name : '$name ($domain)').small,
-            if (shortFp.isNotEmpty) Text(shortFp).muted.mono.small,
-          ],
-          const SizedBox(height: AppSpacing.md),
-          Wrap(spacing: 8, runSpacing: 8, children: tags),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.xxs),
           const Text(
-            'Fill out the requested fields. Your submission is private to the '
-            'requester, and you can revoke it at any time.',
+            'Your submission is private to the requester, and you can revoke '
+            'it at any time.',
           ).muted.small,
-          if (_existingLink != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: AppButton(
+
+          if (name.isNotEmpty)
+            _section('Requested by', [
+              _requesterLine(theme, name, domain),
+              if (shortFp.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xxs),
+                Text(shortFp).muted.mono.small,
+              ],
+            ]),
+
+          _section('This request', [
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: tags,
+            ),
+          ]),
+
+          if (_store.publicExistingLink != null)
+            _section('Already answered', [
+              AppButton(
                 icon: AppIcons.xCircle,
                 label: 'Revoke my response',
                 style: AppButtonStyle.destructive,
                 size: AppButtonSize.small,
                 onTap: _revokeExisting,
               ),
-            ),
-          ],
+            ]),
         ],
       ),
     );
   }
 
-  /// The DNS trust verdict rendered as one of the info tags, for consistency
-  /// with everything else in the panel.
+  /// Whether DNS actually proved the requester owns the domain they claim.
+  /// Everything else — no verdict yet, no TXT record, an outright mismatch —
+  /// is unproven, and the screen must not decorate it as if it were proven.
+  bool get _trustProven =>
+      _isLocalServer || _store.publicTrustVerdict?.state == TrustState.verified;
+
+  /// The "Requested by" line.
+  ///
+  /// The name and the domain both arrive inside the request; neither is worth
+  /// anything until DNS confirms the domain. Rendering `Name (example.com)` in
+  /// plain text is the whole phishing primitive this product exists to stop —
+  /// it lends a stranger's claim the typography of a fact. So the domain is
+  /// only ever printed as a domain once it is proven; until then it is labelled
+  /// as a claim, and when it is provably false it is not printed at all.
+  Widget _requesterLine(ThemeData theme, String name, String domain) {
+    final scheme = theme.colorScheme;
+
+    if (_trustProven) {
+      return Text(domain.isEmpty ? name : '$name ($domain)').small;
+    }
+
+    final spoofed = _store.publicTrustVerdict?.state == TrustState.spoofed;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(name).small,
+        const SizedBox(height: AppSpacing.xxs),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(AppIcons.exclamationTriangle, size: 13, color: scheme.danger),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: Text(
+                spoofed
+                    // Repeating a domain that failed verification only helps
+                    // whoever chose it.
+                    ? 'The domain this request claims failed verification.'
+                    : domain.isEmpty
+                    ? 'Claims no domain. Nothing here has been verified.'
+                    : 'Claims to be “$domain” — unverified. Anyone can put '
+                          'any name and domain here.',
+              ).small,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _trustTag(ThemeData theme) {
     final scheme = theme.colorScheme;
     if (_isLocalServer) {
@@ -874,17 +976,18 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             'verification does not apply.',
       );
     }
-    if (_verifyingTrust && _trustVerdict == null) {
+    if (_store.isVerifyingTrust && _store.publicTrustVerdict == null) {
       return const _InfoTag(
         icon: AppIcons.arrowRepeat,
         label: 'Checking domain…',
         tooltip: 'Verifying the requester\'s domain against public DNS.',
       );
     }
-    final v = _trustVerdict;
+    final v = _store.publicTrustVerdict;
     if (v == null) {
-      return const _InfoTag(
-        icon: AppIcons.shieldCheck,
+      return _InfoTag(
+        icon: AppIcons.exclamationTriangle,
+        accent: theme.colorScheme.danger,
         label: 'Unverified',
         tooltip: 'The requester\'s domain has not been verified.',
       );
@@ -901,13 +1004,14 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         return _InfoTag(
           icon: AppIcons.exclamationTriangle,
           label: 'Domain spoofed',
-          accent: scheme.error,
+          accent: scheme.danger,
           tooltip: v.reason,
         );
       case TrustState.dnsMissing:
       case TrustState.unverified:
         return _InfoTag(
-          icon: AppIcons.exclamation,
+          icon: AppIcons.exclamationTriangle,
+          accent: scheme.danger,
           label: 'Unverified domain',
           tooltip: v.reason,
         );
@@ -916,109 +1020,150 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
   /// Left-hand (or bottom, on mobile) panel: everything the responder fills in.
   Widget _buildInputPanel(ThemeData theme) {
-    final templateRecords = _template.where((t) => t.isRecord).toList();
-    final allowExtras = _allowExtraFields;
+    final templateRecords = _store.publicTemplate
+        .where((t) => t.isRecord)
+        .toList();
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('Your response').header,
           const SizedBox(height: AppSpacing.xxs),
           const Text('Only the requester can see what you submit.').muted.small,
-          const SizedBox(height: AppSpacing.lg),
 
-          if (_requiresPassword || _hasIdentifier) ...[
-            _accessInputs(theme),
-            const SizedBox(height: AppSpacing.lg),
-          ],
+          if (_requiresPassword || _hasIdentifier)
+            _section('Access', [_accessInputs(theme)]),
 
-          if (_requireHandshake) ...[
-            _buildIdentityPicker(theme),
-            const SizedBox(height: AppSpacing.lg),
-          ],
+          if (_requireHandshake)
+            _section('Signing identity', [_buildIdentityPicker(theme)]),
 
-          const Text('Your name (optional)').small,
-          const SizedBox(height: AppSpacing.xs),
-          AppTextField(controller: _senderNameCtrl, hint: 'Anonymous'),
-
-          if (templateRecords.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.lg),
-            const Text('Requested information').small,
-            const SizedBox(height: AppSpacing.sm),
-            ...templateRecords.map((item) => _buildTemplateField(theme, item)),
-          ],
-
-          if (allowExtras) ...[
-            const SizedBox(height: AppSpacing.xxs),
-            ..._extraFields.asMap().entries.map((entry) {
-              final i = entry.key;
-              final f = entry.value;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: AppTextField(
-                        controller: f.keyCtrl,
-                        hint: 'field-name',
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      flex: 6,
-                      child: AppTextField(
-                        controller: f.valueCtrl,
-                        hint: 'Value',
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xxs),
-                    AppButton(
-                      icon: AppIcons.x,
-                      tooltip: 'Remove field',
-                      style: AppButtonStyle.accent,
-                      onTap: () => setState(() {
-                        _extraFields[i].dispose();
-                        _extraFields.removeAt(i);
-                      }),
-                    ),
-                  ],
-                ),
-              );
-            }),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: AppButton(
-                icon: AppIcons.plus,
-                label: 'Add another field',
-                style: AppButtonStyle.accent,
-                size: AppButtonSize.small,
-                onTap: () => setState(() => _extraFields.add(_ExtraField())),
+          _section('About you', [
+            _field(
+              'Your name',
+              optional: true,
+              child: AppTextField(
+                controller: _store.responderName,
+                hint: 'Anonymous',
               ),
             ),
-          ],
+          ]),
 
-          if (_formError != null) ...[
+          if (templateRecords.isNotEmpty)
+            _section('Requested information', [
+              for (final item in templateRecords)
+                _buildTemplateField(theme, item),
+            ]),
+
+          if (_allowExtraFields) _section('Anything else', [_extraFieldRows()]),
+
+          if (_store.publicFormError != null) ...[
             const SizedBox(height: AppSpacing.lg),
-            _inlineError(_formError!),
+            _inlineError(_store.publicFormError!),
           ],
 
-          const SizedBox(height: AppSpacing.lg),
-          SizedBox(
-            width: double.infinity,
-            child: AppButton(
-              icon: AppIcons.send,
-              label: _existingLink != null
-                  ? 'Update response'
-                  : 'Submit response',
-              busy: _isSubmitting,
-              onTap: _submit,
-            ),
+          const SizedBox(height: AppSpacing.xl),
+          AppButton(
+            icon: AppIcons.send,
+            label: _store.publicExistingLink != null
+                ? 'Update response'
+                : 'Submit response',
+            busy: _store.isSubmittingPublic,
+            onTap: _submit,
           ),
         ],
       ),
+    );
+  }
+
+  /// One labelled group inside a panel. Every group owns the space above its
+  /// own heading, so the panels keep one rhythm no matter which groups a
+  /// particular request happens to show.
+  Widget _section(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: AppSpacing.xl),
+        Text(title).small.muted,
+        const SizedBox(height: AppSpacing.sm),
+        ...children,
+      ],
+    );
+  }
+
+  /// A label sitting directly on top of its input, at one fixed gap.
+  Widget _field(String label, {required Widget child, bool optional = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text(label).small,
+            if (optional) ...[
+              const SizedBox(width: AppSpacing.xs),
+              const Text('optional').muted.small,
+            ],
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        child,
+      ],
+    );
+  }
+
+  Widget _extraFieldRows() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ..._extraFields.asMap().entries.map((entry) {
+          final i = entry.key;
+          final f = entry.value;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: AppTextField(
+                    controller: f.keyCtrl,
+                    hint: 'field-name',
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  flex: 6,
+                  child: AppTextField(controller: f.valueCtrl, hint: 'Value'),
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                AppButton(
+                  icon: AppIcons.x,
+                  tooltip: 'Remove field',
+                  style: AppButtonStyle.accent,
+                  onTap: () {
+                    _extraFields[i].dispose();
+                    _extraFields.removeAt(i);
+                    _store.touchPublic();
+                  },
+                ),
+              ],
+            ),
+          );
+        }),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AppButton(
+            icon: AppIcons.plus,
+            label: 'Add another field',
+            style: AppButtonStyle.accent,
+            size: AppButtonSize.small,
+            onTap: () {
+              _extraFields.add(_ExtraField());
+              _store.touchPublic();
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1026,32 +1171,33 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   /// inputs, so they live with the form rather than the info panel.
   Widget _accessInputs(ThemeData theme) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_requiresPassword) ...[
-          const Text('Password').small,
-          const SizedBox(height: AppSpacing.xs),
-          AppTextField(
-            controller: _passwordCtrl,
-            obscureText: true,
-            hint: 'Password the requester gave you',
+        if (_requiresPassword)
+          _field(
+            'Password',
+            child: AppTextField(
+              controller: _store.responderPassword,
+              obscureText: true,
+              hint: 'Password the requester gave you',
+            ),
           ),
-          if (_hasIdentifier) const SizedBox(height: AppSpacing.md),
-        ],
-        if (_hasIdentifier) ...[
-          const Text('Identifier').small,
-          const SizedBox(height: AppSpacing.xs),
-          AppTextField(
-            controller: _identifierCtrl,
-            hint: 'Identifier the requester gave you',
+        if (_requiresPassword && _hasIdentifier)
+          const SizedBox(height: AppSpacing.md),
+        if (_hasIdentifier)
+          _field(
+            'Identifier',
+            child: AppTextField(
+              controller: _store.responderIdentifier,
+              hint: 'Identifier the requester gave you',
+            ),
           ),
-          if (!_requireHandshake) ...[
-            const SizedBox(height: AppSpacing.xxs),
-            const Text(
-              'A one-time identity is generated on this device to sign your '
-              'submission — no account needed.',
-            ).muted.small,
-          ],
+        if (_hasIdentifier && !_requireHandshake) ...[
+          const SizedBox(height: AppSpacing.xs),
+          const Text(
+            'A one-time identity is generated on this device to sign your '
+            'submission — no account needed.',
+          ).muted.small,
         ],
       ],
     );
@@ -1066,7 +1212,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   }
 
   Future<void> _revokeExisting() async {
-    final id = _existingLink?['id'] as String?;
+    final id = _store.publicExistingLink?['id'] as String?;
     if (id == null) return;
     final confirmed = await showAppDialog(
       context: context,
@@ -1081,7 +1227,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     try {
       await Stores.requests.revokeMyLink(id);
       if (!mounted) return;
-      setState(() => _existingLink = null);
+      runInAction(() => _store.publicExistingLink = null);
       AppToast.success(context, 'Your response was revoked');
     } catch (e) {
       if (!mounted) return;
@@ -1097,7 +1243,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       context: context,
       title: 'Submit without verification?',
       icon: AppIcons.exclamationTriangle,
-      iconColor: Theme.of(context).colorScheme.warning,
+      iconColor: Theme.of(context).colorScheme.error,
       message: verdict.reason,
       content: const Text(
         'You can still submit, but the requester\'s domain has '
@@ -1112,11 +1258,10 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   /// Shown only when the request requires a verified identity.
   Widget _buildIdentityPicker(ThemeData theme) {
     final scheme = theme.colorScheme;
-    final identities = Stores.identities.identities;
     final rootOnly = _identityScope == 'from_root';
     final domainLabel = _serverDomain.isEmpty ? 'this server' : _serverDomain;
 
-    if (identities.isEmpty) {
+    if (Stores.identities.identities.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -1136,8 +1281,10 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             Expanded(
               child: Text(
                 Stores.auth.isAuthenticated
-                    ? 'This request needs a verified identity. Create one in Account → Identities.'
-                    : 'This request needs a verified identity. Sign in and create one to respond.',
+                    ? 'This request needs a verified identity. Create one in '
+                          'Account → Identities.'
+                    : 'This request needs a verified identity. Sign in and '
+                          'create one to respond.',
               ).muted.small,
             ),
           ],
@@ -1145,92 +1292,13 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       );
     }
 
-    // A single identity isn't a choice — show it read-only instead of a picker.
-    if (identities.length == 1) {
-      final only = identities.first;
-      final bad = rootOnly && only.domainAtIssue != _serverDomain;
-      final note = bad ? 'other server' : (only.isPrimary ? 'primary' : '');
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Signing as').small,
-          const SizedBox(height: AppSpacing.xs),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: AppRadius.allMd,
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: Row(
-              children: [
-                Icon(AppIcons.shieldCheck, size: 16, color: scheme.primary),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    only.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ).small,
-                ),
-                if (note.isNotEmpty) ...[
-                  const SizedBox(width: AppSpacing.sm),
-                  bad ? Text('· $note').small : Text('· $note').muted.small,
-                ],
-              ],
-            ),
-          ),
-          if (rootOnly) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Only identities issued by $domainLabel are accepted.',
-            ).muted.small,
-          ],
-        ],
-      );
-    }
-
-    final ids = identities.map((i) => i.id).toList();
-    final value = ids.contains(_selectedIdentityId)
-        ? _selectedIdentityId
-        : null;
-
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Sign as').small,
-        const SizedBox(height: AppSpacing.xs),
-        AppSelect<String>(
-          value: value,
-          placeholder: 'Choose an identity',
-          items: [
-            for (final i in identities)
-              AppSelectItem(
-                i.id,
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        i.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ).small,
-                    ),
-                    if (rootOnly && i.domainAtIssue != _serverDomain) ...[
-                      AppSpacing.gapSm,
-                      const Text('· other server').small,
-                    ] else if (i.isPrimary) ...[
-                      AppSpacing.gapSm,
-                      const Text('· primary').muted.small,
-                    ],
-                  ],
-                ),
-              ),
-          ],
-          onChanged: (v) => setState(() => _selectedIdentityId = v),
+        IdentityPicker(
+          selectedId: _store.publicIdentityId,
+          onChanged: (v) => runInAction(() => _store.publicIdentityId = v),
+          requireDomain: rootOnly ? _serverDomain : null,
         ),
         if (rootOnly) ...[
           const SizedBox(height: AppSpacing.xs),
@@ -1244,17 +1312,18 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
   Widget _buildTemplateField(ThemeData theme, RequestTemplateItem item) {
     final ctrl = _templateCtrls.putIfAbsent(item.key, () {
-      return TextEditingController();
+      return ObservableTextController();
     });
-    final linkedId = _linked[item.key];
+    final linkedId = _store.publicLinked[item.key];
     final linked = linkedId == null ? null : _recordById(linkedId);
-    final excluded = _excluded.contains(item.key);
-    final canUseVault = Stores.auth.isAuthenticated && _vaultRecords.isNotEmpty;
+    final excluded = _store.publicExcluded.contains(item.key);
+    final canUseVault =
+        Stores.auth.isAuthenticated && _store.responderVault.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
@@ -1270,11 +1339,11 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               if (!item.required)
                 _ShareToggle(
                   shared: !excluded,
-                  onTap: () => setState(() {
+                  onTap: () => runInAction(() {
                     if (excluded) {
-                      _excluded.remove(item.key);
+                      _store.publicExcluded.remove(item.key);
                     } else {
-                      _excluded.add(item.key);
+                      _store.publicExcluded.add(item.key);
                     }
                   }),
                 ),
@@ -1367,7 +1436,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               tooltip: 'Use a different value',
               style: AppButtonStyle.accent,
               size: AppButtonSize.small,
-              onTap: () => setState(() => _linked.remove(item.key)),
+              onTap: () =>
+                  runInAction(() => _store.publicLinked.remove(item.key)),
             )
           else
             Icon(
@@ -1410,7 +1480,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             label: 'Share',
             style: AppButtonStyle.accent,
             size: AppButtonSize.small,
-            onTap: () => setState(() => _excluded.remove(item.key)),
+            onTap: () =>
+                runInAction(() => _store.publicExcluded.remove(item.key)),
           ),
         ],
       ),
@@ -1418,7 +1489,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   }
 
   models.Record? _recordById(String id) {
-    for (final r in _vaultRecords) {
+    for (final r in _store.responderVault) {
       if (r.id == id) return r;
     }
     return null;
@@ -1428,7 +1499,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   /// (non-alias) over an alias.
   models.Record? _matchVaultRecord(String key) {
     models.Record? alias;
-    for (final r in _vaultRecords) {
+    for (final r in _store.responderVault) {
       if (r.key != key) continue;
       if (!r.isAlias) return r;
       alias ??= r;
@@ -1476,12 +1547,12 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               const SizedBox(height: AppSpacing.md),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 360),
-                child: _vaultRecords.isEmpty
+                child: _store.responderVault.isEmpty
                     ? const Text('Your vault has no records yet.').muted.small
                     : ListView(
                         shrinkWrap: true,
                         children: [
-                          for (final r in _vaultRecords)
+                          for (final r in _store.responderVault)
                             AppTile(
                               padding: const EdgeInsets.symmetric(
                                 vertical: AppSpacing.sm,
@@ -1493,9 +1564,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ).muted.small,
                               onTap: () {
-                                setState(() {
-                                  _linked[item.key] = r.id;
-                                  _excluded.remove(item.key);
+                                runInAction(() {
+                                  _store.publicLinked[item.key] = r.id;
+                                  _store.publicExcluded.remove(item.key);
                                 });
                                 Navigator.of(sheetCtx).pop();
                               },
@@ -1513,8 +1584,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
 /// Editable key/value pair for the "Add field" extras.
 class _ExtraField {
-  final TextEditingController keyCtrl = TextEditingController();
-  final TextEditingController valueCtrl = TextEditingController();
+  final ObservableTextController keyCtrl = ObservableTextController();
+  final ObservableTextController valueCtrl = ObservableTextController();
   void dispose() {
     keyCtrl.dispose();
     valueCtrl.dispose();
