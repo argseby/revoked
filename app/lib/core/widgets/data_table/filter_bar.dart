@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
@@ -108,12 +108,12 @@ class _FilterSheet<T> extends StatefulWidget {
 }
 
 class _FilterSheetState<T> extends State<_FilterSheet<T>> {
-  late TextEditingController _searchController;
+  late ObservableTextController _searchController;
 
   @override
   void initState() {
     super.initState();
-    _searchController = TextEditingController(
+    _searchController = ObservableTextController(
       text: widget.controller.searchQuery,
     );
     _searchController.addListener(_onSearchChanged);
@@ -171,7 +171,7 @@ class _FilterSheetState<T> extends State<_FilterSheet<T>> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Search & Filter').header,
+                  const Text('Search & filter').header,
                   if (hasActiveFilters || hasSearch)
                     AppButton(
                       icon: AppIcons.x,
@@ -195,7 +195,6 @@ class _FilterSheetState<T> extends State<_FilterSheet<T>> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 1. Global search box.
                       AppTextField(
                         controller: _searchController,
                         hint: 'Search...',
@@ -209,9 +208,24 @@ class _FilterSheetState<T> extends State<_FilterSheet<T>> {
                         const SizedBox(height: AppSpacing.sm),
                         widget.helper!,
                       ],
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(widget.controller.matchSummary).small.muted,
+                      const SizedBox(height: AppSpacing.lg),
+
+                      const Text('Sort by').small.muted,
+                      const SizedBox(height: AppSpacing.xs),
+                      AppSelect<String>(
+                        value: widget.controller.sortBy,
+                        onChanged: (v) {
+                          if (v != null) widget.controller.setSort(v);
+                        },
+                        items: [
+                          for (final option in sortOptionsFor(widget.columns))
+                            AppSelectItem(option.key, Text(option.label)),
+                        ],
+                      ),
                       const SizedBox(height: AppSpacing.xl),
 
-                      // 2. Column filters.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -263,18 +277,6 @@ class _FilterSheetState<T> extends State<_FilterSheet<T>> {
                             ),
                           );
                         }),
-
-                      const SizedBox(height: AppSpacing.md),
-                      const AppDivider(spaced: true),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // 3. Sort options.
-                      const Text('Sort by'),
-                      const SizedBox(height: AppSpacing.sm),
-                      _SortOptions<T>(
-                        controller: widget.controller,
-                        columns: widget.columns,
-                      ),
                     ],
                   ),
                 ),
@@ -287,50 +289,6 @@ class _FilterSheetState<T> extends State<_FilterSheet<T>> {
   }
 }
 
-/// Sort option list extracted from the old `_showSortSheet`, unchanged in
-/// behaviour. Rebuilt by the parent [Observer] so selection updates.
-class _SortOptions<T> extends StatelessWidget {
-  final TableStore<T> controller;
-  final List<DataTableColumn> columns;
-
-  const _SortOptions({required this.controller, required this.columns});
-
-  @override
-  Widget build(BuildContext context) {
-    final activeSort = controller.sortBy;
-
-    Widget option(String key, String label) {
-      final selected = activeSort == key;
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
-        child: AppButton(
-          label: label,
-          style: selected ? AppButtonStyle.primary : AppButtonStyle.accent,
-          onTap: () => controller.setSort(key),
-        ),
-      );
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ...columns.expand(
-          (col) => [
-            option('${col.value}_asc', '${col.label} (A-Z)'),
-            option('${col.value}_desc', '${col.label} (Z-A)'),
-          ],
-        ),
-        const AppDivider(spaced: true),
-        option('created_desc', 'Newest First'),
-        option('created_asc', 'Oldest First'),
-      ],
-    );
-  }
-}
-
-/// A single filter row inside the filters sheet. Stateful so the value text
-/// field keeps keyboard focus while typing.
 class FilterRowWidget extends StatefulWidget {
   final DataTableFilter filter;
   final List<DataTableColumn> columns;
@@ -351,12 +309,12 @@ class FilterRowWidget extends StatefulWidget {
 }
 
 class _FilterRowWidgetState extends State<FilterRowWidget> {
-  late TextEditingController _valueController;
+  late ObservableTextController _valueController;
 
   @override
   void initState() {
     super.initState();
-    _valueController = TextEditingController(text: widget.filter.value);
+    _valueController = ObservableTextController(text: widget.filter.value);
     _valueController.addListener(_onTextChanged);
   }
 
@@ -389,7 +347,6 @@ class _FilterRowWidgetState extends State<FilterRowWidget> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Column Selector
         Expanded(
           flex: 4,
           child: AppSelect<String>(
@@ -404,7 +361,6 @@ class _FilterRowWidgetState extends State<FilterRowWidget> {
         ),
         const SizedBox(width: AppSpacing.xxs),
 
-        // Operator Selector
         Expanded(
           flex: 3,
           child: AppSelect<String>(
@@ -422,14 +378,12 @@ class _FilterRowWidgetState extends State<FilterRowWidget> {
         ),
         const SizedBox(width: AppSpacing.xxs),
 
-        // Value Input Field
         Expanded(
           flex: 4,
           child: AppTextField(controller: _valueController, hint: 'Value...'),
         ),
         const SizedBox(width: AppSpacing.xxs),
 
-        // Delete Row Button
         AppButton(
           icon: AppIcons.x,
           tooltip: 'Remove filter',
