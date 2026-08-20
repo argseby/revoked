@@ -164,30 +164,40 @@ func serveLinkData(app core.App, re *core.RequestEvent, slug, suffix string) err
 		}
 	}
 
+	// A file has no text projection, but it stays in `fields` above so the
+	// ETag and Last-Modified still move when a file is replaced.
+	textFields := withoutFiles(fields)
+
 	switch format {
 	case "txt":
 		var b strings.Builder
-		for _, f := range fields {
+		for _, f := range textFields {
 			b.WriteString(f.key + ": " + f.value + "\n")
 		}
 		return writePlain(re, b.String())
 	case "csv":
-		keys := make([]string, len(fields))
-		vals := make([]string, len(fields))
-		for i, f := range fields {
+		keys := make([]string, len(textFields))
+		vals := make([]string, len(textFields))
+		for i, f := range textFields {
 			keys[i] = f.key
 			vals[i] = f.value
 		}
 		return writeText(re, "text/csv", csvRow(keys)+csvRow(vals))
 	case "vcf":
-		return writeText(re, "text/vcard", vCard(link, fields, updatedAt))
+		return writeText(re, "text/vcard", vCard(link, textFields, updatedAt))
 	case "ics":
-		return writeText(re, "text/calendar", iCalendar(link, fields))
+		return writeText(re, "text/calendar", iCalendar(link, textFields))
 	default:
 		records := []map[string]any{}
 		for _, id := range link.GetStringSlice(util.Fields.Link.Records) {
 			if rec, err := app.FindRecordById(util.Coll.Records, id); err == nil {
-				records = append(records, sanitizeRecord(rec))
+				entry := sanitizeRecord(rec)
+				if rec.GetString(util.Fields.Record.Type) == util.TypeFile {
+					if token, tokenErr := issueDownloadToken(slug, rec.Id); tokenErr == nil {
+						entry["downloadToken"] = token
+					}
+				}
+				records = append(records, entry)
 			}
 		}
 		sections := []map[string]any{}
@@ -230,6 +240,18 @@ func collectLinkFields(app core.App, link *core.Record) []linkField {
 					add(rec)
 				}
 			}
+		}
+	}
+	return out
+}
+
+// withoutFiles drops file records from a text projection; bytes travel only
+// through the claimed download endpoint.
+func withoutFiles(fields []linkField) []linkField {
+	out := make([]linkField, 0, len(fields))
+	for _, f := range fields {
+		if f.ftype != util.TypeFile {
+			out = append(out, f)
 		}
 	}
 	return out

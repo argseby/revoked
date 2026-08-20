@@ -65,7 +65,10 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 	collectionHref := "/dav/s/" + slug + "/"
 	cardHref := collectionHref + cardFile
 
+	// Files have no vCard projection; the full list still feeds the ETag so a
+	// replaced file bumps the ctag.
 	fields := collectLinkFields(app, link)
+	cardFields := withoutFiles(fields)
 	updatedAt := linkUpdatedAt(link, fields)
 	etag := linkETag(slug, "vcf", "", fields, updatedAt)
 	ctag := etag
@@ -86,7 +89,7 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 		re.Response.Header().Set("Content-Type", "text/vcard; charset=utf-8")
 		re.Response.WriteHeader(http.StatusOK)
 		if re.Request.Method == http.MethodGet {
-			_, _ = re.Response.Write([]byte(vCard(link, fields, updatedAt)))
+			_, _ = re.Response.Write([]byte(vCard(link, cardFields, updatedAt)))
 		}
 		return nil
 
@@ -105,7 +108,7 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 
 	case "REPORT":
 		// addressbook-query / addressbook-multiget.
-		return writeMultistatus(re, davCardResponse(cardHref, etag, vCard(link, fields, updatedAt), true))
+		return writeMultistatus(re, davCardResponse(cardHref, etag, vCard(link, cardFields, updatedAt), true))
 
 	case http.MethodPut, http.MethodDelete, "PROPPATCH", "MKCOL", "MKCALENDAR", "COPY", "MOVE":
 		return re.ForbiddenError("This address book is read-only.", nil)

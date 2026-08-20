@@ -17,7 +17,7 @@ const AuditRedacted = "[redacted]"
 // preimage-resistant and never authenticate anything by themselves, but an
 // audit row has no use for credential material in any form.
 var AuditSecretFields = map[string][]string{
-	Coll.Records:    {Fields.Record.Value},
+	Coll.Records:    {Fields.Record.Value, Fields.Record.File, Fields.Record.HashSalt},
 	Coll.Links:      {Fields.Link.Password, Fields.Link.Data},
 	Coll.Requests:   {Fields.Request.Password},
 	Coll.ApiKeys:    {Fields.ApiKey.Token},

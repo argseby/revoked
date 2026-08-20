@@ -125,7 +125,16 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 			}
 			for _, id := range recordIds {
 				if rec, err := app.FindRecordById(util.Coll.Records, id); err == nil {
-					records = append(records, sanitizeRecord(rec))
+					entry := sanitizeRecord(rec)
+					// The resolve above claimed the view; the token carries that
+					// claim to the byte endpoint, so a download is never a
+					// second claim and never claim-free.
+					if rec.GetString(util.Fields.Record.Type) == util.TypeFile {
+						if token, tokenErr := issueDownloadToken(slug, rec.Id); tokenErr == nil {
+							entry["downloadToken"] = token
+						}
+					}
+					records = append(records, entry)
 				}
 			}
 
@@ -157,8 +166,10 @@ func sanitizeRecord(rec *core.Record) map[string]any {
 	out := map[string]any{
 		"id": rec.Id,
 	}
-	// Never include workspace or user IDs in public output.
-	for _, name := range []string{"key", "value", "label", "name", "type", "format", "records", "requestedBy"} {
+	// Never include workspace or user IDs in public output. The hash salt stays
+	// private too — hash alone proves currency, hash plus salt is a guessing
+	// oracle for recognizable content.
+	for _, name := range []string{"key", "value", "label", "name", "type", "format", "records", "requestedBy", "file", "mime", "size", "contentHash", "updated"} {
 		if v := rec.Get(name); v != nil && v != "" {
 			out[name] = v
 		}
