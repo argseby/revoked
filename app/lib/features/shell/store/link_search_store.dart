@@ -84,8 +84,14 @@ abstract class _LinkSearchStore with Store {
     return _adoptIfLink(text);
   }
 
+  /// Puts a scanned `revoked://` code into the field through the same
+  /// normalization the clipboard path uses; returns whether it was one.
   @action
-  ClipboardAdoption _adoptIfLink(String text) {
+  bool adoptLink(String raw) =>
+      _adoptIfLink(raw.trim(), markClipboard: false) != ClipboardAdoption.none;
+
+  @action
+  ClipboardAdoption _adoptIfLink(String text, {bool markClipboard = true}) {
     if (text.isEmpty) return ClipboardAdoption.none;
     final uri = Uri.tryParse(text);
     if (uri == null || DeepLinks.parse(uri) == null) {
@@ -100,7 +106,7 @@ abstract class _LinkSearchStore with Store {
       text: normalized,
       selection: TextSelection.collapsed(offset: normalized.length),
     );
-    fromClipboard = true;
+    fromClipboard = markClipboard;
     return ClipboardAdoption.adopted;
   }
 

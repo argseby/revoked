@@ -2,101 +2,106 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// An unproven domain must never be rendered with the typography of a fact.
+/// An unproven claim must never be rendered with the typography of a fact.
 ///
-/// `Name (example.com)` in plain text is the phishing primitive this product
-/// exists to stop: the string comes from the request itself, so anyone can put
-/// anything there. It may only be printed as a domain once DNS has proven it,
-/// and a domain that provably failed must not be echoed at all — repeating it
-/// only helps whoever chose it.
+/// The strings arrive inside the request/share itself, so anyone can put
+/// anything there. Trust is stated through exactly one vocabulary
+/// (TrustCopy) and two widgets (TrustPanel for surfaces, TrustClaimText for
+/// inline claims) — the same fact must never read differently on two screens.
 void main() {
-  final source = File(
+  final request = File(
     'lib/features/requests/view/public_request_screen.dart',
   ).readAsStringSync();
-
-  test('the bare "name (domain)" form is gated on a proven verdict', () {
-    final interpolation = source.indexOf(r"'$name ($domain)'");
-    expect(interpolation, isNot(-1), reason: 'the verified form should exist');
-
-    // The only place it may appear is inside the proven branch.
-    final guard = source.indexOf('if (_trustProven) {');
-    expect(guard, isNot(-1), reason: '_requesterLine must branch on proof');
-    expect(
-      guard,
-      lessThan(interpolation),
-      reason: 'the domain is printed before anything checks it was proven',
-    );
-  });
-
-  test('proof means verified, not merely "a verdict arrived"', () {
-    expect(source, contains('TrustState.verified'));
-    expect(
-      source.contains(
-        '_store.publicTrustVerdict?.state == TrustState.verified',
-      ),
-      isTrue,
-      reason: '_trustProven must require the verified state specifically',
-    );
-  });
-
-  test('the requester panel carries the verdict-gated warning line', () {
-    // The full-width band was replaced by the info panel; the warning
-    // must still exist somewhere the responder cannot miss.
-    expect(source, contains('_requesterLine('));
-    expect(source, contains('_trustTag('));
-  });
-
-  shareTrust();
-
-  test('no check-shield is drawn for an unproven request', () {
-    // The header icon and the null-verdict tag both used to claim a checkmark.
-    expect(
-      source,
-      contains('_trustProven ? AppIcons.shieldCheck : AppIcons.exclamation'),
-      reason: 'the panel header icon must follow the verdict',
-    );
-    final nullVerdictTag = source.indexOf("label: 'Unverified',");
-    final windowStart = nullVerdictTag - 200;
-    expect(
-      source.substring(windowStart, nullVerdictTag),
-      isNot(contains('shieldCheck')),
-      reason: 'an unverified request must not be tagged with a check shield',
-    );
-  });
-}
-
-/// The share side of the same rule. A share carries no domain of its own, but a
-/// signed one carries the sharer's identity — so it can and must be checked,
-/// and the shield must follow the answer rather than assert it.
-void shareTrust() {
-  final source = File(
+  final share = File(
     'lib/features/shares/view/public_share_screen.dart',
   ).readAsStringSync();
+  final linkSheet = File(
+    'lib/features/shell/view/link_search_sheet.dart',
+  ).readAsStringSync();
+  final panel = File('lib/core/widgets/trust_panel.dart').readAsStringSync();
 
-  test('the public share view walks the DNS chain', () {
-    expect(source, contains('_verifyShareTrust('));
-    expect(source, contains('Stores.domainVerification.verify('));
+  test('every trust surface renders through TrustPanel', () {
+    for (final (name, source) in [
+      ('request', request),
+      ('share', share),
+      ('link sheet', linkSheet),
+    ]) {
+      expect(
+        source.contains('TrustPanel(checks:'),
+        isTrue,
+        reason: '$name must state trust through the shared panel',
+      );
+    }
   });
 
-  test('no shield is drawn green unless the share is proven', () {
-    expect(source, contains('_shareProven ? AppIcons.shieldLock'));
-    expect(source, contains('_shareProven ? AppIcons.share'));
-    expect(
-      source,
-      contains('_store.shareTrustVerdict?.state == TrustState.verified'),
-      reason: 'proof must mean verified, not merely "a verdict arrived"',
-    );
+  test('proof means TrustState.verified, never merely "a verdict arrived"', () {
+    for (final source in [request, share]) {
+      expect(source, contains('TrustState.verified'));
+    }
+    // Both screens derive their check states from the verdict, and only
+    // TrustState.verified may map to a green row.
+    expect(request, contains("verdict?.state == TrustState.verified"));
+    expect(share, contains("verdict?.state == TrustState.verified"));
   });
 
-  test('the share info panel states the verdict, including "not signed"', () {
-    // Absence of an identity is a finding, not a blank: an unsigned share
-    // must say so in the panel that sits beside the data.
-    expect(source, contains('_buildInfoPanel(theme)'));
-    expect(source, contains("Text('Not signed')"));
-    expect(
-      source,
-      contains('an unsigned share carries no domain claim'),
-      reason: 'the DNS line must explain why there is nothing to verify',
-    );
+  test('an unsigned share is a failed check, not a blank', () {
+    expect(share, contains('nothing proves who '));
+    expect(share, contains('TrustCheckState.failed'));
+  });
+
+  test('the link origin is checked against the claimed domain', () {
+    // The link routes the fetch; the sender claims a domain. When the two
+    // disagree, the panel must say so on every surface that has an origin.
+    for (final source in [request, share, linkSheet]) {
+      expect(
+        source,
+        contains('The link points at a different server'),
+        reason: 'origin-vs-domain mismatch must be a named check',
+      );
+    }
+  });
+
+  test('headers carry no verdict-conditional icons', () {
+    // Status belongs to the trust panel alone. A shield or exclamation on a
+    // card header restates the verdict in a second, unexplained vocabulary -
+    // the confusion this pins against.
+    for (final (name, source) in [('request', request), ('share', share)]) {
+      expect(
+        source.contains('? AppIcons.shieldCheck : AppIcons.exclamation') ||
+            source.contains('? AppIcons.shieldLock : AppIcons.exclamation') ||
+            source.contains('? AppIcons.share : AppIcons.exclamation') ||
+            source.contains(
+              '? AppIcons.shieldLock : AppIcons.exclamationTriangle',
+            ),
+        isFalse,
+        reason: '$name must not gate a header icon on the verdict',
+      );
+    }
+  });
+
+  test('inline domain claims go through TrustClaimText only', () {
+    final picker = File(
+      'lib/core/widgets/identity_picker.dart',
+    ).readAsStringSync();
+    final settings = File(
+      'lib/features/settings/view/settings_screen.dart',
+    ).readAsStringSync();
+    expect(picker, contains('TrustClaimText('));
+    expect(settings, contains('TrustClaimText('));
+    for (final (name, source) in [('picker', picker), ('settings', settings)]) {
+      expect(
+        source.contains('issued by \${') ||
+            source.contains('· \${id.domainAtIssue}'),
+        isFalse,
+        reason: '$name must not print a domain claim as bare prose',
+      );
+    }
+  });
+
+  test('the vocabulary is single-sourced and the alarm words exist', () {
+    expect(panel, contains("static const verified = 'DNS verified'"));
+    expect(panel, contains("static const spoofed = 'Spoofed'"));
+    expect(panel, contains("static const unsigned = 'Not signed'"));
+    expect(panel, contains('Do not send'));
   });
 }

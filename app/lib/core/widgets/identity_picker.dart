@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/models/trust_verdict.dart';
+import 'package:revoked_app/core/widgets/trust_panel.dart';
 
 /// Radio-style picker over the signed-in user's cryptographic identities.
 ///
@@ -70,10 +73,21 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 enabled:
                     widget.requireDomain == null ||
                     id.domainAtIssue == widget.requireDomain,
+                // A dimmed row that ignores taps looks broken; say which
+                // rule refused it.
+                disabledReason:
+                    widget.requireDomain != null &&
+                        id.domainAtIssue != widget.requireDomain
+                    ? 'Issued by another server - not accepted here'
+                    : null,
                 title: id.name,
-                subtitle: id.domainAtIssue.isNotEmpty
-                    ? '${id.shortFingerprint} · issued by ${id.domainAtIssue}'
-                    : id.shortFingerprint,
+                subtitle: id.shortFingerprint,
+                claim: id.domainAtIssue.isEmpty
+                    ? null
+                    : TrustClaimText(
+                        domain: id.domainAtIssue,
+                        state: _claimState(id.domainAtIssue),
+                      ),
                 onTap: () => widget.onChanged(id.id),
               ),
             if (widget.allowNone)
@@ -83,6 +97,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 enabled: true,
                 title: 'No signing identity',
                 subtitle: 'Share without a verifiable origin',
+                claim: null,
                 onTap: () => widget.onChanged(null),
               ),
           ],
@@ -91,12 +106,24 @@ class _IdentityPickerState extends State<IdentityPicker> {
     );
   }
 
+  /// An identity's issuing-domain claim is proven only when this server's own
+  /// DNS check verified that exact domain; anything else renders unverified.
+  TrustCheckState _claimState(String domain) {
+    final verdict = Stores.settings.domainVerdict;
+    if (verdict?.state == TrustState.verified && verdict?.domain == domain) {
+      return TrustCheckState.verified;
+    }
+    return TrustCheckState.failed;
+  }
+
   Widget _tile(
     ColorScheme scheme, {
     required bool selected,
     required bool enabled,
     required String title,
     required String subtitle,
+    Widget? claim,
+    String? disabledReason,
     required VoidCallback onTap,
   }) {
     return Opacity(
@@ -134,6 +161,14 @@ class _IdentityPickerState extends State<IdentityPicker> {
                       Text(title).small,
                       AppSpacing.gapXxs,
                       Text(subtitle).muted.small,
+                      if (claim != null) ...[AppSpacing.gapXxs, claim],
+                      if (disabledReason != null) ...[
+                        AppSpacing.gapXxs,
+                        DefaultTextStyle.merge(
+                          style: TextStyle(color: scheme.danger),
+                          child: Text(disabledReason).small,
+                        ),
+                      ],
                     ],
                   ),
                 ),

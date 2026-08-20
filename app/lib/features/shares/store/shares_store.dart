@@ -110,6 +110,11 @@ abstract class _SharesStore with Store {
     shareTrustVerdict = null;
   }
 
+  /// A stored verdict shown while the fresh check runs; isVerifying stays
+  /// true so the UI can say it is still being confirmed.
+  @action
+  void seedShareTrust(TrustVerdict verdict) => shareTrustVerdict = verdict;
+
   @action
   void finishShareTrust(TrustVerdict? verdict) {
     shareTrustVerdict = verdict;

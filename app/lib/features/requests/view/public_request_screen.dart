@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
-import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -30,6 +29,9 @@ import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
+import 'package:revoked_app/core/widgets/identity_summary_card.dart';
+import 'package:revoked_app/core/widgets/requirement_list.dart';
+import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -87,6 +89,13 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     super.initState();
     // The store is a singleton, so the previous request's answers, links and
     // trust verdict are still in it.
+    // The link names its server, and neither DNS hop needs anything
+    // from the probe - so start them now, alongside it.
+    if (widget.origin != null) {
+      Stores.domainVerification.prewarm(
+        Uri.tryParse('https://${widget.origin!}')?.host ?? '',
+      );
+    }
     _store.resetPublicView();
     _probeRequest();
   }
@@ -262,6 +271,15 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     final fingerprint = requester?['fingerprint'] as String? ?? '';
     final parentSig = requester?['parentSignature'] as String? ?? '';
 
+    // Seed from the stored verdict so the form renders at once; the fresh
+    // check runs regardless and the submit gate waits on that one.
+    final cached = Stores.domainVerification.cachedVerdict(
+      claimedDomain: domain,
+      identityFingerprint: fingerprint,
+    );
+    if (cached != null) {
+      runInAction(() => _store.publicTrustVerdict = cached);
+    }
     runInAction(() => _store.isVerifyingTrust = true);
     TrustVerdict verdict;
     try {
@@ -309,6 +327,94 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   /// trust verification cannot apply (localhost, loopback, LAN/private IPs).
   /// Submitting against such a server shouldn't be gated on a DNS proof that
   /// can never exist.
+  /// The requester's issuing domain is proven only when the DNS walk verified
+  /// that exact domain; a claim the check did not cover stays unverified.
+  TrustCheckState _identityDomainState() {
+    if (_isLocalServer) return TrustCheckState.verified;
+    final verdict = _store.publicTrustVerdict;
+    if (_store.isVerifyingTrust && verdict == null) {
+      return TrustCheckState.checking;
+    }
+    final claimed = _requester?['domainAtIssue'] as String? ?? '';
+    if (verdict?.state == TrustState.spoofed) return TrustCheckState.spoofed;
+    if (verdict?.state == TrustState.verified && verdict?.domain == claimed) {
+      return TrustCheckState.verified;
+    }
+    return TrustCheckState.failed;
+  }
+
+  /// True while the first verdict is still outstanding. Sending is the
+  /// only thing that waits on it.
+  bool get _verificationPending =>
+      !_isLocalServer &&
+      _store.isVerifyingTrust &&
+      _store.publicTrustVerdict == null;
+
+  /// The chain, one row per link: who signed, whether DNS stands behind the
+  /// domain they claim, and whether this link even points at that server.
+  List<TrustCheck> _trustChecks() {
+    if (_isLocalServer) {
+      return const [
+        TrustCheck(
+          label: 'Server',
+          value: 'local server',
+          state: TrustCheckState.verified,
+          detail: 'Local/development server; public DNS does not apply.',
+        ),
+      ];
+    }
+
+    final verdict = _store.publicTrustVerdict;
+    final checking = _store.isVerifyingTrust && verdict == null;
+    final domain = _serverDomain.isEmpty ? 'no domain declared' : _serverDomain;
+
+    final TrustCheckState chainState;
+    if (checking) {
+      chainState = TrustCheckState.checking;
+    } else if (verdict?.state == TrustState.verified) {
+      chainState = TrustCheckState.verified;
+    } else if (verdict?.state == TrustState.spoofed) {
+      chainState = TrustCheckState.spoofed;
+    } else {
+      chainState = TrustCheckState.failed;
+    }
+
+    final fp = _requester?['fingerprint'] as String? ?? '';
+    final shortFp = fp.length > 16 ? '${fp.substring(0, 8)}…' : fp;
+
+    return [
+      TrustCheck(
+        label: 'Server domain',
+        value: domain,
+        state: chainState,
+        detail: checking ? null : verdict?.reason,
+      ),
+      TrustCheck(
+        label: 'Requester identity',
+        value: shortFp,
+        state: chainState,
+        detail: chainState == TrustCheckState.verified
+            ? 'Signed by the key that domain publishes in DNS.'
+            : null,
+      ),
+      if (widget.origin != null)
+        TrustCheck(
+          label: 'Link origin',
+          value: widget.origin!,
+          state: checking
+              ? TrustCheckState.checking
+              : Uri.tryParse('https://${widget.origin!}')?.host == _serverDomain
+              ? chainState
+              : TrustCheckState.failed,
+          detail:
+              Uri.tryParse('https://${widget.origin!}')?.host == _serverDomain
+              ? null
+              : 'The link points at a different server than the sender '
+                    'claims to be.',
+        ),
+    ];
+  }
+
   bool get _isLocalServer {
     final d = _serverDomain.toLowerCase();
     if (d.isEmpty) return false;
@@ -624,11 +730,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
                       if (Stores.auth.isAuthenticated) {
                         return const Row(
                           mainAxisSize: MainAxisSize.min,
-                          children: [
-                            WorkspaceChip(),
-                            SizedBox(width: AppSpacing.xs),
-                            AccountButton(),
-                          ],
+                          children: [WorkspaceChip()],
                         );
                       }
                       return const AppBadge(
@@ -798,7 +900,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     final scheme = theme.colorScheme;
     final requester = _requester;
     final name = requester?['name'] as String? ?? '';
-    final domain = requester?['domainAtIssue'] as String? ?? '';
     final fp = requester?['fingerprint'] as String? ?? '';
     final shortFp = fp.length > 16
         ? '${fp.substring(0, 8)}…${fp.substring(fp.length - 8)}'
@@ -809,39 +910,76 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         .toList();
     final fieldNames = templateRecords.map((t) => t.label).join(', ');
 
-    final tags = <Widget>[
-      _trustTag(theme),
+    // Live status per gate: whether THIS responder can pass it right now.
+    // Green needs nothing, grey is a field still to fill, red names whose
+    // problem it is - the sender's restriction or the reader's account.
+    final hasIdentities =
+        Stores.auth.isAuthenticated && Stores.identities.identities.isNotEmpty;
+    final hasRootIdentity = Stores.identities.identities.any(
+      (i) => i.domainAtIssue == _serverDomain,
+    );
+
+    final requirements = <RequirementItem>[
       if (_requireHandshake)
-        const _InfoTag(
-          icon: AppIcons.shieldCheck,
-          label: 'Verified identity',
-          tooltip:
-              'You must sign this response with a cryptographic identity, so '
-              'the requester knows it really came from you.',
+        RequirementItem(
+          icon: AppIcons.personBoundingBox,
+          title: 'Verified identity',
+          status: _isForeign
+              ? RequirementStatus.blocked
+              : hasIdentities
+              ? RequirementStatus.ready
+              : RequirementStatus.blocked,
+          description: _isForeign
+              ? 'This request lives on a different server than you are '
+                    'signed into; cross-server verification is not '
+                    'supported yet.'
+              : hasIdentities
+              ? 'Your response is signed with your identity, so the '
+                    'requester knows it came from you.'
+              : Stores.auth.isAuthenticated
+              ? 'You have no identity yet - create one under '
+                    'Account before responding.'
+              : 'Sign in and create an identity to respond.',
         ),
       if (_requireHandshake && _identityScope == 'from_root')
-        _InfoTag(
-          icon: AppIcons.shieldLock,
-          label:
-              'Issued by ${_serverDomain.isEmpty ? 'this server' : _serverDomain}',
-          tooltip:
-              'Only identities issued by this server are accepted for this '
-              'request.',
+        RequirementItem(
+          icon: AppIcons.server,
+          title:
+              'Identity issued by '
+              '${_serverDomain.isEmpty ? 'this server' : _serverDomain}',
+          status: hasRootIdentity
+              ? RequirementStatus.ready
+              : RequirementStatus.blocked,
+          description: hasRootIdentity
+              ? 'One of your identities was issued by that server.'
+              : 'None of your identities were issued by that server, so '
+                    'this request cannot accept them.',
         ),
       if (_hasIdentifier)
-        const _InfoTag(
+        RequirementItem(
           icon: AppIcons.tag,
-          label: 'Identifier',
-          tooltip:
-              'The requester gave you a secret identifier — enter it exactly '
-              'to prove this request is meant for you.',
+          title: 'Identifier',
+          status: _store.responderIdentifier.text.trim().isNotEmpty
+              ? RequirementStatus.ready
+              : RequirementStatus.pending,
+          description: _store.responderIdentifier.text.trim().isNotEmpty
+              ? 'Entered - checked by the server on submit.'
+              : 'Enter the identifier the requester gave you, exactly.',
         ),
       if (_requiresPassword)
-        const _InfoTag(
+        RequirementItem(
           icon: AppIcons.lock,
-          label: 'Password',
-          tooltip: 'A password the requester gave you is required to submit.',
+          title: 'Password',
+          status: _store.responderPassword.text.isNotEmpty
+              ? RequirementStatus.ready
+              : RequirementStatus.pending,
+          description: _store.responderPassword.text.isNotEmpty
+              ? 'Entered - checked by the server on submit.'
+              : 'A password from the requester is required to submit.',
         ),
+    ];
+
+    final tags = <Widget>[
       if (templateRecords.isNotEmpty)
         _InfoTag(
           icon: AppIcons.cardList,
@@ -856,7 +994,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           accent: scheme.primary,
           tooltip:
               'You already have a live response. Submitting again updates it '
-              'in place — no duplicate is created.',
+              'in place - no duplicate is created.',
         ),
     ];
 
@@ -865,40 +1003,38 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                _trustProven ? AppIcons.shieldCheck : AppIcons.exclamation,
-                color: _trustProven ? scheme.primary : scheme.danger,
-                size: 22,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: Text(label).header),
-            ],
-          ),
+          Text(label).header,
           const SizedBox(height: AppSpacing.xxs),
           const Text(
             'Your submission is private to the requester, and you can revoke '
             'it at any time.',
           ).muted.small,
 
+          _section('Security', [TrustPanel(checks: _trustChecks())]),
+
           if (name.isNotEmpty)
             _section('Requested by', [
-              _requesterLine(theme, name, domain),
-              if (shortFp.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.xxs),
-                Text(shortFp).muted.mono.small,
-              ],
+              IdentitySummaryCard(
+                name: name,
+                fingerprint: shortFp,
+                domain: _requester?['domainAtIssue'] as String? ?? '',
+                domainState: _identityDomainState(),
+              ),
             ]),
 
-          _section('This request', [
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: tags,
-            ),
-          ]),
+          if (requirements.isNotEmpty)
+            _section('Required to respond', [
+              RequirementList(items: requirements),
+            ]),
+
+          if (tags.isNotEmpty)
+            _section('This request', [
+              Wrap(
+                spacing: AppSpacing.xs,
+                runSpacing: AppSpacing.xs,
+                children: tags,
+              ),
+            ]),
 
           if (_store.publicExistingLink != null)
             _section('Already answered', [
@@ -913,109 +1049,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         ],
       ),
     );
-  }
-
-  /// Whether DNS actually proved the requester owns the domain they claim.
-  /// Everything else — no verdict yet, no TXT record, an outright mismatch —
-  /// is unproven, and the screen must not decorate it as if it were proven.
-  bool get _trustProven =>
-      _isLocalServer || _store.publicTrustVerdict?.state == TrustState.verified;
-
-  /// The "Requested by" line.
-  ///
-  /// The name and the domain both arrive inside the request; neither is worth
-  /// anything until DNS confirms the domain. Rendering `Name (example.com)` in
-  /// plain text is the whole phishing primitive this product exists to stop —
-  /// it lends a stranger's claim the typography of a fact. So the domain is
-  /// only ever printed as a domain once it is proven; until then it is labelled
-  /// as a claim, and when it is provably false it is not printed at all.
-  Widget _requesterLine(ThemeData theme, String name, String domain) {
-    final scheme = theme.colorScheme;
-
-    if (_trustProven) {
-      return Text(domain.isEmpty ? name : '$name ($domain)').small;
-    }
-
-    final spoofed = _store.publicTrustVerdict?.state == TrustState.spoofed;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(name).small,
-        const SizedBox(height: AppSpacing.xxs),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(AppIcons.exclamationTriangle, size: 13, color: scheme.danger),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: Text(
-                spoofed
-                    // Repeating a domain that failed verification only helps
-                    // whoever chose it.
-                    ? 'The domain this request claims failed verification.'
-                    : domain.isEmpty
-                    ? 'Claims no domain. Nothing here has been verified.'
-                    : 'Claims to be “$domain” — unverified. Anyone can put '
-                          'any name and domain here.',
-              ).small,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _trustTag(ThemeData theme) {
-    final scheme = theme.colorScheme;
-    if (_isLocalServer) {
-      return const _InfoTag(
-        icon: AppIcons.server,
-        label: 'Local server',
-        tooltip:
-            'This is a local/development server, so public domain '
-            'verification does not apply.',
-      );
-    }
-    if (_store.isVerifyingTrust && _store.publicTrustVerdict == null) {
-      return const _InfoTag(
-        icon: AppIcons.arrowRepeat,
-        label: 'Checking domain…',
-        tooltip: 'Verifying the requester\'s domain against public DNS.',
-      );
-    }
-    final v = _store.publicTrustVerdict;
-    if (v == null) {
-      return _InfoTag(
-        icon: AppIcons.exclamationTriangle,
-        accent: theme.colorScheme.danger,
-        label: 'Unverified',
-        tooltip: 'The requester\'s domain has not been verified.',
-      );
-    }
-    switch (v.state) {
-      case TrustState.verified:
-        return _InfoTag(
-          icon: AppIcons.shieldCheck,
-          label: 'Domain verified',
-          accent: scheme.primary,
-          tooltip: v.reason,
-        );
-      case TrustState.spoofed:
-        return _InfoTag(
-          icon: AppIcons.exclamationTriangle,
-          label: 'Domain spoofed',
-          accent: scheme.danger,
-          tooltip: v.reason,
-        );
-      case TrustState.dnsMissing:
-      case TrustState.unverified:
-        return _InfoTag(
-          icon: AppIcons.exclamationTriangle,
-          accent: scheme.danger,
-          label: 'Unverified domain',
-          tooltip: v.reason,
-        );
-    }
   }
 
   /// Left-hand (or bottom, on mobile) panel: everything the responder fills in.
@@ -1064,14 +1097,27 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           ],
 
           const SizedBox(height: AppSpacing.xl),
-          AppButton(
-            icon: AppIcons.send,
-            label: _store.publicExistingLink != null
-                ? 'Update response'
-                : 'Submit response',
-            busy: _store.isSubmittingPublic,
-            onTap: _submit,
-          ),
+          // The form stays usable while the sender is being verified -
+          // blanking it made every millisecond of latency read as a
+          // frozen screen. Only sending waits for the verdict.
+          if (_verificationPending)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const AppSpinner(),
+                const SizedBox(width: AppSpacing.sm),
+                const Text('Verifying the sender…').muted.small,
+              ],
+            )
+          else
+            AppButton(
+              icon: AppIcons.send,
+              label: _store.publicExistingLink != null
+                  ? 'Update response'
+                  : 'Submit response',
+              busy: _store.isSubmittingPublic,
+              onTap: _submit,
+            ),
         ],
       ),
     );

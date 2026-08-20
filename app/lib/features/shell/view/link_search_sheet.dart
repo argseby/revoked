@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
@@ -18,7 +20,9 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
+import 'package:revoked_app/features/shell/view/qr_scan_sheet.dart';
 
 /// Opens the link search drawer: paste a `revoked://` share/request link, then
 /// either open it or verify it (DNS + link security) first.
@@ -228,7 +232,7 @@ class LinkSearchSheet extends StatelessWidget {
             ],
             if (_store.verdict != null) ...[
               const SizedBox(height: AppSpacing.lg),
-              _verdictPanel(scheme, _store.verdict!),
+              TrustPanel(checks: _verdictChecks(_store.verdict!)),
             ],
             if (_store.verifyError != null) ...[
               const SizedBox(height: AppSpacing.lg),
@@ -262,75 +266,39 @@ class LinkSearchSheet extends StatelessWidget {
     );
   }
 
-  /// The verdict in full: what was checked, what came back, and what it means
-  /// for opening the link. A pill alone said "Unverified" without saying that
-  /// the sender's domain is unproven, which is the part that matters.
-  Widget _verdictPanel(ColorScheme scheme, TrustVerdict verdict) {
-    final proven = verdict.state == TrustState.verified;
-    final accent = proven ? scheme.primary : scheme.danger;
-
-    final String headline;
-    final String meaning;
-    switch (verdict.state) {
-      case TrustState.verified:
-        headline = 'DNS confirms ${verdict.domain}';
-        meaning =
-            'This link was signed by a key that ${verdict.domain} publishes in '
-            'its own DNS. The sender is who they claim to be.';
-      case TrustState.spoofed:
-        headline = 'This link is impersonating someone';
-        meaning =
-            'The domain it claims does not match the key that signed it. Do '
-            'not open it or send anything.';
-      case TrustState.dnsMissing:
-        headline = 'No DNS record to check against';
-        meaning =
-            'The sender\'s server publishes no `_revoked` DNS record, so there '
-            'is nothing to prove who they are. Only open this if you already '
-            'trust whoever gave you the link.';
-      case TrustState.unverified:
-        headline = 'Nobody has verified this sender';
-        meaning =
-            'The domain on this link is an unproven claim. Only open it if you '
-            'already trust whoever gave you the link.';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
-        borderRadius: AppRadius.allMd,
-        border: Border.all(color: accent.withValues(alpha: 0.5)),
+  /// The verify result through the same panel every other trust surface
+  /// uses - one vocabulary, wherever the reader meets it.
+  List<TrustCheck> _verdictChecks(TrustVerdict verdict) {
+    final resolved = _resolve();
+    final state = switch (verdict.state) {
+      TrustState.verified => TrustCheckState.verified,
+      TrustState.spoofed => TrustCheckState.spoofed,
+      _ => TrustCheckState.failed,
+    };
+    return [
+      TrustCheck(
+        label: 'Server domain',
+        value: verdict.domain.isEmpty ? 'no domain declared' : verdict.domain,
+        state: state,
+        detail: verdict.reason,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                proven ? AppIcons.shieldCheck : AppIcons.exclamationTriangle,
-                size: 18,
-                color: accent,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: DefaultTextStyle.merge(
-                  style: TextStyle(color: accent),
-                  child: Text(headline).small,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(meaning).muted.small,
-          if (verdict.reason.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(verdict.reason).muted.small,
-          ],
-        ],
-      ),
-    );
+      if (resolved?.origin != null)
+        TrustCheck(
+          label: 'Link origin',
+          value: resolved!.origin!,
+          state:
+              Uri.tryParse('https://${resolved.origin!}')?.host ==
+                  verdict.domain
+              ? state
+              : TrustCheckState.failed,
+          detail:
+              Uri.tryParse('https://${resolved.origin!}')?.host ==
+                  verdict.domain
+              ? null
+              : 'The link points at a different server than the sender '
+                    'claims to be.',
+        ),
+    ];
   }
 
   Widget _buildField(BuildContext context, ColorScheme scheme) {
@@ -339,18 +307,34 @@ class LinkSearchSheet extends StatelessWidget {
       autofocus: true,
       onSubmitted: (_) => _open(context),
       hint: 's/<slug> or r/<slug>',
-      trailing: _controller.text.isEmpty
-          ? null
-          : Padding(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              child: AppButton(
+      trailing: Padding(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_controller.text.isNotEmpty)
+              AppButton(
                 icon: AppIcons.x,
                 tooltip: 'Clear',
                 style: AppButtonStyle.accent,
                 size: AppButtonSize.small,
                 onTap: _store.clear,
               ),
-            ),
+            // The scanner plugin has no desktop implementation; on
+            // desktop the QR story is showing codes, not reading them.
+            if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) ...[
+              const SizedBox(width: AppSpacing.xs),
+              AppButton(
+                icon: AppIcons.qrScan,
+                tooltip: 'Scan a QR code',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: () => openQrScanSheet(context, onCode: _store.adoptLink),
+              ),
+            ],
+          ],
+        ),
+      ),
 
       leading: Padding(
         padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.xs, 0),

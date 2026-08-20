@@ -5,7 +5,6 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
-import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -24,6 +23,9 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
+import 'package:revoked_app/core/widgets/trust_panel.dart';
+import 'package:revoked_app/core/widgets/requirement_list.dart';
+import 'package:revoked_app/core/widgets/identity_summary_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Public link viewer.
@@ -60,6 +62,13 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     super.initState();
     // The store is a singleton, so the previous share's password, payload and
     // revealed values are still in it.
+    // The link names its server, and neither DNS hop needs anything
+    // from the probe - so start them now, alongside it.
+    if (widget.origin != null) {
+      Stores.domainVerification.prewarm(
+        Uri.tryParse('https://${widget.origin!}')?.host ?? '',
+      );
+    }
     _store.resetShareView();
     _probeLink();
   }
@@ -83,8 +92,134 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
   /// says so rather than staying silent.
   /// Whether DNS proved the sharer owns the domain they signed from. An
   /// unsigned share is never proven — there is no claim to check.
-  bool get _shareProven =>
-      _store.shareTrustVerdict?.state == TrustState.verified;
+  /// The sharer's issuing domain is proven only when the DNS walk verified
+  /// that exact domain.
+  TrustCheckState _sharerDomainState() {
+    final verdict = _store.shareTrustVerdict;
+    if (_store.isVerifyingShareTrust && verdict == null) {
+      return TrustCheckState.checking;
+    }
+    final sharer = _store.shareProbe?['sharer'];
+    final claimed = sharer is Map
+        ? (sharer['domainAtIssue'] as String? ?? '')
+        : '';
+    if (verdict?.state == TrustState.spoofed) return TrustCheckState.spoofed;
+    if (verdict?.state == TrustState.verified && verdict?.domain == claimed) {
+      return TrustCheckState.verified;
+    }
+    return TrustCheckState.failed;
+  }
+
+  /// Live status per gate, from the viewer's side of the door.
+  List<RequirementItem> _gateRequirements() {
+    final requiresPassword =
+        _store.shareProbe?['requiresPassword'] as bool? ?? false;
+    final hasIdentities = Stores.identities.identities.isNotEmpty;
+
+    return [
+      if (requiresPassword)
+        RequirementItem(
+          icon: AppIcons.lock,
+          title: 'Password',
+          status: _store.sharePassword.text.isNotEmpty
+              ? RequirementStatus.ready
+              : RequirementStatus.pending,
+          description: _store.sharePassword.text.isNotEmpty
+              ? 'Entered - checked by the server on unlock.'
+              : 'Enter the password the sender gave you.',
+        ),
+      if (_requiresHandshake)
+        RequirementItem(
+          icon: AppIcons.personBoundingBox,
+          title: 'Verified identity',
+          status: _isForeign
+              ? RequirementStatus.blocked
+              : _store.shareIdentityId != null
+              ? RequirementStatus.ready
+              : hasIdentities
+              ? RequirementStatus.pending
+              : RequirementStatus.blocked,
+          description: _isForeign
+              ? 'This share lives on a different server than you are signed '
+                    'into; cross-server verification is not supported yet.'
+              : _store.shareIdentityId != null
+              ? 'You verify with this identity; the sender authorized your '
+                    'key on a first visit.'
+              : hasIdentities
+              ? 'Pick the identity to verify with below.'
+              : 'You have no identity yet - sign in and create one under '
+                    'Account.',
+        ),
+    ];
+  }
+
+  /// One row per link of the chain; an unsigned share is a failed check, not
+  /// a blank - absence of a signature is the finding.
+  List<TrustCheck> _shareTrustChecks() {
+    final sharer = _store.shareProbe?['sharer'];
+    final fp = sharer is Map ? (sharer['fingerprint'] as String? ?? '') : '';
+    final signed = fp.isNotEmpty;
+
+    if (!signed) {
+      return const [
+        TrustCheck(
+          label: 'Sender identity',
+          value: '',
+          state: TrustCheckState.failed,
+          detail:
+              'No identity is attached to this share, so nothing proves who '
+              'created it.',
+        ),
+      ];
+    }
+
+    final verdict = _store.shareTrustVerdict;
+    final checking = _store.isVerifyingShareTrust && verdict == null;
+    final domain = verdict?.domain ?? '';
+
+    final TrustCheckState state;
+    if (checking) {
+      state = TrustCheckState.checking;
+    } else if (verdict?.state == TrustState.verified) {
+      state = TrustCheckState.verified;
+    } else if (verdict?.state == TrustState.spoofed) {
+      state = TrustCheckState.spoofed;
+    } else {
+      state = TrustCheckState.failed;
+    }
+
+    final shortFp = fp.length > 16 ? '${fp.substring(0, 8)}…' : fp;
+    return [
+      TrustCheck(
+        label: 'Server domain',
+        value: domain.isEmpty ? 'no domain declared' : domain,
+        state: state,
+        detail: checking ? null : verdict?.reason,
+      ),
+      TrustCheck(
+        label: 'Sender identity',
+        value: shortFp,
+        state: state,
+        detail: state == TrustCheckState.verified
+            ? 'Signed by the key that domain publishes in DNS.'
+            : null,
+      ),
+      if (widget.origin != null)
+        TrustCheck(
+          label: 'Link origin',
+          value: widget.origin!,
+          state: checking
+              ? TrustCheckState.checking
+              : Uri.tryParse('https://${widget.origin!}')?.host == domain
+              ? state
+              : TrustCheckState.failed,
+          detail: Uri.tryParse('https://${widget.origin!}')?.host == domain
+              ? null
+              : 'The link points at a different server than the sender '
+                    'claims to be.',
+        ),
+    ];
+  }
 
   /// A band across the top for anything unproven, matching the request screen.
   /// Right-hand (or top, on mobile) panel: who shared this and what DNS says
@@ -108,9 +243,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           Row(
             children: [
               Icon(
-                signed ? AppIcons.shieldLock : AppIcons.exclamationTriangle,
+                AppIcons.shieldLock,
                 size: 18,
-                color: signed ? scheme.onSurfaceVariant : scheme.danger,
+                color: scheme.onSurfaceVariant,
               ),
               const SizedBox(width: AppSpacing.sm),
               const Expanded(child: Text('About this share')),
@@ -118,132 +253,24 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           ),
 
           const SizedBox(height: AppSpacing.xl),
-          const Text('Shared by').small.muted,
+          const Text('Security').small.muted,
           const SizedBox(height: AppSpacing.sm),
-          if (!signed) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  AppIcons.exclamationTriangle,
-                  size: 13,
-                  color: scheme.danger,
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(child: const Text('Not signed').small),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xxs),
-            const Text(
-              'No identity is attached to this share, so nothing proves who '
-              'created it. Only trust the contents if you trust whoever sent '
-              'you the link.',
-            ).muted.small,
-          ] else ...[
-            _sharerLine(theme, name),
-            if (shortFp.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xxs),
-              Text(shortFp).muted.mono.small,
-            ],
-          ],
-
-          const SizedBox(height: AppSpacing.xl),
-          const Text('Domain verification').small.muted,
-          const SizedBox(height: AppSpacing.sm),
-          _dnsLine(theme, signed),
-        ],
-      ),
-    );
-  }
-
-  /// The sharer's name, with the domain rendered only as hard as it is proven
-  /// — the same rule as the request screen's requester line.
-  Widget _sharerLine(ThemeData theme, String name) {
-    final scheme = theme.colorScheme;
-    final verdict = _store.shareTrustVerdict;
-    final domain = verdict?.domain ?? '';
-
-    if (_shareProven) {
-      return Text(domain.isEmpty ? name : '$name ($domain)').small;
-    }
-    final spoofed = verdict?.state == TrustState.spoofed;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(name.isEmpty ? 'Unnamed identity' : name).small,
-        const SizedBox(height: AppSpacing.xxs),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(AppIcons.exclamationTriangle, size: 13, color: scheme.danger),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: Text(
-                spoofed
-                    ? 'The domain this share claims failed verification. Do '
-                          'not trust what it shows you.'
-                    : 'Unverified — anyone can put any name here.',
-              ).small,
+          TrustPanel(checks: _shareTrustChecks()),
+          if (signed) ...[
+            const SizedBox(height: AppSpacing.xl),
+            const Text('Shared by').small.muted,
+            const SizedBox(height: AppSpacing.sm),
+            IdentitySummaryCard(
+              name: name,
+              fingerprint: shortFp,
+              domain: sharer is Map
+                  ? (sharer['domainAtIssue'] as String? ?? '')
+                  : '',
+              domainState: _sharerDomainState(),
             ),
           ],
-        ),
-      ],
-    );
-  }
-
-  /// One line stating what the DNS walk concluded, including "nothing to
-  /// check" for an unsigned share.
-  Widget _dnsLine(ThemeData theme, bool signed) {
-    final scheme = theme.colorScheme;
-
-    if (!signed) {
-      return const Text(
-        'Nothing to verify — an unsigned share carries no domain claim.',
-      ).muted.small;
-    }
-    if (_store.isVerifyingShareTrust && _store.shareTrustVerdict == null) {
-      return Row(
-        children: [
-          const AppSpinner(),
-          const SizedBox(width: AppSpacing.sm),
-          const Text('Checking who shared this…').muted.small,
         ],
-      );
-    }
-    final verdict = _store.shareTrustVerdict;
-    final (icon, color, text) = switch (verdict?.state) {
-      TrustState.verified => (
-        AppIcons.shieldCheck,
-        scheme.primary,
-        'Verified — ${verdict!.domain}',
       ),
-      TrustState.spoofed => (
-        AppIcons.exclamationTriangle,
-        scheme.danger,
-        'Domain spoofed',
-      ),
-      _ => (AppIcons.exclamationTriangle, scheme.danger, 'Unverified domain'),
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: DefaultTextStyle.merge(
-                style: TextStyle(color: color),
-                child: Text(text).small,
-              ),
-            ),
-          ],
-        ),
-        if (verdict != null && verdict.reason.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xxs),
-          Text(verdict.reason).muted.small,
-        ],
-      ],
     );
   }
 
@@ -259,7 +286,14 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         ? (serverBlock['domain'] as String? ?? '')
         : '';
 
+    // Seed from the stored verdict so the gate renders a verdict at once;
+    // the fresh check runs regardless and overwrites it when it lands.
+    final cached = Stores.domainVerification.cachedVerdict(
+      claimedDomain: domain,
+      identityFingerprint: sharer['fingerprint'] as String? ?? '',
+    );
     _store.startShareTrust();
+    if (cached != null) _store.seedShareTrust(cached);
     try {
       final verdict = await Stores.domainVerification.verify(
         claimedDomain: domain,
@@ -522,10 +556,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               Row(
                 children: [
                   Icon(
-                    _shareProven ? AppIcons.shieldLock : AppIcons.exclamation,
-                    color: _shareProven
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.danger,
+                    AppIcons.shieldLock,
+                    color: theme.colorScheme.onSurfaceVariant,
                     size: 22,
                   ),
                   AppSpacing.gapSm,
@@ -535,13 +567,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               AppSpacing.gapSm,
               // The verdict must be readable before anything is typed in:
               // a password entered into a spoofed share is already lost.
-              _dnsLine(
-                theme,
-                ((_store.shareProbe?['sharer'] as Map?)?['fingerprint']
-                            as String? ??
-                        '')
-                    .isNotEmpty,
-              ),
+              TrustPanel(checks: _shareTrustChecks()),
+              AppSpacing.gapMd,
+              RequirementList(items: _gateRequirements()),
               AppSpacing.gapMd,
               if (requiresPassword) ...[
                 const Text(
@@ -616,10 +644,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               Row(
                 children: [
                   Icon(
-                    _shareProven ? AppIcons.share : AppIcons.exclamation,
-                    color: _shareProven
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.danger,
+                    AppIcons.share,
+                    color: theme.colorScheme.onSurfaceVariant,
                     size: 20,
                   ),
                   AppSpacing.gapSm,
