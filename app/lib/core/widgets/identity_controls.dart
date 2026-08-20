@@ -75,9 +75,9 @@ class _WorkspaceChipState extends State<WorkspaceChip> {
               ),
             if (spaces.isNotEmpty) null,
             AppMenuItem(
-              label: 'Manage organizations',
+              label: 'Manage Workspaces',
               icon: AppIcons.personGear,
-              onSelected: () => context.go(AppRoutes.settings),
+              onSelected: () => context.go(AppRoutes.settingsWorkspace),
             ),
           ],
         );
