@@ -1,4 +1,4 @@
-name: Desktop builds
+name: App builds
 on:
   # Called by release.yml straight after it tags. A tag pushed with
   # GITHUB_TOKEN raises no push event — GitHub suppresses it to stop workflows
@@ -91,9 +91,80 @@ jobs:
           name: revoked-windows-x64
           path: app/revoked-windows-x64.zip
 
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Every APK must be signed to install at all; without secrets Flutter
+      # falls back to a debug key the runner generates fresh each time.
+      # That installs, but cannot update a previous install - and on this
+      # app a reinstall wipes the identity private keys, which cannot be
+      # regenerated. So the fallback artifact is named for testing only.
+      - name: Write signing config
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set - signing with an ephemeral debug key. The APK installs but cannot update an existing install."
+            echo "signed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.jks
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          EOF
+          echo "signed=true" >> $GITHUB_OUTPUT
+
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter build apk --release
+
+      - name: Name the artifact
+        id: name
+        run: |
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            NAME="revoked-android.apk"
+          else
+            NAME="revoked-android-testing-only.apk"
+          fi
+          cp build/app/outputs/flutter-apk/app-release.apk "$NAME"
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+
+      # The keystore must not outlive the job, even on a failure path.
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/release.jks android/key.properties
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: revoked-android
+          path: app/${{ steps.name.outputs.name }}
+
   release:
     name: Attach to the release
-    needs: [linux, windows]
+    needs: [linux, windows, android]
     # Skipped on a manual run, which has no tag to attach to; the artifacts
     # are still on the run summary.
     if: inputs.tag != '' || startsWith(github.ref, 'refs/tags/v')
