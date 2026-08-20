@@ -66,7 +66,6 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Slim single-line bar: organization · search · notifications · account.
       appBar: AppBar(
         titleSpacing: AppSpacing.lg,
         title: const Row(children: [WorkspaceChip()]),
