@@ -157,6 +157,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       };
       if (_store.draftPassword.text.isNotEmpty) {
         updates['password'] = _store.draftPassword.text;
+      } else if (_store.draftRemovePassword) {
+        updates['password'] = '';
       }
       if (_store.draftExpiresAt != null) {
         updates['expiresAt'] = _store.draftExpiresAt!.toIso8601String();
@@ -403,22 +405,50 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   }
 
   Widget _buildPasswordRow() {
-    final has = _store.draftPassword.text.isNotEmpty;
+    final typed = _store.draftPassword.text.isNotEmpty;
+    final stored = widget.editShare?.hasPassword ?? false;
+    final removing = _store.draftRemovePassword;
+
+    final String valueText;
+    if (typed) {
+      valueText = stored ? '•••••••• · replaces the current one' : '••••••••';
+    } else if (removing) {
+      valueText = 'Will be removed on save';
+    } else if (stored) {
+      valueText = 'Set · leave blank to keep it';
+    } else {
+      valueText = 'Not set';
+    }
+
     return AppFormRow(
       icon: AppIcons.lock,
       label: 'Password',
-      valueText: has ? '••••••••' : 'Not set',
-      isPlaceholder: !has,
-      onClear: _store.draftPassword.clear,
+      valueText: valueText,
+      isPlaceholder: !typed && !stored && !removing,
+      isError: removing,
+      onClear: (typed || stored)
+          ? () {
+              _store.draftPassword.clear();
+              _store.setDraftRemovePassword(stored);
+            }
+          : null,
       onTap: () async {
         await showAppEditSheet(
           context: context,
           title: 'Password',
-          description: 'Recipients must enter this before viewing the share.',
+          description: stored
+              ? 'Type a new password to replace the current one, or leave '
+                    'blank to keep it.'
+              : 'Recipients must enter this before viewing the share.',
           controller: _store.draftPassword,
-          hint: 'Leave blank for no password',
+          hint: stored
+              ? 'Leave blank to keep the current one'
+              : 'Leave blank for no password',
           passwordToggle: true,
         );
+        if (_store.draftPassword.text.isNotEmpty) {
+          _store.setDraftRemovePassword(false);
+        }
       },
     );
   }

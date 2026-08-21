@@ -17,7 +17,14 @@ const AuditRedacted = "[redacted]"
 // preimage-resistant and never authenticate anything by themselves, but an
 // audit row has no use for credential material in any form.
 var AuditSecretFields = map[string][]string{
-	Coll.Records:    {Fields.Record.Value},
+	// A filename is content: "kuendigung_arbeitsvertrag.pdf" tells a reader of
+	// the audit row what the file is without ever opening it.
+	Coll.Records: {
+		Fields.Record.Value,
+		Fields.Record.File,
+		Fields.Record.Filename,
+		Fields.Record.HashSalt,
+	},
 	Coll.Links:      {Fields.Link.Password, Fields.Link.Data},
 	Coll.Requests:   {Fields.Request.Password},
 	Coll.ApiKeys:    {Fields.ApiKey.Token},

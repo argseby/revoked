@@ -1,6 +1,13 @@
+import 'dart:io';
+
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
@@ -122,11 +129,21 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     }
   }
 
+  bool get _isFileType => _store.recordType == 'file';
+
+  static bool get _canDropFiles =>
+      !kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows);
+
   bool _canSubmit() {
-    return _store.recordLabel.text.trim().isNotEmpty &&
+    final base =
+        _store.recordLabel.text.trim().isNotEmpty &&
         _store.recordKey.text.trim().isNotEmpty &&
+        _store.recordKeyWarning == null;
+    if (_isFileType) {
+      return base && _store.pickedFileBytes != null;
+    }
+    return base &&
         _store.recordValue.text.trim().isNotEmpty &&
-        _store.recordKeyWarning == null &&
         _store.recordTypeWarning == null;
   }
 
@@ -136,12 +153,14 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
     final ok = await widget.store.createRecord(
       key: _store.recordKey.text.trim(),
-      value: _store.recordValue.text,
+      value: _isFileType ? '' : _store.recordValue.text,
       label: _store.recordLabel.text.trim(),
       type: _store.recordType,
       format: _store.recordFormat,
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
+      fileName: _isFileType ? _store.pickedFileName : null,
+      fileBytes: _isFileType ? _store.pickedFileBytes : null,
     );
 
     if (!mounted) return;
@@ -191,7 +210,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   Widget _build(BuildContext context) {
     final isDup = widget.initialRecord != null;
 
-    return ConstrainedBox(
+    final sheet = ConstrainedBox(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
@@ -229,7 +248,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 const AppFormSectionHeader('Details'),
                 _buildLabelRow(),
                 _buildKeyRow(),
-                _buildValueRow(),
+                if (_isFileType) _buildFileRow() else _buildValueRow(),
                 _buildTypeRow(),
 
                 const AppFormSectionHeader('Display'),
@@ -252,17 +271,23 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     AppSpacing.xl,
                     AppSpacing.sm,
                   ),
-                  child: ApiPreview(
-                    spec: VaultStore.createRecordSpec(
-                      key: _store.recordKey.text.trim(),
-                      value: _store.recordValue.text,
-                      label: _store.recordLabel.text.trim(),
-                      type: _store.recordType,
-                      format: _store.recordFormat,
-                      user: widget.authStore.userId,
-                      workspace: widget.authStore.activeWorkspace ?? '',
-                    ),
-                  ),
+                  child: _isFileType
+                      ? const Text(
+                          'File records upload as multipart/form-data: the '
+                          'same fields as form parts, plus the file itself '
+                          'as a "file" part.',
+                        ).muted.small
+                      : ApiPreview(
+                          spec: VaultStore.createRecordSpec(
+                            key: _store.recordKey.text.trim(),
+                            value: _store.recordValue.text,
+                            label: _store.recordLabel.text.trim(),
+                            type: _store.recordType,
+                            format: _store.recordFormat,
+                            user: widget.authStore.userId,
+                            workspace: widget.authStore.activeWorkspace ?? '',
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -301,6 +326,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         ],
       ),
     );
+    return _wrapDropTarget(sheet);
   }
 
   Widget _buildLabelRow() {
@@ -332,6 +358,83 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       isPlaceholder: k.isEmpty,
       isError: k.isEmpty || _store.recordKeyWarning != null,
       onTap: _editKey,
+    );
+  }
+
+  /// Desktop drops land anywhere on the drawer; dropping a file flips the
+  /// draft to the file type, because the gesture already said so.
+  Widget _wrapDropTarget(Widget child) {
+    if (!_canDropFiles) return child;
+    return DropTarget(
+      onDragDone: (detail) async {
+        if (detail.files.isEmpty) return;
+        final dropped = detail.files.first;
+        final bytes = await dropped.readAsBytes();
+        if (!mounted) return;
+        _store.setPickedFile(dropped.name, bytes);
+        if (!_isFileType) _store.setRecordType('file');
+      },
+      child: child,
+    );
+  }
+
+  static bool _looksLikeImage(String name) {
+    final n = name.toLowerCase();
+    return n.endsWith('.png') ||
+        n.endsWith('.jpg') ||
+        n.endsWith('.jpeg') ||
+        n.endsWith('.gif') ||
+        n.endsWith('.webp') ||
+        n.endsWith('.bmp');
+  }
+
+  Future<void> _pickFile() async {
+    final picked = await FilePicker.pickFile();
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (!mounted) return;
+    _store.setPickedFile(picked.name, bytes);
+  }
+
+  Widget _buildFileRow() {
+    final name = _store.pickedFileName;
+    final bytes = _store.pickedFileBytes;
+    final hasFile = name != null && bytes != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppFormRow(
+          icon: AppIcons.filePlus,
+          label: 'File',
+          valueText: hasFile
+              ? '$name · ${formatBytes(bytes.length)}'
+              : (_canDropFiles
+                    ? 'Required — browse, or drop a file anywhere here'
+                    : 'Required — tap to pick a file'),
+          isPlaceholder: !hasFile,
+          isError: !hasFile,
+          onTap: _pickFile,
+        ),
+        if (hasFile && _looksLikeImage(name))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              0,
+              AppSpacing.xl,
+              AppSpacing.sm,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ClipRRect(
+                borderRadius: AppRadius.allMd,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  child: Image.memory(bytes, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

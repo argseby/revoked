@@ -45,18 +45,33 @@ void main() {
   });
 
   test('an unsigned share is a failed check, not a blank', () {
-    expect(share, contains('nothing proves who '));
-    expect(share, contains('TrustCheckState.failed'));
+    // Behaviour, not prose: the wording is the screen's to choose, but an
+    // absent signature must map to a failed row rather than render as nothing.
+    final unsignedBranch = RegExp(
+      r'signed[\s\S]{0,400}?TrustCheckState\.failed',
+    );
+    expect(
+      unsignedBranch.hasMatch(share),
+      isTrue,
+      reason: 'an unsigned share must produce a failed trust row',
+    );
   });
 
   test('the link origin is checked against the claimed domain', () {
     // The link routes the fetch; the sender claims a domain. When the two
     // disagree, the panel must say so on every surface that has an origin.
-    for (final source in [request, share, linkSheet]) {
+    for (final (name, source) in [
+      ('request', request),
+      ('share', share),
+      ('link sheet', linkSheet),
+    ]) {
       expect(
         source,
         contains('The link points at a different server'),
-        reason: 'origin-vs-domain mismatch must be a named check',
+        reason:
+            'the $name screen dropped the origin-vs-domain check: a link that '
+            'routes to one server while claiming another is the cross-server '
+            'phishing case, and it must read the same on every surface',
       );
     }
   });

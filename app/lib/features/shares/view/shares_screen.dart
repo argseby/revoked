@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -8,8 +7,8 @@ import 'package:revoked_app/core/design/status_colors.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
@@ -23,9 +22,9 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
-import 'package:revoked_app/core/widgets/qr_sheet.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
 
 class SharesScreen extends StatefulWidget {
   final String? filterSlug;
@@ -57,6 +56,7 @@ class _SharesScreenState extends State<SharesScreen> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ShellSlots.setFilter(_filterButton);
       Stores.shares.loadShares();
       Stores.vault.loadRecords();
       Stores.identities.loadIdentities();
@@ -65,8 +65,20 @@ class _SharesScreenState extends State<SharesScreen> {
 
   @override
   void dispose() {
+    ShellSlots.clearFilter(_filterButton);
     _table.dispose();
     super.dispose();
+  }
+
+  Widget _filterButton(BuildContext context) {
+    return FilterButton<Link>(
+      controller: _table,
+      columns: const [
+        DataTableColumn(value: 'label', label: 'Label'),
+        DataTableColumn(value: 'slug', label: 'Slug'),
+        DataTableColumn(value: 'status', label: 'Status'),
+      ],
+    );
   }
 
   @override
@@ -93,16 +105,6 @@ class _SharesScreenState extends State<SharesScreen> {
                   return AppScreenHeader(
                     title: 'Share',
                     badgeLabel: '$count ${count == 1 ? 'link' : 'links'}',
-                    actions: [
-                      FilterButton<Link>(
-                        controller: _table,
-                        columns: const [
-                          DataTableColumn(value: 'label', label: 'Label'),
-                          DataTableColumn(value: 'slug', label: 'Slug'),
-                          DataTableColumn(value: 'status', label: 'Status'),
-                        ],
-                      ),
-                    ],
                   );
                 },
               ),
@@ -255,10 +257,6 @@ class _ShareCard extends StatelessWidget {
   });
 
   List<AppSheetAction> _shareActions(BuildContext context) {
-    final publicUrl = DeepLinks.share(
-      share.slug,
-      origin: Stores.api.originAuthority,
-    );
     final isActive = share.status == 'active';
     final isPaused = share.status == 'paused';
     final isRevoked = share.status == 'revoked';
@@ -272,26 +270,16 @@ class _ShareCard extends StatelessWidget {
           onTap: () => context.go('${AppRoutes.vault}?editShareId=${share.id}'),
         ),
       AppSheetAction(
-        icon: AppIcons.server,
-        label: 'Web & API',
-        primary: false,
-        onTap: () => _showApiAccessSheet(context),
-      ),
-      AppSheetAction(
-        icon: AppIcons.copy,
-        label: 'Copy link',
+        icon: AppIcons.share,
+        label: 'Share',
         enabled: isActive,
-        onTap: () {
-          Clipboard.setData(ClipboardData(text: publicUrl));
-          AppToast.success(context, 'Copied share link to clipboard');
-        },
-      ),
-      AppSheetAction(
-        icon: AppIcons.qrCode,
-        label: 'QR code',
-        enabled: isActive,
-        onTap: () =>
-            showQrSheet(context: context, title: 'Share link', link: publicUrl),
+        onTap: () => showShareSheet(
+          context: context,
+          slug: share.slug,
+          title: share.label,
+          isRequest: false,
+          apiTarget: _apiTarget(),
+        ),
       ),
       AppSheetAction(
         icon: AppIcons.funnel,
@@ -332,21 +320,16 @@ class _ShareCard extends StatelessWidget {
   /// Opens the Web & API access drawer for this share — pick a format and copy
   /// a ready-to-use `/s/{slug}` endpoint. The data stays behind the same
   /// revocation as everywhere else; this just exposes where to fetch it.
-  void _showApiAccessSheet(BuildContext context) {
-    showApiAccessSheet(
-      context,
-      target: ApiAccessTarget(
-        slug: share.slug,
-        title: share.label,
-        intro:
-            'Use this share\'s live data anywhere — pick a format and copy a '
-            'ready-to-use endpoint.',
-        gated: share.hasPassword,
-        requireHandshake: share.requireHandshake,
-        keys: _sharedKeys(),
-      ),
-    );
-  }
+  ApiAccessTarget _apiTarget() => ApiAccessTarget(
+    slug: share.slug,
+    title: share.label,
+    intro:
+        'Use this share\'s live data anywhere — pick a format and copy a '
+        'ready-to-use endpoint.',
+    gated: share.hasPassword,
+    requireHandshake: share.requireHandshake,
+    keys: _sharedKeys(),
+  );
 
   /// The record keys this share exposes (direct records + records inside its
   /// shared sections), resolved against the loaded vault for the key dropdown.

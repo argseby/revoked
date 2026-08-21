@@ -35,6 +35,7 @@ abstract class AppIcons {
   static const IconData eyeSlash = Icons.visibility_off_outlined;
   static const IconData filePlus = Icons.note_add_outlined;
   static const IconData fileText = Icons.description_outlined;
+  static const IconData download = Icons.file_download_outlined;
   static const IconData folder = Icons.folder_outlined;
   static const IconData folderPlus = Icons.create_new_folder_outlined;
   static const IconData folderSymlink = Icons.drive_file_move_outlined;

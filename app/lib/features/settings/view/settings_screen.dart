@@ -25,13 +25,13 @@ import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
+import 'package:revoked_app/core/widgets/trust_panel.dart';
+import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
-import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
-import 'package:revoked_app/core/widgets/trust_panel.dart';
 
 /// The Account tab — a single, calm, scrollable surface grouped into sections
 /// (profile, workspaces, identities, developer tools, connection) instead of

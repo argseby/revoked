@@ -69,6 +69,13 @@ var Errors = struct {
 	LastAdminProtected            AppError
 	InviteNotFound                AppError
 	InviteExpired                 AppError
+	FileRequired                  AppError
+	FileNotAllowed                AppError
+	FileTooLarge                  AppError
+	FileStorageExceeded           AppError
+	FileAliasUnsupported          AppError
+	FileDownloadInvalid           AppError
+	FileNameInvalid               AppError
 	InviteRevoked                 AppError
 	InviteExhausted               AppError
 	InviteWrongAccount            AppError
@@ -175,6 +182,34 @@ var Errors = struct {
 	RequestNotFound: AppError{
 		ErrorCode: "request_not_found",
 		ErrorText: "Request not found.",
+	},
+	FileRequired: AppError{
+		ErrorCode: "file_required",
+		ErrorText: "A file record requires an uploaded file.",
+	},
+	FileNotAllowed: AppError{
+		ErrorCode: "file_not_allowed",
+		ErrorText: "Only file records may carry an uploaded file.",
+	},
+	FileTooLarge: AppError{
+		ErrorCode: "file_too_large",
+		ErrorText: "The file exceeds this server's maximum file size.",
+	},
+	FileStorageExceeded: AppError{
+		ErrorCode: "file_storage_exceeded",
+		ErrorText: "This workspace has reached its file storage limit.",
+	},
+	FileAliasUnsupported: AppError{
+		ErrorCode: "file_alias_unsupported",
+		ErrorText: "A reference record cannot be a file.",
+	},
+	FileDownloadInvalid: AppError{
+		ErrorCode: "file_download_invalid",
+		ErrorText: "The download token is invalid or expired. Reopen the link to request a new one.",
+	},
+	FileNameInvalid: AppError{
+		ErrorCode: "file_name_invalid",
+		ErrorText: "A file name cannot be empty or contain path separators.",
 	},
 	RequestRevoked: AppError{
 		ErrorCode: "request_revoked",
@@ -349,4 +384,12 @@ var Errors = struct {
 // AsValidationError converts an AppError into an ozzo-validation error carrying its code and text.
 func AsValidationError(appErr AppError) error {
 	return validation.NewError(appErr.ErrorCode, appErr.ErrorText)
+}
+
+// AsFieldValidationError binds a typed error to the field that caused it, so
+// PocketBase carries it into the response's data map. A bare validation error
+// surfaces as a dataless 400, which the preflight's normalizeGenericFailure
+// rewrites into a generic 403 — hiding the actual code from the caller.
+func AsFieldValidationError(field string, appErr AppError) error {
+	return validation.Errors{field: validation.NewError(appErr.ErrorCode, appErr.ErrorText)}
 }

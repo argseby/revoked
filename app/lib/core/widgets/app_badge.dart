@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 
-enum AppBadgeVariant { outline, secondary, primary, destructive }
+enum AppBadgeVariant { outline, secondary, primary, destructive, sunken }
 
 /// The app's only pill. Every scrap of secondary information — a status, a
 /// view count, a type, a scope, a security flag — renders as one of these, so
@@ -59,6 +59,9 @@ class AppBadge extends StatelessWidget {
           bg = Colors.transparent;
           fg = scheme.onSurfaceVariant;
           border = scheme.outlineVariant;
+        case AppBadgeVariant.sunken:
+          bg = scheme.surfaceContainerHighest;
+          fg = scheme.onSurfaceVariant;
       }
     }
 
@@ -79,13 +82,17 @@ class AppBadge extends StatelessWidget {
             Icon(icon, size: 12, color: fg),
             AppSpacing.gapXxs,
           ],
-          Text(
-            label,
-            style: TextStyle(
-              color: fg,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              fontFamily: mono ? 'monospace' : null,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: fg,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                fontFamily: mono ? 'monospace' : null,
+              ),
             ),
           ),
         ],

@@ -16,6 +16,7 @@ const (
 
 	TypeText   = "text"
 	TypeNumber = "number"
+	TypeFile   = "file"
 
 	FormatHidden  = "hidden"
 	FormatDefault = "default"
@@ -40,7 +41,7 @@ const (
 var WorkspaceRoles = []string{RoleAdmin, RoleMember}
 
 // RecordTypes lists the valid record value types.
-var RecordTypes = []string{TypeText, TypeNumber}
+var RecordTypes = []string{TypeText, TypeNumber, TypeFile}
 
 // RecordFormats lists the valid record display formats.
 var RecordFormats = []string{FormatHidden, FormatDefault}

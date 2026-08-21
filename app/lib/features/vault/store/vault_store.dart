@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -136,6 +138,8 @@ abstract class _VaultStore with Store {
 
   final ObservableTextController recordKey = ObservableTextController();
   final ObservableTextController recordValue = ObservableTextController();
+  final ObservableTextController editRecordFilename =
+      ObservableTextController();
   final ObservableTextController recordLabel = ObservableTextController();
 
   @observable
@@ -155,6 +159,14 @@ abstract class _VaultStore with Store {
 
   @observable
   String? recordDetectedType;
+
+  /// The picked file for a file-type draft. Bytes live on the store like every
+  /// other draft field, so the drawer survives rebuilds and reroutes.
+  @observable
+  String? pickedFileName;
+
+  @observable
+  Uint8List? pickedFileBytes;
 
   /// When duplicating a record that lives in a section, the new one joins it.
   @observable
@@ -184,6 +196,18 @@ abstract class _VaultStore with Store {
   @action
   void setSubmittingRecord(bool value) => isSubmittingRecord = value;
 
+  @action
+  void setPickedFile(String name, Uint8List bytes) {
+    pickedFileName = name;
+    pickedFileBytes = bytes;
+  }
+
+  @action
+  void clearPickedFile() {
+    pickedFileName = null;
+    pickedFileBytes = null;
+  }
+
   /// Prepares the drawer for a new record, or for duplicating [from].
   @action
   void startRecordDraft({models.Record? from, String? sectionId}) {
@@ -197,6 +221,8 @@ abstract class _VaultStore with Store {
     recordSuggestedKey = null;
     recordTypeWarning = null;
     recordDetectedType = null;
+    pickedFileName = null;
+    pickedFileBytes = null;
     isSubmittingRecord = false;
   }
 
@@ -281,11 +307,28 @@ abstract class _VaultStore with Store {
   void startRecordEdit(models.Record record) {
     editRecordLabel.text = record.label;
     editRecordValue.text = record.value;
+    editRecordFilename.text = record.displayName;
     editRecordType = record.type;
     editRecordFormat = record.format;
     editRecordTypeWarning = null;
     editRecordDetectedType = null;
+    editPickedFileName = null;
+    editPickedFileBytes = null;
     isSubmittingEditRecord = false;
+  }
+
+  /// A file staged to replace the record's current one, held until save so a
+  /// rename and a replacement land in a single write.
+  @observable
+  String? editPickedFileName;
+
+  @observable
+  Uint8List? editPickedFileBytes;
+
+  @action
+  void setEditPickedFile(String name, Uint8List bytes) {
+    editPickedFileName = name;
+    editPickedFileBytes = bytes;
   }
 
   @action
@@ -364,6 +407,8 @@ abstract class _VaultStore with Store {
     required String format,
     required String user,
     required String workspace,
+    String? fileName,
+    Uint8List? fileBytes,
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -376,6 +421,8 @@ abstract class _VaultStore with Store {
         format: format,
         user: user,
         workspace: workspace,
+        fileName: fileName,
+        fileBytes: fileBytes,
       );
       records.insert(0, record);
       return true;
@@ -396,6 +443,68 @@ abstract class _VaultStore with Store {
     } catch (e) {
       errorMessage = e.toString();
       return false;
+    }
+  }
+
+  /// Ids of records whose file is being fetched, so each row can show its own
+  /// spinner.
+  @observable
+  ObservableSet<String> downloadingRecordIds = ObservableSet<String>();
+
+  /// Replaces a file record's file — the rotation gesture: every active share
+  /// serves the new bytes on its next resolve.
+  @action
+  Future<bool> updateRecordFile(
+    String id,
+    String uploadName,
+    Uint8List bytes, {
+    Map<String, String> fields = const {},
+  }) async {
+    isLoading = true;
+    errorMessage = null;
+    try {
+      final spec = VaultStore.updateRecordSpec(id, const {});
+      final data = await _api.patchMultipart(
+        spec.path,
+        fields: fields,
+        fileField: 'file',
+        filename: uploadName,
+        bytes: bytes,
+      );
+      final updated = models.Record.fromJson(data as Map<String, dynamic>);
+      final index = records.indexWhere((r) => r.id == id);
+      if (index != -1) {
+        records[index] = updated;
+      }
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  /// Fetches the owner's own file through PocketBase's rule-checked file
+  /// token — the field is protected, so a bare file URL serves nothing.
+  @action
+  Future<Uint8List?> fetchRecordFileBytes(models.Record record) async {
+    final filename = record.file;
+    if (filename == null || filename.isEmpty) return null;
+    downloadingRecordIds.add(record.id);
+    try {
+      final tokenData = await _api.post('/api/files/token');
+      final token = (tokenData as Map<String, dynamic>)['token'] as String;
+      return await _api.getPublicBytes(
+        null,
+        '/api/files/${AppConfig.recordsCollection}/${record.id}/$filename',
+        queryParams: {'token': token},
+      );
+    } catch (e) {
+      errorMessage = e.toString();
+      return null;
+    } finally {
+      downloadingRecordIds.remove(record.id);
     }
   }
 
@@ -606,6 +715,8 @@ abstract class _VaultStore with Store {
     required String format,
     required String user,
     required String workspace,
+    String? fileName,
+    Uint8List? fileBytes,
   }) async {
     final spec = VaultStore.createRecordSpec(
       key: key,
@@ -616,7 +727,25 @@ abstract class _VaultStore with Store {
       user: user,
       workspace: workspace,
     );
-    final data = await _api.post(spec.path, body: spec.body);
+    final dynamic data;
+    if (fileBytes != null && fileName != null) {
+      data = await _api.postMultipart(
+        spec.path,
+        fields: {
+          'key': key,
+          'label': label,
+          'type': type,
+          'format': format,
+          'user': user,
+          'workspace': workspace,
+        },
+        fileField: 'file',
+        filename: fileName,
+        bytes: fileBytes,
+      );
+    } else {
+      data = await _api.post(spec.path, body: spec.body);
+    }
     return models.Record.fromJson(data as Map<String, dynamic>);
   }
 

@@ -12,7 +12,7 @@ import (
 // validates its callback URL, and strips the hash from API responses.
 func BindRequestHooks(app core.App) {
 	app.OnRecordCreate(util.Coll.Requests).BindFunc(func(e *core.RecordEvent) error {
-		hashRequestPasswordInPlace(e.Record)
+		resolvePasswordWrite(e.Record, util.Fields.Request.Password)
 		if err := validateCallbackURLInPlace(e.Record); err != nil {
 			return err
 		}
@@ -23,7 +23,7 @@ func BindRequestHooks(app core.App) {
 	})
 
 	app.OnRecordUpdate(util.Coll.Requests).BindFunc(func(e *core.RecordEvent) error {
-		hashRequestPasswordInPlace(e.Record)
+		resolvePasswordWrite(e.Record, util.Fields.Request.Password)
 		if err := validateCallbackURLInPlace(e.Record); err != nil {
 			return err
 		}
@@ -32,24 +32,13 @@ func BindRequestHooks(app core.App) {
 
 	app.OnRecordEnrich(util.Coll.Requests).BindFunc(func(e *core.RecordEnrichEvent) error {
 		if e.Record != nil {
-			e.Record.Set(util.Fields.Request.Password, "")
+			// Masked rather than blanked: a blank field is indistinguishable
+			// from "remove this gate", so echoing a read back used to strip the
+			// password off a protected request.
+			maskStoredPassword(e.Record, util.Fields.Request.Password)
 		}
 		return e.Next()
 	})
-}
-
-// hashRequestPasswordInPlace bcrypt-hashes a request's plaintext password,
-// skipping empty or already-hashed values.
-func hashRequestPasswordInPlace(rec *core.Record) {
-	pw := rec.GetString(util.Fields.Request.Password)
-	if pw == "" || isBcryptHash(pw) {
-		return
-	}
-	hash, err := util.HashPassword(pw)
-	if err != nil {
-		return
-	}
-	rec.Set(util.Fields.Request.Password, hash)
 }
 
 // validateCallbackURLInPlace rejects a callback target the server would refuse

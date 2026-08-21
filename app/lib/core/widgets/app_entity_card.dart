@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/motion.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
@@ -14,9 +15,7 @@ import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 /// The unified list-item card shared by My Data, Share and Request so every
 /// entity reads — and behaves — identically:
 ///
-///   [icon]  Title                                       [⌄ expand]
-///           key · date
-///           [tag] [tag] …
+///   [icon]  Title  date            [key] [tag] [tag]  [⌄ expand]
 ///   ── expanded ──────────────────────────────────────────────
 ///           [optional body]
 ///           ( Action )( Action )( Destructive )
@@ -116,12 +115,23 @@ class _AppEntityCardState extends State<AppEntityCard> {
   Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final w = widget;
-    final hasMeta =
-        (w.subtitle != null && w.subtitle!.isNotEmpty) ||
-        (w.date != null && w.date!.isNotEmpty);
+    final hasSubtitle = w.subtitle != null && w.subtitle!.isNotEmpty;
+    final hasDate = w.date != null && w.date!.isNotEmpty;
+    final tags = <Widget>[
+      if (hasSubtitle && w.subtitleMono)
+        AppBadge(
+          label: w.subtitle!,
+          mono: true,
+          variant: AppBadgeVariant.sunken,
+        ),
+      ...w.tags,
+    ];
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       onTap: _cardTap,
       child: AnimatedSize(
@@ -132,68 +142,61 @@ class _AppEntityCardState extends State<AppEntityCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(
-                    w.icon,
-                    size: _leadIconSize,
-                    color: scheme.primary,
-                  ),
-                ),
+                Icon(w.icon, size: _leadIconSize, color: scheme.primary),
                 AppSpacing.gapMd,
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              w.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (w.titleBadge != null) ...[
-                            AppSpacing.gapSm,
-                            w.titleBadge!,
-                          ],
-                        ],
+                      Flexible(
+                        child: AppText(
+                          w.title,
+                          bold: true,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      if (hasMeta) ...[
-                        AppSpacing.gapXxs,
-                        Row(
-                          children: [
-                            if (w.subtitle != null && w.subtitle!.isNotEmpty)
-                              Flexible(
-                                child: w.subtitleMono
-                                    ? Text(
-                                        w.subtitle!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ).mono.muted.small
-                                    : Text(
-                                        w.subtitle!,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ).muted.small,
-                              ),
-                            if (w.subtitle != null &&
-                                w.subtitle!.isNotEmpty &&
-                                w.date != null &&
-                                w.date!.isNotEmpty)
-                              const Text('  ·  ').muted.small,
-                            if (w.date != null && w.date!.isNotEmpty)
-                              Text(w.date!).muted.small,
-                          ],
+                      if (w.titleBadge != null) ...[
+                        AppSpacing.gapSm,
+                        w.titleBadge!,
+                      ],
+                      if (hasSubtitle && !w.subtitleMono) ...[
+                        AppSpacing.gapSm,
+                        Flexible(
+                          child: Text(
+                            w.subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ).muted.small,
+                        ),
+                      ],
+                      if (hasDate) ...[
+                        AppSpacing.gapSm,
+                        Flexible(
+                          child: Text(
+                            w.date!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ).muted.small,
                         ),
                       ],
                     ],
                   ),
                 ),
+                if (tags.isNotEmpty) ...[
+                  AppSpacing.gapSm,
+                  Expanded(
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: tags,
+                    ),
+                  ),
+                ],
                 if (_expandable) ...[
                   AppSpacing.gapSm,
                   _ExpandButton(expanded: _expanded, onTap: _toggle),
@@ -201,26 +204,10 @@ class _AppEntityCardState extends State<AppEntityCard> {
               ],
             ),
             if (w.body != null) ...[
-              AppSpacing.gapMd,
+              AppSpacing.gapXs,
               Padding(
                 padding: const EdgeInsets.only(left: _bodyIndent),
                 child: w.body!,
-              ),
-            ],
-            if (w.tags.isNotEmpty) ...[
-              // With a subtitle or a body above them the tags start a new
-              // block; without one they are the card's only metadata, so they
-              // sit where the subtitle would have — right under the title.
-              (hasMeta || w.body != null)
-                  ? AppSpacing.gapMd
-                  : AppSpacing.gapXxs,
-              Padding(
-                padding: const EdgeInsets.only(left: _bodyIndent),
-                child: Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xs,
-                  children: w.tags,
-                ),
               ),
             ],
             if (_expanded) ...[
@@ -260,8 +247,8 @@ class _ExpandButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: AppRadius.allPill,
       child: Container(
-        width: 34,
-        height: 34,
+        width: 26,
+        height: 26,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: scheme.primaryContainer.withValues(alpha: 0.5),
@@ -269,7 +256,7 @@ class _ExpandButton extends StatelessWidget {
         ),
         child: Icon(
           expanded ? AppIcons.chevronUp : AppIcons.chevronDown,
-          size: 20,
+          size: 18,
           color: scheme.onPrimaryContainer,
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/sheet_tracker.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_expandable_fab.dart';
@@ -98,20 +99,38 @@ class _AppShellState extends State<AppShell> {
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
       // One create button for the whole shell, dispatching on the active
-      // tab - the screens' own headers keep only their filter. It yields
-      // while any sheet is up, so it never overlaps a sheet's actions.
+      // tab, with the open-a-link button riding above it. Both yield while
+      // any sheet is up, so they never overlap a sheet's actions.
       floatingActionButton: Observer(
-        builder: (_) => SheetTracker.anyOpen
-            ? const SizedBox.shrink()
-            : _createButton(context) ?? const SizedBox.shrink(),
+        builder: (_) {
+          if (SheetTracker.anyOpen) return const SizedBox.shrink();
+          final create = _createButton(context);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (create != null) ...[create, AppSpacing.gapMd],
+              FloatingActionButton(
+                heroTag: 'shell-open-link',
+                tooltip: 'Open a link',
+                onPressed: () => openLinkSearchSheet(context),
+                child: const Icon(AppIcons.link),
+              ),
+            ],
+          );
+        },
       ),
       appBar: AppBar(
         titleSpacing: AppSpacing.lg,
         title: const Row(children: [WorkspaceChip()]),
-        actions: const [
-          _SearchButton(),
+        actions: [
+          // The active screen's filter button, when it registered one.
+          Observer(
+            builder: (_) =>
+                ShellSlots.filter?.call(context) ?? const SizedBox.shrink(),
+          ),
           AppSpacing.gapXs,
-          _NotificationBell(),
+          const _NotificationBell(),
           AppSpacing.gapXs,
         ],
       ),
@@ -172,23 +191,6 @@ class _NotificationBell extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-/// Top-bar search button. Opens the link drawer where a `revoked://` share or
-/// request link can be pasted, then opened or verified (DNS + link security).
-/// Replaces the always-visible field so the bar stays slim.
-class _SearchButton extends StatelessWidget {
-  const _SearchButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppButton(
-      icon: AppIcons.link,
-      style: AppButtonStyle.accent,
-      tooltip: 'Open a link',
-      onTap: () => openLinkSearchSheet(context),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -321,6 +322,71 @@ class ApiClient {
     );
     final decodedBody = _handleResponse(response);
     return ApiResponse(decodedBody, response.headers);
+  }
+
+  /// Multipart write — the one non-JSON request shape in the app, used for
+  /// record file uploads. Fields travel as form parts, the file as one part.
+  Future<dynamic> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    required String fileField,
+    required String filename,
+    required Uint8List bytes,
+  }) => _sendMultipart('POST', path, fields, fileField, filename, bytes);
+
+  /// PATCH counterpart of [postMultipart], for replacing a record's file.
+  Future<dynamic> patchMultipart(
+    String path, {
+    required Map<String, String> fields,
+    required String fileField,
+    required String filename,
+    required Uint8List bytes,
+  }) => _sendMultipart('PATCH', path, fields, fileField, filename, bytes);
+
+  Future<dynamic> _sendMultipart(
+    String method,
+    String path,
+    Map<String, String> fields,
+    String fileField,
+    String filename,
+    Uint8List bytes,
+  ) async {
+    final request = http.MultipartRequest(method, Uri.parse('$baseUrl$path'));
+    // The boundary header comes from the request itself; only auth carries over.
+    final headers = _buildHeaders()..remove('Content-Type');
+    request.headers.addAll(headers);
+    request.fields.addAll(fields);
+    request.files.add(
+      http.MultipartFile.fromBytes(fileField, bytes, filename: filename),
+    );
+    final response = await _send(request.send().then(http.Response.fromStream));
+    return _handleResponse(response);
+  }
+
+  /// GET raw bytes from a link's origin. Same credential rule as
+  /// [getFromOrigin]: no session token ever — the query carries the only
+  /// capability (a download or file token).
+  Future<Uint8List> getPublicBytes(
+    String? origin,
+    String path, {
+    Map<String, String>? queryParams,
+  }) async {
+    final foreign = !isOwnOrigin(origin);
+    final base = foreign ? publicBaseFor(origin!) : baseUrl;
+    if (base == null) {
+      throw ApiException(
+        0,
+        'The link names an invalid server.',
+        code: 'invalid_origin',
+      );
+    }
+    final uri = Uri.parse('$base$path').replace(queryParameters: queryParams);
+    final response = await _send(_httpClient.get(uri));
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return response.bodyBytes;
+    }
+    _handleResponse(response, foreign: foreign);
+    throw ApiException(response.statusCode, 'Download failed.');
   }
 
   /// PATCH request.

@@ -27,6 +27,19 @@ class Record {
   /// always empty — the real value lives on the referenced parent.
   final String? aliasOf;
 
+  /// File records: the name the owner gave the file, and what a downloader
+  /// receives it as. Belongs to the record, so it survives replacing the file.
+  final String? filename;
+
+  /// The storage name PocketBase snakecased and suffixed. Owner-only, and only
+  /// ever used to build the file URL — never shown, never served as the name.
+  final String? file;
+
+  /// Salted sha256 of the file's content — the currency check for downloads.
+  final String? contentHash;
+  final String? mime;
+  final int size;
+
   Record({
     required this.id,
     required this.key,
@@ -40,6 +53,11 @@ class Record {
     this.updated,
     this.requestedBy,
     this.aliasOf,
+    this.filename,
+    this.file,
+    this.contentHash,
+    this.mime,
+    this.size = 0,
   });
 
   factory Record.fromJson(Map<String, dynamic> json) {
@@ -60,10 +78,20 @@ class Record {
           ? requestedByRaw
           : null,
       aliasOf: (aliasRaw is String && aliasRaw.isNotEmpty) ? aliasRaw : null,
+      filename: json['filename'] as String?,
+      file: json['file'] as String?,
+      contentHash: json['contentHash'] as String?,
+      mime: json['mime'] as String?,
+      size: (json['size'] as num?)?.toInt() ?? 0,
     );
   }
 
   bool get isHidden => format == 'hidden';
   bool get isRequested => requestedBy != null && requestedBy!.isNotEmpty;
   bool get isAlias => aliasOf != null && aliasOf!.isNotEmpty;
+  bool get isFile => type == 'file';
+
+  /// What a reader should see this file called.
+  String get displayName =>
+      (filename?.isNotEmpty ?? false) ? filename! : (file ?? '');
 }
