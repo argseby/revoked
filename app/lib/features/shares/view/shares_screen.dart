@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/status_colors.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
@@ -55,6 +56,7 @@ class _SharesScreenState extends State<SharesScreen> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ShellSlots.setFilter(_filterButton);
       Stores.shares.loadShares();
       Stores.vault.loadRecords();
       Stores.identities.loadIdentities();
@@ -63,8 +65,20 @@ class _SharesScreenState extends State<SharesScreen> {
 
   @override
   void dispose() {
+    ShellSlots.clearFilter(_filterButton);
     _table.dispose();
     super.dispose();
+  }
+
+  Widget _filterButton(BuildContext context) {
+    return FilterButton<Link>(
+      controller: _table,
+      columns: const [
+        DataTableColumn(value: 'label', label: 'Label'),
+        DataTableColumn(value: 'slug', label: 'Slug'),
+        DataTableColumn(value: 'status', label: 'Status'),
+      ],
+    );
   }
 
   @override
@@ -91,16 +105,6 @@ class _SharesScreenState extends State<SharesScreen> {
                   return AppScreenHeader(
                     title: 'Share',
                     badgeLabel: '$count ${count == 1 ? 'link' : 'links'}',
-                    actions: [
-                      FilterButton<Link>(
-                        controller: _table,
-                        columns: const [
-                          DataTableColumn(value: 'label', label: 'Label'),
-                          DataTableColumn(value: 'slug', label: 'Slug'),
-                          DataTableColumn(value: 'status', label: 'Status'),
-                        ],
-                      ),
-                    ],
                   );
                 },
               ),

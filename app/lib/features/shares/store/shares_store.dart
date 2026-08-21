@@ -46,6 +46,14 @@ abstract class _SharesStore with Store {
   @observable
   bool isSubmittingShare = false;
 
+  /// Editing only: the gate should be lifted on save. A blank password field
+  /// means "keep what is stored", so removing one needs to be said explicitly.
+  @observable
+  bool draftRemovePassword = false;
+
+  @action
+  void setDraftRemovePassword(bool value) => draftRemovePassword = value;
+
   @action
   void setDraftExpiry(DateTime? value) => draftExpiresAt = value;
 
@@ -78,6 +86,7 @@ abstract class _SharesStore with Store {
     draftIdentityId = identityId;
     draftRequireHandshake = requireHandshake;
     draftSlugWarning = null;
+    draftRemovePassword = false;
     isSubmittingShare = false;
   }
 
