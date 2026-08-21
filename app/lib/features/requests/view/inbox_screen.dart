@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
-import 'package:revoked_app/core/widgets/qr_sheet.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/status_colors.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -24,6 +21,7 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key});
@@ -235,10 +233,6 @@ class _InboxCardState extends State<_InboxCard> {
   Widget build(BuildContext context) {
     final req = widget.request;
     final isClosed = req.status == 'revoked' || req.status == 'expired';
-    final requestUrl = DeepLinks.request(
-      req.slug,
-      origin: Stores.api.originAuthority,
-    );
 
     return AppEntityCard(
       icon: AppIcons.inboxFill,
@@ -247,7 +241,7 @@ class _InboxCardState extends State<_InboxCard> {
       subtitleMono: true,
       date: AppEntityCard.formatDate(req.created),
       tags: _tags(context, req),
-      actions: _requestActions(context, req, requestUrl, isClosed),
+      actions: _requestActions(context, req, isClosed),
     );
   }
 
@@ -285,7 +279,6 @@ class _InboxCardState extends State<_InboxCard> {
   List<AppSheetAction> _requestActions(
     BuildContext context,
     DataRequest req,
-    String requestUrl,
     bool isClosed,
   ) {
     return [
@@ -302,20 +295,13 @@ class _InboxCardState extends State<_InboxCard> {
             context.go('${AppRoutes.requestSheet}?requestId=${req.id}'),
       ),
       AppSheetAction(
-        icon: AppIcons.copy,
-        label: 'Copy link',
-        onTap: () {
-          Clipboard.setData(ClipboardData(text: requestUrl));
-          AppToast.success(context, 'Request URL copied');
-        },
-      ),
-      AppSheetAction(
-        icon: AppIcons.qrCode,
-        label: 'QR code',
-        onTap: () => showQrSheet(
+        icon: AppIcons.share,
+        label: 'Share',
+        onTap: () => showShareSheet(
           context: context,
-          title: 'Request link',
-          link: requestUrl,
+          slug: req.slug,
+          title: req.label,
+          isRequest: true,
         ),
       ),
       AppSheetAction(
