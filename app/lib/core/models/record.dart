@@ -92,7 +92,6 @@ class Record {
   bool get isFile => type == 'file';
 
   /// What a reader should see this file called.
-  String get displayName => (filename?.isNotEmpty ?? false)
-      ? filename!
-      : (file ?? '');
+  String get displayName =>
+      (filename?.isNotEmpty ?? false) ? filename! : (file ?? '');
 }

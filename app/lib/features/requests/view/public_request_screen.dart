@@ -1419,7 +1419,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             ),
             // Only offer the vault picker for keys you DON'T already hold —
             // you can't alias a different record onto a key you have.
-            if (canUseVault && _matchVaultRecord(item.key) == null)
+            if (canUseVault && _matchVaultRecord(item.key) == null) ...[
+              AppSpacing.gapSm,
               Align(
                 alignment: Alignment.centerLeft,
                 child: AppButton(
@@ -1430,6 +1431,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
                   onTap: () => _openVaultPicker(item),
                 ),
               ),
+            ],
           ],
         ],
       ),
