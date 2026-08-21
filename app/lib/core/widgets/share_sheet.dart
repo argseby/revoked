@@ -279,7 +279,7 @@ class _LinkRow extends StatelessWidget {
               color: scheme.surfaceContainerHighest,
               borderRadius: AppRadius.allSm,
             ),
-            child: Text(url, maxLines: 2).mono.small.selectable,
+            child: Text(url, maxLines: 1).mono.small.selectable,
           ),
           const SizedBox(height: AppSpacing.xxs),
           Text(hint).muted.small,
