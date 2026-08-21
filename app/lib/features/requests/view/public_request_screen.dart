@@ -1373,30 +1373,51 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         children: [
           Row(
             children: [
-              Flexible(child: Text(item.label).small),
-              if (item.required) ...[
-                const SizedBox(width: AppSpacing.xs),
-                const AppBadge(
-                  label: 'REQUIRED',
-                  variant: AppBadgeVariant.primary,
+              Expanded(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ],
-              const Spacer(),
-              if (!item.required)
-                _ShareToggle(
-                  shared: !excluded,
-                  onTap: () => runInAction(() {
-                    if (excluded) {
-                      _store.publicExcluded.remove(item.key);
-                    } else {
-                      _store.publicExcluded.add(item.key);
-                    }
-                  }),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Flexible(
+                      child: AppBadge(
+                        label: item.key,
+                        mono: true,
+                        variant: AppBadgeVariant.sunken,
+                      ),
+                    ),
+                    if (item.required) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      const AppBadge(
+                        label: 'REQUIRED',
+                        variant: AppBadgeVariant.primary,
+                      ),
+                    ],
+                    if (!item.required) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      _ShareToggle(
+                        shared: !excluded,
+                        onTap: () => runInAction(() {
+                          if (excluded) {
+                            _store.publicExcluded.remove(item.key);
+                          } else {
+                            _store.publicExcluded.add(item.key);
+                          }
+                        }),
+                      ),
+                    ],
+                  ],
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(item.key).muted.mono.small,
           if (item.reason.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xxs),
             Text(item.reason).muted.small,
