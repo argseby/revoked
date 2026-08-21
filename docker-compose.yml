@@ -39,6 +39,12 @@ services:
       USER_PASSWORD: ${USER_PASSWORD:-}
       ALLOW_SIGNUPS: ${ALLOW_SIGNUPS:-false}
       ALLOW_PRIVATE_CALLBACKS: ${ALLOW_PRIVATE_CALLBACKS:-false}
+      # Megabytes; unset means unlimited, 0 disables uploads. Keep
+      # FILE_MAX_SIZE at or under the proxy's client_max_body_size, or an
+      # oversized upload dies at the proxy instead of returning the API's
+      # typed refusal.
+      FILE_MAX_SIZE: ${FILE_MAX_SIZE:-}
+      FILE_MAX_STORAGE: ${FILE_MAX_STORAGE:-}
       RATELIMIT_GATE_ATTEMPTS: ${RATELIMIT_GATE_ATTEMPTS:-10}
       RATELIMIT_PROBE_REQUESTS: ${RATELIMIT_PROBE_REQUESTS:-120}
       RATELIMIT_CHALLENGE_REQUESTS: ${RATELIMIT_CHALLENGE_REQUESTS:-60}

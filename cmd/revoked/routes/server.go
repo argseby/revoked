@@ -4,6 +4,7 @@ package routes
 import (
 	"net/http"
 	"revoked/cmd/revoked/server"
+	"revoked/util"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -28,6 +29,12 @@ func ServerInfoRoute(app core.App, root *server.RootKey) {
 				"txt": map[string]string{
 					"host":  root.TXTRecordHost(),
 					"value": root.TXTRecordValue(),
+				},
+				// Operator policy, not workspace state: a client that knows the
+				// cap can refuse an oversized file before spending the upload
+				// rather than after. -1 means the operator set no cap.
+				"limits": map[string]any{
+					"maxFileSize": util.FileLimitBytes(util.FileMaxSizeEnv),
 				},
 			})
 		})

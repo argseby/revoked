@@ -35,6 +35,52 @@ class ApiResponse {
   ApiResponse(this.body, this.headers);
 }
 
+/// Thrown into an upload's body stream to abandon it.
+class UploadCancelledException implements Exception {
+  const UploadCancelledException();
+
+  @override
+  String toString() => 'Upload cancelled';
+}
+
+/// Handle for an in-flight upload.
+///
+/// Cancelling makes the body stream throw on its next chunk, which tears down
+/// that one request. Closing the client would work too and would also drop
+/// every other request sharing it.
+class UploadCancelToken {
+  bool _cancelled = false;
+
+  bool get isCancelled => _cancelled;
+
+  void cancel() => _cancelled = true;
+}
+
+/// A deadline that is pushed back on every chunk, so it fires only when a
+/// transfer stops making progress rather than when it takes a long time.
+class _IdleDeadline {
+  final Completer<Never> _expired = Completer<Never>();
+  Timer? _timer;
+
+  _IdleDeadline(Duration limit) {
+    poke(limit);
+  }
+
+  Future<Never> get expiry => _expired.future;
+
+  void poke(Duration limit) {
+    if (_expired.isCompleted) return;
+    _timer?.cancel();
+    _timer = Timer(limit, () {
+      if (!_expired.isCompleted) {
+        _expired.completeError(TimeoutException('transfer stalled'));
+      }
+    });
+  }
+
+  void dispose() => _timer?.cancel();
+}
+
 /// Low-level HTTP client for PocketBase API.
 /// Handles auth token injection and response parsing.
 class ApiClient {
@@ -54,6 +100,18 @@ class ApiClient {
   /// stalls would otherwise leave the caller waiting forever, which on the
   /// startup path meant a permanently blank screen.
   static const Duration timeout = Duration(seconds: 15);
+
+  /// File transfers are bounded by idleness instead, because [timeout] measures
+  /// the wrong thing for them: a large file legitimately takes longer than any
+  /// fixed budget, while a connection that has stopped moving bytes is dead
+  /// whatever its size. The deadline is pushed back on every chunk, so it fires
+  /// only on a genuine stall.
+  static const Duration transferIdleTimeout = Duration(seconds: 30);
+
+  /// Applied once the body is fully sent: the server still has to hash and
+  /// store it, and nothing crosses the wire in the meantime to reset the idle
+  /// deadline.
+  static const Duration transferResponseTimeout = Duration(minutes: 5);
 
   String? _authToken;
   Map<String, dynamic>? _userData;
@@ -326,13 +384,30 @@ class ApiClient {
 
   /// Multipart write — the one non-JSON request shape in the app, used for
   /// record file uploads. Fields travel as form parts, the file as one part.
+  ///
+  /// The file arrives as [openFile], a factory for its byte stream, so nothing
+  /// larger than a chunk is ever resident. It is a factory and not a stream
+  /// because a stream is consumed once and a retried save needs a fresh one.
   Future<dynamic> postMultipart(
     String path, {
     required Map<String, String> fields,
     required String fileField,
     required String filename,
-    required Uint8List bytes,
-  }) => _sendMultipart('POST', path, fields, fileField, filename, bytes);
+    required Stream<List<int>> Function() openFile,
+    required int length,
+    void Function(int sent, int total)? onProgress,
+    UploadCancelToken? cancelToken,
+  }) => _sendMultipart(
+    'POST',
+    path,
+    fields: fields,
+    fileField: fileField,
+    filename: filename,
+    openFile: openFile,
+    length: length,
+    onProgress: onProgress,
+    cancelToken: cancelToken,
+  );
 
   /// PATCH counterpart of [postMultipart], for replacing a record's file.
   Future<dynamic> patchMultipart(
@@ -340,27 +415,92 @@ class ApiClient {
     required Map<String, String> fields,
     required String fileField,
     required String filename,
-    required Uint8List bytes,
-  }) => _sendMultipart('PATCH', path, fields, fileField, filename, bytes);
+    required Stream<List<int>> Function() openFile,
+    required int length,
+    void Function(int sent, int total)? onProgress,
+    UploadCancelToken? cancelToken,
+  }) => _sendMultipart(
+    'PATCH',
+    path,
+    fields: fields,
+    fileField: fileField,
+    filename: filename,
+    openFile: openFile,
+    length: length,
+    onProgress: onProgress,
+    cancelToken: cancelToken,
+  );
 
   Future<dynamic> _sendMultipart(
     String method,
-    String path,
-    Map<String, String> fields,
-    String fileField,
-    String filename,
-    Uint8List bytes,
-  ) async {
+    String path, {
+    required Map<String, String> fields,
+    required String fileField,
+    required String filename,
+    required Stream<List<int>> Function() openFile,
+    required int length,
+    void Function(int sent, int total)? onProgress,
+    UploadCancelToken? cancelToken,
+  }) async {
     final request = http.MultipartRequest(method, Uri.parse('$baseUrl$path'));
     // The boundary header comes from the request itself; only auth carries over.
     final headers = _buildHeaders()..remove('Content-Type');
     request.headers.addAll(headers);
     request.fields.addAll(fields);
+
+    final deadline = _IdleDeadline(transferIdleTimeout);
     request.files.add(
-      http.MultipartFile.fromBytes(fileField, bytes, filename: filename),
+      http.MultipartFile(
+        fileField,
+        _meter(openFile(), length, deadline, onProgress, cancelToken),
+        length,
+        filename: filename,
+      ),
     );
-    final response = await _send(request.send().then(http.Response.fromStream));
-    return _handleResponse(response);
+
+    try {
+      // Sent through the shared client rather than BaseRequest.send(), which
+      // spins up a private one — that bypassed both the connection pool and
+      // any client injected for a test.
+      final response = await Future.any<http.Response>([
+        _httpClient.send(request).then(http.Response.fromStream),
+        deadline.expiry,
+      ]);
+      return _handleResponse(response);
+    } on TimeoutException {
+      throw ApiException(
+        408,
+        'The upload stopped making progress and was abandoned.',
+        code: 'request_timeout',
+      );
+    } finally {
+      deadline.dispose();
+    }
+  }
+
+  /// Counts bytes as the socket drains them. The same pull that reports
+  /// progress is also the proof the connection is alive, so one pass over the
+  /// stream serves both; once the body is out the deadline switches to waiting
+  /// for the server's reply.
+  Stream<List<int>> _meter(
+    Stream<List<int>> source,
+    int total,
+    _IdleDeadline deadline,
+    void Function(int sent, int total)? onProgress,
+    UploadCancelToken? cancelToken,
+  ) async* {
+    var sent = 0;
+    onProgress?.call(0, total);
+    await for (final chunk in source) {
+      if (cancelToken?.isCancelled ?? false) {
+        throw const UploadCancelledException();
+      }
+      sent += chunk.length;
+      deadline.poke(transferIdleTimeout);
+      onProgress?.call(sent, total);
+      yield chunk;
+    }
+    deadline.poke(transferResponseTimeout);
   }
 
   /// GET raw bytes from a link's origin. Same credential rule as
@@ -381,12 +521,46 @@ class ApiClient {
       );
     }
     final uri = Uri.parse('$base$path').replace(queryParameters: queryParams);
-    final response = await _send(_httpClient.get(uri));
+    final response = await _receive(http.Request('GET', uri));
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response.bodyBytes;
     }
     _handleResponse(response, foreign: foreign);
     throw ApiException(response.statusCode, 'Download failed.');
+  }
+
+  /// Reads a response under the same idle rule uploads use, so a large file is
+  /// not mistaken for a stalled server. The body is still accumulated in
+  /// memory — the save path takes bytes — so this bounds the wait, not the
+  /// footprint.
+  Future<http.Response> _receive(http.BaseRequest request) async {
+    final deadline = _IdleDeadline(transferIdleTimeout);
+    try {
+      final streamed = await Future.any<http.StreamedResponse>([
+        _httpClient.send(request),
+        deadline.expiry,
+      ]);
+      final body = BytesBuilder(copy: false);
+      await for (final chunk in streamed.stream) {
+        deadline.poke(transferIdleTimeout);
+        body.add(chunk);
+      }
+      return http.Response.bytes(
+        body.takeBytes(),
+        streamed.statusCode,
+        headers: streamed.headers,
+        request: streamed.request,
+        reasonPhrase: streamed.reasonPhrase,
+      );
+    } on TimeoutException {
+      throw ApiException(
+        408,
+        'The download stopped making progress and was abandoned.',
+        code: 'request_timeout',
+      );
+    } finally {
+      deadline.dispose();
+    }
   }
 
   /// PATCH request.
