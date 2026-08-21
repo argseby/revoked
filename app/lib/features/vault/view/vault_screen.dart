@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -6,10 +7,12 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
@@ -36,8 +39,6 @@ import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
-import 'package:revoked_app/core/files/file_saver.dart';
-import 'package:file_picker/file_picker.dart';
 
 class VaultScreen extends StatefulWidget {
   final String? editingShareId;
@@ -71,6 +72,7 @@ class _VaultScreenState extends State<VaultScreen> {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ShellSlots.setFilter(_filterButton);
       store.loadRecords();
       if (widget.editingShareId != null || widget.shareFilterId != null) {
         Stores.shares.loadShares();
@@ -80,8 +82,37 @@ class _VaultScreenState extends State<VaultScreen> {
 
   @override
   void dispose() {
+    ShellSlots.clearFilter(_filterButton);
     _tableController.dispose();
     super.dispose();
+  }
+
+  Widget _filterButton(BuildContext context) {
+    return FilterButton<models.Record>(
+      controller: _tableController,
+      columns: const [
+        DataTableColumn(value: 'label', label: 'Label'),
+        DataTableColumn(value: 'key', label: 'Key'),
+        DataTableColumn(value: 'value', label: 'Value'),
+        DataTableColumn(value: 'type', label: 'Type'),
+        DataTableColumn(value: 'format', label: 'Format'),
+      ],
+      helper: Row(
+        children: [
+          Icon(
+            AppIcons.info,
+            size: 14,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: const Text(
+              'Filters on Value, Type, or Format only apply to Records, while Label and Key apply to both.',
+            ).muted.small,
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -125,36 +156,7 @@ class _VaultScreenState extends State<VaultScreen> {
                   return AppScreenHeader(
                     title: 'Vault',
                     badgeLabel: '$count ${count == 1 ? 'record' : 'records'}',
-                    actions: [
-                      FilterButton<models.Record>(
-                        controller: _tableController,
-                        columns: const [
-                          DataTableColumn(value: 'label', label: 'Label'),
-                          DataTableColumn(value: 'key', label: 'Key'),
-                          DataTableColumn(value: 'value', label: 'Value'),
-                          DataTableColumn(value: 'type', label: 'Type'),
-                          DataTableColumn(value: 'format', label: 'Format'),
-                        ],
-                        helper: Row(
-                          children: [
-                            Icon(
-                              AppIcons.info,
-                              size: 14,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Expanded(
-                              child: const Text(
-                                'Filters on Value, Type, or Format only apply to Records, while Label and Key apply to both.',
-                              ).muted.small,
-                            ),
-                          ],
-                        ),
-                      ),
-                      ?primaryAction,
-                    ],
+                    actions: [?primaryAction],
                   );
                 },
               ),
@@ -1607,6 +1609,11 @@ class _RecordCardState extends State<_RecordCard> {
 
     final r = widget.record;
     final tags = <Widget>[AppBadge(label: r.type)];
+    if (r.isFile) {
+      tags.add(AppBadge(label: formatBytes(r.size)));
+      final mime = ((r.mime ?? '') as String).split(';').first;
+      if (mime.isNotEmpty) tags.add(AppBadge(label: mime));
+    }
     if (r.isHidden) {
       tags.add(const AppBadge(icon: AppIcons.eyeSlash, label: 'Hidden'));
     }
@@ -1664,63 +1671,38 @@ class _RecordCardState extends State<_RecordCard> {
   }
 
   Widget _valueBoxBody(BuildContext context) {
-    final theme = Theme.of(context);
-    if (widget.record.isFile) {
-      final r = widget.record;
-      final mime = (r.mime ?? '').split(';').first;
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: AppRadius.allSm,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              AppIcons.fileText,
-              size: 16,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                _isObscured
-                    ? '••••••••••••'
-                    : '${r.displayName} · ${formatBytes(r.size)}'
-                          '${mime.isEmpty ? '' : ' · $mime'}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ).mono.muted.small,
-            ),
-            if (r.isHidden) ...[
-              const SizedBox(width: AppSpacing.sm),
-              AppButton(
-                icon: _isObscured ? AppIcons.eye : AppIcons.eyeSlash,
-                tooltip: _isObscured ? 'Show' : 'Hide',
-                style: AppButtonStyle.accent,
-                size: AppButtonSize.small,
-                onTap: () => Stores.vault.toggleRevealed(r.id),
-              ),
-            ],
-          ],
-        ),
+    final r = widget.record;
+    if (r.isFile) {
+      return _valueLine(
+        context,
+        text: _isObscured ? '••••••••••••' : r.displayName as String,
+        leadingIcon: AppIcons.fileText,
       );
     }
-    final isHiddenFormat = widget.record.isHidden;
     // Aliases carry no value of their own — show the parent's (forwarded) value.
-    final value = widget.record.isAlias
+    final value = r.isAlias
         ? (_aliasParent(context)?.value ?? '')
-        : widget.record.value as String;
-    final display = value.isEmpty ? '—' : value;
-    return Container(
+        : r.value as String;
+    return _valueLine(
+      context,
+      text: _isObscured ? '••••••••••••••••' : (value.isEmpty ? '—' : value),
+    );
+  }
+
+  /// One text line tall. A hidden record's box is itself the reveal control —
+  /// tapping toggles the mask — so no button inflates its height.
+  Widget _valueLine(
+    BuildContext context, {
+    required String text,
+    IconData? leadingIcon,
+  }) {
+    final theme = Theme.of(context);
+    final r = widget.record;
+    final box = Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
-        vertical: AppSpacing.sm,
+        vertical: AppSpacing.xxs,
       ),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest,
@@ -1728,22 +1710,42 @@ class _RecordCardState extends State<_RecordCard> {
       ),
       child: Row(
         children: [
+          if (leadingIcon != null) ...[
+            Icon(
+              leadingIcon,
+              size: 14,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+          ],
           Expanded(
             child: Text(
-              _isObscured ? '••••••••••••••••' : display,
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ).mono.muted.small,
           ),
-          if (isHiddenFormat) ...[
+          if (r.isHidden) ...[
             const SizedBox(width: AppSpacing.sm),
-            AppButton(
-              icon: _isObscured ? AppIcons.eye : AppIcons.eyeSlash,
-              tooltip: _isObscured ? 'Show' : 'Hide',
-              style: AppButtonStyle.accent,
-              size: AppButtonSize.small,
-              onTap: () => Stores.vault.toggleRevealed(widget.record.id),
+            Tooltip(
+              message: _isObscured ? 'Show' : 'Hide',
+              child: Icon(
+                _isObscured ? AppIcons.eye : AppIcons.eyeSlash,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ],
+      ),
+    );
+    if (!r.isHidden) return box;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: AppRadius.allSm,
+        onTap: () => Stores.vault.toggleRevealed(r.id),
+        child: box,
       ),
     );
   }
