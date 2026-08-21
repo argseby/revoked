@@ -39,7 +39,7 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.PermissionsRoute(app)
 	routes.WorkspaceMembersRoute(app)
 	routes.RequestGrantsRoute(app)
-	routes.PublicShortRoute(app)
+	routes.PublicShortRoute(app, root)
 	routes.PublicDavRoute(app)
 	routes.PublicFilesRoute(app)
 	routes.CertificateRoute(app)

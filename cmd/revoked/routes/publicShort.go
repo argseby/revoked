@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/url"
+	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
 	"strings"
@@ -22,11 +23,11 @@ import (
 //	GET /s/{slug}?password=PW                  unlock a password-protected link
 //
 // Format is chosen by path suffix, else the Accept header, else JSON.
-func PublicShortRoute(app core.App) {
+func PublicShortRoute(app core.App, root *server.RootKey) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.GET("/s/{slug}", func(re *core.RequestEvent) error {
 			slug, format := splitLinkFormat(re.Request.PathValue("slug"))
-			return serveLinkData(app, re, slug, format)
+			return serveLinkData(app, re, root, slug, format)
 		})
 		return e.Next()
 	})
@@ -73,19 +74,36 @@ func resolveFormat(suffix string, q url.Values, accept string) string {
 	}
 }
 
-func serveLinkData(app core.App, re *core.RequestEvent, slug, suffix string) error {
+func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, slug, suffix string) error {
 	if !allowRequest(re, probeLimiter, "") {
 		return rateLimitedResponse(re)
 	}
+
+	// A browser asking for the bare slug gets the page; every tool-shaped
+	// request (explicit suffix, single key, ?raw) keeps its data contract.
+	q := re.Request.URL.Query()
+	asPage := suffix == "" && q.Get("key") == "" && q.Get("raw") == "" &&
+		wantsHTML(re.Request.Header.Get("Accept"))
+
 	link, err := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:slug}", map[string]any{"slug": slug})
 	if err != nil || link == nil {
+		if asPage {
+			return linkStatusPage(re, "Link not found",
+				"This link does not exist, or it never did.", http.StatusNotFound)
+		}
 		return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
 	}
 	if appErr := services.RefreshLinkStatus(app, link); appErr != nil {
+		if asPage {
+			return linkStatusPage(re, "No longer available", appErr.ErrorText, http.StatusGone)
+		}
 		return resourceErrorResponse(re, appErr)
 	}
 
-	q := re.Request.URL.Query()
+	if asPage {
+		return servePublicPage(app, re, root, link, slug)
+	}
+
 	format := resolveFormat(suffix, q, re.Request.Header.Get("Accept"))
 
 	// Handshake-gated links can't be unlocked from a plain URL.
