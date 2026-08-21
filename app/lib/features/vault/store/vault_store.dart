@@ -138,6 +138,8 @@ abstract class _VaultStore with Store {
 
   final ObservableTextController recordKey = ObservableTextController();
   final ObservableTextController recordValue = ObservableTextController();
+  final ObservableTextController editRecordFilename =
+      ObservableTextController();
   final ObservableTextController recordLabel = ObservableTextController();
 
   @observable
@@ -305,11 +307,28 @@ abstract class _VaultStore with Store {
   void startRecordEdit(models.Record record) {
     editRecordLabel.text = record.label;
     editRecordValue.text = record.value;
+    editRecordFilename.text = record.displayName;
     editRecordType = record.type;
     editRecordFormat = record.format;
     editRecordTypeWarning = null;
     editRecordDetectedType = null;
+    editPickedFileName = null;
+    editPickedFileBytes = null;
     isSubmittingEditRecord = false;
+  }
+
+  /// A file staged to replace the record's current one, held until save so a
+  /// rename and a replacement land in a single write.
+  @observable
+  String? editPickedFileName;
+
+  @observable
+  Uint8List? editPickedFileBytes;
+
+  @action
+  void setEditPickedFile(String name, Uint8List bytes) {
+    editPickedFileName = name;
+    editPickedFileBytes = bytes;
   }
 
   @action
@@ -437,18 +456,19 @@ abstract class _VaultStore with Store {
   @action
   Future<bool> updateRecordFile(
     String id,
-    String filename,
-    Uint8List bytes,
-  ) async {
+    String uploadName,
+    Uint8List bytes, {
+    Map<String, String> fields = const {},
+  }) async {
     isLoading = true;
     errorMessage = null;
     try {
       final spec = VaultStore.updateRecordSpec(id, const {});
       final data = await _api.patchMultipart(
         spec.path,
-        fields: const {},
+        fields: fields,
         fileField: 'file',
-        filename: filename,
+        filename: uploadName,
         bytes: bytes,
       );
       final updated = models.Record.fromJson(data as Map<String, dynamic>);

@@ -804,6 +804,8 @@ class _VaultScreenState extends State<VaultScreen> {
               );
             }
 
+            final isFile = record.isFile;
+
             return Observer(
               builder: (observerContext) {
                 final _ = store.errorMessage;
@@ -894,24 +896,80 @@ class _VaultScreenState extends State<VaultScreen> {
                             ),
                             const SizedBox(height: AppSpacing.lg),
 
-                            _buildFieldLabel(
-                              ctx,
-                              'Value',
-                              isRequired: true,
-                              explanation:
-                                  'The actual sensitive data or configuration value.',
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            AppTextField(
-                              controller: store.editRecordValue,
-                              hint: 'sk-1234...',
-                              onChanged: (v) => validateAndDetectType(v),
-                            ),
-                            if (store.editRecordTypeWarning != null) ...[
+                            if (isFile) ...[
+                              _buildFieldLabel(
+                                ctx,
+                                'File name',
+                                isRequired: true,
+                                explanation:
+                                    'What a recipient downloads this file as. '
+                                    'Renaming never touches the file itself.',
+                              ),
                               const SizedBox(height: AppSpacing.xs),
-                              AppErrorText(store.editRecordTypeWarning!),
+                              AppTextField(
+                                controller: store.editRecordFilename,
+                                hint: 'Lebenslauf.pdf',
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+
+                              _buildFieldLabel(
+                                ctx,
+                                'File',
+                                explanation:
+                                    'Replacing it updates every active share '
+                                    'on its next read.',
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      store.editPickedFileName ??
+                                          '${record.displayName} · ${formatBytes(record.size)}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ).mono.muted.small,
+                                  ),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  AppButton(
+                                    icon: AppIcons.arrowRepeat,
+                                    label: 'Replace',
+                                    size: AppButtonSize.small,
+                                    style: AppButtonStyle.accent,
+                                    onTap: () async {
+                                      final picked =
+                                          await FilePicker.pickFile();
+                                      if (picked == null) return;
+                                      final bytes = await picked.readAsBytes();
+                                      store.setEditPickedFile(
+                                        picked.name,
+                                        bytes,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.lg),
+                            ] else ...[
+                              _buildFieldLabel(
+                                ctx,
+                                'Value',
+                                isRequired: true,
+                                explanation:
+                                    'The actual sensitive data or configuration value.',
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              AppTextField(
+                                controller: store.editRecordValue,
+                                hint: 'sk-1234...',
+                                onChanged: (v) => validateAndDetectType(v),
+                              ),
+                              if (store.editRecordTypeWarning != null) ...[
+                                const SizedBox(height: AppSpacing.xs),
+                                AppErrorText(store.editRecordTypeWarning!),
+                              ],
+                              const SizedBox(height: AppSpacing.lg),
                             ],
-                            const SizedBox(height: AppSpacing.lg),
 
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -920,63 +978,91 @@ class _VaultScreenState extends State<VaultScreen> {
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
-                                    children: [
-                                      _buildFieldLabel(
-                                        ctx,
-                                        'Type',
-                                        explanation:
-                                            'How this data should be interpreted.',
-                                      ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      Wrap(
-                                        spacing: 8,
-                                        runSpacing: 8,
-                                        children: [
-                                          if (store.editRecordDetectedType !=
-                                              null)
-                                            AppButton(
-                                              icon: AppIcons.stars,
-                                              label:
-                                                  'Auto: ${store.editRecordDetectedType!.toUpperCase()}',
-                                              size: AppButtonSize.small,
-                                              onTap: () {
-                                                store.setEditRecordType(
-                                                  store.editRecordDetectedType!,
-                                                );
-                                                validateAndDetectType(
-                                                  store.editRecordValue.text,
-                                                );
-                                              },
+                                    children: isFile
+                                        ? [
+                                            _buildFieldLabel(
+                                              ctx,
+                                              'Type',
+                                              explanation:
+                                                  'A file record stays a file. '
+                                                  'To store something else, '
+                                                  'make a new record.',
                                             ),
-                                          ...RecordTypeUtils.supportedTypes.map(
-                                            (type) {
-                                              final isSelected =
-                                                  store.editRecordType == type;
-                                              return isSelected
-                                                  ? AppButton(
-                                                      label: type.toUpperCase(),
-                                                      onTap: () {},
-                                                    )
-                                                  : AppButton(
-                                                      label: type.toUpperCase(),
-                                                      onTap: () {
-                                                        store.setEditRecordType(
-                                                          type,
+                                            const SizedBox(
+                                              height: AppSpacing.xs,
+                                            ),
+                                            const Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: AppBadge(label: 'FILE'),
+                                            ),
+                                          ]
+                                        : [
+                                            _buildFieldLabel(
+                                              ctx,
+                                              'Type',
+                                              explanation:
+                                                  'How this data should be interpreted.',
+                                            ),
+                                            const SizedBox(
+                                              height: AppSpacing.xs,
+                                            ),
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: [
+                                                if (store
+                                                        .editRecordDetectedType !=
+                                                    null)
+                                                  AppButton(
+                                                    icon: AppIcons.stars,
+                                                    label:
+                                                        'Auto: ${store.editRecordDetectedType!.toUpperCase()}',
+                                                    size: AppButtonSize.small,
+                                                    onTap: () {
+                                                      store.setEditRecordType(
+                                                        store
+                                                            .editRecordDetectedType!,
+                                                      );
+                                                      validateAndDetectType(
+                                                        store
+                                                            .editRecordValue
+                                                            .text,
+                                                      );
+                                                    },
+                                                  ),
+                                                ...RecordTypeUtils.supportedTypes.map((
+                                                  type,
+                                                ) {
+                                                  final isSelected =
+                                                      store.editRecordType ==
+                                                      type;
+                                                  return isSelected
+                                                      ? AppButton(
+                                                          label: type
+                                                              .toUpperCase(),
+                                                          onTap: () {},
+                                                        )
+                                                      : AppButton(
+                                                          label: type
+                                                              .toUpperCase(),
+                                                          onTap: () {
+                                                            store
+                                                                .setEditRecordType(
+                                                                  type,
+                                                                );
+                                                            validateAndDetectType(
+                                                              store
+                                                                  .editRecordValue
+                                                                  .text,
+                                                            );
+                                                          },
+                                                          style: AppButtonStyle
+                                                              .accent,
                                                         );
-                                                        validateAndDetectType(
-                                                          store
-                                                              .editRecordValue
-                                                              .text,
-                                                        );
-                                                      },
-                                                      style:
-                                                          AppButtonStyle.accent,
-                                                    );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                                }),
+                                              ],
+                                            ),
+                                          ],
                                   ),
                                 ),
                                 const SizedBox(width: AppSpacing.md),
@@ -987,8 +1073,11 @@ class _VaultScreenState extends State<VaultScreen> {
                                     children: [
                                       _buildFieldLabel(
                                         ctx,
-                                        'Hidden Value',
-                                        explanation: 'Mask value on screen.',
+                                        isFile ? 'Hidden name' : 'Hidden Value',
+                                        explanation: isFile
+                                            ? 'Mask the file name on screen — '
+                                                  'a name is content too.'
+                                            : 'Mask value on screen.',
                                       ),
                                       const SizedBox(height: AppSpacing.xs),
                                       AppButton(
@@ -1023,15 +1112,22 @@ class _VaultScreenState extends State<VaultScreen> {
                               const SizedBox(height: AppSpacing.lg),
                             ],
 
-                            ApiPreview(
-                              spec: VaultStore.updateRecordSpec(record.id, {
-                                'value': store.editRecordValue.text.trim(),
-                                'label': store.editRecordLabel.text.trim(),
-                                'type': store.editRecordType,
-                                'format': store.editRecordFormat,
-                              }),
-                              title: 'API request · update',
-                            ),
+                            if (isFile)
+                              const Text(
+                                'Renaming is a normal record update; replacing '
+                                'the file sends the same fields as '
+                                'multipart/form-data with a "file" part.',
+                              ).muted.small
+                            else
+                              ApiPreview(
+                                spec: VaultStore.updateRecordSpec(record.id, {
+                                  'value': store.editRecordValue.text.trim(),
+                                  'label': store.editRecordLabel.text.trim(),
+                                  'type': store.editRecordType,
+                                  'format': store.editRecordFormat,
+                                }),
+                                title: 'API request · update',
+                              ),
                             const SizedBox(height: AppSpacing.lg),
                           ],
                         ),
@@ -1055,22 +1151,55 @@ class _VaultScreenState extends State<VaultScreen> {
                             label: 'Save Changes',
                             busy: store.isSubmittingEditRecord,
                             onTap:
-                                (store.editRecordValue.text.trim().isEmpty ||
-                                    store.editRecordLabel.text.trim().isEmpty ||
-                                    store.editRecordTypeWarning != null)
+                                (store.editRecordLabel.text.trim().isEmpty ||
+                                    (isFile
+                                        ? store.editRecordFilename.text
+                                              .trim()
+                                              .isEmpty
+                                        : store.editRecordValue.text
+                                                  .trim()
+                                                  .isEmpty ||
+                                              store.editRecordTypeWarning !=
+                                                  null))
                                 ? null
                                 : () async {
                                     store.setSubmittingEditRecord(true);
 
-                                    final ok = await store
-                                        .updateRecord(record.id, {
-                                          'value': store.editRecordValue.text
-                                              .trim(),
-                                          'label': store.editRecordLabel.text
-                                              .trim(),
-                                          'type': store.editRecordType,
-                                          'format': store.editRecordFormat,
-                                        });
+                                    final bool ok;
+                                    if (isFile) {
+                                      final fields = {
+                                        'filename': store
+                                            .editRecordFilename
+                                            .text
+                                            .trim(),
+                                        'label': store.editRecordLabel.text
+                                            .trim(),
+                                        'format': store.editRecordFormat,
+                                      };
+                                      final bytes = store.editPickedFileBytes;
+                                      // One write: a rename and a replacement
+                                      // must not be able to half-apply.
+                                      ok = bytes == null
+                                          ? await store.updateRecord(
+                                              record.id,
+                                              fields,
+                                            )
+                                          : await store.updateRecordFile(
+                                              record.id,
+                                              store.editPickedFileName!,
+                                              bytes,
+                                              fields: fields,
+                                            );
+                                    } else {
+                                      ok = await store.updateRecord(record.id, {
+                                        'value': store.editRecordValue.text
+                                            .trim(),
+                                        'label': store.editRecordLabel.text
+                                            .trim(),
+                                        'type': store.editRecordType,
+                                        'format': store.editRecordFormat,
+                                      });
+                                    }
 
                                     if (ok && ctx.mounted) {
                                       Navigator.of(sheetContext).pop();
@@ -1426,35 +1555,10 @@ class _RecordCardState extends State<_RecordCard> {
     }
     final ok = await saveFileToDevice(
       bytes: bytes,
-      filename: r.file ?? 'file',
+      filename: r.displayName,
       mime: r.mime,
     );
     if (ok && mounted) AppToast.success(context, 'File saved');
-  }
-
-  Future<void> _replaceFile() async {
-    final picked = await FilePicker.pickFile();
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    final ok = await Stores.vault.updateRecordFile(
-      widget.record.id,
-      picked.name,
-      bytes,
-    );
-    if (!mounted) return;
-    if (ok) {
-      AppToast.success(
-        context,
-        'File replaced',
-        subtitle: 'Every active share now serves the new file.',
-      );
-    } else {
-      AppToast.error(
-        context,
-        'Could not replace file',
-        subtitle: Stores.vault.errorMessage,
-      );
-    }
   }
 
   List<AppSheetAction> _recordActions() {
@@ -1466,11 +1570,7 @@ class _RecordCardState extends State<_RecordCard> {
           primary: true,
           onTap: _downloadFile,
         ),
-        AppSheetAction(
-          icon: AppIcons.arrowRepeat,
-          label: 'Replace file',
-          onTap: _replaceFile,
-        ),
+        AppSheetAction(icon: AppIcons.pen, label: 'Edit', onTap: widget.onEdit),
         AppSheetAction(
           icon: AppIcons.trash,
           label: 'Delete',
@@ -1588,12 +1688,24 @@ class _RecordCardState extends State<_RecordCard> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                '${r.file ?? ''} · ${formatBytes(r.size)}'
-                '${mime.isEmpty ? '' : ' · $mime'}',
+                _isObscured
+                    ? '••••••••••••'
+                    : '${r.displayName} · ${formatBytes(r.size)}'
+                          '${mime.isEmpty ? '' : ' · $mime'}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ).mono.muted.small,
             ),
+            if (r.isHidden) ...[
+              const SizedBox(width: AppSpacing.sm),
+              AppButton(
+                icon: _isObscured ? AppIcons.eye : AppIcons.eyeSlash,
+                tooltip: _isObscured ? 'Show' : 'Hide',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: () => Stores.vault.toggleRevealed(r.id),
+              ),
+            ],
           ],
         ),
       );

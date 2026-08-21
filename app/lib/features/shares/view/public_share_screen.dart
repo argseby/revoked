@@ -824,7 +824,7 @@ class _PublicRecordCard extends StatelessWidget {
   Future<void> _downloadFile(BuildContext context) async {
     final recordId = record['id'] as String? ?? '';
     final token = record['downloadToken'] as String? ?? '';
-    final filename = record['file'] as String? ?? 'file';
+    final filename = record['filename'] as String? ?? 'file';
     if (recordId.isEmpty || token.isEmpty) {
       AppToast.error(
         context,
@@ -857,10 +857,14 @@ class _PublicRecordCard extends StatelessWidget {
     if (ok && context.mounted) AppToast.success(context, 'File saved');
   }
 
-  Widget _fileBody(BuildContext context) {
+  Widget _fileBody(
+    BuildContext context, {
+    required bool obscured,
+    required bool hidden,
+  }) {
     final theme = Theme.of(context);
     final recordId = record['id'] as String? ?? '';
-    final filename = record['file'] as String? ?? '';
+    final filename = record['filename'] as String? ?? '';
     final size = (record['size'] as num?)?.toInt() ?? 0;
     final mime = (record['mime'] as String? ?? '').split(';').first;
     final busy = Stores.shares.downloadingShareRecordIds.contains(recordId);
@@ -881,12 +885,26 @@ class _PublicRecordCard extends StatelessWidget {
           AppSpacing.gapSm,
           Expanded(
             child: Text(
-              '$filename · ${formatBytes(size)}'
-              '${mime.isEmpty ? '' : ' · $mime'}',
+              obscured
+                  ? '••••••••••••'
+                  : '$filename · ${formatBytes(size)}'
+                        '${mime.isEmpty ? '' : ' · $mime'}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ).mono.small,
           ),
+          if (hidden) ...[
+            AppSpacing.gapSm,
+            AppButton(
+              icon: obscured ? AppIcons.eye : AppIcons.eyeSlash,
+              tooltip: obscured ? 'Show' : 'Hide',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () => Stores.shares.toggleShareValue(
+                record['key'] as String? ?? '',
+              ),
+            ),
+          ],
           AppSpacing.gapSm,
           AppButton(
             icon: AppIcons.download,
@@ -948,7 +966,7 @@ class _PublicRecordCard extends StatelessWidget {
             ),
             AppSpacing.gapMd,
             if (isFile)
-              _fileBody(context)
+              _fileBody(context, obscured: isObscured, hidden: isHiddenFormat)
             else
               Container(
                 width: double.infinity,
