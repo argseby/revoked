@@ -134,7 +134,7 @@ func TestPublicPageNeverAsksForInput(t *testing.T) {
 
 	gatedBody := api.E.GET("/s/"+gated).WithHeader("Accept", browserAccept).
 		Expect().Status(http.StatusOK).Body()
-	gatedBody.Contains("Open in the app")
+	gatedBody.Contains("revoked://s/")
 	gatedBody.NotContains("page-canary-value-7f31")
 }
 
@@ -208,4 +208,45 @@ func TestPublicPageHandoffLinkIsUsable(t *testing.T) {
 	body.Contains("revoked://s/")
 	body.Contains(slug)
 	body.NotContains("ZgotmplZ")
+}
+
+func TestPublicPageHandoffPointsWhereTheReaderIs(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	wsID := activeWorkspaceOf(t, api, userID, token)
+	slug, _ := pageShare(t, baseURL, token, userID, wsID, nil)
+
+	cases := []struct {
+		name, host, wantOrigin string
+	}{
+		// The harness is the exact shape of the bug: DOMAIN is test.invalid
+		// while the data lives on a loopback port.
+		{"loopback keeps its port", "localhost:3000", "localhost:3000"},
+		{"loopback ip keeps its port", "127.0.0.1:8090", "127.0.0.1:8090"},
+		{"the configured domain is kept", "test.invalid", "test.invalid"},
+		// A forged Host must not redirect the app at another server, and a
+		// lookalike is the whole point of forging one.
+		{"foreign host falls back", "evil.example.com", "test.invalid"},
+		{"loopback lookalike falls back", "localhost.evil.com", "test.invalid"},
+		{"loopback ip lookalike falls back", "127.0.0.1.evil.com", "test.invalid"},
+		// The authority reaches a template.URL, which is exempt from the URL
+		// sanitizer, so a port that is not a port disqualifies the whole host.
+		{"non-numeric port falls back", "localhost:abc", "test.invalid"},
+		{"out-of-range port falls back", "localhost:99999", "test.invalid"},
+	}
+	for _, c := range cases {
+		body := api.E.GET("/s/"+slug).
+			WithHeader("Accept", browserAccept).
+			WithHost(c.host).
+			Expect().Status(http.StatusOK).Body().Raw()
+		want := "revoked://s/" + c.wantOrigin + "/" + slug
+		if !strings.Contains(body, want) {
+			t.Fatalf("%s: expected handoff %q in the page", c.name, want)
+		}
+	}
 }
