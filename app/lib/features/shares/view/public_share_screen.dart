@@ -10,6 +10,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
+import 'package:revoked_app/core/models/identity_status_assertion.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
@@ -81,6 +82,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         ? (sharer['domainAtIssue'] as String? ?? '')
         : '';
     if (verdict?.state == TrustState.spoofed) return TrustCheckState.spoofed;
+    if (verdict?.state == TrustState.revoked) return TrustCheckState.revoked;
     if (verdict?.state == TrustState.verified && verdict?.domain == claimed) {
       return TrustCheckState.verified;
     }
@@ -153,6 +155,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       state = TrustCheckState.verified;
     } else if (verdict?.state == TrustState.spoofed) {
       state = TrustCheckState.spoofed;
+    } else if (verdict?.state == TrustState.revoked) {
+      state = TrustCheckState.revoked;
     } else {
       state = TrustCheckState.failed;
     }
@@ -213,6 +217,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         claimedDomain: domain,
         identityFingerprint: sharer['fingerprint'] as String? ?? '',
         parentSignatureHex: sharer['parentSignature'] as String? ?? '',
+        statusAssertion: IdentityStatusAssertion.fromJson(
+          sharer['statusAssertion'],
+        ),
       );
       _store.finishShareTrust(verdict);
     } catch (e) {

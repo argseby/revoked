@@ -68,6 +68,7 @@ abstract class AppIcons {
   static const IconData share = Icons.share_outlined;
   static const IconData shieldCheck = Icons.verified_user_outlined;
   static const IconData shieldLock = Icons.gpp_good_outlined;
+  static const IconData shieldSlash = Icons.block_outlined;
   static const IconData sortDown = Icons.arrow_downward;
   static const IconData stars = Icons.auto_awesome;
   static const IconData tag = Icons.sell_outlined;

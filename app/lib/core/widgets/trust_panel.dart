@@ -18,6 +18,7 @@ abstract final class TrustCopy {
   static const verified = 'DNS verified';
   static const unverified = 'Not verified';
   static const spoofed = 'Spoofed';
+  static const revoked = 'Revoked';
   static const unsigned = 'Not signed';
   static const checking = 'Checking…';
 
@@ -30,6 +31,9 @@ abstract final class TrustCopy {
   static const spoofedDetail =
       'The claimed domain does not match the signing key. Do not send '
       'anything.';
+  static const revokedDetail =
+      'Every signature checks out, and the domain has withdrawn this '
+      'identity. Whoever holds the key no longer speaks for it.';
 }
 
 /// Outcome of one verification step.
@@ -42,6 +46,10 @@ enum TrustCheckState {
 
   /// Provably false — worse than missing.
   spoofed,
+
+  /// Proven, and withdrawn since. Not a failed check: every signature holds,
+  /// and the issuer has stopped standing behind the thing they signed.
+  revoked,
 
   /// Still being checked.
   checking,
@@ -94,6 +102,9 @@ class _TrustPanelState extends State<TrustPanel> {
   bool get _anySpoofed =>
       widget.checks.any((c) => c.state == TrustCheckState.spoofed);
 
+  bool get _anyRevoked =>
+      widget.checks.any((c) => c.state == TrustCheckState.revoked);
+
   @override
   Widget build(BuildContext context) {
     return Observer(
@@ -121,6 +132,11 @@ class _TrustPanelState extends State<TrustPanel> {
           icon = AppIcons.exclamationTriangle;
           headline = TrustCopy.spoofed;
           detail = TrustCopy.spoofedDetail;
+        } else if (_anyRevoked) {
+          accent = scheme.danger;
+          icon = AppIcons.shieldSlash;
+          headline = TrustCopy.revoked;
+          detail = TrustCopy.revokedDetail;
         } else {
           accent = scheme.danger;
           icon = AppIcons.exclamationTriangle;
@@ -237,6 +253,11 @@ class _CheckRow extends StatelessWidget {
         scheme.danger,
         TrustCopy.spoofed,
       ),
+      TrustCheckState.revoked => (
+        AppIcons.shieldSlash,
+        scheme.danger,
+        TrustCopy.revoked,
+      ),
       TrustCheckState.checking => (
         AppIcons.arrowRepeat,
         scheme.onSurfaceVariant,
@@ -296,6 +317,7 @@ class TrustClaimText extends StatelessWidget {
     final (color, suffix) = switch (state) {
       TrustCheckState.verified => (scheme.primary, TrustCopy.verified),
       TrustCheckState.spoofed => (scheme.danger, TrustCopy.spoofed),
+      TrustCheckState.revoked => (scheme.danger, TrustCopy.revoked),
       TrustCheckState.checking => (scheme.onSurfaceVariant, TrustCopy.checking),
       TrustCheckState.failed => (scheme.danger, TrustCopy.unverified),
     };

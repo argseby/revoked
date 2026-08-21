@@ -133,6 +133,36 @@ abstract class _IdentitiesStore with Store {
     }
   }
 
+  /// Withdraws an identity without deleting it.
+  ///
+  /// The row has to survive, because the answer a verifier needs is about a
+  /// fingerprint whose certificate is already out in the world — a deleted row
+  /// could only answer with silence, which is indistinguishable from a server
+  /// that never issued it. The private key goes, though: this is the action
+  /// taken when it may have leaked, and keeping it would be the one mistake
+  /// revoking is meant to undo.
+  @action
+  Future<bool> revokeIdentity(String id, {String reason = 'manual'}) async {
+    isLoading = true;
+    errorMessage = null;
+    try {
+      final data = await _api.patch(
+        '$_basePath/$id',
+        body: {'status': 'revoked', 'revokedReason': reason},
+      );
+      await _crypto.deletePrivateKey(id);
+      final updated = Identity.fromJson(data as Map<String, dynamic>);
+      final idx = identities.indexWhere((i) => i.id == id);
+      if (idx != -1) identities[idx] = updated;
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isLoading = false;
+    }
+  }
+
   @action
   Future<void> deleteIdentity(String id) async {
     isLoading = true;

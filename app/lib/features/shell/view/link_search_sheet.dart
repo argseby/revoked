@@ -273,6 +273,7 @@ class LinkSearchSheet extends StatelessWidget {
     final state = switch (verdict.state) {
       TrustState.verified => TrustCheckState.verified,
       TrustState.spoofed => TrustCheckState.spoofed,
+      TrustState.revoked => TrustCheckState.revoked,
       _ => TrustCheckState.failed,
     };
     return [

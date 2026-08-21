@@ -12,6 +12,7 @@ import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/invite_trust_summary.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -25,15 +26,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
 
   OnboardingStore get _store => Stores.onboarding;
 
-  /// Accepts either a bare token or a full `revoked://i/<token>` link.
-  String get _token {
-    final raw = _store.keyController.text.trim();
-    final location = DeepLinks.locationFor(Uri.tryParse(raw) ?? Uri());
-    if (location != null && location.startsWith('/i/')) {
-      return location.substring(3);
-    }
-    return raw;
-  }
+  String get _token => DeepLinks.inviteTokenFrom(_store.keyController.text);
 
   Future<void> _createWorkspace(BuildContext context) async {
     final name = _store.nameController.text.trim();
@@ -71,6 +64,10 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
     try {
       final preview = await Stores.invites.preview(_token);
       _store.finishPreview(result: preview);
+      // The same check the accept screen runs. Joining is the moment the
+      // decision is actually made, so the domain behind the invite has to be
+      // on screen here too, not only on the other route into it.
+      await Stores.invites.verifyInviteTrust(preview);
     } catch (e) {
       _store.finishPreview(
         message: AppErrorMessage.fromException(e).description,
@@ -228,10 +225,6 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(_store.preview!.workspaceName),
-            if (_store.preview!.invitedBy != null) ...[
-              const SizedBox(height: AppSpacing.xxs),
-              Text('Invited by ${_store.preview!.invitedBy}').muted.small,
-            ],
             AppSpacing.gapSm,
             for (final permission in _store.preview!.permissions)
               Padding(
@@ -241,6 +234,9 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
           ],
         ),
       ),
+      AppSpacing.gapSm,
+      InviteTrustSummary(preview: _store.preview!),
+      AppSpacing.gapSm,
     ],
     Row(
       children: [

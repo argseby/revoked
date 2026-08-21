@@ -63,6 +63,8 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				requester["fingerprint"] = idRec.GetString(util.Fields.Identity.Fingerprint)
 				requester["parentSignature"] = idRec.GetString(util.Fields.Identity.ParentSignature)
 				requester["domainAtIssue"] = idRec.GetString(util.Fields.Identity.DomainAtIssue)
+				requester["status"] = services.IdentityStatusOf(idRec)
+				stapleIdentityStatus(app, root, requester, idRec.GetString(util.Fields.Identity.Fingerprint))
 			}
 
 			records, sections := loadRequestTemplate(app, req)
@@ -155,13 +157,13 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				if body.IdentityId == "" {
 					return appErrorResponse(re, http.StatusBadRequest, &util.Errors.IdentityRequired)
 				}
-				if err := enforceRequestHandshake(app, root, req, body.IdentityId, body.HandshakeToken, body.ChallengeNonce, body.ChallengeSignature, re); err != nil {
-					return err
+				if !enforceRequestHandshake(app, root, req, body.IdentityId, body.HandshakeToken, body.ChallengeNonce, body.ChallengeSignature, re) {
+					return nil
 				}
 				identityProven = true
 			} else if identifierEnforced {
-				if err := enforceRequestGuestIdentity(app, req, body.GuestCertificate, body.ChallengeNonce, body.ChallengeSignature, re); err != nil {
-					return err
+				if !enforceRequestGuestIdentity(app, req, body.GuestCertificate, body.ChallengeNonce, body.ChallengeSignature, re) {
+					return nil
 				}
 			}
 
@@ -441,17 +443,26 @@ func validateSubmissionData(data map[string]any, template map[string]templateEnt
 // enforceRequestHandshake mirrors [enforceLinkHandshake] for requests: a fresh
 // signed challenge proves possession of the identity's private key before the
 // persistent X-Handshake-Token is issued.
-func enforceRequestHandshake(app core.App, root *server.RootKey, req *core.Record, identityId, token, challengeNonce, challengeSignature string, re *core.RequestEvent) error {
+//
+// Reports whether the caller may proceed, having already written the refusal
+// when it may not. See [denyGate] for why this is a bool and not an error.
+func enforceRequestHandshake(app core.App, root *server.RootKey, req *core.Record, identityId, token, challengeNonce, challengeSignature string, re *core.RequestEvent) bool {
 	identity, err := app.FindRecordById(util.Coll.Identities, identityId)
 	if err != nil || identity == nil {
-		return re.BadRequestError(util.Errors.IdentityNotFound.ErrorText, nil)
+		return denyGate(re, http.StatusBadRequest, &util.Errors.IdentityNotFound)
+	}
+
+	// Checked before the token short-circuit, so revoking an identity ends the
+	// sessions it already opened instead of only blocking new ones.
+	if !services.IdentityIsActive(identity) {
+		return denyGate(re, http.StatusForbidden, &util.Errors.IdentityRevoked)
 	}
 
 	// from_root scope accepts only identities this server issued. Checked before the
 	// token short-circuit so it always applies.
 	if req.GetString(util.Fields.Request.IdentityScope) == "from_root" &&
 		identity.GetString(util.Fields.Identity.DomainAtIssue) != root.Domain() {
-		return appErrorResponse(re, http.StatusForbidden, &util.Errors.IdentityWrongRoot)
+		return denyGate(re, http.StatusForbidden, &util.Errors.IdentityWrongRoot)
 	}
 
 	existing, _ := app.FindFirstRecordByFilter(util.Coll.Handshakes,
@@ -461,33 +472,33 @@ func enforceRequestHandshake(app core.App, root *server.RootKey, req *core.Recor
 	// Fast path: a matching stored token lets a return visit skip re-signing.
 	if existing != nil && token != "" &&
 		existing.GetString(util.Fields.Handshake.TokenHash) == util.HashToken(token) {
-		return nil
+		return true
 	}
 
 	// Otherwise a fresh signature is required. This also covers a client that lost
 	// its token (reinstall, cleared storage, server reset): a valid signer is never
 	// rejected merely for a missing token, which would lock them out for good.
 	if challengeNonce == "" || challengeSignature == "" {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
 	}
 	slug := req.GetString(util.Fields.Request.Slug)
 	if !ConsumeChallenge(challengeNonce, "request", slug, identityId) {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.ChallengeInvalid)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeInvalid)
 	}
 	cert := identity.GetString(util.Fields.Identity.Certificate)
 	if err := util.VerifySignature(cert, challengeNonce, challengeSignature); err != nil {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.SignatureInvalid)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.SignatureInvalid)
 	}
 
 	newToken, err := util.GenerateToken(24)
 	if err != nil {
-		return re.InternalServerError("Failed to generate handshake token", nil)
+		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
 	}
 	hs := existing
 	if hs == nil {
 		col, err := app.FindCollectionByNameOrId(util.Coll.Handshakes)
 		if err != nil {
-			return re.InternalServerError("Handshake collection missing", nil)
+			return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
 		}
 		hs = core.NewRecord(col)
 		hs.Set(util.Fields.Handshake.Request, req.Id)
@@ -497,31 +508,34 @@ func enforceRequestHandshake(app core.App, root *server.RootKey, req *core.Recor
 	hs.Set(util.Fields.Handshake.TokenHash, util.HashToken(newToken))
 	if err := app.Save(hs); err != nil {
 		app.Logger().Error("Failed to save handshake", "error", err)
-		return re.InternalServerError("Failed to save handshake", nil)
+		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
 	}
 	re.Response.Header().Set("X-Handshake-Token", newToken)
 	re.Response.Header().Set("Access-Control-Expose-Headers", "X-Handshake-Token")
-	return nil
+	return true
 }
 
 // enforceRequestGuestIdentity covers identifier-only requests, where no known
 // identity exists: the responder proves possession of a one-shot keypair by signing
 // a challenge. The certificate is verified but not persisted — only a short
 // fingerprint survives, as `senderName`.
-func enforceRequestGuestIdentity(app core.App, req *core.Record, guestCert, nonce, signature string, re *core.RequestEvent) error {
+//
+// Reports whether the caller may proceed, having already written the refusal
+// when it may not. See [denyGate] for why this is a bool and not an error.
+func enforceRequestGuestIdentity(app core.App, req *core.Record, guestCert, nonce, signature string, re *core.RequestEvent) bool {
 	if guestCert == "" || nonce == "" || signature == "" {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
 	}
 	fp := fingerprintForCert(guestCert)
 	slug := req.GetString(util.Fields.Request.Slug)
 	if !ConsumeChallenge(nonce, "request_guest", slug, fp) {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.ChallengeInvalid)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeInvalid)
 	}
 	if err := util.VerifySignature(guestCert, nonce, signature); err != nil {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.SignatureInvalid)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.SignatureInvalid)
 	}
 	_ = app // reserved for audit logging
-	return nil
+	return true
 }
 
 // fingerprintForCert is the hex SHA-256 of a certificate PEM, used as a stable guest

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'package:revoked_app/core/models/identity_status_assertion.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 
@@ -184,6 +185,7 @@ class DomainVerificationService {
     required String claimedDomain,
     required String identityFingerprint,
     required String parentSignatureHex,
+    IdentityStatusAssertion? statusAssertion,
   }) async {
     // No cache read here: verify() is the fresh path callers gate on.
     // Rendering from cache is [cachedVerdict], chosen explicitly.
@@ -192,11 +194,15 @@ class DomainVerificationService {
       claimedDomain: claimedDomain,
       identityFingerprint: identityFingerprint,
       parentSignatureHex: parentSignatureHex,
+      statusAssertion: statusAssertion,
     );
     // Only a conclusive answer is worth keeping; a transient network
     // failure must not pin "unverified" until the TTL expires.
+    // A revoked verdict is as conclusive as a spoofed one, and worth keeping
+    // for the same reason: it stays true, and re-asking cannot un-revoke.
     if (verdict.state == TrustState.verified ||
-        verdict.state == TrustState.spoofed) {
+        verdict.state == TrustState.spoofed ||
+        verdict.state == TrustState.revoked) {
       _cache[key] = _CachedVerdict(verdict, DateTime.now());
       // Awaited: an unflushed write is lost if the app closes right
       // after, which is exactly when a verdict is worth keeping. The
@@ -222,11 +228,13 @@ class DomainVerificationService {
     required String claimedDomain,
     required String identityFingerprint,
     required String parentSignatureHex,
+    IdentityStatusAssertion? statusAssertion,
   }) {
     return _verify(
       claimedDomain: claimedDomain,
       identityFingerprint: identityFingerprint,
       parentSignatureHex: parentSignatureHex,
+      statusAssertion: statusAssertion,
     ).timeout(
       _overallDeadline,
       onTimeout: () => TrustVerdict.unverified(
@@ -242,6 +250,7 @@ class DomainVerificationService {
     required String claimedDomain,
     required String identityFingerprint,
     required String parentSignatureHex,
+    IdentityStatusAssertion? statusAssertion,
   }) async {
     if (claimedDomain.isEmpty) {
       return TrustVerdict.unverified(
@@ -344,11 +353,165 @@ class DomainVerificationService {
       );
     }
 
+    // Step 5. The signature proves the identity was issued by this domain; it
+    // cannot prove the domain still stands behind it. Everything above would
+    // have held identically for a key withdrawn years ago, so the issuer's
+    // current word is what turns "was issued here" into "is honoured here".
+    return _applyIdentityStatus(
+      claimedDomain: claimedDomain,
+      identityFingerprint: identityFingerprint,
+      rootPublicKeyPem: info.publicKeyPem,
+      rootFingerprint: fetchedFingerprint,
+      stapled: statusAssertion,
+    );
+  }
+
+  /// Resolves the issuer's current word about an identity into a verdict.
+  ///
+  /// A stapled assertion is preferred: it arrived with the probe, so the common
+  /// case costs no extra round-trip, and a server relaying a foreign identity
+  /// can carry the issuer's word with it. It is verified exactly as a fetched
+  /// one would be — stapling changes who carried the answer, not whether it is
+  /// checked — and a stapled answer that fails to verify falls through to a
+  /// direct fetch rather than being taken as a refusal.
+  Future<TrustVerdict> _applyIdentityStatus({
+    required String claimedDomain,
+    required String identityFingerprint,
+    required String rootPublicKeyPem,
+    required String rootFingerprint,
+    required IdentityStatusAssertion? stapled,
+  }) async {
+    IdentityStatusBody? body;
+    if (stapled != null) {
+      body = _verifyStatus(
+        assertion: stapled,
+        rootPublicKeyPem: rootPublicKeyPem,
+        domain: claimedDomain,
+        fingerprint: identityFingerprint,
+      );
+    }
+
+    if (body == null) {
+      final IdentityStatusAssertion? fetched;
+      try {
+        fetched = await _fetchIdentityStatus(
+          claimedDomain,
+          identityFingerprint,
+        );
+      } on _VerificationError catch (e) {
+        // Unreachable is neither evidence of revocation nor of good standing.
+        // Unverified is the honest answer, and the caller's gate already treats
+        // it as "warn and require confirmation".
+        return TrustVerdict.unverified(
+          domain: claimedDomain,
+          reason:
+              'The identity is signed by $claimedDomain, but that server '
+              'could not be asked whether it still stands behind it. '
+              '${e.message}',
+        );
+      }
+      if (fetched == null) {
+        return TrustVerdict.unverified(
+          domain: claimedDomain,
+          reason:
+              '$claimedDomain does not publish identity status, so there is '
+              'no way to tell whether it still stands behind this identity.',
+        );
+      }
+      body = _verifyStatus(
+        assertion: fetched,
+        rootPublicKeyPem: rootPublicKeyPem,
+        domain: claimedDomain,
+        fingerprint: identityFingerprint,
+      );
+      if (body == null) {
+        return TrustVerdict.unverified(
+          domain: claimedDomain,
+          reason:
+              'The status answer from $claimedDomain did not verify under '
+              'that server\'s own root key, so it cannot be relied on.',
+        );
+      }
+    }
+
+    if (body.isRevoked) {
+      final when = body.revokedAt == null
+          ? ''
+          : ' on ${body.revokedAt!.toLocal().toString().split('.').first}';
+      return TrustVerdict.revoked(
+        domain: claimedDomain,
+        reason:
+            'The signature is genuine, but $claimedDomain revoked this '
+            'identity$when. Whoever holds the key no longer speaks for '
+            'that domain.',
+        rootFingerprint: rootFingerprint,
+        identityFingerprint: identityFingerprint,
+      );
+    }
+
+    if (!body.isActive) {
+      return TrustVerdict.unverified(
+        domain: claimedDomain,
+        reason:
+            '$claimedDomain has no record of this identity. The signature '
+            'verifies, so it was issued there once, but the server does '
+            'not currently claim it.',
+      );
+    }
+
     return TrustVerdict.verified(
       domain: claimedDomain,
-      rootFingerprint: fetchedFingerprint,
+      rootFingerprint: rootFingerprint,
       identityFingerprint: identityFingerprint,
     );
+  }
+
+  IdentityStatusBody? _verifyStatus({
+    required IdentityStatusAssertion assertion,
+    required String rootPublicKeyPem,
+    required String domain,
+    required String fingerprint,
+  }) {
+    return IdentityStatusBody.verified(
+      assertion: assertion,
+      rootPublicKeyPem: rootPublicKeyPem,
+      expectDomain: domain,
+      expectFingerprint: fingerprint,
+      now: DateTime.now(),
+      verifySignature: _crypto.verifySignature,
+      decodeHex: (hex) {
+        try {
+          return _decodeHex(hex);
+        } on FormatException {
+          return null;
+        }
+      },
+    );
+  }
+
+  /// Fetches the issuer's signed status for a fingerprint. Null means the
+  /// server answered but publishes no status (an older build); a throw means
+  /// it could not be reached, which the caller renders differently.
+  Future<IdentityStatusAssertion?> _fetchIdentityStatus(
+    String domain,
+    String fingerprint,
+  ) async {
+    final uri = Uri.parse('https://$domain/api/identities/$fingerprint/status');
+    try {
+      final res = await _http.get(uri).timeout(_networkTimeout);
+      if (res.statusCode == 404) return null;
+      if (res.statusCode != 200) {
+        throw _VerificationError(
+          '$domain answered HTTP ${res.statusCode} for the identity status.',
+        );
+      }
+      final decoded = jsonDecode(res.body);
+      return IdentityStatusAssertion.fromJson(decoded);
+    } on _VerificationError {
+      rethrow;
+    } catch (e) {
+      throw _VerificationError('Could not reach $domain: $e');
+    }
   }
 
   /// Looks up `_revoked.<domain>` via DoH and returns the embedded

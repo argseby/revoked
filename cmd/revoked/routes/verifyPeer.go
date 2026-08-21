@@ -13,11 +13,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
 
 	"revoked/cmd/revoked/server"
+	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -29,6 +31,12 @@ const (
 	trustDNSMissing = "dnsMissing"
 	trustUnverified = "unverified"
 	trustSpoofed    = "spoofed"
+
+	// trustRevoked is its own state rather than a flavour of unverified: the
+	// domain is real and the signature is genuine, and the issuer has withdrawn
+	// the identity anyway. A viewer needs to be told that, not shown a vague
+	// "could not verify".
+	trustRevoked = "revoked"
 )
 
 // txtPinPattern matches the pinned root fingerprint in a `_revoked.<domain>` TXT record.
@@ -46,6 +54,12 @@ type verifyPeerResponse struct {
 	Reason              string `json:"reason"`
 	RootFingerprint     string `json:"rootFingerprint,omitempty"`
 	IdentityFingerprint string `json:"identityFingerprint,omitempty"`
+
+	// IdentityStatus is the issuer's own current word: active, revoked, or
+	// unknown when it disclaims the fingerprint. Empty when no identity was
+	// asked about, or when the issuer could not be reached — which is why it is
+	// reported separately from State rather than folded into it.
+	IdentityStatus string `json:"identityStatus,omitempty"`
 }
 
 // VerifyPeerRoute proxies the trust chain server-side for clients that cannot do raw
@@ -53,8 +67,9 @@ type verifyPeerResponse struct {
 //
 //	DNS-TXT(_revoked.<domain>) -> GET https://<domain>/api/server assertion
 //	-> fingerprint-pin match -> (optional) identity parentSignature under the root key
+//	-> (optional) the issuer's signed, current status for that identity
 //
-//	POST /api/verify-peer -> state: verified | dnsMissing | unverified | spoofed
+//	POST /api/verify-peer -> state: verified | dnsMissing | unverified | spoofed | revoked
 //
 // Unauthenticated by design: any peer must be able to ask it about a third party.
 func VerifyPeerRoute(app core.App) {
@@ -139,12 +154,20 @@ func VerifyPeerRoute(app core.App) {
 							"signature does not verify under that server's root key.",
 					})
 				}
+				// The signature proves the identity was issued by this domain.
+				// It cannot prove the domain still stands behind it — a leaf is
+				// good for ten years and parentSignature never expires — so the
+				// issuer is asked for its current word before we call it verified.
+				statusState, statusWord, statusReason := checkPeerIdentityStatus(
+					domain, assertion.Body.PublicKey, req.IdentityFingerprint, now,
+				)
 				return re.JSON(http.StatusOK, verifyPeerResponse{
-					State:               trustVerified,
+					State:               statusState,
 					Domain:              domain,
-					Reason:              "DNS-verified — the root key on " + domain + " matches the published TXT record and signed this identity.",
+					Reason:              statusReason,
 					RootFingerprint:     rootFp,
 					IdentityFingerprint: req.IdentityFingerprint,
+					IdentityStatus:      statusWord,
 				})
 			}
 
@@ -157,6 +180,77 @@ func VerifyPeerRoute(app core.App) {
 		})
 		return e.Next()
 	})
+}
+
+// checkPeerIdentityStatus asks the issuing domain whether it still vouches for
+// a fingerprint, returning the trust state to report, the issuer's own word, and
+// the human-readable reason.
+//
+// An unreachable issuer downgrades to unverified rather than either extreme: a
+// server being down is not evidence of revocation, and it is not evidence of
+// good standing either. The caller's gate already treats non-verified as
+// "warn and require confirmation", which is the honest answer to "we could not
+// find out".
+func checkPeerIdentityStatus(domain, rootPubPEM, fingerprint string, now time.Time) (state, word, reason string) {
+	if !server.ValidIdentityFingerprint(fingerprint) {
+		return trustVerified, "",
+			"DNS-verified — the root key on " + domain + " matches the published TXT record and signed this identity."
+	}
+
+	assertion, err := fetchPeerIdentityStatus(domain, fingerprint)
+	if err != nil {
+		return trustUnverified, "",
+			"The identity is signed by " + domain + ", but that server could not be " +
+				"asked whether it still stands behind it: " + err.Error()
+	}
+
+	body, err := server.VerifyIdentityStatus(assertion, rootPubPEM, domain, fingerprint, now)
+	if err != nil {
+		return trustUnverified, "",
+			"The status answer from " + domain + " did not verify under its own root key: " + err.Error()
+	}
+
+	switch body.Status {
+	case server.IdentityStatusActive:
+		return trustVerified, server.IdentityStatusActive,
+			"DNS-verified — the root key on " + domain + " matches the published TXT " +
+				"record, signed this identity, and still vouches for it."
+	case server.IdentityStatusRevoked:
+		return trustRevoked, server.IdentityStatusRevoked,
+			"The signature is genuine, but " + domain + " has revoked this identity. " +
+				"Whoever holds the key no longer speaks for that domain."
+	default:
+		return trustUnverified, server.IdentityStatusUnknown,
+			domain + " has no record of this identity. The signature verifies, so it " +
+				"was issued there once, but the server does not currently claim it."
+	}
+}
+
+// fetchPeerIdentityStatus retrieves a peer's signed status answer.
+//
+// Through the SSRF-safe client: the domain arrives in the request body, so this
+// is a server-side fetch of a caller-chosen URL. Validating the hostname alone
+// loses to DNS rebinding, and the answer is signed anyway — the transport only
+// has to be prevented from reaching somewhere it shouldn't.
+func fetchPeerIdentityStatus(domain, fingerprint string) (server.IdentityStatusAssertion, error) {
+	client := util.NewSafeCallbackClient(8 * time.Second)
+	resp, err := client.Get("https://" + domain + "/api/identities/" + url.PathEscape(fingerprint) + "/status")
+	if err != nil {
+		return server.IdentityStatusAssertion{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return server.IdentityStatusAssertion{}, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return server.IdentityStatusAssertion{}, err
+	}
+	var assertion server.IdentityStatusAssertion
+	if err := json.Unmarshal(body, &assertion); err != nil {
+		return server.IdentityStatusAssertion{}, err
+	}
+	return assertion, nil
 }
 
 // lookupRevokedTXTPin resolves the pinned root fingerprint from the domain's _revoked

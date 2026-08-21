@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"math/big"
 	"revoked/cmd/revoked/server"
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 // BindIdentitiesHooks issues a server-signed certificate for each new identity
@@ -115,6 +117,12 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 		e.Record.Set(util.Fields.Identity.ParentSignature, hex.EncodeToString(parentSig))
 		e.Record.Set(util.Fields.Identity.DomainAtIssue, root.Domain())
 
+		// Set here rather than trusted from the client, so no caller can mint an
+		// identity that is born revoked or carries a backdated revocation.
+		e.Record.Set(util.Fields.Identity.Status, util.StatusActive)
+		e.Record.Set(util.Fields.Identity.RevokedAt, nil)
+		e.Record.Set(util.Fields.Identity.RevokedReason, "")
+
 		if err := demotePrimaryIdentities(app, e.Record, ""); err != nil {
 			return err
 		}
@@ -123,10 +131,28 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 	})
 
 	app.OnRecordUpdateRequest(util.Coll.Identities).BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := applyRevocationTransition(app, e.Record); err != nil {
+			return err
+		}
 		if err := demotePrimaryIdentities(app, e.Record, e.Record.Id); err != nil {
 			return err
 		}
 		return e.Next()
+	})
+
+	// The tombstone must be exactly as durable as the deletion, so it is written
+	// inside the same transaction: OnRecordDelete rather than the after-success
+	// hook, whose write would survive a rolled-back delete and revoke an identity
+	// that still exists.
+	app.OnRecordDelete(util.Coll.Identities).BindFunc(func(e *core.RecordEvent) error {
+		fingerprint := e.Record.GetString(util.Fields.Identity.Fingerprint)
+		domain := e.Record.GetString(util.Fields.Identity.DomainAtIssue)
+		reason := e.Record.GetString(util.Fields.Identity.RevokedReason)
+
+		if err := e.Next(); err != nil {
+			return err
+		}
+		return services.WriteIdentityTombstone(e.App, fingerprint, domain, reason)
 	})
 
 	// Defense in depth: the private key is stored empty already.
@@ -147,6 +173,45 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 		}
 		return nil
 	})
+}
+
+// applyRevocationTransition keeps the status monotonic: an identity may go from
+// active to revoked, never back.
+//
+// Reinstatement is not a missing feature. A revocation is a statement already
+// published to verifiers that may have cached it, and if the key was revoked
+// because it leaked, whoever took it is still holding it. Rotation is a new
+// identity, not a resurrected one.
+func applyRevocationTransition(app core.App, rec *core.Record) error {
+	original, err := app.FindRecordById(util.Coll.Identities, rec.Id)
+	if err != nil || original == nil {
+		return nil
+	}
+
+	wasActive := services.IdentityIsActive(original)
+	nowActive := services.IdentityIsActive(rec)
+
+	if !wasActive {
+		// Every revocation field is pinned back to what was recorded, so a
+		// caller cannot rewrite the reason or backdate the timestamp either.
+		rec.Set(util.Fields.Identity.Status, util.StatusRevoked)
+		rec.Set(util.Fields.Identity.RevokedAt, original.GetDateTime(util.Fields.Identity.RevokedAt))
+		rec.Set(util.Fields.Identity.RevokedReason, original.GetString(util.Fields.Identity.RevokedReason))
+		rec.Set(util.Fields.Identity.IsPrimary, false)
+		return nil
+	}
+
+	if !nowActive {
+		reason := rec.GetString(util.Fields.Identity.RevokedReason)
+		if reason == "" {
+			reason = util.RevocationManual
+		}
+		rec.Set(util.Fields.Identity.RevokedAt, types.NowDateTime())
+		rec.Set(util.Fields.Identity.RevokedReason, reason)
+		rec.Set(util.Fields.Identity.IsPrimary, false)
+	}
+
+	return nil
 }
 
 // demotePrimaryIdentities clears isPrimary on the user's other identities in the

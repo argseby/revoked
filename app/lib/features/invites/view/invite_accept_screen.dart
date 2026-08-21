@@ -11,6 +11,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/invite_trust_summary.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
@@ -165,10 +166,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                   Expanded(child: Text(preview.workspaceName).header),
                 ],
               ),
-              if (preview.invitedBy != null) ...[
-                AppSpacing.gapSm,
-                Text('Invited by ${preview.invitedBy}').muted.small,
-              ],
+
               if (preview.label.isNotEmpty) ...[
                 AppSpacing.gapSm,
                 Text(preview.label).muted.small,
@@ -176,6 +174,9 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
             ],
           ),
         ),
+
+        AppSpacing.gapLg,
+        InviteTrustSummary(preview: preview),
 
         AppSpacing.gapLg,
         Text('You will be able to'),

@@ -50,10 +50,14 @@ var Errors = struct {
 	RequestIdentifierMissing      AppError
 	HandshakeRequired             AppError
 	HandshakeInvalid              AppError
+	HandshakeFailed               AppError
 	IdentityNotFound              AppError
 	IdentityRequired              AppError
 	IdentityWrongRoot             AppError
 	IdentityNotOwned              AppError
+	IdentityRevoked               AppError
+	IdentityFingerprintInvalid    AppError
+	InviteInviterLostAccess       AppError
 	SignupsDisabled               AppError
 	InvalidScope                  AppError
 	InvalidApiKey                 AppError
@@ -247,6 +251,10 @@ var Errors = struct {
 		ErrorCode: "handshake_invalid",
 		ErrorText: "The provided handshake token is invalid.",
 	},
+	HandshakeFailed: AppError{
+		ErrorCode: "handshake_failed",
+		ErrorText: "The handshake could not be completed. Please try again.",
+	},
 	IdentityNotFound: AppError{
 		ErrorCode: "identity_not_found",
 		ErrorText: "Identity not found.",
@@ -262,6 +270,18 @@ var Errors = struct {
 	IdentityNotOwned: AppError{
 		ErrorCode: "identity_not_owned",
 		ErrorText: "The selected identity does not belong to your workspace.",
+	},
+	IdentityRevoked: AppError{
+		ErrorCode: "identity_revoked",
+		ErrorText: "This identity has been revoked by the server that issued it.",
+	},
+	IdentityFingerprintInvalid: AppError{
+		ErrorCode: "identity_fingerprint_invalid",
+		ErrorText: "An identity fingerprint must be 64 lowercase hexadecimal characters.",
+	},
+	InviteInviterLostAccess: AppError{
+		ErrorCode: "invite_inviter_lost_access",
+		ErrorText: "Whoever created this invite can no longer invite people to this workspace.",
 	},
 	SignupsDisabled: AppError{
 		ErrorCode: "signups_disabled",

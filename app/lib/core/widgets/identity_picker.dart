@@ -71,13 +71,15 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 scheme,
                 selected: id.id == widget.selectedId,
                 enabled:
-                    widget.requireDomain == null ||
-                    id.domainAtIssue == widget.requireDomain,
+                    !id.isRevoked &&
+                    (widget.requireDomain == null ||
+                        id.domainAtIssue == widget.requireDomain),
                 // A dimmed row that ignores taps looks broken; say which
                 // rule refused it.
-                disabledReason:
-                    widget.requireDomain != null &&
-                        id.domainAtIssue != widget.requireDomain
+                disabledReason: id.isRevoked
+                    ? 'Revoked - it can no longer sign'
+                    : widget.requireDomain != null &&
+                          id.domainAtIssue != widget.requireDomain
                     ? 'Issued by another server - not accepted here'
                     : null,
                 title: id.name,

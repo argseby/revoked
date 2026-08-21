@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -70,6 +71,11 @@ func validateIdentityOwnership(app core.App, rec *core.Record) *util.AppError {
 	}
 	if identity.GetString(util.FieldWorkspace) != rec.GetString(util.FieldWorkspace) {
 		return &util.Errors.IdentityNotOwned
+	}
+	// A revoked identity may still be read for the sake of grants it already
+	// signed; it may not sign a new one.
+	if !services.IdentityIsActive(identity) {
+		return &util.Errors.IdentityRevoked
 	}
 	return nil
 }

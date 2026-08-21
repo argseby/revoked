@@ -4,7 +4,10 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/services/domain_verification_service.dart';
+import 'package:revoked_app/core/utils/deep_links.dart';
 
 part 'invites_store.g.dart';
 
@@ -14,8 +17,9 @@ class InvitesStore = _InvitesStore with _$InvitesStore;
 
 abstract class _InvitesStore with Store {
   final ApiClient _api;
+  final DomainVerificationService _domainVerification;
 
-  _InvitesStore(this._api);
+  _InvitesStore(this._api, this._domainVerification);
 
   String get _basePath =>
       '/api/collections/${AppConfig.invitesCollection}/records';
@@ -104,6 +108,79 @@ abstract class _InvitesStore with Store {
   @observable
   AppErrorMessage? acceptError;
 
+  /// The key being pasted into the join sheet. On the store, not the sheet:
+  /// a controller a widget owns is invisible to MobX, so a button gated on its
+  /// text never rebuilds — and the half-typed key would die with the sheet.
+  final ObservableTextController joinKeyController = ObservableTextController();
+
+  /// Whatever was pasted, read as a key: the bare token or the whole link.
+  @computed
+  String get joinToken => DeepLinks.inviteTokenFrom(joinKeyController.text);
+
+  @action
+  void resetJoinDraft() {
+    joinKeyController.clear();
+    acceptPreview = null;
+    acceptError = null;
+    inviteTrustVerdict = null;
+    isVerifyingInviteTrust = false;
+    isPreviewing = false;
+    isAccepting = false;
+  }
+
+  @observable
+  TrustVerdict? inviteTrustVerdict;
+
+  @observable
+  bool isVerifyingInviteTrust = false;
+
+  @action
+  void _startInviteTrust() {
+    isVerifyingInviteTrust = true;
+    inviteTrustVerdict = null;
+  }
+
+  @action
+  void _finishInviteTrust(TrustVerdict? verdict) {
+    inviteTrustVerdict = verdict;
+    isVerifyingInviteTrust = false;
+  }
+
+  /// Runs the DNS chain against the server the invite lives on.
+  ///
+  /// Accepting is the most consequential thing an unauthenticated link can ask
+  /// for — it attaches an account to a workspace — so the recipient gets the
+  /// same verdict a share or a request would give them, including whether the
+  /// inviter's identity has since been revoked.
+  @action
+  Future<void> verifyInviteTrust(InvitePreview? preview) async {
+    final domain = preview?.serverDomain ?? '';
+    if (preview == null || domain.isEmpty) {
+      _finishInviteTrust(null);
+      return;
+    }
+
+    _startInviteTrust();
+    try {
+      _finishInviteTrust(
+        await _domainVerification.verify(
+          claimedDomain: domain,
+          identityFingerprint: preview.inviter?.identityFingerprint ?? '',
+          parentSignatureHex: preview.inviter?.parentSignature ?? '',
+          statusAssertion: preview.inviter?.statusAssertion,
+        ),
+      );
+    } catch (e) {
+      // A failed check is an unverified server, not the absence of an opinion.
+      _finishInviteTrust(
+        TrustVerdict.unverified(
+          domain: domain,
+          reason: 'The domain check could not be completed: $e',
+        ),
+      );
+    }
+  }
+
   /// Fetches what an invite token grants, before the recipient decides.
   @action
   Future<void> previewInvite(String token) async {
@@ -111,6 +188,7 @@ abstract class _InvitesStore with Store {
     acceptError = null;
     try {
       acceptPreview = await preview(token);
+      await verifyInviteTrust(acceptPreview);
     } catch (e) {
       acceptError = AppErrorMessage.fromException(e);
     } finally {

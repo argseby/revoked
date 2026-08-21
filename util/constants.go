@@ -35,6 +35,14 @@ const (
 	NotificationRequestComplete = "request_complete"
 	NotificationCallbackFailed  = "callback_failed"
 	NotificationInviteAccepted  = "invite_accepted"
+
+	// Revocation reasons recorded on an identity. They are advisory — a verifier
+	// treats every non-active status the same — but they are what tells an
+	// operator reading an audit trail why a credential stopped being honoured.
+	RevocationManual          = "manual"
+	RevocationMembershipEnded = "membership_ended"
+	RevocationKeyCompromise   = "key_compromise"
+	RevocationDeleted         = "deleted"
 )
 
 // WorkspaceRoles lists the valid workspace member roles.
@@ -52,6 +60,20 @@ var LinkStatuses = []string{StatusActive, StatusPaused, StatusRevoked, StatusExp
 // InviteStatuses lists the valid invite statuses. An invite is spent when it
 // reaches maxUses, and revoked when an admin withdraws it.
 var InviteStatuses = []string{StatusActive, StatusRevoked, StatusExpired, StatusCompleted}
+
+// IdentityStatuses lists the valid identity statuses. An identity is never
+// deleted in the normal course of things — it is revoked, so that a verifier
+// holding a copy of its public material gets a definitive answer instead of
+// the silence a missing row would produce.
+var IdentityStatuses = []string{StatusActive, StatusRevoked}
+
+// RevocationReasons lists the valid identity revocation reasons.
+var RevocationReasons = []string{
+	RevocationManual,
+	RevocationMembershipEnded,
+	RevocationKeyCompromise,
+	RevocationDeleted,
+}
 
 // RequestStatuses lists the valid request statuses.
 var RequestStatuses = []string{StatusActive, StatusPaused, StatusRevoked, StatusExpired, StatusCompleted}

@@ -12,7 +12,8 @@ import (
 	"github.com/pocketbase/dbx"
 )
 
-// Regression tests for SEC-1..SEC-7: each one fails against the pre-fix code,
+// Regression tests for SEC-1..SEC-9 (excluding SEC-8, a rule-precedence bug
+// covered by TestAccessRegistryMatchesRules): each one fails against the pre-fix code,
 // so deleting it reopens the vulnerability it names.
 
 // SEC-1: /api/certificate must never expose the CA private key that signs every
@@ -402,4 +403,92 @@ func TestAuditLogsNeverRetainSecrets(t *testing.T) {
 		return
 	}
 	t.Fatal("no audit row found for the record create")
+}
+
+// SEC-9: a refused gate must actually stop the submission, not merely describe the
+// refusal. The gate helpers write their own response and report a bool, because
+// re.JSON reports success as a nil error: a gate that returned what it wrote
+// told its caller the check had passed, and every handshake refusal — missing
+// signature, wrong signature, spent nonce — was answered with the right status
+// code while the submission went through and the identity was attributed.
+func TestRefusedHandshakeDoesNotRecordTheSubmission(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("CreateRandomUser: %v", err)
+	}
+	wsID := api.Get(util.Coll.Users, userID, token).Expect().Status(http.StatusOK).
+		JSON().Object().Value(util.Fields.User.ActiveWorkspace).String().Raw()
+
+	identityID, kp := newIdentity(t, baseURL, token, "gate-holds", userID, wsID)
+	slug, requestID := setupRequest(t, baseURL, token, userID, wsID, identityID, map[string]any{
+		util.Fields.Request.RequireHandshake: true,
+	})
+
+	pub := testutils.NewPBClient(t, baseURL)
+
+	submissionCount := func() int {
+		t.Helper()
+		links, err := app.FindRecordsByFilter(util.Coll.Links,
+			util.Fields.Link.Request+" = {:request}", "", 0, 0,
+			map[string]any{"request": requestID})
+		if err != nil {
+			t.Fatalf("counting submissions: %v", err)
+		}
+		return len(links)
+	}
+
+	// No proof at all.
+	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
+		"identityId": identityID,
+		"data":       map[string]any{"unsigned": true},
+	}).Expect().Status(http.StatusUnauthorized)
+	if n := submissionCount(); n != 0 {
+		t.Fatalf("an unsigned submission was recorded (%d)", n)
+	}
+
+	// A real nonce, signed by the wrong key.
+	nonce := pub.E.GET("/api/challenges/request/"+slug).
+		WithQuery("identityId", identityID).
+		Expect().Status(http.StatusOK).
+		JSON().Object().Value("nonce").String().Raw()
+	impostor := testutils.NewTestIdentity(t, "impostor")
+
+	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
+		"identityId":         identityID,
+		"challengeNonce":     nonce,
+		"challengeSignature": impostor.SignChallenge(t, nonce),
+		"data":               map[string]any{"forged": true},
+	}).Expect().Status(http.StatusUnauthorized)
+	if n := submissionCount(); n != 0 {
+		t.Fatalf("a forged signature was recorded (%d)", n)
+	}
+
+	// A garbage handshake token.
+	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
+		"identityId":     identityID,
+		"handshakeToken": "garbage",
+		"data":           map[string]any{"stolen-token": true},
+	}).Expect().Status(http.StatusUnauthorized)
+	if n := submissionCount(); n != 0 {
+		t.Fatalf("a bogus handshake token was recorded (%d)", n)
+	}
+
+	// The genuine holder still gets through, so the gate is refusing on proof
+	// rather than refusing everything.
+	good := pub.E.GET("/api/challenges/request/"+slug).
+		WithQuery("identityId", identityID).
+		Expect().Status(http.StatusOK).
+		JSON().Object().Value("nonce").String().Raw()
+	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
+		"identityId":         identityID,
+		"challengeNonce":     good,
+		"challengeSignature": kp.SignChallenge(t, good),
+		"data":               map[string]any{"genuine": true},
+	}).Expect().Status(http.StatusOK)
+	if n := submissionCount(); n != 1 {
+		t.Fatalf("the genuine submission was not recorded (%d)", n)
+	}
 }

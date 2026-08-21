@@ -16,6 +16,7 @@ import 'package:revoked_app/core/widgets/app_dialog.dart';
 ///   dnsMissing  → warning (caution, not failure)
 ///   unverified  → warning
 ///   spoofed     → destructive (red)
+///   revoked     → destructive (red)
 class AppTrustBadge extends StatelessWidget {
   final TrustVerdict verdict;
 
@@ -122,6 +123,8 @@ class AppTrustBadge extends StatelessWidget {
         return 'Verified ${v.domain}';
       case TrustState.spoofed:
         return 'SPOOF DETECTED';
+      case TrustState.revoked:
+        return 'REVOKED';
       case TrustState.dnsMissing:
       case TrustState.unverified:
         return 'Unverified';
@@ -134,6 +137,8 @@ class AppTrustBadge extends StatelessWidget {
         return 'Verified — ${v.domain}';
       case TrustState.spoofed:
         return 'Domain spoof detected';
+      case TrustState.revoked:
+        return 'Revoked by ${v.domain}';
       case TrustState.dnsMissing:
         return 'DNS verification missing';
       case TrustState.unverified:
@@ -156,6 +161,15 @@ class AppTrustBadge extends StatelessWidget {
           border: theme.colorScheme.danger.withValues(alpha: 0.5),
           foreground: theme.colorScheme.danger,
           icon: Icons.gpp_bad_outlined,
+        );
+      // Nothing was forged here, so it does not get the spoof icon — but it is
+      // just as much a stop, and the palette has to say so.
+      case TrustState.revoked:
+        return _BadgePalette(
+          background: theme.colorScheme.danger.withValues(alpha: 0.12),
+          border: theme.colorScheme.danger.withValues(alpha: 0.5),
+          foreground: theme.colorScheme.danger,
+          icon: Icons.block_outlined,
         );
       case TrustState.dnsMissing:
       case TrustState.unverified:

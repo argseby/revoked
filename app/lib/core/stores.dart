@@ -76,7 +76,7 @@ abstract final class Stores {
     identities = IdentitiesStore(api, crypto);
     notifications = NotificationsStore(api);
     settings = SettingsStore(api);
-    invites = InvitesStore(api);
+    invites = InvitesStore(api, domainVerification);
     serverSettings = ServerSettingsStore(api);
     linkSearch = LinkSearchStore();
     onboarding = OnboardingStore();

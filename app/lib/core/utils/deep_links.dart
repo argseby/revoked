@@ -56,6 +56,23 @@ class DeepLinks {
     return (kind: kind, slug: segments[1], origin: origin);
   }
 
+  /// Reads an invite key out of whatever a person pasted: the bare token, or
+  /// the whole `revoked://i/<token>` link they were sent.
+  ///
+  /// Both entry points into joining accept the same input, so they read it the
+  /// same way — a second parser would eventually disagree with this one about
+  /// which halves of a link are the key.
+  static String inviteTokenFrom(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return '';
+    final location = DeepLinks.locationFor(Uri.tryParse(trimmed) ?? Uri());
+    if (location != null && location.startsWith('/i/')) {
+      // locationFor may append the origin as a query, which is not the key.
+      return Uri.parse(location.substring(3)).path;
+    }
+    return trimmed;
+  }
+
   /// Maps an incoming deep-link [uri] to an in-app router location, or null
   /// if it isn't a recognized `revoked://` link.
   static String? locationFor(Uri uri) {
