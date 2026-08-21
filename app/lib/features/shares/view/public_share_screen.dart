@@ -510,7 +510,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer.withOpacity(0.3),
+                      color: theme.colorScheme.errorContainer.withValues(
+                        alpha: 0.3,
+                      ),
                       borderRadius: AppRadius.allMd,
                     ),
                     child: const Text(
@@ -606,7 +608,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.4,
+                  ),
                   borderRadius: AppRadius.allMd,
                 ),
                 child: Icon(
@@ -737,7 +741,9 @@ class _RecordGroupCard extends StatelessWidget {
               vertical: AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.3,
+              ),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(8),
               ),
@@ -776,7 +782,7 @@ class _RecordGroupCard extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: records.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 return _PublicRecordRow(
                   record: records[index],
@@ -970,9 +976,9 @@ class _PublicRecordRow extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
         borderRadius: AppRadius.allMd,
       ),
@@ -989,7 +995,7 @@ class _PublicRecordRow extends StatelessWidget {
                 fontFamily: 'monospace',
                 fontSize: 13,
                 color: obscured
-                    ? theme.colorScheme.onSurfaceVariant.withOpacity(0.5)
+                    ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
                     : theme.colorScheme.onSurface,
               ),
             ),
@@ -1036,9 +1042,9 @@ class _PublicRecordRow extends StatelessWidget {
         vertical: AppSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
         ),
         borderRadius: AppRadius.allMd,
       ),
