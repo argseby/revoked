@@ -8,9 +8,9 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/identity_status_assertion.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/request_template.dart';
-import 'package:revoked_app/core/models/identity_status_assertion.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
@@ -870,8 +870,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         // request is/needs as hoverable tags on the right. Stacks to a single
         // column when there isn't room.
         final wide = constraints.maxWidth >= 900;
-        final info = _buildInfoPanel(theme, label);
-        final input = _buildInputPanel(theme);
+        final info = Observer(builder: (_) => _buildInfoPanel(theme, label));
+        final input = Observer(builder: (_) => _buildInputPanel(theme));
 
         final Widget body = wide
             ? Row(

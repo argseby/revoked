@@ -682,7 +682,11 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 940;
-        final info = _buildInfoPanel(theme);
+        // Its own Observer, not the one around the whole build: LayoutBuilder
+        // runs this callback during layout, outside that scope, so the trust
+        // reads inside the panel would register with no reaction and sit on
+        // "Checking…" forever.
+        final info = Observer(builder: (_) => _buildInfoPanel(theme));
 
         return SingleChildScrollView(
           padding: EdgeInsets.symmetric(
