@@ -68,7 +68,7 @@ func validateFileRecord(app core.App, rec *core.Record) error {
 		if rec.GetString(util.Fields.Record.File) == "" {
 			return util.AsFieldValidationError(util.Fields.Record.File, util.Errors.FileRequired)
 		}
-		return nil
+		return validateFilename(rec)
 	}
 
 	f := uploads[len(uploads)-1]
@@ -115,6 +115,37 @@ func validateFileRecord(app core.App, rec *core.Record) error {
 	rec.Set(util.Fields.Record.ContentHash, hex.EncodeToString(h.Sum(nil)))
 	rec.Set(util.Fields.Record.Mime, http.DetectContentType(head[:n]))
 	rec.Set(util.Fields.Record.Size, f.Size)
+
+	// The name belongs to the record, not to the blob behind it: a share keeps
+	// serving "Lebenslauf.pdf" as the file behind it is replaced. So it is
+	// seeded from the first upload and only an explicit rename changes it.
+	// PocketBase snakecases and suffixes the stored name, so the uploader's
+	// name survives nowhere else.
+	if rec.GetString(util.Fields.Record.Filename) == "" {
+		if clean, ok := util.CleanFilename(f.OriginalName); ok {
+			rec.Set(util.Fields.Record.Filename, clean)
+		} else {
+			rec.Set(util.Fields.Record.Filename, f.Name)
+		}
+	}
+	return validateFilename(rec)
+}
+
+// validateFilename normalizes an explicit rename. An empty name is only healed
+// from the storage name when the record never had one — a row written before
+// the field existed. Clearing a name that was set is a rejected rename, not an
+// invitation to fall back to the snakecased storage name.
+func validateFilename(rec *core.Record) error {
+	raw := rec.GetString(util.Fields.Record.Filename)
+	if raw == "" && rec.Original().GetString(util.Fields.Record.Filename) == "" {
+		rec.Set(util.Fields.Record.Filename, rec.GetString(util.Fields.Record.File))
+		return nil
+	}
+	clean, ok := util.CleanFilename(raw)
+	if !ok {
+		return util.AsFieldValidationError(util.Fields.Record.Filename, util.Errors.FileNameInvalid)
+	}
+	rec.Set(util.Fields.Record.Filename, clean)
 	return nil
 }
 

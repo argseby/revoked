@@ -169,7 +169,9 @@ func sanitizeRecord(rec *core.Record) map[string]any {
 	// Never include workspace or user IDs in public output. The hash salt stays
 	// private too — hash alone proves currency, hash plus salt is a guessing
 	// oracle for recognizable content.
-	for _, name := range []string{"key", "value", "label", "name", "type", "format", "records", "requestedBy", "file", "mime", "size", "contentHash", "updated"} {
+	// `file` stays out: the storage name is an implementation detail, and the
+	// bytes are only ever reachable through the claimed download endpoint.
+	for _, name := range []string{"key", "value", "label", "name", "type", "format", "records", "requestedBy", "filename", "mime", "size", "contentHash", "updated"} {
 		if v := rec.Get(name); v != nil && v != "" {
 			out[name] = v
 		}

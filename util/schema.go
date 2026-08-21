@@ -33,7 +33,7 @@ type inviteFields struct {
 
 type recordFields struct {
 	Key, Value, User, Workspace, Label, Type, Format, RequestedBy, AliasOf,
-	File, ContentHash, HashSalt, Mime, Size, Created, Updated string
+	File, Filename, ContentHash, HashSalt, Mime, Size, Created, Updated string
 }
 
 type sectionFields struct {
@@ -183,6 +183,7 @@ var Fields = struct {
 		RequestedBy: "requestedBy",
 		AliasOf:     "aliasOf",
 		File:        "file",
+		Filename:    "filename",
 		ContentHash: "contentHash",
 		HashSalt:    "hashSalt",
 		Mime:        "mime",

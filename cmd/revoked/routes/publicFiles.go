@@ -107,10 +107,17 @@ func PublicFilesRoute(app core.App) {
 			}
 			defer fsys.Close()
 
+			// The reader gets the name the owner gave the record, not the
+			// snakecased and suffixed one PocketBase stores it under.
+			downloadName := rec.GetString(util.Fields.Record.Filename)
+			if downloadName == "" {
+				downloadName = filename
+			}
+
 			// Always an attachment, never sniffed: an uploaded HTML file served
 			// inline from this origin would be stored XSS on the operator's
 			// domain. Serve only fills headers that are not already set.
-			re.Response.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeFilename(filename)+`"`)
+			re.Response.Header().Set("Content-Disposition", `attachment; filename="`+sanitizeFilename(downloadName)+`"`)
 			re.Response.Header().Set("X-Content-Type-Options", "nosniff")
 			if mime := rec.GetString(util.Fields.Record.Mime); mime != "" {
 				re.Response.Header().Set("Content-Type", mime)

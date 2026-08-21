@@ -54,6 +54,8 @@ func TestFileRecordHashAndRawUrlSideDoor(t *testing.T) {
 		Status(http.StatusOK).JSON().Object()
 
 	created.Value(util.Fields.Record.Value).String().IsEmpty()
+	// The uploader's own name survives; PocketBase's storage name does not.
+	created.Value(util.Fields.Record.Filename).String().IsEqual("cv.pdf")
 	created.Value(util.Fields.Record.ContentHash).String().Length().IsEqual(64)
 	created.Value(util.Fields.Record.HashSalt).String().Length().IsEqual(32)
 	created.Value(util.Fields.Record.Mime).String().IsEqual("application/pdf")
@@ -100,6 +102,8 @@ func TestFileDownloadTokenFlow(t *testing.T) {
 	entry := resolved.Value("records").Array().Value(0).Object()
 	entry.Value("type").String().IsEqual(util.TypeFile)
 	entry.Value("contentHash").String().Length().IsEqual(64)
+	entry.Value("filename").String().IsEqual("doc.txt")
+	entry.NotContainsKey("file")
 	entry.Value("size").Number().IsEqual(len(content))
 	entry.NotContainsKey("hashSalt")
 	entry.NotContainsKey("value")
@@ -108,6 +112,7 @@ func TestFileDownloadTokenFlow(t *testing.T) {
 	download := api.E.GET("/api/public/links/"+slug+"/files/"+recID).
 		WithQuery("dl", dlToken).Expect().Status(http.StatusOK)
 	download.Header("Content-Disposition").Contains("attachment")
+	download.Header("Content-Disposition").Contains("doc.txt")
 	download.Header("X-Content-Type-Options").IsEqual("nosniff")
 	download.Body().IsEqual(string(content))
 
@@ -268,4 +273,72 @@ func TestFileAuditRedactsFilenameAndSalt(t *testing.T) {
 	if !sawRedaction {
 		t.Fatal("expected at least one redaction marker in the audit rows")
 	}
+}
+
+// A file record is editable like any other: label, visibility and the name the
+// reader sees are metadata, and renaming never touches the bytes. The name
+// belongs to the record, so replacing the file behind a share keeps serving it
+// under the name the recipient already knows.
+func TestFileRecordRenameAndMetadataEdits(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	wsID := activeWorkspaceOf(t, api, userID, token)
+
+	created := uploadFileRecord(api, token, fileRecordFields(userID, wsID, "cv"), "scan_001.pdf", []byte("%PDF-1.4 v1")).
+		Status(http.StatusOK).JSON().Object()
+	recID := created.Value("id").String().Raw()
+	created.Value(util.Fields.Record.Filename).String().IsEqual("scan_001.pdf")
+	firstHash := created.Value(util.Fields.Record.ContentHash).String().Raw()
+
+	edited := api.Update(util.Coll.Records, recID, token, map[string]any{
+		util.Fields.Record.Filename: "Lebenslauf.pdf",
+		util.Fields.Record.Label:    "Mein Lebenslauf",
+		util.Fields.Record.Format:   util.FormatHidden,
+	}).Expect().Status(http.StatusOK).JSON().Object()
+	edited.Value(util.Fields.Record.Filename).String().IsEqual("Lebenslauf.pdf")
+	edited.Value(util.Fields.Record.Label).String().IsEqual("Mein Lebenslauf")
+	edited.Value(util.Fields.Record.Format).String().IsEqual(util.FormatHidden)
+	// A rename is metadata only: the bytes, and therefore the hash, are untouched.
+	edited.Value(util.Fields.Record.ContentHash).String().IsEqual(firstHash)
+
+	replaced := api.E.PATCH("/api/collections/"+util.Coll.Records+"/records/"+recID).
+		WithHeader("Authorization", token).
+		WithMultipart().
+		WithFileBytes(util.Fields.Record.File, "irgendwas_v2.pdf", []byte("%PDF-1.4 v2-neue-fassung")).
+		Expect().Status(http.StatusOK).JSON().Object()
+	replaced.Value(util.Fields.Record.Filename).String().IsEqual("Lebenslauf.pdf")
+	if replaced.Value(util.Fields.Record.ContentHash).String().Raw() == firstHash {
+		t.Fatal("replacing the file must change the content hash")
+	}
+}
+
+// A name is a label, never a location.
+func TestFileRecordNameCannotTraverse(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	wsID := activeWorkspaceOf(t, api, userID, token)
+
+	recID := uploadFileRecord(api, token, fileRecordFields(userID, wsID, "doc"), "doc.txt", []byte("x")).
+		Status(http.StatusOK).JSON().Object().Value("id").String().Raw()
+
+	for _, bad := range []string{"../../etc/passwd", `..\\windows\\system32`, "", "   "} {
+		api.Update(util.Coll.Records, recID, token, map[string]any{
+			util.Fields.Record.Filename: bad,
+		}).Expect().Status(http.StatusBadRequest).
+			Body().Contains(util.Errors.FileNameInvalid.ErrorCode)
+	}
+
+	// The stored name is unchanged by every rejected attempt.
+	api.Get(util.Coll.Records, recID, token).Expect().Status(http.StatusOK).
+		JSON().Object().Value(util.Fields.Record.Filename).String().IsEqual("doc.txt")
 }

@@ -16,6 +16,33 @@ const (
 	FileMaxStorageEnv = "FILE_MAX_STORAGE"
 )
 
+// CleanFilename normalizes a user-supplied file name to something safe to hand
+// back in a download. Path separators are the point: a name is a label, never a
+// location, and one that traverses would let a rename reach outside the record.
+func CleanFilename(name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", false
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return "", false
+	}
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			return "", false
+		}
+	}
+	// A leading dot hides the file on unix desktops and confuses sync tools.
+	name = strings.TrimLeft(name, ".")
+	if name == "" {
+		return "", false
+	}
+	if len(name) > 255 {
+		name = name[:255]
+	}
+	return name, true
+}
+
 // FileLimitBytes reads a megabyte limit from the environment; -1 means
 // unlimited.
 func FileLimitBytes(name string) int64 {

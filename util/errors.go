@@ -75,6 +75,7 @@ var Errors = struct {
 	FileStorageExceeded           AppError
 	FileAliasUnsupported          AppError
 	FileDownloadInvalid           AppError
+	FileNameInvalid               AppError
 	InviteRevoked                 AppError
 	InviteExhausted               AppError
 	InviteWrongAccount            AppError
@@ -205,6 +206,10 @@ var Errors = struct {
 	FileDownloadInvalid: AppError{
 		ErrorCode: "file_download_invalid",
 		ErrorText: "The download token is invalid or expired. Reopen the link to request a new one.",
+	},
+	FileNameInvalid: AppError{
+		ErrorCode: "file_name_invalid",
+		ErrorText: "A file name cannot be empty or contain path separators.",
 	},
 	RequestRevoked: AppError{
 		ErrorCode: "request_revoked",
