@@ -8,6 +8,7 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/status_colors.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
@@ -47,8 +48,26 @@ class _InboxScreenState extends State<InboxScreen> {
       defaultSort: 'created_desc',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ShellSlots.setFilter(_filterButton);
       Stores.requests.loadRequests();
     });
+  }
+
+  @override
+  void dispose() {
+    ShellSlots.clearFilter(_filterButton);
+    super.dispose();
+  }
+
+  Widget _filterButton(BuildContext context) {
+    return FilterButton<DataRequest>(
+      controller: _table,
+      columns: const [
+        DataTableColumn(value: 'label', label: 'Label'),
+        DataTableColumn(value: 'slug', label: 'Slug'),
+        DataTableColumn(value: 'status', label: 'Status'),
+      ],
+    );
   }
 
   @override
@@ -74,16 +93,6 @@ class _InboxScreenState extends State<InboxScreen> {
                   return AppScreenHeader(
                     title: 'Request',
                     badgeLabel: '$count ${count == 1 ? 'request' : 'requests'}',
-                    actions: [
-                      FilterButton<DataRequest>(
-                        controller: _table,
-                        columns: const [
-                          DataTableColumn(value: 'label', label: 'Label'),
-                          DataTableColumn(value: 'slug', label: 'Slug'),
-                          DataTableColumn(value: 'status', label: 'Status'),
-                        ],
-                      ),
-                    ],
                   );
                 },
               ),

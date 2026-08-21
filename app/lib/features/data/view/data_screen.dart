@@ -8,6 +8,7 @@ import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -101,7 +102,10 @@ class _DataScreenState extends State<DataScreen> {
       },
       defaultSort: 'created_desc',
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ShellSlots.setFilter(_filterButton);
+      _load();
+    });
   }
 
   Future<void> _load() =>
@@ -109,8 +113,23 @@ class _DataScreenState extends State<DataScreen> {
 
   @override
   void dispose() {
+    ShellSlots.clearFilter(_filterButton);
     _table.dispose();
     super.dispose();
+  }
+
+  Widget _filterButton(BuildContext context) {
+    return FilterButton<DataItem>(
+      controller: _table,
+      columns: const [
+        DataTableColumn(value: 'name', label: 'Name'),
+        DataTableColumn(value: 'value', label: 'Value'),
+        DataTableColumn(value: 'source', label: 'Source'),
+        DataTableColumn(value: 'template', label: 'Template ID'),
+        DataTableColumn(value: 'sender', label: 'Sender'),
+        DataTableColumn(value: 'status', label: 'Status (live/revoked/vault)'),
+      ],
+    );
   }
 
   GrantStatus _grantStatus(String requestStatus) {
@@ -271,20 +290,6 @@ class _DataScreenState extends State<DataScreen> {
                   if (widget.requestId != null) ...[
                     _responsesToggle(context, widget.requestId!, current: 0),
                   ],
-                  FilterButton<DataItem>(
-                    controller: _table,
-                    columns: const [
-                      DataTableColumn(value: 'name', label: 'Name'),
-                      DataTableColumn(value: 'value', label: 'Value'),
-                      DataTableColumn(value: 'source', label: 'Source'),
-                      DataTableColumn(value: 'template', label: 'Template ID'),
-                      DataTableColumn(value: 'sender', label: 'Sender'),
-                      DataTableColumn(
-                        value: 'status',
-                        label: 'Status (live/revoked/vault)',
-                      ),
-                    ],
-                  ),
                 ],
               );
             },
