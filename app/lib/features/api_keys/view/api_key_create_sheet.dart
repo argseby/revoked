@@ -10,8 +10,8 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
-import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
@@ -225,8 +225,6 @@ class ApiKeyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Scopes are the expanded form of the granted permissions, and two
-    // permissions can expand onto the same scope, so the stored list repeats.
     final scopes = (apiKey.scopes as List<String>).toSet().toList()..sort();
 
     return AppEntityCard(
@@ -235,7 +233,7 @@ class ApiKeyCard extends StatelessWidget {
       subtitle: apiKey.neverExpires
           ? 'Never expires'
           : 'Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
-      tags: [for (final scope in scopes) AppBadge(label: scope, mono: true)],
+      tags: [AppBadge(label: '${scopes.length} permissions', mono: true)],
       actions: [
         AppSheetAction(
           icon: AppIcons.xCircle,
