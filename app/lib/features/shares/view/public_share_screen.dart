@@ -184,7 +184,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               : TrustCheckState.failed,
           detail: Uri.tryParse('https://${widget.origin!}')?.host == domain
               ? null
-              : 'Link origin mismatches sender declaration.',
+              : 'The link points at a different server than the sender '
+                    'claims to be.',
         ),
     ];
   }
