@@ -33,21 +33,6 @@ func IdentityStatusOf(identity *core.Record) string {
 	return util.StatusRevoked
 }
 
-// RevokeIdentity marks a single identity revoked, leaving its public material
-// in place so a verifier asking about the fingerprint gets a definitive answer
-// rather than a missing row. Already-revoked identities keep their original
-// timestamp and reason — the first revocation is the one that matters.
-func RevokeIdentity(app core.App, identity *core.Record, reason string) error {
-	if identity == nil || !IdentityIsActive(identity) {
-		return nil
-	}
-	identity.Set(util.Fields.Identity.Status, util.StatusRevoked)
-	identity.Set(util.Fields.Identity.RevokedAt, types.NowDateTime())
-	identity.Set(util.Fields.Identity.RevokedReason, reason)
-	identity.Set(util.Fields.Identity.IsPrimary, false)
-	return app.Save(identity)
-}
-
 // RevokeWorkspaceIdentities revokes every identity a user holds in one
 // workspace. This is what closes the gap behind a departing member: the
 // certificate they already hold asserts membership of this workspace's domain,
