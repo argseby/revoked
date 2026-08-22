@@ -210,6 +210,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _confirmDeleteWorkspace(
+    BuildContext context,
+    Workspace workspace,
+    AuthStore auth,
+  ) async {
+    final settings = Stores.settings;
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Delete ${workspace.name}?',
+      message:
+          'Everything in this workspace goes with it — records, files, '
+          'templates, members and API keys. Every share and request link it '
+          'created stops working, and the identities it issued are revoked, so '
+          'anyone still holding one loses access immediately. This cannot be '
+          'undone.',
+      confirmLabel: 'Delete workspace',
+      cancelLabel: 'Keep it',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+
+    final wasActive = auth.activeWorkspace == workspace.id;
+    if (!await settings.deleteWorkspace(auth.userId, workspace.id)) {
+      if (context.mounted) {
+        AppToast.error(
+          context,
+          'Could not delete the workspace',
+          subtitle: settings.errorMessage,
+        );
+      }
+      return;
+    }
+
+    // The server clears the active context of everyone pointing at it, so the
+    // session still names a workspace that is gone. Same order as a switch:
+    // refresh first, then reload, or the stores refetch the dead workspace.
+    if (wasActive) {
+      await Stores.auth.initialize();
+      await Stores.workspaceContext.reload();
+    }
+  }
+
   Future<void> _confirmRevokeIdentity(
     BuildContext context,
     IdentitiesStore store,
@@ -365,6 +407,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     userId: auth.userId,
                     workspaceId: ws.id,
                   ),
+                ),
+              if (settings.canManageWorkspace(ws.id, Stores.invites.catalogue))
+                AppSheetAction(
+                  icon: AppIcons.trash,
+                  label: 'Delete workspace',
+                  destructive: true,
+                  onTap: () => _confirmDeleteWorkspace(context, ws, auth),
                 ),
             ],
           ),
@@ -774,7 +823,6 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return AppCard(
       child: Row(
         children: [

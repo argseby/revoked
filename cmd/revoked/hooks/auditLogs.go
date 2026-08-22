@@ -116,6 +116,15 @@ func logAuditAction(app core.App, e *core.RecordRequestEvent, action string, old
 		workspaceId = e.Auth.GetString(util.Fields.User.ActiveWorkspace)
 	}
 
+	// A workspace's own deletion cannot point at it: the row is gone by now and
+	// a relation to a missing record fails validation, which the save below only
+	// logs. Without this the one action that ends a workspace is the one action
+	// never recorded — and the actor's activeWorkspace still names it, so the
+	// fallback above reintroduces it. recordId already identifies it.
+	if action == "delete" && e.Collection.Name == util.Coll.Workspaces {
+		workspaceId = ""
+	}
+
 	if workspaceId != "" {
 		auditRecord.Set(util.Fields.AuditLog.Workspace, workspaceId)
 	}
