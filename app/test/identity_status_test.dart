@@ -111,6 +111,18 @@ void main() {
       expect(body, isNull);
     });
 
+    // The issuing server is someone else's machine, so its clock is not this
+    // one's. Rejecting an answer for being seconds ahead reads as an unverified
+    // identity, not as a clock problem, and would make every identity from a
+    // slightly fast server unverifiable.
+    test('tolerates an issuer whose clock runs a little ahead', () {
+      final body = verify(
+        assertionFor('active'),
+        now: issuedAt.subtract(const Duration(seconds: 30)),
+      );
+      expect(body, isNotNull);
+    });
+
     // A genuine "active" for one identity must not vouch for another, or the
     // holder of any live identity could cover for a revoked one.
     test('refuses an answer about a different identity', () {

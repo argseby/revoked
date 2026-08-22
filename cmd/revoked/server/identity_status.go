@@ -42,6 +42,19 @@ const (
 // key stays honoured for at most this long after it is withdrawn.
 const IdentityStatusTTL = time.Hour
 
+// IdentityStatusClockSkew is how far ahead of the verifier an issuer's clock may
+// run before its answers stop being believed.
+//
+// Issuer and verifier are different machines by definition — the callers who
+// most need this endpoint hold no account on the server answering — so a
+// strictly-in-the-past issuedAt rejects every assertion from a server whose
+// clock is a second fast. That failure is silent and total: the answer verifies
+// as nothing, the identity reads as unverified, and no key is at fault.
+//
+// Deliberately one-sided. Expiry stays strict: this is a revocation channel,
+// and honouring a stale answer is the one direction that costs something.
+const IdentityStatusClockSkew = time.Minute
+
 // fingerprintPattern is the only input this endpoint will sign a statement
 // about. Constraining the shape keeps the signing oracle to a fixed vocabulary.
 var fingerprintPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -188,7 +201,7 @@ func VerifyIdentityStatus(a IdentityStatusAssertion, rootPubPEM, expectDomain, e
 	if !strings.EqualFold(body.Fingerprint, expectFingerprint) {
 		return IdentityStatusBody{}, errors.New("identity status: answer is about a different identity")
 	}
-	if body.IssuedAt > now.Unix() {
+	if body.IssuedAt > now.Add(IdentityStatusClockSkew).Unix() {
 		return IdentityStatusBody{}, errors.New("identity status: issued in the future")
 	}
 	if body.ExpiresAt < now.Unix() {

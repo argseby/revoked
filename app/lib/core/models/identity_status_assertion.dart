@@ -18,6 +18,14 @@ import 'dart:typed_data';
 class IdentityStatusAssertion {
   static const type = 'identity-status-v1';
 
+  /// How far ahead of this device the issuing server's clock may run before its
+  /// answers stop being believed. They are different machines by definition, so
+  /// a strict comparison rejects every assertion from a server a second fast —
+  /// silently, since a failed verification reads as an unverified identity
+  /// rather than as an error. Expiry stays strict: honouring a stale revocation
+  /// answer is the one direction that costs something.
+  static const clockSkew = Duration(minutes: 1);
+
   final String payload;
   final String signature;
 
@@ -162,7 +170,7 @@ class IdentityStatusBody {
     if (body.fingerprint.toLowerCase() != expectFingerprint.toLowerCase()) {
       return null;
     }
-    if (body.issuedAt.isAfter(now)) return null;
+    if (body.issuedAt.isAfter(now.add(IdentityStatusAssertion.clockSkew))) return null;
     if (body.expiresAt.isBefore(now)) return null;
     return body;
   }

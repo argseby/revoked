@@ -1,1 +1,2 @@
 zensical==0.0.56
+pyyaml>=6

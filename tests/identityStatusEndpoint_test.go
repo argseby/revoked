@@ -53,10 +53,12 @@ func TestIdentityStatusEndpointAnswersAndIsSigned(t *testing.T) {
 		JSON().Object().Value(util.Fields.Identity.Fingerprint).String().Raw()
 
 	rootPub := serverRootPublicKey(t, api)
-	now := time.Now()
 
+	// Read the clock at each verification, not once up front: a verifier checks
+	// an answer when it receives it, and freezing time across two round trips
+	// made this fail whenever the revoke crossed a second boundary.
 	active := fetchStatusAssertion(t, api, fingerprint)
-	activeBody, err := server.VerifyIdentityStatus(active, rootPub, testDomain, fingerprint, now)
+	activeBody, err := server.VerifyIdentityStatus(active, rootPub, testDomain, fingerprint, time.Now())
 	if err != nil {
 		t.Fatalf("the status answer did not verify under the server's root key: %v", err)
 	}
@@ -67,7 +69,7 @@ func TestIdentityStatusEndpointAnswersAndIsSigned(t *testing.T) {
 	revokeIdentity(t, api, identityID, token, util.RevocationMembershipEnded)
 
 	revoked := fetchStatusAssertion(t, api, fingerprint)
-	revokedBody, err := server.VerifyIdentityStatus(revoked, rootPub, testDomain, fingerprint, now)
+	revokedBody, err := server.VerifyIdentityStatus(revoked, rootPub, testDomain, fingerprint, time.Now())
 	if err != nil {
 		t.Fatalf("the revoked answer did not verify: %v", err)
 	}

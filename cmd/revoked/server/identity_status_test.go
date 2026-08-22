@@ -61,6 +61,44 @@ func TestIdentityStatusExpires(t *testing.T) {
 	}
 }
 
+// Issuer and verifier are different machines, so a strictly-in-the-past
+// issuedAt rejects every answer from a server whose clock runs a little fast —
+// and the rejection is silent, reading as an unverified identity rather than as
+// a clock problem. Modest skew is tolerated; a wildly future-dated answer is
+// still refused, so the allowance cannot be stretched into a replay window.
+func TestIdentityStatusToleratesClockSkewButNotTimeTravel(t *testing.T) {
+	root := testRoot(t, "bmw.example")
+	issued := time.Unix(1_700_000_000, 0)
+
+	assertion, err := root.IssueIdentityStatus(sampleFingerprint, IdentityStatusActive, "", time.Time{}, issued)
+	if err != nil {
+		t.Fatalf("IssueIdentityStatus: %v", err)
+	}
+	pub := root.PublicKeyPEM()
+
+	// Offsets are absolute, not derived from the allowance: a test that scales
+	// with the constant it is checking moves whenever the constant does and
+	// stops proving anything.
+
+	// The issuer's clock is half a minute ahead of this verifier's.
+	behind := issued.Add(-30 * time.Second)
+	if _, err := VerifyIdentityStatus(assertion, pub, "bmw.example", sampleFingerprint, behind); err != nil {
+		t.Fatalf("a slightly fast issuer was rejected: %v", err)
+	}
+
+	// Far enough ahead that a clock is not the explanation.
+	wayBehind := issued.Add(-10 * time.Minute)
+	if _, err := VerifyIdentityStatus(assertion, pub, "bmw.example", sampleFingerprint, wayBehind); err == nil {
+		t.Fatal("an answer dated well into the future was accepted")
+	}
+
+	// The allowance is one-sided: it must not extend the answer's life.
+	expired := issued.Add(IdentityStatusTTL + time.Second)
+	if _, err := VerifyIdentityStatus(assertion, pub, "bmw.example", sampleFingerprint, expired); err == nil {
+		t.Fatal("the skew allowance was applied to expiry as well")
+	}
+}
+
 // The answer names the identity it is about, so a valid "active" for one
 // fingerprint cannot be replayed as cover for another.
 func TestIdentityStatusIsBoundToItsSubject(t *testing.T) {
