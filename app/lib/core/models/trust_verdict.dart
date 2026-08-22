@@ -26,6 +26,14 @@ enum TrustState {
   /// with the served pubkey, or the identity signature doesn't verify.
   /// Submission must be blocked; this almost always means spoofing.
   spoofed,
+
+  /// Every signature checks out and the issuing server has withdrawn the
+  /// identity anyway. This is the one state a certificate cannot express:
+  /// the leaf is good for ten years and its parentSignature never expires,
+  /// so a holder removed from the workspace goes on proving what they
+  /// proved on their first day. Blocked like [spoofed], but for the
+  /// opposite reason — nothing was forged, the vouching simply stopped.
+  revoked,
 }
 
 class TrustVerdict {
@@ -79,8 +87,22 @@ class TrustVerdict {
   }) =>
       TrustVerdict._(state: TrustState.spoofed, domain: domain, reason: reason);
 
-  /// True when the user should be allowed to submit. Spoofed is a hard
-  /// block; the other non-verified states are soft and let the UI ask
-  /// for explicit confirmation.
-  bool get allowsSubmit => state != TrustState.spoofed;
+  factory TrustVerdict.revoked({
+    required String domain,
+    required String reason,
+    String? rootFingerprint,
+    String? identityFingerprint,
+  }) => TrustVerdict._(
+    state: TrustState.revoked,
+    domain: domain,
+    reason: reason,
+    rootFingerprint: rootFingerprint,
+    identityFingerprint: identityFingerprint,
+  );
+
+  /// True when the user should be allowed to submit. Spoofed and revoked
+  /// are hard blocks; the other non-verified states are soft and let the
+  /// UI ask for explicit confirmation.
+  bool get allowsSubmit =>
+      state != TrustState.spoofed && state != TrustState.revoked;
 }

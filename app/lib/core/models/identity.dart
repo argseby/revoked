@@ -23,6 +23,13 @@ class Identity {
   /// issued by this server carry the server's root domain here; used to tell
   /// "issued by this root" apart from externally-issued identities.
   final String domainAtIssue;
+
+  /// `active` or `revoked`. An identity is withdrawn rather than deleted, so
+  /// that a verifier holding a copy of its public material gets a definite
+  /// answer instead of the silence a missing record would produce.
+  final String status;
+  final String? revokedAt;
+  final String? revokedReason;
   final String? created;
   final String? updated;
 
@@ -36,9 +43,17 @@ class Identity {
     required this.workspace,
     this.isPrimary = false,
     this.domainAtIssue = '',
+    this.status = 'active',
+    this.revokedAt,
+    this.revokedReason,
     this.created,
     this.updated,
   });
+
+  /// An empty status means a server that predates revocation, which backfills
+  /// its rows to active — treating the blank as revoked would black out every
+  /// identity on a server mid-upgrade.
+  bool get isRevoked => status.isNotEmpty && status != 'active';
 
   /// Abbreviated fingerprint (first 8 … last 8 hex chars) for display.
   String get shortFingerprint => fingerprint.length > 16
@@ -59,6 +74,9 @@ class Identity {
       workspace: json['workspace'] as String,
       isPrimary: json['isPrimary'] as bool? ?? false,
       domainAtIssue: json['domainAtIssue'] as String? ?? '',
+      status: json['status'] as String? ?? 'active',
+      revokedAt: json['revokedAt'] as String?,
+      revokedReason: json['revokedReason'] as String?,
       created: json['created'] as String?,
       updated: json['updated'] as String?,
     );
@@ -77,6 +95,9 @@ class Identity {
     String? workspace,
     bool? isPrimary,
     String? domainAtIssue,
+    String? status,
+    String? revokedAt,
+    String? revokedReason,
     String? created,
     String? updated,
   }) {
@@ -90,6 +111,9 @@ class Identity {
       workspace: workspace ?? this.workspace,
       isPrimary: isPrimary ?? this.isPrimary,
       domainAtIssue: domainAtIssue ?? this.domainAtIssue,
+      status: status ?? this.status,
+      revokedAt: revokedAt ?? this.revokedAt,
+      revokedReason: revokedReason ?? this.revokedReason,
       created: created ?? this.created,
       updated: updated ?? this.updated,
     );

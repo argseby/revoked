@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/identity_status_assertion.dart';
+
 /// A permission as a person picks or reads it, mirroring the catalogue in the
 /// Go backend's `util/permissions.go`.
 ///
@@ -54,39 +56,121 @@ List<InvitePermission> permissionsFromScopes(
 class InvitePreview {
   final String label;
   final String workspaceName;
-  final String workspaceType;
   final String? invitedBy;
   final List<InvitePermission> permissions;
   final bool requiresEmail;
   final String? expiresAt;
 
+  /// The domain this server claims, and the root key it serves. Without them
+  /// the recipient has nothing to walk the DNS chain against — and accepting
+  /// hands an account to whoever is on the other end.
+  final String serverDomain;
+  final String serverRootFingerprint;
+
+  /// What the server can actually back up about whoever sent this.
+  final InviteInviter? inviter;
+
   const InvitePreview({
     required this.label,
     required this.workspaceName,
-    required this.workspaceType,
     required this.permissions,
     this.invitedBy,
     this.requiresEmail = false,
     this.expiresAt,
+    this.serverDomain = '',
+    this.serverRootFingerprint = '',
+    this.inviter,
   });
 
   factory InvitePreview.fromJson(Map<String, dynamic> json) {
     final workspace = (json['workspace'] as Map<String, dynamic>?) ?? const {};
+    final server = (json['server'] as Map<String, dynamic>?) ?? const {};
     final perms = (json['permissions'] as List<dynamic>?) ?? const [];
     return InvitePreview(
       label: json['label'] as String? ?? '',
       workspaceName: workspace['name'] as String? ?? 'this workspace',
-      workspaceType: workspace['type'] as String? ?? '',
       invitedBy: _orNull(json['invitedBy'] as String?),
       permissions: perms
           .map((e) => InvitePermission.fromJson(e as Map<String, dynamic>))
           .toList(),
       requiresEmail: json['requiresEmail'] as bool? ?? false,
       expiresAt: _orNull(json['expiresAt'] as String?),
+      serverDomain: server['domain'] as String? ?? '',
+      serverRootFingerprint: server['rootFingerprint'] as String? ?? '',
+      inviter: InviteInviter.fromJson(json['inviter']),
     );
   }
 
   bool get grantsDestructive => permissions.any((p) => p.destructive);
+}
+
+/// What the issuing server states about whoever created an invite.
+///
+/// There is no address-confirmation flow, so nothing here claims the email was
+/// proven — a "verified" flag would be theatre. What the server can say is
+/// whose account the address belongs to, whether it even sits in the server's
+/// own domain, whether that account may still invite, and which identity it
+/// holds. Only the last of those is independently checkable, and it is the one
+/// the recipient's DNS chain actually runs on.
+class InviteInviter {
+  final String email;
+  final String emailDomain;
+  final String serverDomain;
+
+  /// True only on an exact domain match. Treating a parent domain as the same
+  /// organisation needs a public suffix list to be safe, and a wrong "same
+  /// organisation" is worse than naming both domains and letting a person judge.
+  final bool emailMatchesServer;
+
+  /// False when the account behind the invite is no longer a member who may
+  /// invite. The server refuses the acceptance too — this is so the recipient
+  /// learns why before they try.
+  final bool canStillInvite;
+
+  final String identityName;
+  final String identityFingerprint;
+  final String parentSignature;
+  final String domainAtIssue;
+  final String identityStatus;
+  final IdentityStatusAssertion? statusAssertion;
+
+  const InviteInviter({
+    required this.email,
+    required this.emailDomain,
+    required this.serverDomain,
+    required this.emailMatchesServer,
+    required this.canStillInvite,
+    this.identityName = '',
+    this.identityFingerprint = '',
+    this.parentSignature = '',
+    this.domainAtIssue = '',
+    this.identityStatus = '',
+    this.statusAssertion,
+  });
+
+  bool get hasIdentity => identityFingerprint.isNotEmpty;
+  bool get identityRevoked =>
+      identityStatus.isNotEmpty && identityStatus != 'active';
+
+  static InviteInviter? fromJson(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    final identity = (json['identity'] as Map<String, dynamic>?) ?? const {};
+    return InviteInviter(
+      email: json['email'] as String? ?? '',
+      emailDomain: json['emailDomain'] as String? ?? '',
+      serverDomain: json['serverDomain'] as String? ?? '',
+      emailMatchesServer: json['emailMatchesServer'] as bool? ?? false,
+      canStillInvite: json['canStillInvite'] as bool? ?? true,
+      identityName: identity['name'] as String? ?? '',
+      identityFingerprint: identity['fingerprint'] as String? ?? '',
+      parentSignature: identity['parentSignature'] as String? ?? '',
+      domainAtIssue: identity['domainAtIssue'] as String? ?? '',
+      identityStatus: identity['status'] as String? ?? '',
+      statusAssertion: IdentityStatusAssertion.fromJson(
+        identity['statusAssertion'],
+      ),
+    );
+  }
 }
 
 /// An invite this workspace has issued, from the `invites` collection.

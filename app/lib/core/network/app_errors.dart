@@ -60,8 +60,11 @@ abstract class AppErrorCode {
 
   static const handshakeRequired = 'handshake_required';
   static const handshakeInvalid = 'handshake_invalid';
+  static const handshakeFailed = 'handshake_failed';
   static const identityNotFound = 'identity_not_found';
   static const identityRequired = 'identity_required';
+  static const identityRevoked = 'identity_revoked';
+  static const identityFingerprintInvalid = 'identity_fingerprint_invalid';
   static const invalidCertificate = 'invalid_certificate';
 }
 
@@ -415,6 +418,28 @@ class AppErrorMessage {
         return AppErrorMessage(
           title: 'Identity not found',
           description: 'The identity you selected no longer exists.',
+          code: e.code,
+        );
+      case AppErrorCode.identityRevoked:
+        return AppErrorMessage(
+          title: 'Identity revoked',
+          description:
+              'The server that issued this identity has withdrawn it. It can '
+              'no longer sign for that domain, and a new identity is needed.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.identityFingerprintInvalid:
+        return AppErrorMessage(
+          title: 'Invalid fingerprint',
+          description: 'That is not a well-formed identity fingerprint.',
+          code: e.code,
+        );
+      case AppErrorCode.handshakeFailed:
+        return AppErrorMessage(
+          title: 'Handshake failed',
+          description:
+              'The handshake could not be completed. Please try again.',
           code: e.code,
         );
       case AppErrorCode.invalidCertificate:

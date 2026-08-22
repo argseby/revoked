@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"revoked/cmd/revoked/server"
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 	"strconv"
 	"strings"
@@ -37,6 +38,7 @@ type pageData struct {
 	SharerName       string
 	SharerDomain     string
 	SharerPrint      string
+	SharerRevoked    bool
 	Status           string
 	Gated            bool
 	RequireHandshake bool
@@ -137,12 +139,15 @@ func handlePublicLinkGet(app core.App, re *core.RequestEvent, root *server.RootK
 
 	if idId := link.GetString(util.Fields.Link.Identity); idId != "" {
 		if id, err := app.FindRecordById(util.Coll.Identities, idId); err == nil && id != nil {
-			probe["sharer"] = map[string]any{
+			sharer := map[string]any{
 				"name":            id.GetString(util.Fields.Identity.Name),
 				"domainAtIssue":   id.GetString(util.Fields.Identity.DomainAtIssue),
 				"fingerprint":     id.GetString(util.Fields.Identity.Fingerprint),
 				"parentSignature": id.GetString(util.Fields.Identity.ParentSignature),
+				"status":          services.IdentityStatusOf(id),
 			}
+			stapleIdentityStatus(app, root, sharer, id.GetString(util.Fields.Identity.Fingerprint))
+			probe["sharer"] = sharer
 		}
 	}
 
@@ -325,6 +330,7 @@ func servePublicPage(app core.App, re *core.RequestEvent, root *server.RootKey, 
 		data.SharerName = id.GetString(util.Fields.Identity.Name)
 		data.SharerDomain = id.GetString(util.Fields.Identity.DomainAtIssue)
 		data.SharerPrint = id.GetString(util.Fields.Identity.Fingerprint)
+		data.SharerRevoked = !services.IdentityIsActive(id)
 	}
 
 	var buf bytes.Buffer
@@ -726,12 +732,18 @@ a:hover { text-decoration: underline; }
 {{if .SharerName}}
 <div class="status-row">
 <span class="muted">Shared by</span>
-<span style="font-weight: 500;">{{.SharerName}}</span>
+<span style="font-weight: 500;">{{.SharerName}}{{if .SharerRevoked}} <span class="badge bad">Revoked</span>{{end}}</span>
 </div>
 <div style="margin-top: 8px;">
 <div class="muted sm" style="margin-bottom: 2px;">Claimed Key Fingerprint</div>
 <div class="mono sm muted">{{.SharerPrint}}</div>
 </div>
+{{if .SharerRevoked}}
+<p class="muted sm" style="margin-top: 8px;">
+{{.Domain}} has withdrawn this identity. The signature still verifies — it was
+valid when it was made — but the domain no longer vouches for whoever holds it.
+</p>
+{{end}}
 {{end}}
 </div>
 </div>

@@ -9,5 +9,5 @@ Revoked replaces stale copies of data with a reference that resolves its current
   reference, DNS, reverse proxy, accounts, backups.
 - **[API](api/callbacks.md)** — server-side integration: callbacks, public
   endpoints, verification.
-- **[App](app/index.md)** — the client, per platform.
+- **[APP](app/index.md)** — the client, per platform.
 

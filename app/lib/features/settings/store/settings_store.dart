@@ -3,6 +3,7 @@ import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/workspace.dart';
 import 'package:revoked_app/core/models/workspace_member.dart';
 import 'package:revoked_app/core/network/api_client.dart';
@@ -119,6 +120,50 @@ abstract class _SettingsStore with Store {
       isLoading = false;
     }
   }
+
+  /// Whether this account may delete [workspaceId], asked of the catalogue
+  /// rather than by matching scope strings here — the server stores grants
+  /// expanded, and naming them back is the catalogue's job.
+  bool canManageWorkspace(
+    String workspaceId,
+    List<InvitePermission> catalogue,
+  ) {
+    final granted = memberships
+        .where((m) => m.workspace == workspaceId)
+        .expand((m) => m.permissions)
+        .toList();
+    if (granted.isEmpty) return false;
+    for (final permission in catalogue) {
+      if (permission.key == 'settings:manage') {
+        return permission.isSatisfiedBy(granted);
+      }
+    }
+    return false;
+  }
+
+  /// Deletes a workspace and everything in it. The server tears down the
+  /// contents and clears the active context of anyone pointing at it, so the
+  /// caller reloads rather than patching the list in place.
+  @action
+  Future<bool> deleteWorkspace(String userId, String workspaceId) async {
+    isDeletingWorkspace = true;
+    errorMessage = null;
+    try {
+      await _api.delete(
+        '/api/collections/${AppConfig.workspacesCollection}/records/$workspaceId',
+      );
+      await loadWorkspaces(userId);
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isDeletingWorkspace = false;
+    }
+  }
+
+  @observable
+  bool isDeletingWorkspace = false;
 
   @action
   Future<bool> createWorkspace({

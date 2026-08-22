@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"fmt"
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -74,6 +75,15 @@ func BindWorkspacesHooks(app core.App) {
 			0,
 			map[string]any{"workspace": e.Record.Id},
 		)
+
+		// Children first: most hold a required workspace relation that does not
+		// cascade, so PocketBase refuses the delete while any of them exist.
+		// Inside this hook rather than before the request, so the teardown and
+		// the delete share one transaction — a failure halfway through must
+		// leave the workspace whole rather than half-emptied.
+		if err := services.TearDownWorkspace(e.App, e.Record.Id); err != nil {
+			return err
+		}
 
 		if err := e.Next(); err != nil {
 			return err

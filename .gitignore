@@ -158,3 +158,6 @@ key.properties
 # Any loose file holding a keystore password.
 keystore
 keystore.txt
+
+# Generated from docs/api/openapi.yaml by tools/docs/gen_api_reference.py.
+docs/api/reference/

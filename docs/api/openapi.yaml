@@ -1,0 +1,984 @@
+openapi: 3.1.0
+info:
+  title: Revoked API
+  version: "0.1.0"
+  summary: Secret sharing and data collection over revocable, living grants.
+  description: |
+    Every operator runs this API under their own domain, so there is no shared
+    base URL — substitute your own host everywhere below.
+
+    Two things distinguish this API from a typical CRUD surface, and both are
+    worth reading before integrating:
+
+    - **Grants are living.** A share resolves the current value at read time,
+      so rotating a secret updates every share that points at it. Pausing or
+      revoking one takes effect on the next read, not on the next sync.
+    - **Public endpoints are protected by slug entropy alone.** Anything under
+      `/api/public` or `/s` is reachable by whoever holds the slug. There is
+      deliberately no list endpoint for them.
+
+    Endpoints marked *unauthenticated* are meant to be called by people with no
+    account on this server — recipients of a share, responders to a request,
+    verifiers walking the trust chain.
+  license:
+    name: See repository
+servers:
+  - url: https://{host}
+    description: Your deployment
+    variables:
+      host:
+        default: api.example.com
+        description: The domain this operator runs under, matching its DNS TXT record.
+
+security:
+  - ApiKey: []
+  - Session: []
+
+tags:
+  - name: Discovery
+    description: |
+      Unauthenticated endpoints describing the server itself. These anchor the
+      DNS trust chain: a verifier reads `_revoked.<domain>` from DNS, fetches
+      the root key here, and checks that the two agree before believing
+      anything an identity signed.
+  - name: Identity
+    description: |
+      Identity material and, more importantly, whether the issuer still stands
+      behind it. A certificate is minted for ten years and its parent signature
+      never expires, so possession proves nothing about current standing — only
+      the status endpoint does.
+  - name: Shares
+    description: |
+      Reading a share by slug. The probe reports gates without revealing data;
+      the resolve returns data and consumes a view.
+  - name: Requests
+    description: Submitting data to a request by slug.
+  - name: Invites
+    description: Previewing and accepting a workspace invitation.
+  - name: Workspaces
+    description: Membership and account-level operations.
+  - name: Records
+    description: |
+      The vault. Records hold the values that shares resolve at read time.
+  - name: Grants
+    description: Shares and requests as owned resources.
+
+paths:
+  /healthz:
+    get:
+      tags: [Discovery]
+      summary: Liveness probe
+      description: Returns `ok` when the process is serving. Used by the container healthcheck.
+      security: []
+      responses:
+        "200":
+          description: Serving.
+          content:
+            text/plain:
+              schema: { type: string, examples: ["ok"] }
+
+  /api/server:
+    get:
+      tags: [Discovery]
+      summary: Server identity and domain claim
+      description: |
+        The server's domain claim, root public key and a freshly signed
+        assertion, plus the TXT record an operator must publish.
+
+        A verifier compares `fingerprint` against the `_revoked.<domain>` TXT
+        record. They must agree; the served key alone proves nothing, since
+        whoever serves the response also chooses what it says.
+      security: []
+      responses:
+        "200":
+          description: The server's claim about itself.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  domain: { type: string, description: The domain this server claims. }
+                  fingerprint: { type: string, description: SHA-256 fingerprint of the root public key. }
+                  publicKey: { type: string, description: Root public key, PEM encoded. }
+                  assertion: { type: object, description: A freshly signed statement of the above. }
+                  txt:
+                    type: object
+                    description: The DNS record an operator publishes to complete the chain.
+                    properties:
+                      host: { type: string }
+                      value: { type: string }
+                  limits:
+                    type: object
+                    description: Operator policy a client should respect before uploading.
+                    properties:
+                      maxFileSize:
+                        type: integer
+                        description: Largest accepted upload in bytes; `-1` means no cap.
+
+  /api/permissions:
+    get:
+      tags: [Discovery]
+      summary: Permission catalogue
+      description: |
+        The permissions a member or API key can hold, and the scopes each
+        expands to. Grants are stored expanded, so this is what lets a stored
+        grant be named back as the permissions that were picked.
+
+        Serving it means a client never has to hardcode scope strings and drift
+        from what the server enforces.
+      security: []
+      responses:
+        "200":
+          description: The catalogue.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items: { $ref: "#/components/schemas/Permission" }
+
+  /api/certificate:
+    get:
+      tags: [Discovery]
+      summary: Server certificate, public material only
+      description: |
+        Public key material for this server's certificate authority. The
+        private half is filtered out before serialization and is never served.
+      security: []
+      responses:
+        "200":
+          description: Public view of the server certificate.
+          content:
+            application/json:
+              schema: { type: object }
+
+  /api/certificate/{id}:
+    get:
+      tags: [Identity]
+      summary: One identity's public certificate
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The identity's public material.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+                  certificate: { type: string }
+                  fingerprint: { type: string }
+                  parentSignature: { type: string }
+                  domainAtIssue: { type: string, description: The domain this identity was issued under. }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/identities/{fingerprint}/status:
+    get:
+      tags: [Identity]
+      summary: Whether the issuer still stands behind an identity
+      description: |
+        This server's signed, timestamped answer about one fingerprint. It is
+        the piece a certificate cannot carry, and the only thing that
+        distinguishes a current holder from one who was removed.
+
+        The answer is signed by the root key rather than trusted on TLS alone:
+        the caller has already pinned that key through DNS, so the statement
+        needs no separate trust in this endpoint and a proxy cannot rewrite it.
+
+        The payload is a JSON envelope whose first field is
+        `type: identity-status-v1`. That separator is load-bearing — without
+        it, a signature over a bare fingerprint would itself be a forged parent
+        signature, and this endpoint would be a signing oracle.
+
+        `unknown` is not `revoked`. A restored backup answers `unknown` about
+        identities that are perfectly valid, and a verifier must not treat the
+        two the same.
+      security: []
+      parameters:
+        - name: fingerprint
+          in: path
+          required: true
+          description: Lowercase hex SHA-256 fingerprint.
+          schema: { type: string }
+      responses:
+        "200":
+          description: |
+            A signed assertion. Cacheable for exactly as long as the signature
+            claims validity, so a cache can never outlive the statement in it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IdentityStatusAssertion" }
+        "400": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/verify-peer:
+    post:
+      tags: [Identity]
+      summary: Walk another server's trust chain
+      description: |
+        Asks this server to verify a peer domain end to end — DNS TXT, served
+        root key, and the peer's own answer about the identity's standing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [domain]
+              properties:
+                domain: { type: string }
+      responses:
+        "200":
+          description: The verdict.
+          content:
+            application/json:
+              schema: { type: object }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/challenges/{scope}/{slug}:
+    get:
+      tags: [Identity]
+      summary: Issue a handshake nonce
+      description: |
+        Returns a single-use nonce to sign when a share or request requires a
+        proven identity. The signature is submitted with the resolve or the
+        response; a spent nonce is refused.
+      security: []
+      parameters:
+        - name: scope
+          in: path
+          required: true
+          description: Which kind of grant the challenge is for.
+          schema: { type: string, enum: [link, request] }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: A nonce to sign.
+          content:
+            application/json:
+              schema: { type: object }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/public/links/{slug}:
+    get:
+      tags: [Shares]
+      summary: Probe a share
+      description: |
+        Reports whether a share exists and what stands between the caller and
+        its data. It never returns the data itself, and it does not consume a
+        view — so a client can render a password prompt or a trust panel before
+        spending the one read it may be allowed.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: The share's gates and the sharer's claim.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slug: { type: string }
+                  label: { type: string }
+                  status: { type: string, enum: [active, paused, revoked, expired] }
+                  requiresPassword: { type: boolean }
+                  requireHandshake: { type: boolean, description: Whether a proven identity is required. }
+                  identity: { type: string }
+                  sharer: { $ref: "#/components/schemas/Sharer" }
+                  server: { $ref: "#/components/schemas/ServerClaim" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    post:
+      tags: [Shares]
+      summary: Resolve a share
+      description: |
+        Returns the share's current values and **consumes one view**. POST
+        rather than GET so the password and handshake material travel in the
+        body rather than in a URL that lands in logs and history.
+
+        The view claim is atomic: if a concurrent reader takes the last
+        permitted view, this request is refused rather than served.
+
+        Values are resolved at read time, so what comes back is what the record
+        holds now — not what it held when the share was created.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password: { type: string, description: Required when the probe reported `requiresPassword`. }
+                identityId: { type: string }
+                handshakeToken: { type: string }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string }
+      responses:
+        "200":
+          description: The share's contents, and the view count after this read.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slug: { type: string }
+                  label: { type: string }
+                  identity: { type: string }
+                  sections: { type: array, items: { type: object } }
+                  records:
+                    type: array
+                    description: |
+                      File records carry a `downloadToken`, which already
+                      carries this read's view claim — so fetching the bytes is
+                      never a second claim and never claim-free.
+                    items: { type: object }
+                  viewCount: { type: integer }
+        "401":
+          description: The password gate refused. `link_password_required` or `link_password_invalid`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/public/links/{slug}/files/{recordId}:
+    get:
+      tags: [Shares]
+      summary: Download a shared file
+      description: |
+        Serves the bytes behind a file record, authorised by the
+        `downloadToken` the resolve returned.
+
+        The token carries that resolve's view claim, so a download neither
+        consumes a second view nor bypasses the cap. It is single-use and bound
+        to this slug and record — it will not open a different file, and it
+        will not open this one twice.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+        - name: recordId
+          in: path
+          required: true
+          description: The file record's id, as returned by the resolve.
+          schema: { type: string }
+        - name: dl
+          in: query
+          required: true
+          description: The `downloadToken` from the resolve response.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The file.
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401":
+          description: The token was missing, spent, or not for this file.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /s/{slug}:
+    get:
+      tags: [Shares]
+      summary: Human-readable share page
+      description: |
+        A server-rendered page for the same slug, so a recipient needs no app
+        and no client code. Content negotiation also serves machine formats —
+        CSV, vCard and iCal — with ETag and conditional requests, which is what
+        makes a share consumable by a spreadsheet or a calendar directly.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: The rendered share, in the negotiated format.
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /dav/s/{slug}/:
+    get:
+      tags: [Shares]
+      summary: CardDAV addressbook for a share
+      description: |
+        A read-only, single-card addressbook so a contacts app can subscribe to
+        a share and stay in sync. Gated shares — password or handshake — are
+        never exposed over DAV, because the protocol has nowhere to put the
+        gate.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: A DAV collection; the card is at `contact.vcf`.
+
+  /api/public/requests/{slug}:
+    get:
+      tags: [Requests]
+      summary: Probe a request
+      description: |
+        Describes what a request is asking for — its template, whether it needs
+        a password, an identifier or a proven identity — plus the requester's
+        identity claim so the responder can verify who is asking before
+        answering.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: The request's shape and the requester's claim.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  label: { type: string }
+                  status: { type: string }
+                  requiresPassword: { type: boolean }
+                  requiresIdentifier: { type: boolean }
+                  requireHandshake: { type: boolean }
+                  allowExtraFields: { type: boolean }
+                  identityScope:
+                    type: string
+                    enum: [any, from_root]
+                    description: Which identities the request will accept.
+                  template:
+                    type: array
+                    items: { $ref: "#/components/schemas/TemplateItem" }
+                  requester: { $ref: "#/components/schemas/Sharer" }
+                  server: { $ref: "#/components/schemas/ServerClaim" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    post:
+      tags: [Requests]
+      summary: Submit a response
+      description: |
+        Answers a request. Submitting again with the same proven identity
+        updates the existing response rather than creating a second one.
+
+        An identity is recorded only when a challenge signature verified. A
+        claimed `identityId` without one is dropped, not attributed — otherwise
+        anyone could submit under someone else's name.
+
+        If the request names a callback URL, a successful submission is POSTed
+        onward to it.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  description: Answers keyed by template key.
+                  additionalProperties: true
+                mappings:
+                  type: object
+                  description: |
+                    Answers supplied as references to the responder's own vault
+                    records rather than as literal values, so the requester
+                    keeps resolving the current value. Same-server only.
+                  additionalProperties: { type: string }
+                senderName: { type: string }
+                identifier: { type: string, description: Required when the probe reported `requiresIdentifier`. }
+                password: { type: string }
+                identityId: { type: string }
+                handshakeToken: { type: string }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string }
+                guestCertificate: { type: string }
+      responses:
+        "200":
+          description: The submission was recorded.
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/public/invites/{token}:
+    get:
+      tags: [Invites]
+      summary: Preview an invitation
+      description: |
+        States what accepting would grant, which workspace it joins, and
+        whether the inviter may still invite — an invitation must not outlive
+        the authority that issued it. The response carries the server's own
+        claim too, so the recipient can verify the domain before handing over
+        an account.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: What this invitation grants.
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Invites]
+      summary: Accept an invitation
+      security:
+        - Session: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Joined.
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/AppError" }
+
+  /api/workspaces/{id}/members:
+    get:
+      tags: [Workspaces]
+      summary: List workspace members
+      description: |
+        Who is in the workspace and what each may do, plus what the caller may
+        hand out without it being refused as escalation. Being a member is the
+        only requirement to read it.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Members and the caller's grantable set.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  members:
+                    type: array
+                    items: { $ref: "#/components/schemas/Member" }
+                  grantable:
+                    type: array
+                    items: { $ref: "#/components/schemas/Permission" }
+                  canManage: { type: boolean }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+
+  /api/requests/{id}/links:
+    get:
+      tags: [Grants]
+      summary: Responses collected by a request
+      security:
+        - Session: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The grants this request has collected.
+          content:
+            application/json:
+              schema: { type: object }
+        "401": { $ref: "#/components/responses/AppError" }
+
+  /api/account:
+    delete:
+      tags: [Workspaces]
+      summary: Delete the authenticated account
+      description: |
+        Removes the account and everything reachable through it. Workspaces the
+        account is alone in are torn down entirely; in shared workspaces its
+        content is handed to a remaining member rather than orphaned.
+
+        Refused while the account is the last member able to administer a
+        shared workspace, since that would leave the workspace unadministrable.
+
+        Users only — an API key must not be able to delete the person behind it.
+      security:
+        - Session: []
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/AppError" }
+        "409":
+          description: The account is the last administrator of a shared workspace.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+
+  /api/collections/users/auth-with-password:
+    post:
+      tags: [Workspaces]
+      summary: Sign in
+      description: Exchanges credentials for a session token. Not needed for API-key access.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identity, password]
+              properties:
+                identity: { type: string, description: Email address. }
+                password: { type: string }
+      responses:
+        "200":
+          description: A session token and the user record.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  record: { type: object }
+        "400": { $ref: "#/components/responses/AppError" }
+
+  /api/collections/{collection}/records:
+    parameters:
+      - $ref: "#/components/parameters/Collection"
+    get:
+      tags: [Records]
+      summary: List records
+      description: |
+        Standard record listing. Results are already narrowed to what the
+        caller may see, so an empty page means "nothing you can read", not
+        "nothing exists".
+      parameters:
+        - name: filter
+          in: query
+          description: PocketBase filter expression.
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, default: 30 }
+      responses:
+        "200":
+          description: A page of records.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page: { type: integer }
+                  perPage: { type: integer }
+                  totalItems: { type: integer }
+                  totalPages: { type: integer }
+                  items: { type: array, items: { type: object } }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+    post:
+      tags: [Records]
+      summary: Create a record
+      description: |
+        Field requirements vary by collection; see the reference table in the
+        Records guide. Two rules hold everywhere:
+
+        - An `identity` relation is ownership-checked. Attaching an identity
+          you do not own is refused — identity ids are public, and attaching a
+          foreign one is exactly the impersonation this product exists to stop.
+        - Vault records are created here; request-collected rows are minted
+          server-side and never through this endpoint.
+
+        File records are sent as `multipart/form-data` with the bytes in a
+        `file` part. Stream them: the operator's size cap is advertised at
+        `GET /api/server` under `limits.maxFileSize`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+              additionalProperties: true
+      responses:
+        "200":
+          description: The created record.
+          content:
+            application/json:
+              schema: { type: object }
+        "400": { $ref: "#/components/responses/AppError" }
+        "403":
+          description: |
+            Refused with a named reason — which scope is missing, which
+            workspace a key is bound to — rather than a bare denial.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+
+  /api/collections/{collection}/records/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Collection"
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Records]
+      summary: Read one record
+      responses:
+        "200":
+          description: The record.
+          content:
+            application/json:
+              schema: { type: object }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Records]
+      summary: Update a record
+      description: |
+        Updating a record updates every share that points at it, on their next
+        read — that is the rotation gesture, not a side effect.
+
+        Some transitions are one-way: an identity may go from active to
+        revoked and never back, because a revocation is a statement already
+        published to verifiers who may have cached it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+              additionalProperties: true
+      responses:
+        "200":
+          description: The updated record.
+          content:
+            application/json:
+              schema: { type: object }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Records]
+      summary: Delete a record
+      description: |
+        Deleting a workspace takes its entire contents with it — records,
+        files, templates, members, API keys — and revokes the identities it
+        issued, leaving tombstones so those certificates stop verifying.
+
+        Deleting an identity likewise leaves a tombstone, so its fingerprint
+        keeps resolving to a definite answer rather than to silence.
+      responses:
+        "204": { description: Deleted. }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/files/token:
+    post:
+      tags: [Records]
+      summary: Mint a file access token
+      description: |
+        File fields are protected, so a bare file URL serves nothing. This
+        returns a short-lived token to append to a file request as `?token=`.
+        For files reached through a share, use the `downloadToken` from the
+        resolve instead.
+      responses:
+        "200":
+          description: A file access token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+        "401": { $ref: "#/components/responses/AppError" }
+
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Programmatic access. Sending a key as a Bearer token authenticates as
+        nobody — the request is treated as a guest and refused by the rules.
+    Session:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: A session token from sign-in. Used by the app.
+
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      description: |
+        The capability. Unguessable by construction and never derived from
+        anything user-visible — whoever holds it holds the access.
+      schema: { type: string }
+    Collection:
+      name: collection
+      in: path
+      required: true
+      description: Which collection to act on.
+      schema:
+        type: string
+        enum:
+          - records
+          - sections
+          - links
+          - requests
+          - templates
+          - identities
+          - workspaces
+          - workspaceMembers
+          - invites
+          - apiKeys
+          - notifications
+
+  responses:
+    NotFound:
+      description: No such resource, or the caller may not see it.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AppError" }
+    AppError:
+      description: Refused, with a named reason.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AppError" }
+    RateLimited:
+      description: |
+        Too many attempts. Password gates, probes and challenges are limited
+        per client, so a slug cannot be brute-forced.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/AppError" }
+
+  schemas:
+    AppError:
+      type: object
+      description: |
+        The stable error envelope. Key off `code`, never off `message` — the
+        prose may change, the code will not.
+
+        Messages may echo what the caller sent, never server-held state: an
+        error outlives the credential that produced it and lands in logs and
+        screenshots read by people who hold no key.
+      properties:
+        code: { type: string, examples: ["link_password_required"] }
+        message: { type: string }
+        status: { type: integer }
+    Permission:
+      type: object
+      properties:
+        key: { type: string, examples: ["settings:manage"] }
+        label: { type: string }
+        description: { type: string }
+        destructive:
+          type: boolean
+          description: Whether holding it lets someone extend or revoke other people's access.
+        scopes:
+          type: array
+          description: What the permission expands to when stored.
+          items: { type: string }
+    Member:
+      type: object
+      properties:
+        id: { type: string }
+        user: { type: string }
+        email: { type: string }
+        role:
+          type: string
+          enum: [admin, member]
+          description: |
+            Derived, never chosen: set to `admin` exactly when the member may
+            invite. Gate on permissions, not on this.
+        permissions:
+          type: array
+          items: { $ref: "#/components/schemas/Permission" }
+        isSelf: { type: boolean }
+        isLastAdmin:
+          type: boolean
+          description: Removing them would leave the workspace unadministrable.
+        joined: { type: string, format: date-time }
+    ServerClaim:
+      type: object
+      description: What the serving domain claims about itself. Verify it against DNS.
+      properties:
+        domain: { type: string }
+        rootFingerprint: { type: string }
+    Sharer:
+      type: object
+      description: |
+        The identity behind a share or request. Every field here is a *claim*
+        until the chain is walked: fetch the named domain's root key, confirm
+        it against DNS, verify `parentSignature`, then ask the issuer whether
+        the identity still stands.
+      properties:
+        identityId: { type: string }
+        name: { type: string }
+        fingerprint: { type: string }
+        parentSignature: { type: string }
+        domainAtIssue: { type: string }
+        status: { type: string, enum: [active, revoked] }
+        statusAssertion:
+          allOf:
+            - $ref: "#/components/schemas/IdentityStatusAssertion"
+          description: |
+            The issuer's signed answer, stapled so a verifier need not make a
+            second round trip.
+    IdentityStatusAssertion:
+      type: object
+      description: A root-signed statement about one fingerprint.
+      properties:
+        payload:
+          type: string
+          description: |
+            Base64url JSON. Its first field is `type: identity-status-v1`,
+            which is what stops the endpoint being a signing oracle.
+        signature: { type: string, description: Root key signature over the payload. }
+    TemplateItem:
+      type: object
+      properties:
+        key: { type: string }
+        label: { type: string }
+        type: { type: string }
+        format: { type: string }
+        required: { type: boolean }
+        reason: { type: string, description: Why the requester is asking for it. }
+        records:
+          type: array
+          description: Present when this item is a section.
+          items: { $ref: "#/components/schemas/TemplateItem" }

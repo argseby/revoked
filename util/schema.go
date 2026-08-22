@@ -24,6 +24,9 @@ type collectionSchema struct {
 	Notifications    string
 	Handshakes       string
 	Invites          string
+	// IdentityRevocations outlives the identity row itself, so a fingerprint
+	// whose identity was hard-deleted still resolves to a definite answer.
+	IdentityRevocations string
 }
 
 type inviteFields struct {
@@ -73,6 +76,7 @@ type templateFields struct {
 type identityFields struct {
 	Name, Certificate, PublicKey, PrivateKey, Fingerprint,
 	ParentSignature, DomainAtIssue, IsPrimary,
+	Status, RevokedAt, RevokedReason,
 	User, Workspace, Created, Updated string
 }
 
@@ -100,6 +104,10 @@ type handshakeFields struct {
 	Request, Link, Identity, TokenHash, Workspace, Created string
 }
 
+type identityRevocationFields struct {
+	Fingerprint, RevokedAt, Reason, Domain, Created string
+}
+
 // Coll holds the collection (table) names used across the backend.
 var Coll = collectionSchema{
 	Workspaces:       "workspaces",
@@ -118,25 +126,28 @@ var Coll = collectionSchema{
 	Notifications:    "notifications",
 	Handshakes:       "handshakes",
 	Invites:          "invites",
+
+	IdentityRevocations: "identityRevocations",
 }
 
 // Fields holds the field (column) names for each collection.
 var Fields = struct {
-	Workspace       workspaceFields
-	User            userFields
-	WorkspaceMember memberFields
-	ApiKey          apiKeyFields
-	Record          recordFields
-	Section         sectionFields
-	Link            linkFields
-	AuditLog        auditLogFields
-	Template        templateFields
-	Identity        identityFields
-	Request         requestFields
-	RequestResponse requestResponseFields
-	Notification    notificationFields
-	Handshake       handshakeFields
-	Invite          inviteFields
+	Workspace          workspaceFields
+	User               userFields
+	WorkspaceMember    memberFields
+	ApiKey             apiKeyFields
+	Record             recordFields
+	Section            sectionFields
+	Link               linkFields
+	AuditLog           auditLogFields
+	Template           templateFields
+	Identity           identityFields
+	IdentityRevocation identityRevocationFields
+	Request            requestFields
+	RequestResponse    requestResponseFields
+	Notification       notificationFields
+	Handshake          handshakeFields
+	Invite             inviteFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -251,10 +262,20 @@ var Fields = struct {
 		ParentSignature: "parentSignature",
 		DomainAtIssue:   "domainAtIssue",
 		IsPrimary:       "isPrimary",
+		Status:          "status",
+		RevokedAt:       "revokedAt",
+		RevokedReason:   "revokedReason",
 		User:            "user",
 		Workspace:       "workspace",
 		Created:         "created",
 		Updated:         "updated",
+	},
+	IdentityRevocation: identityRevocationFields{
+		Fingerprint: "fingerprint",
+		RevokedAt:   "revokedAt",
+		Reason:      "reason",
+		Domain:      "domain",
+		Created:     "created",
 	},
 	Request: requestFields{
 		Slug:             "slug",

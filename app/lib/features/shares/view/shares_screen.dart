@@ -22,9 +22,9 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
-import 'package:revoked_app/core/widgets/share_sheet.dart';
 
 class SharesScreen extends StatefulWidget {
   final String? filterSlug;
@@ -283,7 +283,7 @@ class _ShareCard extends StatelessWidget {
       ),
       AppSheetAction(
         icon: AppIcons.funnel,
-        label: 'Shared records',
+        label: 'Filter by shared records',
         onTap: () => context.go('${AppRoutes.vault}?shareFilterId=${share.id}'),
       ),
 

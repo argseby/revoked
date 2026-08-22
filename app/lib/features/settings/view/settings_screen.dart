@@ -4,6 +4,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/models/workspace.dart';
@@ -17,7 +18,6 @@ import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_screen_header.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
@@ -28,7 +28,9 @@ import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
+import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
@@ -69,32 +71,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Column(
       children: [
-        Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenH(context),
-          ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: AppSpacing.md),
-              AppScreenHeader(title: 'Settings'),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Observer(
-            builder: (context) {
-              final activeId = auth.activeWorkspace ?? '';
-              return AppTabs(
-                initialIndex: widget.initialTab,
-                labels: const ['Account', 'Workspace', 'Developer'],
-                views: [
-                  _accountTab(context, settings, auth, activeId),
-                  _workspaceTab(context, settings, auth, activeId),
-                  _developerTab(context),
-                ],
-              );
-            },
+        Flexible(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.sm),
+            child: Observer(
+              builder: (context) {
+                final activeId = auth.activeWorkspace ?? '';
+                return AppTabs(
+                  initialIndex: widget.initialTab,
+                  labels: const ['Account', 'Workspace', 'Developer'],
+                  views: [
+                    _accountTab(context, settings, auth, activeId),
+                    _workspaceTab(context, settings, auth, activeId),
+                    _developerTab(context),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -116,6 +109,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListView(
       padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, AppSpacing.huge),
       children: [
+        const _GroupHeader(
+          title: 'You',
+          subtitle: 'Active workspace and email.',
+        ),
         _ProfileCard(
           email: auth.userEmail,
           active: active,
@@ -213,6 +210,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _confirmDeleteWorkspace(
+    BuildContext context,
+    Workspace workspace,
+    AuthStore auth,
+  ) async {
+    final settings = Stores.settings;
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Delete ${workspace.name}?',
+      message:
+          'Everything in this workspace goes with it — records, files, '
+          'templates, members and API keys. Every share and request link it '
+          'created stops working, and the identities it issued are revoked, so '
+          'anyone still holding one loses access immediately. This cannot be '
+          'undone.',
+      confirmLabel: 'Delete workspace',
+      cancelLabel: 'Keep it',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+
+    final wasActive = auth.activeWorkspace == workspace.id;
+    if (!await settings.deleteWorkspace(auth.userId, workspace.id)) {
+      if (context.mounted) {
+        AppToast.error(
+          context,
+          'Could not delete the workspace',
+          subtitle: settings.errorMessage,
+        );
+      }
+      return;
+    }
+
+    // The server clears the active context of everyone pointing at it, so the
+    // session still names a workspace that is gone. Same order as a switch:
+    // refresh first, then reload, or the stores refetch the dead workspace.
+    if (wasActive) {
+      await Stores.auth.initialize();
+      await Stores.workspaceContext.reload();
+    }
+  }
+
+  Future<void> _confirmRevokeIdentity(
+    BuildContext context,
+    IdentitiesStore store,
+    Identity identity,
+  ) async {
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Revoke ${identity.name}?',
+      message:
+          'This server stops vouching for the identity, and anyone verifying '
+          'it — here or on another server — is told so within the hour. Links '
+          'and requests it signed keep working but no longer show as verified, '
+          'and the private key is erased from this device.\n\n'
+          'Revoking cannot be undone. Create a new identity to sign again.',
+      confirmLabel: 'Revoke',
+      cancelLabel: 'Keep it',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+
+    final ok = await store.revokeIdentity(identity.id);
+    if (!context.mounted) return;
+    if (ok) {
+      AppToast.success(context, 'Identity revoked');
+    } else {
+      AppToast.error(
+        context,
+        'Could not revoke the identity',
+        subtitle: store.errorMessage,
+      );
+    }
+  }
+
   Widget _workspaceTab(
     BuildContext context,
     SettingsStore settings,
@@ -226,8 +298,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _GroupHeader(
           title: 'Workspaces',
           subtitle: 'Separate your data and sharing per context.',
-          action: _AddButton(
-            onPressed: () => _openCreateWorkspace(settings, auth),
+          action: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _JoinButton(onPressed: () => _openJoinWorkspace(context)),
+              AppSpacing.gapSm,
+              _AddButton(onPressed: () => _openCreateWorkspace(settings, auth)),
+            ],
           ),
         ),
         _buildWorkspaces(context, settings, auth, activeId),
@@ -331,6 +408,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     workspaceId: ws.id,
                   ),
                 ),
+              if (settings.canManageWorkspace(ws.id, Stores.invites.catalogue))
+                AppSheetAction(
+                  icon: AppIcons.trash,
+                  label: 'Delete workspace',
+                  destructive: true,
+                  onTap: () => _confirmDeleteWorkspace(context, ws, auth),
+                ),
             ],
           ),
       ],
@@ -372,7 +456,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   state: _identityClaimState(id.domainAtIssue),
                 ),
             ],
-            titleBadge: id.isPrimary
+            titleBadge: id.isRevoked
+                ? const AppBadge(icon: AppIcons.shieldSlash, label: 'Revoked')
+                : id.isPrimary
                 ? const AppBadge(icon: AppIcons.stars, label: 'Primary')
                 : null,
             actions: [
@@ -385,7 +471,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   AppToast.success(context, 'Public key copied');
                 },
               ),
-              if (!id.isPrimary)
+              if (!id.isPrimary && !id.isRevoked)
                 AppSheetAction(
                   icon: AppIcons.stars,
                   label: 'Set as primary',
@@ -402,6 +488,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }
                   },
+                ),
+              // Revoking, not deleting, is the answer to a leaked key: the
+              // holder of a copy keeps passing every check until this server
+              // says otherwise, and it can only say so about an identity it
+              // still has a record of.
+              if (!id.isRevoked)
+                AppSheetAction(
+                  icon: AppIcons.shieldSlash,
+                  label: 'Revoke',
+                  destructive: true,
+                  onTap: () => _confirmRevokeIdentity(context, store, id),
                 ),
               AppSheetAction(
                 icon: AppIcons.trash,
@@ -470,6 +567,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  void _openJoinWorkspace(BuildContext context) {
+    showInviteJoinSheet(context: context);
   }
 
   void _openCreateWorkspace(SettingsStore settings, AuthStore auth) {
@@ -722,7 +823,6 @@ class _ProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return AppCard(
       child: Row(
         children: [
@@ -730,33 +830,37 @@ class _ProfileCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                AppText(
+                  bold: true,
                   email.isEmpty ? 'Signed in' : email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: AppSpacing.xs),
                 if (loading)
                   const Text('Loading workspace…').muted.small
                 else
-                  Row(
+                  Column(
+                    mainAxisAlignment: .start,
+                    crossAxisAlignment: .start,
                     children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: active != null
-                              ? scheme.primary
-                              : scheme.outline,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        active?.name ?? 'No active workspace',
+                      AppText(
+                        muted: true,
+                        small: true,
+                        selectable: true,
+
+                        'Workspace - Name: ${active?.name ?? 'No active workspace'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      ).muted.small,
+                      ),
+                      AppText(
+                        selectable: true,
+                        muted: true,
+                        small: true,
+                        'Workspace - ID: ${active?.id ?? 'No active workspace'}',
+
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   ),
               ],
@@ -813,6 +917,25 @@ class _AddButton extends StatelessWidget {
     return AppButton(
       icon: AppIcons.plus,
       label: 'New',
+      style: AppButtonStyle.accent,
+      size: AppButtonSize.small,
+      onTap: onPressed,
+    );
+  }
+}
+
+class _JoinButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  const _JoinButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppButton(
+      // Not the plus the New button carries: joining an existing workspace is
+      // not a second way to create one, and two identical icons side by side
+      // say it is.
+      icon: AppIcons.key,
+      label: 'Join',
       style: AppButtonStyle.accent,
       size: AppButtonSize.small,
       onTap: onPressed,

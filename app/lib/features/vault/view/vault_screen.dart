@@ -8,6 +8,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
+import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
@@ -25,6 +26,7 @@ import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
+import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_screen_header.dart';
@@ -926,7 +928,7 @@ class _VaultScreenState extends State<VaultScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      store.editPickedFileName ??
+                                      store.editPickedFile?.name ??
                                           '${record.displayName} · ${formatBytes(record.size)}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -942,15 +944,26 @@ class _VaultScreenState extends State<VaultScreen> {
                                       final picked =
                                           await FilePicker.pickFile();
                                       if (picked == null) return;
-                                      final bytes = await picked.readAsBytes();
-                                      store.setEditPickedFile(
-                                        picked.name,
-                                        bytes,
+                                      await store.stageFile(
+                                        await PendingUpload.fromPicked(picked),
+                                        forEdit: true,
                                       );
                                     },
                                   ),
                                 ],
                               ),
+                              if (store.pickedFileError != null) ...[
+                                const SizedBox(height: AppSpacing.xs),
+                                AppErrorText(store.pickedFileError!),
+                              ],
+                              if (store.isUploading) ...[
+                                const SizedBox(height: AppSpacing.sm),
+                                AppUploadProgress(
+                                  sent: store.uploadSent,
+                                  total: store.uploadTotal,
+                                  onCancel: store.cancelUpload,
+                                ),
+                              ],
                               const SizedBox(height: AppSpacing.lg),
                             ] else ...[
                               _buildFieldLabel(
@@ -1178,18 +1191,17 @@ class _VaultScreenState extends State<VaultScreen> {
                                             .trim(),
                                         'format': store.editRecordFormat,
                                       };
-                                      final bytes = store.editPickedFileBytes;
+                                      final staged = store.editPickedFile;
                                       // One write: a rename and a replacement
                                       // must not be able to half-apply.
-                                      ok = bytes == null
+                                      ok = staged == null
                                           ? await store.updateRecord(
                                               record.id,
                                               fields,
                                             )
                                           : await store.updateRecordFile(
                                               record.id,
-                                              store.editPickedFileName!,
-                                              bytes,
+                                              staged,
                                               fields: fields,
                                             );
                                     } else {

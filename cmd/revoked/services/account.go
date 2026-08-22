@@ -15,28 +15,6 @@ import (
 // manage membership.
 var ErrAccountLastAdmin = errors.New("last admin of a shared workspace")
 
-// workspaceTeardown lists the collections emptied when a workspace the account
-// alone belongs to is torn down, children before the workspace itself.
-//
-// auditLogs is in the list deliberately: secrets are redacted from the
-// snapshots (invariant #10), but every row still pins the account's IP and
-// user agent to what it did — exactly the trail deleting an account promises
-// to remove.
-var workspaceTeardown = []string{
-	util.Coll.Handshakes,
-	util.Coll.Links,
-	util.Coll.Requests,
-	util.Coll.Notifications,
-	util.Coll.Invites,
-	util.Coll.Templates,
-	util.Coll.Identities,
-	util.Coll.ApiKeys,
-	util.Coll.Sections,
-	util.Coll.Records,
-	util.Coll.AuditLogs,
-	util.Coll.WorkspaceMembers,
-}
-
 // accountOwned lists what dies with the account wherever it is found, including
 // in workspaces it merely shared: everything that still reaches data or acts as
 // the user.
@@ -97,15 +75,12 @@ func PurgeAccount(app core.App, userId string) error {
 
 	return app.RunInTransaction(func(txApp core.App) error {
 		for _, workspaceId := range sole {
-			for _, collection := range workspaceTeardown {
-				if err := deleteWhere(txApp, collection, dbx.HashExp{util.FieldWorkspace: workspaceId}); err != nil {
-					return err
-				}
-			}
 			workspace, err := txApp.FindRecordById(util.Coll.Workspaces, workspaceId)
 			if err != nil {
 				return err
 			}
+			// The workspace's own delete hook tears its children down, so this
+			// is the same path a member deleting the workspace by hand takes.
 			if err := txApp.Delete(workspace); err != nil {
 				return err
 			}

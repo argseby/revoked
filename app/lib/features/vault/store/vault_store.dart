@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:revoked_app/core/files/file_saver.dart';
+import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -160,13 +162,11 @@ abstract class _VaultStore with Store {
   @observable
   String? recordDetectedType;
 
-  /// The picked file for a file-type draft. Bytes live on the store like every
-  /// other draft field, so the drawer survives rebuilds and reroutes.
+  /// The picked file for a file-type draft. A handle, not bytes: the draft
+  /// outlives rebuilds and reroutes, and holding the content that long is what
+  /// made a large file an out-of-memory kill.
   @observable
-  String? pickedFileName;
-
-  @observable
-  Uint8List? pickedFileBytes;
+  PendingUpload? pickedFile;
 
   /// When duplicating a record that lives in a section, the new one joins it.
   @observable
@@ -197,15 +197,13 @@ abstract class _VaultStore with Store {
   void setSubmittingRecord(bool value) => isSubmittingRecord = value;
 
   @action
-  void setPickedFile(String name, Uint8List bytes) {
-    pickedFileName = name;
-    pickedFileBytes = bytes;
-  }
+  void setPickedFile(PendingUpload file) => pickedFile = file;
 
   @action
   void clearPickedFile() {
-    pickedFileName = null;
-    pickedFileBytes = null;
+    pickedFile = null;
+    pickedFilePreview = null;
+    pickedFileError = null;
   }
 
   /// Prepares the drawer for a new record, or for duplicating [from].
@@ -221,8 +219,9 @@ abstract class _VaultStore with Store {
     recordSuggestedKey = null;
     recordTypeWarning = null;
     recordDetectedType = null;
-    pickedFileName = null;
-    pickedFileBytes = null;
+    pickedFile = null;
+    pickedFilePreview = null;
+    pickedFileError = null;
     isSubmittingRecord = false;
   }
 
@@ -312,24 +311,18 @@ abstract class _VaultStore with Store {
     editRecordFormat = record.format;
     editRecordTypeWarning = null;
     editRecordDetectedType = null;
-    editPickedFileName = null;
-    editPickedFileBytes = null;
+    editPickedFile = null;
+    pickedFileError = null;
     isSubmittingEditRecord = false;
   }
 
   /// A file staged to replace the record's current one, held until save so a
   /// rename and a replacement land in a single write.
   @observable
-  String? editPickedFileName;
-
-  @observable
-  Uint8List? editPickedFileBytes;
+  PendingUpload? editPickedFile;
 
   @action
-  void setEditPickedFile(String name, Uint8List bytes) {
-    editPickedFileName = name;
-    editPickedFileBytes = bytes;
-  }
+  void setEditPickedFile(PendingUpload file) => editPickedFile = file;
 
   @action
   void setEditRecordType(String value) => editRecordType = value;
@@ -398,6 +391,110 @@ abstract class _VaultStore with Store {
     }
   }
 
+  /// The operator's per-file cap from GET /api/server, cached for the session.
+  /// Negative means the operator set none.
+  int? _maxFileSize;
+
+  /// Why the last pick was refused, shown beside the file row. Cleared by the
+  /// next accepted pick.
+  @observable
+  String? pickedFileError;
+
+  /// Thumbnail bytes for a staged image, and the size above which there is no
+  /// thumbnail: streaming the upload exists so the file is never resident, and
+  /// a preview is not worth giving that up for a large one.
+  @observable
+  Uint8List? pickedFilePreview;
+
+  static const int previewSizeLimit = 8 << 20;
+
+  /// Stages a picked file after checking it against the server's cap, so an
+  /// oversized file is refused before the upload is spent rather than after.
+  @action
+  Future<void> stageFile(PendingUpload file, {bool forEdit = false}) async {
+    final refusal = await _refuseOversized(file);
+    if (refusal != null) {
+      pickedFileError = refusal;
+      return;
+    }
+    pickedFileError = null;
+    if (forEdit) {
+      editPickedFile = file;
+      return;
+    }
+    pickedFile = file;
+    pickedFilePreview = file.isImage && file.size <= previewSizeLimit
+        ? await file.readAll()
+        : null;
+  }
+
+  Future<String?> _refuseOversized(PendingUpload file) async {
+    if (_maxFileSize == null) {
+      try {
+        final info = await _api.get('/api/server');
+        final limits = info is Map ? info['limits'] : null;
+        final max = limits is Map ? limits['maxFileSize'] : null;
+        _maxFileSize = max is int ? max : -1;
+      } catch (_) {
+        // A limit we could not read is not a reason to block the pick; the
+        // server still refuses the write.
+        _maxFileSize = -1;
+      }
+    }
+    final max = _maxFileSize!;
+    if (max < 0 || file.size <= max) return null;
+    return 'This server accepts files up to ${formatBytes(max)}. '
+        '${file.name} is ${formatBytes(file.size)}.';
+  }
+
+  /// Bytes accepted so far for the upload in flight and the total it is working
+  /// towards. A zero total means nothing is uploading.
+  @observable
+  int uploadSent = 0;
+
+  @observable
+  int uploadTotal = 0;
+
+  @computed
+  bool get isUploading => uploadTotal > 0;
+
+  @computed
+  double get uploadProgress =>
+      uploadTotal <= 0 ? 0 : (uploadSent / uploadTotal).clamp(0.0, 1.0);
+
+  UploadCancelToken? _uploadCancel;
+
+  /// Abandons the upload in flight. The request then fails like any other, so
+  /// the calling screen's error path already covers it.
+  @action
+  void cancelUpload() => _uploadCancel?.cancel();
+
+  @action
+  void _beginUpload(UploadCancelToken token, int total) {
+    _uploadCancel = token;
+    uploadSent = 0;
+    uploadTotal = total;
+  }
+
+  @action
+  void _endUpload() {
+    _uploadCancel = null;
+    uploadSent = 0;
+    uploadTotal = 0;
+  }
+
+  /// Throttled to whole percent: the socket hands over a chunk every few tens
+  /// of kilobytes, and rebuilding the drawer thousands of times to move a
+  /// progress bar by a subpixel costs more than the upload does.
+  @action
+  void _reportUploadProgress(int sent, int total) {
+    if (total <= 0) return;
+    final step = total ~/ 100;
+    if (sent < total && step > 0 && sent - uploadSent < step) return;
+    uploadSent = sent;
+    uploadTotal = total;
+  }
+
   @action
   Future<bool> createRecord({
     required String key,
@@ -407,8 +504,7 @@ abstract class _VaultStore with Store {
     required String format,
     required String user,
     required String workspace,
-    String? fileName,
-    Uint8List? fileBytes,
+    PendingUpload? file,
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -421,8 +517,7 @@ abstract class _VaultStore with Store {
         format: format,
         user: user,
         workspace: workspace,
-        fileName: fileName,
-        fileBytes: fileBytes,
+        file: file,
       );
       records.insert(0, record);
       return true;
@@ -456,20 +551,24 @@ abstract class _VaultStore with Store {
   @action
   Future<bool> updateRecordFile(
     String id,
-    String uploadName,
-    Uint8List bytes, {
+    PendingUpload file, {
     Map<String, String> fields = const {},
   }) async {
     isLoading = true;
     errorMessage = null;
+    final token = UploadCancelToken();
+    _beginUpload(token, file.size);
     try {
       final spec = VaultStore.updateRecordSpec(id, const {});
       final data = await _api.patchMultipart(
         spec.path,
         fields: fields,
         fileField: 'file',
-        filename: uploadName,
-        bytes: bytes,
+        filename: file.name,
+        openFile: file.open,
+        length: file.size,
+        onProgress: _reportUploadProgress,
+        cancelToken: token,
       );
       final updated = models.Record.fromJson(data as Map<String, dynamic>);
       final index = records.indexWhere((r) => r.id == id);
@@ -481,6 +580,7 @@ abstract class _VaultStore with Store {
       errorMessage = e.toString();
       return false;
     } finally {
+      _endUpload();
       isLoading = false;
     }
   }
@@ -715,8 +815,7 @@ abstract class _VaultStore with Store {
     required String format,
     required String user,
     required String workspace,
-    String? fileName,
-    Uint8List? fileBytes,
+    PendingUpload? file,
   }) async {
     final spec = VaultStore.createRecordSpec(
       key: key,
@@ -728,21 +827,30 @@ abstract class _VaultStore with Store {
       workspace: workspace,
     );
     final dynamic data;
-    if (fileBytes != null && fileName != null) {
-      data = await _api.postMultipart(
-        spec.path,
-        fields: {
-          'key': key,
-          'label': label,
-          'type': type,
-          'format': format,
-          'user': user,
-          'workspace': workspace,
-        },
-        fileField: 'file',
-        filename: fileName,
-        bytes: fileBytes,
-      );
+    if (file != null) {
+      final token = UploadCancelToken();
+      _beginUpload(token, file.size);
+      try {
+        data = await _api.postMultipart(
+          spec.path,
+          fields: {
+            'key': key,
+            'label': label,
+            'type': type,
+            'format': format,
+            'user': user,
+            'workspace': workspace,
+          },
+          fileField: 'file',
+          filename: file.name,
+          openFile: file.open,
+          length: file.size,
+          onProgress: _reportUploadProgress,
+          cancelToken: token,
+        );
+      } finally {
+        _endUpload();
+      }
     } else {
       data = await _api.post(spec.path, body: spec.body);
     }

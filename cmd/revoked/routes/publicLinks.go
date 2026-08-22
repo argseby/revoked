@@ -41,6 +41,8 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 				sharer["fingerprint"] = idRec.GetString(util.Fields.Identity.Fingerprint)
 				sharer["parentSignature"] = idRec.GetString(util.Fields.Identity.ParentSignature)
 				sharer["domainAtIssue"] = idRec.GetString(util.Fields.Identity.DomainAtIssue)
+				sharer["status"] = services.IdentityStatusOf(idRec)
+				stapleIdentityStatus(app, root, sharer, idRec.GetString(util.Fields.Identity.Fingerprint))
 			}
 
 			return re.JSON(http.StatusOK, map[string]any{
@@ -100,8 +102,8 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 				if body.IdentityId == "" {
 					return appErrorResponse(re, http.StatusBadRequest, &util.Errors.IdentityRequired)
 				}
-				if err := enforceLinkHandshake(app, link, body.IdentityId, body.HandshakeToken, body.ChallengeNonce, body.ChallengeSignature, re); err != nil {
-					return err
+				if !enforceLinkHandshake(app, link, body.IdentityId, body.HandshakeToken, body.ChallengeNonce, body.ChallengeSignature, re) {
+					return nil
 				}
 			}
 
@@ -182,10 +184,18 @@ func sanitizeRecord(rec *core.Record) map[string]any {
 // enforceLinkHandshake verifies a stored handshake token, or on first contact
 // requires a signed challenge nonce proving possession of the identity's private
 // key before issuing one.
-func enforceLinkHandshake(app core.App, link *core.Record, identityId, token, challengeNonce, challengeSignature string, re *core.RequestEvent) error {
+// Reports whether the caller may proceed, having already written the refusal
+// when it may not. See [denyGate] for why this is a bool and not an error.
+func enforceLinkHandshake(app core.App, link *core.Record, identityId, token, challengeNonce, challengeSignature string, re *core.RequestEvent) bool {
 	identity, err := app.FindRecordById(util.Coll.Identities, identityId)
 	if err != nil || identity == nil {
-		return re.BadRequestError(util.Errors.IdentityNotFound.ErrorText, nil)
+		return denyGate(re, http.StatusBadRequest, &util.Errors.IdentityNotFound)
+	}
+
+	// Checked before the stored-token fast path, so revoking an identity ends the
+	// sessions it already opened instead of only blocking new ones.
+	if !services.IdentityIsActive(identity) {
+		return denyGate(re, http.StatusForbidden, &util.Errors.IdentityRevoked)
 	}
 
 	existing, err := app.FindFirstRecordByFilter(util.Coll.Handshakes,
@@ -194,33 +204,33 @@ func enforceLinkHandshake(app core.App, link *core.Record, identityId, token, ch
 
 	if err == nil && existing != nil {
 		if token == "" {
-			return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.HandshakeRequired)
+			return denyGate(re, http.StatusUnauthorized, &util.Errors.HandshakeRequired)
 		}
 		if existing.GetString(util.Fields.Handshake.TokenHash) != util.HashToken(token) {
-			return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.HandshakeInvalid)
+			return denyGate(re, http.StatusUnauthorized, &util.Errors.HandshakeInvalid)
 		}
-		return nil
+		return true
 	}
 
 	if challengeNonce == "" || challengeSignature == "" {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
 	}
 	slug := link.GetString(util.Fields.Link.Slug)
 	if !ConsumeChallenge(challengeNonce, "link", slug, identityId) {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.ChallengeInvalid)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeInvalid)
 	}
 	cert := identity.GetString(util.Fields.Identity.Certificate)
 	if err := util.VerifySignature(cert, challengeNonce, challengeSignature); err != nil {
-		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.SignatureInvalid)
+		return denyGate(re, http.StatusUnauthorized, &util.Errors.SignatureInvalid)
 	}
 
 	newToken, err := util.GenerateToken(24)
 	if err != nil {
-		return re.InternalServerError("Failed to generate handshake token", nil)
+		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
 	}
 	col, err := app.FindCollectionByNameOrId(util.Coll.Handshakes)
 	if err != nil {
-		return re.InternalServerError("Handshake collection missing", nil)
+		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
 	}
 	hs := core.NewRecord(col)
 	hs.Set(util.Fields.Handshake.Link, link.Id)
@@ -228,11 +238,24 @@ func enforceLinkHandshake(app core.App, link *core.Record, identityId, token, ch
 	hs.Set(util.Fields.Handshake.TokenHash, util.HashToken(newToken))
 	hs.Set(util.Fields.Handshake.Workspace, link.GetString(util.Fields.Link.Workspace))
 	if err := app.Save(hs); err != nil {
-		return re.InternalServerError("Failed to save handshake", nil)
+		app.Logger().Error("Failed to save handshake", "error", err)
+		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
 	}
 	re.Response.Header().Set("X-Handshake-Token", newToken)
 	re.Response.Header().Set("Access-Control-Expose-Headers", "X-Handshake-Token")
-	return nil
+	return true
+}
+
+// denyGate writes the stable error envelope and reports that the gate refused,
+// so a caller reads as `if !enforceX(...) { return nil }`.
+//
+// A gate must never hand back what appErrorResponse returned: re.JSON reports
+// success as a nil error, so a gate returning it tells its caller the check
+// PASSED. That is the same trap the rate limiters are shaped around
+// (invariant #7), and it is why these helpers return bool rather than error.
+func denyGate(re *core.RequestEvent, status int, e *util.AppError) bool {
+	_ = appErrorResponse(re, status, e)
+	return false
 }
 
 // resourceErrorResponse renders a lifecycle error with the right status: paused is

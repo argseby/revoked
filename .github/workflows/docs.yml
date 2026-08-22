@@ -8,6 +8,7 @@ on:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "tools/docs/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -29,6 +30,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r docs/requirements.txt
+      # The reference pages are generated, not committed — zensical runs a
+      # fixed set of plugins and no arbitrary MkDocs ones, so the spec is
+      # rendered to Markdown here rather than by a renderer at build time.
+      - run: python tools/docs/gen_api_reference.py
       - run: zensical build --strict
       - uses: actions/upload-pages-artifact@v3
         with:

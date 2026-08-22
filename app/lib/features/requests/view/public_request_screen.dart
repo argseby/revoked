@@ -8,6 +8,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/identity_status_assertion.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/request_template.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
@@ -287,6 +288,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         claimedDomain: domain,
         identityFingerprint: fingerprint,
         parentSignatureHex: parentSig,
+        statusAssertion: IdentityStatusAssertion.fromJson(
+          requester?['statusAssertion'],
+        ),
       );
     } catch (e) {
       // An escaping exception used to leave the badge on "Checking domain…"
@@ -337,6 +341,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     }
     final claimed = _requester?['domainAtIssue'] as String? ?? '';
     if (verdict?.state == TrustState.spoofed) return TrustCheckState.spoofed;
+    if (verdict?.state == TrustState.revoked) return TrustCheckState.revoked;
     if (verdict?.state == TrustState.verified && verdict?.domain == claimed) {
       return TrustCheckState.verified;
     }
@@ -375,6 +380,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       chainState = TrustCheckState.verified;
     } else if (verdict?.state == TrustState.spoofed) {
       chainState = TrustCheckState.spoofed;
+    } else if (verdict?.state == TrustState.revoked) {
+      chainState = TrustCheckState.revoked;
     } else {
       chainState = TrustCheckState.failed;
     }
@@ -474,7 +481,11 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       // precisely the case it exists to catch.
       final verdict = await _awaitTrustVerdict();
 
-      if (verdict.state == TrustState.spoofed) {
+      // allowsSubmit rather than a state comparison: it is the one predicate
+      // that decides this, and a gate spelling out its own list drifts from it
+      // the moment a state is added — which is exactly how a revoked identity
+      // came to be offered a confirm-anyway dialog instead of a block.
+      if (!verdict.allowsSubmit) {
         runInAction(
           () =>
               _store.publicFormError = 'Submission blocked: ${verdict.reason}',
@@ -859,8 +870,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         // request is/needs as hoverable tags on the right. Stacks to a single
         // column when there isn't room.
         final wide = constraints.maxWidth >= 900;
-        final info = _buildInfoPanel(theme, label);
-        final input = _buildInputPanel(theme);
+        final info = Observer(builder: (_) => _buildInfoPanel(theme, label));
+        final input = Observer(builder: (_) => _buildInputPanel(theme));
 
         final Widget body = wide
             ? Row(

@@ -79,6 +79,24 @@ func BindWorkspaceMembersHooks(app core.App) {
 		return e.Next()
 	})
 
+	// Losing membership must invalidate the credentials that assert it. The
+	// certificate the departing member already holds names this workspace's
+	// domain and is signed for ten years; nothing but a revocation stops it from
+	// going on making that claim from another server, where the local
+	// membership check never runs.
+	//
+	// Inside the delete transaction, so the revocation cannot commit without the
+	// removal or the removal without it.
+	app.OnRecordDelete(util.Coll.WorkspaceMembers).BindFunc(func(e *core.RecordEvent) error {
+		userId := e.Record.GetString(util.Fields.WorkspaceMember.User)
+		workspaceId := e.Record.GetString(util.Fields.WorkspaceMember.Workspace)
+
+		if err := e.Next(); err != nil {
+			return err
+		}
+		return services.RevokeWorkspaceIdentities(e.App, userId, workspaceId, util.RevocationMembershipEnded)
+	})
+
 	// role is a denormalization of the permissions so the collection rules can
 	// test it: matching the permission list inside a rule is not reliable, but
 	// matching a single-value select is. Derive it on every write rather than
