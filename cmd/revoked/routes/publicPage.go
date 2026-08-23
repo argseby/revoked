@@ -671,7 +671,6 @@ a:hover { text-decoration: underline; }
 <span>Revoked</span>
 </div>
 <div class="nav-actions">
-<span class="badge">READ-ONLY SHARE</span>
 <button class="badge" id="theme-toggle" aria-label="Toggle visual theme">Theme</button>
 </div>
 </div>
@@ -683,7 +682,6 @@ a:hover { text-decoration: underline; }
 
 <div class="card card-pad">
 <h1 class="header-title">{{if .Label}}{{.Label}}{{else}}Shared Items{{end}}</h1>
-<div class="header-sub">read only link provided by Revoked.</div>
 </div>
 
 {{if or .Gated .RequireHandshake}}
@@ -702,12 +700,12 @@ a:hover { text-decoration: underline; }
 <div class="card card-pad" id="gate">
 <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
 <div>
-<div style="font-weight: 600; margin-bottom: 2px;">Vault Contents Ready</div>
+<div style="font-weight: 600; margin-bottom: 2px;">Only continue, if you trust this source.</div>
 <div class="muted sm" id="capnote">
-{{if gt .MaxViews 0}}Limited view: {{.ViewCount}} of {{.MaxViews}} views used. Revealing spends 1 view.{{else}}Nothing is exposed until requested.{{end}}
+{{if gt .MaxViews 0}}Limited view: {{.ViewCount}} of {{.MaxViews}} views used. Revealing spends 1 view.{{else}}Nothing is loaded, until you press "Load & Show".{{end}}
 </div>
 </div>
-<button class="btn primary" id="reveal">Reveal Data</button>
+<button class="btn primary" id="reveal">Load & Show</button>
 </div>
 </div>
 <div id="out" style="display: flex; flex-direction: column; gap: 16px;"></div>
@@ -760,12 +758,12 @@ Values are resolved live and can be Revoked by the owner at any time.
 
 <footer>
 <p class="muted sm">
-Revoked replaces copies of your data with revocable, always-current references — and lets every party verify the other through DNS.
-</p>
-<p class="sm" style="margin-top: 8px;">
-<a href="https://revoked.link" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px;">
+For more information visit <a href="https://revoked.link" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px;">
 revoked.link
-</a>
+</p>
+
+<p class="sm" style="margin-top: 8px;">
+
 </p>
 </footer>
 
@@ -1008,7 +1006,7 @@ render(res.body);
 })
 .catch(function() {
 btn.disabled = false;
-btn.textContent = 'Reveal Data';
+btn.textContent = 'Load & Show';
 var n = document.getElementById('capnote');
 n.className = 'bad sm';
 n.textContent = 'Could not communicate with the vault server.';
