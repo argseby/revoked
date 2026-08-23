@@ -672,7 +672,7 @@ a:hover { text-decoration: underline; }
 </div>
 <div class="nav-actions">
 <span class="badge">READ-ONLY SHARE</span>
-<button class="btn" id="theme-toggle" aria-label="Toggle visual theme">Theme</button>
+<button class="badge" id="theme-toggle" aria-label="Toggle visual theme">Theme</button>
 </div>
 </div>
 </header>
@@ -788,10 +788,10 @@ return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').ma
 function updateToggleLabel() {
 if (!themeToggle) return;
 if (isDark()) {
-themeToggle.innerHTML = sunIcon + '<span>Light</span>';
+themeToggle.innerHTML = sunIcon + '';
 themeToggle.setAttribute('aria-label', 'Switch to light theme');
 } else {
-themeToggle.innerHTML = moonIcon + '<span>Dark</span>';
+themeToggle.innerHTML = moonIcon + '';
 themeToggle.setAttribute('aria-label', 'Switch to dark theme');
 }
 }
