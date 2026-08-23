@@ -290,7 +290,6 @@ class _TemplateCard extends StatelessWidget {
     final records = template.schema['records'] as List<dynamic>? ?? [];
 
     return AppEntityCard(
-      icon: AppIcons.cardList,
       title: template.name,
       tags: [
         AppBadge(

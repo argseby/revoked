@@ -228,7 +228,6 @@ class ApiKeyCard extends StatelessWidget {
     final scopes = (apiKey.scopes as List<String>).toSet().toList()..sort();
 
     return AppEntityCard(
-      icon: AppIcons.key,
       title: apiKey.label,
       subtitle: apiKey.neverExpires
           ? 'Never expires'

@@ -26,7 +26,6 @@ import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
-import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_screen_header.dart';
@@ -34,6 +33,7 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
@@ -1497,7 +1497,6 @@ class _SectionCard extends StatelessWidget {
     }
 
     return AppEntityCard(
-      icon: AppIcons.folder,
       onTap: isSelectableMode ? () => onToggleSelect?.call(!isSelected) : null,
       leading: isSelectableMode
           ? AppCheckbox(
@@ -1656,7 +1655,6 @@ class _RecordCardState extends State<_RecordCard> {
     }
 
     return AppEntityCard(
-      icon: AppIcons.key,
       title: r.label,
       subtitle: r.key,
       subtitleMono: true,

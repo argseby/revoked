@@ -389,7 +389,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         for (final ws in settings.workspaces)
           AppEntityCard(
-            icon: AppIcons.personWorkspace,
             title: ws.name,
             titleBadge: ws.id == activeId
                 ? const AppBadge(
@@ -445,7 +444,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         for (final id in store.identities)
           AppEntityCard(
-            icon: AppIcons.personBoundingBox,
             title: id.name,
             subtitle: id.shortFingerprint,
             subtitleMono: true,
@@ -678,7 +676,6 @@ class _InvitesSectionState extends State<_InvitesSection> {
           children: [
             for (final invite in open)
               AppEntityCard(
-                icon: AppIcons.key,
                 title: invite.label.isEmpty ? 'Invite' : invite.label,
                 tags: [
                   AppBadge(
@@ -1265,7 +1262,6 @@ class _TemplatesSummaryState extends State<_TemplatesSummary> {
           children: [
             for (final template in store.templates)
               AppEntityCard(
-                icon: AppIcons.cardList,
                 title: template.name,
                 subtitle: _schemaSummary(template),
                 actions: [
@@ -1396,7 +1392,6 @@ class _MembersSectionState extends State<_MembersSection> {
           children: [
             for (final member in store.members)
               AppEntityCard(
-                icon: AppIcons.personBoundingBox,
                 title: member.isSelf ? '${member.email} (you)' : member.email,
                 tags: [
                   AppBadge(

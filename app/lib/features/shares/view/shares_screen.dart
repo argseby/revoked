@@ -352,7 +352,6 @@ class _ShareCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AppEntityCard(
-      icon: AppIcons.link,
       title: share.label,
       subtitle: share.slug,
       subtitleMono: true,

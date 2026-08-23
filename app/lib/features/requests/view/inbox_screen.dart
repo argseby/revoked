@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
-import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/status_colors.dart';
@@ -20,9 +18,11 @@ import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_screen_header.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
+import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
-import 'package:revoked_app/core/widgets/share_sheet.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key});
@@ -244,7 +244,6 @@ class _InboxCardState extends State<_InboxCard> {
     final isClosed = req.status == 'revoked' || req.status == 'expired';
 
     return AppEntityCard(
-      icon: AppIcons.inboxFill,
       title: req.label,
       subtitle: req.slug,
       subtitleMono: true,

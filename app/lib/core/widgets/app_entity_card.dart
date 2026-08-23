@@ -14,19 +14,25 @@ import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 /// The unified list-item card shared by My Data, Share and Request so every
 /// entity reads — and behaves — identically:
 ///
-///   [icon]  Title  date            [key] [tag] [tag]  [⌄ expand]
+///   Title  date                     [key] [tag] [tag]  [⌄ expand]
 ///   ── expanded ──────────────────────────────────────────────
 ///           [optional body]
 ///           ( Action )( Action )( Destructive )
+///
+/// Below [AppSpacing.narrowWidth] the header stacks instead, because one line
+/// on a phone leaves the title a few characters and wraps the tags over three
+/// runs:
+///
+///   Title                                   date  [⌄ expand]
+///   [key] [tag] [tag]
 ///
 /// Tapping the card toggles the expanded panel, which reveals the optional
 /// [body] (e.g. a vault record's value) and the [actions] as prominent rounded
 /// pills — replacing the old per-card options sheet so taps do the same thing
 /// everywhere.
 class AppEntityCard extends StatefulWidget {
-  final IconData icon;
-
-  /// Sits before [icon] — a selection checkbox, nothing else so far.
+  /// Sits at the head of the title line — a selection checkbox, nothing else
+  /// so far.
   final Widget? leading;
 
   /// Sits directly beside the title - a state the reader must not have to
@@ -59,7 +65,6 @@ class AppEntityCard extends StatefulWidget {
 
   const AppEntityCard({
     super.key,
-    required this.icon,
     required this.title,
     this.onTap,
     this.leading,
@@ -92,8 +97,7 @@ class AppEntityCard extends StatefulWidget {
 }
 
 class _AppEntityCardState extends State<AppEntityCard> {
-  static const double _leadIconSize = 18;
-  static const double _bodyIndent = _leadIconSize + AppSpacing.md;
+  static const double _bodyIndent = AppSpacing.md;
 
   final Local<bool> _expandedState = Local(false);
 
@@ -112,7 +116,6 @@ class _AppEntityCardState extends State<AppEntityCard> {
   }
 
   Widget _build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final w = widget;
     final hasSubtitle = w.subtitle != null && w.subtitle!.isNotEmpty;
     final hasDate = w.date != null && w.date!.isNotEmpty;
@@ -126,10 +129,12 @@ class _AppEntityCardState extends State<AppEntityCard> {
       ...w.tags,
     ];
 
+    final showSubtitle = hasSubtitle && !w.subtitleMono;
+
     return AppCard(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xs,
       ),
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       onTap: _cardTap,
@@ -140,68 +145,17 @@ class _AppEntityCardState extends State<AppEntityCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
-                Icon(w.icon, size: _leadIconSize, color: scheme.primary),
-                AppSpacing.gapMd,
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: AppText(
-                          w.title,
-                          bold: true,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (w.titleBadge != null) ...[
-                        AppSpacing.gapSm,
-                        w.titleBadge!,
-                      ],
-                      if (hasSubtitle && !w.subtitleMono) ...[
-                        AppSpacing.gapSm,
-                        Flexible(
-                          child: Text(
-                            w.subtitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ).muted.small,
-                        ),
-                      ],
-                      if (hasDate) ...[
-                        AppSpacing.gapSm,
-                        Flexible(
-                          child: Text(
-                            w.date!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ).muted.small,
-                        ),
-                      ],
-                    ],
+            AppSpacing.isNarrow(context)
+                ? _stackedHeader(
+                    tags: tags,
+                    showSubtitle: showSubtitle,
+                    showDate: hasDate,
+                  )
+                : _inlineHeader(
+                    tags: tags,
+                    showSubtitle: showSubtitle,
+                    showDate: hasDate,
                   ),
-                ),
-                if (tags.isNotEmpty) ...[
-                  AppSpacing.gapSm,
-                  Expanded(
-                    child: Wrap(
-                      alignment: WrapAlignment.end,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: AppSpacing.xxs,
-                      runSpacing: AppSpacing.xs,
-                      children: tags,
-                    ),
-                  ),
-                ],
-                if (_expandable) ...[
-                  AppSpacing.gapSm,
-                  _ExpandButton(expanded: _expanded, onTap: _toggle),
-                ],
-              ],
-            ),
             if (w.body != null) ...[
               AppSpacing.gapXs,
               Padding(
@@ -227,6 +181,149 @@ class _AppEntityCardState extends State<AppEntityCard> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Wide layout: one line, tags pushed to the right edge.
+  Widget _inlineHeader({
+    required List<Widget> tags,
+    required bool showSubtitle,
+    required bool showDate,
+  }) {
+    final w = widget;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
+        AppSpacing.gapMd,
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: AppText(
+                  w.title,
+                  bold: true,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (w.titleBadge != null) ...[AppSpacing.gapSm, w.titleBadge!],
+              if (showSubtitle) ...[
+                AppSpacing.gapSm,
+                Flexible(
+                  child: Text(
+                    w.subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ).muted.small,
+                ),
+              ],
+              if (showDate) ...[
+                AppSpacing.gapSm,
+                Flexible(
+                  child: Text(
+                    w.date!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ).muted.small,
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (tags.isNotEmpty) ...[
+          AppSpacing.gapSm,
+          Expanded(
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppSpacing.xxs,
+              runSpacing: AppSpacing.xs,
+              children: tags,
+            ),
+          ),
+        ],
+        if (_expandable) ...[
+          AppSpacing.gapSm,
+          _ExpandButton(expanded: _expanded, onTap: _toggle),
+        ],
+      ],
+    );
+  }
+
+  /// Phone layout: sharing the line leaves the title a sliver and spills the
+  /// tags over several runs, so the title and date keep the first line and the
+  /// tags get the next one to themselves.
+  Widget _stackedHeader({
+    required List<Widget> tags,
+    required bool showSubtitle,
+    required bool showDate,
+  }) {
+    final w = widget;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
+            AppSpacing.gapMd,
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: AppText(
+                      w.title,
+                      bold: true,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (w.titleBadge != null) ...[
+                    AppSpacing.gapSm,
+                    w.titleBadge!,
+                  ],
+                ],
+              ),
+            ),
+            if (showDate) ...[
+              AppSpacing.gapSm,
+              Text(
+                w.date!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ).muted.small,
+            ],
+            if (_expandable) ...[
+              AppSpacing.gapSm,
+              _ExpandButton(expanded: _expanded, onTap: _toggle),
+            ],
+          ],
+        ),
+        if (showSubtitle) ...[
+          AppSpacing.gapXxs,
+          Padding(
+            padding: const EdgeInsets.only(left: _bodyIndent),
+            child: Text(
+              w.subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ).muted.small,
+          ),
+        ],
+        if (tags.isNotEmpty) ...[
+          AppSpacing.gapXs,
+          Padding(
+            padding: const EdgeInsets.only(left: _bodyIndent),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppSpacing.xxs,
+              runSpacing: AppSpacing.xs,
+              children: tags,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

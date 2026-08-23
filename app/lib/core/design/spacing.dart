@@ -25,15 +25,21 @@ abstract class AppSpacing {
   static const SizedBox gapXl = SizedBox(height: xl, width: xl);
   static const SizedBox gapXxl = SizedBox(height: xxl, width: xxl);
 
+  /// The one breakpoint in the app: below this a layout is a phone layout and
+  /// stacks what a wider window puts side by side.
+  static const double narrowWidth = 600;
+
+  static bool isNarrow(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < narrowWidth;
+
   /// Inset a scrolling list keeps for its scrollbar, so the bar never sits on
   /// the content's edge. Paired with [screenH]: the list pads by this and the
   /// screen by the remainder, which is why both must come from one place.
   static double scrollbarMargin(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < 600 ? xxs : xs;
+      isNarrow(context) ? xxs : xs;
 
   /// Standard horizontal padding for a screen's content. Use this for every
   /// screen's header AND its scrollable content so they all line up to the
   /// same left/right edge: 16 on narrow (mobile) layouts, 24 on wider ones.
-  static double screenH(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < 600 ? 16 : 24;
+  static double screenH(BuildContext context) => isNarrow(context) ? 16 : 24;
 }
