@@ -371,8 +371,8 @@ class _ShareCard extends StatelessWidget {
       AppBadge(
         icon: AppIcons.eye,
         label: share.maxViews > 0
-            ? '${share.viewCount}/${share.maxViews} views'
-            : '${share.viewCount} views',
+            ? '${share.viewCount}/${share.maxViews}'
+            : '${share.viewCount}',
       ),
     ];
     if (share.isFromRequest) {
@@ -393,17 +393,9 @@ class _ShareCard extends StatelessWidget {
     if (share.requireHandshake) {
       out.add(const AppBadge(icon: AppIcons.shieldCheck, label: 'Handshake'));
     }
+    out.add(AppBadge(icon: AppIcons.folder, label: '${share.sections.length}'));
     out.add(
-      AppBadge(
-        icon: AppIcons.folder,
-        label: '${share.sections.length} sections',
-      ),
-    );
-    out.add(
-      AppBadge(
-        icon: AppIcons.cardList,
-        label: '${share.records.length} records',
-      ),
+      AppBadge(icon: AppIcons.cardList, label: '${share.records.length}'),
     );
     return out;
   }
