@@ -1298,7 +1298,7 @@ class _AccessTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: AppRadius.allPill,
+      borderRadius: AppRadius.allMd,
       onTap: onTap,
       child: AppBadge(
         icon: AppIcons.share,

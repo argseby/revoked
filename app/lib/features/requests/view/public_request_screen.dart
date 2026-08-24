@@ -1716,7 +1716,7 @@ class _ShareToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
-      borderRadius: AppRadius.allPill,
+      borderRadius: AppRadius.allMd,
       onTap: onTap,
       child: AppBadge(
         icon: shared ? AppIcons.link : AppIcons.linkSlash,

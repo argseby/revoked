@@ -6,19 +6,19 @@ import 'package:flutter/widgets.dart';
 /// bare number; the whole point is that a card, an alert and a dialog cannot
 /// quietly disagree about how round they are.
 abstract final class AppRadius {
-  /// Tight rounding for chips and inline pills that sit inside text.
+  /// Tight rounding for chips and inline labels that sit inside text.
   static const double xs = 4;
 
   /// Inputs, small controls, table cells.
   static const double sm = 6;
 
-  /// The default: cards, alerts, dialogs, menus, toasts.
+  /// The default: cards, alerts, dialogs, menus, toasts, buttons and tags.
   static const double md = 8;
 
   /// Large surfaces — sheets, hero containers.
   static const double lg = 12;
 
-  /// Fully rounded ends. Badges and avatars.
+  /// Fully rounded ends. Avatars, progress tracks, round affordances.
   static const double pill = 999;
 
   static const BorderRadius allXs = BorderRadius.all(Radius.circular(xs));

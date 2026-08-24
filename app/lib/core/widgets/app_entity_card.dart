@@ -27,8 +27,8 @@ import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 ///   [key] [tag] [tag]
 ///
 /// Tapping the card toggles the expanded panel, which reveals the optional
-/// [body] (e.g. a vault record's value) and the [actions] as prominent rounded
-/// pills — replacing the old per-card options sheet so taps do the same thing
+/// [body] (e.g. a vault record's value) and the [actions] as buttons —
+/// replacing the old per-card options sheet so taps do the same thing
 /// everywhere.
 class AppEntityCard extends StatefulWidget {
   /// Sits at the head of the title line — a selection checkbox, nothing else
@@ -175,7 +175,9 @@ class _AppEntityCardState extends State<AppEntityCard> {
                 Wrap(
                   spacing: AppSpacing.sm,
                   runSpacing: AppSpacing.sm,
-                  children: [for (final a in w.actions) _ActionPill(action: a)],
+                  children: [
+                    for (final a in w.actions) _ActionButton(action: a),
+                  ],
                 ),
             ],
           ],
@@ -360,11 +362,13 @@ class _ExpandButton extends StatelessWidget {
   }
 }
 
-/// A prominent rounded action button used in the expanded card.
-class _ActionPill extends StatelessWidget {
+/// An action in the expanded card. Tinted rather than filled — several sit in
+/// a row — but it takes AppButton's corner radius, so it is the same shape
+/// as every other button in the app.
+class _ActionButton extends StatelessWidget {
   final AppSheetAction action;
 
-  const _ActionPill({required this.action});
+  const _ActionButton({required this.action});
 
   @override
   Widget build(BuildContext context) {
@@ -386,11 +390,11 @@ class _ActionPill extends StatelessWidget {
       opacity: enabled ? 1 : 0.5,
       child: Material(
         color: bg,
-        borderRadius: AppRadius.allPill,
+        borderRadius: AppRadius.allMd,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: enabled ? action.onTap : null,
-          borderRadius: AppRadius.allPill,
+          borderRadius: AppRadius.allMd,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.lg,
