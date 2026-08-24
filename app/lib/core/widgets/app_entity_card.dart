@@ -133,8 +133,8 @@ class _AppEntityCardState extends State<AppEntityCard> {
 
     return AppCard(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: AppSpacing.xs,
+        vertical: AppSpacing.sm,
+        horizontal: AppSpacing.sm,
       ),
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       onTap: _cardTap,

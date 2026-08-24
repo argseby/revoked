@@ -75,7 +75,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Flexible(
           child: Padding(
-            padding: EdgeInsets.all(AppSpacing.sm),
+            padding: EdgeInsets.all(AppSpacing.xs),
             child: Observer(
               builder: (context) {
                 final activeId = auth.activeWorkspace ?? '';
@@ -103,14 +103,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AuthStore auth,
     String activeId,
   ) {
-    final pad = AppSpacing.screenH(context);
     final active = settings.workspaces
         .where((w) => w.id == activeId)
         .cast<Workspace?>()
         .firstWhere((_) => true, orElse: () => null);
 
     return ListView(
-      padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, AppSpacing.huge),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+        bottom: AppSpacing.huge,
+      ),
       children: [
         const _GroupHeader(
           title: 'You',
@@ -296,9 +300,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AuthStore auth,
     String activeId,
   ) {
-    final pad = AppSpacing.screenH(context);
     return ListView(
-      padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, AppSpacing.huge),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+      ),
       children: [
         _GroupHeader(
           title: 'Workspaces',
@@ -345,7 +352,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _developerTab(BuildContext context) {
     final pad = AppSpacing.screenH(context);
     return ListView(
-      padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, AppSpacing.huge),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+      ),
       children: [
         _GroupHeader(
           title: 'API keys',

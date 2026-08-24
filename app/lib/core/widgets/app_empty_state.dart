@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
@@ -19,21 +18,24 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 40,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          AppSpacing.gapMd,
-          Text(title),
-          AppSpacing.gapXxs,
-          Text(subtitle).muted.small,
-          if (action != null) ...[AppSpacing.gapLg, action!],
-        ],
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 40,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            AppSpacing.gapMd,
+            Text(title),
+            AppSpacing.gapXxs,
+            Text(subtitle, textAlign: .center).muted.small,
+            if (action != null) ...[AppSpacing.gapLg, action!],
+          ],
+        ),
       ),
     );
   }
