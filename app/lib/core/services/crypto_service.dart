@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:basic_utils/basic_utils.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pointycastle/export.dart' as pc;
+import 'package:revoked_app/core/services/secure_storage.dart';
 
 /// Owns all ECDSA (secp256r1) key generation, signing, and X.509 work
 /// performed inside the client.
@@ -22,15 +23,7 @@ class CryptoService {
   final FlutterSecureStorage _storage;
 
   CryptoService({FlutterSecureStorage? storage})
-    : _storage =
-          storage ??
-          FlutterSecureStorage(
-            // macOS: the data-protection keychain needs a Keychain Sharing
-            // entitlement that local/ad-hoc dev builds don't have, so writes
-            // and reads silently fail ("no private key stored for identity").
-            // The legacy keychain works for the sandboxed app without it.
-            mOptions: const MacOsOptions(usesDataProtectionKeychain: false),
-          );
+    : _storage = storage ?? createSecureStorage();
 
   /// Generates a fresh ECDSA (secp256r1) keypair.
   /// Returns the PEM-encoded private and public keys.
