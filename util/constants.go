@@ -14,9 +14,12 @@ const (
 	// migration 000019; keep the two in step.
 	MaxRecordValueLength = 1000
 
-	TypeText   = "text"
-	TypeNumber = "number"
-	TypeFile   = "file"
+	TypeText     = "text"
+	TypeNumber   = "number"
+	TypeUrl      = "url"
+	TypeBoolean  = "boolean"
+	TypeDatetime = "datetime"
+	TypeFile     = "file"
 
 	FormatHidden  = "hidden"
 	FormatDefault = "default"
@@ -48,8 +51,18 @@ const (
 // WorkspaceRoles lists the valid workspace member roles.
 var WorkspaceRoles = []string{RoleAdmin, RoleMember}
 
-// RecordTypes lists the valid record value types.
-var RecordTypes = []string{TypeText, TypeNumber, TypeFile}
+// RecordTypes lists the valid record value types. Everything but a file is
+// stored as text and read back as text; the type says how the client should
+// render and validate it, which is why widening this list needs no other
+// change here.
+var RecordTypes = []string{
+	TypeText,
+	TypeNumber,
+	TypeUrl,
+	TypeBoolean,
+	TypeDatetime,
+	TypeFile,
+}
 
 // RecordFormats lists the valid record display formats.
 var RecordFormats = []string{FormatHidden, FormatDefault}
