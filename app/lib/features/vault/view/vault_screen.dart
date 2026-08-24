@@ -160,7 +160,6 @@ class _VaultScreenState extends State<VaultScreen> {
 
     final outerPad = AppSpacing.screenH(context);
     final scrollbarMargin = AppSpacing.scrollbarMargin(context);
-    final innerPad = outerPad - scrollbarMargin;
     final horizontalPad = EdgeInsets.symmetric(horizontal: outerPad);
 
     return Observer(

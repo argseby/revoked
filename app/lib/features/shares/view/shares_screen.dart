@@ -97,9 +97,7 @@ class _SharesScreenState extends State<SharesScreen> {
   Widget build(BuildContext context) {
     final store = Stores.shares;
 
-    final outerPad = AppSpacing.screenH(context);
     final scrollbarMargin = AppSpacing.scrollbarMargin(context);
-    final innerPad = outerPad - scrollbarMargin;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),

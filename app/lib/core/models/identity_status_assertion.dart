@@ -170,7 +170,8 @@ class IdentityStatusBody {
     if (body.fingerprint.toLowerCase() != expectFingerprint.toLowerCase()) {
       return null;
     }
-    if (body.issuedAt.isAfter(now.add(IdentityStatusAssertion.clockSkew))) return null;
+    if (body.issuedAt.isAfter(now.add(IdentityStatusAssertion.clockSkew)))
+      return null;
     if (body.expiresAt.isBefore(now)) return null;
     return body;
   }

@@ -103,11 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AuthStore auth,
     String activeId,
   ) {
-    final active = settings.workspaces
-        .where((w) => w.id == activeId)
-        .cast<Workspace?>()
-        .firstWhere((_) => true, orElse: () => null);
-
     return ListView(
       padding: EdgeInsets.only(
         left: AppSpacing.xs,
@@ -341,7 +336,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _developerTab(BuildContext context) {
-    final pad = AppSpacing.screenH(context);
     return ListView(
       padding: EdgeInsets.only(
         left: AppSpacing.xs,
@@ -874,68 +868,6 @@ class _DomainVerificationCardState extends State<_DomainVerificationCard> {
             style: AppButtonStyle.accent,
             busy: Stores.settings.isCheckingDomain,
             onTap: _verify,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileCard extends StatelessWidget {
-  final String email;
-  final Workspace? active;
-  final bool loading;
-
-  const _ProfileCard({
-    required this.email,
-    required this.active,
-    required this.loading,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppText(
-                  bold: true,
-                  email.isEmpty ? 'Signed in' : email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (loading)
-                  const Text('Loading workspace…').muted.small
-                else
-                  Column(
-                    mainAxisAlignment: .start,
-                    crossAxisAlignment: .start,
-                    children: [
-                      AppText(
-                        muted: true,
-                        small: true,
-                        selectable: true,
-
-                        'Workspace - Name: ${active?.name ?? 'No active workspace'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      AppText(
-                        selectable: true,
-                        muted: true,
-                        small: true,
-                        'Workspace - ID: ${active?.id ?? 'No active workspace'}',
-
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-              ],
-            ),
           ),
         ],
       ),
