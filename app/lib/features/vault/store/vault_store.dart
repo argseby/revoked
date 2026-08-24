@@ -350,6 +350,105 @@ abstract class _VaultStore with Store {
     if (!revealedRecords.remove(id)) revealedRecords.add(id);
   }
 
+  /// Template fill: the template whose fields are being answered in the
+  /// vault's create drawer, and the value being typed into one of them.
+  @observable
+  String? fillTemplateId;
+
+  @action
+  void selectFillTemplate(String? id) => fillTemplateId = id;
+
+  final ObservableTextController fillValue = ObservableTextController();
+
+  @observable
+  bool isFillingField = false;
+
+  @action
+  void setFillingField(bool value) => isFillingField = value;
+
+  /// A template field is answered when the vault already holds its key —
+  /// that, not a saved template, is what "filled" means here.
+  bool isKeyFilled(String key) => records.any((r) => r.key == key);
+
+  /// Answers one template field: creates the record it describes and files it
+  /// in the template's own section — created on the first answer — so a
+  /// template's records stay together however many are filled. Answering a
+  /// field the vault already holds rewrites that record's value instead, which
+  /// is what makes a filled row editable. Fields are answered one at a time on
+  /// purpose: a template is a checklist, not an all-or-nothing import.
+  @action
+  Future<bool> fillTemplateField({
+    required String key,
+    required String label,
+    required String value,
+    required String type,
+    required String format,
+    String sectionKey = '',
+    String sectionName = '',
+    required String user,
+    required String workspace,
+    PendingUpload? file,
+  }) async {
+    errorMessage = null;
+
+    // An answered field is edited in place. The section is left alone: the
+    // record may have been in the vault before this template ever asked for
+    // it, and answering again is no reason to move it.
+    final existing = records.where((r) => r.key == key).toList();
+    if (existing.isNotEmpty) {
+      final id = existing.first.id;
+      if (file != null) {
+        return updateRecordFile(
+          id,
+          file,
+          fields: {'filename': file.name, 'label': label, 'format': format},
+        );
+      }
+      return updateRecord(id, {
+        'value': value,
+        'label': label,
+        'type': type,
+        'format': format,
+      });
+    }
+
+    try {
+      final record = await _create(
+        key: key,
+        value: value,
+        label: label,
+        type: type,
+        format: format,
+        user: user,
+        workspace: workspace,
+        file: file,
+      );
+      records.insert(0, record);
+
+      if (sectionKey.isNotEmpty) {
+        final existing = sections.where((s) => s.key == sectionKey).toList();
+        if (existing.isEmpty) {
+          final section = await _createSection(
+            key: sectionKey,
+            name: sectionName.isEmpty ? sectionKey : sectionName,
+            records: [record.id],
+            user: user,
+            workspace: workspace,
+          );
+          sections.insert(0, section);
+        } else {
+          await updateSection(existing.first.id, {
+            'records': [...existing.first.records, record.id],
+          });
+        }
+      }
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    }
+  }
+
   @computed
   int get recordCount => records.length;
 
@@ -508,6 +607,28 @@ abstract class _VaultStore with Store {
   }) async {
     isLoading = true;
     errorMessage = null;
+
+    // An answered field is edited in place. The section is left alone: the
+    // record may have been in the vault before this template ever asked for
+    // it, and answering again is no reason to move it.
+    final existing = records.where((r) => r.key == key).toList();
+    if (existing.isNotEmpty) {
+      final id = existing.first.id;
+      if (file != null) {
+        return updateRecordFile(
+          id,
+          file,
+          fields: {'filename': file.name, 'label': label, 'format': format},
+        );
+      }
+      return updateRecord(id, {
+        'value': value,
+        'label': label,
+        'type': type,
+        'format': format,
+      });
+    }
+
     try {
       final record = await _create(
         key: key,

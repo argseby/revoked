@@ -43,6 +43,23 @@ class AppTheme {
           side: outline,
         ),
       ),
+      // The date and time pickers are dialogs too, and Material gives them a
+      // shape of their own unless told otherwise.
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allLg,
+          side: outline,
+        ),
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allLg,
+          side: outline,
+        ),
+      ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: surface,
         modalBackgroundColor: surface,

@@ -539,14 +539,6 @@ class _VaultScreenState extends State<VaultScreen> {
                             'sections': newSections,
                             'records': newRecords,
                           });
-                          if (context.mounted) {
-                            AppToast.success(
-                              context,
-                              selected
-                                  ? 'Added section to public share'
-                                  : 'Removed section from public share',
-                            );
-                          }
                         },
                   recordCardBuilder: (record) {
                     return _RecordCard(

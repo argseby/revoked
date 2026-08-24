@@ -117,26 +117,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       children: [
         const _GroupHeader(
-          title: 'You',
-          subtitle: 'Active workspace and email.',
-        ),
-        _ProfileCard(
-          email: auth.userEmail,
-          active: active,
-          loading: settings.isLoading && settings.workspaces.isEmpty,
-        ),
-
-        const SizedBox(height: AppSpacing.xxl),
-        const _GroupHeader(
           title: 'Appearance',
           subtitle: 'Match your system, or force light or dark.',
         ),
         _buildAppearance(context),
 
         const SizedBox(height: AppSpacing.xxl),
-        const _GroupHeader(
+        _GroupHeader(
           title: 'Session',
-          subtitle: 'Sign out of this device, or close your account for good.',
+          subtitle:
+              'Sign out of this device, or close your account ${auth.userEmail} for good.',
         ),
         _buildAccountActions(context),
       ],
@@ -152,6 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Signing out leaves everything on the server — sign back in any '
             'time to pick up where you left off.',
           ).muted.small,
+
           AppSpacing.gapMd,
           AppButton(
             icon: AppIcons.boxArrowLeft,
@@ -471,6 +462,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   )
                 : null,
             actions: [
+              AppSheetAction(
+                icon: AppIcons.copy,
+                label: 'Copy id ',
+                onTap: () => {
+                  Clipboard.setData(ClipboardData(text: ws.id)),
+                  AppToast.success(context, 'Workspace id copied'),
+                },
+              ),
               if (ws.id != activeId)
                 AppSheetAction(
                   icon: AppIcons.arrowRight,

@@ -6,6 +6,7 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
+import 'package:revoked_app/features/vault/view/template_fill_form.dart';
 
 /// The vault's one create drawer. The tabs pick what is being added, so the
 /// floating button opens the form itself rather than a menu asking which form
@@ -34,17 +35,19 @@ void openVaultCreateSheet(BuildContext context) {
                 const Text('Add to vault').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Store a piece of information, or group records under a section.',
+                  'Store a piece of information, group records under a '
+                  'section, or answer what a template asks for.',
                 ).muted.small,
               ],
             ),
           ),
           Expanded(
             child: AppTabs(
-              labels: const ['Record', 'Section'],
+              labels: const ['Record', 'Section', 'From template'],
               views: [
                 recordCreateForm(parentContext: context),
                 sectionCreateForm(parentContext: context),
+                templateFillForm(parentContext: context),
               ],
             ),
           ),

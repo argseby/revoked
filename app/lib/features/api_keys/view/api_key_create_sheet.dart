@@ -5,7 +5,6 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -232,16 +231,9 @@ class ApiKeyCard extends StatelessWidget {
 
     return AppEntityCard(
       title: apiKey.label,
+      subtitle:
+          '${scopes.length} permissions · Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
 
-      tags: [
-        AppBadge(label: '${scopes.length} permissions'),
-        apiKey.neverExpires
-            ? AppBadge(label: 'Never expires')
-            : AppBadge(
-                label:
-                    'Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
-              ),
-      ],
       actions: [
         AppSheetAction(
           icon: AppIcons.xCircle,

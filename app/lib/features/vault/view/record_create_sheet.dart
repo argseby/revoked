@@ -1,14 +1,6 @@
-import 'dart:io';
-
-import 'package:desktop_drop/desktop_drop.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:revoked_app/core/files/file_saver.dart';
-import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
@@ -23,11 +15,11 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/view/vault_file_row.dart';
 
 /// Opens the record-create / duplicate drawer.
 void openRecordCreateSheet({
@@ -149,9 +141,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   bool get _isFileType => _store.recordType == 'file';
 
-  static bool get _canDropFiles =>
-      !kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows);
-
   bool _canSubmit() {
     final base =
         _store.recordLabel.text.trim().isNotEmpty &&
@@ -270,7 +259,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 const AppFormSectionHeader('Details'),
                 _buildLabelRow(),
                 _buildKeyRow(),
-                if (_isFileType) _buildFileRow() else _buildValueRow(),
+                if (_isFileType) const VaultFileRow() else _buildValueRow(),
                 _buildTypeRow(),
 
                 const AppFormSectionHeader('Display'),
@@ -386,84 +375,13 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   /// Desktop drops land anywhere on the drawer; dropping a file flips the
   /// draft to the file type, because the gesture already said so.
-  Widget _wrapDropTarget(Widget child) {
-    if (!_canDropFiles) return child;
-    return DropTarget(
-      onDragDone: (detail) async {
-        if (detail.files.isEmpty) return;
-        final staged = await PendingUpload.fromDropped(detail.files.first);
-        if (!mounted || staged == null) return;
-        await _store.stageFile(staged);
-        if (!mounted) return;
-        if (!_isFileType) _store.setRecordType('file');
-      },
-      child: child,
-    );
-  }
-
-  Future<void> _pickFile() async {
-    final picked = await FilePicker.pickFile();
-    if (picked == null) return;
-    await _store.stageFile(await PendingUpload.fromPicked(picked));
-  }
-
-  Widget _buildFileRow() {
-    final file = _store.pickedFile;
-    final refusal = _store.pickedFileError;
-    final preview = _store.pickedFilePreview;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppFormRow(
-          icon: AppIcons.filePlus,
-          label: 'File',
-          valueText:
-              refusal ??
-              (file != null
-                  ? '${file.name} · ${formatBytes(file.size)}'
-                  : (_canDropFiles
-                        ? 'Required — browse, or drop a file anywhere here'
-                        : 'Required — tap to pick a file')),
-          isPlaceholder: file == null,
-          isError: file == null || refusal != null,
-          onTap: _pickFile,
-        ),
-        if (preview != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              0,
-              AppSpacing.xl,
-              AppSpacing.sm,
-            ),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ClipRRect(
-                borderRadius: AppRadius.allMd,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 160),
-                  child: Image.memory(preview, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-          ),
-        if (_store.isUploading)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              0,
-              AppSpacing.xl,
-              AppSpacing.sm,
-            ),
-            child: AppUploadProgress(
-              sent: _store.uploadSent,
-              total: _store.uploadTotal,
-              onCancel: _store.cancelUpload,
-            ),
-          ),
-      ],
-    );
-  }
+  Widget _wrapDropTarget(Widget child) => vaultDropTarget(
+    child: child,
+    // The gesture already said this is a file.
+    onStaged: () async {
+      if (mounted && !_isFileType) _store.setRecordType('file');
+    },
+  );
 
   Widget _buildValueRow() {
     final v = _store.recordValue.text;

@@ -248,7 +248,7 @@ class _ShareCard extends StatelessWidget {
       if (!isRevoked)
         AppSheetAction(
           icon: AppIcons.plusSlashMinus,
-          label: 'Add or remove records',
+          label: 'Select from Vault',
           primary: true,
           onTap: () => context.go('${AppRoutes.vault}?editShareId=${share.id}'),
         ),
@@ -266,7 +266,7 @@ class _ShareCard extends StatelessWidget {
       ),
       AppSheetAction(
         icon: AppIcons.funnel,
-        label: 'Filter by shared records',
+        label: 'View records',
         onTap: () => context.go('${AppRoutes.vault}?shareFilterId=${share.id}'),
       ),
 
