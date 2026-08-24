@@ -1257,7 +1257,7 @@ class _AccessTag extends StatelessWidget {
       onTap: onTap,
       child: AppBadge(
         icon: AppIcons.share,
-        label: '$count ${count == 1 ? 'share' : 'shares'}',
+        label: '$count',
         accent: Theme.of(context).colorScheme.primary,
       ),
     );
@@ -1426,10 +1426,7 @@ class _SectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tags = <Widget>[
-      AppBadge(
-        icon: AppIcons.cardList,
-        label: '${section.records.length} records',
-      ),
+      AppBadge(icon: AppIcons.cardList, label: '${section.records.length}'),
       if (section.isRequested)
         AppBadge(
           icon: AppIcons.inboxFill,
