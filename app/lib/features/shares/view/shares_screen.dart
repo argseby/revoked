@@ -352,21 +352,25 @@ class _ShareCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AppEntityCard(
+      leading: Tooltip(
+        message: StatusColors.displayLabel(share.status),
+        child: Icon(
+          StatusColors.icon(share.status),
+          size: 18,
+          color: StatusColors.foreground(theme, share.status),
+        ),
+      ),
       title: share.label,
       subtitle: share.slug,
       subtitleMono: true,
       date: AppEntityCard.formatDate(share.created),
-      tags: _tags(theme),
+      tags: _tags(),
       actions: _shareActions(context),
     );
   }
 
-  List<Widget> _tags(ThemeData theme) {
+  List<Widget> _tags() {
     final out = <Widget>[
-      AppBadge(
-        label: StatusColors.displayLabel(share.status),
-        accent: StatusColors.foreground(theme, share.status),
-      ),
       AppBadge(
         icon: AppIcons.eye,
         label: share.maxViews > 0

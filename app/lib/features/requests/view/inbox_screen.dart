@@ -244,27 +244,30 @@ class _InboxCardState extends State<_InboxCard> {
     final isClosed = req.status == 'revoked' || req.status == 'expired';
 
     return AppEntityCard(
+      leading: Tooltip(
+        message: StatusColors.displayLabel(req.status),
+        child: Icon(
+          StatusColors.icon(req.status),
+          size: 18,
+          color: StatusColors.foreground(Theme.of(context), req.status),
+        ),
+      ),
       title: req.label,
       subtitle: req.slug,
       subtitleMono: true,
       date: AppEntityCard.formatDate(req.created),
-      tags: _tags(context, req),
+      tags: _tags(req),
       actions: _requestActions(context, req, isClosed),
     );
   }
 
-  List<Widget> _tags(BuildContext context, DataRequest req) {
-    final theme = Theme.of(context);
+  List<Widget> _tags(DataRequest req) {
     final out = <Widget>[
-      AppBadge(
-        label: StatusColors.displayLabel(req.status),
-        accent: StatusColors.foreground(theme, req.status),
-      ),
       AppBadge(
         icon: AppIcons.collection,
         label: req.maxResponses > 0
-            ? '${req.responseCount}/${req.maxResponses} responses'
-            : '${req.responseCount} responses',
+            ? '${req.responseCount}/${req.maxResponses}'
+            : '${req.responseCount}',
       ),
     ];
     if (req.hasPassword) {

@@ -52,6 +52,7 @@ abstract class AppIcons {
   static const IconData server = Icons.dns_outlined;
   static const IconData nodePlus = Icons.hub_outlined;
   static const IconData pause = Icons.pause;
+  static const IconData pauseCircle = Icons.pause_circle_outline;
   static const IconData pen = Icons.edit_outlined;
   static const IconData pencil = Icons.edit;
   static const IconData personBoundingBox = Icons.account_box_outlined;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/design/app_icons.dart';
 
 /// Semantic colors for the common `status` field on links and requests.
 ///
@@ -34,6 +35,23 @@ abstract class StatusColors {
       default:
         if (status.isEmpty) return 'Unknown';
         return status[0].toUpperCase() + status.substring(1);
+    }
+  }
+
+  /// The glyph that carries a status on its own, with no label beside it:
+  /// a green tick, an amber pause, a red cross.
+  static IconData icon(String status) {
+    switch (status) {
+      case 'active':
+      case 'completed':
+        return AppIcons.checkCircle;
+      case 'paused':
+        return AppIcons.pauseCircle;
+      case 'revoked':
+      case 'expired':
+        return AppIcons.xCircle;
+      default:
+        return AppIcons.circle;
     }
   }
 
