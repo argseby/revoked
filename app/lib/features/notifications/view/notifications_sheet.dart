@@ -59,6 +59,7 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                   builder: (_) {
                     if (store.unreadCount > 0) {
                       return AppButton(
+                        icon: AppIcons.check,
                         label: 'Mark all as read',
                         onTap: store.markAllRead,
                         style: AppButtonStyle.accent,

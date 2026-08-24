@@ -11,6 +11,7 @@ abstract class AppIcons {
   static const IconData arrowRight = Icons.arrow_forward;
   static const IconData bell = Icons.notifications_outlined;
   static const IconData bellSlash = Icons.notifications_off_outlined;
+  static const IconData boxArrowInRight = Icons.login;
   static const IconData boxArrowLeft = Icons.logout;
   static const IconData brightnessAuto = Icons.brightness_auto_outlined;
   static const IconData brightnessDark = Icons.dark_mode_outlined;
@@ -35,6 +36,7 @@ abstract class AppIcons {
   static const IconData eyeSlash = Icons.visibility_off_outlined;
   static const IconData filePlus = Icons.note_add_outlined;
   static const IconData fileText = Icons.description_outlined;
+  static const IconData fileEarmark = Icons.insert_drive_file_outlined;
   static const IconData download = Icons.file_download_outlined;
   static const IconData folder = Icons.folder_outlined;
   static const IconData folderPlus = Icons.create_new_folder_outlined;
@@ -58,6 +60,7 @@ abstract class AppIcons {
   static const IconData personBoundingBox = Icons.account_box_outlined;
   static const IconData envelope = Icons.alternate_email;
   static const IconData personGear = Icons.manage_accounts_outlined;
+  static const IconData personPlus = Icons.person_add_outlined;
   static const IconData personWorkspace = Icons.workspaces_outlined;
   static const IconData play = Icons.play_arrow;
   static const IconData plus = Icons.add;
@@ -76,6 +79,7 @@ abstract class AppIcons {
   static const IconData table = Icons.table_chart_outlined;
   static const IconData globe = Icons.public_outlined;
   static const IconData threeDotsVertical = Icons.more_vert;
+  static const IconData toggleOn = Icons.toggle_on_outlined;
   static const IconData trash = Icons.delete_outline;
   static const IconData x = Icons.close;
   static const IconData xCircle = Icons.cancel_outlined;

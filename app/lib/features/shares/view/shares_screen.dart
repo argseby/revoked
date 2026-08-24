@@ -209,6 +209,7 @@ class _SharesScreenState extends State<SharesScreen> {
         title: 'API request · revoke',
       ),
       confirmLabel: 'Revoke permanently',
+      confirmIcon: AppIcons.xCircle,
       destructive: true,
     );
     if (!confirmed || !context.mounted) return;

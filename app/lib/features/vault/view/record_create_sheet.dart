@@ -316,6 +316,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
+                    icon: isDup ? AppIcons.copy : AppIcons.plus,
                     label: isDup ? 'Duplicate Record' : 'Create Record',
                     busy: _store.isSubmittingRecord,
                     onTap: _canSubmit() ? _submit : null,
@@ -521,6 +522,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: AppButton(
+                        icon: AppIcons.stars,
                         label: 'Use suggested: $_store.recordSuggestedKey',
                         onTap: () {
                           _store.recordKey.text = _store.recordSuggestedKey!;
@@ -532,6 +534,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   ],
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
+                    icon: AppIcons.check,
                     label: 'Done',
                     onTap:
                         (_store.recordKey.text.trim().isNotEmpty &&

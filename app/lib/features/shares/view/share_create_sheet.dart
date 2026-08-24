@@ -236,6 +236,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     final completeLabel = isEdit
         ? 'Save changes'
         : (isDup ? 'Duplicate Share' : 'Create Share');
+    final completeIcon = isEdit
+        ? AppIcons.check
+        : (isDup ? AppIcons.copy : AppIcons.plus);
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -325,6 +328,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(
+                    icon: completeIcon,
                     label: completeLabel,
                     busy: _store.isSubmittingShare,
                     onTap: _canSubmit() ? _onSubmit : null,
@@ -547,6 +551,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                   ],
                   AppSpacing.gapLg,
                   AppButton(
+                    icon: AppIcons.check,
                     label: 'Done',
                     onTap:
                         (_store.draftSlug.text.trim().isNotEmpty &&

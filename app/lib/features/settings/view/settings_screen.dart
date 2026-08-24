@@ -158,6 +158,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Your session on this device ends. Everything stays '
                     'on the server - log back in any time.',
                 confirmLabel: 'Log out',
+                confirmIcon: AppIcons.boxArrowLeft,
               );
               if (confirmed) await Stores.auth.logout();
             },
@@ -267,6 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'and the private key is erased from this device.\n\n'
           'Revoking cannot be undone. Create a new identity to sign again.',
       confirmLabel: 'Revoke',
+      confirmIcon: AppIcons.xCircle,
       cancelLabel: 'Keep it',
       destructive: true,
     );
@@ -640,6 +642,7 @@ class _InvitesSectionState extends State<_InvitesSection> {
           'The key for $label will stop working. Anyone still holding it will '
           'not be able to join.',
       confirmLabel: 'Withdraw',
+      confirmIcon: AppIcons.xCircle,
       cancelLabel: 'Keep it',
       destructive: true,
     );
@@ -1083,6 +1086,7 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
           ),
           const SizedBox(height: AppSpacing.xl),
           AppButton(
+            icon: AppIcons.plus,
             label: 'Create workspace',
             busy: Stores.settings.isSubmittingDrawer,
             onTap: _submit,
@@ -1341,6 +1345,7 @@ class _MembersSectionState extends State<_MembersSection> {
           ? 'You will lose access to this workspace.'
           : '${member.email} will lose access to this workspace.',
       confirmLabel: member.isSelf ? 'Leave' : 'Remove',
+      confirmIcon: member.isSelf ? AppIcons.boxArrowLeft : AppIcons.trash,
       destructive: true,
     );
     if (!confirmed || !mounted) return;
@@ -1459,6 +1464,7 @@ class _ErrorCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: AppButton(
+              icon: AppIcons.arrowClockwise,
               label: 'Retry',
               onTap: onRetry,
               style: AppButtonStyle.accent,

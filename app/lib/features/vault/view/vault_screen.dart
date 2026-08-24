@@ -783,29 +783,14 @@ class _VaultScreenState extends State<VaultScreen> {
                         AppSpacing.xl,
                         AppSpacing.md,
                       ),
-                      child: Row(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Edit record').header,
-                                const SizedBox(height: AppSpacing.xxs),
-                                const Text(
-                                  'Modify record parameters in your workspace.',
-                                ).muted.small,
-                              ],
-                            ),
-                          ),
-                          AppButton(
-                            icon: AppIcons.x,
-                            tooltip: 'Close',
-                            style: AppButtonStyle.accent,
-                            onTap: store.isSubmittingEditRecord
-                                ? null
-                                : () => Navigator.of(sheetContext).pop(),
-                          ),
+                          const Text('Edit record').header,
+                          const SizedBox(height: AppSpacing.xxs),
+                          const Text(
+                            'Modify record parameters in your workspace.',
+                          ).muted.small,
                         ],
                       ),
                     ),
@@ -1010,11 +995,19 @@ class _VaultScreenState extends State<VaultScreen> {
                                                       type;
                                                   return isSelected
                                                       ? AppButton(
+                                                          icon:
+                                                              RecordTypeUtils.icon(
+                                                                type,
+                                                              ),
                                                           label: type
                                                               .toUpperCase(),
                                                           onTap: () {},
                                                         )
                                                       : AppButton(
+                                                          icon:
+                                                              RecordTypeUtils.icon(
+                                                                type,
+                                                              ),
                                                           label: type
                                                               .toUpperCase(),
                                                           onTap: () {

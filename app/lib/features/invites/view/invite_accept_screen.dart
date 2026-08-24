@@ -136,6 +136,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                 ).muted.small,
                 AppSpacing.gapLg,
                 AppButton(
+                  icon: AppIcons.arrowLeft,
                   label: 'Back',
                   onTap: () => context.go(AppRoutes.vault),
                 ),
@@ -245,6 +246,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
           ),
         AppSpacing.gapMd,
         AppButton(
+          icon: signedIn ? AppIcons.personWorkspace : AppIcons.boxArrowInRight,
           label: Stores.invites.isAccepting
               ? 'Joining…'
               : signedIn

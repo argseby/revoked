@@ -150,6 +150,7 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: AppButton(
+                      icon: AppIcons.plus,
                       label: 'Create key',
                       onTap: store.canCreateDraft
                           ? () => _create(ctx, context)
@@ -197,6 +198,7 @@ Future<void> _showTokenDialog(BuildContext context, String token) async {
     message: 'It is shown once and cannot be retrieved later.',
     content: SelectableText(token),
     confirmLabel: 'Copy',
+    confirmIcon: AppIcons.copy,
     cancelLabel: 'Done',
   );
   if (copy) await Clipboard.setData(ClipboardData(text: token));
@@ -212,6 +214,7 @@ Future<void> confirmRevokeApiKey(BuildContext context, String id) async {
         'This key will stop working immediately. '
         'This action cannot be undone.',
     confirmLabel: 'Revoke',
+    confirmIcon: AppIcons.xCircle,
     destructive: true,
   );
   if (confirmed) await Stores.apiKeys.deleteApiKey(id);

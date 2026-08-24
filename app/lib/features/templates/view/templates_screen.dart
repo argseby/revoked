@@ -805,6 +805,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
+                    icon: _isEdit ? AppIcons.check : AppIcons.plus,
                     label: _isEdit ? 'Save changes' : 'Create template',
                     busy: _store.isSubmittingTemplate,
                     onTap: _save,

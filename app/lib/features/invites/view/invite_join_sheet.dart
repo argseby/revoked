@@ -197,6 +197,7 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(
+                    icon: AppIcons.personWorkspace,
                     label: store.isAccepting ? 'Joining…' : 'Join workspace',
                     busy: store.isAccepting,
                     // Unreachable until the key has been checked: joining is

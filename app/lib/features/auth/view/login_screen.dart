@@ -73,6 +73,7 @@ class LoginScreen extends StatelessWidget {
 
                 Observer(
                   builder: (_) => AppButton(
+                    icon: AppIcons.boxArrowInRight,
                     label: 'Sign In',
                     busy: authStore.isLoading,
                     onTap: () => _handleLogin(context, authStore),
@@ -84,6 +85,7 @@ class LoginScreen extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xl),
 
                 AppButton(
+                  icon: AppIcons.personPlus,
                   label: 'Create an account',
                   onTap: () => context.go(AppRoutes.register),
                   style: AppButtonStyle.accent,

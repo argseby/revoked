@@ -209,6 +209,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
           _SheetFooter(
             busy: _store.isSubmittingSection,
             confirmLabel: isDup ? 'Duplicate Section' : 'Create Section',
+            confirmIcon: isDup ? AppIcons.copy : AppIcons.plus,
             onConfirm: _canSubmit() ? _submit : null,
           ),
         ],
@@ -283,6 +284,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: AppButton(
+                    icon: AppIcons.stars,
                     label: 'Use suggested: ${_store.sectionSuggestedKey}',
                     style: AppButtonStyle.accent,
                     size: AppButtonSize.small,
@@ -295,6 +297,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
               ],
               const SizedBox(height: AppSpacing.lg),
               AppButton(
+                icon: AppIcons.check,
                 label: 'Done',
                 onTap:
                     (_store.sectionKey.text.trim().isNotEmpty &&
@@ -420,6 +423,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
           _SheetFooter(
             busy: _store.isRenamingSection,
             confirmLabel: 'Save',
+            confirmIcon: AppIcons.check,
             onConfirm: name.isEmpty ? null : _submit,
           ),
         ],
@@ -460,11 +464,13 @@ class _SheetHeader extends StatelessWidget {
 class _SheetFooter extends StatelessWidget {
   final bool busy;
   final String confirmLabel;
+  final IconData confirmIcon;
   final VoidCallback? onConfirm;
 
   const _SheetFooter({
     required this.busy,
     required this.confirmLabel,
+    required this.confirmIcon,
     required this.onConfirm,
   });
 
@@ -488,7 +494,12 @@ class _SheetFooter extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: AppButton(label: confirmLabel, busy: busy, onTap: onConfirm),
+            child: AppButton(
+              icon: confirmIcon,
+              label: confirmLabel,
+              busy: busy,
+              onTap: onConfirm,
+            ),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInputFormatter;
 
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -56,6 +57,7 @@ Future<void> showAppEditSheet({
           ),
           AppSpacing.gapLg,
           AppButton(
+            icon: AppIcons.check,
             label: doneLabel,
             onTap: () => Navigator.of(sheetCtx).pop(),
           ),

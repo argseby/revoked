@@ -517,6 +517,7 @@ class _DataScreenState extends State<DataScreen> {
         title: 'API request · revoke',
       ),
       confirmLabel: 'Revoke',
+      confirmIcon: AppIcons.xCircle,
       destructive: true,
     );
     if (!confirmed || !sheetCtx.mounted) return;

@@ -440,6 +440,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               Text(msg.description, textAlign: TextAlign.center).muted.small,
               AppSpacing.gapLg,
               AppButton(
+                icon: AppIcons.arrowClockwise,
                 label: 'Try Again',
                 style: AppButtonStyle.accent,
                 onTap: _probeLink,

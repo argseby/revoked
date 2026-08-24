@@ -4,6 +4,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -207,6 +208,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
+                    icon: AppIcons.check,
                     label: 'Save',
                     busy: Stores.invites.isSavingMember,
                     onTap: (Stores.invites.isSavingMember || _wouldDropAdmin)
