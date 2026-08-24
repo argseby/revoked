@@ -12,6 +12,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -54,17 +55,32 @@ const _pickerRowPadding = EdgeInsets.symmetric(
   vertical: AppSpacing.md,
 );
 
+/// The record form on its own, for the vault's combined create drawer: the
+/// same form, minus the title the drawer already carries.
+Widget recordCreateForm({required BuildContext parentContext}) =>
+    _RecordCreateDrawer(
+      parentContext: parentContext,
+      store: Stores.vault,
+      authStore: Stores.auth,
+      initialRecord: null,
+      embedded: true,
+    );
+
 class _RecordCreateDrawer extends StatefulWidget {
   final BuildContext parentContext;
   final VaultStore store;
   final AuthStore authStore;
   final models.Record? initialRecord;
 
+  /// Rendered inside a drawer that already has a title and its own tabs.
+  final bool embedded;
+
   const _RecordCreateDrawer({
     required this.parentContext,
     required this.store,
     required this.authStore,
     required this.initialRecord,
+    this.embedded = false,
   });
 
   @override
@@ -216,32 +232,37 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        // Embedded, the form fills its tab so the footer sits on the drawer's
+        // bottom edge rather than floating above a gap.
+        mainAxisSize: widget.embedded ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
+          if (!widget.embedded) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.xxs,
+                AppSpacing.xl,
+                AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(isDup ? 'Duplicate record' : 'New record').header,
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    isDup
+                        ? 'Duplicate this record with a new unique key. The value can stay the same.'
+                        : 'Store a new piece of information in your vault.',
+                  ).muted.small,
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(isDup ? 'Duplicate record' : 'New record').header,
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  isDup
-                      ? 'Duplicate this record with a new unique key. The value can stay the same.'
-                      : 'Store a new piece of information in your vault.',
-                ).muted.small,
-              ],
-            ),
-          ),
-          const AppDivider(),
+            const AppDivider(),
+          ],
 
           Flexible(
+            fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
             child: ListView(
               shrinkWrap: true,
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),

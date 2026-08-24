@@ -4,6 +4,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/section.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -55,17 +56,31 @@ void openSectionRenameSheet({
   );
 }
 
+/// The section form on its own, for the vault's combined create drawer.
+Widget sectionCreateForm({required BuildContext parentContext}) =>
+    _SectionCreateDrawer(
+      parentContext: parentContext,
+      store: Stores.vault,
+      authStore: Stores.auth,
+      initialSection: null,
+      embedded: true,
+    );
+
 class _SectionCreateDrawer extends StatefulWidget {
   final BuildContext parentContext;
   final VaultStore store;
   final AuthStore authStore;
   final Section? initialSection;
 
+  /// Rendered inside a drawer that already has a title and its own tabs.
+  final bool embedded;
+
   const _SectionCreateDrawer({
     required this.parentContext,
     required this.store,
     required this.authStore,
     required this.initialSection,
+    this.embedded = false,
   });
 
   @override
@@ -78,6 +93,12 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
   @override
   void initState() {
     super.initState();
+    // Embedded there is no opener to start the draft, and the tab is built
+    // whether or not it is the one on screen.
+    if (widget.embedded) {
+      _store.clearError();
+      _store.startSectionDraft();
+    }
     // A duplicate opens with `<key>_1` already filled, so the collision check
     // has to run before the user touches anything.
     if (_store.sectionKey.text.isNotEmpty) {
@@ -163,18 +184,23 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        // Embedded, the form fills its tab so the footer sits on the drawer's
+        // bottom edge rather than floating above a gap.
+        mainAxisSize: widget.embedded ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SheetHeader(
-            title: isDup ? 'Duplicate section' : 'New section',
-            description: isDup
-                ? 'Duplicate this section with a new unique key.'
-                : 'Group records together within a section.',
-          ),
-          const AppDivider(),
+          if (!widget.embedded) ...[
+            _SheetHeader(
+              title: isDup ? 'Duplicate section' : 'New section',
+              description: isDup
+                  ? 'Duplicate this section with a new unique key.'
+                  : 'Group records together within a section.',
+            ),
+            const AppDivider(),
+          ],
 
           Flexible(
+            fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
             child: ListView(
               shrinkWrap: true,
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),

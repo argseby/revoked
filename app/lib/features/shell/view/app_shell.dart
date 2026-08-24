@@ -8,7 +8,6 @@ import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_expandable_fab.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
@@ -73,9 +72,10 @@ class _AppShellState extends State<AppShell> {
 
   Widget? _createButton(BuildContext context) {
     return switch (_selectedIndex) {
-      0 => AppExpandableFab(
-        tooltip: 'Create in your vault',
-        actions: vaultCreateFabActions(context),
+      0 => FloatingActionButton(
+        tooltip: 'Add to your vault',
+        onPressed: () => openVaultCreateSheet(context),
+        child: const Icon(AppIcons.plus),
       ),
       1 => FloatingActionButton(
         tooltip: 'New share link',
