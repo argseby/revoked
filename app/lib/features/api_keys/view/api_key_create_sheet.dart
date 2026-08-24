@@ -232,10 +232,16 @@ class ApiKeyCard extends StatelessWidget {
 
     return AppEntityCard(
       title: apiKey.label,
-      subtitle: apiKey.neverExpires
-          ? 'Never expires'
-          : 'Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
-      tags: [AppBadge(label: '${scopes.length} permissions', mono: true)],
+
+      tags: [
+        AppBadge(label: '${scopes.length} permissions'),
+        apiKey.neverExpires
+            ? AppBadge(label: 'Never expires')
+            : AppBadge(
+                label:
+                    'Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
+              ),
+      ],
       actions: [
         AppSheetAction(
           icon: AppIcons.xCircle,
