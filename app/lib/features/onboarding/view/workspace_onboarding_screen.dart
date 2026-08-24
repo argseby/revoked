@@ -185,6 +185,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
 
         Expanded(
           child: AppButton(
+            icon: AppIcons.plus,
             label: _store.isBusy ? 'Creating…' : 'Create workspace',
             onTap:
                 _store.isBusy ||
@@ -245,6 +246,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
 
         Expanded(
           child: AppButton(
+            icon: AppIcons.personWorkspace,
             label: _store.isBusy ? 'Joining…' : 'Join workspace',
             onTap: _store.isBusy || _store.keyController.text.isEmpty
                 ? null
@@ -256,6 +258,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
   ];
 
   Widget _backButton() => AppButton(
+    icon: AppIcons.arrowLeft,
     label: 'Back',
     onTap: _store.isBusy ? null : _store.restart,
     style: AppButtonStyle.accent,

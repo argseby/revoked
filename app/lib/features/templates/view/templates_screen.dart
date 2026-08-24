@@ -290,7 +290,6 @@ class _TemplateCard extends StatelessWidget {
     final records = template.schema['records'] as List<dynamic>? ?? [];
 
     return AppEntityCard(
-      icon: AppIcons.cardList,
       title: template.name,
       tags: [
         AppBadge(
@@ -806,6 +805,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
+                    icon: _isEdit ? AppIcons.check : AppIcons.plus,
                     label: _isEdit ? 'Save changes' : 'Create template',
                     busy: _store.isSubmittingTemplate,
                     onTap: _save,

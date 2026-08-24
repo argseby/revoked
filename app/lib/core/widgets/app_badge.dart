@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 
 enum AppBadgeVariant { outline, secondary, primary, destructive, sunken }
 
-/// The app's only pill. Every scrap of secondary information — a status, a
+/// The app's only tag. Every scrap of secondary information — a status, a
 /// view count, a type, a scope, a security flag — renders as one of these, so
 /// they line up identically wherever they appear.
 ///
@@ -72,7 +71,7 @@ class AppBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: AppRadius.allPill,
+        borderRadius: AppRadius.allMd,
         border: border == null ? null : Border.all(color: border),
       ),
       child: Row(

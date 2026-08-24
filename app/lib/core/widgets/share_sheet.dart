@@ -170,6 +170,7 @@ class _ShareSheet extends StatelessWidget {
                           ),
                         ),
                         AppButton(
+                          icon: AppIcons.globe,
                           label: 'Web & API',
                           style: AppButtonStyle.accent,
                           size: AppButtonSize.small,

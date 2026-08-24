@@ -12,12 +12,12 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_screen_header.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
@@ -56,7 +56,10 @@ class _SharesScreenState extends State<SharesScreen> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ShellSlots.setFilter(_filterButton);
+      if (mounted) {
+        ShellSlots.title.claim(_title);
+        ShellSlots.filter.claim(_filterButton);
+      }
       Stores.shares.loadShares();
       Stores.vault.loadRecords();
       Stores.identities.loadIdentities();
@@ -65,9 +68,18 @@ class _SharesScreenState extends State<SharesScreen> {
 
   @override
   void dispose() {
-    ShellSlots.clearFilter(_filterButton);
+    ShellSlots.title.release(_title);
+    ShellSlots.filter.release(_filterButton);
     _table.dispose();
     super.dispose();
+  }
+
+  Widget _title(BuildContext context) {
+    final count = Stores.shares.shares.length;
+    return AppBarTitle(
+      title: 'Share',
+      badgeLabel: '$count ${count == 1 ? 'link' : 'links'}',
+    );
   }
 
   Widget _filterButton(BuildContext context) {
@@ -85,102 +97,70 @@ class _SharesScreenState extends State<SharesScreen> {
   Widget build(BuildContext context) {
     final store = Stores.shares;
 
-    final outerPad = AppSpacing.screenH(context);
     final scrollbarMargin = AppSpacing.scrollbarMargin(context);
-    final innerPad = outerPad - scrollbarMargin;
-    final horizontalPad = EdgeInsets.symmetric(horizontal: outerPad);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: horizontalPad,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppSpacing.gapMd,
-              Observer(
-                builder: (_) {
-                  final count = store.shares.length;
-                  return AppScreenHeader(
-                    title: 'Share',
-                    badgeLabel: '$count ${count == 1 ? 'link' : 'links'}',
-                  );
-                },
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
+      child: Observer(
+        builder: (_) {
+          if (store.isLoading && store.shares.isEmpty) {
+            return const Center(child: AppSpinner(large: true));
+          }
+
+          if (store.errorMessage != null) {
+            return AppLoadError(
+              title: 'Failed to load shares',
+              message: store.errorMessage!,
+              onRetry: store.loadShares,
+            );
+          }
+
+          if (store.shares.isEmpty) {
+            return AppEmptyState(
+              icon: AppIcons.share,
+              title: 'No shared links',
+              subtitle: 'Tap + to securely share data from your vault.',
+            );
+          }
+
+          if (_table.filteredItems.isEmpty && store.shares.isNotEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xxl),
+                child: const Text('No shares match your filters.').muted,
               ),
-            ],
-          ),
-        ),
+            );
+          }
 
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
-            child: Observer(
-              builder: (_) {
-                if (store.isLoading && store.shares.isEmpty) {
-                  return const Center(child: AppSpinner(large: true));
-                }
-
-                if (store.errorMessage != null) {
-                  return AppLoadError(
-                    title: 'Failed to load shares',
-                    message: store.errorMessage!,
-                    onRetry: store.loadShares,
-                  );
-                }
-
-                if (store.shares.isEmpty) {
-                  return AppEmptyState(
-                    icon: AppIcons.share,
-                    title: 'No shared links',
-                    subtitle: 'Tap + to securely share data from your vault.',
-                  );
-                }
-
-                if (_table.filteredItems.isEmpty && store.shares.isNotEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xxl),
-                      child: const Text('No shares match your filters.').muted,
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: EdgeInsets.only(
-                    left: innerPad,
-                    right: innerPad,
-                    bottom: AppSpacing.huge,
-                  ),
-                  itemCount: _table.filteredItems.length,
-                  itemBuilder: (context, index) {
-                    final share = _table.filteredItems[index];
-                    return _ShareCard(
-                      share: share,
-                      onDelete: () => _confirmDelete(context, store, share.id),
-                      onPause: () async {
-                        await store.updateShare(share.id, {'status': 'paused'});
-                      },
-                      onActivate: () async {
-                        await store.updateShare(share.id, {'status': 'active'});
-                      },
-                      onRevoke: () => _confirmRevoke(context, store, share),
-                      onDuplicate: () => openShareCreateSheet(
-                        context: context,
-                        initialShare: share,
-                      ),
-                      onEdit: () => openShareCreateSheet(
-                        context: context,
-                        editShare: share,
-                      ),
-                    );
-                  },
-                );
-              },
+          return ListView.builder(
+            padding: EdgeInsets.only(
+              left: AppSpacing.xs,
+              right: AppSpacing.xs,
+              top: AppSpacing.md,
+              bottom: AppSpacing.huge,
             ),
-          ),
-        ),
-      ],
+            itemCount: _table.filteredItems.length,
+            itemBuilder: (context, index) {
+              final share = _table.filteredItems[index];
+              return _ShareCard(
+                share: share,
+                onDelete: () => _confirmDelete(context, store, share.id),
+                onPause: () async {
+                  await store.updateShare(share.id, {'status': 'paused'});
+                },
+                onActivate: () async {
+                  await store.updateShare(share.id, {'status': 'active'});
+                },
+                onRevoke: () => _confirmRevoke(context, store, share),
+                onDuplicate: () =>
+                    openShareCreateSheet(context: context, initialShare: share),
+                onEdit: () =>
+                    openShareCreateSheet(context: context, editShare: share),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -227,6 +207,7 @@ class _SharesScreenState extends State<SharesScreen> {
         title: 'API request · revoke',
       ),
       confirmLabel: 'Revoke permanently',
+      confirmIcon: AppIcons.xCircle,
       destructive: true,
     );
     if (!confirmed || !context.mounted) return;
@@ -265,7 +246,7 @@ class _ShareCard extends StatelessWidget {
       if (!isRevoked)
         AppSheetAction(
           icon: AppIcons.plusSlashMinus,
-          label: 'Add or remove records',
+          label: 'Select from Vault',
           primary: true,
           onTap: () => context.go('${AppRoutes.vault}?editShareId=${share.id}'),
         ),
@@ -283,7 +264,7 @@ class _ShareCard extends StatelessWidget {
       ),
       AppSheetAction(
         icon: AppIcons.funnel,
-        label: 'Filter by shared records',
+        label: 'View records',
         onTap: () => context.go('${AppRoutes.vault}?shareFilterId=${share.id}'),
       ),
 
@@ -352,27 +333,30 @@ class _ShareCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AppEntityCard(
-      icon: AppIcons.link,
+      leading: Tooltip(
+        message: StatusColors.displayLabel(share.status),
+        child: Icon(
+          StatusColors.icon(share.status),
+          size: 18,
+          color: StatusColors.foreground(theme, share.status),
+        ),
+      ),
       title: share.label,
       subtitle: share.slug,
       subtitleMono: true,
       date: AppEntityCard.formatDate(share.created),
-      tags: _tags(theme),
+      tags: _tags(),
       actions: _shareActions(context),
     );
   }
 
-  List<Widget> _tags(ThemeData theme) {
+  List<Widget> _tags() {
     final out = <Widget>[
-      AppBadge(
-        label: StatusColors.displayLabel(share.status),
-        accent: StatusColors.foreground(theme, share.status),
-      ),
       AppBadge(
         icon: AppIcons.eye,
         label: share.maxViews > 0
-            ? '${share.viewCount}/${share.maxViews} views'
-            : '${share.viewCount} views',
+            ? '${share.viewCount}/${share.maxViews}'
+            : '${share.viewCount}',
       ),
     ];
     if (share.isFromRequest) {
@@ -393,17 +377,9 @@ class _ShareCard extends StatelessWidget {
     if (share.requireHandshake) {
       out.add(const AppBadge(icon: AppIcons.shieldCheck, label: 'Handshake'));
     }
+    out.add(AppBadge(icon: AppIcons.folder, label: '${share.sections.length}'));
     out.add(
-      AppBadge(
-        icon: AppIcons.folder,
-        label: '${share.sections.length} sections',
-      ),
-    );
-    out.add(
-      AppBadge(
-        icon: AppIcons.cardList,
-        label: '${share.records.length} records',
-      ),
+      AppBadge(icon: AppIcons.cardList, label: '${share.records.length}'),
     );
     return out;
   }

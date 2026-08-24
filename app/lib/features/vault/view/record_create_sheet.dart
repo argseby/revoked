@@ -1,17 +1,10 @@
-import 'dart:io';
-
-import 'package:desktop_drop/desktop_drop.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:revoked_app/core/files/file_saver.dart';
-import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -22,11 +15,11 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/view/vault_file_row.dart';
 
 /// Opens the record-create / duplicate drawer.
 void openRecordCreateSheet({
@@ -54,17 +47,32 @@ const _pickerRowPadding = EdgeInsets.symmetric(
   vertical: AppSpacing.md,
 );
 
+/// The record form on its own, for the vault's combined create drawer: the
+/// same form, minus the title the drawer already carries.
+Widget recordCreateForm({required BuildContext parentContext}) =>
+    _RecordCreateDrawer(
+      parentContext: parentContext,
+      store: Stores.vault,
+      authStore: Stores.auth,
+      initialRecord: null,
+      embedded: true,
+    );
+
 class _RecordCreateDrawer extends StatefulWidget {
   final BuildContext parentContext;
   final VaultStore store;
   final AuthStore authStore;
   final models.Record? initialRecord;
 
+  /// Rendered inside a drawer that already has a title and its own tabs.
+  final bool embedded;
+
   const _RecordCreateDrawer({
     required this.parentContext,
     required this.store,
     required this.authStore,
     required this.initialRecord,
+    this.embedded = false,
   });
 
   @override
@@ -132,9 +140,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   }
 
   bool get _isFileType => _store.recordType == 'file';
-
-  static bool get _canDropFiles =>
-      !kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows);
 
   bool _canSubmit() {
     final base =
@@ -216,32 +221,37 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        // Embedded, the form fills its tab so the footer sits on the drawer's
+        // bottom edge rather than floating above a gap.
+        mainAxisSize: widget.embedded ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
+          if (!widget.embedded) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.xxs,
+                AppSpacing.xl,
+                AppSpacing.md,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(isDup ? 'Duplicate record' : 'New record').header,
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    isDup
+                        ? 'Duplicate this record with a new unique key. The value can stay the same.'
+                        : 'Store a new piece of information in your vault.',
+                  ).muted.small,
+                ],
+              ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(isDup ? 'Duplicate record' : 'New record').header,
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  isDup
-                      ? 'Duplicate this record with a new unique key. The value can stay the same.'
-                      : 'Store a new piece of information in your vault.',
-                ).muted.small,
-              ],
-            ),
-          ),
-          const AppDivider(),
+            const AppDivider(),
+          ],
 
           Flexible(
+            fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
             child: ListView(
               shrinkWrap: true,
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -249,7 +259,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 const AppFormSectionHeader('Details'),
                 _buildLabelRow(),
                 _buildKeyRow(),
-                if (_isFileType) _buildFileRow() else _buildValueRow(),
+                if (_isFileType) const VaultFileRow() else _buildValueRow(),
                 _buildTypeRow(),
 
                 const AppFormSectionHeader('Display'),
@@ -316,6 +326,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
+                    icon: isDup ? AppIcons.copy : AppIcons.plus,
                     label: isDup ? 'Duplicate Record' : 'Create Record',
                     busy: _store.isSubmittingRecord,
                     onTap: _canSubmit() ? _submit : null,
@@ -364,84 +375,13 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   /// Desktop drops land anywhere on the drawer; dropping a file flips the
   /// draft to the file type, because the gesture already said so.
-  Widget _wrapDropTarget(Widget child) {
-    if (!_canDropFiles) return child;
-    return DropTarget(
-      onDragDone: (detail) async {
-        if (detail.files.isEmpty) return;
-        final staged = await PendingUpload.fromDropped(detail.files.first);
-        if (!mounted || staged == null) return;
-        await _store.stageFile(staged);
-        if (!mounted) return;
-        if (!_isFileType) _store.setRecordType('file');
-      },
-      child: child,
-    );
-  }
-
-  Future<void> _pickFile() async {
-    final picked = await FilePicker.pickFile();
-    if (picked == null) return;
-    await _store.stageFile(await PendingUpload.fromPicked(picked));
-  }
-
-  Widget _buildFileRow() {
-    final file = _store.pickedFile;
-    final refusal = _store.pickedFileError;
-    final preview = _store.pickedFilePreview;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppFormRow(
-          icon: AppIcons.filePlus,
-          label: 'File',
-          valueText:
-              refusal ??
-              (file != null
-                  ? '${file.name} · ${formatBytes(file.size)}'
-                  : (_canDropFiles
-                        ? 'Required — browse, or drop a file anywhere here'
-                        : 'Required — tap to pick a file')),
-          isPlaceholder: file == null,
-          isError: file == null || refusal != null,
-          onTap: _pickFile,
-        ),
-        if (preview != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              0,
-              AppSpacing.xl,
-              AppSpacing.sm,
-            ),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ClipRRect(
-                borderRadius: AppRadius.allMd,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 160),
-                  child: Image.memory(preview, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-          ),
-        if (_store.isUploading)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              0,
-              AppSpacing.xl,
-              AppSpacing.sm,
-            ),
-            child: AppUploadProgress(
-              sent: _store.uploadSent,
-              total: _store.uploadTotal,
-              onCancel: _store.cancelUpload,
-            ),
-          ),
-      ],
-    );
-  }
+  Widget _wrapDropTarget(Widget child) => vaultDropTarget(
+    child: child,
+    // The gesture already said this is a file.
+    onStaged: () async {
+      if (mounted && !_isFileType) _store.setRecordType('file');
+    },
+  );
 
   Widget _buildValueRow() {
     final v = _store.recordValue.text;
@@ -521,6 +461,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: AppButton(
+                        icon: AppIcons.stars,
                         label: 'Use suggested: $_store.recordSuggestedKey',
                         onTap: () {
                           _store.recordKey.text = _store.recordSuggestedKey!;
@@ -532,6 +473,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   ],
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
+                    icon: AppIcons.check,
                     label: 'Done',
                     onTap:
                         (_store.recordKey.text.trim().isNotEmpty &&

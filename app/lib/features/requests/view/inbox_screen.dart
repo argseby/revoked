@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
-import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/status_colors.dart';
@@ -12,17 +10,19 @@ import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_screen_header.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
+import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
-import 'package:revoked_app/core/widgets/share_sheet.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key});
@@ -48,15 +48,27 @@ class _InboxScreenState extends State<InboxScreen> {
       defaultSort: 'created_desc',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ShellSlots.setFilter(_filterButton);
+      if (mounted) {
+        ShellSlots.title.claim(_title);
+        ShellSlots.filter.claim(_filterButton);
+      }
       Stores.requests.loadRequests();
     });
   }
 
   @override
   void dispose() {
-    ShellSlots.clearFilter(_filterButton);
+    ShellSlots.title.release(_title);
+    ShellSlots.filter.release(_filterButton);
     super.dispose();
+  }
+
+  Widget _title(BuildContext context) {
+    final count = Stores.requests.requests.length;
+    return AppBarTitle(
+      title: 'Request',
+      badgeLabel: '$count ${count == 1 ? 'request' : 'requests'}',
+    );
   }
 
   Widget _filterButton(BuildContext context) {
@@ -74,148 +86,121 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     final reqStore = Stores.requests;
 
-    final outerPad = AppSpacing.screenH(context);
     final scrollbarMargin = AppSpacing.scrollbarMargin(context);
-    final innerPad = outerPad - scrollbarMargin;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: outerPad),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: AppSpacing.md),
-              Observer(
-                builder: (_) {
-                  final count = reqStore.requests.length;
-                  return AppScreenHeader(
-                    title: 'Request',
-                    badgeLabel: '$count ${count == 1 ? 'request' : 'requests'}',
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
+      child: Observer(
+        builder: (_) {
+          if (reqStore.isLoading && reqStore.requests.isEmpty) {
+            return const Center(child: AppSpinner(large: true));
+          }
 
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
-            child: Observer(
-              builder: (_) {
-                if (reqStore.isLoading && reqStore.requests.isEmpty) {
-                  return const Center(child: AppSpinner(large: true));
-                }
+          if (reqStore.errorMessage != null) {
+            return AppLoadError(
+              title: 'Failed to load inbox',
+              message: reqStore.errorMessage!,
+              onRetry: reqStore.loadRequests,
+            );
+          }
 
-                if (reqStore.errorMessage != null) {
-                  return AppLoadError(
-                    title: 'Failed to load inbox',
-                    message: reqStore.errorMessage!,
-                    onRetry: reqStore.loadRequests,
-                  );
-                }
+          final filtered = _table.filteredItems;
 
-                final filtered = _table.filteredItems;
+          if (filtered.isEmpty) {
+            return AppEmptyState(
+              icon: AppIcons.inboxFill,
+              title: reqStore.requests.isEmpty
+                  ? 'No requests yet'
+                  : 'Nothing here',
+              subtitle: reqStore.requests.isEmpty
+                  ? 'Tap + to create a data request and start collecting peer data.'
+                  : 'Try selecting a different filter.',
+            );
+          }
 
-                if (filtered.isEmpty) {
-                  return AppEmptyState(
-                    icon: AppIcons.inboxFill,
-                    title: reqStore.requests.isEmpty
-                        ? 'No requests yet'
-                        : 'Nothing here',
-                    subtitle: reqStore.requests.isEmpty
-                        ? 'Tap + to create a data request and start collecting peer data.'
-                        : 'Try selecting a different filter.',
-                  );
-                }
-
-                return ListView.builder(
-                  padding: EdgeInsets.only(
-                    left: innerPad,
-                    right: innerPad,
-                    bottom: AppSpacing.huge,
-                  ),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final req = filtered[index];
-                    return _InboxCard(
-                      request: req,
-                      onEdit: () => openRequestCreateSheet(
-                        context: context,
-                        store: reqStore,
-                        authStore: Stores.auth,
-                        editRequest: req,
-                      ),
-                      onRevoke: () async {
-                        final confirmed = await showAppDialog(
-                          context: context,
-                          title: 'Revoke request?',
-                          message:
-                              'The link stops working immediately and collects '
-                              'no further responses. Data already collected is '
-                              'kept.',
-                          content: ApiPreview(
-                            spec: RequestsStore.updateRequestSpec(
-                              req.id,
-                              const {'status': 'revoked'},
-                            ),
-                            title: 'API request · revoke',
-                          ),
-                          confirmLabel: 'Revoke',
-                          destructive: true,
-                        );
-                        if (!confirmed || !context.mounted) return;
-                        final ok = await reqStore.updateRequest(req.id, {
-                          'status': 'revoked',
-                        });
-                        if (!context.mounted) return;
-                        if (ok) {
-                          AppToast.success(context, 'Request revoked');
-                        } else {
-                          AppToast.error(
-                            context,
-                            'Failed to revoke',
-                            subtitle: reqStore.errorMessage,
-                          );
-                        }
-                      },
-                      onDelete: () async {
-                        final confirmed = await showAppDialog(
-                          context: context,
-                          title: 'Delete request?',
-                          message:
-                              'This permanently deletes the request and its '
-                              'collected responses. This cannot be undone.',
-                          content: ApiPreview(
-                            spec: RequestsStore.deleteRequestSpec(req.id),
-                            title: 'API request · delete',
-                          ),
-                          confirmLabel: 'Delete',
-                          destructive: true,
-                        );
-                        if (confirmed != true) return;
-                        final ok = await reqStore.deleteRequest(req.id);
-                        if (!context.mounted) return;
-                        if (ok) {
-                          AppToast.success(context, 'Request deleted');
-                        } else {
-                          AppToast.error(
-                            context,
-                            'Failed to delete',
-                            subtitle: reqStore.errorMessage,
-                          );
-                        }
-                      },
-                    );
-                  },
-                );
-              },
+          return ListView.builder(
+            padding: EdgeInsets.only(
+              left: AppSpacing.xs,
+              right: AppSpacing.xs,
+              top: AppSpacing.md,
+              bottom: AppSpacing.huge,
             ),
-          ),
-        ),
-      ],
+            itemCount: filtered.length,
+            itemBuilder: (context, index) {
+              final req = filtered[index];
+              return _InboxCard(
+                request: req,
+                onEdit: () => openRequestCreateSheet(
+                  context: context,
+                  store: reqStore,
+                  authStore: Stores.auth,
+                  editRequest: req,
+                ),
+                onRevoke: () async {
+                  final confirmed = await showAppDialog(
+                    context: context,
+                    title: 'Revoke request?',
+                    message:
+                        'The link stops working immediately and collects '
+                        'no further responses. Data already collected is '
+                        'kept.',
+                    content: ApiPreview(
+                      spec: RequestsStore.updateRequestSpec(req.id, const {
+                        'status': 'revoked',
+                      }),
+                      title: 'API request · revoke',
+                    ),
+                    confirmLabel: 'Revoke',
+                    confirmIcon: AppIcons.xCircle,
+                    destructive: true,
+                  );
+                  if (!confirmed || !context.mounted) return;
+                  final ok = await reqStore.updateRequest(req.id, {
+                    'status': 'revoked',
+                  });
+                  if (!context.mounted) return;
+                  if (ok) {
+                    AppToast.success(context, 'Request revoked');
+                  } else {
+                    AppToast.error(
+                      context,
+                      'Failed to revoke',
+                      subtitle: reqStore.errorMessage,
+                    );
+                  }
+                },
+                onDelete: () async {
+                  final confirmed = await showAppDialog(
+                    context: context,
+                    title: 'Delete request?',
+                    message:
+                        'This permanently deletes the request and its '
+                        'collected responses. This cannot be undone.',
+                    content: ApiPreview(
+                      spec: RequestsStore.deleteRequestSpec(req.id),
+                      title: 'API request · delete',
+                    ),
+                    confirmLabel: 'Delete',
+                    destructive: true,
+                  );
+                  if (confirmed != true) return;
+                  final ok = await reqStore.deleteRequest(req.id);
+                  if (!context.mounted) return;
+                  if (ok) {
+                    AppToast.success(context, 'Request deleted');
+                  } else {
+                    AppToast.error(
+                      context,
+                      'Failed to delete',
+                      subtitle: reqStore.errorMessage,
+                    );
+                  }
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -244,28 +229,30 @@ class _InboxCardState extends State<_InboxCard> {
     final isClosed = req.status == 'revoked' || req.status == 'expired';
 
     return AppEntityCard(
-      icon: AppIcons.inboxFill,
+      leading: Tooltip(
+        message: StatusColors.displayLabel(req.status),
+        child: Icon(
+          StatusColors.icon(req.status),
+          size: 18,
+          color: StatusColors.foreground(Theme.of(context), req.status),
+        ),
+      ),
       title: req.label,
       subtitle: req.slug,
       subtitleMono: true,
       date: AppEntityCard.formatDate(req.created),
-      tags: _tags(context, req),
+      tags: _tags(req),
       actions: _requestActions(context, req, isClosed),
     );
   }
 
-  List<Widget> _tags(BuildContext context, DataRequest req) {
-    final theme = Theme.of(context);
+  List<Widget> _tags(DataRequest req) {
     final out = <Widget>[
-      AppBadge(
-        label: StatusColors.displayLabel(req.status),
-        accent: StatusColors.foreground(theme, req.status),
-      ),
       AppBadge(
         icon: AppIcons.collection,
         label: req.maxResponses > 0
-            ? '${req.responseCount}/${req.maxResponses} responses'
-            : '${req.responseCount} responses',
+            ? '${req.responseCount}/${req.maxResponses}'
+            : '${req.responseCount}',
       ),
     ];
     if (req.hasPassword) {

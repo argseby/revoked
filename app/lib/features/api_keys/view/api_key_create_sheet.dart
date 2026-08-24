@@ -5,7 +5,6 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -150,6 +149,7 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: AppButton(
+                      icon: AppIcons.plus,
                       label: 'Create key',
                       onTap: store.canCreateDraft
                           ? () => _create(ctx, context)
@@ -197,6 +197,7 @@ Future<void> _showTokenDialog(BuildContext context, String token) async {
     message: 'It is shown once and cannot be retrieved later.',
     content: SelectableText(token),
     confirmLabel: 'Copy',
+    confirmIcon: AppIcons.copy,
     cancelLabel: 'Done',
   );
   if (copy) await Clipboard.setData(ClipboardData(text: token));
@@ -212,6 +213,7 @@ Future<void> confirmRevokeApiKey(BuildContext context, String id) async {
         'This key will stop working immediately. '
         'This action cannot be undone.',
     confirmLabel: 'Revoke',
+    confirmIcon: AppIcons.xCircle,
     destructive: true,
   );
   if (confirmed) await Stores.apiKeys.deleteApiKey(id);
@@ -228,12 +230,10 @@ class ApiKeyCard extends StatelessWidget {
     final scopes = (apiKey.scopes as List<String>).toSet().toList()..sort();
 
     return AppEntityCard(
-      icon: AppIcons.key,
       title: apiKey.label,
-      subtitle: apiKey.neverExpires
-          ? 'Never expires'
-          : 'Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
-      tags: [AppBadge(label: '${scopes.length} permissions', mono: true)],
+      subtitle:
+          '${scopes.length} permissions · Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
+
       actions: [
         AppSheetAction(
           icon: AppIcons.xCircle,

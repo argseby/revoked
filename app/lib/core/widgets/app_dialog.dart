@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -18,6 +19,11 @@ Future<bool> showAppDialog({
   IconData? icon,
   Color? iconColor,
   String confirmLabel = 'Confirm',
+
+  /// The confirm button's icon. Defaults to the shape of the answer — a tick,
+  /// or a bin when [destructive] — so pass one whenever the action is neither
+  /// (revoking, copying, sending).
+  IconData? confirmIcon,
   String? cancelLabel = 'Cancel',
   bool destructive = false,
 }) async {
@@ -62,6 +68,7 @@ Future<bool> showAppDialog({
             onTap: () => Navigator.of(ctx).pop(false),
           ),
         AppButton(
+          icon: confirmIcon ?? (destructive ? AppIcons.trash : AppIcons.check),
           label: confirmLabel,
           style: destructive
               ? AppButtonStyle.destructive

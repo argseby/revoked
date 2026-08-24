@@ -368,6 +368,9 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
+                    icon: widget.editRequest != null
+                        ? AppIcons.check
+                        : AppIcons.plus,
                     label: widget.editRequest != null
                         ? 'Save changes'
                         : 'Create Request',
@@ -830,6 +833,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: AppButton(
+                        icon: AppIcons.stars,
                         label: 'Use suggested: $_store.draftSuggestedSlug',
                         onTap: () async {
                           _store.draftSlug.text = _store.draftSuggestedSlug!;
@@ -841,6 +845,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                   ],
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
+                    icon: AppIcons.check,
                     label: 'Done',
                     onTap:
                         (_store.draftSlug.text.trim().length >= 6 &&
@@ -902,6 +907,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                       AppSpacing.sm,
                     ),
                     child: AppButton(
+                      icon: AppIcons.plus,
                       label: 'Create a template',
                       onTap: () {
                         Navigator.of(sheetCtx).pop();

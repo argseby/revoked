@@ -11,11 +11,13 @@ abstract class AppIcons {
   static const IconData arrowRight = Icons.arrow_forward;
   static const IconData bell = Icons.notifications_outlined;
   static const IconData bellSlash = Icons.notifications_off_outlined;
+  static const IconData boxArrowInRight = Icons.login;
   static const IconData boxArrowLeft = Icons.logout;
   static const IconData brightnessAuto = Icons.brightness_auto_outlined;
   static const IconData brightnessDark = Icons.dark_mode_outlined;
   static const IconData brightnessLight = Icons.light_mode_outlined;
   static const IconData cardList = Icons.list_alt;
+  static const IconData bug = Icons.bug_report_outlined;
   static const IconData check = Icons.check;
   static const IconData checkCircle = Icons.check_circle_outline;
   static const IconData chevronDown = Icons.keyboard_arrow_down;
@@ -24,6 +26,7 @@ abstract class AppIcons {
   static const IconData chevronUp = Icons.keyboard_arrow_up;
   static const IconData circle = Icons.circle_outlined;
   static const IconData clock = Icons.schedule;
+  static const IconData code = Icons.code;
   static const IconData collection = Icons.collections_bookmark_outlined;
   static const IconData copy = Icons.content_copy;
   static const IconData qrCode = Icons.qr_code_2;
@@ -35,6 +38,7 @@ abstract class AppIcons {
   static const IconData eyeSlash = Icons.visibility_off_outlined;
   static const IconData filePlus = Icons.note_add_outlined;
   static const IconData fileText = Icons.description_outlined;
+  static const IconData fileEarmark = Icons.insert_drive_file_outlined;
   static const IconData download = Icons.file_download_outlined;
   static const IconData folder = Icons.folder_outlined;
   static const IconData folderPlus = Icons.create_new_folder_outlined;
@@ -52,11 +56,13 @@ abstract class AppIcons {
   static const IconData server = Icons.dns_outlined;
   static const IconData nodePlus = Icons.hub_outlined;
   static const IconData pause = Icons.pause;
+  static const IconData pauseCircle = Icons.pause_circle_outline;
   static const IconData pen = Icons.edit_outlined;
   static const IconData pencil = Icons.edit;
   static const IconData personBoundingBox = Icons.account_box_outlined;
   static const IconData envelope = Icons.alternate_email;
   static const IconData personGear = Icons.manage_accounts_outlined;
+  static const IconData personPlus = Icons.person_add_outlined;
   static const IconData personWorkspace = Icons.workspaces_outlined;
   static const IconData play = Icons.play_arrow;
   static const IconData plus = Icons.add;
@@ -75,6 +81,7 @@ abstract class AppIcons {
   static const IconData table = Icons.table_chart_outlined;
   static const IconData globe = Icons.public_outlined;
   static const IconData threeDotsVertical = Icons.more_vert;
+  static const IconData toggleOn = Icons.toggle_on_outlined;
   static const IconData trash = Icons.delete_outline;
   static const IconData x = Icons.close;
   static const IconData xCircle = Icons.cancel_outlined;

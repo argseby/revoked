@@ -1,3 +1,7 @@
+import 'package:flutter/widgets.dart';
+
+import 'package:revoked_app/core/design/app_icons.dart';
+
 class RecordTypeUtils {
   static const List<String> supportedTypes = [
     'text',
@@ -7,6 +11,24 @@ class RecordTypeUtils {
     'datetime',
     'file',
   ];
+
+  /// The glyph for a type, so a type reads the same wherever it is offered.
+  static IconData icon(String type) {
+    switch (type) {
+      case 'number':
+        return AppIcons.hash;
+      case 'url':
+        return AppIcons.link;
+      case 'boolean':
+        return AppIcons.toggleOn;
+      case 'datetime':
+        return AppIcons.clock;
+      case 'file':
+        return AppIcons.fileEarmark;
+      default:
+        return AppIcons.fileText;
+    }
+  }
 
   static String detectType(String value) {
     if (value.isEmpty) return 'text';

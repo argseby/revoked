@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInputFormatter;
 
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -9,9 +10,12 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 
 /// Opens a focused sub-sheet that edits a single text [controller], with a
 /// title, optional description, the field, and a Done button. Used by the
-/// create drawers when a summary row is tapped. The caller should `setState`
-/// after this future completes to refresh the row's summary.
-Future<void> showAppEditSheet({
+/// create drawers when a summary row is tapped.
+///
+/// Resolves true when Done was pressed and false when the sheet was
+/// dismissed, so a caller that writes the value on the way out can tell a
+/// save from a cancel.
+Future<bool> showAppEditSheet({
   required BuildContext context,
   required String title,
   required TextEditingController controller,
@@ -23,7 +27,7 @@ Future<void> showAppEditSheet({
   int maxLines = 1,
   String doneLabel = 'Done',
 }) {
-  return showAppSheet<void>(
+  return showAppSheet<bool>(
     context: context,
     builder: (sheetCtx) => Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -51,16 +55,17 @@ Future<void> showAppEditSheet({
             maxLines: maxLines,
             autofocus: true,
             onSubmitted: maxLines == 1
-                ? (_) => Navigator.of(sheetCtx).pop()
+                ? (_) => Navigator.of(sheetCtx).pop(true)
                 : null,
           ),
           AppSpacing.gapLg,
           AppButton(
+            icon: AppIcons.check,
             label: doneLabel,
-            onTap: () => Navigator.of(sheetCtx).pop(),
+            onTap: () => Navigator.of(sheetCtx).pop(true),
           ),
         ],
       ),
     ),
-  );
+  ).then((done) => done ?? false);
 }

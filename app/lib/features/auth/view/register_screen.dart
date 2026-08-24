@@ -84,6 +84,7 @@ class RegisterScreen extends StatelessWidget {
 
                 Observer(
                   builder: (_) => AppButton(
+                    icon: AppIcons.personPlus,
                     label: 'Sign Up',
                     busy: authStore.isLoading,
                     onTap: () => _handleRegister(context, authStore),
@@ -95,6 +96,7 @@ class RegisterScreen extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xl),
 
                 AppButton(
+                  icon: AppIcons.boxArrowInRight,
                   label: 'Already have an account? Sign In',
                   onTap: () => context.go(AppRoutes.login),
                   style: AppButtonStyle.accent,

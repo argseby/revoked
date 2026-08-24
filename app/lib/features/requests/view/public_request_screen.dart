@@ -814,6 +814,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               Text(msg.description, textAlign: TextAlign.center).muted.small,
               const SizedBox(height: AppSpacing.xl),
               AppButton(
+                icon: AppIcons.arrowClockwise,
                 label: 'Try again',
                 onTap: _probeRequest,
                 style: AppButtonStyle.accent,
@@ -1278,6 +1279,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           'The requester immediately loses access to the data you shared. '
           'You can respond again later.',
       confirmLabel: 'Revoke',
+      confirmIcon: AppIcons.xCircle,
       destructive: true,
     );
     if (!confirmed || !mounted) return;
@@ -1308,6 +1310,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         'you trust the source out-of-band.',
       ).muted.small,
       confirmLabel: 'Submit anyway',
+      confirmIcon: AppIcons.send,
     );
   }
 
@@ -1557,6 +1560,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             ).muted.small,
           ),
           AppButton(
+            icon: AppIcons.share,
             label: 'Share',
             style: AppButtonStyle.accent,
             size: AppButtonSize.small,
@@ -1716,7 +1720,7 @@ class _ShareToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
-      borderRadius: AppRadius.allPill,
+      borderRadius: AppRadius.allMd,
       onTap: onTap,
       child: AppBadge(
         icon: shared ? AppIcons.link : AppIcons.linkSlash,

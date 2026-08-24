@@ -256,6 +256,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
+                    icon: AppIcons.plus,
                     label: 'Create invite',
                     busy: _store.isCreating,
                     onTap: _store.isCreating ? null : _submit,
@@ -280,6 +281,7 @@ Future<void> _showTokenDialog(BuildContext context, String token) async {
     message: 'This is shown once. Copy it now — it cannot be retrieved later.',
     content: SelectableText(link),
     confirmLabel: 'Copy key',
+    confirmIcon: AppIcons.copy,
     cancelLabel: 'Done',
   );
   if (copy) await Clipboard.setData(ClipboardData(text: link));

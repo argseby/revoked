@@ -6,17 +6,14 @@ import (
 	"encoding/base64"
 	"html/template"
 	"net"
-	"net/http"
 	"net/url"
 	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/pocketbase/pocketbase/core"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // The page fetches nothing but its own origin and the two DoH resolvers it
@@ -48,216 +45,8 @@ type pageData struct {
 	Nonce            string
 }
 
-// BindPublicLinkRoutes registers public link viewing, submission, and download routes.
-func BindPublicLinkRoutes(app core.App, root *server.RootKey) {
-	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
-		// Browser landing & JSON probe endpoint: /s/:slug or /api/public/links/:slug
-		e.Router.GET("/s/{slug}", func(re *core.RequestEvent) error {
-			return handlePublicLinkGet(app, re, root)
-		})
-		e.Router.GET("/api/public/links/{slug}", func(re *core.RequestEvent) error {
-			return handlePublicLinkGet(app, re, root)
-		})
-
-		// Unlock submission endpoint: POST /api/public/links/:slug
-		e.Router.POST("/api/public/links/{slug}", func(re *core.RequestEvent) error {
-			return handlePublicLinkSubmit(app, re, root)
-		})
-
-		// Download endpoint: GET /api/public/links/:slug/files/:fileId
-		e.Router.GET("/api/public/links/{slug}/files/{fileId}", func(re *core.RequestEvent) error {
-			return handlePublicFileDownload(app, re)
-		})
-
-		return e.Next()
-	})
-}
-
 func wantsHTML(accept string) bool {
 	return strings.Contains(strings.ToLower(accept), "text/html")
-}
-
-func handlePublicLinkGet(app core.App, re *core.RequestEvent, root *server.RootKey) error {
-	slug := re.Request.PathValue("slug")
-	if slug == "" {
-		return re.NotFoundError("Link not found.", nil)
-	}
-
-	link, err := app.FindFirstRecordByData(util.Coll.Links, util.Fields.Link.Slug, slug)
-	if err != nil || link == nil {
-		if wantsHTML(re.Request.Header.Get("Accept")) {
-			return linkStatusPage(re, "Link Not Found", "This shared link does not exist or has been removed.", http.StatusNotFound)
-		}
-		return re.NotFoundError("Link not found.", nil)
-	}
-
-	status := link.GetString(util.Fields.Link.Status)
-	if status == "revoked" {
-		if wantsHTML(re.Request.Header.Get("Accept")) {
-			return linkStatusPage(re, "Link Revoked", "This link has been revoked by the owner and can no longer be viewed.", http.StatusGone)
-		}
-		return re.BadRequestError("This link has been revoked.", nil)
-	}
-
-	if status == "paused" {
-		if wantsHTML(re.Request.Header.Get("Accept")) {
-			return linkStatusPage(re, "Link Paused", "This link is temporarily paused by the owner.", http.StatusForbidden)
-		}
-		return re.BadRequestError("This link is paused.", nil)
-	}
-
-	if expiresAt := link.GetDateTime(util.Fields.Link.ExpiresAt); !expiresAt.IsZero() && expiresAt.Time().Before(time.Now()) {
-		if wantsHTML(re.Request.Header.Get("Accept")) {
-			return linkStatusPage(re, "Link Expired", "This share has expired.", http.StatusGone)
-		}
-		return re.BadRequestError("This link has expired.", nil)
-	}
-
-	maxViews := link.GetInt(util.Fields.Link.MaxViews)
-	viewCount := link.GetInt(util.Fields.Link.ViewCount)
-	if maxViews > 0 && viewCount >= maxViews {
-		if wantsHTML(re.Request.Header.Get("Accept")) {
-			return linkStatusPage(re, "View Limit Reached", "This link has reached its maximum view limit.", http.StatusGone)
-		}
-		return re.BadRequestError("View limit reached.", nil)
-	}
-
-	if wantsHTML(re.Request.Header.Get("Accept")) {
-		return servePublicPage(app, re, root, link, slug)
-	}
-
-	probe := map[string]any{
-		"slug":             slug,
-		"label":            link.GetString(util.Fields.Link.Label),
-		"requiresPassword": link.GetString(util.Fields.Link.Password) != "",
-		"requireHandshake": link.GetBool(util.Fields.Link.RequireHandshake),
-		"server": map[string]any{
-			"domain":          root.Domain(),
-			"rootFingerprint": root.Fingerprint(),
-		},
-	}
-
-	if idId := link.GetString(util.Fields.Link.Identity); idId != "" {
-		if id, err := app.FindRecordById(util.Coll.Identities, idId); err == nil && id != nil {
-			sharer := map[string]any{
-				"name":            id.GetString(util.Fields.Identity.Name),
-				"domainAtIssue":   id.GetString(util.Fields.Identity.DomainAtIssue),
-				"fingerprint":     id.GetString(util.Fields.Identity.Fingerprint),
-				"parentSignature": id.GetString(util.Fields.Identity.ParentSignature),
-				"status":          services.IdentityStatusOf(id),
-			}
-			stapleIdentityStatus(app, root, sharer, id.GetString(util.Fields.Identity.Fingerprint))
-			probe["sharer"] = sharer
-		}
-	}
-
-	return re.JSON(http.StatusOK, probe)
-}
-
-type submitPayload struct {
-	Password           *string `json:"password"`
-	HandshakeToken     *string `json:"handshakeToken"`
-	IdentityID         *string `json:"identityId"`
-	ChallengeNonce     *string `json:"challengeNonce"`
-	ChallengeSignature *string `json:"challengeSignature"`
-}
-
-func handlePublicLinkSubmit(app core.App, re *core.RequestEvent, root *server.RootKey) error {
-	slug := re.Request.PathValue("slug")
-	link, err := app.FindFirstRecordByData(util.Coll.Links, util.Fields.Link.Slug, slug)
-	if err != nil || link == nil {
-		return re.NotFoundError("Link not found.", nil)
-	}
-
-	if link.GetString(util.Fields.Link.Status) != "active" {
-		return re.BadRequestError("This link is not active.", nil)
-	}
-
-	maxViews := link.GetInt(util.Fields.Link.MaxViews)
-	viewCount := link.GetInt(util.Fields.Link.ViewCount)
-	if maxViews > 0 && viewCount >= maxViews {
-		return re.BadRequestError("Maximum view count reached.", nil)
-	}
-
-	var payload submitPayload
-	if err := re.BindBody(&payload); err != nil {
-		return re.BadRequestError("Invalid request payload.", err)
-	}
-
-	storedHash := link.GetString(util.Fields.Link.Password)
-	if storedHash != "" {
-		if payload.Password == nil || *payload.Password == "" {
-			return re.BadRequestError("Password required.", nil)
-		}
-		if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(*payload.Password)); err != nil {
-			return re.BadRequestError("Incorrect password.", nil)
-		}
-	}
-
-	link.Set(util.Fields.Link.ViewCount, viewCount+1)
-	if err := app.Save(link); err != nil {
-		return re.InternalServerError("Failed to record view.", err)
-	}
-
-	recordsList := link.Get("records")
-	sectionsList := link.Get("sections")
-
-	responseBody := map[string]any{
-		"label":    link.GetString(util.Fields.Link.Label),
-		"records":  recordsList,
-		"sections": sectionsList,
-	}
-
-	if link.GetBool(util.Fields.Link.RequireHandshake) && payload.IdentityID != nil {
-		tokenBytes := make([]byte, 32)
-		_, _ = rand.Read(tokenBytes)
-		newToken := base64.URLEncoding.EncodeToString(tokenBytes)
-		re.Response.Header().Set("X-Handshake-Token", newToken)
-	}
-
-	return re.JSON(http.StatusOK, responseBody)
-}
-
-func handlePublicFileDownload(app core.App, re *core.RequestEvent) error {
-	slug := re.Request.PathValue("slug")
-	fileId := re.Request.PathValue("fileId")
-	dlToken := re.Request.URL.Query().Get("dl")
-
-	if slug == "" || fileId == "" || dlToken == "" {
-		return re.BadRequestError("Invalid download request parameters.", nil)
-	}
-
-	record, err := app.FindRecordById(util.Coll.Records, fileId)
-	if err != nil || record == nil {
-		return re.NotFoundError("File record not found.", nil)
-	}
-
-	filename := record.GetString("filename")
-	if filename == "" {
-		filename = "download"
-	}
-
-	fileField := record.GetString("file")
-	if fileField == "" {
-		return re.NotFoundError("No file attached to this record.", nil)
-	}
-
-	fsys, err := app.NewFilesystem()
-	if err != nil {
-		return re.InternalServerError("Failed to initialize storage filesystem.", err)
-	}
-	defer fsys.Close()
-
-	fileKey := record.BaseFilesPath() + "/" + fileField
-	reader, err := fsys.GetFile(fileKey)
-	if err != nil {
-		return re.NotFoundError("File not found in storage.", err)
-	}
-	defer reader.Close()
-
-	re.Response.Header().Set("Content-Disposition", "attachment; filename="+url.QueryEscape(filename))
-	http.ServeContent(re.Response, re.Request, filename, time.Time{}, reader)
-	return nil
 }
 
 // pageOrigin returns the authority the handoff link must name: the one the
@@ -671,8 +460,7 @@ a:hover { text-decoration: underline; }
 <span>Revoked</span>
 </div>
 <div class="nav-actions">
-<span class="badge">READ-ONLY SHARE</span>
-<button class="btn" id="theme-toggle" aria-label="Toggle visual theme">Theme</button>
+<button class="badge" id="theme-toggle" aria-label="Toggle visual theme">Theme</button>
 </div>
 </div>
 </header>
@@ -683,7 +471,6 @@ a:hover { text-decoration: underline; }
 
 <div class="card card-pad">
 <h1 class="header-title">{{if .Label}}{{.Label}}{{else}}Shared Items{{end}}</h1>
-<div class="header-sub">read only link provided by Revoked.</div>
 </div>
 
 {{if or .Gated .RequireHandshake}}
@@ -702,12 +489,12 @@ a:hover { text-decoration: underline; }
 <div class="card card-pad" id="gate">
 <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
 <div>
-<div style="font-weight: 600; margin-bottom: 2px;">Vault Contents Ready</div>
+<div style="font-weight: 600; margin-bottom: 2px;">Only continue, if you trust this source.</div>
 <div class="muted sm" id="capnote">
-{{if gt .MaxViews 0}}Limited view: {{.ViewCount}} of {{.MaxViews}} views used. Revealing spends 1 view.{{else}}Nothing is exposed until requested.{{end}}
+{{if gt .MaxViews 0}}Limited view: {{.ViewCount}} of {{.MaxViews}} views used. Revealing spends 1 view.{{else}}Nothing is loaded, until you press "Load & Show".{{end}}
 </div>
 </div>
-<button class="btn primary" id="reveal">Reveal Data</button>
+<button class="btn primary" id="reveal">Load & Show</button>
 </div>
 </div>
 <div id="out" style="display: flex; flex-direction: column; gap: 16px;"></div>
@@ -760,12 +547,12 @@ Values are resolved live and can be Revoked by the owner at any time.
 
 <footer>
 <p class="muted sm">
-Revoked replaces copies of your data with revocable, always-current references — and lets every party verify the other through DNS.
-</p>
-<p class="sm" style="margin-top: 8px;">
-<a href="https://revoked.link" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px;">
+For more information visit <a href="https://revoked.link" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px;">
 revoked.link
-</a>
+</p>
+
+<p class="sm" style="margin-top: 8px;">
+
 </p>
 </footer>
 
@@ -788,10 +575,10 @@ return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').ma
 function updateToggleLabel() {
 if (!themeToggle) return;
 if (isDark()) {
-themeToggle.innerHTML = sunIcon + '<span>Light</span>';
+themeToggle.innerHTML = sunIcon + '';
 themeToggle.setAttribute('aria-label', 'Switch to light theme');
 } else {
-themeToggle.innerHTML = moonIcon + '<span>Dark</span>';
+themeToggle.innerHTML = moonIcon + '';
 themeToggle.setAttribute('aria-label', 'Switch to dark theme');
 }
 }
@@ -1008,7 +795,7 @@ render(res.body);
 })
 .catch(function() {
 btn.disabled = false;
-btn.textContent = 'Reveal Data';
+btn.textContent = 'Load & Show';
 var n = document.getElementById('capnote');
 n.className = 'bad sm';
 n.textContent = 'Could not communicate with the vault server.';

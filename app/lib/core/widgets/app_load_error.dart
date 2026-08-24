@@ -37,6 +37,7 @@ class AppLoadError extends StatelessWidget {
           if (onRetry != null) ...[
             AppSpacing.gapMd,
             AppButton(
+              icon: AppIcons.arrowClockwise,
               label: 'Retry',
               style: AppButtonStyle.accent,
               onTap: onRetry,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -9,6 +10,7 @@ import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/models/workspace.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/api_url_tile.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
@@ -73,17 +75,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Flexible(
           child: Padding(
-            padding: EdgeInsets.all(AppSpacing.sm),
+            padding: EdgeInsets.all(AppSpacing.xs),
             child: Observer(
               builder: (context) {
                 final activeId = auth.activeWorkspace ?? '';
                 return AppTabs(
                   initialIndex: widget.initialTab,
-                  labels: const ['Account', 'Workspace', 'Developer'],
+                  labels: const ['Account', 'Workspace', 'Developer', 'About'],
                   views: [
                     _accountTab(context, settings, auth, activeId),
                     _workspaceTab(context, settings, auth, activeId),
                     _developerTab(context),
+                    _aboutTab(context),
                   ],
                 );
               },
@@ -100,26 +103,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AuthStore auth,
     String activeId,
   ) {
-    final pad = AppSpacing.screenH(context);
-    final active = settings.workspaces
-        .where((w) => w.id == activeId)
-        .cast<Workspace?>()
-        .firstWhere((_) => true, orElse: () => null);
-
     return ListView(
-      padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, AppSpacing.huge),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+        bottom: AppSpacing.huge,
+      ),
       children: [
-        const _GroupHeader(
-          title: 'You',
-          subtitle: 'Active workspace and email.',
-        ),
-        _ProfileCard(
-          email: auth.userEmail,
-          active: active,
-          loading: settings.isLoading && settings.workspaces.isEmpty,
-        ),
-
-        const SizedBox(height: AppSpacing.xxl),
         const _GroupHeader(
           title: 'Appearance',
           subtitle: 'Match your system, or force light or dark.',
@@ -127,9 +118,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _buildAppearance(context),
 
         const SizedBox(height: AppSpacing.xxl),
-        const _GroupHeader(
+        _GroupHeader(
           title: 'Session',
-          subtitle: 'Sign out of this device, or close your account for good.',
+          subtitle:
+              'Sign out of this device, or close your account ${auth.userEmail} for good.',
         ),
         _buildAccountActions(context),
       ],
@@ -145,6 +137,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Signing out leaves everything on the server — sign back in any '
             'time to pick up where you left off.',
           ).muted.small,
+
           AppSpacing.gapMd,
           AppButton(
             icon: AppIcons.boxArrowLeft,
@@ -158,6 +151,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'Your session on this device ends. Everything stays '
                     'on the server - log back in any time.',
                 confirmLabel: 'Log out',
+                confirmIcon: AppIcons.boxArrowLeft,
               );
               if (confirmed) await Stores.auth.logout();
             },
@@ -267,6 +261,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'and the private key is erased from this device.\n\n'
           'Revoking cannot be undone. Create a new identity to sign again.',
       confirmLabel: 'Revoke',
+      confirmIcon: AppIcons.xCircle,
       cancelLabel: 'Keep it',
       destructive: true,
     );
@@ -291,9 +286,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AuthStore auth,
     String activeId,
   ) {
-    final pad = AppSpacing.screenH(context);
     return ListView(
-      padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, AppSpacing.huge),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+      ),
       children: [
         _GroupHeader(
           title: 'Workspaces',
@@ -338,9 +336,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _developerTab(BuildContext context) {
-    final pad = AppSpacing.screenH(context);
     return ListView(
-      padding: EdgeInsets.fromLTRB(pad, AppSpacing.sm, pad, AppSpacing.huge),
+      padding: EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+      ),
       children: [
         _GroupHeader(
           title: 'API keys',
@@ -369,6 +370,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _aboutTab(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+        bottom: AppSpacing.huge,
+      ),
+      children: [
+        const _GroupHeader(
+          title: 'Project',
+          subtitle: 'revoked is open source — read the code, read the docs.',
+        ),
+        const AppCard(
+          child: Column(
+            children: [
+              ApiUrlTile(
+                icon: AppIcons.code,
+                label: 'Source code',
+                url: AppConfig.repoUrl,
+              ),
+              AppDivider(),
+              ApiUrlTile(
+                icon: AppIcons.fileText,
+                label: 'Documentation',
+                url: AppConfig.docsUrl,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: AppSpacing.xxl),
+        const _GroupHeader(
+          title: 'Report a bug',
+          subtitle: 'Bugs and feature requests are tracked as GitHub issues.',
+        ),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Say what you did, what you expected, and what happened '
+                'instead. An issue is public: never paste a record value, a '
+                'share or request link, or a private key into one.',
+              ).muted.small,
+              AppSpacing.gapMd,
+              const ApiUrlTile(
+                icon: AppIcons.bug,
+                label: 'Open an issue',
+                url: AppConfig.issuesUrl,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildWorkspaces(
     BuildContext context,
     SettingsStore settings,
@@ -389,7 +448,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         for (final ws in settings.workspaces)
           AppEntityCard(
-            icon: AppIcons.personWorkspace,
             title: ws.name,
             titleBadge: ws.id == activeId
                 ? const AppBadge(
@@ -398,6 +456,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   )
                 : null,
             actions: [
+              AppSheetAction(
+                icon: AppIcons.copy,
+                label: 'Copy id ',
+                onTap: () => {
+                  Clipboard.setData(ClipboardData(text: ws.id)),
+                  AppToast.success(context, 'Workspace id copied'),
+                },
+              ),
               if (ws.id != activeId)
                 AppSheetAction(
                   icon: AppIcons.arrowRight,
@@ -445,7 +511,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         for (final id in store.identities)
           AppEntityCard(
-            icon: AppIcons.personBoundingBox,
             title: id.name,
             subtitle: id.shortFingerprint,
             subtitleMono: true,
@@ -642,6 +707,7 @@ class _InvitesSectionState extends State<_InvitesSection> {
           'The key for $label will stop working. Anyone still holding it will '
           'not be able to join.',
       confirmLabel: 'Withdraw',
+      confirmIcon: AppIcons.xCircle,
       cancelLabel: 'Keep it',
       destructive: true,
     );
@@ -678,7 +744,6 @@ class _InvitesSectionState extends State<_InvitesSection> {
           children: [
             for (final invite in open)
               AppEntityCard(
-                icon: AppIcons.key,
                 title: invite.label.isEmpty ? 'Invite' : invite.label,
                 tags: [
                   AppBadge(
@@ -803,68 +868,6 @@ class _DomainVerificationCardState extends State<_DomainVerificationCard> {
             style: AppButtonStyle.accent,
             busy: Stores.settings.isCheckingDomain,
             onTap: _verify,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileCard extends StatelessWidget {
-  final String email;
-  final Workspace? active;
-  final bool loading;
-
-  const _ProfileCard({
-    required this.email,
-    required this.active,
-    required this.loading,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppText(
-                  bold: true,
-                  email.isEmpty ? 'Signed in' : email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (loading)
-                  const Text('Loading workspace…').muted.small
-                else
-                  Column(
-                    mainAxisAlignment: .start,
-                    crossAxisAlignment: .start,
-                    children: [
-                      AppText(
-                        muted: true,
-                        small: true,
-                        selectable: true,
-
-                        'Workspace - Name: ${active?.name ?? 'No active workspace'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      AppText(
-                        selectable: true,
-                        muted: true,
-                        small: true,
-                        'Workspace - ID: ${active?.id ?? 'No active workspace'}',
-
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-              ],
-            ),
           ),
         ],
       ),
@@ -1086,6 +1089,7 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
           ),
           const SizedBox(height: AppSpacing.xl),
           AppButton(
+            icon: AppIcons.plus,
             label: 'Create workspace',
             busy: Stores.settings.isSubmittingDrawer,
             onTap: _submit,
@@ -1265,7 +1269,6 @@ class _TemplatesSummaryState extends State<_TemplatesSummary> {
           children: [
             for (final template in store.templates)
               AppEntityCard(
-                icon: AppIcons.cardList,
                 title: template.name,
                 subtitle: _schemaSummary(template),
                 actions: [
@@ -1345,6 +1348,7 @@ class _MembersSectionState extends State<_MembersSection> {
           ? 'You will lose access to this workspace.'
           : '${member.email} will lose access to this workspace.',
       confirmLabel: member.isSelf ? 'Leave' : 'Remove',
+      confirmIcon: member.isSelf ? AppIcons.boxArrowLeft : AppIcons.trash,
       destructive: true,
     );
     if (!confirmed || !mounted) return;
@@ -1396,7 +1400,6 @@ class _MembersSectionState extends State<_MembersSection> {
           children: [
             for (final member in store.members)
               AppEntityCard(
-                icon: AppIcons.personBoundingBox,
                 title: member.isSelf ? '${member.email} (you)' : member.email,
                 tags: [
                   AppBadge(
@@ -1406,7 +1409,7 @@ class _MembersSectionState extends State<_MembersSection> {
                   if (member.isLastAdmin)
                     const AppBadge(
                       icon: AppIcons.shieldLock,
-                      label: 'Only admin',
+                      label: 'This is the only admin',
                     ),
                 ],
                 actions: [
@@ -1464,6 +1467,7 @@ class _ErrorCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: AppButton(
+              icon: AppIcons.arrowClockwise,
               label: 'Retry',
               onTap: onRetry,
               style: AppButtonStyle.accent,
