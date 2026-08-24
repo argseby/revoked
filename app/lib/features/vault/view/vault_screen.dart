@@ -1100,81 +1100,95 @@ class _VaultScreenState extends State<VaultScreen> {
                     ),
                     const AppDivider(),
                     Padding(
-                      padding: const EdgeInsets.all(AppSpacing.xxl),
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.md,
+                        AppSpacing.xl,
+                        AppSpacing.md,
+                      ),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          AppButton(
-                            label: 'Cancel',
-                            onTap: store.isSubmittingEditRecord
-                                ? null
-                                : () => Navigator.of(sheetContext).pop(),
-                            style: AppButtonStyle.accent,
+                          Expanded(
+                            child: AppButton(
+                              label: 'Cancel',
+                              onTap: store.isSubmittingEditRecord
+                                  ? null
+                                  : () => Navigator.of(sheetContext).pop(),
+                              style: AppButtonStyle.accent,
+                            ),
                           ),
                           const SizedBox(width: AppSpacing.md),
-                          AppButton(
-                            label: 'Save Changes',
-                            busy: store.isSubmittingEditRecord,
-                            onTap:
-                                (store.editRecordLabel.text.trim().isEmpty ||
-                                    (isFile
-                                        ? store.editRecordFilename.text
-                                              .trim()
-                                              .isEmpty
-                                        : store.editRecordValue.text
-                                                  .trim()
-                                                  .isEmpty ||
-                                              store.editRecordTypeWarning !=
-                                                  null))
-                                ? null
-                                : () async {
-                                    store.setSubmittingEditRecord(true);
+                          Expanded(
+                            child: AppButton(
+                              icon: AppIcons.check,
+                              label: 'Save changes',
+                              busy: store.isSubmittingEditRecord,
+                              onTap:
+                                  (store.editRecordLabel.text.trim().isEmpty ||
+                                      (isFile
+                                          ? store.editRecordFilename.text
+                                                .trim()
+                                                .isEmpty
+                                          : store.editRecordValue.text
+                                                    .trim()
+                                                    .isEmpty ||
+                                                store.editRecordTypeWarning !=
+                                                    null))
+                                  ? null
+                                  : () async {
+                                      store.setSubmittingEditRecord(true);
 
-                                    final bool ok;
-                                    if (isFile) {
-                                      final fields = {
-                                        'filename': store
-                                            .editRecordFilename
-                                            .text
-                                            .trim(),
-                                        'label': store.editRecordLabel.text
-                                            .trim(),
-                                        'format': store.editRecordFormat,
-                                      };
-                                      final staged = store.editPickedFile;
-                                      // One write: a rename and a replacement
-                                      // must not be able to half-apply.
-                                      ok = staged == null
-                                          ? await store.updateRecord(
-                                              record.id,
-                                              fields,
-                                            )
-                                          : await store.updateRecordFile(
-                                              record.id,
-                                              staged,
-                                              fields: fields,
-                                            );
-                                    } else {
-                                      ok = await store.updateRecord(record.id, {
-                                        'value': store.editRecordValue.text
-                                            .trim(),
-                                        'label': store.editRecordLabel.text
-                                            .trim(),
-                                        'type': store.editRecordType,
-                                        'format': store.editRecordFormat,
-                                      });
-                                    }
+                                      final bool ok;
+                                      if (isFile) {
+                                        final fields = {
+                                          'filename': store
+                                              .editRecordFilename
+                                              .text
+                                              .trim(),
+                                          'label': store.editRecordLabel.text
+                                              .trim(),
+                                          'format': store.editRecordFormat,
+                                        };
+                                        final staged = store.editPickedFile;
+                                        // One write: a rename and a replacement
+                                        // must not be able to half-apply.
+                                        ok = staged == null
+                                            ? await store.updateRecord(
+                                                record.id,
+                                                fields,
+                                              )
+                                            : await store.updateRecordFile(
+                                                record.id,
+                                                staged,
+                                                fields: fields,
+                                              );
+                                      } else {
+                                        ok = await store
+                                            .updateRecord(record.id, {
+                                              'value': store
+                                                  .editRecordValue
+                                                  .text
+                                                  .trim(),
+                                              'label': store
+                                                  .editRecordLabel
+                                                  .text
+                                                  .trim(),
+                                              'type': store.editRecordType,
+                                              'format': store.editRecordFormat,
+                                            });
+                                      }
 
-                                    if (ok && ctx.mounted) {
-                                      Navigator.of(sheetContext).pop();
-                                      AppToast.success(
-                                        context,
-                                        'Record updated successfully',
-                                      );
-                                    } else {
-                                      store.setSubmittingEditRecord(false);
-                                    }
-                                  },
+                                      if (ok && ctx.mounted) {
+                                        Navigator.of(sheetContext).pop();
+                                        AppToast.success(
+                                          context,
+                                          'Record updated successfully',
+                                        );
+                                      } else {
+                                        store.setSubmittingEditRecord(false);
+                                      }
+                                    },
+                            ),
                           ),
                         ],
                       ),
