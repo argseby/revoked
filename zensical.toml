@@ -1,0 +1,93 @@
+# Docs site, built by zensical (https://zensical.org). Pages live under
+# docs/; the api/reference/ pages are generated from openapi.yaml by
+# tools/docs/gen_api_reference.py and are gitignored.
+#
+# Navigation is explicit: a new page must be added to `nav` below or it is
+# unreachable except by search — the build does not warn about pages the
+# nav omits.
+
+[project]
+site_name = "Revoked"
+site_url = "https://argseby.github.io/revoked/"
+repo_url = "https://github.com/argseby/revoked"
+docs_dir = "docs"
+
+nav = [
+  { "Overview" = "index.md" },
+  { "Installation" = [
+    { "Server" = [
+      "installation/index.md",
+      { "DNS" = "installation/dns.md" },
+      { ".env reference" = "installation/env.md" },
+      { "Reverse proxy" = "installation/reverse-proxy.md" },
+      { "Accounts" = "installation/accounts.md" },
+      { "Backups" = "installation/backups.md" },
+      { "Operating notes" = "installation/operations.md" },
+    ] },
+    { "Installing the app" = "installation/app.md" },
+  ] },
+  { "Guide" = [
+    "guide/index.md",
+    { "Vault" = "guide/vault.md" },
+    { "Sharing" = "guide/sharing.md" },
+    { "Requests" = "guide/requests.md" },
+    { "Templates" = "guide/templates.md" },
+    { "Identities & trust" = "guide/identities.md" },
+    { "Workspaces & members" = "guide/workspaces.md" },
+  ] },
+  { "Developer API" = [
+    "api/index.md",
+    { "Authentication" = "api/authentication.md" },
+    { "Callbacks" = "api/callbacks.md" },
+    { "Trust chain" = "api/trust-chain.md" },
+    { "Reference" = [
+      "api/reference/index.md",
+      { "Records" = "api/reference/records.md" },
+      { "Shares" = "api/reference/shares.md" },
+      { "Requests" = "api/reference/requests.md" },
+      { "Grants" = "api/reference/grants.md" },
+      { "Identity" = "api/reference/identity.md" },
+      { "Discovery" = "api/reference/discovery.md" },
+      { "Workspaces" = "api/reference/workspaces.md" },
+      { "Invites" = "api/reference/invites.md" },
+      { "Schemas" = "api/reference/schemas.md" },
+    ] },
+  ] },
+]
+
+[project.theme]
+features = [
+  # Top-level sections become tabs, so the sidebar holds only the section
+  # the reader is in — the whole tree is never on screen at once.
+  "navigation.tabs",
+  "navigation.indexes",
+  "navigation.prune",
+  "navigation.path",
+  "navigation.top",
+  "navigation.instant",
+  "toc.follow",
+  "content.code.copy",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "teal"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "teal"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions]
+admonition = {}
+tables = {}
+attr_list = {}
+toc.permalink = true
+"pymdownx.highlight" = {}
+"pymdownx.superfences" = {}

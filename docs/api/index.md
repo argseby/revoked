@@ -15,7 +15,7 @@ is no shared base URL: substitute your own host throughout.
 | Verify who a share or request came from | [Trust chain](trust-chain.md) |
 | Generate a client | [`openapi.yaml`](openapi.yaml) |
 
-## Two things that will surprise you
+## Three things that will surprise you
 
 **Grants are living, not snapshots.** A share resolves the record's *current*
 value each time it is read. Rotating a secret updates every share pointing at
@@ -29,6 +29,12 @@ itself.
 unguessable by construction and never derived from anything user-visible, and
 there is deliberately no endpoint that lists them. Treat a slug as the
 credential it is.
+
+**`/s/{slug}` content-negotiates.** A request whose `Accept` header prefers
+`text/html` — which is to say, a browser — gets the share's viewer page, not
+data. Scripts should ask for a concrete format (`.json`, `.csv`, `.vcf`,
+`.ics`) or send an API-shaped `Accept` header, and can pass a gate password
+as `?password=`.
 
 ## Error handling
 

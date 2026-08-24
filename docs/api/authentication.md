@@ -14,16 +14,21 @@ the correct header for the request in front of you.
 
 ## API keys
 
-Create one under **Settings → Developer → API keys**. The plaintext is
-returned once, at creation, and the server stores only its hash — there is no
-way to retrieve it later.
+Create one under **Settings → Developer → API keys**, or over the API by
+creating an `apiKeys` record with a session token. The token is minted
+server-side either way and returned exactly once — in the app as the
+plaintext you copy, over the API in the `X-Plain-Token` response header. The
+server stores only its hash; there is no way to retrieve it later.
+
+A key can carry an `expiresAt` date, after which it stops authenticating as
+if revoked.
 
 A key carries the permissions granted when it was created, expanded to scopes.
 A request outside those scopes is refused with a named error rather than a
 generic 403, so the response says which grant is missing.
 
 ```bash
-curl -X POST "https://api.revoked.link/api/collections/records/records" \
+curl -X POST "https://api.example.com/api/collections/records/records" \
   -H "X-API-Key: $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"key":"env","value":"prod","label":"Environment","type":"text","format":"default","user":"<userId>","workspace":"<workspaceId>"}'
