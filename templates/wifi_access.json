@@ -1,0 +1,33 @@
+{
+  "name": "Wi-Fi access",
+  "description": "Hand a guest your network without handing them the password forever — revoke the link when they leave.",
+  "schema": {
+    "records": [
+      {
+        "key": "network_name",
+        "label": "Network name (SSID)",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "wifi_password",
+        "label": "Password",
+        "type": "text",
+        "format": "hidden",
+        "required": true,
+        "reason": "Share it through a link and revoke the link when your guest leaves — the password stays put."
+      },
+      {
+        "key": "guest_network",
+        "label": "Guest network",
+        "type": "boolean"
+      },
+      {
+        "key": "router_admin",
+        "label": "Router admin",
+        "type": "url",
+        "value": "http://192.168.0.1"
+      }
+    ]
+  }
+}

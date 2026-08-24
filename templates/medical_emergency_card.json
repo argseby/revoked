@@ -1,0 +1,77 @@
+{
+  "name": "Medical emergency card",
+  "description": "What a doctor needs to know when you cannot tell them — share it with family or take it on a trip.",
+  "schema": {
+    "records": [
+      {
+        "key": "blood_type",
+        "label": "Blood type",
+        "type": "text"
+      },
+      {
+        "key": "allergies",
+        "label": "Allergies",
+        "type": "text"
+      },
+      {
+        "key": "medications",
+        "label": "Current medications",
+        "type": "text"
+      },
+      {
+        "key": "organ_donor",
+        "label": "Organ donor",
+        "type": "boolean"
+      },
+      {
+        "key": "insurance_provider",
+        "label": "Health insurance",
+        "type": "text"
+      },
+      {
+        "key": "insurance_number",
+        "label": "Insurance number",
+        "type": "text"
+      }
+    ],
+    "sections": [
+      {
+        "key": "emergency_contact",
+        "name": "Emergency contact",
+        "records": [
+          {
+            "key": "contact_name",
+            "label": "Name",
+            "type": "text"
+          },
+          {
+            "key": "contact_phone",
+            "label": "Phone number",
+            "type": "text"
+          },
+          {
+            "key": "contact_relation",
+            "label": "Relationship",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "key": "doctor",
+        "name": "Doctor",
+        "records": [
+          {
+            "key": "doctor_name",
+            "label": "Name",
+            "type": "text"
+          },
+          {
+            "key": "doctor_phone",
+            "label": "Phone number",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  }
+}

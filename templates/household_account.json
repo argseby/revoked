@@ -1,0 +1,39 @@
+{
+  "name": "Household account",
+  "description": "A login the family shares — streaming, utilities, the pizza place. One source of truth instead of a group chat.",
+  "schema": {
+    "records": [
+      {
+        "key": "service_name",
+        "label": "Service",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "service_url",
+        "label": "Login page",
+        "type": "url"
+      },
+      {
+        "key": "login_email",
+        "label": "Email / username",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "password",
+        "label": "Password",
+        "type": "text",
+        "format": "hidden",
+        "required": true
+      },
+      {
+        "key": "backup_codes",
+        "label": "2FA backup codes",
+        "type": "text",
+        "format": "hidden",
+        "reason": "One-time codes — share them only with people you would hand your unlocked phone."
+      }
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "Server access",
+  "description": "SSH coordinates and credentials for one machine, ready to share with a contractor and cut off when the job is done.",
+  "schema": {
+    "records": [
+      {
+        "key": "host",
+        "label": "Hostname or IP",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "ssh_port",
+        "label": "SSH port",
+        "type": "number",
+        "value": "22"
+      },
+      {
+        "key": "username",
+        "label": "Username",
+        "type": "text",
+        "required": true
+      }
+    ],
+    "sections": [
+      {
+        "key": "credentials",
+        "name": "Credentials",
+        "records": [
+          {
+            "key": "password",
+            "label": "Password",
+            "type": "text",
+            "format": "hidden"
+          },
+          {
+            "key": "private_key",
+            "label": "Private key file",
+            "type": "file",
+            "reason": "Prefer per-person keys you can remove from authorized_keys over sharing one."
+          }
+        ]
+      }
+    ]
+  }
+}
