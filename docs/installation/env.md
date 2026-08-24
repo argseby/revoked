@@ -78,3 +78,4 @@ one bucket.
 | Variable | Default | Meaning |
 |---|---|---|
 | `SERVER_KEY_PATH` | `pb_data/server_root.pem` | Where the server's root key lives. Compose pins it inside the `pb_data` volume — leave it alone. Everything under `pb_data` is state that [cannot be regenerated](backups.md). |
+| `TEMPLATES_DIR` | `templates/` next to `pb_data` | Drop-in folder for [built-in templates](operations.md#the-template-catalogue), synced on every restart. |

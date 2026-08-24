@@ -9,6 +9,7 @@ import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_collapsible_group.dart';
 import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
@@ -315,27 +316,45 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
       );
     }
 
+    Widget tile(Template t, {required bool inGroup}) => AppTile(
+      padding: EdgeInsets.symmetric(
+        horizontal: inGroup ? AppSpacing.md : AppSpacing.xl,
+        vertical: AppSpacing.md,
+      ),
+      leading: Icon(
+        AppIcons.cardList,
+        size: 18,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: Text(t.name),
+      subtitle: Text(_progress(_fieldsOf(t))).muted.small,
+      trailing: const Icon(AppIcons.chevronRight, size: 16),
+      onTap: () => Stores.vault.selectFillTemplate(t.id),
+    );
+
+    final builtins = templates.templates.where((t) => t.isBuiltin).toList();
+    final own = templates.templates.where((t) => !t.isBuiltin).toList();
+
     return ListView(
       shrinkWrap: true,
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       children: [
         const AppFormSectionHeader('Templates'),
-        for (final t in templates.templates)
-          AppTile(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xl,
-              vertical: AppSpacing.md,
+        if (builtins.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xs,
+              AppSpacing.xl,
+              0,
             ),
-            leading: Icon(
-              AppIcons.cardList,
-              size: 18,
-              color: Theme.of(context).colorScheme.primary,
+            child: AppCollapsibleGroup(
+              icon: AppIcons.folder,
+              title: 'Built-in',
+              children: [for (final t in builtins) tile(t, inGroup: true)],
             ),
-            title: Text(t.name),
-            subtitle: Text(_progress(_fieldsOf(t))).muted.small,
-            trailing: const Icon(AppIcons.chevronRight, size: 16),
-            onTap: () => Stores.vault.selectFillTemplate(t.id),
           ),
+        for (final t in own) tile(t, inGroup: false),
       ],
     );
   }

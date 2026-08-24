@@ -23,6 +23,51 @@ materialisation) are not request-driven and do not appear.
 | Record value length | 1000 characters |
 | File uploads | [Your choice](env.md#files) — per-file and per-workspace budgets |
 
+## The template catalogue
+
+The server ships with a set of
+[built-in templates](../guide/templates.md#built-in-templates) and seeds them
+on every boot. To change what your instance offers, drop JSON files into a
+`templates/` folder next to `pb_data` (or wherever
+[`TEMPLATES_DIR`](env.md#storage) points) and restart:
+
+- **One file per template, the filename is its id** — `wifi_guest.json`
+  becomes the `wifi_guest` template. A file holding an *array* of templates
+  works too; each entry then needs its own `"id"`.
+- **A restart syncs the folder.** Changed files update the template in
+  place, new files add one, and a removed file deletes it — unless a request
+  still references it, in which case the template is kept and a warning is
+  logged.
+- **Reusing a shipped id overrides that built-in.** Ship your own
+  `wifi_access.json` and it replaces the bundled one; delete your file and
+  the bundled version returns on the next restart.
+- **A malformed file never blocks startup** — it is logged and skipped, and
+  the rest of the catalogue loads normally.
+
+A file looks like this:
+
+```json
+{
+  "name": "Wi-Fi guest access",
+  "description": "Shown under the template's name in the app.",
+  "schema": {
+    "records": [
+      { "key": "ssid", "label": "Network name", "type": "text", "required": true },
+      { "key": "password", "label": "Password", "type": "text", "format": "hidden" }
+    ],
+    "sections": []
+  }
+}
+```
+
+`schema` is the same shape the in-app editor's JSON view shows: `records` and
+`sections`, each field with a `key`, `label`,
+[`type`](../guide/vault.md#records), and optional `format` (`hidden`),
+`required`, `reason` and default `value`.
+
+Built-ins belong to no workspace: every workspace sees them, none can edit
+them, and workspace templates are never touched by the sync.
+
 ## One instance, for now
 
 The challenge/nonce registry, the rate limiters and the file download-token

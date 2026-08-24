@@ -12,12 +12,14 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/request.dart';
+import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_collapsible_group.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
@@ -917,30 +919,27 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                       style: AppButtonStyle.accent,
                     ),
                   )
-                else
-                  ...templates.map((t) {
-                    final selected = t.id == _store.draftTemplateId;
-                    final recCount =
-                        (t.schema['records'] as List?)?.length ?? 0;
-                    final secCount =
-                        (t.schema['sections'] as List?)?.length ?? 0;
-                    return AppTile(
-                      padding: _pickerRowPadding,
-                      title: Text(t.name),
-                      subtitle: Text(
-                        '$recCount record${recCount == 1 ? '' : 's'} · '
-                        '$secCount section${secCount == 1 ? '' : 's'} · '
-                        '${_requiredCount(t.schema)} required',
-                      ).muted.small,
-                      trailing: selected
-                          ? Icon(
-                              AppIcons.check,
-                              color: Theme.of(sheetCtx).colorScheme.primary,
-                            )
-                          : null,
-                      onTap: () => Navigator.of(sheetCtx).pop(t.id),
-                    );
-                  }),
+                else ...[
+                  if (templates.any((t) => t.isBuiltin))
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.xs,
+                        AppSpacing.xl,
+                        0,
+                      ),
+                      child: AppCollapsibleGroup(
+                        icon: AppIcons.folder,
+                        title: 'Built-in',
+                        children: [
+                          for (final t in templates.where((t) => t.isBuiltin))
+                            _templatePickerTile(sheetCtx, t, inGroup: true),
+                        ],
+                      ),
+                    ),
+                  for (final t in templates.where((t) => !t.isBuiltin))
+                    _templatePickerTile(sheetCtx, t, inGroup: false),
+                ],
               ],
             );
           },
@@ -950,6 +949,34 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     if (picked != null && mounted) {
       _store.setDraftTemplate(picked.isEmpty ? null : picked);
     }
+  }
+
+  Widget _templatePickerTile(
+    BuildContext sheetCtx,
+    Template t, {
+    required bool inGroup,
+  }) {
+    final selected = t.id == _store.draftTemplateId;
+    final recCount = (t.schema['records'] as List?)?.length ?? 0;
+    final secCount = (t.schema['sections'] as List?)?.length ?? 0;
+    return AppTile(
+      padding: inGroup
+          ? const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.md,
+            )
+          : _pickerRowPadding,
+      title: Text(t.name),
+      subtitle: Text(
+        '$recCount record${recCount == 1 ? '' : 's'} · '
+        '$secCount section${secCount == 1 ? '' : 's'} · '
+        '${_requiredCount(t.schema)} required',
+      ).muted.small,
+      trailing: selected
+          ? Icon(AppIcons.check, color: Theme.of(sheetCtx).colorScheme.primary)
+          : null,
+      onTap: () => Navigator.of(sheetCtx).pop(t.id),
+    );
   }
 
   Future<void> _pickExpiry() async {

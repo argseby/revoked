@@ -22,4 +22,17 @@ Per field you choose the [type](vault.md#records), and two flags:
 - **Hidden** — values land as masked records, for fields that collect
   secrets.
 
-Some templates ship read-only; duplicate one to make it yours.
+## Built-in templates
+
+Every server ships with a catalogue of ready-made templates — Wi-Fi access,
+API credentials, personal information, employee onboarding and more — so the
+template list is never empty on a fresh install. They appear in every
+workspace, marked **Built-in**, and work everywhere a template does: pick one
+when [creating a request](requests.md) or under the vault's
+[*From template*](vault.md#starting-from-a-template).
+
+Built-ins are read-only — no one can edit or delete them, not even a
+workspace admin. For a variant, create a workspace template of your own with
+the fields you want. If you run the server yourself, you can also
+[change the catalogue](../installation/operations.md#the-template-catalogue)
+for the whole instance.

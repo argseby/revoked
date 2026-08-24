@@ -15,6 +15,7 @@ import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/app_collapsible_group.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
@@ -196,27 +197,40 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
                     );
                   }
 
-                  return ListView.builder(
+                  Widget card(Template template) => _TemplateCard(
+                    template: template,
+                    isAdmin: isAdmin,
+                    onEdit: () => _showCreateTemplateSheet(
+                      context,
+                      templatesStore,
+                      authStore,
+                      initialTemplate: template,
+                    ),
+                    onDelete: () => _confirmDeleteTemplate(
+                      context,
+                      templatesStore,
+                      template.id,
+                    ),
+                  );
+
+                  final builtins = templatesStore.templates
+                      .where((t) => t.isBuiltin)
+                      .toList();
+                  final own = templatesStore.templates
+                      .where((t) => !t.isBuiltin)
+                      .toList();
+
+                  return ListView(
                     padding: const EdgeInsets.only(bottom: AppSpacing.huge),
-                    itemCount: templatesStore.templates.length,
-                    itemBuilder: (context, index) {
-                      final template = templatesStore.templates[index];
-                      return _TemplateCard(
-                        template: template,
-                        isAdmin: isAdmin,
-                        onEdit: () => _showCreateTemplateSheet(
-                          context,
-                          templatesStore,
-                          authStore,
-                          initialTemplate: template,
+                    children: [
+                      if (builtins.isNotEmpty)
+                        AppCollapsibleGroup(
+                          icon: AppIcons.folder,
+                          title: 'Built-in',
+                          children: [for (final t in builtins) card(t)],
                         ),
-                        onDelete: () => _confirmDeleteTemplate(
-                          context,
-                          templatesStore,
-                          template.id,
-                        ),
-                      );
-                    },
+                      for (final t in own) card(t),
+                    ],
                   );
                 },
               ),
@@ -298,9 +312,7 @@ class _TemplateCard extends StatelessWidget {
           label: '${records.length} records',
         ),
         AppBadge(icon: AppIcons.folder, label: '${sections.length} sections'),
-        if (template.isBuiltin)
-          const AppBadge(label: 'Built-in', variant: AppBadgeVariant.outline)
-        else if (!isAdmin)
+        if (!template.isBuiltin && !isAdmin)
           const AppBadge(label: 'Read-only', variant: AppBadgeVariant.outline),
       ],
       expandedBody: Column(
