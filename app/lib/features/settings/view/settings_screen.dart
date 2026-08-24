@@ -1478,7 +1478,7 @@ class _MembersSectionState extends State<_MembersSection> {
                   if (member.isLastAdmin)
                     const AppBadge(
                       icon: AppIcons.shieldLock,
-                      label: 'Only admin',
+                      label: 'This is the only admin',
                     ),
                 ],
                 actions: [
