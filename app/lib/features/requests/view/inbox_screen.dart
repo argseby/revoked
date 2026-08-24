@@ -86,9 +86,7 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     final reqStore = Stores.requests;
 
-    final outerPad = AppSpacing.screenH(context);
     final scrollbarMargin = AppSpacing.scrollbarMargin(context);
-    final innerPad = outerPad - scrollbarMargin;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
