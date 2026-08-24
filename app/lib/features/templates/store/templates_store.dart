@@ -145,7 +145,7 @@ abstract class _TemplatesStore with Store {
         queryParams: {
           'page': '1',
           'perPage': '50',
-          'filter': 'workspace = "$workspaceId"',
+          'filter': '(workspace = "$workspaceId" || workspace = "")',
           'sort': '-created',
         },
       );

@@ -291,13 +291,16 @@ class _TemplateCard extends StatelessWidget {
 
     return AppEntityCard(
       title: template.name,
+      subtitle: template.description.isEmpty ? null : template.description,
       tags: [
         AppBadge(
           icon: AppIcons.folderSymlink,
           label: '${records.length} records',
         ),
         AppBadge(icon: AppIcons.folder, label: '${sections.length} sections'),
-        if (!isAdmin)
+        if (template.isBuiltin)
+          const AppBadge(label: 'Built-in', variant: AppBadgeVariant.outline)
+        else if (!isAdmin)
           const AppBadge(label: 'Read-only', variant: AppBadgeVariant.outline),
       ],
       expandedBody: Column(
@@ -379,7 +382,7 @@ class _TemplateCard extends StatelessWidget {
         ],
       ),
       actions: [
-        if (isAdmin) ...[
+        if (isAdmin && !template.isBuiltin) ...[
           AppSheetAction(
             icon: AppIcons.pencil,
             label: 'Edit',

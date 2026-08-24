@@ -1271,22 +1271,31 @@ class _TemplatesSummaryState extends State<_TemplatesSummary> {
               AppEntityCard(
                 title: template.name,
                 subtitle: _schemaSummary(template),
-                actions: [
-                  AppSheetAction(
-                    icon: AppIcons.pencil,
-                    label: 'Edit',
-                    primary: true,
-                    onTap: () => openTemplateEditorSheet(
-                      context,
-                      initialTemplate: template,
+                tags: [
+                  if (template.isBuiltin)
+                    const AppBadge(
+                      label: 'Built-in',
+                      variant: AppBadgeVariant.outline,
                     ),
-                  ),
-                  AppSheetAction(
-                    icon: AppIcons.trash,
-                    label: 'Delete',
-                    destructive: true,
-                    onTap: () => confirmDeleteTemplate(context, template.id),
-                  ),
+                ],
+                actions: [
+                  if (!template.isBuiltin) ...[
+                    AppSheetAction(
+                      icon: AppIcons.pencil,
+                      label: 'Edit',
+                      primary: true,
+                      onTap: () => openTemplateEditorSheet(
+                        context,
+                        initialTemplate: template,
+                      ),
+                    ),
+                    AppSheetAction(
+                      icon: AppIcons.trash,
+                      label: 'Delete',
+                      destructive: true,
+                      onTap: () => confirmDeleteTemplate(context, template.id),
+                    ),
+                  ],
                 ],
               ),
           ],
