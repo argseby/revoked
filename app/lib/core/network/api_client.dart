@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/services/secure_storage.dart';
 
 /// Exception thrown when an API call fails.
 ///
@@ -123,7 +124,7 @@ class ApiClient {
 
   ApiClient({http.Client? httpClient, FlutterSecureStorage? secureStorage})
     : _httpClient = httpClient ?? http.Client(),
-      _secure = secureStorage ?? const FlutterSecureStorage();
+      _secure = secureStorage ?? createSecureStorage();
 
   /// Current backend base URL. Persisted and user-configurable from the login
   /// screen's server settings; defaults to [AppConfig.baseUrl].
