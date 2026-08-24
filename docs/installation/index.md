@@ -1,3 +1,7 @@
+---
+title: Server
+---
+
 # Setting up a server
 
 Revoked is one Go binary around an embedded database. A production setup is
@@ -38,3 +42,6 @@ skip your TLS. Details in [Reverse proxy](reverse-proxy.md).
    regenerated.
 
 Every knob along the way is in the [.env reference](env.md).
+
+With the server running, hand out [the app](app.md) — or point your users at
+the desktop and Android downloads directly.

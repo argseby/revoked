@@ -31,6 +31,7 @@ func Bind(app core.App, root *server.RootKey) {
 	hooks.BindInviteHooks(app)
 	hooks.RegisterTenancyHooks(app)
 	hooks.BindAuditLogHooks(app)
+	hooks.BindBuiltinTemplateSync(app)
 
 	routes.HealthzRoute(app)
 	routes.PublicLinksRoute(app, root)

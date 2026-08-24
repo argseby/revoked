@@ -1,0 +1,79 @@
+{
+  "name": "Company & billing details",
+  "description": "Everything a new client or supplier asks for before the first invoice — fill it once, send a link every time.",
+  "schema": {
+    "records": [
+      {
+        "key": "legal_name",
+        "label": "Legal company name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "vat_id",
+        "label": "VAT ID",
+        "type": "text"
+      },
+      {
+        "key": "trade_register",
+        "label": "Trade register number",
+        "type": "text"
+      },
+      {
+        "key": "billing_email",
+        "label": "Billing email",
+        "type": "text"
+      }
+    ],
+    "sections": [
+      {
+        "key": "address",
+        "name": "Registered address",
+        "records": [
+          {
+            "key": "street",
+            "label": "Street and number",
+            "type": "text"
+          },
+          {
+            "key": "postal_code",
+            "label": "Postal code",
+            "type": "text"
+          },
+          {
+            "key": "city",
+            "label": "City",
+            "type": "text"
+          },
+          {
+            "key": "country",
+            "label": "Country",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "key": "bank_account",
+        "name": "Bank account",
+        "records": [
+          {
+            "key": "account_holder",
+            "label": "Account holder",
+            "type": "text"
+          },
+          {
+            "key": "iban",
+            "label": "IBAN",
+            "type": "text",
+            "reason": "An IBAN alone only lets people pay you — but share it revocably anyway."
+          },
+          {
+            "key": "bic",
+            "label": "BIC",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  }
+}

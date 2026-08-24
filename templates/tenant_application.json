@@ -1,0 +1,70 @@
+{
+  "name": "Tenant application",
+  "description": "Use it in a request to collect an applicant's file for a flat — income proof included, inbox not involved.",
+  "schema": {
+    "records": [
+      {
+        "key": "full_name",
+        "label": "Full name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "email",
+        "label": "Email address",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "phone",
+        "label": "Phone number",
+        "type": "text"
+      },
+      {
+        "key": "current_address",
+        "label": "Current address",
+        "type": "text"
+      },
+      {
+        "key": "employer",
+        "label": "Employer",
+        "type": "text"
+      },
+      {
+        "key": "occupation",
+        "label": "Occupation",
+        "type": "text"
+      },
+      {
+        "key": "net_income",
+        "label": "Monthly net income",
+        "type": "number",
+        "reason": "Stated once, to you — not forwarded around with a PDF trail."
+      },
+      {
+        "key": "move_in_date",
+        "label": "Desired move-in date",
+        "type": "datetime"
+      }
+    ],
+    "sections": [
+      {
+        "key": "documents",
+        "name": "Documents",
+        "records": [
+          {
+            "key": "proof_of_income",
+            "label": "Proof of income",
+            "type": "file"
+          },
+          {
+            "key": "credit_report",
+            "label": "Credit report",
+            "type": "file",
+            "reason": "For example a SCHUFA extract — the tenant version, not the full report."
+          }
+        ]
+      }
+    ]
+  }
+}

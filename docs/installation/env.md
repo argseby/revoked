@@ -42,6 +42,21 @@ these blank.
 |---|---|---|
 | `ALLOW_PRIVATE_CALLBACKS` | `false` | Lets user-supplied [callback URLs](../api/callbacks.md) resolve to loopback and private ranges. On a public host that is a server-side request forgery primitive — enable it only on a LAN-only or development install. Link-local (cloud metadata), multicast and `0.0.0.0` stay blocked regardless. |
 
+## Files
+
+Budgets for file records, in megabytes. Unset or `-1` means unlimited; `0`
+disables file uploads entirely. Read from the environment per request, so a
+change needs a restart but never a migration.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `FILE_MAX_SIZE` | `-1` | Largest single upload accepted. |
+| `FILE_MAX_STORAGE` | `-1` | Total file storage per workspace. |
+
+The effective per-file limit is advertised to clients at `GET /api/server` as
+`limits.maxFileSize`, so the app can refuse an oversized pick before
+uploading it.
+
 ## Rate limits
 
 Public-surface budgets, read once at startup — a change needs a restart.
@@ -63,3 +78,4 @@ one bucket.
 | Variable | Default | Meaning |
 |---|---|---|
 | `SERVER_KEY_PATH` | `pb_data/server_root.pem` | Where the server's root key lives. Compose pins it inside the `pb_data` volume — leave it alone. Everything under `pb_data` is state that [cannot be regenerated](backups.md). |
+| `TEMPLATES_DIR` | `templates/` next to `pb_data` | Drop-in folder for [built-in templates](operations.md#the-template-catalogue), synced on every restart. |

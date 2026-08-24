@@ -1,0 +1,107 @@
+{
+  "name": "Personal information",
+  "description": "The identity details forms keep asking for — share them once, revocably, instead of retyping them into every portal.",
+  "schema": {
+    "records": [
+      {
+        "key": "full_name",
+        "label": "Full name",
+        "type": "text",
+        "required": true,
+        "reason": "Your legal name, as it appears on your ID."
+      },
+      {
+        "key": "date_of_birth",
+        "label": "Date of birth",
+        "type": "datetime",
+        "required": true
+      },
+      {
+        "key": "email",
+        "label": "Email address",
+        "type": "text"
+      },
+      {
+        "key": "phone",
+        "label": "Phone number",
+        "type": "text"
+      },
+      {
+        "key": "nationality",
+        "label": "Nationality",
+        "type": "text"
+      }
+    ],
+    "sections": [
+      {
+        "key": "address",
+        "name": "Address",
+        "records": [
+          {
+            "key": "street",
+            "label": "Street and number",
+            "type": "text"
+          },
+          {
+            "key": "postal_code",
+            "label": "Postal code",
+            "type": "text"
+          },
+          {
+            "key": "city",
+            "label": "City",
+            "type": "text"
+          },
+          {
+            "key": "country",
+            "label": "Country",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "key": "identity_documents",
+        "name": "Identity documents",
+        "records": [
+          {
+            "key": "passport_number",
+            "label": "Passport number",
+            "type": "text",
+            "reason": "Only the number — never share a scan over an open link."
+          },
+          {
+            "key": "passport_expiry",
+            "label": "Passport expiry",
+            "type": "datetime"
+          },
+          {
+            "key": "passport_scan",
+            "label": "Passport scan",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "key": "emergency_contact",
+        "name": "Emergency contact",
+        "records": [
+          {
+            "key": "emergency_name",
+            "label": "Name",
+            "type": "text"
+          },
+          {
+            "key": "emergency_phone",
+            "label": "Phone number",
+            "type": "text"
+          },
+          {
+            "key": "emergency_relation",
+            "label": "Relationship",
+            "type": "text"
+          }
+        ]
+      }
+    ]
+  }
+}

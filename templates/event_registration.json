@@ -1,0 +1,51 @@
+{
+  "name": "Event registration",
+  "description": "Use it in a request to collect participant details for a trip or event, and delete them when it is over.",
+  "schema": {
+    "records": [
+      {
+        "key": "full_name",
+        "label": "Full name",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "email",
+        "label": "Email address",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "phone",
+        "label": "Phone number",
+        "type": "text"
+      },
+      {
+        "key": "dietary_restrictions",
+        "label": "Dietary restrictions",
+        "type": "text"
+      },
+      {
+        "key": "accessibility_needs",
+        "label": "Accessibility needs",
+        "type": "text"
+      },
+      {
+        "key": "arrival",
+        "label": "Arrival",
+        "type": "datetime"
+      },
+      {
+        "key": "departure",
+        "label": "Departure",
+        "type": "datetime"
+      },
+      {
+        "key": "photo_consent",
+        "label": "Photo consent",
+        "type": "boolean",
+        "reason": "May photos of you from the event be published?"
+      }
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "Domain & hosting handover",
+  "description": "Everything needed to take over a domain — share it for the handover, revoke it the moment the transfer completes.",
+  "schema": {
+    "records": [
+      {
+        "key": "domain",
+        "label": "Domain",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "registrar_url",
+        "label": "Registrar",
+        "type": "url"
+      },
+      {
+        "key": "registrar_account",
+        "label": "Registrar account",
+        "type": "text"
+      },
+      {
+        "key": "registrar_password",
+        "label": "Registrar password",
+        "type": "text",
+        "format": "hidden"
+      },
+      {
+        "key": "transfer_code",
+        "label": "Transfer (auth/EPP) code",
+        "type": "text",
+        "format": "hidden",
+        "reason": "Whoever holds this code can move the domain — treat it like the deed to a house."
+      },
+      {
+        "key": "dns_provider",
+        "label": "DNS provider",
+        "type": "text"
+      },
+      {
+        "key": "domain_expiry",
+        "label": "Domain expires",
+        "type": "datetime"
+      }
+    ]
+  }
+}

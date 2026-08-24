@@ -70,7 +70,7 @@ type auditLogFields struct {
 }
 
 type templateFields struct {
-	Name, Schema, Workspace, Created, Updated string
+	Name, Description, Schema, Workspace, Created, Updated string
 }
 
 type identityFields struct {
@@ -247,11 +247,12 @@ var Fields = struct {
 		ApiKey:     "apiKey",
 	},
 	Template: templateFields{
-		Name:      "name",
-		Schema:    "schema",
-		Workspace: "workspace",
-		Created:   "created",
-		Updated:   "updated",
+		Name:        "name",
+		Description: "description",
+		Schema:      "schema",
+		Workspace:   "workspace",
+		Created:     "created",
+		Updated:     "updated",
 	},
 	Identity: identityFields{
 		Name:            "name",

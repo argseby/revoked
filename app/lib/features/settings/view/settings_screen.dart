@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/models/invite.dart';
+import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/models/workspace.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -14,6 +15,7 @@ import 'package:revoked_app/core/widgets/api_url_tile.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/app_collapsible_group.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
@@ -1265,37 +1267,48 @@ class _TemplatesSummaryState extends State<_TemplatesSummary> {
             hint: 'Define what a request asks for, once.',
           );
         }
-        return Column(
-          children: [
-            for (final template in store.templates)
-              AppEntityCard(
-                title: template.name,
-                subtitle: _schemaSummary(template),
-                actions: [
-                  AppSheetAction(
-                    icon: AppIcons.pencil,
-                    label: 'Edit',
-                    primary: true,
-                    onTap: () => openTemplateEditorSheet(
-                      context,
-                      initialTemplate: template,
-                    ),
-                  ),
-                  AppSheetAction(
-                    icon: AppIcons.trash,
-                    label: 'Delete',
-                    destructive: true,
-                    onTap: () => confirmDeleteTemplate(context, template.id),
-                  ),
-                ],
+        Widget card(Template template) => AppEntityCard(
+          title: template.name,
+          subtitle: _schemaSummary(template),
+          actions: [
+            if (!template.isBuiltin) ...[
+              AppSheetAction(
+                icon: AppIcons.pencil,
+                label: 'Edit',
+                primary: true,
+                onTap: () =>
+                    openTemplateEditorSheet(context, initialTemplate: template),
               ),
+              AppSheetAction(
+                icon: AppIcons.trash,
+                label: 'Delete',
+                destructive: true,
+                onTap: () => confirmDeleteTemplate(context, template.id),
+              ),
+            ],
+          ],
+        );
+
+        final builtins = store.templates.where((t) => t.isBuiltin).toList();
+        final own = store.templates.where((t) => !t.isBuiltin).toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (builtins.isNotEmpty)
+              AppCollapsibleGroup(
+                icon: AppIcons.folder,
+                title: 'Built-in',
+                children: [for (final t in builtins) card(t)],
+              ),
+            for (final t in own) card(t),
           ],
         );
       },
     );
   }
 
-  String _schemaSummary(dynamic template) {
+  String _schemaSummary(Template template) {
     final sections = template.schema['sections'] as List<dynamic>? ?? [];
     final records = template.schema['records'] as List<dynamic>? ?? [];
     return '${sections.length} sections · ${records.length} root records';

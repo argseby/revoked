@@ -33,8 +33,7 @@ it is not a login for the app itself.
 ## Opening registration
 
 Set `ALLOW_SIGNUPS=true` and restart. Anyone who can reach the server can then
-create an account; each new account is provisioned with its own workspace at
-signup. Inviting members into an *existing* workspace is a separate,
+create an account. Inviting members into an *existing* workspace is a separate,
 in-app flow (workspace invites) and works regardless of this flag.
 
 ## First login

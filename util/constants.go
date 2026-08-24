@@ -21,8 +21,13 @@ const (
 	TypeDatetime = "datetime"
 	TypeFile     = "file"
 
-	FormatHidden  = "hidden"
-	FormatDefault = "default"
+	FormatHidden    = "hidden"
+	FormatDefault   = "default"
+	FormatMultiline = "multiline"
+
+	// MaxTemplateDescriptionLength mirrors the templates.description column
+	// limit set by migration 000052; keep the two in step.
+	MaxTemplateDescriptionLength = 500
 
 	StatusActive    = "active"
 	StatusPaused    = "paused"

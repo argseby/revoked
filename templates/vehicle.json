@@ -1,0 +1,64 @@
+{
+  "name": "Vehicle",
+  "description": "The paperwork side of a car — plate, VIN, insurance — for lending it out or dealing with a claim.",
+  "schema": {
+    "records": [
+      {
+        "key": "make_model",
+        "label": "Make and model",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "license_plate",
+        "label": "License plate",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "vin",
+        "label": "VIN",
+        "type": "text"
+      },
+      {
+        "key": "inspection_due",
+        "label": "Next inspection",
+        "type": "datetime"
+      }
+    ],
+    "sections": [
+      {
+        "key": "insurance",
+        "name": "Insurance",
+        "records": [
+          {
+            "key": "insurer",
+            "label": "Insurer",
+            "type": "text"
+          },
+          {
+            "key": "policy_number",
+            "label": "Policy number",
+            "type": "text"
+          },
+          {
+            "key": "insurer_phone",
+            "label": "Claims hotline",
+            "type": "text"
+          }
+        ]
+      },
+      {
+        "key": "documents",
+        "name": "Documents",
+        "records": [
+          {
+            "key": "registration_scan",
+            "label": "Registration document",
+            "type": "file"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -29,6 +29,7 @@ void main() {
         Template(
           id: 't1',
           name: 'Supplier onboarding',
+          description: '',
           workspace: 'w',
           schema: const {
             'records': [
