@@ -15,9 +15,9 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_screen_header.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
@@ -103,7 +103,10 @@ class _DataScreenState extends State<DataScreen> {
       defaultSort: 'created_desc',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ShellSlots.setFilter(_filterButton);
+      if (mounted) {
+        ShellSlots.title.claim(_title);
+        ShellSlots.filter.claim(_filterButton);
+      }
       _load();
     });
   }
@@ -113,9 +116,21 @@ class _DataScreenState extends State<DataScreen> {
 
   @override
   void dispose() {
-    ShellSlots.clearFilter(_filterButton);
+    ShellSlots.title.release(_title);
+    ShellSlots.filter.release(_filterButton);
     _table.dispose();
     super.dispose();
+  }
+
+  Widget _title(BuildContext context) {
+    final count = _table.filteredItems.length;
+    return AppBarTitle(
+      title: widget.requestId != null ? _activeRequestLabel() : 'Connections',
+      badgeLabel: '$count ${count == 1 ? 'item' : 'items'}',
+      onBack: widget.requestId != null
+          ? () => context.go(AppRoutes.inbox)
+          : null,
+    );
   }
 
   Widget _filterButton(BuildContext context) {
@@ -273,28 +288,11 @@ class _DataScreenState extends State<DataScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(pad, AppSpacing.md, pad, 0),
-          child: Observer(
-            builder: (_) {
-              final count = _table.filteredItems.length;
-              return AppScreenHeader(
-                title: widget.requestId != null
-                    ? _activeRequestLabel()
-                    : 'Connections',
-                onBack: widget.requestId != null
-                    ? () => context.go(AppRoutes.inbox)
-                    : null,
-                badgeLabel: '$count ${count == 1 ? 'item' : 'items'}',
-                actions: [
-                  if (widget.requestId != null) ...[
-                    _responsesToggle(context, widget.requestId!, current: 0),
-                  ],
-                ],
-              );
-            },
+        if (widget.requestId != null)
+          Padding(
+            padding: EdgeInsets.fromLTRB(pad, AppSpacing.md, pad, 0),
+            child: _responsesToggle(context, widget.requestId!, current: 0),
           ),
-        ),
 
         // Overview of how many connections are live vs revoked vs from vault.
         Observer(

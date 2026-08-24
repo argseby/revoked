@@ -196,8 +196,8 @@ class _AppEntityCardState extends State<AppEntityCard> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
         AppSpacing.gapMd,
+        if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
         Expanded(
           child: Row(
             children: [
@@ -268,8 +268,8 @@ class _AppEntityCardState extends State<AppEntityCard> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
             AppSpacing.gapMd,
+            if (w.leading != null) ...[w.leading!, AppSpacing.gapSm],
             Expanded(
               child: Row(
                 children: [

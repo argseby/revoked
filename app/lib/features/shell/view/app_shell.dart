@@ -26,6 +26,8 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  static const int _settingsIndex = 3;
+
   int _selectedIndex = 0;
 
   @override
@@ -94,6 +96,21 @@ class _AppShellState extends State<AppShell> {
     };
   }
 
+  /// A control the active screen registered, with the gap that belongs to it —
+  /// an unclaimed slot takes no space at all.
+  Widget _slot(ShellSlot slot) {
+    return Observer(
+      builder: (context) {
+        final builder = slot.builder;
+        if (builder == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(right: AppSpacing.xs),
+          child: builder(context),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -122,14 +139,19 @@ class _AppShellState extends State<AppShell> {
       ),
       appBar: AppBar(
         titleSpacing: AppSpacing.lg,
-        title: const Row(children: [WorkspaceChip()]),
+        // The switcher only earns its space on Settings, the one tab that acts
+        // on the active workspace; everywhere else the bar carries the
+        // screen's own title, which used to cost a row of the body.
+        title: _selectedIndex == _settingsIndex
+            ? const Row(children: [WorkspaceChip()])
+            : Observer(
+                builder: (context) =>
+                    ShellSlots.title.builder?.call(context) ??
+                    const SizedBox.shrink(),
+              ),
         actions: [
-          // The active screen's filter button, when it registered one.
-          Observer(
-            builder: (_) =>
-                ShellSlots.filter?.call(context) ?? const SizedBox.shrink(),
-          ),
-          AppSpacing.gapXs,
+          _slot(ShellSlots.action),
+          _slot(ShellSlots.filter),
           const _NotificationBell(),
           AppSpacing.gapXs,
         ],

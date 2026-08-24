@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
+import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_screen_header.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -38,9 +38,17 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => Stores.requests.loadSheet(widget.requestId),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ShellSlots.title.claim(_title);
+      Stores.requests.loadSheet(widget.requestId);
+    });
+  }
+
+  @override
+  void dispose() {
+    ShellSlots.title.release(_title);
+    super.dispose();
   }
 
   @override
@@ -58,6 +66,27 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
       }
     }
     return 'Request';
+  }
+
+  Widget _title(BuildContext context) {
+    final count = Stores.requests.isLoadingSheet
+        ? 0
+        : _pivot(context).rows.length;
+    return AppBarTitle(
+      title: _requestLabel(),
+      badgeLabel: '$count ${count == 1 ? 'responder' : 'responders'}',
+      onBack: () => context.go(AppRoutes.inbox),
+    );
+  }
+
+  Widget _csvButton(BuildContext context) {
+    final data = Stores.requests.isLoadingSheet ? null : _pivot(context);
+    return AppButton(
+      icon: AppIcons.copy,
+      tooltip: 'Copy as CSV',
+      style: AppButtonStyle.accent,
+      onTap: (data == null || data.rows.isEmpty) ? null : () => _copyCsv(data),
+    );
   }
 
   /// The List/Sheet switch shown in both response views so it's always clear
@@ -241,29 +270,12 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
       children: [
         Padding(
           padding: EdgeInsets.fromLTRB(pad, AppSpacing.md, pad, 0),
-          child: Observer(
-            builder: (_) {
-              final data = Stores.requests.isLoadingSheet
-                  ? null
-                  : _pivot(context);
-              final count = data?.rows.length ?? 0;
-              return AppScreenHeader(
-                title: _requestLabel(),
-                onBack: () => context.go(AppRoutes.inbox),
-                badgeLabel: '$count ${count == 1 ? 'responder' : 'responders'}',
-                actions: [
-                  _responsesToggle(context, widget.requestId, current: 1),
-                  AppButton(
-                    icon: AppIcons.copy,
-                    tooltip: 'Copy as CSV',
-                    style: AppButtonStyle.accent,
-                    onTap: (data == null || data.rows.isEmpty)
-                        ? null
-                        : () => _copyCsv(data),
-                  ),
-                ],
-              );
-            },
+          child: Row(
+            children: [
+              _responsesToggle(context, widget.requestId, current: 1),
+              const Spacer(),
+              Observer(builder: (_) => _csvButton(context)),
+            ],
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
