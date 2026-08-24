@@ -7,13 +7,22 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 
-/// A labeled, copyable URL row — used to surface a link/request's public API
-/// endpoints (deep link, .json, .html) in detail views.
+/// A labeled, copyable URL row — a link/request's public API endpoints (deep
+/// link, .json, .html) in detail views, and the project's own links in
+/// Settings → About.
 class ApiUrlTile extends StatelessWidget {
   final String label;
   final String url;
 
-  const ApiUrlTile({super.key, required this.label, required this.url});
+  /// Leading glyph, for a list of rows that are not all the same kind of link.
+  final IconData? icon;
+
+  const ApiUrlTile({
+    super.key,
+    required this.label,
+    required this.url,
+    this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +31,10 @@ class ApiUrlTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          if (icon != null) ...[
+            Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+            AppSpacing.gapMd,
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

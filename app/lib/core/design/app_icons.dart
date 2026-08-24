@@ -17,6 +17,7 @@ abstract class AppIcons {
   static const IconData brightnessDark = Icons.dark_mode_outlined;
   static const IconData brightnessLight = Icons.light_mode_outlined;
   static const IconData cardList = Icons.list_alt;
+  static const IconData bug = Icons.bug_report_outlined;
   static const IconData check = Icons.check;
   static const IconData checkCircle = Icons.check_circle_outline;
   static const IconData chevronDown = Icons.keyboard_arrow_down;
@@ -25,6 +26,7 @@ abstract class AppIcons {
   static const IconData chevronUp = Icons.keyboard_arrow_up;
   static const IconData circle = Icons.circle_outlined;
   static const IconData clock = Icons.schedule;
+  static const IconData code = Icons.code;
   static const IconData collection = Icons.collections_bookmark_outlined;
   static const IconData copy = Icons.content_copy;
   static const IconData qrCode = Icons.qr_code_2;

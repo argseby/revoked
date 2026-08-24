@@ -28,4 +28,11 @@ class AppConfig {
   static const String requestsCollection = 'requests';
   static const String notificationsCollection = 'notifications';
   static const String invitesCollection = 'invites';
+
+  /// Where the project lives, shown in Settings → About. Not the API: these
+  /// are the same for every deployment, whoever hosts the server.
+  static const String repoUrl = 'https://github.com/argseby/revoked';
+  static const String docsUrl = 'https://docs.revoked.link';
+  static const String issuesUrl =
+      'https://github.com/argseby/revoked/issues/new';
 }

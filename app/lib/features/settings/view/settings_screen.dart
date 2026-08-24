@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -9,6 +10,7 @@ import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/models/workspace.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/api_url_tile.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
@@ -79,11 +81,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final activeId = auth.activeWorkspace ?? '';
                 return AppTabs(
                   initialIndex: widget.initialTab,
-                  labels: const ['Account', 'Workspace', 'Developer'],
+                  labels: const ['Account', 'Workspace', 'Developer', 'About'],
                   views: [
                     _accountTab(context, settings, auth, activeId),
                     _workspaceTab(context, settings, auth, activeId),
                     _developerTab(context),
+                    _aboutTab(context),
                   ],
                 );
               },
@@ -367,6 +370,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const _DomainVerificationCard(),
         const SizedBox(height: AppSpacing.md),
         _buildConnection(context),
+      ],
+    );
+  }
+
+  Widget _aboutTab(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(
+        left: AppSpacing.xs,
+        right: AppSpacing.xs,
+        top: AppSpacing.md,
+        bottom: AppSpacing.huge,
+      ),
+      children: [
+        const _GroupHeader(
+          title: 'Project',
+          subtitle: 'revoked is open source — read the code, read the docs.',
+        ),
+        const AppCard(
+          child: Column(
+            children: [
+              ApiUrlTile(
+                icon: AppIcons.code,
+                label: 'Source code',
+                url: AppConfig.repoUrl,
+              ),
+              AppDivider(),
+              ApiUrlTile(
+                icon: AppIcons.fileText,
+                label: 'Documentation',
+                url: AppConfig.docsUrl,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: AppSpacing.xxl),
+        const _GroupHeader(
+          title: 'Report a bug',
+          subtitle: 'Bugs and feature requests are tracked as GitHub issues.',
+        ),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Say what you did, what you expected, and what happened '
+                'instead. An issue is public: never paste a record value, a '
+                'share or request link, or a private key into one.',
+              ).muted.small,
+              AppSpacing.gapMd,
+              const ApiUrlTile(
+                icon: AppIcons.bug,
+                label: 'Open an issue',
+                url: AppConfig.issuesUrl,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
