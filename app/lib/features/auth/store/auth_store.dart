@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/files/file_opener.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:flutter/widgets.dart';
 import 'package:mobx/mobx.dart';
@@ -149,6 +150,7 @@ abstract class _AuthStore with Store {
   Future<void> logout() async {
     await _api.clearAuthState();
     currentUser = null;
+    await purgeOpenedFiles();
   }
 
   /// Closes the account on the server, which purges everything it could still

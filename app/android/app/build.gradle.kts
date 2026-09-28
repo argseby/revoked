@@ -75,3 +75,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // FileProvider for "View"; the same version share_plus already pulls in.
+    implementation("androidx.core:core-ktx:1.16.0")
+}

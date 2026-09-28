@@ -14,6 +14,7 @@ abstract class AppIcons {
   static const IconData bookmark = Icons.bookmark_border;
   static const IconData bookmarkFill = Icons.bookmark;
   static const IconData boxArrowInRight = Icons.login;
+  static const IconData boxArrowUpRight = Icons.open_in_new;
   static const IconData boxArrowLeft = Icons.logout;
   static const IconData brightnessAuto = Icons.brightness_auto_outlined;
   static const IconData brightnessDark = Icons.dark_mode_outlined;

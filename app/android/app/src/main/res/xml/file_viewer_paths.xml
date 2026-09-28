@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the viewer's own cache folder is exposed, never the rest of the app. -->
+<paths>
+    <cache-path name="view" path="revoked-view/" />
+</paths>

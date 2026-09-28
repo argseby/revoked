@@ -31,19 +31,15 @@ void main() {
     expect(verdict.reason, contains('captive portal'));
   });
 
-  test(
-    'a stalled resolver times out instead of hanging',
-    () async {
-      final verdict = await run(
-        serviceReturning((_) async {
-          await Future<void>.delayed(const Duration(seconds: 30));
-          return http.Response('{}', 200);
-        }),
-      );
-      expect(verdict.state, TrustState.dnsMissing);
-    },
-    timeout: const Timeout(Duration(seconds: 20)),
-  );
+  test('a stalled resolver times out instead of hanging', () async {
+    final verdict = await run(
+      serviceReturning((_) async {
+        await Future<void>.delayed(const Duration(seconds: 30));
+        return http.Response('{}', 200);
+      }),
+    );
+    expect(verdict.state, TrustState.dnsMissing);
+  }, timeout: const Timeout(Duration(seconds: 20)));
 
   test('it falls back to the second resolver', () async {
     var calls = 0;

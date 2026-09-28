@@ -8,6 +8,8 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
+import 'package:revoked_app/core/files/file_opener.dart';
+import 'package:revoked_app/core/widgets/file_view_sheet.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
@@ -1505,6 +1507,52 @@ class _RecordCardState extends State<_RecordCard> {
   bool get _isObscured =>
       widget.record.isHidden && !Stores.vault.isRevealed(widget.record.id);
 
+  /// Images and text open in the app from memory; anything else goes to the
+  /// app the OS uses for that type.
+  Future<void> _viewFile() async {
+    final r = widget.record;
+    final bytes = await Stores.vault.fetchRecordFileBytes(r);
+    if (!mounted) return;
+    if (bytes == null) {
+      AppToast.error(
+        context,
+        'Could not open file',
+        subtitle: Stores.vault.errorMessage,
+      );
+      return;
+    }
+    Future<void> openExternally() async {
+      final ok = await openFileOnDevice(
+        bytes: bytes,
+        filename: r.displayName,
+        mime: r.mime,
+      );
+      if (!ok && mounted) {
+        AppToast.error(
+          context,
+          'No app could open this file',
+          subtitle: 'Download it instead and open it from there.',
+        );
+      }
+    }
+
+    if (canViewInApp(
+      mime: r.mime,
+      filename: r.displayName,
+      size: bytes.length,
+    )) {
+      await showFileViewSheet(
+        context,
+        bytes: bytes,
+        filename: r.displayName,
+        mime: r.mime,
+        onOpenExternally: openExternally,
+      );
+    } else {
+      await openExternally();
+    }
+  }
+
   Future<void> _downloadFile() async {
     final r = widget.record;
     final bytes = await Stores.vault.fetchRecordFileBytes(r);
@@ -1530,9 +1578,14 @@ class _RecordCardState extends State<_RecordCard> {
     if (widget.record.isFile) {
       return [
         AppSheetAction(
+          icon: AppIcons.eye,
+          label: 'View',
+          primary: true,
+          onTap: _viewFile,
+        ),
+        AppSheetAction(
           icon: AppIcons.download,
           label: 'Download',
-          primary: true,
           onTap: _downloadFile,
         ),
         AppSheetAction(icon: AppIcons.pen, label: 'Edit', onTap: widget.onEdit),

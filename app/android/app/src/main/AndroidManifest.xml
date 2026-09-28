@@ -40,6 +40,17 @@
                 <data android:scheme="revoked"/>
             </intent-filter>
         </activity>
+        <!-- Lets "View" hand a vault file to another app for reading, with a
+             one-off grant instead of any storage permission. -->
+        <provider
+            android:name=".ViewFileProvider"
+            android:authorities="${applicationId}.fileviewer"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_viewer_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

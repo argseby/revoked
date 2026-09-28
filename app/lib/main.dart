@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/files/file_opener.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/services/deep_link_service.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -14,6 +17,7 @@ import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  unawaited(purgeOpenedFiles());
   await Stores.init();
   runApp(const RevokedApp());
 }

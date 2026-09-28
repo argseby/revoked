@@ -30,26 +30,22 @@ void main() {
     expect(notified, 1);
   });
 
-  test(
-    'a stalled server times out rather than hanging',
-    () async {
-      final client = ApiClient(
-        httpClient: _Stub((_) async {
-          await Future<void>.delayed(const Duration(seconds: 60));
-          return http.Response('{}', 200);
-        }),
-        secureStorage: const FlutterSecureStorage(),
-      );
+  test('a stalled server times out rather than hanging', () async {
+    final client = ApiClient(
+      httpClient: _Stub((_) async {
+        await Future<void>.delayed(const Duration(seconds: 60));
+        return http.Response('{}', 200);
+      }),
+      secureStorage: const FlutterSecureStorage(),
+    );
 
-      await expectLater(
-        client.get('/api/x'),
-        throwsA(
-          isA<ApiException>().having((e) => e.code, 'code', 'request_timeout'),
-        ),
-      );
-    },
-    timeout: const Timeout(Duration(seconds: 30)),
-  );
+    await expectLater(
+      client.get('/api/x'),
+      throwsA(
+        isA<ApiException>().having((e) => e.code, 'code', 'request_timeout'),
+      ),
+    );
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   test('logout clears the token and every handshake', () async {
     SharedPreferences.setMockInitialValues({
