@@ -514,11 +514,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         for (final id in store.identities)
           AppEntityCard(
             title: id.name,
-            subtitle: id.shortFingerprint,
-            subtitleMono: true,
             tags: [
+              AppBadge(
+                icon: AppIcons.key,
+                label: id.shortFingerprint,
+                mono: true,
+              ),
               if (id.domainAtIssue.isNotEmpty)
-                TrustClaimText(
+                TrustClaimBadge(
                   domain: id.domainAtIssue,
                   state: _identityClaimState(id.domainAtIssue),
                 ),
@@ -750,7 +753,7 @@ class _InvitesSectionState extends State<_InvitesSection> {
                 tags: [
                   AppBadge(
                     icon: AppIcons.shieldCheck,
-                    label: _permissionCount(
+                    label: permissionCountLabel(
                       permissionsFromScopes(
                         store.catalogue,
                         invite.permissions,
@@ -1209,6 +1212,7 @@ class _ApiKeysSummaryState extends State<_ApiKeysSummary> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Stores.apiKeys.loadApiKeys();
+      Stores.invites.loadCatalogue();
     });
   }
 
@@ -1269,7 +1273,7 @@ class _TemplatesSummaryState extends State<_TemplatesSummary> {
         }
         Widget card(Template template) => AppEntityCard(
           title: template.name,
-          subtitle: _schemaSummary(template),
+          tags: _schemaTags(template),
           actions: [
             if (!template.isBuiltin) ...[
               AppSheetAction(
@@ -1308,10 +1312,23 @@ class _TemplatesSummaryState extends State<_TemplatesSummary> {
     );
   }
 
-  String _schemaSummary(Template template) {
+  List<Widget> _schemaTags(Template template) {
     final sections = template.schema['sections'] as List<dynamic>? ?? [];
     final records = template.schema['records'] as List<dynamic>? ?? [];
-    return '${sections.length} sections · ${records.length} root records';
+    return [
+      AppBadge(
+        icon: AppIcons.folder,
+        label: sections.length == 1
+            ? '1 section'
+            : '${sections.length} sections',
+      ),
+      AppBadge(
+        icon: AppIcons.fileText,
+        label: records.length == 1
+            ? '1 root record'
+            : '${records.length} root records',
+      ),
+    ];
   }
 }
 
@@ -1417,7 +1434,10 @@ class _MembersSectionState extends State<_MembersSection> {
                 tags: [
                   AppBadge(
                     icon: AppIcons.shieldCheck,
-                    label: _permissionCount(member.permissions.length, total),
+                    label: permissionCountLabel(
+                      member.permissions.length,
+                      total,
+                    ),
                   ),
                   if (member.isLastAdmin)
                     const AppBadge(
@@ -1491,7 +1511,3 @@ class _ErrorCard extends StatelessWidget {
     );
   }
 }
-
-/// "3/16 permissions", or a bare count while the catalogue is still loading.
-String _permissionCount(int granted, int total) =>
-    total > 0 ? '$granted/$total permissions' : '$granted permissions';

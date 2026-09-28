@@ -27,6 +27,7 @@ class _ApiKeysScreenState extends State<ApiKeysScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Stores.apiKeys.loadApiKeys();
+      Stores.invites.loadCatalogue();
     });
   }
 

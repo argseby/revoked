@@ -6,8 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 ///
 /// The strings arrive inside the request/share itself, so anyone can put
 /// anything there. Trust is stated through exactly one vocabulary
-/// (TrustCopy) and two widgets (TrustPanel for surfaces, TrustClaimText for
-/// inline claims) — the same fact must never read differently on two screens.
+/// (TrustCopy) and its widgets (TrustPanel for surfaces, TrustClaimText or
+/// TrustClaimBadge for inline claims) — the same fact must never read
+/// differently on two screens.
 void main() {
   final request = File(
     'lib/features/requests/view/public_request_screen.dart',
@@ -94,7 +95,7 @@ void main() {
     }
   });
 
-  test('inline domain claims go through TrustClaimText only', () {
+  test('inline domain claims go through TrustClaimText/Badge only', () {
     final picker = File(
       'lib/core/widgets/identity_picker.dart',
     ).readAsStringSync();
@@ -102,7 +103,7 @@ void main() {
       'lib/features/settings/view/settings_screen.dart',
     ).readAsStringSync();
     expect(picker, contains('TrustClaimText('));
-    expect(settings, contains('TrustClaimText('));
+    expect(settings, contains('TrustClaimBadge('));
     for (final (name, source) in [('picker', picker), ('settings', settings)]) {
       expect(
         source.contains('issued by \${') ||

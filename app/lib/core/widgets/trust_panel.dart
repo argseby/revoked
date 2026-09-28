@@ -7,12 +7,13 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 
 /// The one vocabulary for trust across the app. Every screen that states
 /// whether something is proven renders it through [TrustPanel] or
-/// [TrustClaimText] with these exact words — the same fact must never read
+/// [TrustClaimText] / [TrustClaimBadge] with these exact words — the same fact must never read
 /// differently on two screens.
 abstract final class TrustCopy {
   static const verified = 'DNS verified';
@@ -313,17 +314,37 @@ class TrustClaimText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (color, suffix) = switch (state) {
-      TrustCheckState.verified => (scheme.success, TrustCopy.verified),
-      TrustCheckState.spoofed => (scheme.danger, TrustCopy.spoofed),
-      TrustCheckState.revoked => (scheme.danger, TrustCopy.revoked),
-      TrustCheckState.checking => (scheme.onSurfaceVariant, TrustCopy.checking),
-      TrustCheckState.failed => (scheme.danger, TrustCopy.unverified),
-    };
+    final (color, suffix) = _claimStyle(Theme.of(context).colorScheme, state);
     return DefaultTextStyle.merge(
       style: TextStyle(color: color),
       child: Text('$domain · $suffix').small,
     );
   }
 }
+
+/// [TrustClaimText] as a tag, for the tag row of an entity card.
+class TrustClaimBadge extends StatelessWidget {
+  final String domain;
+  final TrustCheckState state;
+
+  const TrustClaimBadge({super.key, required this.domain, required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, suffix) = _claimStyle(Theme.of(context).colorScheme, state);
+    return AppBadge(
+      icon: AppIcons.globe,
+      label: '$domain · $suffix',
+      accent: color,
+    );
+  }
+}
+
+(Color, String) _claimStyle(ColorScheme scheme, TrustCheckState state) =>
+    switch (state) {
+      TrustCheckState.verified => (scheme.success, TrustCopy.verified),
+      TrustCheckState.spoofed => (scheme.danger, TrustCopy.spoofed),
+      TrustCheckState.revoked => (scheme.danger, TrustCopy.revoked),
+      TrustCheckState.checking => (scheme.onSurfaceVariant, TrustCopy.checking),
+      TrustCheckState.failed => (scheme.danger, TrustCopy.unverified),
+    };

@@ -4,7 +4,9 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -219,7 +221,8 @@ Future<void> confirmRevokeApiKey(BuildContext context, String id) async {
   if (confirmed) await Stores.apiKeys.deleteApiKey(id);
 }
 
-/// One key as an expanding card: scopes as pills, revoke at the bottom.
+/// One key as an expanding card: permissions and expiry as pills, revoke at
+/// the bottom.
 class ApiKeyCard extends StatelessWidget {
   final dynamic apiKey;
 
@@ -227,13 +230,34 @@ class ApiKeyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scopes = (apiKey.scopes as List<String>).toSet().toList()..sort();
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
+    final catalogue = Stores.invites.catalogue;
+    final expires = AppEntityCard.formatDate(apiKey.expiresAt as String?);
 
     return AppEntityCard(
       title: apiKey.label,
-      subtitle:
-          '${scopes.length} permissions · Expires ${AppEntityCard.formatDate(apiKey.expiresAt) ?? apiKey.expiresAt}',
-
+      tags: [
+        // Stored scopes are the expanded form, so they are counted as the
+        // permissions they satisfy — the same count members and invites show.
+        if (catalogue.isNotEmpty)
+          AppBadge(
+            icon: AppIcons.shieldCheck,
+            label: permissionCountLabel(
+              permissionsFromScopes(
+                catalogue,
+                apiKey.scopes as List<String>,
+              ).length,
+              catalogue.length,
+            ),
+          ),
+        AppBadge(
+          icon: AppIcons.clock,
+          label: expires == null ? 'Never expires' : 'Expires $expires',
+        ),
+      ],
       actions: [
         AppSheetAction(
           icon: AppIcons.xCircle,

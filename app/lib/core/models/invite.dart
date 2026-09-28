@@ -51,6 +51,10 @@ List<InvitePermission> permissionsFromScopes(
   List<String> scopes,
 ) => catalogue.where((p) => p.isSatisfiedBy(scopes)).toList();
 
+/// "3/16 permissions", or a bare count while the catalogue is still loading.
+String permissionCountLabel(int granted, int total) =>
+    total > 0 ? '$granted/$total permissions' : '$granted permissions';
+
 /// What an invite grants, as returned by `GET /api/public/invites/:token`
 /// before the recipient decides whether to accept.
 class InvitePreview {
