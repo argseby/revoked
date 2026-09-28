@@ -7,9 +7,7 @@ class SignedChallenge {
   final String nonce;
   final String signature;
 
-  /// Identifies the signer to the server. For authenticated flows this is
-  /// the server-assigned identity id; for guest flows it is the ephemeral
-  /// key's fingerprint.
+  /// The server-assigned id of the identity that signed the nonce.
   final String identityId;
 
   SignedChallenge({
@@ -28,7 +26,6 @@ class SignedChallenge {
 class HandshakeService {
   static const String scopeRequest = 'request';
   static const String scopeLink = 'link';
-  static const String scopeRequestGuest = 'request_guest';
 
   final ApiClient _apiClient;
   final CryptoService _cryptoService;
@@ -61,37 +58,6 @@ class HandshakeService {
       nonce: nonce,
       signature: signature,
       identityId: identityId,
-    );
-  }
-
-  /// Prepares a signed challenge for an ephemeral guest identity.
-  ///
-  /// Signs the nonce with the supplied [privateKeyPem] directly — the key
-  /// is never persisted to secure storage — and identifies the signer by
-  /// [fingerprint]. Use this for guests responding to a public request who
-  /// minted a throwaway keypair on the spot.
-  Future<SignedChallenge> prepareGuest({
-    required String slug,
-    required String publicKeyPem,
-    required String privateKeyPem,
-    required String fingerprint,
-  }) async {
-    final response = await _apiClient.get(
-      '/api/challenges/$scopeRequestGuest/$slug',
-      queryParams: {'guestFingerprint': fingerprint},
-    );
-
-    final nonce = response['nonce'] as String;
-
-    final signature = _cryptoService.signWithPrivateKey(
-      privateKeyPem: privateKeyPem,
-      message: nonce,
-    );
-
-    return SignedChallenge(
-      nonce: nonce,
-      signature: signature,
-      identityId: fingerprint,
     );
   }
 }

@@ -188,12 +188,14 @@ func TestRevokedIdentityCannotCompleteAHandshake(t *testing.T) {
 		Expect().Status(http.StatusOK).
 		JSON().Object().Value("nonce").String().Raw()
 
-	first := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":         responderID,
-		"challengeNonce":     nonce,
-		"challengeSignature": responderKP.SignChallenge(t, nonce),
-		"data":               map[string]any{"before": true},
-	}).Expect().Status(http.StatusOK)
+	first := pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":         responderID,
+			"challengeNonce":     nonce,
+			"challengeSignature": responderKP.SignChallenge(t, nonce),
+			"data":               map[string]any{"before": true},
+		}).Expect().Status(http.StatusOK)
 
 	handshakeToken := first.Header("X-Handshake-Token").Raw()
 	if handshakeToken == "" {
@@ -204,11 +206,13 @@ func TestRevokedIdentityCannotCompleteAHandshake(t *testing.T) {
 
 	// The token issued before revocation must stop working too, or revoking
 	// would only lock out identities that had never been used.
-	stale := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":     responderID,
-		"handshakeToken": handshakeToken,
-		"data":           map[string]any{"after": true},
-	}).Expect().Status(http.StatusForbidden).JSON().Object()
+	stale := pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":     responderID,
+			"handshakeToken": handshakeToken,
+			"data":           map[string]any{"after": true},
+		}).Expect().Status(http.StatusForbidden).JSON().Object()
 	stale.Value("code").String().IsEqual(util.Errors.IdentityRevoked.ErrorCode)
 
 	fresh := pub.E.GET("/api/challenges/request/"+slug).
@@ -216,12 +220,14 @@ func TestRevokedIdentityCannotCompleteAHandshake(t *testing.T) {
 		Expect().Status(http.StatusOK).
 		JSON().Object().Value("nonce").String().Raw()
 
-	resigned := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":         responderID,
-		"challengeNonce":     fresh,
-		"challengeSignature": responderKP.SignChallenge(t, fresh),
-		"data":               map[string]any{"after": true},
-	}).Expect().Status(http.StatusForbidden).JSON().Object()
+	resigned := pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":         responderID,
+			"challengeNonce":     fresh,
+			"challengeSignature": responderKP.SignChallenge(t, fresh),
+			"data":               map[string]any{"after": true},
+		}).Expect().Status(http.StatusForbidden).JSON().Object()
 	resigned.Value("code").String().IsEqual(util.Errors.IdentityRevoked.ErrorCode)
 }
 

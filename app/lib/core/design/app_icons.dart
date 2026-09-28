@@ -29,6 +29,7 @@ abstract class AppIcons {
   static const IconData code = Icons.code;
   static const IconData collection = Icons.collections_bookmark_outlined;
   static const IconData copy = Icons.content_copy;
+  static const IconData dash = Icons.remove;
   static const IconData qrCode = Icons.qr_code_2;
   static const IconData qrScan = Icons.qr_code_scanner;
   static const IconData exclamation = Icons.priority_high;
@@ -83,6 +84,8 @@ abstract class AppIcons {
   static const IconData threeDotsVertical = Icons.more_vert;
   static const IconData toggleOn = Icons.toggle_on_outlined;
   static const IconData trash = Icons.delete_outline;
+  static const IconData window = Icons.crop_square;
+  static const IconData windowStack = Icons.filter_none;
   static const IconData x = Icons.close;
   static const IconData xCircle = Icons.cancel_outlined;
 }

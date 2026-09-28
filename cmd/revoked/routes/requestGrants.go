@@ -48,7 +48,8 @@ func RequestGrantsRoute(app core.App) {
 // resolveLinkPayload projects a link into the requester-facing shape, substituting
 // each grant's live vault value for the snapshot. Only an active link resolves;
 // otherwise every granted key drops, as does a grant whose record was deleted —
-// never a stale copy. Non-granted keys (guest answers) fall through from the snapshot.
+// never a stale copy. Non-granted keys (snapshot-only answers, incl. historical
+// guest submissions) fall through from the snapshot.
 func resolveLinkPayload(app core.App, link *core.Record) map[string]any {
 	status := link.GetString(util.Fields.Link.Status)
 

@@ -1,9 +1,6 @@
 package routes
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +9,7 @@ import (
 	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,7 +31,8 @@ const (
 )
 
 // PublicRequestsRoute exposes the public probe and submission endpoints for a request.
-// Same rules as links: slug-only access, no scanning, and password / expiry /
+// The probe follows the link rules — slug-only access, no scanning — while
+// submission additionally requires a signed-in account, with password / expiry /
 // max-responses / handshake / template validation all enforced server-side.
 //
 // root is threaded in so the probe can publish this server's domain claim and root
@@ -102,7 +101,6 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				IdentityId         string            `json:"identityId"`
 				ChallengeNonce     string            `json:"challengeNonce"`
 				ChallengeSignature string            `json:"challengeSignature"`
-				GuestCertificate   string            `json:"guestCertificate"`
 				SenderName         string            `json:"senderName"`
 				Data               map[string]any    `json:"data"`
 				Mappings           map[string]string `json:"mappings"`
@@ -116,6 +114,13 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 
 			if appErr := services.RefreshRequestStatus(app, req); appErr != nil {
 				return resourceErrorResponse(re, appErr)
+			}
+
+			// Answering always requires an account on this server: a grant whose
+			// responder cannot see, update or revoke it is a frozen snapshot, not
+			// a living grant. The probe stays public; only submission is gated.
+			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
+				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.RequestAccountRequired)
 			}
 
 			if hash := req.GetString(util.Fields.Request.Password); hash != "" {
@@ -133,7 +138,6 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 
 			// A defined identifier must be echoed back, which blocks spray-and-pray
 			// submissions against guessed slugs.
-			identifierEnforced := false
 			if expected := req.GetString(util.Fields.Request.Identifier); expected != "" {
 				// A shared secret like the password, so it shares that budget.
 				if !allowRequest(re, gatePasswordLimiter, slug) {
@@ -142,14 +146,9 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				if body.Identifier == "" || body.Identifier != expected {
 					return appErrorResponse(re, http.StatusBadRequest, &util.Errors.RequestIdentifierMissing)
 				}
-				identifierEnforced = true
 				gatePasswordLimiter.Reset(rateLimitKey(re, slug))
 			}
 
-			// Gating: requireHandshake demands a workspace-known identity with a
-			// signed challenge; an identifier alone still demands proof of *some*
-			// keypair via an ephemeral guest cert; neither leaves submission open.
-			//
 			// identityProven gates attribution. Identity ids are public (the probe
 			// returns one), so only a verified signature may record one on the link.
 			identityProven := false
@@ -161,17 +160,11 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 					return nil
 				}
 				identityProven = true
-			} else if identifierEnforced {
-				if !enforceRequestGuestIdentity(app, req, body.GuestCertificate, body.ChallengeNonce, body.ChallengeSignature, re) {
-					return nil
-				}
 			}
 
-			// Mappings are honored only for a signed-in responder: an anonymous
-			// caller must not create aliases in someone else's vault.
 			mappedGrants := map[string]string{}
 			var mappedAliasIds []string
-			if len(body.Mappings) > 0 && re.Auth != nil && re.Auth.Collection().Name == util.Coll.Users {
+			if len(body.Mappings) > 0 {
 				if body.Data == nil {
 					body.Data = map[string]any{}
 				}
@@ -200,45 +193,34 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				return appErrorResponse(re, http.StatusBadRequest, appErr)
 			}
 
-			// A signed-in responder's answers become records in their own vault —
-			// a living, revocable grant rather than a frozen copy. Guests keep
-			// only the snapshot.
-			grantMap := map[string]string{}
-			if re.Auth != nil && re.Auth.Collection().Name == util.Coll.Users {
-				grantMap = createGrantRecords(app, re.Auth, req, body.Data, mappedGrants, mappedAliasIds)
-			}
+			// The responder's answers become records in their own vault — a
+			// living, revocable grant rather than a frozen copy.
+			grantMap := createGrantRecords(app, re.Auth, req, body.Data, mappedGrants, mappedAliasIds)
 
 			senderName := body.SenderName
-			if senderName == "" && body.GuestCertificate != "" {
-				senderName = "guest:" + fingerprintForCert(body.GuestCertificate)[:16]
-			}
 
 			// The answer is minted as a `links` row: its `request` backref lets the
-			// requester aggregate every answer, and `user` stays empty for guests.
+			// requester aggregate every answer.
 			linkCol, err := app.FindCollectionByNameOrId(util.Coll.Links)
 			if err != nil {
 				return re.InternalServerError("Link collection missing", nil)
 			}
 			// The link lives in the responder's workspace so they can revoke it;
-			// guests fall back to the request's only to satisfy the required field.
+			// the request's workspace is only a fallback to satisfy the required
+			// field, since signup always provisions an active workspace.
 			linkWorkspace := req.GetString(util.Fields.Request.Workspace)
-			if re.Auth != nil && re.Auth.Collection().Name == util.Coll.Users {
-				if aw := re.Auth.GetString(util.Fields.User.ActiveWorkspace); aw != "" {
-					linkWorkspace = aw
-				}
+			if aw := re.Auth.GetString(util.Fields.User.ActiveWorkspace); aw != "" {
+				linkWorkspace = aw
 			}
 			// One living grant per (request, responder): re-answering updates the
-			// existing link rather than minting a duplicate. Guests always get a
-			// fresh one.
+			// existing link rather than minting a duplicate.
 			var resp *core.Record
 			isUpdate := false
-			if re.Auth != nil && re.Auth.Collection().Name == util.Coll.Users {
-				if existing, _ := app.FindFirstRecordByFilter(util.Coll.Links,
-					"request = {:r} && user = {:u}",
-					map[string]any{"r": req.Id, "u": re.Auth.Id}); existing != nil {
-					resp = existing
-					isUpdate = true
-				}
+			if existing, _ := app.FindFirstRecordByFilter(util.Coll.Links,
+				"request = {:r} && user = {:u}",
+				map[string]any{"r": req.Id, "u": re.Auth.Id}); existing != nil {
+				resp = existing
+				isUpdate = true
 			}
 			if resp == nil {
 				linkSlug, slugErr := mintLinkSlug(app, req)
@@ -259,9 +241,7 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 			if body.IdentityId != "" && identityProven {
 				resp.Set(util.Fields.Link.Identity, body.IdentityId)
 			}
-			if re.Auth != nil && re.Auth.Collection().Name == util.Coll.Users {
-				resp.Set(util.Fields.Link.User, re.Auth.Id)
-			}
+			resp.Set(util.Fields.Link.User, re.Auth.Id)
 			// Overwritten on update so a re-answer never keeps fields the responder
 			// has since dropped.
 			resp.Set(util.Fields.Link.Data, body.Data)
@@ -513,36 +493,6 @@ func enforceRequestHandshake(app core.App, root *server.RootKey, req *core.Recor
 	re.Response.Header().Set("X-Handshake-Token", newToken)
 	re.Response.Header().Set("Access-Control-Expose-Headers", "X-Handshake-Token")
 	return true
-}
-
-// enforceRequestGuestIdentity covers identifier-only requests, where no known
-// identity exists: the responder proves possession of a one-shot keypair by signing
-// a challenge. The certificate is verified but not persisted — only a short
-// fingerprint survives, as `senderName`.
-//
-// Reports whether the caller may proceed, having already written the refusal
-// when it may not. See [denyGate] for why this is a bool and not an error.
-func enforceRequestGuestIdentity(app core.App, req *core.Record, guestCert, nonce, signature string, re *core.RequestEvent) bool {
-	if guestCert == "" || nonce == "" || signature == "" {
-		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
-	}
-	fp := fingerprintForCert(guestCert)
-	slug := req.GetString(util.Fields.Request.Slug)
-	if !ConsumeChallenge(nonce, "request_guest", slug, fp) {
-		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeInvalid)
-	}
-	if err := util.VerifySignature(guestCert, nonce, signature); err != nil {
-		return denyGate(re, http.StatusUnauthorized, &util.Errors.SignatureInvalid)
-	}
-	_ = app // reserved for audit logging
-	return true
-}
-
-// fingerprintForCert is the hex SHA-256 of a certificate PEM, used as a stable guest
-// identifier.
-func fingerprintForCert(pem string) string {
-	sum := sha256.Sum256([]byte(pem))
-	return hex.EncodeToString(sum[:])
 }
 
 // resolveResponseMappings turns caller-supplied (key → recordId) pairs into a
@@ -879,31 +829,14 @@ func deliverCallback(app core.App, req *core.Record, resp *core.Record, url, sen
 		"senderName": senderName,
 		"data":       resp.Get(util.Fields.Link.Data),
 	}
-	// The callback target is attacker-influenced input this server fetches itself:
-	// validate up front and deliver through a client that refuses redirects and
-	// re-checks the resolved IP at connect time.
-	if err := util.ValidateCallbackURL(url); err != nil {
-		notifyCallbackFailed(app, req, err.Error())
-		return
-	}
 
-	b, _ := json.Marshal(payload)
-	client := util.NewSafeCallbackClient(10 * time.Second)
-	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(b))
+	status, err := services.PostCallback(url, req.Id, payload)
 	if err != nil {
 		notifyCallbackFailed(app, req, err.Error())
 		return
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("X-Revoked-Request", req.Id)
-	httpResp, err := client.Do(httpReq)
-	if err != nil {
-		notifyCallbackFailed(app, req, err.Error())
-		return
-	}
-	defer httpResp.Body.Close()
-	if httpResp.StatusCode >= 400 {
-		notifyCallbackFailed(app, req, "callback returned status "+httpResp.Status)
+	if status >= 400 {
+		notifyCallbackFailed(app, req, "callback returned status "+strconv.Itoa(status))
 	}
 }
 

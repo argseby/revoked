@@ -75,10 +75,8 @@ class CryptoService {
     return signWithPrivateKey(privateKeyPem: pem, message: message);
   }
 
-  /// Variant of [signMessage] used for ephemeral keys (e.g. the in-browser
-  /// guest identity minted on the public response screen). Skips the
-  /// secure-storage lookup so callers can sign with material that was
-  /// generated moments earlier.
+  /// Variant of [signMessage] that skips the secure-storage lookup, for
+  /// callers already holding the key material.
   String signWithPrivateKey({
     required String privateKeyPem,
     required String message,

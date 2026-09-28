@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 
 /// Semantic colors for the common `status` field on links and requests.
 ///
 /// Keep the mapping in one place so every screen renders "active" the
-/// same green-blue, "paused" the same amber, etc.
+/// same green, "paused" the same amber, etc.
 abstract class StatusColors {
   static Color background(ThemeData theme, String status) {
     return _color(theme, status).withValues(alpha: 0.1);
@@ -58,11 +57,11 @@ abstract class StatusColors {
   static Color _color(ThemeData theme, String status) {
     switch (status) {
       case 'active':
-        return theme.colorScheme.primary;
+        return theme.colorScheme.success;
       case 'paused':
         return theme.colorScheme.warning;
       case 'completed':
-        return theme.colorScheme.primary;
+        return theme.colorScheme.success;
       case 'revoked':
       case 'expired':
         return theme.colorScheme.error;

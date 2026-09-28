@@ -12,7 +12,7 @@ import (
 	"github.com/pocketbase/dbx"
 )
 
-// Regression tests for SEC-1..SEC-9 (excluding SEC-8, a rule-precedence bug
+// Regression tests for SEC-1..SEC-10 (excluding SEC-8, a rule-precedence bug
 // covered by TestAccessRegistryMatchesRules): each one fails against the pre-fix code,
 // so deleting it reopens the vulnerability it names.
 
@@ -66,8 +66,9 @@ func TestGrantLinkSlugIsNotDerivableFromRequest(t *testing.T) {
 		util.Fields.Request.Workspace: wsID,
 	})
 
-	// Submit anonymously so a response link gets minted.
-	api.E.POST("/api/public/requests/" + requestSlug).
+	// Submit so a response link gets minted.
+	api.E.POST("/api/public/requests/"+requestSlug).
+		WithHeader("Authorization", token).
 		WithJSON(map[string]any{
 			"data": map[string]any{"favourite_colour": "blue"},
 		}).
@@ -441,10 +442,12 @@ func TestRefusedHandshakeDoesNotRecordTheSubmission(t *testing.T) {
 	}
 
 	// No proof at all.
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId": identityID,
-		"data":       map[string]any{"unsigned": true},
-	}).Expect().Status(http.StatusUnauthorized)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId": identityID,
+			"data":       map[string]any{"unsigned": true},
+		}).Expect().Status(http.StatusUnauthorized)
 	if n := submissionCount(); n != 0 {
 		t.Fatalf("an unsigned submission was recorded (%d)", n)
 	}
@@ -456,22 +459,26 @@ func TestRefusedHandshakeDoesNotRecordTheSubmission(t *testing.T) {
 		JSON().Object().Value("nonce").String().Raw()
 	impostor := testutils.NewTestIdentity(t, "impostor")
 
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":         identityID,
-		"challengeNonce":     nonce,
-		"challengeSignature": impostor.SignChallenge(t, nonce),
-		"data":               map[string]any{"forged": true},
-	}).Expect().Status(http.StatusUnauthorized)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":         identityID,
+			"challengeNonce":     nonce,
+			"challengeSignature": impostor.SignChallenge(t, nonce),
+			"data":               map[string]any{"forged": true},
+		}).Expect().Status(http.StatusUnauthorized)
 	if n := submissionCount(); n != 0 {
 		t.Fatalf("a forged signature was recorded (%d)", n)
 	}
 
 	// A garbage handshake token.
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":     identityID,
-		"handshakeToken": "garbage",
-		"data":           map[string]any{"stolen-token": true},
-	}).Expect().Status(http.StatusUnauthorized)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":     identityID,
+			"handshakeToken": "garbage",
+			"data":           map[string]any{"stolen-token": true},
+		}).Expect().Status(http.StatusUnauthorized)
 	if n := submissionCount(); n != 0 {
 		t.Fatalf("a bogus handshake token was recorded (%d)", n)
 	}
@@ -482,13 +489,102 @@ func TestRefusedHandshakeDoesNotRecordTheSubmission(t *testing.T) {
 		WithQuery("identityId", identityID).
 		Expect().Status(http.StatusOK).
 		JSON().Object().Value("nonce").String().Raw()
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":         identityID,
-		"challengeNonce":     good,
-		"challengeSignature": kp.SignChallenge(t, good),
-		"data":               map[string]any{"genuine": true},
-	}).Expect().Status(http.StatusOK)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":         identityID,
+			"challengeNonce":     good,
+			"challengeSignature": kp.SignChallenge(t, good),
+			"data":               map[string]any{"genuine": true},
+		}).Expect().Status(http.StatusOK)
 	if n := submissionCount(); n != 1 {
 		t.Fatalf("the genuine submission was not recorded (%d)", n)
+	}
+}
+
+// SEC-10: a response must belong to an account. A submission minted without a
+// responder leaves a links row whose `user` is empty and whose workspace is the
+// requester's — the responder can never see, update or revoke it, so the answer
+// is a frozen copy wearing a living grant's clothes. The account gate runs
+// before every other gate, so an anonymous caller cannot use the password or
+// identifier gates as an oracle either.
+func TestAnonymousSubmissionIsRefused(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("CreateRandomUser: %v", err)
+	}
+	wsID := api.Get(util.Coll.Users, userID, token).Expect().Status(http.StatusOK).
+		JSON().Object().Value(util.Fields.User.ActiveWorkspace).String().Raw()
+
+	identityID, _ := newIdentity(t, baseURL, token, "anon-gate", userID, wsID)
+	slug, requestID := setupRequest(t, baseURL, token, userID, wsID, identityID, map[string]any{
+		util.Fields.Request.Password: "topsecret",
+	})
+
+	pub := testutils.NewPBClient(t, baseURL)
+
+	submissionCount := func() int {
+		t.Helper()
+		links, err := app.FindRecordsByFilter(util.Coll.Links,
+			util.Fields.Link.Request+" = {:request}", "", 0, 0,
+			map[string]any{"request": requestID})
+		if err != nil {
+			t.Fatalf("counting submissions: %v", err)
+		}
+		return len(links)
+	}
+
+	// Even holding the password, an anonymous caller is refused — and told it
+	// is the account that is missing, not the password.
+	refused := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
+		"password": "topsecret",
+		"data":     map[string]any{"colour": "blue"},
+	}).Expect().Status(http.StatusUnauthorized).JSON().Object()
+	refused.Value("code").String().IsEqual(util.Errors.RequestAccountRequired.ErrorCode)
+	if n := submissionCount(); n != 0 {
+		t.Fatalf("an anonymous submission was recorded (%d)", n)
+	}
+
+	// An API key authenticates as the apiKeys collection, not a user, so it has
+	// no vault to hold the grant and no workspace to revoke it from.
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("X-API-Key", "not-a-user-credential").
+		WithJSON(map[string]any{
+			"password": "topsecret",
+			"data":     map[string]any{"colour": "blue"},
+		}).Expect().Status(http.StatusUnauthorized)
+	if n := submissionCount(); n != 0 {
+		t.Fatalf("a non-user credential recorded a submission (%d)", n)
+	}
+
+	// The same call from a signed-in responder lands, so the gate refuses on
+	// the credential rather than refusing everything.
+	_, responderToken, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("CreateRandomUser: %v", err)
+	}
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", responderToken).
+		WithJSON(map[string]any{
+			"password": "topsecret",
+			"data":     map[string]any{"colour": "blue"},
+		}).Expect().Status(http.StatusOK)
+
+	links, err := app.FindRecordsByFilter(util.Coll.Links,
+		util.Fields.Link.Request+" = {:request}", "", 0, 0,
+		map[string]any{"request": requestID})
+	if err != nil || len(links) != 1 {
+		t.Fatalf("expected exactly one recorded response, got %d (%v)", len(links), err)
+	}
+	// The grant must be manageable from the responder's side: their user id and
+	// their workspace, not the requester's.
+	if got := links[0].GetString(util.Fields.Link.User); got == "" {
+		t.Fatal("the response link has no owner, so nobody can revoke it")
+	}
+	if got := links[0].GetString(util.Fields.Link.Workspace); got == wsID {
+		t.Fatal("the response link landed in the requester's workspace")
 	}
 }

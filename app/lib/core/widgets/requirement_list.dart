@@ -93,7 +93,7 @@ class _StatusIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final (icon, color) = switch (status) {
-      RequirementStatus.ready => (AppIcons.checkCircle, scheme.primary),
+      RequirementStatus.ready => (AppIcons.checkCircle, scheme.success),
       RequirementStatus.pending => (AppIcons.circle, scheme.onSurfaceVariant),
       RequirementStatus.blocked => (AppIcons.xCircle, scheme.danger),
     };

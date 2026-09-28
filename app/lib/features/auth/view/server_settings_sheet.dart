@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -77,7 +79,7 @@ class ServerSettingsSheet extends StatelessWidget {
                     Icon(
                       ok ? AppIcons.checkCircle : AppIcons.xCircle,
                       size: 16,
-                      color: ok ? scheme.primary : scheme.error,
+                      color: ok ? scheme.success : scheme.error,
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(child: Text(message).small),

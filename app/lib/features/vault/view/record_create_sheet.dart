@@ -426,6 +426,11 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       builder: (sheetCtx) {
         return Observer(
           builder: (ctx) {
+            final done =
+                _store.recordKey.text.trim().isNotEmpty &&
+                    _store.recordKeyWarning == null
+                ? () => Navigator.of(sheetCtx).pop()
+                : null;
             return Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xl,
@@ -451,6 +456,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     onChanged: (v) {
                       _validateKey(v);
                     },
+                    onSubmitted: done == null ? null : (_) => done(),
                   ),
                   if (_store.recordKeyWarning != null) ...[
                     const SizedBox(height: AppSpacing.sm),
@@ -462,7 +468,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                       alignment: Alignment.centerLeft,
                       child: AppButton(
                         icon: AppIcons.stars,
-                        label: 'Use suggested: $_store.recordSuggestedKey',
+                        label: 'Use suggested: ${_store.recordSuggestedKey}',
                         onTap: () {
                           _store.recordKey.text = _store.recordSuggestedKey!;
                           _validateKey(_store.recordKey.text);
@@ -472,15 +478,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    icon: AppIcons.check,
-                    label: 'Done',
-                    onTap:
-                        (_store.recordKey.text.trim().isNotEmpty &&
-                            _store.recordKeyWarning == null)
-                        ? () => Navigator.of(sheetCtx).pop()
-                        : null,
-                  ),
+                  AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
                 ],
               ),
             );

@@ -46,15 +46,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///      requester's reason and cannot be removed. Optional entries can be
 ///      skipped. When the request allows extras, an "Add field" button
 ///      appears so the responder can submit ad-hoc keys.
-///   3. Submission flow:
-///        - requireHandshake → caller must be authenticated and use their
+///   3. Submission flow — always as a signed-in account on the request's
+///      server, so the response link lands in the responder's workspace
+///      where they can update or revoke it:
+///        - requireHandshake → the responder additionally proves their
 ///          workspace identity (signed challenge against the identities
 ///          collection, persistent X-Handshake-Token returned).
-///        - identifier-set without handshake → caller mints an ephemeral
-///          RSA keypair + self-signed cert in-browser and signs a
-///          challenge nonce against it. The server records the cert
-///          fingerprint as the sender's provenance.
-///        - neither → fully open submission.
+///        - otherwise the session JWT alone carries the submission.
 class PublicRequestScreen extends StatefulWidget {
   final String requestSlug;
 
@@ -571,20 +569,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       if (k.isNotEmpty) data[k] = v;
     }
 
-    if (_requireHandshake && _isForeign) {
-      // Identities live on the server that issued them; this link's server
-      // has never seen any of this device's keys.
-      _store.setPublicFormError(
-        'This request requires a verified identity, and it lives on a '
-        'different server than the one you are signed into. Cross-server '
-        'verification is not supported yet.',
-      );
-      return;
-    }
-
     try {
       final stored = await _loadStoredHandshake();
-      String? guestCert;
       SignedChallenge? challenge;
 
       // In handshake mode, sign a fresh challenge every time. The stored token
@@ -610,22 +596,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         );
       }
 
-      if (!_requireHandshake && _hasIdentifier) {
-        final ephemeral = Stores.crypto.generateIdentity(
-          commonName: _store.responderName.text.trim().isEmpty
-              ? 'guest-${widget.requestSlug}'
-              : _store.responderName.text.trim(),
-        );
-        guestCert = ephemeral.publicKeyPem;
-        final fp = Stores.crypto.sha256Hex(ephemeral.publicKeyPem);
-        challenge = await Stores.handshake.prepareGuest(
-          slug: widget.requestSlug,
-          publicKeyPem: ephemeral.publicKeyPem,
-          privateKeyPem: ephemeral.privateKeyPem,
-          fingerprint: fp,
-        );
-      }
-
       final response = await Stores.requests.submitPublicRequest(
         widget.requestSlug,
         password: _store.responderPassword.text.trim().isEmpty
@@ -638,7 +608,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         identityId: identityId,
         challengeNonce: challenge?.nonce,
         challengeSignature: challenge?.signature,
-        guestCertificate: guestCert,
         senderName: _store.responderName.text.trim().isEmpty
             ? null
             : _store.responderName.text.trim(),
@@ -790,7 +759,55 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         ),
       );
     }
+    // Responding requires an account on the request's server: the answer is
+    // minted as a link in the responder's workspace, where they can update
+    // or revoke it later. Without one there is nothing to hold their side
+    // of the grant.
+    if (_isForeign || !Stores.auth.isAuthenticated) {
+      return _buildAccountGate(theme);
+    }
     return _buildForm(theme);
+  }
+
+  Widget _buildAccountGate(ThemeData theme) {
+    final label = _store.publicProbe!['label'] as String? ?? 'Data request';
+    final description = _isForeign
+        ? 'This request lives on ${widget.origin}, and answers are kept as '
+              'revocable grants in your account there. Sign in with an '
+              'account on that server to respond.'
+        : 'Answers are kept in your account as revocable grants — you can '
+              'update or withdraw them at any time. Sign in to respond.';
+
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 440),
+        padding: const EdgeInsets.all(AppSpacing.xxl),
+        child: AppCard(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                AppIcons.personBoundingBox,
+                color: theme.colorScheme.primary,
+                size: 48,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(label).header,
+              const SizedBox(height: AppSpacing.sm),
+              Text(description, textAlign: TextAlign.center).muted.small,
+              const SizedBox(height: AppSpacing.xl),
+              AppButton(
+                icon: AppIcons.boxArrowInRight,
+                label: 'Sign in',
+                style: AppButtonStyle.primary,
+                onTap: () => context.go(AppRoutes.login),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildTerminal(ThemeData theme, AppErrorMessage msg) {
@@ -925,8 +942,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     // Live status per gate: whether THIS responder can pass it right now.
     // Green needs nothing, grey is a field still to fill, red names whose
     // problem it is - the sender's restriction or the reader's account.
-    final hasIdentities =
-        Stores.auth.isAuthenticated && Stores.identities.identities.isNotEmpty;
+    // The account gate runs before this panel, so the responder is always
+    // signed in on this server by the time it renders.
+    final hasIdentities = Stores.identities.identities.isNotEmpty;
     final hasRootIdentity = Stores.identities.identities.any(
       (i) => i.domainAtIssue == _serverDomain,
     );
@@ -936,22 +954,14 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         RequirementItem(
           icon: AppIcons.personBoundingBox,
           title: 'Verified identity',
-          status: _isForeign
-              ? RequirementStatus.blocked
-              : hasIdentities
+          status: hasIdentities
               ? RequirementStatus.ready
               : RequirementStatus.blocked,
-          description: _isForeign
-              ? 'This request lives on a different server than you are '
-                    'signed into; cross-server verification is not '
-                    'supported yet.'
-              : hasIdentities
+          description: hasIdentities
               ? 'Your response is signed with your identity, so the '
                     'requester knows it came from you.'
-              : Stores.auth.isAuthenticated
-              ? 'You have no identity yet - create one under '
-                    'Account before responding.'
-              : 'Sign in and create an identity to respond.',
+              : 'You have no identity yet - create one under '
+                    'Account before responding.',
         ),
       if (_requireHandshake && _identityScope == 'from_root')
         RequirementItem(
@@ -1250,13 +1260,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               hint: 'Identifier the requester gave you',
             ),
           ),
-        if (_hasIdentifier && !_requireHandshake) ...[
-          const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'A one-time identity is generated on this device to sign your '
-            'submission — no account needed.',
-          ).muted.small,
-        ],
       ],
     );
   }
@@ -1339,12 +1342,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
-              child: Text(
-                Stores.auth.isAuthenticated
-                    ? 'This request needs a verified identity. Create one in '
-                          'Account → Identities.'
-                    : 'This request needs a verified identity. Sign in and '
-                          'create one to respond.',
+              child: const Text(
+                'This request needs a verified identity. Create one in '
+                'Account → Identities.',
               ).muted.small,
             ),
           ],
@@ -1377,8 +1377,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     final linkedId = _store.publicLinked[item.key];
     final linked = linkedId == null ? null : _recordById(linkedId);
     final excluded = _store.publicExcluded.contains(item.key);
-    final canUseVault =
-        Stores.auth.isAuthenticated && _store.responderVault.isNotEmpty;
+    final canUseVault = _store.responderVault.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),

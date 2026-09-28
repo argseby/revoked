@@ -6,10 +6,11 @@ import 'package:revoked_app/core/design/radius.dart';
 class AppTheme {
   AppTheme._();
 
-  /// Deep green: `active` renders as [ColorScheme.primary], so the traffic-light
-  /// reading of a status list — green active, amber paused, red revoked — falls
-  /// out of the scheme instead of being painted on top of it.
-  static const Color seed = Color(0xAC19A676);
+  /// Deep slate blue. The chrome is what the reader looks past all day, so it
+  /// stays quiet and near-neutral; the colors that must be noticed — the
+  /// status traffic light, the phishing alarm — are roles of their own in
+  /// `app_colors.dart` rather than tones of this.
+  static const Color seed = Color(0xFF2F4156);
 
   static ThemeData build(Brightness brightness) {
     final scheme = ColorScheme.fromSeed(

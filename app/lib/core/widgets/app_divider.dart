@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
@@ -7,6 +6,11 @@ import 'package:revoked_app/core/design/text_styles.dart';
 /// vertical space of its own — separators between rows must not add rhythm the
 /// spacing scale didn't ask for.
 class AppDivider extends StatelessWidget {
+  /// Draws the rule down rather than across, for separating a row's controls
+  /// from each other. Takes no horizontal space of its own, and sizes to
+  /// whatever height it is given.
+  final bool vertical;
+
   /// Insets both ends so the line starts where the content does, for rules
   /// drawn between rows inside a card.
   final bool inset;
@@ -20,6 +24,7 @@ class AppDivider extends StatelessWidget {
 
   const AppDivider({
     super.key,
+    this.vertical = false,
     this.inset = false,
     this.spaced = false,
     this.label,
@@ -27,6 +32,13 @@ class AppDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (vertical) {
+      return VerticalDivider(
+        width: spaced ? AppSpacing.lg : 1,
+        indent: inset ? AppSpacing.lg : 0,
+        endIndent: inset ? AppSpacing.lg : 0,
+      );
+    }
     if (label != null) {
       return Row(
         children: [

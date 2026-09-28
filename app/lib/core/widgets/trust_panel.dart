@@ -123,7 +123,7 @@ class _TrustPanelState extends State<TrustPanel> {
           headline = TrustCopy.checking;
           detail = 'Verifying against public DNS…';
         } else if (_allVerified) {
-          accent = scheme.primary;
+          accent = scheme.success;
           icon = AppIcons.shieldCheck;
           headline = TrustCopy.allGood;
           detail = TrustCopy.allGoodDetail;
@@ -240,7 +240,7 @@ class _CheckRow extends StatelessWidget {
     final (icon, color, stateLabel) = switch (check.state) {
       TrustCheckState.verified => (
         AppIcons.checkCircle,
-        scheme.primary,
+        scheme.success,
         TrustCopy.verified,
       ),
       TrustCheckState.failed => (
@@ -315,7 +315,7 @@ class TrustClaimText extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final (color, suffix) = switch (state) {
-      TrustCheckState.verified => (scheme.primary, TrustCopy.verified),
+      TrustCheckState.verified => (scheme.success, TrustCopy.verified),
       TrustCheckState.spoofed => (scheme.danger, TrustCopy.spoofed),
       TrustCheckState.revoked => (scheme.danger, TrustCopy.revoked),
       TrustCheckState.checking => (scheme.onSurfaceVariant, TrustCopy.checking),

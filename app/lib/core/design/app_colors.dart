@@ -6,8 +6,14 @@ import 'package:flutter/material.dart';
 /// Nothing in the app names a raw `Colors.*` swatch: a fixed swatch is tuned
 /// for one background and goes illegible on the other.
 extension AppColorRoles on ColorScheme {
+  /// Good — an active link, a completed request. A status list reads as a
+  /// traffic light (green active, amber paused, red revoked), which no longer
+  /// falls out of the seed now that the chrome is slate rather than green.
+  Color get success =>
+      brightness == Brightness.light ? _successLight : _successDark;
+
   /// Caution — paused links, unverified identities. Not a failure, so it must
-  /// not reuse [error], and not a success, so it must not reuse [primary].
+  /// not reuse [error], and not a success, so it must not reuse [success].
   Color get warning =>
       brightness == Brightness.light ? _warningLight : _warningDark;
 
@@ -38,6 +44,9 @@ extension AppColorRoles on ColorScheme {
   Color get inverseError =>
       brightness == Brightness.light ? _errorDark : _errorLight;
 }
+
+const Color _successLight = Color(0xFF216A4D);
+const Color _successDark = Color(0xFF8ED5B1);
 
 const Color _warningLight = Color(0xFF7A5900);
 const Color _warningDark = Color(0xFFF2C24B);

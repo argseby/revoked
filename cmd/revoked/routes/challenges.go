@@ -103,16 +103,11 @@ func ChallengeRoute(app core.App) {
 			scope := re.Request.PathValue("scope")
 			slug := re.Request.PathValue("slug")
 			identityId := re.Request.URL.Query().Get("identityId")
-			guestFp := re.Request.URL.Query().Get("guestFingerprint")
 
 			switch scope {
 			case "link", "request":
 				if identityId == "" {
 					return re.BadRequestError("identityId is required for this scope", nil)
-				}
-			case "request_guest":
-				if guestFp == "" {
-					return re.BadRequestError("guestFingerprint is required for this scope", nil)
 				}
 			default:
 				return re.BadRequestError("unknown scope", nil)
@@ -121,11 +116,7 @@ func ChallengeRoute(app core.App) {
 				return re.BadRequestError("slug is required", nil)
 			}
 
-			subject := identityId
-			if subject == "" {
-				subject = guestFp
-			}
-			nonce, exp, err := IssueChallenge(scope, slug, subject)
+			nonce, exp, err := IssueChallenge(scope, slug, identityId)
 			if err != nil {
 				return re.InternalServerError("Failed to issue challenge", nil)
 			}

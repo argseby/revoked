@@ -48,6 +48,7 @@ var Errors = struct {
 	RequestPasswordRequired       AppError
 	RequestPasswordInvalid        AppError
 	RequestIdentifierMissing      AppError
+	RequestAccountRequired        AppError
 	HandshakeRequired             AppError
 	HandshakeInvalid              AppError
 	HandshakeFailed               AppError
@@ -242,6 +243,10 @@ var Errors = struct {
 	RequestIdentifierMissing: AppError{
 		ErrorCode: "request_identifier_missing",
 		ErrorText: "The identifier is missing or does not match.",
+	},
+	RequestAccountRequired: AppError{
+		ErrorCode: "request_account_required",
+		ErrorText: "An account on this server is required to respond to a request.",
 	},
 	HandshakeRequired: AppError{
 		ErrorCode: "handshake_required",

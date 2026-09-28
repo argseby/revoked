@@ -9,6 +9,7 @@ import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
+import 'package:revoked_app/core/widgets/window_chrome.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
@@ -153,7 +154,8 @@ class _AppShellState extends State<AppShell> {
           _slot(ShellSlots.action),
           _slot(ShellSlots.filter),
           const _NotificationBell(),
-          AppSpacing.gapXs,
+          // The window's own buttons land here, drawn by the shared overlay.
+          const WindowControlsGap(),
         ],
       ),
       body: widget.child,

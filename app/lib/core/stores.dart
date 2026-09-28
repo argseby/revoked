@@ -9,14 +9,15 @@ import 'package:revoked_app/core/theme/theme_store.dart';
 import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/store/server_settings_store.dart';
-import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
-import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
+import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
+import 'package:revoked_app/features/shell/store/link_searchre.dart';
+import 'package:revoked_app/features/shell/store/link_searcht';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 
@@ -32,6 +33,7 @@ abstract final class Stores {
   static const WorkspaceContext workspaceContext = WorkspaceContext();
 
   static late final ThemeStore theme;
+  static late final WindowStore window;
   static late final AuthStore auth;
   static late final VaultStore vault;
   static late final SharesStore shares;
@@ -65,6 +67,8 @@ abstract final class Stores {
     theme = ThemeStore();
     await theme.load();
 
+    window = WindowStore();
+
     auth = AuthStore(api);
     // A rejected session drops to the login screen from wherever it happened.
     api.onUnauthorized = () => unawaited(auth.handleSessionExpired());
@@ -80,6 +84,11 @@ abstract final class Stores {
     serverSettings = ServerSettingsStore(api);
     linkSearch = LinkSearchStore();
     onboarding = OnboardingStore();
+
+    // Not awaited: the window answers in its own time and the chrome appears
+    // when it does. Awaiting a platform channel here would hold the first
+    // frame on it.
+    unawaited(window.initialize());
 
     // Deliberately not awaited here: restoring the session is a network call,
     // and awaiting it before runApp meant the first frame waited on the

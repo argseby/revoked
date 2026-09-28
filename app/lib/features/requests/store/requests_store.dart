@@ -1,14 +1,13 @@
-import 'package:revoked_app/core/state/observable_text_controller.dart';
-import 'package:revoked_app/core/models/trust_verdict.dart';
-import 'package:revoked_app/core/models/record.dart';
-import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:mobx/mobx.dart';
-
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/models/record.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/request_template.dart';
+import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'requests_store.g.dart';
 
@@ -238,6 +237,10 @@ abstract class _RequestsStore with Store {
   final ObservableTextController draftCallback = ObservableTextController();
   final ObservableTextController draftMaxResponses = ObservableTextController();
 
+  /// In-flight flag for the callback test, so the button can show its spinner.
+  @observable
+  bool callbackTesting = false;
+
   @observable
   String? draftIdentityId;
 
@@ -456,6 +459,44 @@ abstract class _RequestsStore with Store {
     }
   }
 
+  /// Sends one sample delivery to [url] and reports what came back.
+  ///
+  /// The server does the sending, through the same client a real submission
+  /// uses: a POST from here would say nothing about whether the server can
+  /// reach the hook, and on web it would not leave the browser at all.
+  @action
+  Future<CallbackTestResult> testCallback(
+    String url, {
+    String? requestId,
+  }) async {
+    callbackTesting = true;
+    try {
+      final body = await _api.post(
+        '/api/requests/callback-test',
+        body: {
+          'url': url,
+          if (requestId != null && requestId.isNotEmpty) 'requestId': requestId,
+        },
+      );
+      final map = body as Map<String, dynamic>;
+      return CallbackTestResult(
+        ok: map['ok'] as bool? ?? false,
+        code: map['code'] as String? ?? '',
+        detail: (map['detail'] as String? ?? '').trim(),
+      );
+    } catch (e) {
+      // The server never answered, so nothing was sent anywhere — a different
+      // failure from the hook refusing, and it must not read like one.
+      return CallbackTestResult(
+        ok: false,
+        code: CallbackTestResult.codeApi,
+        detail: e.toString(),
+      );
+    } finally {
+      callbackTesting = false;
+    }
+  }
+
   @action
   Future<bool> updateRequest(String id, Map<String, dynamic> body) async {
     try {
@@ -559,7 +600,6 @@ abstract class _RequestsStore with Store {
     String? identityId,
     String? challengeNonce,
     String? challengeSignature,
-    String? guestCertificate,
     String? senderName,
     Map<String, dynamic>? data,
     Map<String, String>? mappings,
@@ -574,7 +614,6 @@ abstract class _RequestsStore with Store {
         'identityId': ?identityId,
         'challengeNonce': ?challengeNonce,
         'challengeSignature': ?challengeSignature,
-        'guestCertificate': ?guestCertificate,
         'senderName': ?senderName,
         'data': ?data,
         'mappings': ?mappings,
@@ -656,4 +695,30 @@ abstract class _RequestsStore with Store {
       counter++;
     }
   }
+}
+
+/// What the server got back from a callback URL under test.
+class CallbackTestResult {
+  /// This server may not go there: the target resolves to loopback or a
+  /// private range, which the callback policy refuses by default.
+  static const String codeBlocked = 'blocked';
+
+  /// It could not get there — connection refused, DNS, timeout.
+  static const String codeUnreachable = 'unreachable';
+
+  /// It got there and the hook answered 4xx/5xx.
+  static const String codeStatus = 'status';
+
+  /// The test never left: this app could not reach its own server.
+  static const String codeApi = 'api';
+
+  final bool ok;
+  final String code;
+  final String detail;
+
+  const CallbackTestResult({
+    required this.ok,
+    required this.detail,
+    this.code = '',
+  });
 }

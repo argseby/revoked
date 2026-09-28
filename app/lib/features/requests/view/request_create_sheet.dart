@@ -5,7 +5,6 @@ import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, TextInputFormatter;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
@@ -30,6 +29,7 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
@@ -327,6 +327,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                     _buildMaxResponsesRow(),
                     _buildExpiryRow(),
                     _buildCallbackRow(),
+                    _buildCallbackTestRow(),
 
                     const AppFormSectionHeader('Developer'),
                     Padding(
@@ -744,6 +745,66 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
         keyboardType: TextInputType.url,
       ),
     );
+  }
+
+  /// Sits under the callback row only once there is something to test.
+  Widget _buildCallbackTestRow() {
+    return Observer(
+      builder: (context) {
+        final url = _store.draftCallback.text.trim();
+        if (url.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            0,
+            AppSpacing.xl,
+            AppSpacing.sm,
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: AppButton(
+              icon: AppIcons.send,
+              label: 'Send test payload',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              busy: _store.callbackTesting,
+              onTap: () => _testCallback(url),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _testCallback(String url) async {
+    final result = await _store.testCallback(
+      url,
+      requestId: widget.editRequest?.id,
+    );
+    if (!mounted) return;
+    if (result.ok) {
+      AppToast.success(context, 'Callback reached', subtitle: result.detail);
+      return;
+    }
+    // Every one of these reads as "not found" if you only print what came
+    // back, and each has a different fix.
+    final title = switch (result.code) {
+      CallbackTestResult.codeBlocked => 'Address not allowed',
+      CallbackTestResult.codeUnreachable => 'Could not reach the endpoint',
+      CallbackTestResult.codeStatus => 'The endpoint refused it',
+      CallbackTestResult.codeApi => 'Could not ask the server to send',
+      _ => 'Callback failed',
+    };
+    final hint = switch (result.code) {
+      CallbackTestResult.codeBlocked =>
+        'The server refuses loopback and private addresses by default. For a '
+            'hook on this machine or your LAN, run the server with '
+            'ALLOW_PRIVATE_CALLBACKS=true.',
+      CallbackTestResult.codeApi =>
+        'The server may be running a build without the callback test endpoint.',
+      _ => result.detail,
+    };
+    AppToast.error(context, title, subtitle: hint);
   }
 
   Future<void> _editText({

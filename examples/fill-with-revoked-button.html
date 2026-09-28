@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>"Fill with revoked" button</title>
+<style>
+  :root {
+    --navy: #1D232E;
+    --cream: #F2EDE2;
+    --paper: #FAF8F1;
+    --muted: #6B7280;
+    --line: #E3DDCE;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--navy);
+    font: 15px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 { font-size: 26px; line-height: 1.2; margin: 0 0 12px; }
+  p  { margin: 0 0 16px; }
+  .muted { color: var(--muted); }
+  ol { margin: 0 0 24px; padding-left: 22px; }
+  ol li { margin-bottom: 6px; }
+  code { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--navy);
+    font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  input[type="text"]:focus { outline: 2px solid var(--navy); outline-offset: -1px; }
+  .hint { font-size: 13px; margin-top: 6px; min-height: 20px; }
+  .hint.bad { color: #B4231F; }
+
+  .panels { display: flex; gap: 12px; flex-wrap: wrap; margin: 24px 0; }
+  .panel {
+    flex: 1 1 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 36px 24px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+  }
+  .panel.light { background: #fff; }
+  .panel.dark  { background: #14181F; }
+
+  .snippetbox { position: relative; margin: 8px 0 24px; }
+  pre {
+    margin: 0;
+    padding: 18px;
+    background: var(--navy);
+    color: var(--cream);
+    border-radius: 14px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .copybtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 6px 14px;
+    border: 1px solid rgba(242, 237, 226, .3);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--cream);
+    font: 600 13px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer;
+  }
+  .copybtn:hover { background: rgba(242, 237, 226, .1); }
+  h2 { font-size: 18px; margin: 40px 0 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>&ldquo;Fill with revoked&rdquo; button</h1>
+  <p>
+    A button any website can embed to point visitors at one of your
+    <strong>requests</strong>. Clicking it opens the request in the revoked
+    app &mdash; requests are answered only there, where the server is verified
+    before anything is typed, so there is no web form for a phisher to imitate.
+  </p>
+  <ol>
+    <li>In the app, open the request&rsquo;s share sheet and copy the <strong>App link</strong>.</li>
+    <li>Paste it below.</li>
+    <li>Copy the snippet into your site&rsquo;s HTML.</li>
+  </ol>
+
+  <label for="applink">Request app link</label>
+  <input type="text" id="applink" placeholder="revoked://r/your-server.example/your-request-slug"
+         spellcheck="false" autocomplete="off">
+  <p class="hint muted" id="hint">Paste the App link from the request&rsquo;s share sheet.</p>
+
+  <h2>Preview</h2>
+  <p class="muted">The same snippet on a light and a dark page &mdash; one button covers both.</p>
+  <div class="panels">
+    <div class="panel light" id="preview-light"></div>
+    <div class="panel dark" id="preview-dark"></div>
+  </div>
+
+  <h2>Snippet</h2>
+  <div class="snippetbox">
+    <pre><code id="snippet"></code></pre>
+    <button type="button" class="copybtn" id="copy">Copy</button>
+  </div>
+
+  <p class="muted">
+    The button is a single self-contained anchor: inline styles, inline SVG, no
+    script, no external assets. A visitor without the app installed sees nothing
+    happen when they click, so pair the button with a line telling them where to
+    get revoked.
+  </p>
+</main>
+
+<script>
+  var PLACEHOLDER = 'revoked://r/your-server.example/your-request-slug';
+
+  function buttonHtml(link) {
+    return '<a href="' + escapeAttr(link) + '" title="Opens in the revoked app"\n' +
+      '   style="display:inline-flex;align-items:center;gap:10px;padding:10px 18px;background:#1D232E;color:#F2EDE2;border:1px solid rgba(242,237,226,.18);border-radius:10px;font:600 15px/1 system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;text-decoration:none">\n' +
+      '  <svg width="27" height="18" viewBox="0 0 36 24" fill="none" aria-hidden="true">\n' +
+      '    <circle cx="11" cy="12" r="9" fill="#F2EDE2"/>\n' +
+      '    <circle cx="24" cy="12" r="7.5" stroke="#F2EDE2" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 4.6"/>\n' +
+      '  </svg>\n' +
+      '  Fill with revoked\n' +
+      '</a>';
+  }
+
+  function escapeAttr(s) {
+    return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  var input = document.getElementById('applink');
+  var hint = document.getElementById('hint');
+  var snippet = document.getElementById('snippet');
+  var previews = [
+    document.getElementById('preview-light'),
+    document.getElementById('preview-dark'),
+  ];
+
+  function render() {
+    var raw = input.value.trim();
+    var valid = /^revoked:\/\/(r|request)\/\S+$/i.test(raw);
+    if (raw && !valid) {
+      hint.textContent = 'That doesn’t look like a request app link — it starts with revoked://r/';
+      hint.className = 'hint bad';
+    } else {
+      hint.textContent = 'Paste the App link from the request’s share sheet.';
+      hint.className = 'hint muted';
+    }
+    var link = valid ? raw : PLACEHOLDER;
+    var html = buttonHtml(link);
+    snippet.textContent = html;
+    previews.forEach(function (p) { p.innerHTML = html; });
+  }
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var btn = this;
+    var done = function () {
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(snippet.textContent).then(done);
+    } else {
+      var range = document.createRange();
+      range.selectNodeContents(snippet);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand('copy');
+      sel.removeAllRanges();
+      done();
+    }
+  });
+
+  input.addEventListener('input', render);
+  render();
+</script>
+</body>
+</html>

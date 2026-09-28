@@ -49,45 +49,54 @@ func TestRequestsPasswordAndIdentifier(t *testing.T) {
 
 	pub := testutils.NewPBClient(t, baseURL)
 
+	_, responderToken, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
 	t.Run("Request collection cannot be scanned anonymously", func(t *testing.T) {
 		body := pub.E.GET("/api/collections/" + util.Coll.Requests + "/records").
 			Expect().Status(http.StatusOK).JSON().Object()
 		body.Value("items").Array().Length().IsEqual(0)
 	})
 
-	t.Run("Missing password is unauthorized", func(t *testing.T) {
-		pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
+	t.Run("Anonymous submission is refused before any gate", func(t *testing.T) {
+		resp := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
+			"password":   "topsecret",
 			"identifier": "must-match-this",
 			"data":       map[string]any{"key": "value"},
-		}).Expect().Status(http.StatusUnauthorized)
+		}).Expect().Status(http.StatusUnauthorized).JSON().Object()
+		resp.Value("code").String().IsEqual(util.Errors.RequestAccountRequired.ErrorCode)
+	})
+
+	t.Run("Missing password is unauthorized", func(t *testing.T) {
+		pub.E.POST("/api/public/requests/"+slug).
+			WithHeader("Authorization", responderToken).
+			WithJSON(map[string]any{
+				"identifier": "must-match-this",
+				"data":       map[string]any{"key": "value"},
+			}).Expect().Status(http.StatusUnauthorized).JSON().Object().
+			Value("code").String().IsEqual(util.Errors.RequestPasswordRequired.ErrorCode)
 	})
 
 	t.Run("Wrong identifier is rejected", func(t *testing.T) {
-		pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-			"password":   "topsecret",
-			"identifier": "wrong",
-			"data":       map[string]any{"key": "value"},
-		}).Expect().Status(http.StatusBadRequest)
+		pub.E.POST("/api/public/requests/"+slug).
+			WithHeader("Authorization", responderToken).
+			WithJSON(map[string]any{
+				"password":   "topsecret",
+				"identifier": "wrong",
+				"data":       map[string]any{"key": "value"},
+			}).Expect().Status(http.StatusBadRequest)
 	})
 
 	t.Run("Correct password+identifier accepts submission", func(t *testing.T) {
-		// Identifier mode requires a guest identity: an ephemeral keypair
-		// signing a freshly fetched challenge.
-		guest := testutils.NewTestIdentity(t, "guest")
-		nonce := pub.E.GET("/api/challenges/request_guest/"+slug).
-			WithQuery("guestFingerprint", guest.Fingerprint()).
-			Expect().Status(http.StatusOK).
-			JSON().Object().Value("nonce").String().Raw()
-		sig := guest.SignChallenge(t, nonce)
-
-		body := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-			"password":           "topsecret",
-			"identifier":         "must-match-this",
-			"guestCertificate":   guest.CertificatePem,
-			"challengeNonce":     nonce,
-			"challengeSignature": sig,
-			"data":               map[string]any{"x": 1},
-		}).Expect().Status(http.StatusOK).JSON().Object()
+		body := pub.E.POST("/api/public/requests/"+slug).
+			WithHeader("Authorization", responderToken).
+			WithJSON(map[string]any{
+				"password":   "topsecret",
+				"identifier": "must-match-this",
+				"data":       map[string]any{"x": 1},
+			}).Expect().Status(http.StatusOK).JSON().Object()
 		body.Value("ok").Boolean().IsTrue()
 	})
 }
@@ -110,14 +119,30 @@ func TestRequestsMaxResponses(t *testing.T) {
 	})
 
 	pub := testutils.NewPBClient(t, baseURL)
-	body := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"data": map[string]any{"first": true},
-	}).Expect().Status(http.StatusOK).JSON().Object()
+
+	// Distinct responders: a re-answer by the same account updates their link
+	// and deliberately does not count against maxResponses.
+	_, firstToken, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	_, secondToken, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	body := pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", firstToken).
+		WithJSON(map[string]any{
+			"data": map[string]any{"first": true},
+		}).Expect().Status(http.StatusOK).JSON().Object()
 	body.Value("completed").Boolean().IsTrue()
 
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"data": map[string]any{"second": true},
-	}).Expect().Status(http.StatusGone)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", secondToken).
+		WithJSON(map[string]any{
+			"data": map[string]any{"second": true},
+		}).Expect().Status(http.StatusGone)
 }
 
 func TestRequestsAutoExpire(t *testing.T) {
@@ -162,10 +187,12 @@ func TestRequestsHandshake(t *testing.T) {
 
 	pub := testutils.NewPBClient(t, baseURL)
 
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId": identityID,
-		"data":       map[string]any{"first": true},
-	}).Expect().Status(http.StatusUnauthorized)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId": identityID,
+			"data":       map[string]any{"first": true},
+		}).Expect().Status(http.StatusUnauthorized)
 
 	nonce := pub.E.GET("/api/challenges/request/"+slug).
 		WithQuery("identityId", identityID).
@@ -173,34 +200,42 @@ func TestRequestsHandshake(t *testing.T) {
 		JSON().Object().Value("nonce").String().Raw()
 	signature := kp.SignChallenge(t, nonce)
 
-	first := pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":         identityID,
-		"challengeNonce":     nonce,
-		"challengeSignature": signature,
-		"data":               map[string]any{"first": true},
-	}).Expect().Status(http.StatusOK)
+	first := pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":         identityID,
+			"challengeNonce":     nonce,
+			"challengeSignature": signature,
+			"data":               map[string]any{"first": true},
+		}).Expect().Status(http.StatusOK)
 
 	token1 := first.Header("X-Handshake-Token").Raw()
 	if token1 == "" {
 		t.Fatal("expected handshake token in response header")
 	}
 
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId": identityID,
-		"data":       map[string]any{"second": true},
-	}).Expect().Status(http.StatusUnauthorized)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId": identityID,
+			"data":       map[string]any{"second": true},
+		}).Expect().Status(http.StatusUnauthorized)
 
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":     identityID,
-		"handshakeToken": token1,
-		"data":           map[string]any{"second": true},
-	}).Expect().Status(http.StatusOK)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":     identityID,
+			"handshakeToken": token1,
+			"data":           map[string]any{"second": true},
+		}).Expect().Status(http.StatusOK)
 
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"identityId":     identityID,
-		"handshakeToken": "garbage",
-		"data":           map[string]any{"third": true},
-	}).Expect().Status(http.StatusUnauthorized)
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", token).
+		WithJSON(map[string]any{
+			"identityId":     identityID,
+			"handshakeToken": "garbage",
+			"data":           map[string]any{"third": true},
+		}).Expect().Status(http.StatusUnauthorized)
 }
 
 func TestCertificateRouteHidesPrivateKey(t *testing.T) {

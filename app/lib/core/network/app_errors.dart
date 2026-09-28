@@ -57,6 +57,7 @@ abstract class AppErrorCode {
   static const requestPasswordRequired = 'request_password_required';
   static const requestPasswordInvalid = 'request_password_invalid';
   static const requestIdentifierMissing = 'request_identifier_missing';
+  static const requestAccountRequired = 'request_account_required';
 
   static const handshakeRequired = 'handshake_required';
   static const handshakeInvalid = 'handshake_invalid';
@@ -390,6 +391,14 @@ class AppErrorMessage {
           title: 'Identifier required',
           description:
               'You need to provide the identifier the sender gave you.',
+          code: e.code,
+        );
+      case AppErrorCode.requestAccountRequired:
+        return AppErrorMessage(
+          title: 'Account required',
+          description:
+              'Responding to a request requires an account on its server, '
+              'so your answer stays under your control.',
           code: e.code,
         );
 

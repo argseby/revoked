@@ -8,6 +8,7 @@ import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/utils/paste_link_shortcut.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/window_chrome.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 
@@ -32,6 +33,7 @@ class _RevokedAppState extends State<RevokedApp> {
   void initState() {
     super.initState();
     _router = AppRouter.create(Stores.auth);
+    WindowTitleBar.attach();
 
     // Links delivered while the app is already running.
     _deepLinks.onLink(_handleDeepLink);

@@ -63,7 +63,7 @@ with the reason in the message.
 | `slug` | The request's public slug. |
 | `responseId` | The response link's id. Stable across updates by the same responder. |
 | `linkId` | Same value as `responseId` (legacy alias — responses *are* links). |
-| `identity` | The responder's identity id, **only if it was cryptographically proven** by a handshake. A merely claimed identity is dropped, never delivered. Empty for guests. |
+| `identity` | The responder's identity id, **only if it was cryptographically proven** by a handshake. A merely claimed identity is dropped, never delivered. Empty when the request did not require a handshake. |
 | `identifier` | The identifier the responder entered, when the request requires one. |
 | `senderName` | The free-text name the responder typed. Unverified — display data, not an identity. |
 | `data` | Key → value map of the fields the responder **typed directly**. |
@@ -113,6 +113,38 @@ against the request id you expect. For anything security-relevant, verify the
 data through the API rather than trusting the pushed payload; the `identity`
 field is only as trustworthy as your confidence the payload really came from
 your server.
+
+## Testing the URL
+
+The request editor has a **Send test payload** button under the callback field.
+It posts one sample delivery and tells you what came back — a status, a refusal,
+or a timeout — so a wrong URL surfaces while you are still typing it rather than
+on the first real submission.
+
+The send happens **on the server**, through the client a real delivery uses, so
+the result answers the question that matters: can *this host* reach that URL
+under the policy above. It is `POST /api/requests/callback-test` if you want it
+from a script.
+
+The sample has the shape of a real payload with obviously fake values, plus one
+extra field:
+
+```json
+{ "...": "...", "test": true }
+```
+
+Branch on `test` so an example never lands in a CRM as a real answer. While the
+request is unsaved the id and slug are placeholders; once it exists they are the
+real ones, and `X-Revoked-Request` carries the real request id.
+
+A failure comes back as a `code`, because all three otherwise read as "not
+found" and each has a different fix:
+
+| `code` | Means | Fix |
+|---|---|---|
+| `blocked` | The policy above refuses the address. | `ALLOW_PRIVATE_CALLBACKS=true` for a loopback or LAN hook. |
+| `unreachable` | Nothing answered — refused, DNS, or timeout. | Check the host and port from *the server's* network, not yours. |
+| `status` | The hook answered 4xx/5xx. | Its own logs. n8n answers 404 on a `/webhook-test/` URL unless the editor is listening, and on a production URL unless the workflow is active. |
 
 ## Testing locally
 

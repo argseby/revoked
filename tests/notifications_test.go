@@ -25,10 +25,16 @@ func TestNotificationsCreatedOnRequestSubmission(t *testing.T) {
 	slug, _ := setupRequest(t, baseURL, token, userID, wsID, identityID, map[string]any{})
 
 	pub := testutils.NewPBClient(t, baseURL)
-	pub.E.POST("/api/public/requests/" + slug).WithJSON(map[string]any{
-		"senderName": "external client",
-		"data":       map[string]any{"hello": "world"},
-	}).Expect().Status(http.StatusOK)
+	_, responderToken, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	pub.E.POST("/api/public/requests/"+slug).
+		WithHeader("Authorization", responderToken).
+		WithJSON(map[string]any{
+			"senderName": "external client",
+			"data":       map[string]any{"hello": "world"},
+		}).Expect().Status(http.StatusOK)
 
 	// The notification itself is written synchronously; this only absorbs the
 	// fire-and-forget callback goroutine on slow CI machines.

@@ -19,6 +19,7 @@ const (
 	envLimitGate      = "RATELIMIT_GATE_ATTEMPTS"
 	envLimitProbe     = "RATELIMIT_PROBE_REQUESTS"
 	envLimitChallenge = "RATELIMIT_CHALLENGE_REQUESTS"
+	envLimitCallback  = "RATELIMIT_CALLBACK_TESTS"
 )
 
 var (
@@ -32,6 +33,12 @@ var (
 
 	// challengeLimiter covers nonce issuance, keyed by IP.
 	challengeLimiter = util.NewRateLimiter(limitFromEnv(envLimitChallenge, 60), time.Minute)
+
+	// callbackTestLimiter covers the callback test button, keyed by the signed-in
+	// caller. Not part of ConfigureRateLimits: that switches off the public
+	// surface for the test harness, and a per-user budget this size is no
+	// obstacle to a suite that fires a handful of tests.
+	callbackTestLimiter = util.NewRateLimiter(limitFromEnv(envLimitCallback, 20), time.Minute)
 )
 
 // ConfigureRateLimits replaces the public-surface limiters (0 disables one). For the

@@ -12,7 +12,7 @@ import 'package:revoked_app/core/widgets/app_dialog.dart';
 /// as bad as no badge at all.
 ///
 /// State → color mapping:
-///   verified    → primary (typically green/blue)
+///   verified    → success (green)
 ///   dnsMissing  → warning (caution, not failure)
 ///   unverified  → warning
 ///   spoofed     → destructive (red)
@@ -150,9 +150,9 @@ class AppTrustBadge extends StatelessWidget {
     switch (state) {
       case TrustState.verified:
         return _BadgePalette(
-          background: theme.colorScheme.primary.withValues(alpha: 0.1),
-          border: theme.colorScheme.primary.withValues(alpha: 0.4),
-          foreground: theme.colorScheme.primary,
+          background: theme.colorScheme.success.withValues(alpha: 0.1),
+          border: theme.colorScheme.success.withValues(alpha: 0.4),
+          foreground: theme.colorScheme.success,
           icon: Icons.verified_outlined,
         );
       case TrustState.spoofed:
