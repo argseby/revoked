@@ -300,6 +300,7 @@ padding: 12px 20px;
 display: flex;
 align-items: center;
 justify-content: space-between;
+gap: 12px;
 border-bottom: 1px solid var(--border);
 }
 
@@ -309,6 +310,19 @@ font-weight: 600;
 display: flex;
 align-items: center;
 gap: 8px;
+min-width: 0;
+}
+
+.card-header-title > span:first-child,
+.card-header-title > .key-tag {
+min-width: 0;
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+}
+
+.card-header > .badge {
+flex-shrink: 0;
 }
 
 .badge {
@@ -727,25 +741,24 @@ var out = document.getElementById('out');
 out.textContent = '';
 
 var rootRecords = data.records || [];
-if (rootRecords.length > 0) {
-var card = el('div', 'card');
-var header = el('div', 'card-header');
-header.appendChild(el('div', 'card-header-title', 'General Records'));
-header.appendChild(el('span', 'badge', rootRecords.length + (rootRecords.length === 1 ? ' item' : ' items')));
-card.appendChild(header);
-
-rootRecords.forEach(function(r) {
-card.appendChild(renderRecordItem(r));
-});
-out.appendChild(card);
-}
-
 var sections = data.sections || [];
+
+// A section arrives as the ids of its records; the records themselves come
+// once, at the top level, and only those the share still grants.
+var byId = {};
+rootRecords.forEach(function(r) { if (r && r.id) byId[r.id] = r; });
+var inSections = {};
 sections.forEach(function(s) {
-var secRecords = (s.records || []).filter(function(r) { return r && typeof r === 'object'; });
+(s.records || []).forEach(function(id) { inSections[id] = true; });
+});
+var looseRecords = rootRecords.filter(function(r) { return !inSections[r.id]; });
+
+sections.forEach(function(s) {
+var secRecords = (s.records || []).map(function(id) { return byId[id]; }).filter(Boolean);
 var card = el('div', 'card');
 var header = el('div', 'card-header');
-var title = el('div', 'card-header-title', s.name || 'Section');
+var title = el('div', 'card-header-title');
+title.appendChild(el('span', '', s.name || 'Section'));
 if (s.key) {
 title.appendChild(el('span', 'key-tag', '(' + s.key + ')'));
 }
@@ -764,6 +777,21 @@ card.appendChild(renderRecordItem(r));
 }
 out.appendChild(card);
 });
+
+if (looseRecords.length > 0) {
+var card = el('div', 'card');
+var header = el('div', 'card-header');
+var title = el('div', 'card-header-title');
+title.appendChild(el('span', '', 'General Records'));
+header.appendChild(title);
+header.appendChild(el('span', 'badge', looseRecords.length + (looseRecords.length === 1 ? ' item' : ' items')));
+card.appendChild(header);
+
+looseRecords.forEach(function(r) {
+card.appendChild(renderRecordItem(r));
+});
+out.appendChild(card);
+}
 
 if (!rootRecords.length && !sections.length) {
 var emptyCard = el('div', 'card card-pad');

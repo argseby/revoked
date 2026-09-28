@@ -607,6 +607,19 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     final records = rawRecords.whereType<Map<String, dynamic>>().toList();
     final sections = rawSections.whereType<Map<String, dynamic>>().toList();
 
+    // A section arrives as the ids of its records; the records themselves come
+    // once, in the top-level list, and only those the share still grants.
+    final byId = {
+      for (final r in records)
+        if (r['id'] case final String id) id: r,
+    };
+    List<String> memberIds(Map<String, dynamic> section) =>
+        (section['records'] as List<dynamic>? ?? const [])
+            .whereType<String>()
+            .toList();
+    final inSections = {for (final s in sections) ...memberIds(s)};
+    final loose = records.where((r) => !inSections.contains(r['id'])).toList();
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -644,28 +657,26 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         ),
         AppSpacing.gapLg,
 
-        if (records.isNotEmpty) ...[
+        for (final s in sections)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+            child: _PublicSectionCard(
+              section: s,
+              records: [for (final id in memberIds(s)) ?byId[id]],
+              slug: widget.shareSlug,
+              origin: widget.origin,
+            ),
+          ),
+
+        if (loose.isNotEmpty) ...[
           _RecordGroupCard(
             title: 'General Records',
             icon: AppIcons.fileText,
-            records: records,
+            records: loose,
             slug: widget.shareSlug,
             origin: widget.origin,
           ),
           AppSpacing.gapLg,
-        ],
-
-        if (sections.isNotEmpty) ...[
-          ...sections.map(
-            (s) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-              child: _PublicSectionCard(
-                section: s,
-                slug: widget.shareSlug,
-                origin: widget.origin,
-              ),
-            ),
-          ),
         ],
 
         if (records.isEmpty && sections.isEmpty)
@@ -768,14 +779,27 @@ class _RecordGroupCard extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      Text(title).header,
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ).header,
+                      ),
                       if (subtitle != null && subtitle!.isNotEmpty) ...[
                         AppSpacing.gapXs,
-                        Text(subtitle!).muted.small.mono,
+                        Flexible(
+                          child: Text(
+                            subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ).muted.small.mono,
+                        ),
                       ],
                     ],
                   ),
                 ),
+                AppSpacing.gapSm,
                 AppBadge(
                   label:
                       '${records.length} ${records.length == 1 ? 'item' : 'items'}',
@@ -812,11 +836,13 @@ class _RecordGroupCard extends StatelessWidget {
 
 class _PublicSectionCard extends StatelessWidget {
   final Map<String, dynamic> section;
+  final List<Map<String, dynamic>> records;
   final String slug;
   final String? origin;
 
   const _PublicSectionCard({
     required this.section,
+    required this.records,
     required this.slug,
     required this.origin,
   });
@@ -825,16 +851,12 @@ class _PublicSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = section['name'] as String? ?? 'Section';
     final key = section['key'] as String? ?? '';
-    final recordsList = section['records'];
-    final List<Map<String, dynamic>> inline = recordsList is List
-        ? recordsList.whereType<Map<String, dynamic>>().toList(growable: false)
-        : <Map<String, dynamic>>[];
 
     return _RecordGroupCard(
       title: name,
       subtitle: key.isNotEmpty ? '($key)' : null,
       icon: AppIcons.folder,
-      records: inline,
+      records: records,
       slug: slug,
       origin: origin,
     );
