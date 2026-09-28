@@ -69,6 +69,11 @@ abstract class AppErrorCode {
   static const invalidCertificate = 'invalid_certificate';
 
   static const bookmarkGroupNotOwned = 'bookmark_group_not_owned';
+  static const fileNotWatermarkable = 'file_not_watermarkable';
+  static const applicationNeedsWatermark = 'application_needs_watermark';
+  static const recordNotFound = 'record_not_found';
+  static const watermarkTextInvalid = 'watermark_text_invalid';
+  static const archiveEmpty = 'archive_empty';
 }
 
 /// Translates an [ApiException] into a short, user-friendly message and a
@@ -430,6 +435,46 @@ class AppErrorMessage {
           title: 'Identity not found',
           description: 'The identity you selected no longer exists.',
           code: e.code,
+        );
+      case AppErrorCode.fileNotWatermarkable:
+        return AppErrorMessage(
+          title: 'File not available',
+          description:
+              'This share stamps its files, and this file type cannot be '
+              'stamped, so it is not handed out.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.applicationNeedsWatermark:
+        return AppErrorMessage(
+          title: 'Watermark required',
+          description:
+              'An application link always stamps its files. Turn the '
+              'watermark on to save it.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.recordNotFound:
+        return AppErrorMessage(
+          title: 'Record not found',
+          description: 'This record no longer exists or is not yours to open.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.watermarkTextInvalid:
+        return AppErrorMessage(
+          title: 'Invalid stamp text',
+          description:
+              'The stamp text must be a single line of 1 to 120 characters.',
+          code: e.code,
+        );
+      case AppErrorCode.archiveEmpty:
+        return AppErrorMessage(
+          title: 'Nothing to download',
+          description:
+              'None of the files in this share can be put in an archive.',
+          code: e.code,
+          isTerminal: true,
         );
       case AppErrorCode.bookmarkGroupNotOwned:
         return AppErrorMessage(

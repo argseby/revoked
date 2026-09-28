@@ -23,6 +23,12 @@ class Link {
   /// Whether the public viewer is required to hold a handshake token.
   final bool requireHandshake;
 
+  /// Whether every file the share serves is stamped with [watermarkTag].
+  final bool watermark;
+
+  /// Replaces the label in the stamp; empty uses the label.
+  final String watermarkText;
+
   /// Whether the link is password-gated. The real hash is never sent: the
   /// owner-facing API masks it to a fixed placeholder when set and to empty
   /// when not, so a non-empty `password` field means "has a password". The
@@ -51,6 +57,8 @@ class Link {
     this.maxViews = 0,
     this.expiresAt,
     this.requireHandshake = false,
+    this.watermark = false,
+    this.watermarkText = '',
     this.hasPassword = false,
     this.identity,
     this.request = '',
@@ -58,6 +66,11 @@ class Link {
 
   /// Legacy alias used by older UI code. Prefer [viewCount].
   int get views => viewCount;
+
+  /// The short reference printed in every stamp, matching the server's: a
+  /// leaked copy carrying it points back at this share.
+  String get watermarkTag =>
+      (id.length > 6 ? id.substring(0, 6) : id).toLowerCase();
 
   /// True when this link was created by approving a request (vs a manual share).
   bool get isFromRequest => request.isNotEmpty;
@@ -100,6 +113,8 @@ class Link {
       maxViews: maxViews,
       expiresAt: expiresAt,
       requireHandshake: json['requireHandshake'] as bool? ?? false,
+      watermark: json['watermark'] as bool? ?? false,
+      watermarkText: json['watermarkText'] as String? ?? '',
       hasPassword: hasPassword,
       identity: json['identity'] as String?,
       request: json['request'] as String? ?? '',
@@ -121,6 +136,8 @@ class Link {
     int? maxViews,
     String? expiresAt,
     bool? requireHandshake,
+    bool? watermark,
+    String? watermarkText,
     bool? hasPassword,
     String? identity,
     String? request,
@@ -140,6 +157,8 @@ class Link {
       maxViews: maxViews ?? this.maxViews,
       expiresAt: expiresAt ?? this.expiresAt,
       requireHandshake: requireHandshake ?? this.requireHandshake,
+      watermark: watermark ?? this.watermark,
+      watermarkText: watermarkText ?? this.watermarkText,
       hasPassword: hasPassword ?? this.hasPassword,
       identity: identity ?? this.identity,
       request: request ?? this.request,

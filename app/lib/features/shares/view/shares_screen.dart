@@ -387,6 +387,14 @@ class _ShareCard extends StatelessWidget {
     if (share.requireHandshake) {
       out.add(const AppBadge(icon: AppIcons.shieldCheck, label: 'Handshake'));
     }
+    if (share.watermark) {
+      out.add(
+        AppBadge(
+          icon: AppIcons.watermark,
+          label: 'Watermark #${share.watermarkTag}',
+        ),
+      );
+    }
     out.add(AppBadge(icon: AppIcons.folder, label: '${share.sections.length}'));
     out.add(
       AppBadge(icon: AppIcons.cardList, label: '${share.records.length}'),

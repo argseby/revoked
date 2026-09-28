@@ -295,6 +295,8 @@ paths:
                   status: { type: string, enum: [active, paused, revoked, expired] }
                   requiresPassword: { type: boolean }
                   requireHandshake: { type: boolean, description: Whether a proven identity is required. }
+                  watermarked: { type: boolean, description: Whether served files are stamped with who they were sent to. }
+                  purpose: { type: string, description: "`application` marks a rental application, which is always watermarked; empty for a plain share." }
                   identity: { type: string }
                   sharer: { $ref: "#/components/schemas/Sharer" }
                   server: { $ref: "#/components/schemas/ServerClaim" }
@@ -337,6 +339,7 @@ paths:
                 properties:
                   slug: { type: string }
                   label: { type: string }
+                  purpose: { type: string, description: "`application`, or empty for a plain share." }
                   identity: { type: string }
                   sections: { type: array, items: { type: object } }
                   records:
@@ -347,6 +350,13 @@ paths:
                       never a second claim and never claim-free.
                     items: { type: object }
                   viewCount: { type: integer }
+                  watermark: { type: string, description: The stamp line; present only on a watermarked share. }
+                  archiveToken:
+                    type: string
+                    description: |
+                      Present when the share grants at least one file. Opens
+                      `/api/public/links/{slug}/archive` once, within two
+                      minutes, like a `downloadToken`.
         "401":
           description: The password gate refused. `link_password_required` or `link_password_invalid`.
           content:
@@ -392,6 +402,45 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/public/links/{slug}/archive:
+    get:
+      tags: [Shares]
+      summary: Download every shared file as a zip
+      description: |
+        A zip of every file the share grants, directly or through its
+        sections, authorised by the `archiveToken` the resolve returned. Like a
+        `downloadToken`, it carries that resolve's view claim, is single-use
+        and bound to this slug.
+
+        On a watermarked share every entry is a stamped copy, and a file that
+        cannot be stamped is left out — never included unmarked. Entries are
+        named after the file, deduplicated as `name (2).pdf`.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+        - name: dl
+          in: query
+          required: true
+          description: The `archiveToken` from the resolve response.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The archive, as an attachment named after the share.
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "401":
+          description: "`file_download_invalid`: the token was missing, spent, or not for this share."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "404":
+          description: "`archive_empty` when no file could go in, or the share no longer exists."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /s/{slug}:
     get:
@@ -612,6 +661,88 @@ paths:
             application/json:
               schema: { type: object }
         "401": { $ref: "#/components/responses/AppError" }
+
+  /api/links/{id}/archive:
+    get:
+      tags: [Grants]
+      summary: Download a share's files as its recipient gets them
+      description: |
+        The owner's copy of the share's archive: the same zip the public
+        archive serves, stamped when the share is watermarked. It claims no
+        view. Only files the caller may read go in.
+      security:
+        - Session: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The archive, as an attachment named after the share.
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/AppError" }
+        "404":
+          description: "`link_not_found` when the caller cannot see the share; `archive_empty` when no file could go in."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/stamp-preview:
+    post:
+      tags: [Records]
+      summary: Preview a file with a stamp on it
+      description: |
+        Returns a stamped copy of a file record the caller may read. Pass
+        `text` to try a stamp before creating a share — the line ends in
+        `#preview`, so the copy can never pass for one read through a real
+        share. Or pass `link` to see exactly what that share hands out; the
+        share must grant the record. When `link` is set, `text` is ignored.
+      security:
+        - Session: []
+        - ApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [record]
+              properties:
+                record: { type: string, description: The file record's id. }
+                text: { type: string, description: "One line of 1 to 120 characters, trimmed." }
+                link: { type: string, description: A share's id. }
+      responses:
+        "200":
+          description: The stamped copy, as an attachment named `<name>-preview<ext>`.
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+        "400":
+          description: "`watermark_text_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "404":
+          description: "`record_not_found` or `link_not_found`: missing, not visible to the caller, not a file, or not granted by the share."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "415":
+          description: "`file_not_watermarkable`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /api/requests/callback-test:
     post:

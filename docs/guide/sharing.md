@@ -59,6 +59,43 @@ web URL, so a phone camera works without the app installed).
   panel that checks the sender's DNS record from the browser, and a hand-off
   button to open the share in the app.
 
+## Watermarking files
+
+Turn on **Watermark files** when creating or editing a share, and every
+image and PDF it serves is stamped on the way out with who it was sent
+to: your watermark text (or the share's label), the date, and a short
+tag such as `#a3f9c1` that appears on the share's card. A leaked copy or
+screenshot therefore names the share it came through. The stamp is tiled
+across the whole page, so it cannot be cropped away, and your stored
+file is never changed. Files that cannot be stamped (text, archives,
+documents other than PDF) are not served on a watermarked share. Values
+shown as text get a visible overlay on the share page, which deters but
+cannot stop copying.
+
+## Application links
+
+A share created with `purpose: application` is a rental application. It
+must be watermarked — the server refuses one that is not
+(`application_needs_watermark`), including switching the watermark off
+later. Its page groups the applicant's details and documents into their own
+cards, and the first time the landlord opens it you get a *Your application
+was opened* notification; later opens do not repeat it.
+
+Once the landlord has opened it, **Download all (.zip)** saves every document
+in one archive, each stamped exactly like a single download; a file that
+cannot be stamped is left out rather than included unmarked. The button works
+once per opening — reloading the page issues a fresh one. As the owner you can
+download the same archive yourself (`GET /api/links/{id}/archive`, which
+spends no view), and preview a stamp on any of your files before sharing it
+(`POST /api/stamp-preview`); a preview's stamp ends in `#preview`, so it can
+never be mistaken for a copy someone actually received.
+
+The web client in `web/` — *Mietunterlagen provided by Revoked* — is built
+around them: keep your documents once, black out ID card numbers or text in a
+PDF in the browser before the file is uploaded, and create one expiring link
+per listing. It is served as static files next to
+the API — see `web/README.md`.
+
 ## Bookmarking a share you received
 
 Signed in, **Bookmark** on an open share saves it to the *Bookmarks* tab under

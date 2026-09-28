@@ -5,6 +5,7 @@ import (
 	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -51,6 +52,8 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 				"status":           link.GetString(util.Fields.Link.Status),
 				"requiresPassword": link.GetString(util.Fields.Link.Password) != "",
 				"requireHandshake": link.GetBool(util.Fields.Link.RequireHandshake),
+				"watermarked":      link.GetBool(util.Fields.Link.Watermark),
+				"purpose":          link.GetString(util.Fields.Link.Purpose),
 				"identity":         link.GetString(util.Fields.Link.Identity),
 				"sharer":           sharer,
 				"server": map[string]any{
@@ -113,6 +116,7 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 			if err != nil {
 				return resourceErrorResponse(re, &util.Errors.LinkMaxViewsReached)
 			}
+			notifyApplicationOpened(app, link, currentViews)
 
 			sectionIds := link.GetStringSlice(util.Fields.Link.Sections)
 			recordIds := link.GetStringSlice(util.Fields.Link.Records)
@@ -149,18 +153,48 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 					util.Coll.Links, link.Id)
 			}
 
-			return re.JSON(http.StatusOK, map[string]any{
+			resolved := map[string]any{
 				"slug":      link.GetString(util.Fields.Link.Slug),
 				"label":     link.GetString(util.Fields.Link.Label),
+				"purpose":   link.GetString(util.Fields.Link.Purpose),
 				"identity":  link.GetString(util.Fields.Link.Identity),
 				"sections":  sections,
 				"records":   records,
 				"viewCount": currentViews,
-			})
+			}
+			if len(services.LinkFileRecords(app, link)) > 0 {
+				if token, tokenErr := issueArchiveToken(slug); tokenErr == nil {
+					resolved["archiveToken"] = token
+				}
+			}
+			return re.JSON(http.StatusOK, withWatermark(link, resolved))
 		})
 
 		return e.Next()
 	})
+}
+
+// notifyApplicationOpened tells an applicant their application was opened. Only
+// the first claimed view announces it, so reloads do not repeat it.
+func notifyApplicationOpened(app core.App, link *core.Record, views int) {
+	if views != 1 || link.GetString(util.Fields.Link.Purpose) != util.PurposeApplication {
+		return
+	}
+	services.EmitNotification(app, link.GetString(util.Fields.Link.User),
+		link.GetString(util.Fields.Link.Workspace),
+		util.NotificationLinkOpened,
+		"Your application was opened",
+		link.GetString(util.Fields.Link.Label),
+		util.Coll.Links, link.Id)
+}
+
+// withWatermark adds the stamp line to a watermarked share's resolve, so a
+// viewer can lay the same line over the values it shows as text.
+func withWatermark(link *core.Record, body map[string]any) map[string]any {
+	if link.GetBool(util.Fields.Link.Watermark) {
+		body["watermark"] = services.WatermarkLine(link, time.Now())
+	}
+	return body
 }
 
 // sanitizeRecord returns only public-safe fields from a section/record entity.

@@ -11,6 +11,9 @@ import (
 // the hash out of API responses; the public route verifies it server-side.
 func BindLinkHooks(app core.App) {
 	app.OnRecordCreate(util.Coll.Links).BindFunc(func(e *core.RecordEvent) error {
+		if err := requireApplicationWatermark(e.Record); err != nil {
+			return err
+		}
 		resolvePasswordWrite(e.Record, util.Fields.Link.Password)
 		if e.Record.GetString(util.Fields.Link.Status) == "" {
 			e.Record.Set(util.Fields.Link.Status, util.StatusActive)
@@ -19,6 +22,9 @@ func BindLinkHooks(app core.App) {
 	})
 
 	app.OnRecordUpdate(util.Coll.Links).BindFunc(func(e *core.RecordEvent) error {
+		if err := requireApplicationWatermark(e.Record); err != nil {
+			return err
+		}
 		resolvePasswordWrite(e.Record, util.Fields.Link.Password)
 		// The transition is only visible before the save, and may only be
 		// announced once it commits. Auto-revoke by max-views notifies on its
@@ -42,6 +48,16 @@ func BindLinkHooks(app core.App) {
 		}
 		return e.Next()
 	})
+}
+
+// requireApplicationWatermark refuses an application link that would hand its
+// documents out unstamped.
+func requireApplicationWatermark(rec *core.Record) error {
+	if rec.GetString(util.Fields.Link.Purpose) == util.PurposeApplication &&
+		!rec.GetBool(util.Fields.Link.Watermark) {
+		return util.AsFieldValidationError(util.Fields.Link.Watermark, util.Errors.ApplicationNeedsWatermark)
+	}
+	return nil
 }
 
 // isNewlyRevoked reports whether this update flips the link to revoked from

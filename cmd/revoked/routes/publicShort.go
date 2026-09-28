@@ -224,12 +224,13 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 				sections = append(sections, sanitizeRecord(rec))
 			}
 		}
-		return re.JSON(http.StatusOK, map[string]any{
+		return re.JSON(http.StatusOK, withWatermark(link, map[string]any{
 			"slug": slug, "label": link.GetString(util.Fields.Link.Label),
+			"purpose": link.GetString(util.Fields.Link.Purpose),
 			"records": records, "sections": sections,
 			"updated_at": iso(updatedAt), "verified": verified,
 			"viewCount": link.GetInt(util.Fields.Link.ViewCount),
-		})
+		}))
 	}
 }
 
@@ -450,10 +451,11 @@ func vEscape(s string) string {
 // at the cap. Returns false when the cap was already consumed — the caller must then
 // withhold the data.
 func countLinkView(app core.App, link *core.Record) bool {
-	_, revokedByLimit, err := services.ClaimLinkView(app, link)
+	views, revokedByLimit, err := services.ClaimLinkView(app, link)
 	if err != nil {
 		return false
 	}
+	notifyApplicationOpened(app, link, views)
 	if revokedByLimit {
 		services.EmitNotification(app, link.GetString(util.Fields.Link.User),
 			link.GetString(util.Fields.Link.Workspace),

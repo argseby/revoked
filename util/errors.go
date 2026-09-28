@@ -81,7 +81,12 @@ var Errors = struct {
 	FileStorageExceeded           AppError
 	FileAliasUnsupported          AppError
 	FileDownloadInvalid           AppError
+	FileNotWatermarkable          AppError
+	ApplicationNeedsWatermark     AppError
 	FileNameInvalid               AppError
+	RecordNotFound                AppError
+	WatermarkTextInvalid          AppError
+	ArchiveEmpty                  AppError
 	InviteRevoked                 AppError
 	InviteExhausted               AppError
 	InviteWrongAccount            AppError
@@ -213,9 +218,29 @@ var Errors = struct {
 		ErrorCode: "file_download_invalid",
 		ErrorText: "The download token is invalid or expired. Reopen the link to request a new one.",
 	},
+	FileNotWatermarkable: AppError{
+		ErrorCode: "file_not_watermarkable",
+		ErrorText: "This share stamps its files, and this file cannot be stamped, so it is not served.",
+	},
+	ApplicationNeedsWatermark: AppError{
+		ErrorCode: "application_needs_watermark",
+		ErrorText: "An application link must stamp its files.",
+	},
 	FileNameInvalid: AppError{
 		ErrorCode: "file_name_invalid",
 		ErrorText: "A file name cannot be empty or contain path separators.",
+	},
+	RecordNotFound: AppError{
+		ErrorCode: "record_not_found",
+		ErrorText: "Record not found.",
+	},
+	WatermarkTextInvalid: AppError{
+		ErrorCode: "watermark_text_invalid",
+		ErrorText: "A stamp text must be a single line of 1 to 120 characters.",
+	},
+	ArchiveEmpty: AppError{
+		ErrorCode: "archive_empty",
+		ErrorText: "This share has no files that can be downloaded together.",
 	},
 	RequestRevoked: AppError{
 		ErrorCode: "request_revoked",

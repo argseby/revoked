@@ -83,6 +83,13 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         _ => Stores.identities.primaryIdentity?.id,
       },
       requireHandshake: link?.requireHandshake ?? false,
+      // A share watermarked without its own text stamps its label, so that
+      // is what the row shows and what stays stamped on save.
+      watermarkText: switch (link) {
+        final l? when l.watermark =>
+          l.watermarkText.isNotEmpty ? l.watermarkText : l.label,
+        _ => '',
+      },
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -126,6 +133,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         'expiresAt': _store.draftExpiresAt?.toIso8601String() ?? '',
         'identity': _store.draftIdentityId ?? '',
         'requireHandshake': _store.draftRequireHandshake,
+        'watermark': _store.draftWatermark,
+        'watermarkText': _store.draftWatermarkText.text.trim(),
       };
       return Stores.shares.updateShareSpec(widget.editShare!.id, updates);
     }
@@ -143,6 +152,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       expiresAt: _store.draftExpiresAt,
       identityId: _store.draftIdentityId,
       requireHandshake: _store.draftRequireHandshake,
+      watermark: _store.draftWatermark,
+      watermarkText: _store.draftWatermarkText.text.trim(),
     );
   }
 
@@ -154,6 +165,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         'maxViews': int.tryParse(_store.draftMaxViews.text) ?? 0,
         'identity': _store.draftIdentityId ?? '',
         'requireHandshake': _store.draftRequireHandshake,
+        'watermark': _store.draftWatermark,
+        'watermarkText': _store.draftWatermarkText.text.trim(),
       };
       if (_store.draftPassword.text.isNotEmpty) {
         updates['password'] = _store.draftPassword.text;
@@ -194,6 +207,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       expiresAt: _store.draftExpiresAt,
       identityId: _store.draftIdentityId,
       requireHandshake: _store.draftRequireHandshake,
+      watermark: _store.draftWatermark,
+      watermarkText: _store.draftWatermarkText.text.trim(),
     );
     if (!mounted) return false;
     if (!ok) {
@@ -283,6 +298,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                     _buildMaxViewsRow(),
                     _buildExpiryRow(),
                     _buildPasswordRow(),
+                    _buildWatermarkRow(),
 
                     const AppFormSectionHeader('Verification'),
                     _buildVerificationSection(),
@@ -371,6 +387,30 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       isPlaceholder: slug.isEmpty,
       isError: slug.isEmpty || _store.draftSlugWarning != null,
       onTap: _editSlug,
+    );
+  }
+
+  Widget _buildWatermarkRow() {
+    final v = _store.draftWatermarkText.text.trim();
+    final tag = widget.editShare?.watermarkTag;
+    return AppFormRow(
+      icon: AppIcons.watermark,
+      label: 'Watermark',
+      valueText: v.isEmpty ? 'Not set' : v,
+      isPlaceholder: v.isEmpty,
+      onClear: v.isEmpty ? null : _store.draftWatermarkText.clear,
+      onTap: () async {
+        await showAppEditSheet(
+          context: context,
+          title: 'Watermark',
+          description:
+              'Every image and PDF is stamped with this text, the date and '
+              'the share tag${tag == null ? '' : ' (#$tag)'}. Other file '
+              'types are not served. Leave blank for no watermark.',
+          controller: _store.draftWatermarkText,
+          hint: 'e.g. Nur für Wohnungsbewerbung Musterstr. 5',
+        );
+      },
     );
   }
 

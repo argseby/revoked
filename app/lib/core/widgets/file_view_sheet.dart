@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/files/file_opener.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
 
 /// Raster formats Flutter decodes on every platform. SVG is left out on
 /// purpose: it is a document that can carry scripts and links, not a picture.
@@ -59,6 +61,43 @@ bool canViewInApp({
   required String filename,
   required int size,
 }) => _kindOf(mime, filename, size) != null;
+
+/// The one "View" for file bytes, wherever they came from: images and text
+/// open in the app from memory, anything else in the app the OS uses for
+/// that type.
+Future<void> viewFile(
+  BuildContext context, {
+  required Uint8List bytes,
+  required String filename,
+  String? mime,
+}) async {
+  Future<void> openExternally() async {
+    final ok = await openFileOnDevice(
+      bytes: bytes,
+      filename: filename,
+      mime: mime,
+    );
+    if (!ok && context.mounted) {
+      AppToast.error(
+        context,
+        'No app could open this file',
+        subtitle: 'Download it instead and open it from there.',
+      );
+    }
+  }
+
+  if (canViewInApp(mime: mime, filename: filename, size: bytes.length)) {
+    await showFileViewSheet(
+      context,
+      bytes: bytes,
+      filename: filename,
+      mime: mime,
+      onOpenExternally: openExternally,
+    );
+  } else {
+    await openExternally();
+  }
+}
 
 /// Shows an image or a text file from memory; nothing is written to disk.
 Future<void> showFileViewSheet(

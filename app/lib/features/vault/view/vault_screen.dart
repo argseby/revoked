@@ -8,7 +8,6 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
-import 'package:revoked_app/core/files/file_opener.dart';
 import 'package:revoked_app/core/widgets/file_view_sheet.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/models/link.dart';
@@ -1521,36 +1520,12 @@ class _RecordCardState extends State<_RecordCard> {
       );
       return;
     }
-    Future<void> openExternally() async {
-      final ok = await openFileOnDevice(
-        bytes: bytes,
-        filename: r.displayName,
-        mime: r.mime,
-      );
-      if (!ok && mounted) {
-        AppToast.error(
-          context,
-          'No app could open this file',
-          subtitle: 'Download it instead and open it from there.',
-        );
-      }
-    }
-
-    if (canViewInApp(
-      mime: r.mime,
+    await viewFile(
+      context,
+      bytes: bytes,
       filename: r.displayName,
-      size: bytes.length,
-    )) {
-      await showFileViewSheet(
-        context,
-        bytes: bytes,
-        filename: r.displayName,
-        mime: r.mime,
-        onOpenExternally: openExternally,
-      );
-    } else {
-      await openExternally();
-    }
+      mime: r.mime,
+    );
   }
 
   Future<void> _downloadFile() async {

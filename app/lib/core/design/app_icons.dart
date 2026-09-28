@@ -87,6 +87,7 @@ abstract class AppIcons {
   static const IconData threeDotsVertical = Icons.more_vert;
   static const IconData toggleOn = Icons.toggle_on_outlined;
   static const IconData trash = Icons.delete_outline;
+  static const IconData watermark = Icons.branding_watermark_outlined;
   static const IconData window = Icons.crop_square;
   static const IconData windowStack = Icons.filter_none;
   static const IconData x = Icons.close;

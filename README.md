@@ -2,6 +2,10 @@
 > [!WARNING]
 > While this project is in active development, it's more a **proof-of-concept**. Feel free to use it for your use-cases, but don't expect production-ready support.
 <div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/assets/icon/revoced-mark-redacted-white-on-black.svg">
+    <img src="app/assets/icon/revoced-mark-redacted-black-on-white.svg" alt="Revoked logo" width="96">
+  </picture>
   <h1>revoked</h1>
 
 [![License: ELv2](https://img.shields.io/badge/License-Elastic_v2-blue.svg)](https://www.elastic.co/licensing/elastic-license)
@@ -48,6 +52,7 @@ Revoked replaces stale copies of data with a reference that resolves its current
 |---|---|
 | `cmd/`, `util/`, `migrations/`, `tests/` | The Go API, built on [PocketBase](https://pocketbase.io) |
 | `app/` | The Flutter client (Android, iOS, macOS, Linux) |
+| `web/` | The application-folder web client (Svelte, static files) |
 | `deploy/`, `Dockerfile`, `docker-compose.yml` | Running it on a server |
 | `app/packaging/` | Desktop scheme registration and install helpers |
 

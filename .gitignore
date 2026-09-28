@@ -161,3 +161,5 @@ keystore.txt
 
 # Generated from docs/api/openapi.yaml by tools/docs/gen_api_reference.py.
 docs/api/reference/
+# Copied from app/assets/icon/ by the docs workflow.
+docs/assets/brand/

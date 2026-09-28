@@ -127,10 +127,12 @@
 
   function buttonHtml(link) {
     return '<a href="' + escapeAttr(link) + '" title="Opens in the revoked app"\n' +
-      '   style="display:inline-flex;align-items:center;gap:10px;padding:10px 18px;background:#1D232E;color:#F2EDE2;border:1px solid rgba(242,237,226,.18);border-radius:10px;font:600 15px/1 system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;text-decoration:none">\n' +
-      '  <svg width="27" height="18" viewBox="0 0 36 24" fill="none" aria-hidden="true">\n' +
-      '    <circle cx="11" cy="12" r="9" fill="#F2EDE2"/>\n' +
-      '    <circle cx="24" cy="12" r="7.5" stroke="#F2EDE2" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 4.6"/>\n' +
+      '   style="display:inline-flex;align-items:center;gap:10px;padding:10px 18px;background:#000000;color:#FFFFFF;border:1px solid rgba(255,255,255,.18);border-radius:10px;font:600 15px/1 system-ui,-apple-system,\'Segoe UI\',Roboto,sans-serif;text-decoration:none">\n' +
+      '  <svg width="18" height="18" viewBox="100 100 300 300" aria-hidden="true">\n' +
+      '    <rect x="100" y="100" width="300" height="44" fill="#FFFFFF"/>\n' +
+      '    <rect x="140" y="185.33" width="220" height="44" fill="#FFFFFF"/>\n' +
+      '    <rect x="100" y="270.67" width="300" height="44" fill="#FFFFFF"/>\n' +
+      '    <rect x="180" y="356" width="140" height="44" fill="#FFFFFF"/>\n' +
       '  </svg>\n' +
       '  Fill with revoked\n' +
       '</a>';

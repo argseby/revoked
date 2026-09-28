@@ -1,0 +1,17 @@
+#!/bin/sh
+# Sourced by the nginx image's entrypoint before it renders the templates, so
+# what it exports reaches envsubst.
+#
+# REVOKED_SERVER          the API the page offers by default
+# REVOKED_CUSTOM_SERVERS  "true" lets users sign in to another revoked server;
+#                         "false" pins the page to REVOKED_SERVER.
+#
+# The page's CSP must name every host it may connect to. Allowing other
+# servers therefore means allowing any https origin; pinning keeps it to one.
+
+REVOKED_SERVER="${REVOKED_SERVER:-https://api.revoked.link}"
+case "${REVOKED_CUSTOM_SERVERS:-true}" in
+  false|0|no) REVOKED_CUSTOM_SERVERS=false; REVOKED_CONNECT_SRC="$REVOKED_SERVER" ;;
+  *)          REVOKED_CUSTOM_SERVERS=true;  REVOKED_CONNECT_SRC="https:" ;;
+esac
+export REVOKED_SERVER REVOKED_CUSTOM_SERVERS REVOKED_CONNECT_SRC

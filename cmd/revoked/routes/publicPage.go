@@ -21,7 +21,10 @@ import (
 // secret-sharing page that phones anywhere else is a page that leaks slugs.
 const pageCSP = "default-src 'none'; " +
 	"style-src 'unsafe-inline'; " +
-	"img-src 'self' data:; " +
+	"img-src 'self' data: blob:; " +
+	// A stamped PDF is previewed from memory; the frame inherits this policy, and
+	// the browser's PDF viewer counts as an object.
+	"frame-src blob:; object-src blob:; " +
 	"connect-src 'self' https://cloudflare-dns.com https://dns.google; " +
 	"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
@@ -39,6 +42,8 @@ type pageData struct {
 	Status           string
 	Gated            bool
 	RequireHandshake bool
+	Watermarked      bool
+	Purpose          string
 	MaxViews         int
 	ViewCount        int
 	AppLink          template.URL
@@ -110,6 +115,8 @@ func servePublicPage(app core.App, re *core.RequestEvent, root *server.RootKey, 
 		Status:           link.GetString(util.Fields.Link.Status),
 		Gated:            link.GetString(util.Fields.Link.Password) != "",
 		RequireHandshake: link.GetBool(util.Fields.Link.RequireHandshake),
+		Watermarked:      link.GetBool(util.Fields.Link.Watermark),
+		Purpose:          link.GetString(util.Fields.Link.Purpose),
 		MaxViews:         link.GetInt(util.Fields.Link.MaxViews),
 		ViewCount:        link.GetInt(util.Fields.Link.ViewCount),
 		AppLink:          template.URL("revoked://s/" + origin + "/" + url.PathEscape(slug)),
@@ -135,13 +142,15 @@ func servePublicPage(app core.App, re *core.RequestEvent, root *server.RootKey, 
 	return writeText(re, "text/html", buf.String())
 }
 
-var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
+var pageTemplate = template.Must(template.New("page").Funcs(brandFuncs).Parse(`{{define "heading"}}{{if eq .Purpose "application"}}Bewerbung{{if .Label}} · {{.Label}}{{end}}{{else if .Label}}{{.Label}}{{else}}Shared Items{{end}}{{end}}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>{{if .Label}}{{.Label}}{{else}}Shared Items{{end}} · Revoked</title>
+<link rel="icon" type="image/svg+xml" href="{{logoLight}}" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/svg+xml" href="{{logoDark}}" media="(prefers-color-scheme: dark)">
+<title>{{template "heading" .}} · Revoked</title>
 <style>
 :root {
 --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -151,66 +160,66 @@ var pageTemplate = template.Must(template.New("page").Parse(`<!doctype html>
 :root,
 html[data-theme="light"] {
 color-scheme: light;
---bg: #f6fbf7;
---surface: #f6fbf7;
---surface-subtle: #e8f0eb;
---surface-hover: #dbe5de;
---border: #c0c9c2;
---border-strong: #707973;
---fg: #171d1a;
---fg-muted: #535f58;
---primary: #006c4c;
---primary-subtle: #e6f6ee;
+--bg: #f8f9ff;
+--surface: #f8f9ff;
+--surface-subtle: #e1e2e8;
+--surface-hover: #d8dae0;
+--border: #c3c7cf;
+--border-strong: #73777f;
+--fg: #191c20;
+--fg-muted: #42474e;
+--primary: #35618e;
+--primary-subtle: #d1e4ff;
 --primary-fg: #ffffff;
---ok: #006c4c;
+--ok: #216a4d;
 --ok-subtle: #dcfce7;
 --bad: #ba1a1a;
 --bad-subtle: #ffdad6;
---badge-bg: #e1e7e2;
---badge-fg: #3f4943;
+--badge-bg: #d6e3f7;
+--badge-fg: #3b4858;
 }
 
 html[data-theme="dark"] {
 color-scheme: dark;
---bg: #0f1512;
---surface: #0f1512;
---surface-subtle: #1b221e;
---surface-hover: #262e2a;
---border: #3f4943;
---border-strong: #89938d;
---fg: #dfe4df;
---fg-muted: #89938d;
---primary: #59dc9e;
---primary-subtle: #003825;
---primary-fg: #003825;
---ok: #59dc9e;
+--bg: #101418;
+--surface: #101418;
+--surface-subtle: #32353a;
+--surface-hover: #36393e;
+--border: #42474e;
+--border-strong: #8d9199;
+--fg: #e1e2e8;
+--fg-muted: #c3c7cf;
+--primary: #a0cafd;
+--primary-subtle: #184975;
+--primary-fg: #003258;
+--ok: #8ed5b1;
 --ok-subtle: #003825;
 --bad: #ffb4ab;
---bad-subtle: #690005;
---badge-bg: #28312c;
---badge-fg: #c0c9c2;
+--bad-subtle: #93000a;
+--badge-bg: #3b4858;
+--badge-fg: #d6e3f7;
 }
 
 @media (prefers-color-scheme: dark) {
 html:not([data-theme="light"]) {
 color-scheme: dark;
---bg: #0f1512;
---surface: #0f1512;
---surface-subtle: #1b221e;
---surface-hover: #262e2a;
---border: #3f4943;
---border-strong: #89938d;
---fg: #dfe4df;
---fg-muted: #89938d;
---primary: #59dc9e;
---primary-subtle: #003825;
---primary-fg: #003825;
---ok: #59dc9e;
+--bg: #101418;
+--surface: #101418;
+--surface-subtle: #32353a;
+--surface-hover: #36393e;
+--border: #42474e;
+--border-strong: #8d9199;
+--fg: #e1e2e8;
+--fg-muted: #c3c7cf;
+--primary: #a0cafd;
+--primary-subtle: #184975;
+--primary-fg: #003258;
+--ok: #8ed5b1;
 --ok-subtle: #003825;
 --bad: #ffb4ab;
---bad-subtle: #690005;
---badge-bg: #28312c;
---badge-fg: #c0c9c2;
+--bad-subtle: #93000a;
+--badge-bg: #3b4858;
+--badge-fg: #d6e3f7;
 }
 }
 
@@ -256,6 +265,15 @@ width: 9px;
 height: 9px;
 border-radius: 50%;
 background: var(--primary);
+}
+
+.logo { width: 24px; height: 24px; border-radius: 6px; }
+.logo-dark { display: none; }
+html[data-theme="dark"] .logo-light { display: none; }
+html[data-theme="dark"] .logo-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+html:not([data-theme="light"]) .logo-light { display: none; }
+html:not([data-theme="light"]) .logo-dark { display: block; }
 }
 
 .nav-actions {
@@ -321,8 +339,15 @@ text-overflow: ellipsis;
 white-space: nowrap;
 }
 
-.card-header > .badge {
+.card-header > .badge,
+.card-header-actions {
 flex-shrink: 0;
+}
+
+.card-header-actions {
+display: flex;
+align-items: center;
+gap: 8px;
 }
 
 .badge {
@@ -363,6 +388,15 @@ border-bottom: 1px solid var(--border);
 
 .record-row:last-child { border-bottom: none; }
 
+.kv-row {
+display: flex;
+align-items: baseline;
+justify-content: space-between;
+gap: 16px;
+}
+.kv-row > .muted { flex: 0 0 40%; }
+.kv-row > .val-text { text-align: right; }
+
 .record-top {
 display: flex;
 align-items: center;
@@ -391,6 +425,40 @@ padding: 2px 6px;
 border-radius: 4px;
 border: 1px solid var(--border);
 }
+
+.wm-host { position: relative; }
+.wm-overlay {
+position: absolute;
+inset: 0;
+overflow: hidden;
+pointer-events: none;
+z-index: 5;
+}
+.wm-overlay-inner {
+position: absolute;
+top: -50%;
+left: -50%;
+width: 200%;
+height: 200%;
+transform: rotate(-30deg);
+display: flex;
+flex-direction: column;
+justify-content: space-around;
+color: var(--fg);
+opacity: 0.12;
+font-size: 13px;
+font-weight: 600;
+white-space: nowrap;
+}
+.preview {
+margin-top: 8px;
+border: 1px solid var(--border);
+border-radius: 8px;
+overflow: hidden;
+background: var(--surface-subtle);
+}
+.preview img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.preview iframe { display: block; width: 100%; height: 70vh; border: 0; }
 
 .val-box {
 background: var(--surface-subtle);
@@ -462,6 +530,7 @@ text-align: center;
 .mono { font-family: var(--font-mono); word-break: break-all; }
 .sm { font-size: 12px; }
 .muted { color: var(--fg-muted); }
+.bad { color: var(--bad); }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 </style>
@@ -471,6 +540,8 @@ a:hover { text-decoration: underline; }
 <header>
 <div class="nav">
 <div class="brand">
+<img class="logo logo-light" src="{{logoLight}}" alt="">
+<img class="logo logo-dark" src="{{logoDark}}" alt="">
 <span>Revoked</span>
 </div>
 <div class="nav-actions">
@@ -479,12 +550,12 @@ a:hover { text-decoration: underline; }
 </div>
 </header>
 
-<main>
+<main{{if eq .Purpose "application"}} data-purpose="application"{{end}}>
 <div class="grid">
 <div style="display: flex; flex-direction: column; gap: 16px;">
 
 <div class="card card-pad">
-<h1 class="header-title">{{if .Label}}{{.Label}}{{else}}Shared Items{{end}}</h1>
+<h1 class="header-title">{{template "heading" .}}</h1>
 </div>
 
 {{if or .Gated .RequireHandshake}}
@@ -507,6 +578,7 @@ a:hover { text-decoration: underline; }
 <div class="muted sm" id="capnote">
 {{if gt .MaxViews 0}}Limited view: {{.ViewCount}} of {{.MaxViews}} views used. Revealing spends 1 view.{{else}}Nothing is loaded, until you press "Load & Show".{{end}}
 </div>
+{{if .Watermarked}}<div class="muted sm">Files in this share are stamped with who they were sent to.</div>{{end}}
 </div>
 <button class="btn primary" id="reveal">Load & Show</button>
 </div>
@@ -704,7 +776,9 @@ top.appendChild(info);
 top.appendChild(el('span', 'badge', (r.type || 'text').toUpperCase()));
 row.appendChild(top);
 
-if (r.type === 'file') {
+if (r.type === 'file' && watermarkLine) {
+row.appendChild(renderStampedFile(r));
+} else if (r.type === 'file') {
 var box = el('div', 'val-box');
 var meta = el('span', 'val-text', (r.filename || 'file') + ' · ' + fmtBytes(r.size || 0));
 box.appendChild(meta);
@@ -736,35 +810,236 @@ row.appendChild(box);
 return row;
 }
 
+// Set on reveal for a watermarked share: its files come back stamped, and the
+// same line is laid over the page so a screenshot of plain values carries it.
+var watermarkLine = '';
+
+var stampedTypes = { 'image/png': '.png', 'image/jpeg': '.jpg', 'application/pdf': '.pdf' };
+
+// A stamped file is fetched once: the one download token serves both the
+// preview and the save, and the preview is shown from memory rather than by
+// loading the file URL inline, so nothing uploaded ever renders from this origin.
+function renderStampedFile(r) {
+var wrap = el('div');
+var box = el('div', 'val-box');
+box.appendChild(el('span', 'val-text', (r.filename || 'file') + ' · ' + fmtBytes(r.size || 0)));
+var b = el('button', 'btn primary', 'View');
+box.appendChild(b);
+wrap.appendChild(box);
+
+b.addEventListener('click', function() {
+b.disabled = true;
+b.textContent = 'Loading…';
+var u = '/api/public/links/' + encodeURIComponent(slug) + '/files/' + encodeURIComponent(r.id) + '?dl=' + encodeURIComponent(r.downloadToken || '');
+fetch(u).then(function(res) {
+if (!res.ok) {
+return res.json().then(function(j) { throw new Error((j && j.message) || 'This file could not be loaded.'); },
+function() { throw new Error('This file could not be loaded.'); });
+}
+return res.blob();
+}).then(function(blob) {
+var ext = stampedTypes[blob.type];
+if (!ext) { throw new Error('This file could not be loaded.'); }
+var url = URL.createObjectURL(blob);
+var preview = el('div', 'preview');
+if (blob.type === 'application/pdf') {
+var frame = document.createElement('iframe');
+frame.src = url;
+frame.title = r.filename || 'file';
+preview.appendChild(frame);
+} else {
+var img = document.createElement('img');
+img.src = url;
+img.alt = r.filename || 'file';
+preview.appendChild(img);
+}
+wrap.appendChild(preview);
+
+var save = el('a', 'btn', 'Save');
+save.href = url;
+save.download = String(r.filename || 'file').replace(/\.[^.]+$/, '') + ext;
+box.replaceChild(save, b);
+}).catch(function(err) {
+b.remove();
+box.appendChild(el('span', 'bad sm', err.message));
+});
+});
+return wrap;
+}
+
+function watermarkOverlay(line) {
+var overlay = el('div', 'wm-overlay');
+var inner = el('div', 'wm-overlay-inner');
+var phrase = (line + '        ').repeat(6);
+for (var i = 0; i < 40; i++) {
+inner.appendChild(el('div', '', i % 2 ? '    ' + phrase : phrase));
+}
+overlay.appendChild(inner);
+return overlay;
+}
+
+var applicantKeys = ['full_name', 'email', 'phone', 'current_address', 'employer', 'occupation', 'net_income', 'move_in_date', 'household_size', 'pets'];
+
+function makeCard(name, key, count, action) {
+var card = el('div', 'card');
+var header = el('div', 'card-header');
+var title = el('div', 'card-header-title');
+title.appendChild(el('span', '', name));
+if (key) {
+title.appendChild(el('span', 'key-tag', '(' + key + ')'));
+}
+header.appendChild(title);
+var badge = el('span', 'badge', count + (count === 1 ? ' item' : ' items'));
+if (action) {
+var actions = el('div', 'card-header-actions');
+actions.appendChild(badge);
+actions.appendChild(action);
+header.appendChild(actions);
+} else {
+header.appendChild(badge);
+}
+card.appendChild(header);
+return card;
+}
+
+function archiveName(res, fallback) {
+var cd = res.headers.get('content-disposition') || '';
+var ext = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+if (ext) { try { return decodeURIComponent(ext[1]); } catch (e) {} }
+var m = /filename="([^"]+)"/.exec(cd);
+return m ? m[1] : fallback;
+}
+
+// The archive token is single-use like a file token, so a spent one is never
+// retried: the viewer reloads for a fresh one.
+function archiveButton(data, report) {
+var label = 'Download all (.zip)';
+var b = el('button', 'btn primary', label);
+b.id = 'download-all';
+b.addEventListener('click', function() {
+b.disabled = true;
+b.textContent = 'Preparing…';
+report('');
+var u = '/api/public/links/' + encodeURIComponent(slug) + '/archive?dl=' + encodeURIComponent(data.archiveToken);
+fetch(u).then(function(res) {
+if (!res.ok) {
+return res.json().then(function(j) { return j; }, function() { return {}; }).then(function(j) {
+var msg = (j && j.message) || 'The archive could not be downloaded.';
+if (res.status === 401) msg = 'This download has expired or was already used. Reload the page to get a fresh one.';
+b.textContent = label;
+report(msg);
+});
+}
+return res.blob().then(function(blob) {
+var url = URL.createObjectURL(blob);
+var a = document.createElement('a');
+a.href = url;
+a.download = archiveName(res, (data.label || data.slug || 'files') + '.zip');
+document.body.appendChild(a);
+a.click();
+a.remove();
+setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+b.textContent = 'Downloaded';
+});
+}).catch(function() {
+b.disabled = false;
+b.textContent = label;
+report('Could not communicate with the vault server.');
+});
+});
+return b;
+}
+
+// reporter shows a message in a row of its own under the card's first child:
+// the header of a listing card, or the content of a padded one.
+function reporter(card, padded) {
+var row = null;
+return function(msg) {
+if (!msg) { if (row) row.remove(); row = null; return; }
+if (!row) {
+row = el('div', padded ? '' : 'record-row');
+if (padded) row.style.marginTop = '8px';
+card.insertBefore(row, card.children[1] || null);
+}
+row.textContent = '';
+row.appendChild(el('span', 'bad sm', msg));
+};
+}
+
+function renderApplicantRow(r) {
+var row = el('div', 'record-row kv-row');
+row.appendChild(el('span', 'muted sm', r.label || r.key));
+row.appendChild(el('span', 'val-text', r.value == null ? '—' : String(r.value)));
+return row;
+}
+
+// Everything the application cards did not claim still renders here, so a
+// record the layout does not know is never hidden from the landlord.
+function renderApplication(out, records, data) {
+var byKey = {};
+records.forEach(function(r) {
+if (r.key && r.type !== 'file' && !byKey[r.key]) byKey[r.key] = r;
+});
+var applicant = applicantKeys.map(function(k) { return byKey[k]; }).filter(Boolean);
+// The applicant's own profile fields follow the ones every application has.
+applicant = applicant.concat(records.filter(function(r) {
+return r.type !== 'file' && r.key && r.key.indexOf('profile_') === 0;
+}));
+var documents = records.filter(function(r) { return r.type === 'file'; });
+var taken = {};
+applicant.concat(documents).forEach(function(r) { taken[r.id] = true; });
+
+if (applicant.length) {
+var who = makeCard('Applicant', '', applicant.length);
+applicant.forEach(function(r) { who.appendChild(renderApplicantRow(r)); });
+out.appendChild(who);
+}
+if (documents.length) {
+var report = null;
+var action = data.archiveToken ? archiveButton(data, function(msg) { report(msg); }) : null;
+var docs = makeCard('Documents', '', documents.length, action);
+report = reporter(docs);
+documents.forEach(function(r) { docs.appendChild(renderRecordItem(r)); });
+out.appendChild(docs);
+}
+return records.filter(function(r) { return !taken[r.id]; });
+}
+
 function render(data) {
 var out = document.getElementById('out');
 out.textContent = '';
+watermarkLine = data.watermark || '';
 
 var rootRecords = data.records || [];
 var sections = data.sections || [];
+var isApplication = data.purpose === 'application';
+var hasRootFile = rootRecords.some(function(r) { return r.type === 'file'; });
+if (data.archiveToken && !(isApplication && hasRootFile)) {
+var archiveCard = el('div', 'card card-pad');
+var archiveRow = el('div', 'kv-row');
+archiveRow.style.alignItems = 'center';
+archiveRow.appendChild(el('span', 'muted sm', 'Every file in this share, in one archive.'));
+var report = reporter(archiveCard, true);
+archiveRow.appendChild(archiveButton(data, report));
+archiveCard.appendChild(archiveRow);
+out.appendChild(archiveCard);
+}
+var remaining = isApplication ? renderApplication(out, rootRecords, data) : rootRecords;
 
 // A section arrives as the ids of its records; the records themselves come
 // once, at the top level, and only those the share still grants.
 var byId = {};
-rootRecords.forEach(function(r) { if (r && r.id) byId[r.id] = r; });
+remaining.forEach(function(r) { if (r && r.id) byId[r.id] = r; });
 var inSections = {};
 sections.forEach(function(s) {
 (s.records || []).forEach(function(id) { inSections[id] = true; });
 });
-var looseRecords = rootRecords.filter(function(r) { return !inSections[r.id]; });
+var looseRecords = remaining.filter(function(r) { return !inSections[r.id]; });
 
 sections.forEach(function(s) {
 var secRecords = (s.records || []).map(function(id) { return byId[id]; }).filter(Boolean);
-var card = el('div', 'card');
-var header = el('div', 'card-header');
-var title = el('div', 'card-header-title');
-title.appendChild(el('span', '', s.name || 'Section'));
-if (s.key) {
-title.appendChild(el('span', 'key-tag', '(' + s.key + ')'));
-}
-header.appendChild(title);
-header.appendChild(el('span', 'badge', secRecords.length + (secRecords.length === 1 ? ' item' : ' items')));
-card.appendChild(header);
+if (isApplication && !secRecords.length) return;
+var card = makeCard(s.name || 'Section', s.key, secRecords.length);
 
 if (!secRecords.length) {
 var empty = el('div', 'record-row');
@@ -779,14 +1054,7 @@ out.appendChild(card);
 });
 
 if (looseRecords.length > 0) {
-var card = el('div', 'card');
-var header = el('div', 'card-header');
-var title = el('div', 'card-header-title');
-title.appendChild(el('span', '', 'General Records'));
-header.appendChild(title);
-header.appendChild(el('span', 'badge', looseRecords.length + (looseRecords.length === 1 ? ' item' : ' items')));
-card.appendChild(header);
-
+var card = makeCard(isApplication ? 'Further details' : 'General Records', '', looseRecords.length);
 looseRecords.forEach(function(r) {
 card.appendChild(renderRecordItem(r));
 });
@@ -797,6 +1065,11 @@ if (!rootRecords.length && !sections.length) {
 var emptyCard = el('div', 'card card-pad');
 emptyCard.appendChild(el('p', 'muted sm', 'No items are shared in this link.'));
 out.appendChild(emptyCard);
+}
+
+if (watermarkLine) {
+out.classList.add('wm-host');
+out.appendChild(watermarkOverlay(watermarkLine));
 }
 }
 
@@ -848,12 +1121,14 @@ func linkStatusPage(re *core.RequestEvent, title, detail string, status int) err
 	return nil
 }
 
-var statusTemplate = template.Must(template.New("status").Parse(`<!doctype html>
+var statusTemplate = template.Must(template.New("status").Funcs(brandFuncs).Parse(`<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="{{logoLight}}" media="(prefers-color-scheme: light)">
+<link rel="icon" type="image/svg+xml" href="{{logoDark}}" media="(prefers-color-scheme: dark)">
 <title>{{.Title}} · Revoked</title>
 <style>
 :root {
@@ -862,31 +1137,31 @@ var statusTemplate = template.Must(template.New("status").Parse(`<!doctype html>
 :root,
 html[data-theme="light"] {
 color-scheme: light;
---bg: #f6fbf7;
---surface: #f6fbf7;
---border: #c0c9c2;
---fg: #171d1a;
---fg-muted: #535f58;
---primary: #006c4c;
+--bg: #f8f9ff;
+--surface: #f8f9ff;
+--border: #c3c7cf;
+--fg: #191c20;
+--fg-muted: #42474e;
+--primary: #35618e;
 }
 html[data-theme="dark"] {
 color-scheme: dark;
---bg: #0f1512;
---surface: #0f1512;
---border: #3f4943;
---fg: #dfe4df;
---fg-muted: #89938d;
---primary: #59dc9e;
+--bg: #101418;
+--surface: #101418;
+--border: #42474e;
+--fg: #e1e2e8;
+--fg-muted: #c3c7cf;
+--primary: #a0cafd;
 }
 @media (prefers-color-scheme: dark) {
 html:not([data-theme="light"]) {
 color-scheme: dark;
---bg: #0f1512;
---surface: #0f1512;
---border: #3f4943;
---fg: #dfe4df;
---fg-muted: #89938d;
---primary: #59dc9e;
+--bg: #101418;
+--surface: #101418;
+--border: #42474e;
+--fg: #e1e2e8;
+--fg-muted: #c3c7cf;
+--primary: #a0cafd;
 }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -918,6 +1193,14 @@ font-weight: 700;
 font-size: 15px;
 }
 .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.logo { width: 24px; height: 24px; border-radius: 6px; }
+.logo-dark { display: none; }
+html[data-theme="dark"] .logo-light { display: none; }
+html[data-theme="dark"] .logo-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+html:not([data-theme="light"]) .logo-light { display: none; }
+html:not([data-theme="light"]) .logo-dark { display: block; }
+}
 main {
 max-width: 480px;
 margin: 12vh auto 0;
@@ -937,6 +1220,8 @@ a:hover { text-decoration: underline; }
 <header>
 <div class="nav">
 <div class="brand">
+<img class="logo logo-light" src="{{logoLight}}" alt="">
+<img class="logo logo-dark" src="{{logoDark}}" alt="">
 <span>Revoked</span>
 </div>
 </div>

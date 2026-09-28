@@ -9,6 +9,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_logo.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
@@ -30,6 +31,11 @@ class LoginScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: AppLogo(),
+                ),
+                const SizedBox(height: AppSpacing.xl),
                 const Text('Sign in to your account').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text('Enter your credentials below').muted,

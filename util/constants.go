@@ -43,6 +43,9 @@ const (
 	NotificationRequestComplete = "request_complete"
 	NotificationCallbackFailed  = "callback_failed"
 	NotificationInviteAccepted  = "invite_accepted"
+	NotificationLinkOpened      = "link_opened"
+
+	PurposeApplication = "application"
 
 	// Revocation reasons recorded on an identity. They are advisory — a verifier
 	// treats every non-active status the same — but they are what tells an
@@ -71,6 +74,9 @@ var RecordTypes = []string{
 
 // RecordFormats lists the valid record display formats.
 var RecordFormats = []string{FormatHidden, FormatDefault}
+
+// LinkPurposes lists the valid link purposes; an empty purpose is a plain share.
+var LinkPurposes = []string{PurposeApplication}
 
 // LinkStatuses lists the valid link statuses.
 var LinkStatuses = []string{StatusActive, StatusPaused, StatusRevoked, StatusExpired}
@@ -106,4 +112,5 @@ var NotificationTypes = []string{
 	NotificationRequestComplete,
 	NotificationCallbackFailed,
 	NotificationInviteAccepted,
+	NotificationLinkOpened,
 }

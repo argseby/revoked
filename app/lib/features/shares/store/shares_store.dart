@@ -30,6 +30,13 @@ abstract class _SharesStore with Store {
   final ObservableTextController draftSlug = ObservableTextController();
   final ObservableTextController draftPassword = ObservableTextController();
   final ObservableTextController draftMaxViews = ObservableTextController();
+  final ObservableTextController draftWatermarkText =
+      ObservableTextController();
+
+  /// Watermarking is on exactly when there is text to stamp, the way a share
+  /// is gated exactly when it has a password.
+  @computed
+  bool get draftWatermark => draftWatermarkText.text.trim().isNotEmpty;
 
   @observable
   DateTime? draftExpiresAt;
@@ -77,8 +84,10 @@ abstract class _SharesStore with Store {
     DateTime? expiresAt,
     String? identityId,
     bool requireHandshake = false,
+    String watermarkText = '',
   }) {
     draftLabel.text = label;
+    draftWatermarkText.text = watermarkText;
     draftSlug.text = slug;
     draftPassword.clear();
     draftMaxViews.text = maxViews;
@@ -156,6 +165,11 @@ abstract class _SharesStore with Store {
 
   /// Fetches a shared file's bytes with the single-use token the resolve
   /// minted. Same credential rule as every public call: never a session token.
+  /// Bytes already fetched for the open share. A download token is
+  /// single-use, so View and then Download must not each spend one; the
+  /// bytes stay in memory only until the share view is left.
+  final Map<String, Uint8List> _sharedFileBytes = {};
+
   @action
   Future<Uint8List?> downloadSharedFile({
     required String? origin,
@@ -163,13 +177,17 @@ abstract class _SharesStore with Store {
     required String recordId,
     required String token,
   }) async {
+    final cached = _sharedFileBytes[recordId];
+    if (cached != null) return cached;
     downloadingShareRecordIds.add(recordId);
     try {
-      return await _api.getPublicBytes(
+      final bytes = await _api.getPublicBytes(
         origin,
         '/api/public/links/$slug/files/$recordId',
         queryParams: {'dl': token},
       );
+      _sharedFileBytes[recordId] = bytes;
+      return bytes;
     } catch (e) {
       errorMessage = e.toString();
       return null;
@@ -200,6 +218,7 @@ abstract class _SharesStore with Store {
     sharePasswordHint = null;
     shareIdentityId = null;
     revealedShareValues.clear();
+    _sharedFileBytes.clear();
   }
 
   @observable
@@ -250,6 +269,8 @@ abstract class _SharesStore with Store {
     DateTime? expiresAt,
     int? maxViews,
     bool requireHandshake = false,
+    bool watermark = false,
+    String watermarkText = '',
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -267,6 +288,8 @@ abstract class _SharesStore with Store {
         expiresAt: expiresAt,
         maxViews: maxViews,
         requireHandshake: requireHandshake,
+        watermark: watermark,
+        watermarkText: watermarkText,
       );
       shares.insert(0, link);
       return true;
@@ -377,6 +400,8 @@ abstract class _SharesStore with Store {
     DateTime? expiresAt,
     int? maxViews,
     bool requireHandshake = false,
+    bool watermark = false,
+    String watermarkText = '',
   }) async {
     final spec = createShareSpec(
       slug: slug,
@@ -391,6 +416,8 @@ abstract class _SharesStore with Store {
       expiresAt: expiresAt,
       maxViews: maxViews,
       requireHandshake: requireHandshake,
+      watermark: watermark,
+      watermarkText: watermarkText,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return Link.fromJson(data as Map<String, dynamic>);
@@ -448,6 +475,8 @@ abstract class _SharesStore with Store {
     DateTime? expiresAt,
     int? maxViews,
     bool requireHandshake = false,
+    bool watermark = false,
+    String watermarkText = '',
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -465,6 +494,9 @@ abstract class _SharesStore with Store {
         if (expiresAt != null) 'expiresAt': expiresAt.toUtc().toIso8601String(),
         if (maxViews != null && maxViews > 0) 'maxViews': maxViews,
         'requireHandshake': requireHandshake,
+        if (watermark) 'watermark': true,
+        if (watermark && watermarkText.isNotEmpty)
+          'watermarkText': watermarkText,
       },
     );
   }

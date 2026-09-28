@@ -45,6 +45,16 @@
         "key": "move_in_date",
         "label": "Desired move-in date",
         "type": "datetime"
+      },
+      {
+        "key": "household_size",
+        "label": "Household size",
+        "type": "number"
+      },
+      {
+        "key": "pets",
+        "label": "Pets",
+        "type": "text"
       }
     ],
     "sections": [
@@ -62,6 +72,18 @@
             "label": "Credit report",
             "type": "file",
             "reason": "For example a SCHUFA extract — the tenant version, not the full report."
+          },
+          {
+            "key": "id_document",
+            "label": "ID document",
+            "type": "file",
+            "reason": "Redact the access number and serial number before uploading"
+          },
+          {
+            "key": "rent_debt_certificate",
+            "label": "Rent debt clearance certificate",
+            "type": "file",
+            "reason": "Mietschuldenfreiheitsbescheinigung"
           }
         ]
       }

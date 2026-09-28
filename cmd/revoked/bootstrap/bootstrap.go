@@ -45,6 +45,7 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.PublicShortRoute(app, root)
 	routes.PublicDavRoute(app)
 	routes.PublicFilesRoute(app)
+	routes.OwnerFilesRoute(app)
 	routes.CertificateRoute(app)
 	routes.IdentityStatusRoute(app, root)
 	routes.ChallengeRoute(app)

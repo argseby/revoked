@@ -20,6 +20,7 @@ const (
 	envLimitProbe     = "RATELIMIT_PROBE_REQUESTS"
 	envLimitChallenge = "RATELIMIT_CHALLENGE_REQUESTS"
 	envLimitCallback  = "RATELIMIT_CALLBACK_TESTS"
+	envLimitStamp     = "RATELIMIT_STAMP_REQUESTS"
 )
 
 var (
@@ -39,6 +40,11 @@ var (
 	// surface for the test harness, and a per-user budget this size is no
 	// obstacle to a suite that fires a handful of tests.
 	callbackTestLimiter = util.NewRateLimiter(limitFromEnv(envLimitCallback, 20), time.Minute)
+
+	// stampLimiter covers the owner's stamp previews and archives, keyed by the
+	// signed-in caller alone: stamping is CPU work, and switching addresses
+	// must not buy more of it.
+	stampLimiter = util.NewRateLimiter(limitFromEnv(envLimitStamp, 30), time.Minute)
 )
 
 // ConfigureRateLimits replaces the public-surface limiters (0 disables one). For the

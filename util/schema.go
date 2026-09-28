@@ -48,7 +48,8 @@ type sectionFields struct {
 type linkFields struct {
 	Slug, Label, User, Workspace, Sections, Records, Status,
 	Password, ExpiresAt, MaxViews, ViewCount, Identity, RequireHandshake,
-	Request, Grants, Data, SenderName, Identifier, Created, Updated string
+	Request, Grants, Data, SenderName, Identifier, Watermark, WatermarkText,
+	Purpose, Created, Updated string
 }
 
 type workspaceFields struct {
@@ -245,6 +246,9 @@ var Fields = struct {
 		Data:             "data",
 		SenderName:       "senderName",
 		Identifier:       "identifier",
+		Watermark:        "watermark",
+		WatermarkText:    "watermarkText",
+		Purpose:          "purpose",
 		Created:          "created",
 		Updated:          "updated",
 	},

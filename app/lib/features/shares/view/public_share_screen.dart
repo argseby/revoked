@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -23,6 +24,7 @@ import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/file_view_sheet.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/identity_summary_card.dart';
 import 'package:revoked_app/core/widgets/requirement_list.dart';
@@ -936,18 +938,17 @@ class _PublicRecordRow extends StatelessWidget {
     return Observer(builder: (_) => _buildRow(context));
   }
 
-  Future<void> _downloadFile(BuildContext context) async {
+  /// Fetches the file once per open share; View and Download both use it.
+  Future<Uint8List?> _fileBytes(BuildContext context) async {
     final recordId = record['id'] as String? ?? '';
     final token = record['downloadToken'] as String? ?? '';
-    final filename = record['filename'] as String? ?? 'file';
-
     if (recordId.isEmpty || token.isEmpty) {
       AppToast.error(
         context,
-        'Download unavailable',
+        'File unavailable',
         subtitle: 'Reopen the link to request a new download.',
       );
-      return;
+      return null;
     }
 
     final bytes = await Stores.shares.downloadSharedFile(
@@ -956,16 +957,31 @@ class _PublicRecordRow extends StatelessWidget {
       recordId: recordId,
       token: token,
     );
-
-    if (!context.mounted) return;
-    if (bytes == null) {
+    if (bytes == null && context.mounted) {
       AppToast.error(
         context,
-        'Could not download file',
+        'Could not load file',
         subtitle: 'The download token may have expired or been used.',
       );
-      return;
     }
+    return bytes;
+  }
+
+  Future<void> _viewFile(BuildContext context) async {
+    final bytes = await _fileBytes(context);
+    if (bytes == null || !context.mounted) return;
+    await viewFile(
+      context,
+      bytes: bytes,
+      filename: record['filename'] as String? ?? 'file',
+      mime: record['mime'] as String?,
+    );
+  }
+
+  Future<void> _downloadFile(BuildContext context) async {
+    final filename = record['filename'] as String? ?? 'file';
+    final bytes = await _fileBytes(context);
+    if (bytes == null || !context.mounted) return;
 
     final ok = await saveFileToDevice(
       bytes: bytes,
@@ -1165,10 +1181,18 @@ class _PublicRecordRow extends StatelessWidget {
           ],
           AppSpacing.gapXs,
           AppButton(
-            icon: AppIcons.download,
-            label: 'Download',
+            icon: AppIcons.eye,
+            label: 'View',
             size: AppButtonSize.small,
             busy: busy,
+            onTap: busy ? null : () => _viewFile(context),
+          ),
+          AppSpacing.gapXs,
+          AppButton(
+            icon: AppIcons.download,
+            tooltip: 'Download',
+            style: AppButtonStyle.accent,
+            size: AppButtonSize.small,
             onTap: busy ? null : () => _downloadFile(context),
           ),
         ],

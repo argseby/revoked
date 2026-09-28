@@ -56,6 +56,10 @@ nav = [
 ]
 
 [project.theme]
+# Copied from app/assets/icon/ at build time (see the docs workflow), so the
+# app stays the one source of the logo.
+logo = "assets/brand/revoced-mark-redacted-white-on-black.svg"
+favicon = "assets/brand/revoced-mark-redacted-white-on-black.svg"
 features = [
   # Top-level sections become tabs, so the sidebar holds only the section
   # the reader is in — the whole tree is never on screen at once.

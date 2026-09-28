@@ -1,0 +1,202 @@
+/* Tokens follow the public share page (routes/publicPage.go), so the landlord
+   and the applicant see the same product. */
+:root {
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-wordmark: 'JetBrains Mono', var(--font-mono);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --motion: 200ms ease-out;
+}
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f8f9ff;
+  --surface: #f8f9ff;
+  --sunken: #e1e2e8;
+  --hover: #d8dae0;
+  --border: #c3c7cf;
+  --border-strong: #73777f;
+  --fg: #191c20;
+  --fg-muted: #42474e;
+  --primary: #35618e;
+  --primary-subtle: #d1e4ff;
+  --on-primary: #ffffff;
+  --ok: #216a4d;
+  --ok-subtle: #dcfce7;
+  --warn: #7a5900;
+  --warn-subtle: #ffefc7;
+  --bad: #ba1a1a;
+  --bad-subtle: #ffdad6;
+  --on-bad: #ffffff;
+  --scrim: rgb(0 0 0 / 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #101418;
+    --surface: #101418;
+    --sunken: #32353a;
+    --hover: #36393e;
+    --border: #42474e;
+    --border-strong: #8d9199;
+    --fg: #e1e2e8;
+    --fg-muted: #c3c7cf;
+    --primary: #a0cafd;
+    --primary-subtle: #184975;
+    --on-primary: #003258;
+    --ok: #8ed5b1;
+    --ok-subtle: #003825;
+    --warn: #f5c25b;
+    --warn-subtle: #402d00;
+    --bad: #ffb4ab;
+    --bad-subtle: #93000a;
+    --on-bad: #690005;
+    --scrim: rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #101418;
+  --surface: #101418;
+  --sunken: #32353a;
+  --hover: #36393e;
+  --border: #42474e;
+  --border-strong: #8d9199;
+  --fg: #e1e2e8;
+  --fg-muted: #c3c7cf;
+  --primary: #a0cafd;
+  --primary-subtle: #184975;
+  --on-primary: #003258;
+  --ok: #8ed5b1;
+  --ok-subtle: #003825;
+  --warn: #f5c25b;
+  --warn-subtle: #402d00;
+  --bad: #ffb4ab;
+  --bad-subtle: #93000a;
+  --on-bad: #690005;
+  --scrim: rgb(0 0 0 / 0.6);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.header {
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--fg-muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+/* "Revoked" wherever it is shown as a name. */
+.wordmark {
+  font-family: var(--font-wordmark);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+a {
+  color: var(--primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
