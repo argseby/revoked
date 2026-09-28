@@ -1,7 +1,0 @@
-# The page holds a session token and handles ID documents: it loads nothing
-# from anywhere but itself, and connects only to the API (or, when users may
-# pick their own server, to https origins).
-add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; frame-src blob:; object-src blob:; connect-src 'self' ${REVOKED_CONNECT_SRC}; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header Referrer-Policy "no-referrer" always;
-add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;

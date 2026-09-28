@@ -52,7 +52,6 @@ Revoked replaces stale copies of data with a reference that resolves its current
 |---|---|
 | `cmd/`, `util/`, `migrations/`, `tests/` | The Go API, built on [PocketBase](https://pocketbase.io) |
 | `app/` | The Flutter client (Android, iOS, macOS, Linux) |
-| `web/` | The application-folder web client (Svelte, static files) |
 | `deploy/`, `Dockerfile`, `docker-compose.yml` | Running it on a server |
 | `app/packaging/` | Desktop scheme registration and install helpers |
 

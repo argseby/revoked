@@ -90,24 +90,6 @@ services:
       - certbot_webroot:/var/www/certbot
       # - /etc/letsencrypt:/etc/letsencrypt:ro
 
-  # The application-folder web client: static files on nginx, no state.
-  # `docker compose --profile web up -d` adds it; point your reverse proxy at
-  # ${WEB_CONTAINER_NAME}:8080 on a host of its own (e.g. apply.example.com).
-  web:
-    profiles: [web]
-    build: ./web
-    container_name: ${WEB_CONTAINER_NAME:-revoked-web}
-    restart: unless-stopped
-    environment:
-      # The API the page signs in to by default. With REVOKED_CUSTOM_SERVERS
-      # left on, users can pick another server under "Change" — which means
-      # the page's CSP allows connections to any https origin. Set it to false
-      # to pin the page to this one API.
-      REVOKED_SERVER: ${REVOKED_SERVER:-https://${DOMAIN}}
-      REVOKED_CUSTOM_SERVERS: ${REVOKED_CUSTOM_SERVERS:-true}
-    networks:
-      - proxy
-
 networks:
   # Shared with the reverse proxy, and created outside this file so several
   # stacks can sit on it.

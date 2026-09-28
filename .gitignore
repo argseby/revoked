@@ -163,3 +163,14 @@ keystore.txt
 docs/api/reference/
 # Copied from app/assets/icon/ by the docs workflow.
 docs/assets/brand/
+
+# Local tooling and notes - never part of the repository.
+.claude/
+*.iml
+/research_notes/
+/reports/
+coverage/
+/design/
+/web.md
+# Published separately.
+/web/
