@@ -6,6 +6,7 @@ import 'package:revoked_app/core/services/domain_verification_service.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
 import 'package:revoked_app/core/services/workspace_context.dart';
 import 'package:revoked_app/core/theme/theme_store.dart';
+import 'package:revoked_app/core/window/window_store.dart';
 import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/store/server_settings_store.dart';
@@ -16,8 +17,7 @@ import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
-import 'package:revoked_app/features/shell/store/link_searchre.dart';
-import 'package:revoked_app/features/shell/store/link_searcht';
+import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 

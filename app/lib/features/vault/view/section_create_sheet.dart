@@ -277,63 +277,63 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
     await showAppSheet(
       context: context,
       builder: (sheetCtx) => Observer(
-        builder: (ctx) => Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            AppSpacing.xxs,
-            AppSpacing.xl,
-            AppSpacing.xl,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Key').header,
-              const SizedBox(height: AppSpacing.xxs),
-              const Text(
-                'A stable identifier used for sharing and templates.',
-              ).muted.small,
-              const SizedBox(height: AppSpacing.lg),
-              AppTextField(
-                controller: _store.sectionKey,
-                hint: 'section_key',
-                autofocus: true,
-                inputFormatters: [KeyInputFormatter()],
-                onChanged: _validateKey,
-              ),
-              if (_store.sectionKeyWarning != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                AppErrorText(_store.sectionKeyWarning!),
-              ],
-              if (_store.sectionSuggestedKey != null) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: AppButton(
-                    icon: AppIcons.stars,
-                    label: 'Use suggested: ${_store.sectionSuggestedKey}',
-                    style: AppButtonStyle.accent,
-                    size: AppButtonSize.small,
-                    onTap: () {
-                      _store.sectionKey.text = _store.sectionSuggestedKey!;
-                      _validateKey(_store.sectionKey.text);
-                    },
-                  ),
+        builder: (ctx) {
+          final done =
+              _store.sectionKey.text.trim().isNotEmpty &&
+                  _store.sectionKeyWarning == null
+              ? () => Navigator.of(sheetCtx).pop()
+              : null;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xxs,
+              AppSpacing.xl,
+              AppSpacing.xl,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Key').header,
+                const SizedBox(height: AppSpacing.xxs),
+                const Text(
+                  'A stable identifier used for sharing and templates.',
+                ).muted.small,
+                const SizedBox(height: AppSpacing.lg),
+                AppTextField(
+                  controller: _store.sectionKey,
+                  hint: 'section_key',
+                  autofocus: true,
+                  inputFormatters: [KeyInputFormatter()],
+                  onChanged: _validateKey,
+                  onSubmitted: done == null ? null : (_) => done(),
                 ),
+                if (_store.sectionKeyWarning != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  AppErrorText(_store.sectionKeyWarning!),
+                ],
+                if (_store.sectionSuggestedKey != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: AppButton(
+                      icon: AppIcons.stars,
+                      label: 'Use suggested: ${_store.sectionSuggestedKey}',
+                      style: AppButtonStyle.accent,
+                      size: AppButtonSize.small,
+                      onTap: () {
+                        _store.sectionKey.text = _store.sectionSuggestedKey!;
+                        _validateKey(_store.sectionKey.text);
+                      },
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                icon: AppIcons.check,
-                label: 'Done',
-                onTap:
-                    (_store.sectionKey.text.trim().isNotEmpty &&
-                        _store.sectionKeyWarning == null)
-                    ? () => Navigator.of(sheetCtx).pop()
-                    : null,
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

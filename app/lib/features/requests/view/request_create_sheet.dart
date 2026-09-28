@@ -835,6 +835,12 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       builder: (sheetCtx) {
         return Observer(
           builder: (ctx) {
+            final done =
+                _store.draftSlug.text.trim().length >= 6 &&
+                    _store.draftSlugWarning == null &&
+                    !_store.isCheckingSlug
+                ? () => Navigator.of(sheetCtx).pop()
+                : null;
             return Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xl,
@@ -863,6 +869,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                           onChanged: (v) async {
                             await _validateSlug(v);
                           },
+                          onSubmitted: done == null ? null : (_) => done(),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
@@ -897,7 +904,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                       alignment: Alignment.centerLeft,
                       child: AppButton(
                         icon: AppIcons.stars,
-                        label: 'Use suggested: $_store.draftSuggestedSlug',
+                        label: 'Use suggested: ${_store.draftSuggestedSlug}',
                         onTap: () async {
                           _store.draftSlug.text = _store.draftSuggestedSlug!;
                           await _validateSlug(_store.draftSlug.text);
@@ -907,16 +914,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    icon: AppIcons.check,
-                    label: 'Done',
-                    onTap:
-                        (_store.draftSlug.text.trim().length >= 6 &&
-                            _store.draftSlugWarning == null &&
-                            !_store.isCheckingSlug)
-                        ? () => Navigator.of(sheetCtx).pop()
-                        : null,
-                  ),
+                  AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
                 ],
               ),
             );

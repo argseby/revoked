@@ -502,6 +502,11 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       builder: (sheetCtx) {
         return Observer(
           builder: (ctx) {
+            final done =
+                _store.draftSlug.text.trim().isNotEmpty &&
+                    _store.draftSlugWarning == null
+                ? () => Navigator.of(sheetCtx).pop()
+                : null;
             return Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.xl,
@@ -530,6 +535,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                           onChanged: (v) async {
                             await _validateSlug(v);
                           },
+                          onSubmitted: done == null ? null : (_) => done(),
                         ),
                       ),
                       AppSpacing.gapSm,
@@ -550,15 +556,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                     Text(_store.draftSlugWarning!).small,
                   ],
                   AppSpacing.gapLg,
-                  AppButton(
-                    icon: AppIcons.check,
-                    label: 'Done',
-                    onTap:
-                        (_store.draftSlug.text.trim().isNotEmpty &&
-                            _store.draftSlugWarning == null)
-                        ? () => Navigator.of(sheetCtx).pop()
-                        : null,
-                  ),
+                  AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
                 ],
               ),
             );
