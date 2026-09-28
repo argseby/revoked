@@ -67,6 +67,8 @@ abstract class AppErrorCode {
   static const identityRevoked = 'identity_revoked';
   static const identityFingerprintInvalid = 'identity_fingerprint_invalid';
   static const invalidCertificate = 'invalid_certificate';
+
+  static const bookmarkGroupNotOwned = 'bookmark_group_not_owned';
 }
 
 /// Translates an [ApiException] into a short, user-friendly message and a
@@ -427,6 +429,14 @@ class AppErrorMessage {
         return AppErrorMessage(
           title: 'Identity not found',
           description: 'The identity you selected no longer exists.',
+          code: e.code,
+        );
+      case AppErrorCode.bookmarkGroupNotOwned:
+        return AppErrorMessage(
+          title: 'Group not found',
+          description:
+              'That group is no longer in your bookmarks. Reload and pick '
+              'again.',
           code: e.code,
         );
       case AppErrorCode.identityRevoked:

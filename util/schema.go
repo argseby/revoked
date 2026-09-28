@@ -27,6 +27,8 @@ type collectionSchema struct {
 	// IdentityRevocations outlives the identity row itself, so a fingerprint
 	// whose identity was hard-deleted still resolves to a definite answer.
 	IdentityRevocations string
+	Bookmarks           string
+	BookmarkGroups      string
 }
 
 type inviteFields struct {
@@ -108,6 +110,14 @@ type identityRevocationFields struct {
 	Fingerprint, RevokedAt, Reason, Domain, Created string
 }
 
+type bookmarkFields struct {
+	User, Origin, Slug, Label, Groups, Created, Updated string
+}
+
+type bookmarkGroupFields struct {
+	User, Name, Created, Updated string
+}
+
 // Coll holds the collection (table) names used across the backend.
 var Coll = collectionSchema{
 	Workspaces:       "workspaces",
@@ -128,6 +138,8 @@ var Coll = collectionSchema{
 	Invites:          "invites",
 
 	IdentityRevocations: "identityRevocations",
+	Bookmarks:           "bookmarks",
+	BookmarkGroups:      "bookmarkGroups",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -148,6 +160,8 @@ var Fields = struct {
 	Notification       notificationFields
 	Handshake          handshakeFields
 	Invite             inviteFields
+	Bookmark           bookmarkFields
+	BookmarkGroup      bookmarkGroupFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -344,5 +358,20 @@ var Fields = struct {
 		UseCount:    "useCount",
 		Created:     "created",
 		Updated:     "updated",
+	},
+	Bookmark: bookmarkFields{
+		User:    "user",
+		Origin:  "origin",
+		Slug:    "slug",
+		Label:   "label",
+		Groups:  "groups",
+		Created: "created",
+		Updated: "updated",
+	},
+	BookmarkGroup: bookmarkGroupFields{
+		User:    "user",
+		Name:    "name",
+		Created: "created",
+		Updated: "updated",
 	},
 }

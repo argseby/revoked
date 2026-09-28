@@ -31,6 +31,8 @@ var AuditSecretFields = map[string][]string{
 	Coll.Identities: {Fields.Identity.PrivateKey},
 	Coll.Invites:    {Fields.Invite.TokenHash},
 	Coll.Handshakes: {Fields.Handshake.TokenHash},
+	// The slug is the capability to someone else's share.
+	Coll.Bookmarks: {Fields.Bookmark.Slug},
 }
 
 // RedactAuditData returns data with the collection's secret fields replaced by

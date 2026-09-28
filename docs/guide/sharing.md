@@ -59,6 +59,22 @@ web URL, so a phone camera works without the app installed).
   panel that checks the sender's DNS record from the browser, and a hand-off
   button to open the share in the app.
 
+## Bookmarking a share you received
+
+Signed in, **Bookmark** on an open share saves it to the *Bookmarks* tab under
+Share, so you can reopen it later without keeping the original message around.
+
+A bookmark is only a pointer: it stores where the link lives and its slug,
+never the data. Opening one is the same as opening the link — its password,
+identity check and view limit still apply, and a share its owner has paused
+or revoked stays closed. Bookmarks belong to your account alone: other members
+of your workspaces and API keys cannot see them.
+
+Groups sort bookmarks the way playlists sort videos. Tap **Bookmarked** on an
+open share, or **Groups** on a bookmark, to tick the groups it belongs in or
+name a new one; a bookmark can sit in several groups at once. Deleting a group
+keeps its bookmarks.
+
 ## Feeding other tools
 
 *Web & API access* on a share offers its data in formats existing tools

@@ -921,6 +921,8 @@ components:
           - invites
           - apiKeys
           - notifications
+          - bookmarks
+          - bookmarkGroups
 
   responses:
     NotFound:

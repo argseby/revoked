@@ -28,6 +28,8 @@ var accountOwned = []string{
 	util.Coll.Identities,
 	util.Coll.ApiKeys,
 	util.Coll.Notifications,
+	util.Coll.Bookmarks,
+	util.Coll.BookmarkGroups,
 	util.Coll.AuditLogs,
 }
 

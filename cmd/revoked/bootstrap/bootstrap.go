@@ -29,6 +29,7 @@ func Bind(app core.App, root *server.RootKey) {
 	hooks.BindIdentitiesHooks(app, root)
 	hooks.BindRecordHooks(app)
 	hooks.BindInviteHooks(app)
+	hooks.BindBookmarkHooks(app)
 	hooks.RegisterTenancyHooks(app)
 	hooks.BindAuditLogHooks(app)
 	hooks.BindBuiltinTemplateSync(app)

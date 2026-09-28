@@ -27,6 +27,7 @@ import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/identity_summary_card.dart';
 import 'package:revoked_app/core/widgets/requirement_list.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
+import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -56,9 +57,63 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     }
     _store.resetShareView();
     _probeLink();
+    if (Stores.auth.isAuthenticated) Stores.bookmarks.load();
   }
 
   bool get _isForeign => !Stores.api.isOwnOrigin(widget.origin);
+
+  /// Stored the way a deep link names the server: empty for this one.
+  String get _bookmarkOrigin => _isForeign ? widget.origin! : '';
+
+  Future<void> _toggleBookmark() async {
+    final bookmarks = Stores.bookmarks;
+    final existing = bookmarks.find(
+      origin: _bookmarkOrigin,
+      slug: widget.shareSlug,
+    );
+    if (existing != null) {
+      await showBookmarkGroupsSheet(
+        context,
+        bookmarkId: existing.id,
+        offerRemove: true,
+      );
+      return;
+    }
+    final ok = await bookmarks.add(
+      user: Stores.auth.userId,
+      origin: _bookmarkOrigin,
+      slug: widget.shareSlug,
+      label: _store.shareProbe?['label'] as String? ?? '',
+    );
+    if (!mounted) return;
+    if (ok) {
+      AppToast.success(
+        context,
+        'Saved to Share → Bookmarks',
+        subtitle: 'Tap Bookmarked to add it to a group.',
+      );
+    } else {
+      AppToast.error(
+        context,
+        'Could not bookmark this share',
+        subtitle: bookmarks.error?.description,
+      );
+    }
+  }
+
+  Widget _bookmarkButton() {
+    final bookmarks = Stores.bookmarks;
+    final saved =
+        bookmarks.find(origin: _bookmarkOrigin, slug: widget.shareSlug) != null;
+    return AppButton(
+      icon: saved ? AppIcons.bookmarkFill : AppIcons.bookmark,
+      label: saved ? 'Bookmarked' : 'Bookmark',
+      style: AppButtonStyle.accent,
+      size: AppButtonSize.small,
+      busy: bookmarks.isSaving,
+      onTap: _toggleBookmark,
+    );
+  }
 
   String _handshakeKey() => 'handshake_link_${widget.shareSlug}';
 
@@ -374,10 +429,12 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                     },
                   ),
                   const Spacer(),
-                  const AppBadge(
-                    label: 'READ-ONLY SHARE',
-                    variant: AppBadgeVariant.outline,
-                  ),
+                  // A dead link is not worth keeping, and a bookmark lives
+                  // on an account.
+                  if (Stores.auth.isAuthenticated &&
+                      _store.shareProbe != null &&
+                      _store.shareTerminalError == null)
+                    _bookmarkButton(),
                 ],
               ),
             ),

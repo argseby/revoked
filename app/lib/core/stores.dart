@@ -10,6 +10,7 @@ import 'package:revoked_app/core/window/window_store.dart';
 import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/store/server_settings_store.dart';
+import 'package:revoked_app/features/bookmarks/store/bookmarks_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
@@ -37,6 +38,7 @@ abstract final class Stores {
   static late final AuthStore auth;
   static late final VaultStore vault;
   static late final SharesStore shares;
+  static late final BookmarksStore bookmarks;
   static late final RequestsStore requests;
   static late final TemplatesStore templates;
   static late final ApiKeysStore apiKeys;
@@ -74,6 +76,7 @@ abstract final class Stores {
     api.onUnauthorized = () => unawaited(auth.handleSessionExpired());
     vault = VaultStore(api);
     shares = SharesStore(api);
+    bookmarks = BookmarksStore(api);
     requests = RequestsStore(api);
     templates = TemplatesStore(api);
     apiKeys = ApiKeysStore(api);

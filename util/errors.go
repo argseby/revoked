@@ -56,6 +56,7 @@ var Errors = struct {
 	IdentityRequired              AppError
 	IdentityWrongRoot             AppError
 	IdentityNotOwned              AppError
+	BookmarkGroupNotOwned         AppError
 	IdentityRevoked               AppError
 	IdentityFingerprintInvalid    AppError
 	InviteInviterLostAccess       AppError
@@ -275,6 +276,10 @@ var Errors = struct {
 	IdentityNotOwned: AppError{
 		ErrorCode: "identity_not_owned",
 		ErrorText: "The selected identity does not belong to your workspace.",
+	},
+	BookmarkGroupNotOwned: AppError{
+		ErrorCode: "bookmark_group_not_owned",
+		ErrorText: "A selected group is not one of yours.",
 	},
 	IdentityRevoked: AppError{
 		ErrorCode: "identity_revoked",

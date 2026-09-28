@@ -11,6 +11,10 @@ const (
 // workspace and member caps it drives are only checked on create.
 const WorkspaceTypeImmutable = "@request.body.type:isset = false"
 
+// OwnerImmutable forbids handing a row to another user on update: the rule
+// checks the stored owner, not the one the body asks for.
+const OwnerImmutable = "@request.body.user:isset = false"
+
 // CollectionAccess declares the authorization requirement for every write
 // action the API exposes, keyed by collection and action.
 //
@@ -71,6 +75,19 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 	},
 	Coll.ApiKeys: {
 		ActionCreate: {Kind: AccessWorkspaceAdminSelf},
+		ActionDelete: {Kind: AccessUserSelf},
+	},
+	// Personal, not workspace data: a bookmark holds a capability someone
+	// handed to this person, and a co-member or an API key reading it would
+	// widen that grant past whoever it was given to.
+	Coll.Bookmarks: {
+		ActionCreate: {Kind: AccessUserSelf},
+		ActionUpdate: {Kind: AccessUserSelf, Extra: OwnerImmutable},
+		ActionDelete: {Kind: AccessUserSelf},
+	},
+	Coll.BookmarkGroups: {
+		ActionCreate: {Kind: AccessUserSelf},
+		ActionUpdate: {Kind: AccessUserSelf, Extra: OwnerImmutable},
 		ActionDelete: {Kind: AccessUserSelf},
 	},
 }

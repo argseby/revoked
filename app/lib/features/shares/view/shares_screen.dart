@@ -19,10 +19,12 @@ import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
+import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 
@@ -61,6 +63,7 @@ class _SharesScreenState extends State<SharesScreen> {
         ShellSlots.filter.claim(_filterButton);
       }
       Stores.shares.loadShares();
+      Stores.bookmarks.load();
       Stores.vault.loadRecords();
       Stores.identities.loadIdentities();
     });
@@ -95,72 +98,79 @@ class _SharesScreenState extends State<SharesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final store = Stores.shares;
-
     final scrollbarMargin = AppSpacing.scrollbarMargin(context);
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
-      child: Observer(
-        builder: (_) {
-          if (store.isLoading && store.shares.isEmpty) {
-            return const Center(child: AppSpinner(large: true));
-          }
-
-          if (store.errorMessage != null) {
-            return AppLoadError(
-              title: 'Failed to load shares',
-              message: store.errorMessage!,
-              onRetry: store.loadShares,
-            );
-          }
-
-          if (store.shares.isEmpty) {
-            return AppEmptyState(
-              icon: AppIcons.share,
-              title: 'No shared links',
-              subtitle: 'Tap + to securely share data from your vault.',
-            );
-          }
-
-          if (_table.filteredItems.isEmpty && store.shares.isNotEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xxl),
-                child: const Text('No shares match your filters.').muted,
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: EdgeInsets.only(
-              left: AppSpacing.xs,
-              right: AppSpacing.xs,
-              top: AppSpacing.md,
-              bottom: AppSpacing.huge,
-            ),
-            itemCount: _table.filteredItems.length,
-            itemBuilder: (context, index) {
-              final share = _table.filteredItems[index];
-              return _ShareCard(
-                share: share,
-                onDelete: () => _confirmDelete(context, store, share.id),
-                onPause: () async {
-                  await store.updateShare(share.id, {'status': 'paused'});
-                },
-                onActivate: () async {
-                  await store.updateShare(share.id, {'status': 'active'});
-                },
-                onRevoke: () => _confirmRevoke(context, store, share),
-                onDuplicate: () =>
-                    openShareCreateSheet(context: context, initialShare: share),
-                onEdit: () =>
-                    openShareCreateSheet(context: context, editShare: share),
-              );
-            },
-          );
-        },
+      child: AppTabs(
+        labels: const ['My links', 'Bookmarks'],
+        views: [_myLinks(context), const BookmarksTab()],
       ),
+    );
+  }
+
+  Widget _myLinks(BuildContext context) {
+    final store = Stores.shares;
+
+    return Observer(
+      builder: (_) {
+        if (store.isLoading && store.shares.isEmpty) {
+          return const Center(child: AppSpinner(large: true));
+        }
+
+        if (store.errorMessage != null) {
+          return AppLoadError(
+            title: 'Failed to load shares',
+            message: store.errorMessage!,
+            onRetry: store.loadShares,
+          );
+        }
+
+        if (store.shares.isEmpty) {
+          return AppEmptyState(
+            icon: AppIcons.share,
+            title: 'No shared links',
+            subtitle: 'Tap + to securely share data from your vault.',
+          );
+        }
+
+        if (_table.filteredItems.isEmpty && store.shares.isNotEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.xxl),
+              child: const Text('No shares match your filters.').muted,
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: EdgeInsets.only(
+            left: AppSpacing.xs,
+            right: AppSpacing.xs,
+            top: AppSpacing.md,
+            bottom: AppSpacing.huge,
+          ),
+          itemCount: _table.filteredItems.length,
+          itemBuilder: (context, index) {
+            final share = _table.filteredItems[index];
+            return _ShareCard(
+              share: share,
+              onDelete: () => _confirmDelete(context, store, share.id),
+              onPause: () async {
+                await store.updateShare(share.id, {'status': 'paused'});
+              },
+              onActivate: () async {
+                await store.updateShare(share.id, {'status': 'active'});
+              },
+              onRevoke: () => _confirmRevoke(context, store, share),
+              onDuplicate: () =>
+                  openShareCreateSheet(context: context, initialShare: share),
+              onEdit: () =>
+                  openShareCreateSheet(context: context, editShare: share),
+            );
+          },
+        );
+      },
     );
   }
 
