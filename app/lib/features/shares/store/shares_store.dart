@@ -170,6 +170,11 @@ abstract class _SharesStore with Store {
   /// bytes stay in memory only until the share view is left.
   final Map<String, Uint8List> _sharedFileBytes = {};
 
+  /// Why the last [downloadSharedFile] was refused, when the server gave a
+  /// reason worth repeating: a stamped share does not hand out a file it
+  /// cannot stamp. Null for any other failure.
+  AppErrorMessage? sharedFileFailure;
+
   @action
   Future<Uint8List?> downloadSharedFile({
     required String? origin,
@@ -180,6 +185,7 @@ abstract class _SharesStore with Store {
     final cached = _sharedFileBytes[recordId];
     if (cached != null) return cached;
     downloadingShareRecordIds.add(recordId);
+    sharedFileFailure = null;
     try {
       final bytes = await _api.getPublicBytes(
         origin,
@@ -190,6 +196,9 @@ abstract class _SharesStore with Store {
       return bytes;
     } catch (e) {
       errorMessage = e.toString();
+      if (e is ApiException && e.code == AppErrorCode.fileNotWatermarkable) {
+        sharedFileFailure = AppErrorMessage.fromException(e);
+      }
       return null;
     } finally {
       downloadingShareRecordIds.remove(recordId);

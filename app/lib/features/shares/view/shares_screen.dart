@@ -2,31 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/status_colors.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/api_access_sheet.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_bar_title.dart';
-import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_options_sheet.dart';
+import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
-import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
-import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
-import 'package:revoked_app/features/shares/store/shares_store.dart';
-import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
+import 'package:revoked_app/features/shares/view/link_groups.dart';
+
+/// Which links the chips above the list let through.
+enum _LinkFilter { all, active, paused, closed }
 
 class SharesScreen extends StatefulWidget {
   final String? filterSlug;
@@ -39,6 +38,7 @@ class SharesScreen extends StatefulWidget {
 
 class _SharesScreenState extends State<SharesScreen> {
   late final TableStore<Link> _table;
+  final Local<_LinkFilter> _filter = Local(_LinkFilter.all);
 
   @override
   void initState() {
@@ -77,11 +77,12 @@ class _SharesScreenState extends State<SharesScreen> {
     super.dispose();
   }
 
+  /// The top bar carries the search; its hint carries the count.
   Widget _title(BuildContext context) {
     final count = Stores.shares.shares.length;
-    return AppBarTitle(
-      title: 'Share',
-      badgeLabel: '$count ${count == 1 ? 'link' : 'links'}',
+    return AppSearchField<Link>(
+      controller: _table,
+      hint: 'Search $count ${count == 1 ? 'link' : 'links'}',
     );
   }
 
@@ -98,14 +99,9 @@ class _SharesScreenState extends State<SharesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scrollbarMargin = AppSpacing.scrollbarMargin(context);
-
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
-      child: AppTabs(
-        labels: const ['My links', 'Bookmarks'],
-        views: [_myLinks(context), const BookmarksTab()],
-      ),
+    return AppTabs(
+      labels: const ['My links', 'Bookmarks'],
+      views: [_myLinks(context), const BookmarksTab()],
     );
   }
 
@@ -134,271 +130,153 @@ class _SharesScreenState extends State<SharesScreen> {
           );
         }
 
-        if (_table.filteredItems.isEmpty && store.shares.isNotEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xxl),
-              child: const Text('No shares match your filters.').muted,
-            ),
+        final now = DateTime.now();
+        final matches = _table.filteredItems;
+        final byGroup = {for (final g in LinkGroup.values) g: <Link>[]};
+        for (final l in matches) {
+          byGroup[linkGroup(l, now)]!.add(l);
+        }
+        final live =
+            byGroup[LinkGroup.attention]!.length +
+            byGroup[LinkGroup.active]!.length;
+        final filter = _filter.value;
+
+        bool shows(LinkGroup g) => switch (filter) {
+          _LinkFilter.all => true,
+          _LinkFilter.active =>
+            g == LinkGroup.attention || g == LinkGroup.active,
+          _LinkFilter.paused => g == LinkGroup.paused,
+          _LinkFilter.closed => g == LinkGroup.closed,
+        };
+
+        Widget group(LinkGroup g, String title, {bool collapsed = false}) {
+          final links = byGroup[g]!;
+          if (links.isEmpty || !shows(g)) return const SizedBox.shrink();
+          return AppListGroup(
+            // A new filter starts the group over, so picking "Closed" opens
+            // the group it would otherwise keep folded.
+            key: ValueKey('$g-$filter'),
+            title: title,
+            noun: 'links',
+            previewCount: g == LinkGroup.attention ? 0 : 5,
+            collapsed: collapsed,
+            children: [
+              for (final l in links)
+                _LinkRow(
+                  share: l,
+                  attention: linkAttention(l, now),
+                  onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
+                ),
+            ],
           );
         }
 
-        return ListView.builder(
-          padding: EdgeInsets.only(
-            left: AppSpacing.xs,
-            right: AppSpacing.xs,
-            top: AppSpacing.md,
-            bottom: AppSpacing.huge,
+        final nothingShown = LinkGroup.values.every(
+          (g) => byGroup[g]!.isEmpty || !shows(g),
+        );
+
+        return AppListPage(
+          filters: AppFilterChips<_LinkFilter>(
+            selected: filter,
+            onSelected: (f) => _filter.value = f,
+            options: [
+              AppFilterOption(
+                value: _LinkFilter.all,
+                label: 'All',
+                count: matches.length,
+              ),
+              AppFilterOption(
+                value: _LinkFilter.active,
+                label: 'Active',
+                count: live,
+              ),
+              AppFilterOption(
+                value: _LinkFilter.paused,
+                label: 'Paused',
+                count: byGroup[LinkGroup.paused]!.length,
+              ),
+              AppFilterOption(
+                value: _LinkFilter.closed,
+                label: 'Closed',
+                count: byGroup[LinkGroup.closed]!.length,
+              ),
+            ],
           ),
-          itemCount: _table.filteredItems.length,
-          itemBuilder: (context, index) {
-            final share = _table.filteredItems[index];
-            return _ShareCard(
-              share: share,
-              onDelete: () => _confirmDelete(context, store, share.id),
-              onPause: () async {
-                await store.updateShare(share.id, {'status': 'paused'});
-              },
-              onActivate: () async {
-                await store.updateShare(share.id, {'status': 'active'});
-              },
-              onRevoke: () => _confirmRevoke(context, store, share),
-              onDuplicate: () =>
-                  openShareCreateSheet(context: context, initialShare: share),
-              onEdit: () =>
-                  openShareCreateSheet(context: context, editShare: share),
-            );
-          },
+          emptyMessage: nothingShown ? 'No links match your filters.' : null,
+          groups: [
+            group(LinkGroup.attention, 'Needs attention'),
+            group(LinkGroup.active, 'Active'),
+            group(LinkGroup.paused, 'Paused'),
+            group(
+              LinkGroup.closed,
+              'Revoked or expired',
+              collapsed: filter != _LinkFilter.closed,
+            ),
+          ],
         );
       },
     );
   }
-
-  Future<void> _confirmDelete(
-    BuildContext context,
-    SharesStore store,
-    String id,
-  ) async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Delete share link',
-      message:
-          'This public link will stop working immediately. '
-          'This action cannot be undone.',
-      content: ApiPreview(
-        spec: Stores.shares.deleteShareSpec(id),
-        title: 'API request · delete',
-      ),
-      confirmLabel: 'Delete',
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    final ok = await store.deleteShare(id);
-    if (ok && context.mounted) {
-      AppToast.success(context, 'Share link deleted successfully');
-    }
-  }
-
-  Future<void> _confirmRevoke(
-    BuildContext context,
-    SharesStore store,
-    Link share,
-  ) async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Revoke share link',
-      message:
-          'Once a public share link is revoked, it can NEVER be '
-          'activated or shared again. Are you sure?',
-      content: ApiPreview(
-        spec: Stores.shares.updateShareSpec(share.id, const {
-          'status': 'revoked',
-        }),
-        title: 'API request · revoke',
-      ),
-      confirmLabel: 'Revoke permanently',
-      confirmIcon: AppIcons.xCircle,
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    final ok = await store.updateShare(share.id, {'status': 'revoked'});
-    if (ok && context.mounted) {
-      AppToast.success(context, 'Share link permanently revoked');
-    }
-  }
 }
 
-class _ShareCard extends StatelessWidget {
+/// One link in the list: what it is, one line on where it stands, one badge.
+/// Its flags, slug and actions live on its detail page.
+class _LinkRow extends StatelessWidget {
   final Link share;
-  final VoidCallback onDelete;
-  final VoidCallback onPause;
-  final VoidCallback onActivate;
-  final VoidCallback onRevoke;
-  final VoidCallback onDuplicate;
-  final VoidCallback onEdit;
+  final LinkAttention? attention;
+  final VoidCallback onTap;
 
-  const _ShareCard({
+  const _LinkRow({
     required this.share,
-    required this.onDelete,
-    required this.onPause,
-    required this.onActivate,
-    required this.onRevoke,
-    required this.onDuplicate,
-    required this.onEdit,
+    required this.attention,
+    required this.onTap,
   });
-
-  List<AppSheetAction> _shareActions(BuildContext context) {
-    final isActive = share.status == 'active';
-    final isPaused = share.status == 'paused';
-    final isRevoked = share.status == 'revoked';
-
-    return [
-      if (!isRevoked)
-        AppSheetAction(
-          icon: AppIcons.plusSlashMinus,
-          label: 'Select from Vault',
-          primary: true,
-          onTap: () => context.go('${AppRoutes.vault}?editShareId=${share.id}'),
-        ),
-      AppSheetAction(
-        icon: AppIcons.share,
-        label: 'Share',
-        enabled: isActive,
-        onTap: () => showShareSheet(
-          context: context,
-          slug: share.slug,
-          title: share.label,
-          isRequest: false,
-          apiTarget: _apiTarget(),
-        ),
-      ),
-      AppSheetAction(
-        icon: AppIcons.funnel,
-        label: 'View records',
-        onTap: () => context.go('${AppRoutes.vault}?shareFilterId=${share.id}'),
-      ),
-
-      AppSheetAction(icon: AppIcons.pencil, label: 'Edit', onTap: onEdit),
-      AppSheetAction(
-        icon: AppIcons.nodePlus,
-        label: 'Duplicate',
-        onTap: onDuplicate,
-      ),
-      if (isActive)
-        AppSheetAction(icon: AppIcons.pause, label: 'Pause', onTap: onPause)
-      else if (isPaused)
-        AppSheetAction(
-          icon: AppIcons.play,
-          label: 'Activate',
-          onTap: onActivate,
-        ),
-      if (!isRevoked)
-        AppSheetAction(
-          icon: AppIcons.xCircle,
-          label: 'Revoke',
-          destructive: true,
-          onTap: onRevoke,
-        ),
-      AppSheetAction(
-        icon: AppIcons.trash,
-        label: 'Delete',
-        destructive: true,
-        onTap: onDelete,
-      ),
-    ];
-  }
-
-  /// Opens the Web & API access drawer for this share — pick a format and copy
-  /// a ready-to-use `/s/{slug}` endpoint. The data stays behind the same
-  /// revocation as everywhere else; this just exposes where to fetch it.
-  ApiAccessTarget _apiTarget() => ApiAccessTarget(
-    slug: share.slug,
-    title: share.label,
-    intro:
-        'Use this share\'s live data anywhere — pick a format and copy a '
-        'ready-to-use endpoint.',
-    gated: share.hasPassword,
-    requireHandshake: share.requireHandshake,
-    keys: _sharedKeys(),
-  );
-
-  /// The record keys this share exposes (direct records + records inside its
-  /// shared sections), resolved against the loaded vault for the key dropdown.
-  List<String> _sharedKeys() {
-    final vault = Stores.vault;
-    final ids = <String>{...share.records};
-    for (final secId in share.sections) {
-      for (final sec in vault.sections) {
-        if (sec.id == secId) ids.addAll(sec.records);
-      }
-    }
-    final keys = <String>[];
-    for (final r in vault.records) {
-      if (ids.contains(r.id) && !keys.contains(r.key)) keys.add(r.key);
-    }
-    return keys;
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AppEntityCard(
-      leading: Tooltip(
-        message: StatusColors.displayLabel(share.status),
-        child: Icon(
-          StatusColors.icon(share.status),
-          size: 18,
-          color: StatusColors.foreground(theme, share.status),
-        ),
-      ),
+    final attention = this.attention;
+
+    return AppListRow(
+      icon: share.isFromTool
+          ? AppIcons.globe
+          : share.isFromRequest
+          ? AppIcons.inboxFill
+          : AppIcons.link,
       title: share.label,
-      subtitle: share.slug,
-      subtitleMono: true,
-      date: AppEntityCard.formatDate(share.created),
-      tags: _tags(),
-      actions: _shareActions(context),
+      subtitle: attention?.reason ?? _summary(),
+      trailing: attention != null
+          ? AppBadge(label: attention.short, accent: theme.colorScheme.warning)
+          : AppStatusBadge(share.status),
+      onTap: onTap,
     );
   }
 
-  List<Widget> _tags() {
-    final out = <Widget>[
-      AppBadge(
-        icon: AppIcons.eye,
-        label: share.maxViews > 0
-            ? '${share.viewCount}/${share.maxViews}'
-            : '${share.viewCount}',
-      ),
-    ];
-    if (share.isFromRequest) {
-      out.add(const AppBadge(icon: AppIcons.inboxFill, label: 'From request'));
+  /// "From notfallkarte.example · 3 records · viewed 2×"
+  String _summary() {
+    final parts = <String>[];
+    if (share.isFromTool) {
+      parts.add('From ${share.proposedByHost}');
+    } else if (share.isFromRequest) {
+      parts.add('For a request');
     }
-    if (share.hasPassword) {
-      out.add(const AppBadge(icon: AppIcons.lock, label: 'Password'));
+
+    final sections = share.sections.length;
+    final records = share.records.length;
+    if (sections == 0 && records == 0) {
+      parts.add('Nothing selected');
+    } else {
+      if (sections > 0) {
+        parts.add('$sections ${sections == 1 ? 'section' : 'sections'}');
+      }
+      if (records > 0) {
+        parts.add('$records ${records == 1 ? 'record' : 'records'}');
+      }
     }
-    if (share.expiresAt != null) {
-      final d = AppEntityCard.formatDate(share.expiresAt);
-      out.add(
-        AppBadge(
-          icon: AppIcons.clock,
-          label: d == null ? 'Expires' : 'Expires $d',
-        ),
-      );
-    }
-    if (share.requireHandshake) {
-      out.add(const AppBadge(icon: AppIcons.shieldCheck, label: 'Handshake'));
-    }
-    if (share.watermark) {
-      out.add(
-        AppBadge(
-          icon: AppIcons.watermark,
-          label: 'Watermark #${share.watermarkTag}',
-        ),
-      );
-    }
-    out.add(AppBadge(icon: AppIcons.folder, label: '${share.sections.length}'));
-    out.add(
-      AppBadge(icon: AppIcons.cardList, label: '${share.records.length}'),
+
+    parts.add(
+      share.viewCount == 0 ? 'not viewed yet' : 'viewed ${share.viewCount}×',
     );
-    return out;
+    return parts.join(' · ');
   }
 }

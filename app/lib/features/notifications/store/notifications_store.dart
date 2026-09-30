@@ -34,6 +34,25 @@ abstract class _NotificationsStore with Store {
   @computed
   int get unreadCount => notifications.where((n) => !n.read).length;
 
+  /// The server's type for "someone answered your request".
+  static const _requestResponse = 'request_response';
+
+  Iterable<AppNotification> _unreadResponses(String requestId) =>
+      notifications.where(
+        (n) => !n.read && n.type == _requestResponse && n.refId == requestId,
+      );
+
+  /// Responses to [requestId] the owner has not looked at yet — the "3 new"
+  /// on the Requests list. Read inside an Observer, it follows the list.
+  int unreadResponses(String requestId) => _unreadResponses(requestId).length;
+
+  /// Clears the "new" mark once the owner opens a request's responses.
+  Future<void> markResponsesRead(String requestId) async {
+    for (final n in _unreadResponses(requestId).toList()) {
+      await markRead(n.id);
+    }
+  }
+
   @action
   Future<void> load() async {
     isLoading = true;

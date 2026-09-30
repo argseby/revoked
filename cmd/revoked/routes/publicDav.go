@@ -57,7 +57,14 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 		return re.NotFoundError("This address book is no longer available.", nil)
 	}
 	// DAV can't unlock gated links — only open links are exposed.
-	if link.GetString(util.Fields.Link.Password) != "" || link.GetBool(util.Fields.Link.RequireHandshake) {
+	// A view cap is a gate too: CardDAV clients poll and re-fetch on their own
+	// schedule, so there is no honest per-read count to keep, and serving the
+	// card uncounted would let a capped link be read without limit (the /s/
+	// paths claim a view via ClaimLinkView; this one cannot). Refuse it, like
+	// the password and handshake gates.
+	if link.GetString(util.Fields.Link.Password) != "" ||
+		link.GetBool(util.Fields.Link.RequireHandshake) ||
+		link.GetInt(util.Fields.Link.MaxViews) > 0 {
 		return re.ForbiddenError("This link is protected and not available over CardDAV.", nil)
 	}
 

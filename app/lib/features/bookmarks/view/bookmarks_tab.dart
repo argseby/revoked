@@ -8,14 +8,17 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_menu_button.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
@@ -73,31 +76,29 @@ class BookmarksTab extends StatelessWidget {
           );
         }
         final ungrouped = store.ungrouped;
-        return ListView(
-          padding: const EdgeInsets.only(
-            left: AppSpacing.xs,
-            right: AppSpacing.xs,
-            top: AppSpacing.md,
-            bottom: AppSpacing.huge,
-          ),
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: AppButton(
-                icon: AppIcons.plus,
-                label: 'New group',
-                style: AppButtonStyle.accent,
-                size: AppButtonSize.small,
-                onTap: () => _newGroup(context),
-              ),
+        return AppListPage(
+          filters: Align(
+            alignment: Alignment.centerRight,
+            child: AppButton(
+              icon: AppIcons.plus,
+              label: 'New group',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () => _newGroup(context),
             ),
-            AppSpacing.gapMd,
+          ),
+          groups: [
             for (final group in store.groups) _GroupCard(group: group),
-            if (ungrouped.isNotEmpty) ...[
-              if (store.groups.isNotEmpty) AppSpacing.gapMd,
-              for (final bookmark in ungrouped)
-                _BookmarkCard(bookmark: bookmark),
-            ],
+            if (ungrouped.isNotEmpty)
+              AppListGroup(
+                title: store.groups.isEmpty ? 'Bookmarks' : 'Not in a group',
+                previewCount: 8,
+                noun: 'bookmarks',
+                children: [
+                  for (final bookmark in ungrouped)
+                    _BookmarkRow(bookmark: bookmark),
+                ],
+              ),
           ],
         );
       },
@@ -155,46 +156,52 @@ class _GroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final members = Stores.bookmarks.inGroup(group.id);
-    return AppEntityCard(
+    return AppListGroup(
       title: group.name,
-      tags: [
-        AppBadge(
-          icon: AppIcons.bookmark,
-          label: members.length == 1
-              ? '1 bookmark'
-              : '${members.length} bookmarks',
-        ),
-      ],
-      expandedBody: members.isEmpty
-          ? const Text('No bookmarks in this group yet.').muted.small
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final bookmark in members)
-                  _BookmarkCard(bookmark: bookmark),
-              ],
-            ),
-      actions: [
-        AppSheetAction(
-          icon: AppIcons.pencil,
-          label: 'Rename',
-          onTap: () => _rename(context),
-        ),
-        AppSheetAction(
-          icon: AppIcons.trash,
-          label: 'Delete group',
-          destructive: true,
-          onTap: () => _delete(context),
-        ),
-      ],
+      previewCount: 8,
+      noun: 'bookmarks',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppText('${members.length}').small.muted,
+          AppSpacing.gapXs,
+          AppMenuButton(
+            icon: AppIcons.threeDotsVertical,
+            tooltip: 'Group actions',
+            size: AppButtonSize.small,
+            chevron: false,
+            items: [
+              AppMenuItem(
+                icon: AppIcons.pencil,
+                label: 'Rename',
+                onSelected: () => _rename(context),
+              ),
+              AppMenuItem(
+                icon: AppIcons.trash,
+                label: 'Delete group',
+                destructive: true,
+                onSelected: () => _delete(context),
+              ),
+            ],
+          ),
+        ],
+      ),
+      children: members.isEmpty
+          ? const [
+              AppDetailRow(
+                icon: AppIcons.info,
+                label: 'No bookmarks in this group yet',
+              ),
+            ]
+          : [for (final bookmark in members) _BookmarkRow(bookmark: bookmark)],
     );
   }
 }
 
-class _BookmarkCard extends StatelessWidget {
+class _BookmarkRow extends StatelessWidget {
   final Bookmark bookmark;
 
-  const _BookmarkCard({required this.bookmark});
+  const _BookmarkRow({required this.bookmark});
 
   Future<void> _rename(BuildContext context) async {
     final store = Stores.bookmarks;
@@ -245,60 +252,56 @@ class _BookmarkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ownServer = Stores.api.isOwnOrigin(bookmark.origin);
-    return AppEntityCard(
+    final saved = AppEntityCard.formatDate(bookmark.created);
+    return AppListRow(
+      icon: AppIcons.bookmark,
       title: bookmark.title,
-      date: AppEntityCard.formatDate(bookmark.created),
-      tags: [
-        AppBadge(
-          icon: AppIcons.server,
-          label: ownServer ? 'This server' : bookmark.origin,
-        ),
-        if (bookmark.groups.isNotEmpty)
-          AppBadge(
-            icon: AppIcons.folder,
-            label: bookmark.groups.length == 1
-                ? '1 group'
-                : '${bookmark.groups.length} groups',
+      subtitle: [
+        ownServer ? 'This server' : bookmark.origin,
+        if (saved != null) 'saved $saved',
+      ].join(' · '),
+      onTap: () => context.push(bookmark.location),
+      showChevron: false,
+      trailing: AppMenuButton(
+        icon: AppIcons.threeDotsVertical,
+        tooltip: 'Bookmark actions',
+        size: AppButtonSize.small,
+        chevron: false,
+        items: [
+          AppMenuItem(
+            icon: AppIcons.copy,
+            label: 'Copy link',
+            onSelected: () {
+              // Copied links travel to other servers, so they name this one.
+              final link = DeepLinks.share(
+                bookmark.slug,
+                origin: ownServer
+                    ? Stores.api.originAuthority
+                    : bookmark.origin,
+              );
+              Clipboard.setData(ClipboardData(text: link));
+              AppToast.success(context, 'Link copied');
+            },
           ),
-      ],
-      actions: [
-        AppSheetAction(
-          icon: AppIcons.arrowRight,
-          label: 'Open',
-          primary: true,
-          onTap: () => context.push(bookmark.location),
-        ),
-        AppSheetAction(
-          icon: AppIcons.copy,
-          label: 'Copy link',
-          onTap: () {
-            // Copied links travel to other servers, so they name this one.
-            final link = DeepLinks.share(
-              bookmark.slug,
-              origin: ownServer ? Stores.api.originAuthority : bookmark.origin,
-            );
-            Clipboard.setData(ClipboardData(text: link));
-            AppToast.success(context, 'Link copied');
-          },
-        ),
-        AppSheetAction(
-          icon: AppIcons.folder,
-          label: 'Groups',
-          onTap: () =>
-              showBookmarkGroupsSheet(context, bookmarkId: bookmark.id),
-        ),
-        AppSheetAction(
-          icon: AppIcons.pencil,
-          label: 'Rename',
-          onTap: () => _rename(context),
-        ),
-        AppSheetAction(
-          icon: AppIcons.trash,
-          label: 'Remove',
-          destructive: true,
-          onTap: () => _remove(context),
-        ),
-      ],
+          AppMenuItem(
+            icon: AppIcons.folder,
+            label: 'Groups',
+            onSelected: () =>
+                showBookmarkGroupsSheet(context, bookmarkId: bookmark.id),
+          ),
+          AppMenuItem(
+            icon: AppIcons.pencil,
+            label: 'Rename',
+            onSelected: () => _rename(context),
+          ),
+          AppMenuItem(
+            icon: AppIcons.trash,
+            label: 'Remove',
+            destructive: true,
+            onSelected: () => _remove(context),
+          ),
+        ],
+      ),
     );
   }
 }

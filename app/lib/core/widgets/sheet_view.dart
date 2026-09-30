@@ -122,33 +122,25 @@ class _SheetViewState extends State<SheetView> {
 
   Widget _build(BuildContext context) {
     final rows = _sortedRows;
-    return Scrollbar(
+    return SingleChildScrollView(
       controller: _hController,
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        controller: _hController,
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: _totalWidth,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context),
-              Expanded(
-                child: Scrollbar(
-                  controller: _vController,
-                  thumbVisibility: true,
-                  child: ListView.builder(
-                    controller: _vController,
-                    itemCount: rows.length,
-                    itemExtent: widget.rowHeight,
-                    itemBuilder: (context, r) =>
-                        _buildRow(context, rows[r], r.isEven),
-                  ),
-                ),
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: _totalWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            Expanded(
+              child: ListView.builder(
+                controller: _vController,
+                itemCount: rows.length,
+                itemExtent: widget.rowHeight,
+                itemBuilder: (context, r) =>
+                    _buildRow(context, rows[r], r.isEven),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

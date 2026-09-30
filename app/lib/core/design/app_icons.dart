@@ -33,6 +33,7 @@ abstract class AppIcons {
   static const IconData collection = Icons.collections_bookmark_outlined;
   static const IconData copy = Icons.content_copy;
   static const IconData dash = Icons.remove;
+  static const IconData duplicate = Icons.library_add_outlined;
   static const IconData qrCode = Icons.qr_code_2;
   static const IconData qrScan = Icons.qr_code_scanner;
   static const IconData exclamation = Icons.priority_high;
@@ -92,4 +93,15 @@ abstract class AppIcons {
   static const IconData windowStack = Icons.filter_none;
   static const IconData x = Icons.close;
   static const IconData xCircle = Icons.cancel_outlined;
+
+  // What a shared value is, on the rows of an opened link.
+  static const IconData phone = Icons.phone_outlined;
+  static const IconData mail = Icons.mail_outline;
+  static const IconData calendar = Icons.calendar_today_outlined;
+  static const IconData person = Icons.person_outline;
+  static const IconData place = Icons.place_outlined;
+  static const IconData building = Icons.business_outlined;
+  static const IconData image = Icons.image_outlined;
+  static const IconData filePdf = Icons.picture_as_pdf_outlined;
+  static const IconData notes = Icons.notes;
 }

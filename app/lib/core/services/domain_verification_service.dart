@@ -264,9 +264,8 @@ class DomainVerificationService {
       return TrustVerdict.unverified(
         domain: claimedDomain,
         reason:
-            'This identity was issued before DNS verification was '
-            'enabled on the requester\'s server, so it cannot be '
-            'verified against $claimedDomain.',
+            'This identity was issued before its server enabled DNS '
+            'verification, so it can\'t be checked against $claimedDomain.',
       );
     }
 

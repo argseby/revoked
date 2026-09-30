@@ -75,6 +75,12 @@ type verifyPeerResponse struct {
 func VerifyPeerRoute(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.POST("/api/verify-peer", func(re *core.RequestEvent) error {
+			// Unauthenticated and it makes the server issue an outbound DNS
+			// lookup + HTTPS GET, so throttle it: without a budget it is an
+			// outbound-request amplifier and an internal-reachability oracle.
+			if !allowRequest(re, probeLimiter, "verify-peer") {
+				return rateLimitedResponse(re)
+			}
 			var req verifyPeerRequest
 			if err := re.BindBody(&req); err != nil {
 				return re.BadRequestError("invalid body", err)
@@ -276,7 +282,12 @@ func lookupRevokedTXTPin(domain string) (string, error) {
 
 // fetchServerAssertion fetches and decodes the peer's /api/server assertion.
 func fetchServerAssertion(domain string) (server.Assertion, error) {
-	client := &http.Client{Timeout: 8 * time.Second}
+	// The domain is caller-supplied, so this is a server-side fetch of an
+	// attacker-chosen URL: through the SSRF-safe client, exactly like
+	// fetchPeerIdentityStatus. A bare client would follow redirects and reach
+	// loopback / link-local / private ranges, and validating the hostname alone
+	// loses to DNS rebinding.
+	client := util.NewSafeCallbackClient(8 * time.Second)
 	resp, err := client.Get("https://" + domain + "/api/server")
 	if err != nil {
 		return server.Assertion{}, err

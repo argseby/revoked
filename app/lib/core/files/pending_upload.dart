@@ -48,7 +48,7 @@ class PendingUpload {
   static Future<PendingUpload> fromPicked(PlatformFile file) async =>
       PendingUpload(
         name: file.name,
-        size: await file.length(),
+        size: await file.length() ?? 0,
         open: file.readAsByteStream,
       );
 

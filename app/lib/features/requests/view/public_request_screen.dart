@@ -5,6 +5,10 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -21,7 +25,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
@@ -30,7 +33,6 @@ import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
-import 'package:revoked_app/core/widgets/identity_summary_card.dart';
 import 'package:revoked_app/core/widgets/requirement_list.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
@@ -325,27 +327,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     return s is Map<String, dynamic> ? (s['domain'] as String? ?? '') : '';
   }
 
-  /// True when the requester's server is a local/dev host where public DNS
-  /// trust verification cannot apply (localhost, loopback, LAN/private IPs).
-  /// Submitting against such a server shouldn't be gated on a DNS proof that
-  /// can never exist.
-  /// The requester's issuing domain is proven only when the DNS walk verified
-  /// that exact domain; a claim the check did not cover stays unverified.
-  TrustCheckState _identityDomainState() {
-    if (_isLocalServer) return TrustCheckState.verified;
-    final verdict = _store.publicTrustVerdict;
-    if (_store.isVerifyingTrust && verdict == null) {
-      return TrustCheckState.checking;
-    }
-    final claimed = _requester?['domainAtIssue'] as String? ?? '';
-    if (verdict?.state == TrustState.spoofed) return TrustCheckState.spoofed;
-    if (verdict?.state == TrustState.revoked) return TrustCheckState.revoked;
-    if (verdict?.state == TrustState.verified && verdict?.domain == claimed) {
-      return TrustCheckState.verified;
-    }
-    return TrustCheckState.failed;
-  }
-
   /// True while the first verdict is still outstanding. Sending is the
   /// only thing that waits on it.
   bool get _verificationPending =>
@@ -386,6 +367,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
     final fp = _requester?['fingerprint'] as String? ?? '';
     final shortFp = fp.length > 16 ? '${fp.substring(0, 8)}…' : fp;
+    final name = _requester?['name'] as String? ?? '';
 
     return [
       TrustCheck(
@@ -396,7 +378,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       ),
       TrustCheck(
         label: 'Requester identity',
-        value: shortFp,
+        value: name.isEmpty ? shortFp : '$name · $shortFp',
         state: chainState,
         detail: chainState == TrustCheckState.verified
             ? 'Signed by the key that domain publishes in DNS.'
@@ -671,61 +653,63 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     // The responder's own typing lives in TextEditingControllers the form
     // reads directly; this counter is what makes those edits observable.
     _store.publicRevision;
+    final label = _store.publicProbe?['label'] as String? ?? '';
+    final filling =
+        !_store.isLoadingPublic &&
+        !(_store.publicTerminalError?.isTerminal ?? false) &&
+        !_store.publicSuccess &&
+        _store.publicProbe != null &&
+        !_isForeign &&
+        Stores.auth.isAuthenticated;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xxl,
-                vertical: AppSpacing.lg,
-              ),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-                ),
-              ),
-              child: Row(
-                children: [
-                  AppButton(
-                    icon: AppIcons.arrowLeft,
-                    tooltip: 'Back to app',
-                    style: AppButtonStyle.accent,
-                    size: AppButtonSize.small,
-                    onTap: () {
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go(AppRoutes.vault);
-                      }
-                    },
-                  ),
-                  const Spacer(),
-                  // When signed in, show which account/workspace this request
-                  // will be filled as, with a quick switcher. Otherwise show
-                  // the public trust badge.
-                  Observer(
-                    builder: (_) {
-                      if (Stores.auth.isAuthenticated) {
-                        return const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [WorkspaceChip()],
-                        );
-                      }
-                      return const AppBadge(
-                        label: 'SECURE REQUEST',
-                        variant: AppBadgeVariant.outline,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            Expanded(child: _buildBody(theme)),
-          ],
-        ),
-      ),
+    final fields = _store.publicTemplate.where((t) => t.isRecord).length;
+    return AppFlowScaffold(
+      title: label.isEmpty ? 'Data request' : label,
+      subtitle: [
+        'Data request',
+        if (fields > 0) '$fields ${fields == 1 ? 'field' : 'fields'}',
+        if (_store.publicExistingLink != null) 'already answered',
+      ].join(' · '),
+      closeLabel: 'Close',
+      onClose: () {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.vault);
+        }
+      },
+      // Which account and workspace the answer is given as, with a switcher.
+      actions: [if (Stores.auth.isAuthenticated) const WorkspaceChip()],
+      bottomBar: filling ? _submitBar() : null,
+      body: _buildBody(theme),
+    );
+  }
+
+  /// The one action of the form, pinned to the bottom. It waits for the
+  /// sender check, and says so on the button itself.
+  Widget _submitBar() {
+    return AppActionBar(
+      note: const Text(
+        'Only the requester sees what you send, and you can revoke it at any '
+        'time.',
+      ).muted.small,
+      children: [
+        if (_verificationPending)
+          const AppButton(
+            icon: AppIcons.shieldCheck,
+            label: 'Verifying the sender…',
+            onTap: null,
+          )
+        else
+          AppButton(
+            icon: AppIcons.send,
+            label: _store.publicExistingLink != null
+                ? 'Update response'
+                : 'Submit response',
+            busy: _store.isSubmittingPublic,
+            onTap: _submit,
+          ),
+      ],
     );
   }
 
@@ -737,7 +721,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           children: [
             const AppSpinner(large: true),
             const SizedBox(height: AppSpacing.md),
-            const Text('Retrieving request…').muted,
+            const Text('Loading the request…').muted,
           ],
         ),
       );
@@ -753,8 +737,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       return _buildTerminal(
         theme,
         const AppErrorMessage(
-          title: 'Could not load request',
-          description: 'Try again later.',
+          title: 'Couldn’t load the request',
+          description: 'Please try again in a moment.',
           code: '',
         ),
       );
@@ -770,175 +754,89 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   }
 
   Widget _buildAccountGate(ThemeData theme) {
-    final label = _store.publicProbe!['label'] as String? ?? 'Data request';
-    final description = _isForeign
-        ? 'This request lives on ${widget.origin}, and answers are kept as '
-              'revocable grants in your account there. Sign in with an '
-              'account on that server to respond.'
-        : 'Answers are kept in your account as revocable grants — you can '
-              'update or withdraw them at any time. Sign in to respond.';
-
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 440),
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: AppCard(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                AppIcons.personBoundingBox,
-                color: theme.colorScheme.primary,
-                size: 48,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(label).header,
-              const SizedBox(height: AppSpacing.sm),
-              Text(description, textAlign: TextAlign.center).muted.small,
-              const SizedBox(height: AppSpacing.xl),
-              AppButton(
-                icon: AppIcons.boxArrowInRight,
-                label: 'Sign in',
-                style: AppButtonStyle.primary,
-                onTap: () => context.go(AppRoutes.login),
-              ),
-            ],
-          ),
+    return AppStatusMessage(
+      icon: AppIcons.personBoundingBox,
+      title: 'Sign in to respond',
+      message: _isForeign
+          ? 'This request lives on ${widget.origin}. Your answer is kept as a '
+                'revocable link in your account there, so please sign in with '
+                'an account on that server to respond.'
+          : 'Your answer is kept in your account as a revocable link, so you '
+                'can update or withdraw it at any time. Please sign in to '
+                'respond.',
+      actions: [
+        AppButton(
+          icon: AppIcons.boxArrowInRight,
+          label: 'Sign in',
+          onTap: () => context.go(AppRoutes.login),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildTerminal(ThemeData theme, AppErrorMessage msg) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 440),
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: AppCard(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                AppIcons.exclamationOctagon,
-                color: theme.colorScheme.error,
-                size: 48,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(msg.title).header,
-              const SizedBox(height: AppSpacing.sm),
-              Text(msg.description, textAlign: TextAlign.center).muted.small,
-              const SizedBox(height: AppSpacing.xl),
-              AppButton(
-                icon: AppIcons.arrowClockwise,
-                label: 'Try again',
-                onTap: _probeRequest,
-                style: AppButtonStyle.accent,
-              ),
-            ],
-          ),
+    return AppStatusMessage(
+      icon: AppIcons.exclamationOctagon,
+      accent: theme.colorScheme.error,
+      title: msg.title,
+      message: msg.description,
+      actions: [
+        AppButton(
+          icon: AppIcons.arrowClockwise,
+          label: 'Try again',
+          style: AppButtonStyle.accent,
+          onTap: _probeRequest,
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildSuccess(ThemeData theme) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: AppCard(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  AppIcons.checkCircle,
-                  color: theme.colorScheme.primary,
-                  size: 48,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              const Text('Thanks — submission received').header,
-              const SizedBox(height: AppSpacing.sm),
-              const Text(
-                'The requester has been notified. You can close this window.',
-                textAlign: TextAlign.center,
-              ).muted.small,
-            ],
-          ),
+    return AppStatusMessage(
+      icon: AppIcons.checkCircle,
+      accent: theme.colorScheme.success,
+      title: 'Your response was sent',
+      message:
+          'The requester has been notified. Your answer is kept as a link in '
+          'your account, where you can update or revoke it at any time.',
+      actions: [
+        AppButton(
+          icon: AppIcons.check,
+          label: 'Done',
+          style: AppButtonStyle.accent,
+          onTap: () => context.go(AppRoutes.vault),
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildForm(ThemeData theme) {
-    final label = _store.publicProbe!['label'] as String? ?? 'Data request';
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Two-pane on a wide window: your inputs on the left, everything the
-        // request is/needs as hoverable tags on the right. Stacks to a single
-        // column when there isn't room.
-        final wide = constraints.maxWidth >= 900;
-        final info = Observer(builder: (_) => _buildInfoPanel(theme, label));
-        final input = Observer(builder: (_) => _buildInputPanel(theme));
-
-        final Widget body = wide
-            ? Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: input),
-                  const SizedBox(width: AppSpacing.xxl),
-                  SizedBox(width: 320, child: info),
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  info,
-                  const SizedBox(height: AppSpacing.lg),
-                  input,
-                ],
-              );
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: wide ? 1060 : 640),
-              child: body,
-            ),
-          ),
-        );
-      },
+    // Side by side on a wide window: what you fill in, and who is asking.
+    final wide = MediaQuery.sizeOf(context).width >= 1000;
+    final info = _buildInfoPanel(theme);
+    final input = _buildInputPanel(theme);
+    return AppPageBody(
+      bottomPadding: AppSpacing.xxl,
+      children: [
+        if (wide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: input),
+              const SizedBox(width: AppSpacing.xl),
+              Expanded(flex: 2, child: info),
+            ],
+          )
+        else ...[
+          info,
+          input,
+        ],
+      ],
     );
   }
 
-  /// Right-hand (or top, on mobile) panel: who is asking and everything this
-  /// request is or needs — expressed as one consistent set of hoverable tags
-  /// rather than a stack of differently-styled banners.
-  Widget _buildInfoPanel(ThemeData theme, String label) {
-    final scheme = theme.colorScheme;
-    final requester = _requester;
-    final name = requester?['name'] as String? ?? '';
-    final fp = requester?['fingerprint'] as String? ?? '';
-    final shortFp = fp.length > 16
-        ? '${fp.substring(0, 8)}…${fp.substring(fp.length - 8)}'
-        : fp;
-
-    final templateRecords = _store.publicTemplate
-        .where((t) => t.isRecord)
-        .toList();
-    final fieldNames = templateRecords.map((t) => t.label).join(', ');
-
+  /// Who is asking, what it takes to answer, and an earlier answer to revoke.
+  Widget _buildInfoPanel(ThemeData theme) {
     // Live status per gate: whether THIS responder can pass it right now.
     // Green needs nothing, grey is a field still to fill, red names whose
     // problem it is - the sender's restriction or the reader's account.
@@ -960,8 +858,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           description: hasIdentities
               ? 'Your response is signed with your identity, so the '
                     'requester knows it came from you.'
-              : 'You have no identity yet - create one under '
-                    'Account before responding.',
+              : 'You don’t have an identity yet. Create one under Account '
+                    'before you respond.',
         ),
       if (_requireHandshake && _identityScope == 'from_root')
         RequirementItem(
@@ -974,8 +872,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               : RequirementStatus.blocked,
           description: hasRootIdentity
               ? 'One of your identities was issued by that server.'
-              : 'None of your identities were issued by that server, so '
-                    'this request cannot accept them.',
+              : 'None of your identities was issued by that server, so this '
+                    'request can’t accept them.',
         ),
       if (_hasIdentifier)
         RequirementItem(
@@ -985,8 +883,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               ? RequirementStatus.ready
               : RequirementStatus.pending,
           description: _store.responderIdentifier.text.trim().isNotEmpty
-              ? 'Entered - checked by the server on submit.'
-              : 'Enter the identifier the requester gave you, exactly.',
+              ? 'Entered. The server checks it when you submit.'
+              : 'Enter the identifier the requester gave you, exactly as '
+                    'written.',
         ),
       if (_requiresPassword)
         RequirementItem(
@@ -996,167 +895,124 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               ? RequirementStatus.ready
               : RequirementStatus.pending,
           description: _store.responderPassword.text.isNotEmpty
-              ? 'Entered - checked by the server on submit.'
-              : 'A password from the requester is required to submit.',
+              ? 'Entered. The server checks it when you submit.'
+              : 'You need the password the requester gave you to submit.',
         ),
     ];
 
-    final tags = <Widget>[
-      if (templateRecords.isNotEmpty)
-        _InfoTag(
-          icon: AppIcons.cardList,
-          label:
-              '${templateRecords.length} ${templateRecords.length == 1 ? 'field' : 'fields'}',
-          tooltip: 'Requested: $fieldNames',
-        ),
-      if (_store.publicExistingLink != null)
-        _InfoTag(
-          icon: AppIcons.checkCircle,
-          label: 'Already responded',
-          accent: scheme.primary,
-          tooltip:
-              'You already have a live response. Submitting again updates it '
-              'in place - no duplicate is created.',
-        ),
-    ];
-
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(label).header,
-          const SizedBox(height: AppSpacing.xxs),
-          const Text(
-            'Your submission is private to the requester, and you can revoke '
-            'it at any time.',
-          ).muted.small,
-
-          _section('Security', [TrustPanel(checks: _trustChecks())]),
-
-          if (name.isNotEmpty)
-            _section('Requested by', [
-              IdentitySummaryCard(
-                name: name,
-                fingerprint: shortFp,
-                domain: _requester?['domainAtIssue'] as String? ?? '',
-                domainState: _identityDomainState(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _section('Requester', [TrustPanel(checks: _trustChecks())]),
+        if (requirements.isNotEmpty)
+          _section('To respond', [RequirementList(items: requirements)]),
+        if (_store.publicExistingLink != null)
+          AppListGroup(
+            title: 'Your earlier answer',
+            trailing: const SizedBox.shrink(),
+            footer: const Text(
+              'Submitting again updates it in place, so no duplicate is '
+              'created.',
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Row(
+                  children: [
+                    Icon(
+                      AppIcons.checkCircle,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                    AppSpacing.gapMd,
+                    const Expanded(child: Text('You already answered this')),
+                    AppButton(
+                      icon: AppIcons.xCircle,
+                      label: 'Revoke my response',
+                      style: AppButtonStyle.destructive,
+                      size: AppButtonSize.small,
+                      onTap: _revokeExisting,
+                    ),
+                  ],
+                ),
               ),
-            ]),
-
-          if (requirements.isNotEmpty)
-            _section('Required to respond', [
-              RequirementList(items: requirements),
-            ]),
-
-          if (tags.isNotEmpty)
-            _section('This request', [
-              Wrap(
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: tags,
-              ),
-            ]),
-
-          if (_store.publicExistingLink != null)
-            _section('Already answered', [
-              AppButton(
-                icon: AppIcons.xCircle,
-                label: 'Revoke my response',
-                style: AppButtonStyle.destructive,
-                size: AppButtonSize.small,
-                onTap: _revokeExisting,
-              ),
-            ]),
-        ],
-      ),
+            ],
+          ),
+      ],
     );
   }
 
-  /// Left-hand (or bottom, on mobile) panel: everything the responder fills in.
+  /// Everything the responder fills in, one card per group.
   Widget _buildInputPanel(ThemeData theme) {
     final templateRecords = _store.publicTemplate
         .where((t) => t.isRecord)
         .toList();
+    Widget cell(Widget child) =>
+        Padding(padding: const EdgeInsets.all(AppSpacing.md), child: child);
 
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Your response').header,
-          const SizedBox(height: AppSpacing.xxs),
-          const Text('Only the requester can see what you submit.').muted.small,
-
-          if (_requiresPassword || _hasIdentifier)
-            _section('Access', [_accessInputs(theme)]),
-
-          if (_requireHandshake)
-            _section('Signing identity', [_buildIdentityPicker(theme)]),
-
-          _section('About you', [
-            _field(
-              'Your name',
-              optional: true,
-              child: AppTextField(
-                controller: _store.responderName,
-                hint: 'Anonymous',
-              ),
-            ),
-          ]),
-
-          if (templateRecords.isNotEmpty)
-            _section('Requested information', [
-              for (final item in templateRecords)
-                _buildTemplateField(theme, item),
-            ]),
-
-          if (_allowExtraFields) _section('Anything else', [_extraFieldRows()]),
-
-          if (_store.publicFormError != null) ...[
-            const SizedBox(height: AppSpacing.lg),
-            _inlineError(_store.publicFormError!),
-          ],
-
-          const SizedBox(height: AppSpacing.xl),
-          // The form stays usable while the sender is being verified -
-          // blanking it made every millisecond of latency read as a
-          // frozen screen. Only sending waits for the verdict.
-          if (_verificationPending)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const AppSpinner(),
-                const SizedBox(width: AppSpacing.sm),
-                const Text('Verifying the sender…').muted.small,
-              ],
-            )
-          else
-            AppButton(
-              icon: AppIcons.send,
-              label: _store.publicExistingLink != null
-                  ? 'Update response'
-                  : 'Submit response',
-              busy: _store.isSubmittingPublic,
-              onTap: _submit,
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// One labelled group inside a panel. Every group owns the space above its
-  /// own heading, so the panels keep one rhythm no matter which groups a
-  /// particular request happens to show.
-  Widget _section(String title, List<Widget> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: AppSpacing.xl),
-        Text(title).small.muted,
-        const SizedBox(height: AppSpacing.sm),
-        ...children,
+        if (_requiresPassword || _hasIdentifier)
+          AppListGroup(
+            title: 'Access',
+            trailing: const SizedBox.shrink(),
+            children: [cell(_accessInputs(theme))],
+          ),
+        if (_requireHandshake)
+          AppListGroup(
+            title: 'Signing identity',
+            trailing: const SizedBox.shrink(),
+            children: [cell(_buildIdentityPicker(theme))],
+          ),
+        AppListGroup(
+          title: 'About you',
+          trailing: const SizedBox.shrink(),
+          children: [
+            cell(
+              _field(
+                'Your name',
+                optional: true,
+                child: AppTextField(
+                  controller: _store.responderName,
+                  hint: 'Anonymous',
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (templateRecords.isNotEmpty)
+          AppListGroup(
+            title: 'Requested information',
+            children: [
+              for (final item in templateRecords)
+                cell(_buildTemplateField(theme, item)),
+            ],
+          ),
+        if (_allowExtraFields)
+          AppListGroup(
+            title: 'Anything else',
+            trailing: const SizedBox.shrink(),
+            children: [cell(_extraFieldRows())],
+          ),
+        if (_store.publicFormError != null)
+          _inlineError(_store.publicFormError!),
       ],
+    );
+  }
+
+  /// A titled block that holds its own widgets — a panel or a list — rather
+  /// than rows in a card.
+  Widget _section(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppListHeader(title: title),
+          ...children,
+        ],
+      ),
     );
   }
 
@@ -1379,96 +1235,93 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     final excluded = _store.publicExcluded.contains(item.key);
     final canUseVault = _store.responderVault.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Flexible(
-                      child: AppBadge(
-                        label: item.key,
-                        mono: true,
-                        variant: AppBadgeVariant.sunken,
-                      ),
-                    ),
-                    if (item.required) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      const AppBadge(
-                        label: 'REQUIRED',
-                        variant: AppBadgeVariant.primary,
-                      ),
-                    ],
-                    if (!item.required) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      _ShareToggle(
-                        shared: !excluded,
-                        onTap: () => runInAction(() {
-                          if (excluded) {
-                            _store.publicExcluded.remove(item.key);
-                          } else {
-                            _store.publicExcluded.add(item.key);
-                          }
-                        }),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (item.reason.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xxs),
-            Text(item.reason).muted.small,
-          ],
-          const SizedBox(height: AppSpacing.xs),
-          if (excluded)
-            _excludedBox(theme, item)
-          else if (linked != null)
-            _linkedBox(theme, item, linked)
-          else ...[
-            AppTextField(
-              controller: ctrl,
-              obscureText: item.format == 'hidden',
-              keyboardType: item.type == 'number'
-                  ? TextInputType.number
-                  : TextInputType.text,
-              hint: item.required
-                  ? 'Required value'
-                  : 'Optional value — leave blank to skip',
             ),
-            // Only offer the vault picker for keys you DON'T already hold —
-            // you can't alias a different record onto a key you have.
-            if (canUseVault && _matchVaultRecord(item.key) == null) ...[
-              AppSpacing.gapSm,
-              Align(
-                alignment: Alignment.centerLeft,
-                child: AppButton(
-                  icon: AppIcons.link,
-                  label: 'Use a vault entry',
-                  style: AppButtonStyle.accent,
-                  size: AppButtonSize.small,
-                  onTap: () => _openVaultPicker(item),
-                ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: AppBadge(
+                      label: item.key,
+                      mono: true,
+                      variant: AppBadgeVariant.sunken,
+                    ),
+                  ),
+                  if (item.required) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    const AppBadge(
+                      label: 'Required',
+                      variant: AppBadgeVariant.primary,
+                    ),
+                  ],
+                  if (!item.required) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    _ShareToggle(
+                      shared: !excluded,
+                      onTap: () => runInAction(() {
+                        if (excluded) {
+                          _store.publicExcluded.remove(item.key);
+                        } else {
+                          _store.publicExcluded.add(item.key);
+                        }
+                      }),
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
+          ],
+        ),
+        if (item.reason.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xxs),
+          Text(item.reason).muted.small,
+        ],
+        const SizedBox(height: AppSpacing.xs),
+        if (excluded)
+          _excludedBox(theme, item)
+        else if (linked != null)
+          _linkedBox(theme, item, linked)
+        else ...[
+          AppTextField(
+            controller: ctrl,
+            obscureText: item.format == 'hidden',
+            keyboardType: item.type == 'number'
+                ? TextInputType.number
+                : TextInputType.text,
+            hint: item.required
+                ? 'Required value'
+                : 'Optional value — leave blank to skip',
+          ),
+          // Only offer the vault picker for keys you DON'T already hold —
+          // you can't alias a different record onto a key you have.
+          if (canUseVault && _matchVaultRecord(item.key) == null) ...[
+            AppSpacing.gapSm,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AppButton(
+                icon: AppIcons.link,
+                label: 'Use a vault entry',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: () => _openVaultPicker(item),
+              ),
+            ),
           ],
         ],
-      ),
+      ],
     );
   }
 
@@ -1672,38 +1525,6 @@ class _ExtraField {
   void dispose() {
     keyCtrl.dispose();
     valueCtrl.dispose();
-  }
-}
-
-/// A compact, hoverable info pill used across the request's info panel — one
-/// consistent design for the requester, trust, security requirements and
-/// status. The trailing dot hints that hovering (or long-pressing on touch)
-/// reveals the [tooltip].
-class _InfoTag extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String tooltip;
-  final Color? accent;
-
-  const _InfoTag({
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      waitDuration: const Duration(milliseconds: 300),
-      child: AppBadge(
-        icon: icon,
-        label: label,
-        variant: AppBadgeVariant.outline,
-        accent: accent,
-      ),
-    );
   }
 }
 

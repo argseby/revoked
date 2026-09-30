@@ -1,13 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
@@ -18,15 +17,20 @@ import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/utils/value_kind.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/core/widgets/app_error_text.dart';
+import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/widgets/app_value_row.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/file_view_sheet.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
-import 'package:revoked_app/core/widgets/identity_summary_card.dart';
 import 'package:revoked_app/core/widgets/requirement_list.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
@@ -129,23 +133,6 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     await prefs.setString(_handshakeKey(), token);
   }
 
-  TrustCheckState _sharerDomainState() {
-    final verdict = _store.shareTrustVerdict;
-    if (_store.isVerifyingShareTrust && verdict == null) {
-      return TrustCheckState.checking;
-    }
-    final sharer = _store.shareProbe?['sharer'];
-    final claimed = sharer is Map
-        ? (sharer['domainAtIssue'] as String? ?? '')
-        : '';
-    if (verdict?.state == TrustState.spoofed) return TrustCheckState.spoofed;
-    if (verdict?.state == TrustState.revoked) return TrustCheckState.revoked;
-    if (verdict?.state == TrustState.verified && verdict?.domain == claimed) {
-      return TrustCheckState.verified;
-    }
-    return TrustCheckState.failed;
-  }
-
   List<RequirementItem> _gateRequirements() {
     final requiresPassword =
         _store.shareProbe?['requiresPassword'] as bool? ?? false;
@@ -219,6 +206,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     }
 
     final shortFp = fp.length > 16 ? '${fp.substring(0, 8)}…' : fp;
+    final name = sharer['name'] as String? ?? '';
     return [
       TrustCheck(
         label: 'Server domain',
@@ -228,7 +216,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       ),
       TrustCheck(
         label: 'Sender identity',
-        value: shortFp,
+        value: name.isEmpty ? shortFp : '$name · $shortFp',
         state: state,
         detail: state == TrustCheckState.verified
             ? 'Signed by the key published in DNS.'
@@ -400,50 +388,58 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
 
   Widget _build(BuildContext context) {
     final theme = Theme.of(context);
+    final label = _store.shareProbe?['label'] as String? ?? '';
+    final gated =
+        !_store.isLoadingShare &&
+        _store.shareTerminalError == null &&
+        _store.shareData == null &&
+        _store.shareProbe != null;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppSpacing.screenH(context),
-                vertical: AppSpacing.md,
-              ),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+    final data = _store.shareData;
+    final stamped = (data?['watermark'] as String? ?? '').isNotEmpty;
+    final protected =
+        (_store.shareProbe?['requiresPassword'] as bool? ?? false) ||
+        _requiresHandshake;
+    return AppFlowScaffold(
+      title: label.isEmpty ? 'Shared link' : label,
+      subtitle: data != null
+          ? ['Shared link', 'read-only', if (stamped) 'watermarked'].join(' · ')
+          : gated && protected
+          ? 'Protected link · unlock to see what was shared'
+          : 'Shared link',
+      closeLabel: 'Close',
+      onClose: () {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(AppRoutes.vault);
+        }
+      },
+      actions: [
+        // A dead link is not worth keeping, and a bookmark lives on an
+        // account.
+        if (Stores.auth.isAuthenticated &&
+            _store.shareProbe != null &&
+            _store.shareTerminalError == null)
+          _bookmarkButton(),
+      ],
+      bottomBar: gated
+          ? AppActionBar(
+              children: [
+                AppButton(
+                  label: 'Unlock',
+                  icon: AppIcons.lock,
+                  busy: _store.isUnlockingShare,
+                  onTap:
+                      (_requiresHandshake &&
+                          (_isForeign || _store.shareIdentityId == null))
+                      ? null
+                      : _unlock,
                 ),
-              ),
-              child: Row(
-                children: [
-                  AppButton(
-                    icon: AppIcons.arrowLeft,
-                    label: 'Exit',
-                    style: AppButtonStyle.accent,
-                    size: AppButtonSize.small,
-                    onTap: () {
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go(AppRoutes.vault);
-                      }
-                    },
-                  ),
-                  const Spacer(),
-                  // A dead link is not worth keeping, and a bookmark lives
-                  // on an account.
-                  if (Stores.auth.isAuthenticated &&
-                      _store.shareProbe != null &&
-                      _store.shareTerminalError == null)
-                    _bookmarkButton(),
-                ],
-              ),
-            ),
-            Expanded(child: _buildBody(theme)),
-          ],
-        ),
-      ),
+              ],
+            )
+          : null,
+      body: _buildBody(theme),
     );
   }
 
@@ -455,14 +451,28 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           children: [
             const AppSpinner(large: true),
             AppSpacing.gapMd,
-            const Text('Loading secure share…').muted,
+            const Text('Opening the shared link…').muted,
           ],
         ),
       );
     }
 
     if (_store.shareTerminalError != null) {
-      return _buildTerminal(theme, _store.shareTerminalError!);
+      final msg = _store.shareTerminalError!;
+      return AppStatusMessage(
+        icon: AppIcons.exclamationOctagon,
+        accent: theme.colorScheme.error,
+        title: msg.title,
+        message: msg.description,
+        actions: [
+          AppButton(
+            icon: AppIcons.arrowClockwise,
+            label: 'Try again',
+            style: AppButtonStyle.accent,
+            onTap: _probeLink,
+          ),
+        ],
+      );
     }
 
     if (_store.shareData != null) {
@@ -478,188 +488,70 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildTerminal(ThemeData theme, AppErrorMessage msg) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 440),
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: AppCard(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                AppIcons.exclamationOctagon,
-                color: theme.colorScheme.error,
-                size: 40,
-              ),
-              AppSpacing.gapMd,
-              Text(msg.title).header,
-              AppSpacing.gapXs,
-              Text(msg.description, textAlign: TextAlign.center).muted.small,
-              AppSpacing.gapLg,
-              AppButton(
-                icon: AppIcons.arrowClockwise,
-                label: 'Try Again',
-                style: AppButtonStyle.accent,
-                onTap: _probeLink,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPasswordGate(ThemeData theme, bool requiresPassword) {
-    final label = _store.shareProbe?['label'] as String? ?? 'Protected Share';
-
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: AppCard(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: AppRadius.allMd,
-                      ),
-                      child: Icon(
-                        AppIcons.shieldLock,
-                        color: theme.colorScheme.primary,
-                        size: 20,
-                      ),
-                    ),
-                    AppSpacing.gapSm,
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(label).header,
-                          const Text('Vault Verification').muted.small,
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                AppSpacing.gapLg,
-                TrustPanel(checks: _shareTrustChecks()),
-                AppSpacing.gapMd,
-                RequirementList(items: _gateRequirements()),
-                if (requiresPassword) ...[
-                  AppSpacing.gapLg,
-                  const Text('Enter Share Password').small,
-                  AppSpacing.gapXs,
-                  AppTextField(
-                    controller: _store.sharePassword,
-                    obscureText: true,
-                    hint: 'Password',
-                    onSubmitted: (_) => _unlock(),
-                  ),
-                  if (_store.sharePasswordHint != null) ...[
-                    AppSpacing.gapXs,
-                    Text(
-                      _store.sharePasswordHint!,
-                      style: TextStyle(color: theme.colorScheme.error),
-                    ).small,
-                  ],
-                ],
-                if (_requiresHandshake && _isForeign) ...[
-                  AppSpacing.gapMd,
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.errorContainer.withValues(
-                        alpha: 0.3,
-                      ),
-                      borderRadius: AppRadius.allMd,
-                    ),
-                    child: const Text(
-                      'This share lives on another server. Cross-server verification is currently not supported.',
-                    ).small,
-                  ),
-                ] else if (_requiresHandshake) ...[
-                  AppSpacing.gapMd,
-                  const Text('Select Your Identity').small,
-                  AppSpacing.gapXs,
-                  IdentityPicker(
-                    selectedId: _store.shareIdentityId,
-                    onChanged: (v) =>
-                        runInAction(() => _store.shareIdentityId = v),
-                  ),
-                ],
-                AppSpacing.gapXl,
-                AppButton(
-                  label: 'Unlock Vault',
-                  icon: AppIcons.lock,
-                  busy: _store.isUnlockingShare,
-                  onTap:
-                      (_requiresHandshake &&
-                          (_isForeign || _store.shareIdentityId == null))
-                      ? null
-                      : _unlock,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoPanel(ThemeData theme) {
-    final scheme = theme.colorScheme;
-    final sharer = _store.shareProbe?['sharer'];
-    final name = sharer is Map ? (sharer['name'] as String? ?? '') : '';
-    final fp = sharer is Map ? (sharer['fingerprint'] as String? ?? '') : '';
-    final signed = fp.isNotEmpty;
-    final shortFp = fp.length > 16
-        ? '${fp.substring(0, 8)}…${fp.substring(fp.length - 8)}'
-        : fp;
-
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+  /// A titled block that holds one widget of its own — a panel or a form
+  /// field — rather than rows.
+  Widget _section(String title, Widget child) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(AppIcons.shieldCheck, size: 18, color: scheme.primary),
-              AppSpacing.gapSm,
-              const Text('Share Provenance').header,
-            ],
-          ),
-          AppSpacing.gapMd,
-          TrustPanel(checks: _shareTrustChecks()),
-          if (signed) ...[
-            AppSpacing.gapLg,
-            const Text('Sharer Details').muted.small,
-            AppSpacing.gapSm,
-            IdentitySummaryCard(
-              name: name,
-              fingerprint: shortFp,
-              domain: sharer is Map
-                  ? (sharer['domainAtIssue'] as String? ?? '')
-                  : '',
-              domainState: _sharerDomainState(),
-            ),
-          ],
+          AppListHeader(title: title),
+          child,
         ],
       ),
     );
   }
 
+  Widget _buildPasswordGate(ThemeData theme, bool requiresPassword) {
+    return AppPageBody(
+      bottomPadding: AppSpacing.xxl,
+      children: [
+        _section('Sender', TrustPanel(checks: _shareTrustChecks())),
+        _section(
+          'To open this link',
+          RequirementList(items: _gateRequirements()),
+        ),
+        if (requiresPassword)
+          _section(
+            'Password',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppTextField(
+                  controller: _store.sharePassword,
+                  obscureText: true,
+                  hint: 'Enter the password the sender gave you',
+                  onSubmitted: (_) => _unlock(),
+                ),
+                if (_store.sharePasswordHint != null) ...[
+                  AppSpacing.gapXs,
+                  AppErrorText(_store.sharePasswordHint!),
+                ],
+              ],
+            ),
+          ),
+        if (_requiresHandshake && _isForeign)
+          const AppAlert(
+            destructive: true,
+            content: Text(
+              'This link lives on another server. Verifying your identity '
+              'across servers isn’t supported yet.',
+            ),
+          )
+        else if (_requiresHandshake)
+          _section(
+            'Your identity',
+            IdentityPicker(
+              selectedId: _store.shareIdentityId,
+              onChanged: (v) => runInAction(() => _store.shareIdentityId = v),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildContent(ThemeData theme, Map<String, dynamic> data) {
-    final label = data['label'] as String? ?? 'Shared Items';
     final rawSections = (data['sections'] as List<dynamic>?) ?? [];
     final rawRecords = (data['records'] as List<dynamic>?) ?? [];
 
@@ -678,256 +570,175 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
             .toList();
     final inSections = {for (final s in sections) ...memberIds(s)};
     final loose = records.where((r) => !inSections.contains(r['id'])).toList();
+    // Set for a stamped share: its files come back stamped, and the same line
+    // is laid over the values so a screenshot of plain text carries it too.
+    final stamp = data['watermark'] as String? ?? '';
 
-    final content = Column(
+    Widget row(Map<String, dynamic> r) => _SharedRecordRow(
+      record: r,
+      slug: widget.shareSlug,
+      origin: widget.origin,
+    );
+
+    final groups = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppCard(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Row(
+        for (final s in sections)
+          AppListGroup(
+            title: s['name'] as String? ?? 'Section',
+            noun: 'items',
             children: [
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.4,
-                  ),
-                  borderRadius: AppRadius.allMd,
+              for (final id in memberIds(s))
+                if (byId[id] != null) row(byId[id]!),
+              if (memberIds(s).every((id) => byId[id] == null))
+                const AppDetailRow(
+                  icon: AppIcons.info,
+                  label: 'This section is empty',
                 ),
-                child: Icon(
-                  AppIcons.folder,
-                  color: theme.colorScheme.primary,
-                  size: 24,
-                ),
-              ),
-              AppSpacing.gapMd,
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label).header,
-                    AppSpacing.gapXxs,
-                    const Text('Read-only items shared with you.').muted.small,
-                  ],
-                ),
-              ),
             ],
           ),
-        ),
-        AppSpacing.gapLg,
-
-        for (final s in sections)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-            child: _PublicSectionCard(
-              section: s,
-              records: [for (final id in memberIds(s)) ?byId[id]],
-              slug: widget.shareSlug,
-              origin: widget.origin,
-            ),
+        if (loose.isNotEmpty)
+          AppListGroup(
+            title: sections.isEmpty ? 'Shared with you' : 'Other information',
+            noun: 'items',
+            children: [for (final r in loose) row(r)],
           ),
-
-        if (loose.isNotEmpty) ...[
-          _RecordGroupCard(
-            title: 'General Records',
-            icon: AppIcons.fileText,
-            records: loose,
-            slug: widget.shareSlug,
-            origin: widget.origin,
-          ),
-          AppSpacing.gapLg,
-        ],
-
         if (records.isEmpty && sections.isEmpty)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: AppSpacing.gigantic,
-              ),
-              child: const Text('No items are shared in this link.').muted,
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.gigantic),
+            child: Center(
+              child: const Text(
+                'This link doesn’t contain any information yet.',
+              ).muted,
             ),
           ),
       ],
     );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 940;
-        // Its own Observer, not the one around the whole build: LayoutBuilder
-        // runs this callback during layout, outside that scope, so the trust
-        // reads inside the panel would register with no reaction and sit on
-        // "Checking…" forever.
-        final info = Observer(builder: (_) => _buildInfoPanel(theme));
-
-        return SingleChildScrollView(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppSpacing.screenH(context),
-            vertical: AppSpacing.xl,
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: wide ? 1120 : 680),
-              child: wide
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 7, child: content),
-                        const SizedBox(width: AppSpacing.xl),
-                        Expanded(flex: 4, child: info),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        info,
-                        const SizedBox(height: AppSpacing.lg),
-                        content,
-                      ],
-                    ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _RecordGroupCard extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final IconData icon;
-  final List<Map<String, dynamic>> records;
-  final String slug;
-  final String? origin;
-
-  const _RecordGroupCard({
-    required this.title,
-    this.subtitle,
-    required this.icon,
-    required this.records,
-    required this.slug,
-    required this.origin,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(
-                alpha: 0.3,
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 18, color: theme.colorScheme.primary),
-                AppSpacing.gapSm,
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ).header,
-                      ),
-                      if (subtitle != null && subtitle!.isNotEmpty) ...[
-                        AppSpacing.gapXs,
-                        Flexible(
-                          child: Text(
-                            subtitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ).muted.small.mono,
+    final content = stamp.isEmpty
+        ? groups
+        : Stack(
+            children: [
+              groups,
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _StampPainter(
+                        line: stamp,
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.12,
                         ),
-                      ],
-                    ],
+                      ),
+                    ),
                   ),
                 ),
-                AppSpacing.gapSm,
-                AppBadge(
-                  label:
-                      '${records.length} ${records.length == 1 ? 'item' : 'items'}',
-                  variant: AppBadgeVariant.outline,
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, thickness: 1),
-          if (records.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: const Text('No records inside this section.').muted.small,
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: records.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                return _PublicRecordRow(
-                  record: records[index],
-                  slug: slug,
-                  origin: origin,
-                );
-              },
-            ),
+              ),
+            ],
+          );
+
+    final sender = _section('Sender', TrustPanel(checks: _shareTrustChecks()));
+    // Side by side on a wide window: the shared values, and who sent them.
+    final wide = MediaQuery.sizeOf(context).width >= 1000;
+    return AppPageBody(
+      bottomPadding: AppSpacing.xxl,
+      children: [
+        if (wide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: content),
+              const SizedBox(width: AppSpacing.xl),
+              Expanded(flex: 2, child: sender),
+            ],
+          )
+        else ...[
+          sender,
+          content,
         ],
-      ),
+      ],
     );
   }
 }
 
-class _PublicSectionCard extends StatelessWidget {
-  final Map<String, dynamic> section;
-  final List<Map<String, dynamic>> records;
-  final String slug;
-  final String? origin;
+/// Tiles the share's stamp line diagonally across everything it shows, the
+/// way the server stamps a file: one in a corner crops away in seconds.
+class _StampPainter extends CustomPainter {
+  final String line;
+  final Color color;
 
-  const _PublicSectionCard({
-    required this.section,
-    required this.records,
-    required this.slug,
-    required this.origin,
-  });
+  const _StampPainter({required this.line, required this.color});
 
   @override
-  Widget build(BuildContext context) {
-    final name = section['name'] as String? ?? 'Section';
-    final key = section['key'] as String? ?? '';
+  void paint(Canvas canvas, Size size) {
+    final text = TextPainter(
+      text: TextSpan(
+        text: line,
+        style: TextStyle(
+          color: color,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final stepX = text.width + 48;
+    const stepY = 64.0;
+    // Half the diagonal reaches every corner whatever the angle.
+    final reach =
+        math.sqrt(size.width * size.width + size.height * size.height) / 2;
 
-    return _RecordGroupCard(
-      title: name,
-      subtitle: key.isNotEmpty ? '($key)' : null,
-      icon: AppIcons.folder,
-      records: records,
-      slug: slug,
-      origin: origin,
-    );
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(-math.pi / 6);
+    var row = 0;
+    for (var y = -reach; y < reach; y += stepY, row++) {
+      final shift = row.isOdd ? stepX / 2 : 0.0;
+      for (var x = -reach - shift; x < reach; x += stepX) {
+        text.paint(canvas, Offset(x, y));
+      }
+    }
+    canvas.restore();
+    text.dispose();
   }
+
+  @override
+  bool shouldRepaint(_StampPainter old) =>
+      old.line != line || old.color != color;
 }
 
-class _PublicRecordRow extends StatelessWidget {
+/// What a stamped copy is, read from its bytes: the server re-encodes what it
+/// stamps, so the copy is not always the type the record was stored as.
+({String mime, String ext})? _stampedType(Uint8List bytes) {
+  bool startsWith(List<int> magic) {
+    if (bytes.length < magic.length) return false;
+    for (var i = 0; i < magic.length; i++) {
+      if (bytes[i] != magic[i]) return false;
+    }
+    return true;
+  }
+
+  if (startsWith(const [0x89, 0x50, 0x4E, 0x47])) {
+    return (mime: 'image/png', ext: '.png');
+  }
+  if (startsWith(const [0xFF, 0xD8, 0xFF])) {
+    return (mime: 'image/jpeg', ext: '.jpg');
+  }
+  if (startsWith(const [0x25, 0x50, 0x44, 0x46])) {
+    return (mime: 'application/pdf', ext: '.pdf');
+  }
+  return null;
+}
+
+/// One shared value: its kind, the value, and what can be done with it. A
+/// file offers View and Download; a hidden value stays masked until shown.
+class _SharedRecordRow extends StatelessWidget {
   final Map<String, dynamic> record;
   final String slug;
   final String? origin;
 
-  const _PublicRecordRow({
+  const _SharedRecordRow({
     required this.record,
     required this.slug,
     required this.origin,
@@ -946,7 +757,7 @@ class _PublicRecordRow extends StatelessWidget {
       AppToast.error(
         context,
         'File unavailable',
-        subtitle: 'Reopen the link to request a new download.',
+        subtitle: 'Open the link again to request a new download.',
       );
       return null;
     }
@@ -958,245 +769,123 @@ class _PublicRecordRow extends StatelessWidget {
       token: token,
     );
     if (bytes == null && context.mounted) {
+      // A stamped share refuses a file it cannot stamp; say that, not that
+      // the token ran out.
+      final failure = Stores.shares.sharedFileFailure;
       AppToast.error(
         context,
-        'Could not load file',
-        subtitle: 'The download token may have expired or been used.',
+        failure?.title ?? 'Couldn’t load the file',
+        subtitle:
+            failure?.description ??
+            'The download may have expired or already been used.',
       );
     }
     return bytes;
   }
 
+  /// The name and type to show and save [bytes] under. A stamped copy is
+  /// named after what it is, not after the original it was made from.
+  ({String filename, String? mime}) _fileIdentity(Uint8List bytes) {
+    final filename = record['filename'] as String? ?? 'file';
+    final mime = record['mime'] as String?;
+    final stamped =
+        (Stores.shares.shareData?['watermark'] as String? ?? '').isNotEmpty;
+    final type = stamped ? _stampedType(bytes) : null;
+    if (type == null) return (filename: filename, mime: mime);
+    final dot = filename.lastIndexOf('.');
+    final stem = dot > 0 ? filename.substring(0, dot) : filename;
+    return (filename: '$stem${type.ext}', mime: type.mime);
+  }
+
   Future<void> _viewFile(BuildContext context) async {
     final bytes = await _fileBytes(context);
     if (bytes == null || !context.mounted) return;
+    final file = _fileIdentity(bytes);
     await viewFile(
       context,
       bytes: bytes,
-      filename: record['filename'] as String? ?? 'file',
-      mime: record['mime'] as String?,
+      filename: file.filename,
+      mime: file.mime,
     );
   }
 
   Future<void> _downloadFile(BuildContext context) async {
-    final filename = record['filename'] as String? ?? 'file';
     final bytes = await _fileBytes(context);
     if (bytes == null || !context.mounted) return;
+    final file = _fileIdentity(bytes);
 
     final ok = await saveFileToDevice(
       bytes: bytes,
-      filename: filename,
-      mime: record['mime'] as String?,
+      filename: file.filename,
+      mime: file.mime,
     );
     if (ok && context.mounted) AppToast.success(context, 'File saved');
   }
 
   Widget _buildRow(BuildContext context) {
-    final theme = Theme.of(context);
     final label = record['label'] as String? ?? 'Record';
     final key = record['key'] as String? ?? '';
     final value = record['value'] as String? ?? '';
     final type = record['type'] as String? ?? 'text';
     final format = record['format'] as String? ?? 'default';
-
-    final isFile = type == 'file';
-    final isHiddenFormat = format == 'hidden';
-    final isObscured =
-        isHiddenFormat && !Stores.shares.revealedShareValues.contains(key);
+    final filename = record['filename'] as String? ?? 'file';
     final size = (record['size'] as num?)?.toInt() ?? 0;
     final mime = (record['mime'] as String? ?? '').split(';').first;
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              AppSpacing.gapSm,
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (key.isNotEmpty) ...[
-                      Flexible(
-                        child: AppBadge(
-                          label: key,
-                          mono: true,
-                          variant: AppBadgeVariant.sunken,
-                        ),
-                      ),
-                      AppSpacing.gapXs,
-                    ],
-                    if (isFile) ...[
-                      AppBadge(label: formatBytes(size)),
-                      AppSpacing.gapXs,
-                      if (mime.isNotEmpty) ...[
-                        AppBadge(label: mime),
-                        AppSpacing.gapXs,
-                      ],
-                    ],
-                    AppBadge(label: type.toUpperCase()),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          AppSpacing.gapSm,
-          if (isFile)
-            _buildFileBox(
-              context: context,
-              theme: theme,
-              obscured: isObscured,
-              hidden: isHiddenFormat,
-            )
-          else
-            _buildValueBox(
-              context: context,
-              theme: theme,
-              keyName: key,
-              value: value,
-              obscured: isObscured,
-              hidden: isHiddenFormat,
-            ),
-        ],
-      ),
+    final hidden = format == 'hidden';
+    final obscured = hidden && !Stores.shares.revealedShareValues.contains(key);
+    final kind = valueKindOf(
+      type: type,
+      value: value,
+      key: key,
+      label: label,
+      mime: mime,
+      filename: filename,
     );
-  }
 
-  Widget _buildValueBox({
-    required BuildContext context,
-    required ThemeData theme,
-    required String keyName,
-    required String value,
-    required bool obscured,
-    required bool hidden,
-  }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-        borderRadius: AppRadius.allMd,
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SelectableText(
-              obscured ? '••••••••••••••••' : (value.isEmpty ? '—' : value),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 13,
-                color: obscured
-                    ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
-                    : theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-          AppSpacing.gapSm,
-          if (hidden)
-            AppButton(
-              icon: obscured ? AppIcons.eye : AppIcons.eyeSlash,
-              tooltip: obscured ? 'Reveal value' : 'Hide value',
-              style: AppButtonStyle.accent,
-              size: AppButtonSize.small,
-              onTap: () => Stores.shares.toggleShareValue(keyName),
-            ),
-          AppSpacing.gapXs,
-          AppButton(
-            icon: AppIcons.copy,
-            label: 'Copy',
-            style: AppButtonStyle.accent,
-            size: AppButtonSize.small,
-            onTap: () {
-              Clipboard.setData(ClipboardData(text: value));
-              AppToast.success(context, 'Copied value to clipboard');
-            },
-          ),
-        ],
-      ),
-    );
-  }
+    if (type != 'file') {
+      return AppValueRow(
+        label: label,
+        value: value,
+        kind: kind,
+        masked: hidden ? obscured : null,
+        onToggleMask: hidden ? () => Stores.shares.toggleShareValue(key) : null,
+      );
+    }
 
-  Widget _buildFileBox({
-    required BuildContext context,
-    required ThemeData theme,
-    required bool obscured,
-    required bool hidden,
-  }) {
     final recordId = record['id'] as String? ?? '';
-    final filename = record['filename'] as String? ?? 'file';
     final busy = Stores.shares.downloadingShareRecordIds.contains(recordId);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-        borderRadius: AppRadius.allMd,
-      ),
-      child: Row(
-        children: [
-          Icon(AppIcons.fileText, size: 18, color: theme.colorScheme.primary),
-          AppSpacing.gapSm,
-          Expanded(
-            child: Text(
-              obscured ? '••••••••••••' : filename,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ).mono.small,
-          ),
-          if (hidden) ...[
-            AppSpacing.gapSm,
-            AppButton(
-              icon: obscured ? AppIcons.eye : AppIcons.eyeSlash,
-              tooltip: obscured ? 'Reveal filename' : 'Hide filename',
-              style: AppButtonStyle.accent,
-              size: AppButtonSize.small,
-              onTap: () => Stores.shares.toggleShareValue(
-                record['key'] as String? ?? '',
-              ),
-            ),
-          ],
-          AppSpacing.gapXs,
+    return AppValueRow(
+      label: label,
+      value: filename,
+      kind: kind,
+      display: '$filename · ${formatBytes(size)}',
+      masked: hidden ? obscured : null,
+      actions: [
+        if (hidden)
           AppButton(
-            icon: AppIcons.eye,
-            label: 'View',
-            size: AppButtonSize.small,
-            busy: busy,
-            onTap: busy ? null : () => _viewFile(context),
-          ),
-          AppSpacing.gapXs,
-          AppButton(
-            icon: AppIcons.download,
-            tooltip: 'Download',
+            icon: obscured ? AppIcons.eye : AppIcons.eyeSlash,
+            tooltip: obscured ? 'Show file name' : 'Hide file name',
             style: AppButtonStyle.accent,
             size: AppButtonSize.small,
-            onTap: busy ? null : () => _downloadFile(context),
+            onTap: () => Stores.shares.toggleShareValue(key),
           ),
-        ],
-      ),
+        AppButton(
+          icon: AppIcons.eye,
+          label: 'View',
+          style: AppButtonStyle.accent,
+          size: AppButtonSize.small,
+          busy: busy,
+          onTap: busy ? null : () => _viewFile(context),
+        ),
+        AppButton(
+          icon: AppIcons.download,
+          tooltip: 'Download',
+          style: AppButtonStyle.accent,
+          size: AppButtonSize.small,
+          onTap: busy ? null : () => _downloadFile(context),
+        ),
+      ],
     );
   }
 }

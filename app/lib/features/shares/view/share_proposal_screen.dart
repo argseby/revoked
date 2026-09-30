@@ -5,6 +5,12 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/connection.dart';
@@ -17,7 +23,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
@@ -100,6 +105,13 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
   // The tool behind the proposal, when it names itself.
   final _connection = Local<Connection?>(null);
   final _connectNow = Local<bool>(true);
+
+  /// Whether the owner has made the connection decisions and moved on to the
+  /// link. A proposal that also asks to connect its tool is two decisions,
+  /// taken one after the other: what the tool may do, then what the link
+  /// holds — so what the tool will receive is shown once it follows from the
+  /// choices already made, not above the choice that changes it.
+  final _connectionDecided = Local<bool>(false);
   final _allowRevoke = Local<bool>(true);
   final _allowHandOver = Local<bool>(true);
 
@@ -475,56 +487,71 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     return Observer(builder: (_) => _build(context));
   }
 
+  /// The proposal also asks to connect its tool (or to let this browser in).
+  bool get _hasConnectStep =>
+      _proposal!.client.isNotEmpty && (_canConnect || _canJoin);
+
+  /// On the first of the two steps: deciding about the connection.
+  bool get _onConnectStep => _hasConnectStep && !_connectionDecided.value;
+
   Widget _build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xxl,
-                vertical: AppSpacing.lg,
-              ),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-                ),
-              ),
-              child: Row(
-                children: [
-                  AppButton(
-                    icon: AppIcons.arrowLeft,
-                    tooltip: 'Back to app',
-                    style: AppButtonStyle.accent,
-                    size: AppButtonSize.small,
-                    onTap: () => _leave(context),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(child: _buildBody(context)),
-          ],
-        ),
-      ),
+    final p = _proposal;
+    final deciding = p != null && !_loading.value && _createdSlug.value == null;
+    final connecting = deciding && _onConnectStep;
+    final days = p?.days;
+    final String? subtitle;
+    if (p == null) {
+      subtitle = null;
+    } else if (connecting) {
+      subtitle = 'Step 1 of 2 · then you review the link';
+    } else {
+      subtitle = [
+        if (deciding && _hasConnectStep) 'Step 2 of 2',
+        p.from.isEmpty ? 'Link proposal' : 'Link proposal from ${p.from}',
+        if (days != null)
+          'expires ${_formatDate(DateTime.now().add(Duration(days: days)))}',
+      ].join(' · ');
+    }
+    return AppFlowScaffold(
+      title: p == null
+          ? 'Create a link'
+          : connecting
+          ? (_canJoin
+                ? '${p.from} is already connected'
+                : '${p.from} wants to connect')
+          : p.label.isEmpty
+          ? 'Create a link'
+          : p.label,
+      subtitle: subtitle,
+      closeLabel: deciding ? 'Decline and go back' : 'Back to the app',
+      onClose: () => _leave(context),
+      bottomBar: !deciding
+          ? null
+          : connecting
+          ? _connectDecision(context)
+          : _decision(context, p),
+      body: _buildBody(context),
     );
   }
 
   Widget _buildBody(BuildContext context) {
     final p = _proposal;
     if (p == null) {
-      return _message(
+      return AppStatusMessage(
         icon: AppIcons.exclamationTriangle,
+        accent: Theme.of(context).colorScheme.error,
         title: 'This link doesn’t work',
-        body:
-            'It does not describe a link revoked can create. Ask the tool '
+        message:
+            'It doesn’t describe a link that Revoked can create. Ask the tool '
             'that made it for a new one.',
-        action: AppButton(
-          label: 'Back to app',
-          icon: AppIcons.arrowLeft,
-          style: AppButtonStyle.accent,
-          onTap: () => _leave(context),
-        ),
+        actions: [
+          AppButton(
+            label: 'Back to the app',
+            icon: AppIcons.arrowLeft,
+            style: AppButtonStyle.accent,
+            onTap: () => _leave(context),
+          ),
+        ],
       );
     }
     if (_loading.value) {
@@ -532,100 +559,164 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     }
     final slug = _createdSlug.value;
     if (slug != null) return _buildCreated(context, p, slug);
+    if (_onConnectStep) return _buildConnectStep(p);
     return _buildForm(context, p);
-  }
-
-  Widget _message({
-    required IconData icon,
-    required String title,
-    required String body,
-    required Widget action,
-  }) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 40),
-              AppSpacing.gapLg,
-              Text(title, textAlign: TextAlign.center).header,
-              AppSpacing.gapSm,
-              Text(body, textAlign: TextAlign.center).muted,
-              AppSpacing.gapXl,
-              action,
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildCreated(BuildContext context, ShareProposal p, String slug) {
     // A page that is watching needs nothing opened to carry on.
     final back = p.redirect.isNotEmpty && !_polls;
-    return _message(
+    return AppStatusMessage(
       icon: AppIcons.checkCircle,
+      accent: Theme.of(context).colorScheme.success,
       title: 'Your link is ready',
-      body: _handedOver
+      message: _handedOver
           ? '$_toolName has the link for ${p.label} and can show or send it '
                 'for you. '
-                '${_polls ? 'Go back to your browser: it carries on by '
-                          'itself. ' : ''}'
-                'You can see when it is opened, or revoke it, under '
-                'Share.'
-          : 'Send it to the landlord for ${p.label}. Only you have it — '
-                '$_toolName does not. You can see when it is opened, or '
-                'revoke it, under Share.',
-      action: Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
-        alignment: WrapAlignment.center,
-        children: [
-          AppButton(
-            label: 'Send link',
-            icon: AppIcons.share,
-            style: back ? AppButtonStyle.accent : AppButtonStyle.primary,
-            onTap: () => showShareSheet(
-              context: context,
-              slug: slug,
-              title: p.label,
-              isRequest: false,
-            ),
+                '${_polls ? 'You can return to your browser; it carries on '
+                          'by itself. ' : ''}'
+                'You can see when it’s opened, or revoke it, under Links.'
+          : 'Send it to the recipient of ${p.label}. Only you have the link; '
+                '$_toolName doesn’t. You can see when it’s opened, or revoke '
+                'it, under Links.',
+      actions: [
+        AppButton(
+          label: 'Send link',
+          icon: AppIcons.share,
+          style: back ? AppButtonStyle.accent : AppButtonStyle.primary,
+          onTap: () => showShareSheet(
+            context: context,
+            slug: slug,
+            title: p.label,
+            isRequest: false,
           ),
-          if (back)
-            AppButton(
-              label: 'Back to $_toolName',
-              icon: AppIcons.boxArrowUpRight,
-              onTap: _backToTool,
-            )
-          else
-            AppButton(
-              label: 'Done',
-              icon: AppIcons.check,
-              style: AppButtonStyle.accent,
-              onTap: () => context.go(AppRoutes.data),
-            ),
-        ],
-      ),
+        ),
+        if (back)
+          AppButton(
+            label: 'Back to $_toolName',
+            icon: AppIcons.boxArrowUpRight,
+            onTap: _backToTool,
+          )
+        else
+          AppButton(
+            label: 'Done',
+            icon: AppIcons.check,
+            style: AppButtonStyle.accent,
+            onTap: () => context.go(AppRoutes.data),
+          ),
+      ],
     );
   }
 
-  /// The tool behind the proposal: connect it on the way, and say what it
-  /// will learn about this link. Whether it receives links was decided for
-  /// the connection, so it is stated here, not asked again.
-  Widget _toolCard(ShareProposal p) {
-    final sensitive = _sensitiveSelected;
+  /// Step 1: who is asking, whether to connect it, and what it may do.
+  Widget _buildConnectStep(ShareProposal p) {
+    Widget choice(AppCheckRow check) => Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xs,
+      ),
+      child: check,
+    );
+    final connecting = _connectNow.value;
+
+    return AppPageBody(
+      bottomPadding: AppSpacing.xxl,
+      children: [
+        AppListGroup(
+          title: 'Who is asking',
+          trailing: const SizedBox.shrink(),
+          footer: const Text(
+            'A tool chooses its own name, so the address is what identifies '
+            'it. Only continue if you recognise it.',
+          ),
+          children: [
+            AppDetailRow(
+              icon: AppIcons.globe,
+              label: 'Address',
+              value: Uri.parse(p.client).host,
+            ),
+            AppDetailRow(icon: AppIcons.tag, label: 'Name', value: p.from),
+          ],
+        ),
+        AppListGroup(
+          title: 'Connection',
+          trailing: const SizedBox.shrink(),
+          footer: Text(
+            connecting
+                ? 'Next, you review the link ${p.from} proposes.'
+                : 'Next, you review the link. ${p.from} won’t learn anything '
+                      'about it.',
+          ),
+          children: [
+            if (_canConnect)
+              choice(
+                AppCheckRow(
+                  label: 'Connect ${p.from}',
+                  subtitle:
+                      'It can then see the status of links it proposes. It '
+                      'can never read your vault.',
+                  value: connecting,
+                  onChanged: (v) => _connectNow.value = v,
+                ),
+              ),
+            if (_canJoin)
+              choice(
+                AppCheckRow(
+                  label: 'Let this browser in',
+                  subtitle:
+                      'It isn’t connected in the browser you came from yet. '
+                      'It gets the same permissions you granted before.',
+                  value: connecting,
+                  onChanged: (v) => _connectNow.value = v,
+                ),
+              ),
+          ],
+        ),
+        if (connecting && _polls)
+          ToolCheckCode(name: p.from, challenge: p.challenge),
+        if (_canConnect && connecting)
+          ToolPermissions(
+            name: p.from,
+            reasons: p.reasons,
+            allowRevoke: _allowRevoke.value,
+            allowHandOver: _allowHandOver.value,
+            onAllowRevoke: (v) => _allowRevoke.value = v,
+            onAllowHandOver: (v) => _allowHandOver.value = v,
+          ),
+      ],
+    );
+  }
+
+  Widget _connectDecision(BuildContext context) {
+    return AppActionBar(
+      children: [
+        AppButton(
+          label: 'Decline',
+          icon: AppIcons.x,
+          style: AppButtonStyle.accent,
+          onTap: () => _leave(context),
+        ),
+        AppButton(
+          label: 'Continue',
+          icon: AppIcons.arrowRight,
+          onTap: () => _connectionDecided.value = true,
+        ),
+      ],
+    );
+  }
+
+  /// Step 2's account of the tool: whether it is connected, and what it will
+  /// learn about this link — which follows from the connection choices and
+  /// from what the link holds, both settled above it.
+  Widget _toolOutcome(ShareProposal p) {
     final connected = _connection.value != null;
     final String outcome;
     if (!_toolAttached) {
-      outcome = '${p.from} will not learn anything about this link.';
+      outcome = '${p.from} won’t learn anything about this link.';
     } else if (!_canHandOver) {
       outcome =
           '${p.from} will see this link’s status, but not the link itself.';
-    } else if (sensitive) {
+    } else if (_sensitiveSelected) {
       outcome =
           '${p.from} will see this link’s status, but not the link itself: '
           'it contains documents or hidden values, so only you can send it.';
@@ -633,169 +724,159 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       outcome =
           '${p.from} will receive this link and can show, copy or open it.';
     }
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            connected
-                ? '${p.from} is connected (${Uri.parse(p.client).host})'
-                : '${p.from} · ${Uri.parse(p.client).host}',
-          ).muted.small,
-          AppSpacing.gapSm,
-          if (_canConnect)
-            AppCheckRow(
-              label: 'Connect ${p.from}',
-              subtitle:
-                  'It can then see the status of links it proposes. It can '
-                  'never read your vault.',
-              value: _connectNow.value,
-              onChanged: (v) => _connectNow.value = v,
-            ),
-          if (_canConnect && _connectNow.value)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xxl,
-                AppSpacing.xs,
-                0,
-                AppSpacing.sm,
+    final String status;
+    if (connected && !_canJoin) {
+      status = 'Connected';
+    } else if (_connectNow.value) {
+      status = _canJoin ? 'This browser will be let in' : 'Will be connected';
+    } else {
+      status = 'Not connected';
+    }
+
+    return AppListGroup(
+      title: p.from,
+      trailing: _hasConnectStep
+          ? AppButton(
+              icon: AppIcons.pen,
+              label: 'Change',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () => _connectionDecided.value = false,
+            )
+          : const SizedBox.shrink(),
+      children: [
+        AppDetailRow(
+          icon: AppIcons.globe,
+          label: 'Address',
+          value: Uri.parse(p.client).host,
+        ),
+        AppDetailRow(icon: AppIcons.link, label: 'Connection', value: status),
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                AppIcons.info,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
               ),
-              child: ToolPermissions(
-                name: p.from,
-                reasons: p.reasons,
-                allowRevoke: _allowRevoke.value,
-                allowHandOver: _allowHandOver.value,
-                onAllowRevoke: (v) => _allowRevoke.value = v,
-                onAllowHandOver: (v) => _allowHandOver.value = v,
-              ),
-            ),
-          if (_canJoin)
-            AppCheckRow(
-              label: 'Let this browser in',
-              subtitle:
-                  'It is not connected in the browser you came from. It gets '
-                  'in with what you allowed before.',
-              value: _connectNow.value,
-              onChanged: (v) => _connectNow.value = v,
-            ),
-          if ((_canConnect || _canJoin) && _connectNow.value && _polls)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xxl,
-                AppSpacing.xs,
-                0,
-                AppSpacing.sm,
-              ),
-              child: ToolCheckCode(name: p.from, challenge: p.challenge),
-            ),
-          Text(outcome).small,
-        ],
-      ),
+              AppSpacing.gapMd,
+              Expanded(child: Text(outcome)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildForm(BuildContext context, ShareProposal p) {
     final items = _items.value;
     final missing = items.where((i) => i.record == null).length;
+    final selected = items
+        .where(
+          (i) => i.record != null && _selected.value.contains(i.record!.id),
+        )
+        .length;
     final identity = Stores.identities.primaryIdentity;
-    final details = [
-      if (p.stamp.isNotEmpty) 'Every file is stamped “${p.stamp}”',
-      if (p.days != null)
-        'Expires ${_formatDate(DateTime.now().add(Duration(days: p.days!)))}',
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                '${p.from.isEmpty ? 'A tool' : p.from} wants to create a '
-                'link for',
-              ).muted,
-              AppSpacing.gapXxs,
-              Text(p.label).header,
-              if (details.isNotEmpty) ...[
-                AppSpacing.gapXs,
-                Text(details.join(' · ')).muted.small,
-              ],
-              AppSpacing.gapXl,
-              if (missing > 0) ...[
-                const Text(
-                  'Add what’s missing right here. It is saved to your vault '
+    return AppPageBody(
+      bottomPadding: AppSpacing.xxl,
+      children: [
+        AppListGroup(
+          title: 'What the link will contain · $selected of ${items.length}',
+          trailing: const SizedBox.shrink(),
+          footer: missing > 0
+              ? const Text(
+                  'Add what’s missing right here. It’s saved to your vault '
                   'once and ready for the next link.',
-                ).small,
-                AppSpacing.gapSm,
-              ],
-              AppCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.sm,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_loadError.value != null)
-                      AppAlert(
-                        destructive: true,
-                        content: Text(_loadError.value!),
-                      ),
-                    for (final item in items) _itemRow(context, item),
-                  ],
+                )
+              : null,
+          children: [
+            if (_loadError.value != null)
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                child: AppAlert(
+                  destructive: true,
+                  content: Text(_loadError.value!),
                 ),
               ),
-              if (p.client.isNotEmpty) ...[AppSpacing.gapLg, _toolCard(p)],
-              if (identity != null) ...[
-                AppSpacing.gapLg,
-                AppCheckRow(
+            for (final item in items) _itemRow(context, item),
+          ],
+        ),
+        if (p.stamp.isNotEmpty)
+          AppListGroup(
+            title: 'Watermark',
+            trailing: const SizedBox.shrink(),
+            footer: const Text(
+              'Every file in the link is stamped with this text, so a copy '
+              'can be traced back to it.',
+            ),
+            children: [
+              AppDetailRow(
+                icon: AppIcons.watermark,
+                label: 'Stamp text',
+                value: p.stamp,
+              ),
+            ],
+          ),
+        if (p.client.isNotEmpty) _toolOutcome(p),
+        if (identity != null)
+          AppListGroup(
+            title: 'Signature',
+            trailing: const SizedBox.shrink(),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: AppSpacing.xs,
+                ),
+                child: AppCheckRow(
                   label: 'Sign as ${identity.name}',
-                  subtitle: 'The landlord can check the link comes from you.',
+                  subtitle:
+                      'The recipient can check that the link comes from you.',
                   value: _sign.value,
                   onChanged: (v) => _sign.value = v,
                 ),
-              ],
-              if (_submitError.value != null) ...[
-                AppSpacing.gapLg,
-                AppAlert(destructive: true, content: Text(_submitError.value!)),
-              ],
-              AppSpacing.gapXl,
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  AppButton(
-                    label: 'Decline',
-                    icon: AppIcons.x,
-                    style: AppButtonStyle.accent,
-                    onTap: () => _leave(context),
-                  ),
-                  AppButton(
-                    label: 'Create link',
-                    icon: AppIcons.link,
-                    busy: _submitting.value,
-                    onTap:
-                        _selected.value.isEmpty ||
-                            _submitting.value ||
-                            Stores.vault.isFillingField
-                        ? null
-                        : _create,
-                  ),
-                ],
               ),
-              AppSpacing.gapLg,
-              Text(
-                'Nothing is shared until you create the link, and the link '
-                'comes to you — $_toolName never sees it or your data.',
-                textAlign: TextAlign.center,
-              ).muted.small,
             ],
           ),
+        if (_submitError.value != null)
+          AppAlert(destructive: true, content: Text(_submitError.value!)),
+      ],
+    );
+  }
+
+  Widget _decision(BuildContext context, ShareProposal p) {
+    return AppActionBar(
+      children: [
+        if (_hasConnectStep)
+          AppButton(
+            label: 'Back',
+            icon: AppIcons.arrowLeft,
+            style: AppButtonStyle.accent,
+            onTap: _submitting.value
+                ? null
+                : () => _connectionDecided.value = false,
+          )
+        else
+          AppButton(
+            label: 'Decline',
+            icon: AppIcons.x,
+            style: AppButtonStyle.accent,
+            onTap: _submitting.value ? null : () => _leave(context),
+          ),
+        AppButton(
+          label: 'Create link',
+          icon: AppIcons.link,
+          busy: _submitting.value,
+          onTap:
+              _selected.value.isEmpty ||
+                  _submitting.value ||
+                  Stores.vault.isFillingField
+              ? null
+              : _create,
         ),
-      ),
+      ],
     );
   }
 
@@ -806,7 +887,9 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     final r = item.record;
     if (r == null) return _missingRow(context, item);
 
+    final scheme = Theme.of(context).colorScheme;
     final unstampable = _unstampable(r);
+    final on = _selected.value.contains(r.id);
     final String subtitle;
     if (_isFile(r)) {
       subtitle = r.filename ?? r.key;
@@ -817,46 +900,89 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     } else {
       subtitle = r.value;
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: AppCheckRow(
-            label: item.title,
-            subtitle: subtitle,
-            badge: unstampable
-                ? const AppBadge(
-                    label: "Can't be stamped",
-                    variant: AppBadgeVariant.destructive,
-                  )
-                : _isHidden(r)
-                ? const AppBadge(label: 'Hidden', icon: AppIcons.eyeSlash)
-                : null,
-            value: _selected.value.contains(r.id),
-            onChanged: unstampable ? null : (v) => _toggle(r.id, v),
-          ),
+    final busy = Stores.vault.isFillingField;
+
+    // Square like every row in a card; the card's clip rounds the ends.
+    return InkWell(
+      borderRadius: BorderRadius.zero,
+      onTap: unstampable ? null : () => _toggle(r.id, !on),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xs,
+          AppSpacing.xs,
+          AppSpacing.sm,
+          AppSpacing.xs,
         ),
-        AppSpacing.gapSm,
-        AppButton(
-          icon: _isFile(r) ? AppIcons.filePlus : AppIcons.pen,
-          tooltip: _isFile(r) ? 'Replace ${item.title}' : 'Edit ${item.title}',
-          style: AppButtonStyle.accent,
-          size: AppButtonSize.small,
-          onTap: Stores.vault.isFillingField
-              ? null
-              : () => _edit(context, item),
+        child: Row(
+          children: [
+            AppCheckbox(
+              value: on,
+              onChanged: unstampable ? null : (v) => _toggle(r.id, v ?? false),
+            ),
+            AppSpacing.gapSm,
+            Icon(
+              RecordTypeUtils.icon(r.type),
+              size: 18,
+              color: scheme.onSurfaceVariant,
+            ),
+            AppSpacing.gapMd,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (unstampable) ...[
+                        AppSpacing.gapSm,
+                        const AppBadge(
+                          label: 'Can’t be stamped',
+                          variant: AppBadgeVariant.destructive,
+                        ),
+                      ] else if (_isHidden(r)) ...[
+                        AppSpacing.gapSm,
+                        const AppBadge(
+                          label: 'Hidden',
+                          icon: AppIcons.eyeSlash,
+                        ),
+                      ],
+                    ],
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ).muted.small,
+                ],
+              ),
+            ),
+            AppSpacing.gapSm,
+            AppButton(
+              icon: _isFile(r) ? AppIcons.filePlus : AppIcons.pen,
+              tooltip: _isFile(r)
+                  ? 'Replace ${item.title}'
+                  : 'Edit ${item.title}',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: busy ? null : () => _edit(context, item),
+            ),
+            AppSpacing.gapXs,
+            AppButton(
+              icon: AppIcons.trash,
+              tooltip: 'Delete ${item.title}',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: busy ? null : () => _delete(context, item),
+            ),
+          ],
         ),
-        AppSpacing.gapXs,
-        AppButton(
-          icon: AppIcons.trash,
-          tooltip: 'Delete ${item.title}',
-          style: AppButtonStyle.accent,
-          size: AppButtonSize.small,
-          onTap: Stores.vault.isFillingField
-              ? null
-              : () => _delete(context, item),
-        ),
-      ],
+      ),
     );
   }
 
@@ -872,24 +998,41 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       onTap: busy ? null : () => _fill(context, f),
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       child: Row(
         children: [
-          Icon(
-            RecordTypeUtils.icon(field?.type ?? 'text'),
-            size: 18,
-            color: scheme.onSurfaceVariant,
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: scheme.warningContainer,
+              borderRadius: AppRadius.allMd,
+            ),
+            child: Icon(
+              RecordTypeUtils.icon(field?.type ?? 'text'),
+              size: 18,
+              color: scheme.warning,
+            ),
           ),
-          AppSpacing.gapSm,
+          AppSpacing.gapMd,
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.title),
-                const Text('Not in your vault yet').muted.small,
+                DefaultTextStyle.merge(
+                  style: TextStyle(color: scheme.warning),
+                  child: const Text('Not in your vault yet').small,
+                ),
               ],
             ),
           ),
+          AppSpacing.gapSm,
           if (field != null)
             add(
               TemplateField(

@@ -262,6 +262,26 @@ func TestAConnectedToolSeesOnlyWhatItIsGiven(t *testing.T) {
 		}).Expect().Status(http.StatusBadRequest)
 	})
 
+	t.Run("a link names the tool it came from, and only the server says so", func(t *testing.T) {
+		api := f.api.T(t)
+		origin := api.Get(util.Coll.Connections, connID, f.token).Expect().Status(http.StatusOK).
+			JSON().Object().Value(util.Fields.Connection.ClientId).String().Raw()
+		_, proposed := f.share(t, map[string]any{
+			util.Fields.Link.Connection: connID,
+			util.Fields.Link.ProposedBy: "https://elsewhere.example",
+		})
+		api.Get(util.Coll.Links, proposed, f.token).Expect().Status(http.StatusOK).
+			JSON().Object().Value(util.Fields.Link.ProposedBy).String().IsEqual(origin)
+		api.Update(util.Coll.Links, proposed, f.token, map[string]any{
+			util.Fields.Link.ProposedBy: "",
+		}).Expect().Status(http.StatusOK).
+			JSON().Object().Value(util.Fields.Link.ProposedBy).String().IsEqual(origin)
+
+		_, own := f.share(t, map[string]any{util.Fields.Link.ProposedBy: "https://elsewhere.example"})
+		api.Get(util.Coll.Links, own, f.token).Expect().Status(http.StatusOK).
+			JSON().Object().Value(util.Fields.Link.ProposedBy).String().IsEmpty()
+	})
+
 	t.Run("the owner sees the connection; nobody else does", func(t *testing.T) {
 		api := f.api.T(t)
 		api.List(util.Coll.Connections, f.token).Expect().Status(http.StatusOK).
@@ -276,8 +296,10 @@ func TestAConnectedToolSeesOnlyWhatItIsGiven(t *testing.T) {
 		api.E.DELETE("/api/connection").WithHeader(util.ConnectionHeader, toolToken).
 			Expect().Status(http.StatusNoContent)
 		toolGet(api, toolToken).Status(http.StatusUnauthorized)
-		api.Get(util.Coll.Links, id, f.token).Expect().Status(http.StatusOK).
-			JSON().Object().Value(util.Fields.Link.Connection).String().IsEmpty()
+		gone := api.Get(util.Coll.Links, id, f.token).Expect().Status(http.StatusOK).JSON().Object()
+		gone.Value(util.Fields.Link.Connection).String().IsEmpty()
+		// It still says which tool it came from.
+		gone.Value(util.Fields.Link.ProposedBy).String().NotEmpty()
 	})
 }
 

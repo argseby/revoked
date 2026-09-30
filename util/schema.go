@@ -58,7 +58,7 @@ type linkFields struct {
 	Slug, Label, User, Workspace, Sections, Records, Status,
 	Password, ExpiresAt, MaxViews, ViewCount, Identity, RequireHandshake,
 	Request, Grants, Data, SenderName, Identifier, Watermark, WatermarkText,
-	Purpose, Connection, Ref, HandedOver, Created, Updated string
+	Purpose, Connection, Ref, HandedOver, ProposedBy, Created, Updated string
 }
 
 type workspaceFields struct {
@@ -286,6 +286,7 @@ var Fields = struct {
 		Connection:       "connection",
 		Ref:              "ref",
 		HandedOver:       "handedOver",
+		ProposedBy:       "proposedBy",
 		Created:          "created",
 		Updated:          "updated",
 	},

@@ -51,6 +51,10 @@ class AppMenuButton extends StatelessWidget {
   /// Runs before the menu opens, for triggers that lazily load their contents.
   final VoidCallback? onOpen;
 
+  /// The dropdown chevron after the trigger. A "more" (⋮) trigger already says
+  /// it opens a menu and drops it.
+  final bool chevron;
+
   const AppMenuButton({
     super.key,
     required this.tooltip,
@@ -61,6 +65,7 @@ class AppMenuButton extends StatelessWidget {
     this.size = AppButtonSize.normal,
     this.header,
     this.onOpen,
+    this.chevron = true,
   }) : avatarSource = null,
        assert(icon != null || label != null, 'a trigger needs a label or icon');
 
@@ -73,6 +78,7 @@ class AppMenuButton extends StatelessWidget {
     this.onOpen,
   }) : icon = null,
        label = null,
+       chevron = true,
        style = AppButtonStyle.accent,
        size = AppButtonSize.normal;
 
@@ -145,7 +151,7 @@ class AppMenuButton extends StatelessWidget {
         return AppButton(
           icon: icon,
           label: label,
-          trailingIcon: AppIcons.chevronDown,
+          trailingIcon: chevron ? AppIcons.chevronDown : null,
           tooltip: tooltip,
           style: style,
           size: size,

@@ -17,6 +17,7 @@ func BindLinkHooks(app core.App) {
 		if err := validateLinkConnection(e.App, e.Record, ""); err != nil {
 			return err
 		}
+		stampProposedBy(e.App, e.Record)
 		resolvePasswordWrite(e.Record, util.Fields.Link.Password)
 		if e.Record.GetString(util.Fields.Link.Status) == "" {
 			e.Record.Set(util.Fields.Link.Status, util.StatusActive)
@@ -32,6 +33,9 @@ func BindLinkHooks(app core.App) {
 			e.Record.Original().GetString(util.Fields.Link.Connection)); err != nil {
 			return err
 		}
+		// Where a link came from is settled when it is created.
+		e.Record.Set(util.Fields.Link.ProposedBy,
+			e.Record.Original().GetString(util.Fields.Link.ProposedBy))
 		resolvePasswordWrite(e.Record, util.Fields.Link.Password)
 		// The transition is only visible before the save, and may only be
 		// announced once it commits. Auto-revoke by max-views notifies on its
@@ -102,6 +106,20 @@ func validateLinkConnection(app core.App, rec *core.Record, before string) error
 		return util.AsFieldValidationError(util.Fields.Link.Connection, util.Errors.ConnectionExpired)
 	}
 	return nil
+}
+
+// stampProposedBy records the origin of the tool a new link was proposed by,
+// read from its connection and never from the request: the connection is
+// cleared when the tool is disconnected, and the link should still say where
+// it came from. A link the owner made themselves carries none.
+func stampProposedBy(app core.App, rec *core.Record) {
+	origin := ""
+	if id := rec.GetString(util.Fields.Link.Connection); id != "" {
+		if conn, err := app.FindRecordById(util.Coll.Connections, id); err == nil && conn != nil {
+			origin = conn.GetString(util.Fields.Connection.ClientId)
+		}
+	}
+	rec.Set(util.Fields.Link.ProposedBy, origin)
 }
 
 // isNewlyRevoked reports whether this update flips the link to revoked from

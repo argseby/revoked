@@ -327,6 +327,10 @@ void main() {
       expect(find.text('You decide'), findsOneWidget);
       expect(find.text('Revoke links it proposed'), findsOneWidget);
       expect(find.text('Receive the links it proposed'), findsOneWidget);
+      // The connection is decided first; the link is reviewed after it.
+      expect(find.textContaining('will receive this link'), findsNothing);
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
       // Allowed for the connection, so the link goes to the tool without
       // being asked about again.
       expect(find.textContaining('will receive this link'), findsOneWidget);
@@ -380,6 +384,10 @@ void main() {
         find.text('Mietunterlagen says: “To end a link you remove”'),
         findsOneWidget,
       );
+      // The decision is pinned to the bottom, so a choice further down the
+      // page has to be scrolled into view before it can be tapped.
+      await tester.ensureVisible(find.text('Receive the links it proposed'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Receive the links it proposed'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Connect'));

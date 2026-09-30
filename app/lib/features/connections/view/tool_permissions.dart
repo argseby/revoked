@@ -5,6 +5,7 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
 
 /// What a connected tool may do — the same three sections on the connect
 /// screen, on a proposal that connects, and under Connected tools, so what the
@@ -43,7 +44,10 @@ class ToolPermissions extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     Widget row(IconData icon, String text, {bool allowed = true}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -52,51 +56,79 @@ class ToolPermissions extends StatelessWidget {
             size: 18,
             color: allowed ? scheme.primary : scheme.onSurfaceVariant,
           ),
-          AppSpacing.gapSm,
+          AppSpacing.gapMd,
           Expanded(child: allowed ? Text(text) : Text(text).muted),
         ],
       ),
     );
+    Widget choice(AppCheckRow check) => Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xs,
+      ),
+      child: check,
+    );
+    const quiet = SizedBox.shrink();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('$name can').small.muted,
-        row(AppIcons.check, 'Propose links for you to confirm'),
-        row(
-          AppIcons.check,
-          'See the status, opens and expiry of links it proposed',
+        AppListGroup(
+          title: '$name can',
+          trailing: quiet,
+          children: [
+            row(AppIcons.check, 'Propose links for you to confirm'),
+            row(
+              AppIcons.check,
+              'See the status, opens and expiry of links it proposed',
+            ),
+          ],
         ),
-        AppSpacing.gapMd,
-        const Text('You decide').small.muted,
-        AppCheckRow(
-          label: 'Revoke links it proposed',
-          subtitle: 'It cannot create links or see their contents.',
-          note: _reason(reasons.revoke),
-          value: allowRevoke,
-          onChanged: onAllowRevoke,
+        AppListGroup(
+          title: 'You decide',
+          trailing: quiet,
+          children: [
+            choice(
+              AppCheckRow(
+                label: 'Revoke links it proposed',
+                subtitle: 'It can’t create links or see what they contain.',
+                note: _reason(reasons.revoke),
+                value: allowRevoke,
+                onChanged: onAllowRevoke,
+              ),
+            ),
+            choice(
+              AppCheckRow(
+                label: 'Receive the links it proposed',
+                subtitle:
+                    'Except links that contain documents or hidden values; '
+                    'only you can send those.',
+                note: _reason(reasons.links),
+                value: allowHandOver,
+                onChanged: onAllowHandOver,
+              ),
+            ),
+          ],
         ),
-        AppCheckRow(
-          label: 'Receive the links it proposed',
-          subtitle:
-              'Except links with documents or hidden values; those only you '
-              'can send.',
-          note: _reason(reasons.links),
-          value: allowHandOver,
-          onChanged: onAllowHandOver,
+        AppListGroup(
+          title: '$name can never',
+          trailing: quiet,
+          footer: const Text(
+            'The connection ends after 90 days unless you connect again.',
+          ),
+          children: [
+            row(
+              AppIcons.x,
+              'Read your vault, your other links or your account',
+              allowed: false,
+            ),
+            row(
+              AppIcons.x,
+              'Publish a link without your consent',
+              allowed: false,
+            ),
+          ],
         ),
-        AppSpacing.gapMd,
-        Text('$name can never').small.muted,
-        row(
-          AppIcons.x,
-          'Read your vault, your other links or your account',
-          allowed: false,
-        ),
-        row(AppIcons.x, 'Publish a link without your consent', allowed: false),
-        AppSpacing.gapMd,
-        const Text(
-          'The connection ends after 90 days unless you connect again.',
-        ).small.muted,
       ],
     );
   }
@@ -114,17 +146,34 @@ class ToolCheckCode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final scheme = Theme.of(context).colorScheme;
+    return AppListGroup(
+      title: 'Check the code',
+      trailing: const SizedBox.shrink(),
+      footer: const Text(
+        'Only continue if both codes match. If you didn’t just ask for this '
+        'in a browser, decline.',
+      ),
       children: [
-        Text('The $name page you came from shows this code').small.muted,
-        AppSpacing.gapXs,
-        Text(Pkce.checkCode(challenge)).header,
-        AppSpacing.gapXs,
-        const Text(
-          'Go on only if it does. If you did not just ask for this in a '
-          'browser, decline.',
-        ).small,
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
+            children: [
+              Icon(AppIcons.shieldCheck, size: 20, color: scheme.primary),
+              AppSpacing.gapMd,
+              Expanded(
+                child: Text(
+                  'The $name page you came from shows this code',
+                ).muted.small,
+              ),
+              AppSpacing.gapMd,
+              DefaultTextStyle.merge(
+                style: const TextStyle(letterSpacing: 1.5),
+                child: Text(Pkce.checkCode(challenge)).header.mono,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

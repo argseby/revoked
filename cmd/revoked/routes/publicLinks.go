@@ -5,8 +5,10 @@ import (
 	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
+	"sort"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -118,17 +120,11 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 			}
 			notifyApplicationOpened(app, link, currentViews)
 
-			sectionIds := link.GetStringSlice(util.Fields.Link.Sections)
 			recordIds := link.GetStringSlice(util.Fields.Link.Records)
 
-			sections := []map[string]any{}
+			sections := linkSections(app, link)
 			records := []map[string]any{}
 
-			for _, id := range sectionIds {
-				if rec, err := app.FindRecordById(util.Coll.Sections, id); err == nil {
-					sections = append(sections, sanitizeRecord(rec))
-				}
-			}
 			for _, id := range recordIds {
 				if rec, err := app.FindRecordById(util.Coll.Records, id); err == nil {
 					entry := sanitizeRecord(rec)
@@ -195,6 +191,90 @@ func withWatermark(link *core.Record, body map[string]any) map[string]any {
 		body["watermark"] = services.WatermarkLine(link, time.Now())
 	}
 	return body
+}
+
+// linkSections returns the sections a link's page is laid out in: the ones
+// the link names, then every section of its owner's vault that holds a record
+// the link grants, in the order the link lists those records. A link made from
+// single records names no section, and without this its page would show an
+// emergency contact, a doctor and an insurance number as one flat list.
+//
+// A section found this way only groups: it carries its name, its key and the
+// ids of the granted records in it, never the ids of what else it holds, and
+// it grants nothing — what a link serves is decided by its own records alone.
+// A record filed in several sections is shown in the first.
+func linkSections(app core.App, link *core.Record) []map[string]any {
+	sections := []map[string]any{}
+	named := map[string]bool{}
+	placed := map[string]bool{}
+	for _, id := range link.GetStringSlice(util.Fields.Link.Sections) {
+		rec, err := app.FindRecordById(util.Coll.Sections, id)
+		if err != nil || rec == nil {
+			continue
+		}
+		named[rec.Id] = true
+		for _, rid := range rec.GetStringSlice(util.Fields.Section.Records) {
+			placed[rid] = true
+		}
+		sections = append(sections, sanitizeRecord(rec))
+	}
+
+	position := map[string]int{}
+	for i, id := range link.GetStringSlice(util.Fields.Link.Records) {
+		if _, seen := position[id]; !seen {
+			position[id] = i
+		}
+	}
+	if len(position) == 0 {
+		return sections
+	}
+	owned, err := app.FindRecordsByFilter(util.Coll.Sections,
+		"user = {:user} && workspace = {:workspace}", "created", 0, 0,
+		dbx.Params{
+			"user":      link.GetString(util.Fields.Link.User),
+			"workspace": link.GetString(util.Fields.Link.Workspace),
+		})
+	if err != nil {
+		return sections
+	}
+
+	type found struct {
+		entry map[string]any
+		first int
+	}
+	var derived []found
+	for _, sec := range owned {
+		if named[sec.Id] {
+			continue
+		}
+		ids := []string{}
+		first := -1
+		for _, rid := range sec.GetStringSlice(util.Fields.Section.Records) {
+			at, granted := position[rid]
+			if !granted || placed[rid] {
+				continue
+			}
+			placed[rid] = true
+			ids = append(ids, rid)
+			if first < 0 || at < first {
+				first = at
+			}
+		}
+		if len(ids) == 0 {
+			continue
+		}
+		derived = append(derived, found{first: first, entry: map[string]any{
+			"id":      sec.Id,
+			"key":     sec.GetString(util.Fields.Section.Key),
+			"name":    sec.GetString(util.Fields.Section.Name),
+			"records": ids,
+		}})
+	}
+	sort.SliceStable(derived, func(i, j int) bool { return derived[i].first < derived[j].first })
+	for _, d := range derived {
+		sections = append(sections, d.entry)
+	}
+	return sections
 }
 
 // sanitizeRecord returns only public-safe fields from a section/record entity.

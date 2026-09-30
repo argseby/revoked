@@ -90,6 +90,11 @@ class _RevokedAppState extends State<RevokedApp> {
         darkTheme: AppTheme.build(Brightness.dark),
         themeMode: Stores.theme.mode,
         routerConfig: _router,
+        // No visible scrollbars anywhere: lists scroll by touch, wheel and
+        // trackpad, and the bar only covered the content's right edge.
+        scrollBehavior: const MaterialScrollBehavior().copyWith(
+          scrollbars: false,
+        ),
         builder: (context, child) => PasteLinkShortcut(
           onTrigger: _handleGlobalPaste,
           child: child ?? const SizedBox.shrink(),

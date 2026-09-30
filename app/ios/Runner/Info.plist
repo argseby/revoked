@@ -42,6 +42,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Revoked uses the camera to scan Revoked QR codes.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Revoked connects to your self-hosted backend on your local network.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:revoked_app/core/design/radius.dart';
@@ -13,33 +15,75 @@ Future<T?> showAppSheet<T>({
 }) {
   final scheme = Theme.of(context).colorScheme;
   SheetTracker.opened();
-  final future = showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: isScrollControlled,
-    showDragHandle: true,
-    useSafeArea: true,
-    // A sheet is the same color as the page beneath it, so a heavy scrim is
-    // what made the page look like a second, greyer background. Dim just
-    // enough to read as modal and separate the sheet with its own outline.
-    barrierColor: scheme.scrim.withValues(alpha: 0.2),
-    shape: RoundedRectangleBorder(
-      borderRadius: const BorderRadius.vertical(
-        top: Radius.circular(AppRadius.lg),
+  // A sheet leaves in one of two ways: popped, which completes its future, or
+  // thrown away with the tabs' navigator when the app opens a full-screen page
+  // such as a share link — which never completes it. Counting only the first
+  // left the shell's floating buttons hidden until a restart. Either way now
+  // releases the count, and only once.
+  var released = false;
+  void release() {
+    if (released) return;
+    released = true;
+    SheetTracker.closed();
+  }
+
+  final Future<T?> future;
+  try {
+    future = showModalBottomSheet<T>(
+      context: context,
+      isScrollControlled: isScrollControlled,
+      showDragHandle: true,
+      useSafeArea: true,
+      // A sheet is the same color as the page beneath it, so a heavy scrim is
+      // what made the page look like a second, greyer background. Dim just
+      // enough to read as modal and separate the sheet with its own outline.
+      barrierColor: scheme.scrim.withValues(alpha: 0.2),
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppRadius.lg),
+        ),
+        side: BorderSide(color: scheme.outlineVariant),
       ),
-      side: BorderSide(color: scheme.outlineVariant),
-    ),
-    constraints: const BoxConstraints(maxWidth: 640),
-    builder: (ctx) => Padding(
-      // Keyboard on top of the gesture-nav inset: without the second term
-      // a sheet's bottom row of buttons sits under the home indicator.
-      padding: EdgeInsets.only(
-        bottom:
-            MediaQuery.of(ctx).viewInsets.bottom +
-            MediaQuery.of(ctx).viewPadding.bottom,
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (ctx) => Padding(
+        // Keyboard on top of the gesture-nav inset: without the second term
+        // a sheet's bottom row of buttons sits under the home indicator.
+        padding: EdgeInsets.only(
+          bottom:
+              MediaQuery.of(ctx).viewInsets.bottom +
+              MediaQuery.of(ctx).viewPadding.bottom,
+        ),
+        child: _SheetPresence(onGone: release, child: builder(ctx)),
       ),
-      child: builder(ctx),
-    ),
-  );
-  future.whenComplete(SheetTracker.closed);
+    );
+  } catch (_) {
+    release();
+    rethrow;
+  }
+  future.whenComplete(release);
   return future;
+}
+
+/// Reports when the sheet's content leaves the tree, however it left.
+class _SheetPresence extends StatefulWidget {
+  final VoidCallback onGone;
+  final Widget child;
+
+  const _SheetPresence({required this.onGone, required this.child});
+
+  @override
+  State<_SheetPresence> createState() => _SheetPresenceState();
+}
+
+class _SheetPresenceState extends State<_SheetPresence> {
+  @override
+  void dispose() {
+    // After the frame: the count is read by the shell's Observer, which must
+    // not be marked dirty while the tree is being torn down.
+    scheduleMicrotask(widget.onGone);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

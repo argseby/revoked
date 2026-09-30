@@ -9,7 +9,9 @@ import 'package:revoked_app/features/auth/view/login_screen.dart';
 import 'package:revoked_app/features/shell/view/app_shell.dart';
 import 'package:revoked_app/features/settings/view/settings_screen.dart';
 import 'package:revoked_app/features/shell/view/splash_screen.dart';
+import 'package:revoked_app/features/vault/view/record_detail_screen.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
+import 'package:revoked_app/features/shares/view/share_detail_screen.dart';
 import 'package:revoked_app/features/shares/view/shares_screen.dart';
 import 'package:revoked_app/features/shares/view/public_share_screen.dart';
 import 'package:revoked_app/features/shares/view/share_proposal_screen.dart';
@@ -17,6 +19,7 @@ import 'package:revoked_app/features/connections/view/connect_screen.dart';
 import 'package:revoked_app/features/api_keys/view/api_keys_screen.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
 import 'package:revoked_app/features/requests/view/inbox_screen.dart';
+import 'package:revoked_app/features/requests/view/request_detail_screen.dart';
 import 'package:revoked_app/features/requests/view/public_request_screen.dart';
 import 'package:revoked_app/features/data/view/data_screen.dart';
 import 'package:revoked_app/features/requests/view/request_sheet_screen.dart';
@@ -26,11 +29,20 @@ import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen
 abstract class AppRoutes {
   static const login = '/login';
   static const vault = '/vault';
+
+  /// One record's detail page, opened from the Vault list.
+  static String recordDetailFor(String id) => '$vault/records/$id';
   static const inbox = '/inbox';
+
+  /// One request's detail page, opened from the Requests list.
+  static String requestDetailFor(String id) => '$inbox/$id';
   static const data = '/data';
   static const requestData = '/request-data';
   static const requestSheet = '/request-sheet';
   static const shares = '/shares';
+
+  /// One link's detail page, opened from the Links list.
+  static String shareDetailFor(String id) => '$shares/$id';
   static const settings = '/settings';
   static const settingsWorkspace = '/settings?tab=workspace';
   static const apiKeys = '/settings/api-keys';
@@ -226,15 +238,38 @@ class AppRouter {
                   ),
                 );
               },
+              routes: [
+                GoRoute(
+                  path: 'records/:id',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: RecordDetailScreen(
+                      key: ValueKey(state.pathParameters['id']),
+                      recordId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            // Legacy /inbox/create — ahead of /inbox/:id, which would take
+            // "create" for a request id. — old full-screen flow replaced by a
+            // multi-step bottom sheet opened from the Inbox header.
+            GoRoute(path: '/inbox/create', redirect: (_, _) => AppRoutes.inbox),
             GoRoute(
               path: AppRoutes.inbox,
               pageBuilder: (context, state) =>
                   const NoTransitionPage(child: InboxScreen()),
+              routes: [
+                GoRoute(
+                  path: ':id',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: RequestDetailScreen(
+                      key: ValueKey(state.pathParameters['id']),
+                      requestId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            // Legacy /inbox/create — old full-screen flow replaced by a
-            // multi-step bottom sheet opened from the Inbox header.
-            GoRoute(path: '/inbox/create', redirect: (_, _) => AppRoutes.inbox),
             // Share — your outbound links (manual + request-born). /shares is
             // kept below as a legacy alias.
             GoRoute(
@@ -271,6 +306,17 @@ class AppRouter {
                   child: SharesScreen(filterSlug: filterSlug),
                 );
               },
+              routes: [
+                GoRoute(
+                  path: ':id',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: ShareDetailScreen(
+                      key: ValueKey(state.pathParameters['id']),
+                      shareId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ),
+              ],
             ),
             GoRoute(
               path: AppRoutes.settings,

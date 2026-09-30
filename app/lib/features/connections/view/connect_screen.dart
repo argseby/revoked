@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
@@ -10,7 +16,6 @@ import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/features/connections/tool_return.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 
@@ -146,42 +151,44 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   Widget _build(BuildContext context) {
     final r = widget.request;
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.xxl),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: r == null
-                  ? _invalid(context)
-                  : _checking.value
-                  ? const Center(child: CircularProgressIndicator())
-                  : _done.value
-                  ? _connected(context, r)
-                  : _consent(context, r),
-            ),
-          ),
-        ),
-      ),
+    final consenting = r != null && !_checking.value && !_done.value;
+    final joining = _joining.value;
+    return AppFlowScaffold(
+      title: !consenting
+          ? 'Connect a tool'
+          : joining
+          ? '${r.name} is already connected'
+          : '${r.name} wants to connect',
+      subtitle: !consenting
+          ? null
+          : joining
+          ? 'Another browser is asking to use this connection'
+          : 'Connection request from ${Uri.parse(r.client).host}',
+      closeLabel: consenting ? 'Decline and go back' : 'Back to the app',
+      onClose: () =>
+          consenting ? _decline(context) : context.go(AppRoutes.vault),
+      bottomBar: consenting ? _decision(context) : null,
+      body: r == null
+          ? _invalid(context)
+          : _checking.value
+          ? const Center(child: AppSpinner(large: true))
+          : _done.value
+          ? _connected(context, r)
+          : _consent(context, r),
     );
   }
 
   Widget _invalid(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(AppIcons.exclamationTriangle, size: 40),
-        AppSpacing.gapLg,
-        const Text('This link doesn’t work').header,
-        AppSpacing.gapSm,
-        const Text(
-          'It does not describe a tool revoked can connect.',
-          textAlign: TextAlign.center,
-        ).muted,
-        AppSpacing.gapXl,
+    return AppStatusMessage(
+      icon: AppIcons.exclamationTriangle,
+      accent: Theme.of(context).colorScheme.error,
+      title: 'This link doesn’t work',
+      message:
+          'It doesn’t describe a tool that Revoked can connect. Ask the tool '
+          'for a new link.',
+      actions: [
         AppButton(
-          label: 'Back to app',
+          label: 'Back to the app',
           icon: AppIcons.arrowLeft,
           style: AppButtonStyle.accent,
           onTap: () => context.go(AppRoutes.vault),
@@ -191,112 +198,101 @@ class _ConnectScreenState extends State<ConnectScreen> {
   }
 
   Widget _connected(BuildContext context, ConnectRequest r) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(AppIcons.checkCircle, size: 40),
-        AppSpacing.gapLg,
-        Text(
-          _reused.value
-              ? '${r.name} was already connected'
-              : '${r.name} is connected',
-        ).header,
-        AppSpacing.gapSm,
-        Text(
-          '${_reused.value ? 'This browser can now use it too, with what you '
-                    'allowed before. ' : ''}'
-          '${_polls ? 'Go back to your browser: ${r.name} carries on by '
+    return AppStatusMessage(
+      icon: AppIcons.checkCircle,
+      accent: Theme.of(context).colorScheme.success,
+      title: _reused.value
+          ? '${r.name} was already connected'
+          : '${r.name} is connected',
+      message:
+          '${_reused.value ? 'This browser can now use it too, with the same '
+                    'permissions as before. ' : ''}'
+          '${_polls ? 'You can return to your browser; ${r.name} carries on by '
                     'itself. ' : ''}'
-          'You can review or disconnect it under Settings → Workspace → '
-          'Connected tools.',
-          textAlign: TextAlign.center,
-        ).muted,
-        AppSpacing.gapXl,
-        Wrap(
-          spacing: AppSpacing.sm,
-          children: [
-            if (!_polls)
-              AppButton(
-                label: 'Back to ${r.name}',
-                icon: AppIcons.boxArrowUpRight,
-                onTap: () => returnToTool(
-                  redirect: r.redirect,
-                  state: r.state,
-                  status: 'connected',
-                ),
-              ),
-            AppButton(
-              label: 'Done',
-              icon: AppIcons.check,
-              style: AppButtonStyle.accent,
-              onTap: () => context.go(AppRoutes.vault),
+          'You can review or disconnect it at any time under Settings → '
+          'Workspace → Connected tools.',
+      actions: [
+        if (!_polls)
+          AppButton(
+            label: 'Back to ${r.name}',
+            icon: AppIcons.boxArrowUpRight,
+            onTap: () => returnToTool(
+              redirect: r.redirect,
+              state: r.state,
+              status: 'connected',
             ),
-          ],
+          ),
+        AppButton(
+          label: 'Done',
+          icon: AppIcons.check,
+          style: AppButtonStyle.accent,
+          onTap: () => context.go(AppRoutes.vault),
         ),
+      ],
+    );
+  }
+
+  /// Who is asking: the name the tool gave itself, and the address that
+  /// actually identifies it — the one fact here the tool can't choose.
+  Widget _requester(ConnectRequest r) {
+    final host = Uri.parse(r.client).host;
+    return AppListGroup(
+      title: 'Who is asking',
+      trailing: const SizedBox.shrink(),
+      footer: const Text(
+        'A tool chooses its own name, so the address is what identifies it. '
+        'Only continue if you recognise it.',
+      ),
+      children: [
+        AppDetailRow(icon: AppIcons.globe, label: 'Address', value: host),
+        AppDetailRow(icon: AppIcons.tag, label: 'Name', value: r.name),
       ],
     );
   }
 
   Widget _consent(BuildContext context, ConnectRequest r) {
     final joining = _joining.value;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+    return AppPageBody(
+      bottomPadding: AppSpacing.xxl,
       children: [
-        Text(
-          joining
-              ? '${r.name} is already connected'
-              : '${r.name} wants to connect',
-        ).header,
-        AppSpacing.gapXs,
-        Text(
-          joining
-              ? 'From ${Uri.parse(r.client).host}. Another browser is asking '
-                    'to use it, with what you allowed before.'
-              : 'From ${Uri.parse(r.client).host}. The tool chose its own '
-                    'name, so check the address.',
-        ).muted.small,
-        AppSpacing.gapXl,
+        _requester(r),
+        if (_polls) ToolCheckCode(name: r.name, challenge: r.challenge),
         if (!joining)
-          AppCard(
-            child: ToolPermissions(
-              name: r.name,
-              reasons: r.reasons,
-              allowRevoke: _allowRevoke.value,
-              allowHandOver: _allowHandOver.value,
-              onAllowRevoke: (v) => _allowRevoke.value = v,
-              onAllowHandOver: (v) => _allowHandOver.value = v,
-            ),
+          ToolPermissions(
+            name: r.name,
+            reasons: r.reasons,
+            allowRevoke: _allowRevoke.value,
+            allowHandOver: _allowHandOver.value,
+            onAllowRevoke: (v) => _allowRevoke.value = v,
+            onAllowHandOver: (v) => _allowHandOver.value = v,
           ),
-        if (_polls) ...[
-          if (!joining) AppSpacing.gapLg,
-          AppCard(
-            child: ToolCheckCode(name: r.name, challenge: r.challenge),
-          ),
-        ],
-        if (_error.value != null) ...[
-          AppSpacing.gapLg,
+        if (_error.value != null)
           AppAlert(destructive: true, content: Text(_error.value!)),
-        ],
-        AppSpacing.gapXl,
-        Wrap(
-          alignment: WrapAlignment.end,
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            AppButton(
-              label: 'Decline',
-              icon: AppIcons.x,
-              style: AppButtonStyle.accent,
-              onTap: _busy.value ? null : () => _decline(context),
-            ),
-            AppButton(
-              label: joining ? 'Let this browser in' : 'Connect',
-              icon: AppIcons.link,
-              busy: _busy.value,
-              onTap: _busy.value ? null : _connect,
-            ),
-          ],
+      ],
+    );
+  }
+
+  Widget _decision(BuildContext context) {
+    final busy = _busy.value;
+    return AppActionBar(
+      note: Text(
+        _joining.value
+            ? 'This browser gets the same permissions you granted before.'
+            : 'Nothing is shared until you approve it, and you can disconnect '
+                  'at any time.',
+      ).muted.small,
+      children: [
+        AppButton(
+          label: 'Decline',
+          icon: AppIcons.x,
+          style: AppButtonStyle.accent,
+          onTap: busy ? null : () => _decline(context),
+        ),
+        AppButton(
+          label: _joining.value ? 'Let this browser in' : 'Connect',
+          icon: AppIcons.link,
+          busy: busy,
+          onTap: busy ? null : _connect,
         ),
       ],
     );

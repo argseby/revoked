@@ -164,10 +164,10 @@ class _AppShellState extends State<AppShell> {
         onDestinationSelected: _onSelected,
         destinations: const [
           NavigationDestination(icon: Icon(AppIcons.safe), label: 'Vault'),
-          NavigationDestination(icon: Icon(AppIcons.share), label: 'Share'),
+          NavigationDestination(icon: Icon(AppIcons.share), label: 'Links'),
           NavigationDestination(
             icon: Icon(AppIcons.inboxFill),
-            label: 'Request',
+            label: 'Requests',
           ),
           NavigationDestination(
             icon: Icon(AppIcons.personGear),

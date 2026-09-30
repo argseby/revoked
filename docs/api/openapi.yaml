@@ -359,7 +359,14 @@ paths:
                   label: { type: string }
                   purpose: { type: string, description: "`application`, or empty for a plain share." }
                   identity: { type: string }
-                  sections: { type: array, items: { type: object } }
+                  sections:
+                    type: array
+                    items: { type: object }
+                    description: |
+                      How the records are grouped: the sections the link names,
+                      then each section of the owner's vault holding a record
+                      the link grants, with `id`, `key`, `name` and the ids of
+                      its granted `records`. A section grants nothing itself.
                   records:
                     type: array
                     description: |

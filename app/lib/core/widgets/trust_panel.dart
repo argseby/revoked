@@ -145,48 +145,82 @@ class _TrustPanelState extends State<TrustPanel> {
           detail = TrustCopy.problemDetail;
         }
 
+        final problem = !_anyChecking && !_allVerified;
+
+        // The same card as the web page's sender panel: one verdict on top,
+        // then each check with its own result. A failure turns the whole
+        // card red, so it cannot be mistaken for the fine case at a glance.
         return Container(
           decoration: BoxDecoration(
-            color: accent.withValues(alpha: 0.06),
-            borderRadius: AppRadius.allMd,
-            border: Border.all(color: accent.withValues(alpha: 0.45)),
+            color: scheme.surface,
+            borderRadius: AppRadius.allLg,
+            border: Border.all(
+              color: problem ? accent : scheme.outlineVariant,
+              width: problem ? 1.5 : 1,
+            ),
           ),
+          clipBehavior: Clip.antiAlias,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              InkWell(
-                borderRadius: AppRadius.allMd,
-                onTap: _anyChecking ? null : () => _userToggled.value = !open,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_anyChecking)
-                        const AppSpinner()
-                      else
-                        Icon(icon, size: 18, color: accent),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            DefaultTextStyle.merge(
-                              style: TextStyle(color: accent),
-                              child: Text(headline).small,
-                            ),
-                            const SizedBox(height: AppSpacing.xxs),
-                            Text(detail).muted.small,
-                          ],
+              Material(
+                color: problem
+                    ? accent.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.zero,
+                  onTap: _anyChecking ? null : () => _userToggled.value = !open,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: problem
+                                ? accent
+                                : accent.withValues(alpha: 0.12),
+                            borderRadius: AppRadius.allMd,
+                          ),
+                          child: Center(
+                            child: _anyChecking
+                                ? const AppSpinner()
+                                : Icon(
+                                    icon,
+                                    size: 20,
+                                    color: problem ? scheme.onError : accent,
+                                  ),
+                          ),
                         ),
-                      ),
-                      if (!_anyChecking)
-                        Icon(
-                          open ? AppIcons.chevronUp : AppIcons.chevronDown,
-                          size: 16,
-                          color: scheme.onSurfaceVariant,
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              DefaultTextStyle.merge(
+                                style: TextStyle(
+                                  color: problem ? accent : null,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                child: Text(headline),
+                              ),
+                              const SizedBox(height: AppSpacing.xxs),
+                              Text(detail).muted.small,
+                            ],
+                          ),
                         ),
-                    ],
+                        if (!_anyChecking) ...[
+                          const SizedBox(width: AppSpacing.sm),
+                          Icon(
+                            open ? AppIcons.chevronUp : AppIcons.chevronDown,
+                            size: 18,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -195,30 +229,14 @@ class _TrustPanelState extends State<TrustPanel> {
                 curve: AppMotion.curve,
                 alignment: Alignment.topCenter,
                 child: open
-                    ? Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.md,
-                          0,
-                          AppSpacing.md,
-                          AppSpacing.md,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final check in widget.checks) ...[
-                              if (check != widget.checks.first)
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: AppSpacing.xs,
-                                  ),
-                                  child: AppDivider(),
-                                )
-                              else
-                                const SizedBox(height: AppSpacing.xs),
-                              _CheckRow(check: check),
-                            ],
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final check in widget.checks) ...[
+                            const AppDivider(),
+                            _CheckRow(check: check),
                           ],
-                        ),
+                        ],
                       )
                     : const SizedBox.shrink(),
               ),
@@ -230,6 +248,9 @@ class _TrustPanelState extends State<TrustPanel> {
   }
 }
 
+/// One check: what was checked on the left, its result on the right, and the
+/// value that was checked under it — marked in the result's color when it
+/// cannot be trusted.
 class _CheckRow extends StatelessWidget {
   final TrustCheck check;
 
@@ -265,39 +286,55 @@ class _CheckRow extends StatelessWidget {
         TrustCopy.checking,
       ),
     };
+    final bad =
+        check.state != TrustCheckState.verified &&
+        check.state != TrustCheckState.checking;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Expanded(child: Text(check.label).small),
-                  DefaultTextStyle.merge(
-                    style: TextStyle(color: color),
-                    child: Text(stateLabel).small,
-                  ),
-                ],
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(child: Text(check.label)),
+              const SizedBox(width: AppSpacing.sm),
+              AppBadge(label: stateLabel, accent: color),
+            ],
+          ),
+          if (check.value.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 18 + AppSpacing.md,
+                top: AppSpacing.xxs,
               ),
-              if (check.value.isNotEmpty)
-                Text(
+              child: DefaultTextStyle.merge(
+                style: TextStyle(
+                  color: bad ? color : null,
+                  fontWeight: bad ? FontWeight.w600 : null,
+                ),
+                child: Text(
                   check.value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                ).muted.mono.small,
-              if (check.detail != null && check.detail!.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.xxs),
-                Text(check.detail!).muted.small,
-              ],
-            ],
-          ),
-        ),
-      ],
+                ).mono.small,
+              ),
+            ),
+          if (check.detail != null && check.detail!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 18 + AppSpacing.md,
+                top: AppSpacing.xxs,
+              ),
+              child: Text(check.detail!).muted.small,
+            ),
+        ],
+      ),
     );
   }
 }

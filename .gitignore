@@ -174,3 +174,6 @@ coverage/
 /web.md
 # Published separately.
 /web/
+
+# Local security assessment report — not for the public repo.
+/SECURITY_ASSESSMENT.md

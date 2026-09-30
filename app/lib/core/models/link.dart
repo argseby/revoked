@@ -51,6 +51,10 @@ class Link {
   /// Whether the owner handed the link itself to that tool.
   final bool handedOver;
 
+  /// The origin of the tool whose proposal this link came from, as the server
+  /// recorded it. It outlasts the connection; empty for a link made in the app.
+  final String proposedBy;
+
   Link({
     required this.id,
     required this.slug,
@@ -74,6 +78,7 @@ class Link {
     this.connection = '',
     this.ref = '',
     this.handedOver = false,
+    this.proposedBy = '',
   });
 
   /// Legacy alias used by older UI code. Prefer [viewCount].
@@ -86,6 +91,16 @@ class Link {
 
   /// True when this link was created by approving a request (vs a manual share).
   bool get isFromRequest => request.isNotEmpty;
+
+  /// True when a connected tool proposed this link (vs one made in the app).
+  bool get isFromTool => proposedBy.isNotEmpty;
+
+  /// The host of that tool, which is what it provably is.
+  String get proposedByHost {
+    final uri = Uri.tryParse(proposedBy);
+    if (uri == null || uri.host.isEmpty) return proposedBy;
+    return uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+  }
 
   factory Link.fromJson(Map<String, dynamic> json) {
     // The owner-facing API exposes `viewCount` (new). Older clients may
@@ -133,6 +148,7 @@ class Link {
       connection: json['connection'] as String? ?? '',
       ref: json['ref'] as String? ?? '',
       handedOver: json['handedOver'] as bool? ?? false,
+      proposedBy: json['proposedBy'] as String? ?? '',
     );
   }
 
@@ -159,6 +175,7 @@ class Link {
     String? connection,
     String? ref,
     bool? handedOver,
+    String? proposedBy,
   }) {
     return Link(
       id: id ?? this.id,
@@ -183,6 +200,7 @@ class Link {
       connection: connection ?? this.connection,
       ref: ref ?? this.ref,
       handedOver: handedOver ?? this.handedOver,
+      proposedBy: proposedBy ?? this.proposedBy,
     );
   }
 }

@@ -325,7 +325,7 @@ func TestLandlordArchive(t *testing.T) {
 		slug, _ := f.share(t, applicationFields())
 		page := f.api.E.GET("/s/"+slug).WithHeader("Accept", browserAccept).
 			Expect().Status(http.StatusOK).Body().Raw()
-		for _, hook := range []string{"data.archiveToken", "Download all (.zip)", "/archive?dl="} {
+		for _, hook := range []string{"data.archiveToken", "Download all", "/archive?dl="} {
 			if !strings.Contains(page, hook) {
 				t.Fatalf("the page lacks %q", hook)
 			}

@@ -218,12 +218,7 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 				records = append(records, entry)
 			}
 		}
-		sections := []map[string]any{}
-		for _, id := range link.GetStringSlice(util.Fields.Link.Sections) {
-			if rec, err := app.FindRecordById(util.Coll.Sections, id); err == nil {
-				sections = append(sections, sanitizeRecord(rec))
-			}
-		}
+		sections := linkSections(app, link)
 		return re.JSON(http.StatusOK, withWatermark(link, map[string]any{
 			"slug": slug, "label": link.GetString(util.Fields.Link.Label),
 			"purpose": link.GetString(util.Fields.Link.Purpose),

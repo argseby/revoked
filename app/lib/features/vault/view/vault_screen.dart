@@ -1,6 +1,4 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -8,39 +6,33 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
-import 'package:revoked_app/core/widgets/file_view_sheet.dart';
-import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_search_field.dart';
+import 'package:revoked_app/core/widgets/app_menu_button.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
+import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
-import 'package:revoked_app/core/widgets/app_alert.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
-import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
-import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
-import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
-import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
-import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
 
 class VaultScreen extends StatefulWidget {
@@ -53,8 +45,12 @@ class VaultScreen extends StatefulWidget {
   State<VaultScreen> createState() => _VaultScreenState();
 }
 
+/// Which records the chips above the list let through.
+enum _VaultFilter { all, shared, files, hidden }
+
 class _VaultScreenState extends State<VaultScreen> {
   late TableStore<models.Record> _tableController;
+  final Local<_VaultFilter> _filter = Local(_VaultFilter.all);
 
   @override
   void initState() {
@@ -96,11 +92,12 @@ class _VaultScreenState extends State<VaultScreen> {
     super.dispose();
   }
 
+  /// The top bar carries the search; its hint carries the count.
   Widget _title(BuildContext context) {
     final count = Stores.vault.recordCount;
-    return AppBarTitle(
-      title: 'Vault',
-      badgeLabel: '$count ${count == 1 ? 'record' : 'records'}',
+    return AppSearchField<models.Record>(
+      controller: _tableController,
+      hint: 'Search $count ${count == 1 ? 'record' : 'records'}',
     );
   }
 
@@ -116,11 +113,13 @@ class _VaultScreenState extends State<VaultScreen> {
         onTap: () => store.editSection(null),
       );
     }
-    if (widget.editingShareId != null || widget.shareFilterId != null) {
+    final shareId = widget.editingShareId ?? widget.shareFilterId;
+    if (shareId != null) {
+      // Back to the link these picks belong to.
       return AppButton(
         icon: AppIcons.check,
         label: 'Done',
-        onTap: () => context.go(AppRoutes.shares),
+        onTap: () => context.go(AppRoutes.shareDetailFor(shareId)),
       );
     }
     return const SizedBox.shrink();
@@ -157,11 +156,6 @@ class _VaultScreenState extends State<VaultScreen> {
   @override
   Widget build(BuildContext context) {
     final store = Stores.vault;
-    final authStore = Stores.auth;
-
-    final outerPad = AppSpacing.screenH(context);
-    final scrollbarMargin = AppSpacing.scrollbarMargin(context);
-    final horizontalPad = EdgeInsets.symmetric(horizontal: outerPad);
 
     return Observer(
       builder: (_) {
@@ -173,7 +167,9 @@ class _VaultScreenState extends State<VaultScreen> {
 
         if (store.errorMessage != null) {
           return Padding(
-            padding: horizontalPad,
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.screenH(context),
+            ),
             child: AppLoadError(
               title: 'Failed to load data',
               message: store.errorMessage!,
@@ -190,509 +186,431 @@ class _VaultScreenState extends State<VaultScreen> {
           );
         }
 
-        if (store.editingSectionId != null) {
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
-            child: ListView(
-              padding: EdgeInsets.only(
-                left: AppSpacing.xxs,
-                right: AppSpacing.xxs,
-                top: AppSpacing.md,
-                bottom: AppSpacing.huge,
-              ),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: AppRadius.allMd,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        AppIcons.plusSlashMinus,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          'Editing section: ${store.sections.firstWhere((s) => s.id == store.editingSectionId).name}. Select entries below to include them in this section.',
-                        ).small,
-                      ),
-                    ],
-                  ),
-                ),
-                if (store.records.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xxl),
-                    child: Center(
-                      child: const Text('No records created yet.').muted,
-                    ),
-                  )
-                else if (_tableController.filteredItems.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xxl),
-                    child: Center(
-                      child: const Text('No records match your filters.').muted,
-                    ),
-                  )
-                else
-                  ..._tableController.filteredItems.map((record) {
-                    Section? editingSection = store.sections.firstWhere(
-                      (s) => s.id == store.editingSectionId,
-                    );
-
-                    return _RecordCard(
-                      record: record,
-                      isSelectableMode: true,
-                      isSelected: editingSection.records.contains(record.id),
-                      onToggleSelect: (bool selected) async {
-                        final newRecords = List<String>.from(
-                          editingSection.records,
-                        );
-                        if (selected && !newRecords.contains(record.id)) {
-                          newRecords.add(record.id);
-                        } else if (!selected) {
-                          newRecords.remove(record.id);
-                        }
-                        final ok = await store.updateSection(
-                          editingSection.id,
-                          {'records': newRecords},
-                        );
-                        if (ok && context.mounted) {
-                          AppToast.success(
-                            context,
-                            selected
-                                ? 'Added record to section'
-                                : 'Removed record from section',
-                          );
-                        }
-                      },
-                      onCopy: () {
-                        Clipboard.setData(ClipboardData(text: record.value));
-                        AppToast.success(context, 'Copied to clipboard');
-                      },
-                      onEdit: () {},
-                      onDelete: () =>
-                          _confirmDeleteRecord(context, store, record.id),
-                      onDuplicate: () => _showCreateSheet(
-                        context,
-                        store,
-                        authStore,
-                        initialRecord: record,
-                      ),
-                    );
-                  }),
-              ],
-            ),
-          );
+        final shareFilter = _shareById(widget.shareFilterId);
+        final shareEdit = _shareById(widget.editingShareId);
+        Section? editingSection;
+        for (final s in store.sections) {
+          if (s.id == store.editingSectionId) editingSection = s;
         }
 
-        // Render beautiful unified view!
-        final rawFilteredRecords = _tableController.filteredItems;
-
-        final sharesStore = Stores.shares;
-        Link? activeShareFilter;
-        if (widget.shareFilterId != null && sharesStore.shares.isNotEmpty) {
-          try {
-            activeShareFilter = sharesStore.shares.firstWhere(
-              (s) => s.id == widget.shareFilterId,
-            );
-          } catch (_) {}
-        }
-
-        Link? activeShareEdit;
-        if (widget.editingShareId != null && sharesStore.shares.isNotEmpty) {
-          try {
-            activeShareEdit = sharesStore.shares.firstWhere(
-              (s) => s.id == widget.editingShareId,
-            );
-          } catch (_) {}
-        }
-
-        // Let's filter records and sections if shareFilterId is active!
-        List<models.Record> filteredRecords = rawFilteredRecords;
-        List<Section> sectionsSource = store.sections.toList();
-
-        if (activeShareFilter != null) {
-          final allowedSectionIds = activeShareFilter.sections.toSet();
-          final allowedRecordIdsFromSections = store.sections
-              .where((s) => allowedSectionIds.contains(s.id))
-              .expand((s) => s.records)
+        // Which links reach each record, directly or through a section — the
+        // "2 links" on a row and the Shared chip both read this.
+        final sectionLinks = {
+          for (final s in store.sections)
+            s.id: Stores.shares.linksForSection(s.id).map((l) => l.id).toSet(),
+        };
+        int linkCount(models.Record r) {
+          final ids = Stores.shares
+              .linksForRecord(r.id)
+              .map((l) => l.id)
               .toSet();
-          final allowedRecordIds = activeShareFilter.records.toSet().union(
-            allowedRecordIdsFromSections,
-          );
+          for (final s in store.sections) {
+            if (s.records.contains(r.id)) ids.addAll(sectionLinks[s.id]!);
+          }
+          return ids.length;
+        }
 
-          filteredRecords = rawFilteredRecords
-              .where((r) => allowedRecordIds.contains(r.id))
+        final matches = _tableController.filteredItems;
+        final links = {for (final r in matches) r.id: linkCount(r)};
+        final filter = _filter.value;
+        bool chip(models.Record r) => switch (filter) {
+          _VaultFilter.all => true,
+          _VaultFilter.shared => links[r.id]! > 0,
+          _VaultFilter.files => r.isFile,
+          _VaultFilter.hidden => r.isHidden,
+        };
+
+        final chips = AppFilterChips<_VaultFilter>(
+          selected: filter,
+          onSelected: (f) => _filter.value = f,
+          options: [
+            AppFilterOption(
+              value: _VaultFilter.all,
+              label: 'All',
+              count: matches.length,
+            ),
+            AppFilterOption(
+              value: _VaultFilter.shared,
+              label: 'Shared',
+              count: matches.where((r) => links[r.id]! > 0).length,
+            ),
+            AppFilterOption(
+              value: _VaultFilter.files,
+              label: 'Files',
+              count: matches.where((r) => r.isFile).length,
+            ),
+            AppFilterOption(
+              value: _VaultFilter.hidden,
+              label: 'Hidden',
+              count: matches.where((r) => r.isHidden).length,
+            ),
+          ],
+        );
+
+        var records = matches.where(chip).toList();
+
+        // Picking a section's records: every record once, ticked if the
+        // section holds it.
+        if (editingSection != null) {
+          final section = editingSection;
+          return AppListPage(
+            banners: [
+              AppListBanner(
+                icon: AppIcons.plusSlashMinus,
+                message:
+                    'Editing section "${_sectionName(section)}". Tick the '
+                    'records it should hold.',
+              ),
+            ],
+            filters: chips,
+            emptyMessage: records.isEmpty
+                ? 'No records match your filters.'
+                : null,
+            groups: [
+              AppListGroup(
+                title: 'All records',
+                noun: 'records',
+                children: [
+                  for (final r in records)
+                    _recordRow(
+                      r,
+                      links: links[r.id]!,
+                      selected: section.records.contains(r.id),
+                      onToggle: (on) => _toggleSectionRecord(section, r, on),
+                    ),
+                ],
+              ),
+            ],
+          );
+        }
+
+        var sectionsSource = store.sections.toList();
+        if (shareFilter != null) {
+          final allowedSections = shareFilter.sections.toSet();
+          final allowedRecords = {
+            ...shareFilter.records,
+            for (final s in store.sections)
+              if (allowedSections.contains(s.id)) ...s.records,
+          };
+          records = records
+              .where((r) => allowedRecords.contains(r.id))
               .toList();
-          sectionsSource = store.sections
-              .where((s) => allowedSectionIds.contains(s.id))
+          sectionsSource = sectionsSource
+              .where((s) => allowedSections.contains(s.id))
               .toList();
         }
 
-        // Find which sections are visible
         final searchQuery = _tableController.searchQuery.toLowerCase();
-        final visibleSections = sectionsSource.where((section) {
-          // Get records in this section that also match the filters
-          final sectionRecords = section.records
-              .map((id) {
-                try {
-                  return filteredRecords.firstWhere((r) => r.id == id);
-                } catch (_) {
-                  return null;
-                }
-              })
-              .whereType<models.Record>()
-              .toList();
-
-          final matchesSearch =
-              section.name.toLowerCase().contains(searchQuery) ||
-              section.key.toLowerCase().contains(searchQuery);
-          final matchesFilters = _sectionMatchesFilters(
-            section,
-            _tableController.filters,
-          );
-          return (matchesSearch && matchesFilters) || sectionRecords.isNotEmpty;
-        }).toList();
-
-        // Sort sections if active sort applies to them
-        final sortBy = _tableController.sortBy;
-        if (sortBy.isNotEmpty) {
-          final parts = sortBy.split('_');
-          if (parts.length >= 2) {
-            final col = parts.sublist(0, parts.length - 1).join('_');
-            final dir = parts.last;
-
-            if (col == 'label' || col == 'key' || col == 'created') {
-              visibleSections.sort((a, b) {
-                String valA = '';
-                String valB = '';
-                if (col == 'label') {
-                  valA = a.name;
-                  valB = b.name;
-                } else if (col == 'key') {
-                  valA = a.key;
-                  valB = b.key;
-                } else if (col == 'created') {
-                  valA = a.created ?? '';
-                  valB = b.created ?? '';
-                }
-
-                final comp = valA.toLowerCase().compareTo(valB.toLowerCase());
-                return dir == 'asc' ? comp : -comp;
-              });
-            }
+        final byId = {for (final r in records) r.id: r};
+        final visibleSections = <(Section, List<models.Record>)>[];
+        for (final section in sectionsSource) {
+          final sectionRecords = [
+            for (final id in section.records)
+              if (byId[id] != null) byId[id]!,
+          ];
+          final matchesSection =
+              filter == _VaultFilter.all &&
+              (section.name.toLowerCase().contains(searchQuery) ||
+                  section.key.toLowerCase().contains(searchQuery)) &&
+              _sectionMatchesFilters(section, _tableController.filters);
+          if (matchesSection || sectionRecords.isNotEmpty) {
+            visibleSections.add((section, sectionRecords));
           }
         }
 
-        final assignedRecordIds = store.sections
-            .expand((s) => s.records)
-            .toSet();
-        final ungroupedRecords = filteredRecords
-            .where((r) => !assignedRecordIds.contains(r.id))
-            .toList();
-
-        // If absolutely nothing matches the filter anywhere in the sections or ungrouped lists, show search empty state
-        final hasAnyMatching =
-            visibleSections.isNotEmpty || ungroupedRecords.isNotEmpty;
-
-        if (!hasAnyMatching) {
-          return Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xxl),
-            child: Center(
-              child: const Text('No items match your filters.').muted,
-            ),
-          );
+        // Sort sections if active sort applies to them
+        final sortBy = _tableController.sortBy;
+        final parts = sortBy.split('_');
+        if (parts.length >= 2) {
+          final col = parts.sublist(0, parts.length - 1).join('_');
+          final asc = parts.last == 'asc';
+          String field(Section s) => switch (col) {
+            'label' => s.name,
+            'key' => s.key,
+            'created' => s.created ?? '',
+            _ => '',
+          };
+          if (col == 'label' || col == 'key' || col == 'created') {
+            visibleSections.sort((a, b) {
+              final comp = field(
+                a.$1,
+              ).toLowerCase().compareTo(field(b.$1).toLowerCase());
+              return asc ? comp : -comp;
+            });
+          }
         }
 
-        return Padding(
-          padding: EdgeInsets.symmetric(horizontal: scrollbarMargin),
-          child: ListView(
-            padding: EdgeInsets.only(
-              left: AppSpacing.xs,
-              right: AppSpacing.xs,
-              top: AppSpacing.md,
-              bottom: AppSpacing.huge,
+        final filed = store.sections.expand((s) => s.records).toSet();
+        final unsorted = records.where((r) => !filed.contains(r.id)).toList();
+
+        Widget row(models.Record r) => _recordRow(
+          r,
+          links: links[r.id]!,
+          selected: shareEdit?.records.contains(r.id),
+          onToggle: shareEdit == null
+              ? null
+              : (on) => _toggleShareRecord(shareEdit, r, on),
+        );
+
+        final groups = <Widget>[
+          for (final (section, sectionRecords) in visibleSections)
+            AppListGroup(
+              key: ValueKey('${section.id}-$filter'),
+              title: section.isRequested
+                  ? '${_sectionName(section)} · requested by '
+                        '${section.requestedBy}'
+                  : _sectionName(section),
+              noun: 'records',
+              previewCount: 5,
+              trailing: shareEdit != null
+                  ? _WholeSectionToggle(
+                      selected: shareEdit.sections.contains(section.id),
+                      onChanged: (on) =>
+                          _toggleShareSection(shareEdit, section, on),
+                    )
+                  : _sectionMenu(context, section, sectionRecords.length),
+              children: sectionRecords.isEmpty
+                  ? const [
+                      AppDetailRow(
+                        icon: AppIcons.info,
+                        label: 'No records in this section yet',
+                      ),
+                    ]
+                  : [for (final r in sectionRecords) row(r)],
             ),
-            children: [
-              if (activeShareFilter != null)
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: AppRadius.allMd,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        AppIcons.funnel,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          'Filtering by public share: "${activeShareFilter.label}". Only items shared are displayed.',
-                        ).small,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      AppButton(
-                        icon: AppIcons.x,
-                        label: 'Clear',
-                        onTap: () => context.go(AppRoutes.vault),
-                        style: AppButtonStyle.accent,
-                      ),
-                    ],
-                  ),
-                ),
-              if (activeShareEdit != null)
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: AppRadius.allMd,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        AppIcons.plusSlashMinus,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          'Editing public share: "${activeShareEdit.label}". Select sections and records below to include them in this public share.',
-                        ).small,
-                      ),
-                    ],
-                  ),
-                ),
-              ...visibleSections.map((section) {
-                final sectionRecords = section.records
-                    .map((id) {
-                      try {
-                        return filteredRecords.firstWhere((r) => r.id == id);
-                      } catch (_) {
-                        return null;
-                      }
-                    })
-                    .whereType<models.Record>()
-                    .toList();
+          if (unsorted.isNotEmpty)
+            AppListGroup(
+              key: ValueKey('unsorted-$filter'),
+              title: visibleSections.isEmpty ? 'Records' : 'Not in a section',
+              noun: 'records',
+              previewCount: visibleSections.isEmpty ? 0 : 5,
+              children: [for (final r in unsorted) row(r)],
+            ),
+        ];
 
-                return _SectionCard(
-                  section: section,
-                  sectionRecords: sectionRecords,
-                  onAddRecords: () => store.editSection(section.id),
-                  onRename: () => openSectionRenameSheet(
-                    context: context,
-                    store: store,
-                    section: section,
-                  ),
-                  onDelete: () =>
-                      _confirmDeleteSection(context, store, section.id),
-                  onDuplicate: () => openSectionCreateSheet(
-                    context: context,
-                    store: store,
-                    authStore: authStore,
-                    initialSection: section,
-                  ),
-                  isSelectableMode: activeShareEdit != null,
-                  isSelected:
-                      activeShareEdit != null &&
-                      activeShareEdit.sections.contains(section.id),
-                  onToggleSelect: activeShareEdit == null
-                      ? null
-                      : (selected) async {
-                          final share = activeShareEdit;
-                          if (share == null) return;
-                          final newSections = List<String>.from(share.sections);
-                          final newRecords = List<String>.from(share.records);
-                          if (selected) {
-                            if (!newSections.contains(section.id)) {
-                              newSections.add(section.id);
-                            }
-                            for (final rId in section.records) {
-                              if (!newRecords.contains(rId)) {
-                                newRecords.add(rId);
-                              }
-                            }
-                          } else {
-                            newSections.remove(section.id);
-                            for (final rId in section.records) {
-                              newRecords.remove(rId);
-                            }
-                          }
-                          await sharesStore.updateShare(share.id, {
-                            'sections': newSections,
-                            'records': newRecords,
-                          });
-                        },
-                  recordCardBuilder: (record) {
-                    return _RecordCard(
-                      record: record,
-                      isSelectableMode: activeShareEdit != null,
-                      isSelected:
-                          activeShareEdit != null &&
-                          activeShareEdit.records.contains(record.id),
-                      onToggleSelect: activeShareEdit == null
-                          ? null
-                          : (selected) async {
-                              final share = activeShareEdit;
-                              if (share == null) return;
-                              final newRecords = List<String>.from(
-                                share.records,
-                              );
-                              if (selected) {
-                                if (!newRecords.contains(record.id)) {
-                                  newRecords.add(record.id);
-                                }
-                              } else {
-                                newRecords.remove(record.id);
-                              }
-                              await sharesStore.updateShare(share.id, {
-                                'records': newRecords,
-                              });
-                              if (context.mounted) {
-                                AppToast.success(
-                                  context,
-                                  selected
-                                      ? 'Added record to public share'
-                                      : 'Removed record from public share',
-                                );
-                              }
-                            },
-                      onCopy: () {
-                        Clipboard.setData(ClipboardData(text: record.value));
-                        AppToast.success(context, 'Copied to clipboard');
-                      },
-                      onEdit: () =>
-                          _showEditRecordSheet(context, store, record),
-                      onDelete: () =>
-                          _confirmDeleteRecord(context, store, record.id),
-                      onDuplicate: () => _showCreateSheet(
-                        context,
-                        store,
-                        authStore,
-                        initialRecord: record,
-                      ),
-                    );
-                  },
-                );
-              }),
-
-              if (ungroupedRecords.isNotEmpty) ...[
-                if (visibleSections.isNotEmpty)
-                  const SizedBox(height: AppSpacing.md),
-                ...ungroupedRecords.map((record) {
-                  return _RecordCard(
-                    record: record,
-                    isSelectableMode: activeShareEdit != null,
-                    isSelected:
-                        activeShareEdit != null &&
-                        activeShareEdit.records.contains(record.id),
-                    onToggleSelect: activeShareEdit == null
-                        ? null
-                        : (selected) async {
-                            final share = activeShareEdit;
-                            if (share == null) return;
-                            final newRecords = List<String>.from(share.records);
-                            if (selected) {
-                              if (!newRecords.contains(record.id)) {
-                                newRecords.add(record.id);
-                              }
-                            } else {
-                              newRecords.remove(record.id);
-                            }
-                            await sharesStore.updateShare(share.id, {
-                              'records': newRecords,
-                            });
-                            if (context.mounted) {
-                              AppToast.success(
-                                context,
-                                selected
-                                    ? 'Added record to public share'
-                                    : 'Removed record from public share',
-                              );
-                            }
-                          },
-                    onCopy: () {
-                      Clipboard.setData(ClipboardData(text: record.value));
-                      AppToast.success(context, 'Copied to clipboard');
-                    },
-                    onEdit: () => _showEditRecordSheet(context, store, record),
-                    onDelete: () =>
-                        _confirmDeleteRecord(context, store, record.id),
-                    onDuplicate: () => _showCreateSheet(
-                      context,
-                      store,
-                      authStore,
-                      initialRecord: record,
-                    ),
-                  );
-                }),
-              ],
-            ],
-          ),
+        return AppListPage(
+          banners: [
+            if (shareFilter != null)
+              AppListBanner(
+                icon: AppIcons.funnel,
+                message: 'Showing what "${shareFilter.label}" shares.',
+                action: AppButton(
+                  icon: AppIcons.x,
+                  label: 'Clear',
+                  style: AppButtonStyle.accent,
+                  size: AppButtonSize.small,
+                  onTap: () => context.go(AppRoutes.vault),
+                ),
+              ),
+            if (shareEdit != null)
+              AppListBanner(
+                icon: AppIcons.plusSlashMinus,
+                message:
+                    'Choosing what "${shareEdit.label}" shares. Tick whole '
+                    'sections or single records.',
+              ),
+          ],
+          filters: chips,
+          emptyMessage: groups.isEmpty ? 'No items match your filters.' : null,
+          groups: groups,
         );
       },
     );
   }
 
-  Widget _buildFieldLabel(
-    BuildContext context,
-    String text, {
-    bool isRequired = false,
-    String? explanation,
+  Link? _shareById(String? id) {
+    if (id == null) return null;
+    for (final s in Stores.shares.shares) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  String _sectionName(Section s) => s.name.isEmpty ? s.key : s.name;
+
+  /// A record as one line. While picking (a section's records, a share's
+  /// contents) [selected] is set and the row ticks in place; otherwise it
+  /// opens the record's page.
+  Widget _recordRow(
+    models.Record r, {
+    required int links,
+    bool? selected,
+    ValueChanged<bool>? onToggle,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(text),
-            if (isRequired)
-              Padding(
-                padding: const EdgeInsets.only(left: AppSpacing.xxs),
-                child: const AppErrorText('*'),
+    final picking = selected != null && onToggle != null;
+    return AppListRow(
+      icon: RecordTypeUtils.icon(r.type),
+      leading: picking
+          ? Center(
+              child: AppCheckbox(
+                value: selected,
+                onChanged: (v) => onToggle(v ?? false),
               ),
+            )
+          : null,
+      title: r.label.isEmpty ? r.key : r.label,
+      subtitle: _preview(r),
+      // Quiet text, not a badge: most records are shared somewhere, and a
+      // badge on every row is the noise this list is meant to be rid of.
+      trailing: links > 0
+          ? AppText('$links ${links == 1 ? 'link' : 'links'}').small.muted
+          : null,
+      showChevron: !picking,
+      onTap: picking
+          ? () => onToggle(!selected)
+          : () => context.go(AppRoutes.recordDetailFor(r.id)),
+    );
+  }
+
+  /// One line of the value, masked while the record is hidden.
+  String _preview(models.Record r) {
+    final hidden = r.isHidden && !Stores.vault.isRevealed(r.id);
+    if (r.isFile) {
+      final name = hidden ? '••••••••' : r.displayName;
+      return '$name · ${formatBytes(r.size)}';
+    }
+    if (hidden) return '••••••••••••';
+    var value = r.value;
+    if (r.isAlias) {
+      for (final p in Stores.vault.records) {
+        if (p.id == r.aliasOf) value = p.value;
+      }
+      value = 'Alias · $value';
+    }
+    value = value.replaceAll('\n', ' ');
+    return value.isEmpty ? '—' : value;
+  }
+
+  Widget _sectionMenu(BuildContext context, Section section, int shown) {
+    final store = Stores.vault;
+    final access = Stores.shares.linksForSection(section.id);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppText('${section.records.length}').small.muted,
+        AppSpacing.gapXs,
+        AppMenuButton(
+          icon: AppIcons.threeDotsVertical,
+          tooltip: 'Section actions',
+          size: AppButtonSize.small,
+          chevron: false,
+          items: [
+            AppMenuItem(
+              icon: AppIcons.plusSlashMinus,
+              label: 'Add or remove records',
+              onSelected: () => store.editSection(section.id),
+            ),
+            if (access.isNotEmpty)
+              AppMenuItem(
+                icon: AppIcons.share,
+                label: 'Who has access · ${access.length}',
+                onSelected: () => _showVaultAccessSheet(
+                  context,
+                  title: _sectionName(section),
+                  links: access,
+                ),
+              ),
+            AppMenuItem(
+              icon: AppIcons.pen,
+              label: 'Rename',
+              onSelected: () => openSectionRenameSheet(
+                context: context,
+                store: store,
+                section: section,
+              ),
+            ),
+            AppMenuItem(
+              icon: AppIcons.duplicate,
+              label: 'Duplicate',
+              onSelected: () => openSectionCreateSheet(
+                context: context,
+                store: store,
+                authStore: Stores.auth,
+                initialSection: section,
+              ),
+            ),
+            null,
+            AppMenuItem(
+              icon: AppIcons.trash,
+              label: 'Delete',
+              destructive: true,
+              onSelected: () =>
+                  _confirmDeleteSection(context, store, section.id),
+            ),
           ],
         ),
-        if (explanation != null) ...[
-          const SizedBox(height: AppSpacing.xxs),
-          Text(explanation).muted.small,
-        ],
       ],
     );
   }
 
-  // Record-create / duplicate moved to a 2-step bottom sheet
-  // (record_create_sheet.dart) so the form no longer overflows on phones.
-  void _showCreateSheet(
-    BuildContext context,
-    VaultStore store,
-    AuthStore authStore, {
-    models.Record? initialRecord,
-  }) {
-    openRecordCreateSheet(
-      context: context,
-      store: store,
-      authStore: authStore,
-      initialRecord: initialRecord,
-    );
+  Future<void> _toggleSectionRecord(
+    Section section,
+    models.Record record,
+    bool selected,
+  ) async {
+    final newRecords = List<String>.from(section.records);
+    if (selected && !newRecords.contains(record.id)) {
+      newRecords.add(record.id);
+    } else if (!selected) {
+      newRecords.remove(record.id);
+    }
+    final ok = await Stores.vault.updateSection(section.id, {
+      'records': newRecords,
+    });
+    if (ok && mounted) {
+      AppToast.success(
+        context,
+        selected ? 'Added record to section' : 'Removed record from section',
+      );
+    }
+  }
+
+  Future<void> _toggleShareRecord(
+    Link share,
+    models.Record record,
+    bool selected,
+  ) async {
+    final newRecords = List<String>.from(share.records);
+    if (selected) {
+      if (!newRecords.contains(record.id)) newRecords.add(record.id);
+    } else {
+      newRecords.remove(record.id);
+    }
+    await Stores.shares.updateShare(share.id, {'records': newRecords});
+    if (mounted) {
+      AppToast.success(
+        context,
+        selected
+            ? 'Added record to public share'
+            : 'Removed record from public share',
+      );
+    }
+  }
+
+  /// Sharing a whole section also lists its records on the link, as the old
+  /// section toggle did, so the share's record list stays complete.
+  Future<void> _toggleShareSection(
+    Link share,
+    Section section,
+    bool selected,
+  ) async {
+    final newSections = List<String>.from(share.sections);
+    final newRecords = List<String>.from(share.records);
+    if (selected) {
+      if (!newSections.contains(section.id)) newSections.add(section.id);
+      for (final rId in section.records) {
+        if (!newRecords.contains(rId)) newRecords.add(rId);
+      }
+    } else {
+      newSections.remove(section.id);
+      for (final rId in section.records) {
+        newRecords.remove(rId);
+      }
+    }
+    await Stores.shares.updateShare(share.id, {
+      'sections': newSections,
+      'records': newRecords,
+    });
   }
 
   bool _sectionMatchesFilters(Section section, List<DataTableFilter> filters) {
@@ -731,494 +649,6 @@ class _VaultScreenState extends State<VaultScreen> {
     return true;
   }
 
-  void _showEditRecordSheet(
-    BuildContext context,
-    VaultStore store,
-    models.Record record,
-  ) {
-    store.clearError();
-    store.startRecordEdit(record);
-
-    showAppSheet(
-      context: context,
-      builder: (sheetContext) {
-        return Builder(
-          builder: (ctx) {
-            void validateAndDetectType(String value) {
-              final detected = RecordTypeUtils.detectType(value);
-              store.setEditRecordTypeCheck(
-                warning: RecordTypeUtils.validateValue(
-                  store.editRecordType,
-                  value,
-                ),
-                detected: detected != 'text' && detected != store.editRecordType
-                    ? detected
-                    : null,
-              );
-            }
-
-            final isFile = record.isFile;
-
-            return Observer(
-              builder: (observerContext) {
-                final _ = store.errorMessage;
-                final theme = Theme.of(ctx);
-
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl,
-                        AppSpacing.xxs,
-                        AppSpacing.xl,
-                        AppSpacing.md,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Edit record').header,
-                          const SizedBox(height: AppSpacing.xxs),
-                          const Text(
-                            'Modify record parameters in your workspace.',
-                          ).muted.small,
-                        ],
-                      ),
-                    ),
-                    const AppDivider(),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(AppSpacing.xxl),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildFieldLabel(
-                              ctx,
-                              'Label',
-                              isRequired: true,
-                              explanation:
-                                  'A friendly display name for this record.',
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            AppTextField(
-                              controller: store.editRecordLabel,
-                              hint: 'My Secret',
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-
-                            _buildFieldLabel(
-                              ctx,
-                              'Key',
-                              isRequired: true,
-                              explanation:
-                                  'A stable identifier for sharing and templates.',
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.sm,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                borderRadius: AppRadius.allMd,
-                                border: Border.all(
-                                  color: theme.colorScheme.outlineVariant,
-                                ),
-                              ),
-                              child: Text(record.key).mono.muted.small,
-                            ),
-                            const SizedBox(height: AppSpacing.lg),
-
-                            if (isFile) ...[
-                              _buildFieldLabel(
-                                ctx,
-                                'File name',
-                                isRequired: true,
-                                explanation:
-                                    'What a recipient downloads this file as. '
-                                    'Renaming never touches the file itself.',
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              AppTextField(
-                                controller: store.editRecordFilename,
-                                hint: 'Lebenslauf.pdf',
-                              ),
-                              const SizedBox(height: AppSpacing.lg),
-
-                              _buildFieldLabel(
-                                ctx,
-                                'File',
-                                explanation:
-                                    'Replacing it updates every active share '
-                                    'on its next read.',
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      store.editPickedFile?.name ??
-                                          '${record.displayName} · ${formatBytes(record.size)}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ).mono.muted.small,
-                                  ),
-                                  const SizedBox(width: AppSpacing.sm),
-                                  AppButton(
-                                    icon: AppIcons.arrowRepeat,
-                                    label: 'Replace',
-                                    size: AppButtonSize.small,
-                                    style: AppButtonStyle.accent,
-                                    onTap: () async {
-                                      final picked =
-                                          await FilePicker.pickFile();
-                                      if (picked == null) return;
-                                      await store.stageFile(
-                                        await PendingUpload.fromPicked(picked),
-                                        forEdit: true,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                              if (store.pickedFileError != null) ...[
-                                const SizedBox(height: AppSpacing.xs),
-                                AppErrorText(store.pickedFileError!),
-                              ],
-                              if (store.isUploading) ...[
-                                const SizedBox(height: AppSpacing.sm),
-                                AppUploadProgress(
-                                  sent: store.uploadSent,
-                                  total: store.uploadTotal,
-                                  onCancel: store.cancelUpload,
-                                ),
-                              ],
-                              const SizedBox(height: AppSpacing.lg),
-                            ] else ...[
-                              _buildFieldLabel(
-                                ctx,
-                                'Value',
-                                isRequired: true,
-                                explanation:
-                                    'The actual sensitive data or configuration value.',
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              AppTextField(
-                                controller: store.editRecordValue,
-                                hint: 'sk-1234...',
-                                onChanged: (v) => validateAndDetectType(v),
-                              ),
-                              if (store.editRecordTypeWarning != null) ...[
-                                const SizedBox(height: AppSpacing.xs),
-                                AppErrorText(store.editRecordTypeWarning!),
-                              ],
-                              const SizedBox(height: AppSpacing.lg),
-                            ],
-
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: isFile
-                                        ? [
-                                            _buildFieldLabel(
-                                              ctx,
-                                              'Type',
-                                              explanation:
-                                                  'A file record stays a file. '
-                                                  'To store something else, '
-                                                  'make a new record.',
-                                            ),
-                                            const SizedBox(
-                                              height: AppSpacing.xs,
-                                            ),
-                                            const Align(
-                                              alignment: Alignment.centerLeft,
-                                              child: AppBadge(label: 'FILE'),
-                                            ),
-                                          ]
-                                        : [
-                                            _buildFieldLabel(
-                                              ctx,
-                                              'Type',
-                                              explanation:
-                                                  'How this data should be interpreted.',
-                                            ),
-                                            const SizedBox(
-                                              height: AppSpacing.xs,
-                                            ),
-                                            Wrap(
-                                              spacing: 8,
-                                              runSpacing: 8,
-                                              children: [
-                                                if (store
-                                                        .editRecordDetectedType !=
-                                                    null)
-                                                  AppButton(
-                                                    icon: AppIcons.stars,
-                                                    label:
-                                                        'Auto: ${store.editRecordDetectedType!.toUpperCase()}',
-                                                    size: AppButtonSize.small,
-                                                    onTap: () {
-                                                      store.setEditRecordType(
-                                                        store
-                                                            .editRecordDetectedType!,
-                                                      );
-                                                      validateAndDetectType(
-                                                        store
-                                                            .editRecordValue
-                                                            .text,
-                                                      );
-                                                    },
-                                                  ),
-                                                ...RecordTypeUtils.supportedTypes.map((
-                                                  type,
-                                                ) {
-                                                  final isSelected =
-                                                      store.editRecordType ==
-                                                      type;
-                                                  return isSelected
-                                                      ? AppButton(
-                                                          icon:
-                                                              RecordTypeUtils.icon(
-                                                                type,
-                                                              ),
-                                                          label: type
-                                                              .toUpperCase(),
-                                                          onTap: () {},
-                                                        )
-                                                      : AppButton(
-                                                          icon:
-                                                              RecordTypeUtils.icon(
-                                                                type,
-                                                              ),
-                                                          label: type
-                                                              .toUpperCase(),
-                                                          onTap: () {
-                                                            store
-                                                                .setEditRecordType(
-                                                                  type,
-                                                                );
-                                                            validateAndDetectType(
-                                                              store
-                                                                  .editRecordValue
-                                                                  .text,
-                                                            );
-                                                          },
-                                                          style: AppButtonStyle
-                                                              .accent,
-                                                        );
-                                                }),
-                                              ],
-                                            ),
-                                          ],
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _buildFieldLabel(
-                                        ctx,
-                                        isFile ? 'Hidden name' : 'Hidden Value',
-                                        explanation: isFile
-                                            ? 'Mask the file name on screen — '
-                                                  'a name is content too.'
-                                            : 'Mask value on screen.',
-                                      ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      AppButton(
-                                        icon: store.editRecordFormat == 'hidden'
-                                            ? AppIcons.eyeSlash
-                                            : AppIcons.eye,
-                                        label:
-                                            store.editRecordFormat == 'hidden'
-                                            ? 'Hidden'
-                                            : 'Visible',
-                                        style: AppButtonStyle.accent,
-                                        onTap: () => store.setEditRecordFormat(
-                                          store.editRecordFormat == 'hidden'
-                                              ? 'default'
-                                              : 'hidden',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: AppSpacing.xl),
-
-                            if (store.errorMessage != null) ...[
-                              AppAlert(
-                                destructive: true,
-                                leading: const Icon(AppIcons.exclamation),
-                                title: const Text('Error'),
-                                content: Text(store.errorMessage!),
-                              ),
-                              const SizedBox(height: AppSpacing.lg),
-                            ],
-
-                            if (isFile)
-                              const Text(
-                                'Renaming is a normal record update; replacing '
-                                'the file sends the same fields as '
-                                'multipart/form-data with a "file" part.',
-                              ).muted.small
-                            else
-                              ApiPreview(
-                                spec: VaultStore.updateRecordSpec(record.id, {
-                                  'value': store.editRecordValue.text.trim(),
-                                  'label': store.editRecordLabel.text.trim(),
-                                  'type': store.editRecordType,
-                                  'format': store.editRecordFormat,
-                                }),
-                                title: 'API request · update',
-                              ),
-                            const SizedBox(height: AppSpacing.lg),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const AppDivider(),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl,
-                        AppSpacing.md,
-                        AppSpacing.xl,
-                        AppSpacing.md,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: AppButton(
-                              label: 'Cancel',
-                              onTap: store.isSubmittingEditRecord
-                                  ? null
-                                  : () => Navigator.of(sheetContext).pop(),
-                              style: AppButtonStyle.accent,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Expanded(
-                            child: AppButton(
-                              icon: AppIcons.check,
-                              label: 'Save changes',
-                              busy: store.isSubmittingEditRecord,
-                              onTap:
-                                  (store.editRecordLabel.text.trim().isEmpty ||
-                                      (isFile
-                                          ? store.editRecordFilename.text
-                                                .trim()
-                                                .isEmpty
-                                          : store.editRecordValue.text
-                                                    .trim()
-                                                    .isEmpty ||
-                                                store.editRecordTypeWarning !=
-                                                    null))
-                                  ? null
-                                  : () async {
-                                      store.setSubmittingEditRecord(true);
-
-                                      final bool ok;
-                                      if (isFile) {
-                                        final fields = {
-                                          'filename': store
-                                              .editRecordFilename
-                                              .text
-                                              .trim(),
-                                          'label': store.editRecordLabel.text
-                                              .trim(),
-                                          'format': store.editRecordFormat,
-                                        };
-                                        final staged = store.editPickedFile;
-                                        // One write: a rename and a replacement
-                                        // must not be able to half-apply.
-                                        ok = staged == null
-                                            ? await store.updateRecord(
-                                                record.id,
-                                                fields,
-                                              )
-                                            : await store.updateRecordFile(
-                                                record.id,
-                                                staged,
-                                                fields: fields,
-                                              );
-                                      } else {
-                                        ok = await store
-                                            .updateRecord(record.id, {
-                                              'value': store
-                                                  .editRecordValue
-                                                  .text
-                                                  .trim(),
-                                              'label': store
-                                                  .editRecordLabel
-                                                  .text
-                                                  .trim(),
-                                              'type': store.editRecordType,
-                                              'format': store.editRecordFormat,
-                                            });
-                                      }
-
-                                      if (ok && ctx.mounted) {
-                                        Navigator.of(sheetContext).pop();
-                                        AppToast.success(
-                                          context,
-                                          'Record updated successfully',
-                                        );
-                                      } else {
-                                        store.setSubmittingEditRecord(false);
-                                      }
-                                    },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _confirmDeleteRecord(
-    BuildContext context,
-    VaultStore store,
-    String id,
-  ) async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Delete record',
-      message:
-          'This action cannot be undone. This will permanently delete the record.',
-      content: ApiPreview(
-        spec: VaultStore.deleteRecordSpec(id),
-        title: 'API request · delete',
-      ),
-      confirmLabel: 'Delete',
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    final ok = await store.deleteRecord(id);
-    if (ok && context.mounted) {
-      AppToast.success(context, 'Record deleted successfully');
-    }
-  }
-
   Future<void> _confirmDeleteSection(
     BuildContext context,
     VaultStore store,
@@ -1242,26 +672,6 @@ class _VaultScreenState extends State<VaultScreen> {
     if (ok && context.mounted) {
       AppToast.success(context, 'Section deleted successfully');
     }
-  }
-}
-
-/// A tappable "N shares" pill that opens the who-has-access sheet.
-class _AccessTag extends StatelessWidget {
-  final int count;
-  final VoidCallback onTap;
-  const _AccessTag({required this.count, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: AppRadius.allMd,
-      onTap: onTap,
-      child: AppBadge(
-        icon: AppIcons.share,
-        label: '$count',
-        accent: Theme.of(context).colorScheme.primary,
-      ),
-    );
   }
 }
 
@@ -1300,7 +710,7 @@ void _showVaultAccessSheet(
               host: host.isEmpty ? base : host,
               onOpen: () {
                 Navigator.of(sheetCtx).pop();
-                context.go('${AppRoutes.shares}?filterSlug=${l.slug}');
+                context.go(AppRoutes.shareDetailFor(l.id));
               },
             ),
         ],
@@ -1378,400 +788,29 @@ class _VaultAccessRow extends StatelessWidget {
   }
 }
 
-class _SectionCard extends StatelessWidget {
-  final Section section;
-  final List<models.Record> sectionRecords;
-  final VoidCallback onAddRecords;
-  final VoidCallback onRename;
-  final VoidCallback onDelete;
-  final VoidCallback onDuplicate;
-  final bool isSelectableMode;
-  final bool isSelected;
-  final ValueChanged<bool>? onToggleSelect;
-  final Widget Function(models.Record) recordCardBuilder;
+/// The share-picking control on a section's header: shares the whole section.
+class _WholeSectionToggle extends StatelessWidget {
+  final bool selected;
+  final ValueChanged<bool> onChanged;
 
-  const _SectionCard({
-    required this.section,
-    required this.sectionRecords,
-    required this.onAddRecords,
-    required this.onRename,
-    required this.onDelete,
-    required this.onDuplicate,
-    required this.recordCardBuilder,
-    this.isSelectableMode = false,
-    this.isSelected = false,
-    this.onToggleSelect,
-  });
-
-  List<AppSheetAction> _sectionActions() => [
-    AppSheetAction(
-      icon: AppIcons.plusSlashMinus,
-      label: 'Add or remove records',
-      primary: true,
-      onTap: onAddRecords,
-    ),
-    AppSheetAction(icon: AppIcons.pen, label: 'Rename', onTap: onRename),
-    AppSheetAction(
-      icon: AppIcons.nodePlus,
-      label: 'Duplicate',
-      onTap: onDuplicate,
-    ),
-    AppSheetAction(
-      icon: AppIcons.trash,
-      label: 'Delete',
-      destructive: true,
-      onTap: onDelete,
-    ),
-  ];
+  const _WholeSectionToggle({required this.selected, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    final tags = <Widget>[
-      AppBadge(icon: AppIcons.cardList, label: '${section.records.length}'),
-      if (section.isRequested)
-        AppBadge(
-          icon: AppIcons.inboxFill,
-          label: 'Requested by ${section.requestedBy}',
-        ),
-    ];
-
-    final accessLinks = Stores.shares.linksForSection(section.id);
-    if (accessLinks.isNotEmpty) {
-      tags.add(
-        _AccessTag(
-          count: accessLinks.length,
-          onTap: () => _showVaultAccessSheet(
-            context,
-            title: section.name.isEmpty ? section.key : section.name,
-            links: accessLinks,
-          ),
-        ),
-      );
-    }
-
-    return AppEntityCard(
-      onTap: isSelectableMode ? () => onToggleSelect?.call(!isSelected) : null,
-      leading: isSelectableMode
-          ? AppCheckbox(
-              value: isSelected,
-              onChanged: (value) => onToggleSelect?.call(value ?? false),
-            )
-          : null,
-      title: section.name,
-      subtitle: section.key,
-      subtitleMono: true,
-      date: AppEntityCard.formatDate(section.created),
-      tags: tags,
-      expandedBody: sectionRecords.isEmpty
-          ? const Text('No records in this section yet.').muted.small
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final record in sectionRecords) recordCardBuilder(record),
-              ],
-            ),
-      actions: isSelectableMode ? const [] : _sectionActions(),
-    );
-  }
-}
-
-class _RecordCard extends StatefulWidget {
-  final dynamic record;
-  final bool isSelectableMode;
-  final bool isSelected;
-  final ValueChanged<bool>? onToggleSelect;
-  final VoidCallback onCopy;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback onDuplicate;
-
-  const _RecordCard({
-    required this.record,
-    this.isSelectableMode = false,
-    this.isSelected = false,
-    this.onToggleSelect,
-    required this.onCopy,
-    required this.onEdit,
-    required this.onDelete,
-    required this.onDuplicate,
-  });
-
-  @override
-  State<_RecordCard> createState() => _RecordCardState();
-}
-
-class _RecordCardState extends State<_RecordCard> {
-  /// Hidden records start masked; the store remembers the ones the user chose
-  /// to reveal, so the card itself holds nothing.
-  bool get _isObscured =>
-      widget.record.isHidden && !Stores.vault.isRevealed(widget.record.id);
-
-  /// Images and text open in the app from memory; anything else goes to the
-  /// app the OS uses for that type.
-  Future<void> _viewFile() async {
-    final r = widget.record;
-    final bytes = await Stores.vault.fetchRecordFileBytes(r);
-    if (!mounted) return;
-    if (bytes == null) {
-      AppToast.error(
-        context,
-        'Could not open file',
-        subtitle: Stores.vault.errorMessage,
-      );
-      return;
-    }
-    await viewFile(
-      context,
-      bytes: bytes,
-      filename: r.displayName,
-      mime: r.mime,
-    );
-  }
-
-  Future<void> _downloadFile() async {
-    final r = widget.record;
-    final bytes = await Stores.vault.fetchRecordFileBytes(r);
-    if (bytes == null) {
-      if (mounted) {
-        AppToast.error(
-          context,
-          'Could not download file',
-          subtitle: Stores.vault.errorMessage,
-        );
-      }
-      return;
-    }
-    final ok = await saveFileToDevice(
-      bytes: bytes,
-      filename: r.displayName,
-      mime: r.mime,
-    );
-    if (ok && mounted) AppToast.success(context, 'File saved');
-  }
-
-  List<AppSheetAction> _recordActions() {
-    if (widget.record.isFile) {
-      return [
-        AppSheetAction(
-          icon: AppIcons.eye,
-          label: 'View',
-          primary: true,
-          onTap: _viewFile,
-        ),
-        AppSheetAction(
-          icon: AppIcons.download,
-          label: 'Download',
-          onTap: _downloadFile,
-        ),
-        AppSheetAction(icon: AppIcons.pen, label: 'Edit', onTap: widget.onEdit),
-        AppSheetAction(
-          icon: AppIcons.trash,
-          label: 'Delete',
-          destructive: true,
-          onTap: widget.onDelete,
-        ),
-      ];
-    }
-    return [
-      AppSheetAction(
-        icon: AppIcons.copy,
-        label: 'Copy value',
-        primary: true,
-        onTap: widget.onCopy,
-      ),
-      AppSheetAction(icon: AppIcons.pen, label: 'Edit', onTap: widget.onEdit),
-      AppSheetAction(
-        icon: AppIcons.nodePlus,
-        label: 'Duplicate',
-        onTap: widget.onDuplicate,
-      ),
-      AppSheetAction(
-        icon: AppIcons.trash,
-        label: 'Delete',
-        destructive: true,
-        onTap: widget.onDelete,
-      ),
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.isSelectableMode) return _buildSelectable(context);
-
-    final r = widget.record;
-    final tags = <Widget>[AppBadge(label: r.type)];
-    if (r.isFile) {
-      tags.add(AppBadge(label: formatBytes(r.size)));
-      final mime = ((r.mime ?? '') as String).split(';').first;
-      if (mime.isNotEmpty) tags.add(AppBadge(label: mime));
-    }
-    if (r.isHidden) {
-      tags.add(const AppBadge(icon: AppIcons.eyeSlash, label: 'Hidden'));
-    }
-    if (r.isAlias) {
-      tags.add(const AppBadge(icon: AppIcons.link, label: 'Alias'));
-    }
-    if (r.isRequested) {
-      tags.add(
-        AppBadge(
-          icon: AppIcons.inboxFill,
-          label: 'Requested by ${r.requestedBy}',
-        ),
-      );
-    }
-
-    final accessLinks = Stores.shares.linksForRecord(r.id);
-    if (accessLinks.isNotEmpty) {
-      tags.add(
-        _AccessTag(
-          count: accessLinks.length,
-          onTap: () => _showVaultAccessSheet(
-            context,
-            title: r.label.isEmpty ? r.key : r.label,
-            links: accessLinks,
-          ),
-        ),
-      );
-    }
-
-    return AppEntityCard(
-      title: r.label,
-      subtitle: r.key,
-      subtitleMono: true,
-      date: AppEntityCard.formatDate(r.created),
-      body: _valueBox(context),
-      tags: tags,
-      actions: _recordActions(),
-    );
-  }
-
-  /// Resolves an alias record to its parent (value carrier) within the loaded
-  /// vault, so the value box shows the forwarded value instead of nothing.
-  models.Record? _aliasParent(BuildContext context) {
-    final id = widget.record.aliasOf as String?;
-    if (id == null || id.isEmpty) return null;
-    for (final p in Stores.vault.records) {
-      if (p.id == id) return p;
-    }
-    return null;
-  }
-
-  Widget _valueBox(BuildContext context) {
-    return Observer(builder: (_) => _valueBoxBody(context));
-  }
-
-  Widget _valueBoxBody(BuildContext context) {
-    final r = widget.record;
-    if (r.isFile) {
-      return _valueLine(
-        context,
-        text: _isObscured ? '••••••••••••' : r.displayName as String,
-        leadingIcon: AppIcons.fileText,
-      );
-    }
-    // Aliases carry no value of their own — show the parent's (forwarded) value.
-    final value = r.isAlias
-        ? (_aliasParent(context)?.value ?? '')
-        : r.value as String;
-    return _valueLine(
-      context,
-      text: _isObscured ? '••••••••••••••••' : (value.isEmpty ? '—' : value),
-    );
-  }
-
-  /// One text line tall. A hidden record's box is itself the reveal control —
-  /// tapping toggles the mask — so no button inflates its height.
-  Widget _valueLine(
-    BuildContext context, {
-    required String text,
-    IconData? leadingIcon,
-  }) {
-    final theme = Theme.of(context);
-    final r = widget.record;
-    final box = Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xxs,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: AppRadius.allSm,
-      ),
-      child: Row(
-        children: [
-          if (leadingIcon != null) ...[
-            Icon(
-              leadingIcon,
-              size: 14,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: AppSpacing.sm),
-          ],
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ).mono.muted.small,
-          ),
-          if (r.isHidden) ...[
-            const SizedBox(width: AppSpacing.sm),
-            Tooltip(
-              message: _isObscured ? 'Show' : 'Hide',
-              child: Icon(
-                _isObscured ? AppIcons.eye : AppIcons.eyeSlash,
-                size: 14,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-    if (!r.isHidden) return box;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: AppRadius.allSm,
-        onTap: () => Stores.vault.toggleRevealed(r.id),
-        child: box,
-      ),
-    );
-  }
-
-  Widget _buildSelectable(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: AppCard(
-        onTap: () => widget.onToggleSelect?.call(!widget.isSelected),
+    return InkWell(
+      borderRadius: AppRadius.allMd,
+      onTap: () => onChanged(!selected),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            const Text('Whole section').small.muted,
+            AppSpacing.gapXs,
             AppCheckbox(
-              value: widget.isSelected,
-              onChanged: (value) => widget.onToggleSelect?.call(value ?? false),
+              value: selected,
+              onChanged: (v) => onChanged(v ?? false),
             ),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(widget.record.label),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(widget.record.key).mono.muted.small,
-                ],
-              ),
-            ),
-            AppBadge(label: widget.record.type),
-            if (widget.record.isHidden) ...[
-              const SizedBox(width: AppSpacing.xs),
-              const AppBadge(label: 'hidden', variant: AppBadgeVariant.outline),
-            ],
-            if (widget.record.isAlias) ...[
-              const SizedBox(width: AppSpacing.xs),
-              const AppBadge(label: 'alias', variant: AppBadgeVariant.outline),
-            ],
           ],
         ),
       ),
