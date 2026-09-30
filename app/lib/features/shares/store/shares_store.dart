@@ -271,6 +271,10 @@ abstract class _SharesStore with Store {
     bool requireHandshake = false,
     bool watermark = false,
     String watermarkText = '',
+    String purpose = '',
+    String connection = '',
+    String ref = '',
+    bool handedOver = false,
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -290,6 +294,10 @@ abstract class _SharesStore with Store {
         requireHandshake: requireHandshake,
         watermark: watermark,
         watermarkText: watermarkText,
+        purpose: purpose,
+        connection: connection,
+        ref: ref,
+        handedOver: handedOver,
       );
       shares.insert(0, link);
       return true;
@@ -402,6 +410,10 @@ abstract class _SharesStore with Store {
     bool requireHandshake = false,
     bool watermark = false,
     String watermarkText = '',
+    String purpose = '',
+    String connection = '',
+    String ref = '',
+    bool handedOver = false,
   }) async {
     final spec = createShareSpec(
       slug: slug,
@@ -418,6 +430,10 @@ abstract class _SharesStore with Store {
       requireHandshake: requireHandshake,
       watermark: watermark,
       watermarkText: watermarkText,
+      purpose: purpose,
+      connection: connection,
+      ref: ref,
+      handedOver: handedOver,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return Link.fromJson(data as Map<String, dynamic>);
@@ -477,6 +493,10 @@ abstract class _SharesStore with Store {
     bool requireHandshake = false,
     bool watermark = false,
     String watermarkText = '',
+    String purpose = '',
+    String connection = '',
+    String ref = '',
+    bool handedOver = false,
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -497,6 +517,12 @@ abstract class _SharesStore with Store {
         if (watermark) 'watermark': true,
         if (watermark && watermarkText.isNotEmpty)
           'watermarkText': watermarkText,
+        if (purpose.isNotEmpty) 'purpose': purpose,
+        if (connection.isNotEmpty) ...{
+          'connection': connection,
+          if (ref.isNotEmpty) 'ref': ref,
+          'handedOver': handedOver,
+        },
       },
     );
   }

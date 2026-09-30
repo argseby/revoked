@@ -31,13 +31,13 @@ func TestApiKeyPermissions_GrantedByKeyNotRawScope(t *testing.T) {
 			"label":     fmt.Sprintf("picker-key-%d", time.Now().UnixNano()),
 			"workspace": workspaceID,
 			"user":      userID,
-			"scopes":    []string{util.PermVaultRead, util.PermSharesRead},
+			"scopes":    []string{util.PermRequestsRead, util.PermSharesRead},
 		}), http.StatusOK)
 
 		scopes := created.JSON().Object().Value("scopes").Array()
 		// The stored value is the expansion, never the keys the caller sent.
-		scopes.ContainsAll(util.ScopeRecordRead, util.ScopeSectionRead, util.ScopeLinkRead)
-		scopes.NotContainsAny(util.PermVaultRead, util.PermSharesRead)
+		scopes.ContainsAll(util.ScopeRequestRead, util.ScopeLinkRead)
+		scopes.NotContainsAny(util.PermRequestsRead, util.PermSharesRead)
 	})
 
 	t.Run("raw scopes still work", func(t *testing.T) {
@@ -46,10 +46,29 @@ func TestApiKeyPermissions_GrantedByKeyNotRawScope(t *testing.T) {
 			"label":     fmt.Sprintf("raw-key-%d", time.Now().UnixNano()),
 			"workspace": workspaceID,
 			"user":      userID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}), http.StatusOK)
 
-		created.JSON().Object().Value("scopes").Array().ContainsAll(util.ScopeRecordRead)
+		created.JSON().Object().Value("scopes").Array().ContainsAll(util.ScopeLinkRead)
+	})
+
+	t.Run("no key opens the vault, by permission or by raw scope", func(t *testing.T) {
+		api := api.T(t)
+		for _, scopes := range [][]string{
+			{util.PermVaultRead},
+			{util.PermVaultWrite, util.PermSharesRead},
+			{util.ScopeRecordRead},
+			{util.ScopeSectionCreate},
+		} {
+			api.Create(util.Coll.ApiKeys, token, map[string]any{
+				"label":     fmt.Sprintf("vault-key-%d", time.Now().UnixNano()),
+				"workspace": workspaceID,
+				"user":      userID,
+				"scopes":    scopes,
+			}).Expect().Status(http.StatusBadRequest).
+				JSON().Object().Value("data").Object().Value(util.Fields.ApiKey.Scopes).Object().
+				Value("code").String().IsEqual(util.Errors.ApiKeyVaultScope.ErrorCode)
+		}
 	})
 
 	t.Run("an unknown permission is still refused", func(t *testing.T) {

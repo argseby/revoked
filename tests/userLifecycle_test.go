@@ -17,29 +17,22 @@ func TestUserLifecycle_Refactored(t *testing.T) {
 	var token, userID, signupWorkspaceID string
 
 	email := "lifecycle@test.com"
-	pass := "password12345"
+	device := testutils.NewPasskeyDevice(baseURL)
 
 	t.Run("create user and authenticate", func(t *testing.T) {
 		api := api.T(t)
-		res := api.Create(util.Coll.Users, "", map[string]any{
-			"email":           email,
-			"password":        pass,
-			"passwordConfirm": pass,
-		}).Expect().Status(http.StatusOK)
-
-		userID = testutils.ExtractString(res, "id")
+		session, err := device.Register(map[string]any{"email": email})
+		if err != nil {
+			t.Fatalf("register: %v", err)
+		}
+		userID, token = session.UserID, session.Token
 		assert.NotEmpty(t, userID)
-
-		authRes := api.AuthWithPassword(util.Coll.Users, email, pass).
-			Expect().Status(http.StatusOK)
-
-		token = testutils.ExtractString(authRes, "token")
 		assert.NotEmpty(t, token)
 
 		// An account starts with no workspace: the client asks on first run
 		// whether to create one or join one by invite.
-		recordObj := authRes.JSON().Object().Value("record").Object()
-		assert.Empty(t, recordObj.Value(util.Fields.User.ActiveWorkspace).String().Raw())
+		api.Get(util.Coll.Users, userID, token).Expect().Status(http.StatusOK).
+			JSON().Object().Value(util.Fields.User.ActiveWorkspace).String().IsEmpty()
 	})
 
 	t.Run("create the first workspace and adopt it", func(t *testing.T) {
@@ -103,7 +96,9 @@ func TestUserLifecycle_Refactored(t *testing.T) {
 		api.Delete(util.Coll.Users, userID, token).
 			Expect().Status(http.StatusNoContent)
 
-		api.AuthWithPassword(util.Coll.Users, email, pass).
-			Expect().Status(http.StatusBadRequest)
+		// Its passkey went with it.
+		if _, err := device.SignIn(); err == nil {
+			t.Fatal("a deleted account's passkey still signs in")
+		}
 	})
 }

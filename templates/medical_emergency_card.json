@@ -36,22 +36,33 @@
     ],
     "sections": [
       {
+        "key": "personal_information",
+        "name": "Personal information",
+        "records": [
+          {
+            "key": "full_name",
+            "label": "Full name",
+            "type": "text"
+          }
+        ]
+      },
+      {
         "key": "emergency_contact",
         "name": "Emergency contact",
         "records": [
           {
             "key": "contact_name",
-            "label": "Name",
+            "label": "Contact name",
             "type": "text"
           },
           {
             "key": "contact_phone",
-            "label": "Phone number",
+            "label": "Contact phone",
             "type": "text"
           },
           {
             "key": "contact_relation",
-            "label": "Relationship",
+            "label": "Contact relation",
             "type": "text"
           }
         ]
@@ -62,12 +73,12 @@
         "records": [
           {
             "key": "doctor_name",
-            "label": "Name",
+            "label": "Doctor name",
             "type": "text"
           },
           {
             "key": "doctor_phone",
-            "label": "Phone number",
+            "label": "Doctor phone",
             "type": "text"
           }
         ]

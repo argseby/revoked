@@ -50,6 +50,12 @@ class _RevokedAppState extends State<RevokedApp> {
   }
 
   void _handleDeepLink(Uri uri) {
+    // The server's sign-in page sending the person back: an answer for the
+    // auth store, not a place to go — the router follows the session.
+    if (DeepLinks.isSignInReturn(uri)) {
+      unawaited(Stores.auth.completeSignIn(uri));
+      return;
+    }
     final location = DeepLinks.locationFor(uri);
     if (location != null) _router.go(location);
   }

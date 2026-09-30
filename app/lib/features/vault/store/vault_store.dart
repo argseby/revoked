@@ -358,6 +358,19 @@ abstract class _VaultStore with Store {
   @action
   void selectFillTemplate(String? id) => fillTemplateId = id;
 
+  /// Keeps [record] known to the store, so answering its field edits it in
+  /// place rather than writing a second record: the vault list is paged, and a
+  /// record found by another query may not be on its first page.
+  @action
+  void rememberRecord(models.Record record) {
+    final i = records.indexWhere((r) => r.id == record.id);
+    if (i >= 0) {
+      records[i] = record;
+    } else {
+      records.insert(0, record);
+    }
+  }
+
   final ObservableTextController fillValue = ObservableTextController();
 
   @observable
@@ -366,13 +379,15 @@ abstract class _VaultStore with Store {
   @action
   void setFillingField(bool value) => isFillingField = value;
 
-  /// A template field is answered when the vault already holds its key —
-  /// that, not a saved template, is what "filled" means here.
-  bool isKeyFilled(String key) => records.any((r) => r.key == key);
+  /// A template field is answered when the vault already holds its key as
+  /// the owner's own — that, not a saved template, is what "filled" means
+  /// here. An answer someone sent to one of your requests is theirs.
+  bool isKeyFilled(String key) =>
+      records.any((r) => r.key == key && r.requestedBy == null);
 
   /// Answers one template field: creates the record it describes and files it
-  /// in the template's own section — created on the first answer — so a
-  /// template's records stay together however many are filled. Answering a
+  /// in the section the caller names — created on the first answer, found by
+  /// its key after that. Answering a
   /// field the vault already holds rewrites that record's value instead, which
   /// is what makes a filled row editable. Fields are answered one at a time on
   /// purpose: a template is a checklist, not an all-or-nothing import.
@@ -394,7 +409,11 @@ abstract class _VaultStore with Store {
     // An answered field is edited in place. The section is left alone: the
     // record may have been in the vault before this template ever asked for
     // it, and answering again is no reason to move it.
-    final existing = records.where((r) => r.key == key).toList();
+    // Someone else's answer to one of your requests may share the key; it is
+    // theirs, and answering a field never rewrites it.
+    final existing = records
+        .where((r) => r.key == key && r.requestedBy == null)
+        .toList();
     if (existing.isNotEmpty) {
       final id = existing.first.id;
       if (file != null) {
@@ -437,8 +456,11 @@ abstract class _VaultStore with Store {
           );
           sections.insert(0, section);
         } else {
-          await updateSection(existing.first.id, {
-            'records': [...existing.first.records, record.id],
+          // Appended on the server, not written back from the list held
+          // here: one id in it that has since been deleted and the whole
+          // update is refused, leaving the answer in no section at all.
+          return await updateSection(existing.first.id, {
+            'records+': [record.id],
           });
         }
       }
@@ -611,7 +633,11 @@ abstract class _VaultStore with Store {
     // An answered field is edited in place. The section is left alone: the
     // record may have been in the vault before this template ever asked for
     // it, and answering again is no reason to move it.
-    final existing = records.where((r) => r.key == key).toList();
+    // Someone else's answer to one of your requests may share the key; it is
+    // theirs, and answering a field never rewrites it.
+    final existing = records
+        .where((r) => r.key == key && r.requestedBy == null)
+        .toList();
     if (existing.isNotEmpty) {
       final id = existing.first.id;
       if (file != null) {
@@ -655,6 +681,22 @@ abstract class _VaultStore with Store {
     try {
       await _api.delete(VaultStore.deleteRecordSpec(id).path);
       records.removeWhere((r) => r.id == id);
+      // The server drops the record from its sections; so does the store.
+      for (var i = 0; i < sections.length; i++) {
+        final s = sections[i];
+        if (!s.records.contains(id)) continue;
+        sections[i] = Section(
+          id: s.id,
+          key: s.key,
+          name: s.name,
+          records: s.records.where((r) => r != id).toList(),
+          user: s.user,
+          workspace: s.workspace,
+          created: s.created,
+          updated: s.updated,
+          requestedBy: s.requestedBy,
+        );
+      }
       return true;
     } catch (e) {
       errorMessage = e.toString();

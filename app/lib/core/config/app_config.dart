@@ -30,6 +30,8 @@ class AppConfig {
   static const String invitesCollection = 'invites';
   static const String bookmarksCollection = 'bookmarks';
   static const String bookmarkGroupsCollection = 'bookmarkGroups';
+  static const String connectionsCollection = 'connections';
+  static const String passkeysCollection = 'passkeys';
 
   /// Where the project lives, shown in Settings → About. Not the API: these
   /// are the same for every deployment, whoever hosts the server.

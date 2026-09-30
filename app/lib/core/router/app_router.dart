@@ -2,15 +2,18 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 
+import 'package:revoked_app/core/models/share_proposal.dart';
+import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/login_screen.dart';
-import 'package:revoked_app/features/auth/view/register_screen.dart';
 import 'package:revoked_app/features/shell/view/app_shell.dart';
 import 'package:revoked_app/features/settings/view/settings_screen.dart';
 import 'package:revoked_app/features/shell/view/splash_screen.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
 import 'package:revoked_app/features/shares/view/shares_screen.dart';
 import 'package:revoked_app/features/shares/view/public_share_screen.dart';
+import 'package:revoked_app/features/shares/view/share_proposal_screen.dart';
+import 'package:revoked_app/features/connections/view/connect_screen.dart';
 import 'package:revoked_app/features/api_keys/view/api_keys_screen.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
 import 'package:revoked_app/features/requests/view/inbox_screen.dart';
@@ -22,7 +25,6 @@ import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen
 
 abstract class AppRoutes {
   static const login = '/login';
-  static const register = '/register';
   static const vault = '/vault';
   static const inbox = '/inbox';
   static const data = '/data';
@@ -39,6 +41,10 @@ abstract class AppRoutes {
   static const shortShare = '/s/:slug';
   static const shortRequest = '/r/:slug';
   static const invite = '/i/:token';
+  // A share a tool proposes; created only after the owner confirms it.
+  static const proposal = '/p';
+  // A tool asking to be connected; nothing is connected until the owner agrees.
+  static const connect = '/connect';
   static const onboarding = '/onboarding';
 
   /// Shown while the stored session is being checked.
@@ -101,9 +107,7 @@ class AppRouter {
         }
 
         final isLoggedIn = authStore.isAuthenticated;
-        final isAuthRoute =
-            state.matchedLocation == AppRoutes.login ||
-            state.matchedLocation == AppRoutes.register;
+        final isAuthRoute = state.matchedLocation == AppRoutes.login;
 
         if (!isLoggedIn && !isAuthRoute && !isPublicRoute) {
           return AppRoutes.login;
@@ -130,10 +134,6 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.login,
           builder: (context, state) => const LoginScreen(),
-        ),
-        GoRoute(
-          path: AppRoutes.register,
-          builder: (context, state) => const RegisterScreen(),
         ),
         GoRoute(
           path: AppRoutes.share,
@@ -176,6 +176,19 @@ class AppRouter {
           builder: (context, state) => InviteAcceptScreen(
             token: state.pathParameters['token'] ?? '',
             origin: state.uri.queryParameters['o'],
+          ),
+        ),
+        // Not public: it creates a share, so it needs the owner's session.
+        GoRoute(
+          path: AppRoutes.proposal,
+          builder: (context, state) => ShareProposalScreen(
+            proposal: ShareProposal.fromQuery(state.uri.queryParameters),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.connect,
+          builder: (context, state) => ConnectScreen(
+            request: ConnectRequest.fromQuery(state.uri.queryParameters),
           ),
         ),
         // Fallbacks for public URLs missing slugs

@@ -42,6 +42,15 @@ class Link {
   /// Empty for a manually-created share.
   final String request;
 
+  /// The connected tool whose proposal this link came from; empty otherwise.
+  final String connection;
+
+  /// That tool's own reference for the link, e.g. which flat it is for.
+  final String ref;
+
+  /// Whether the owner handed the link itself to that tool.
+  final bool handedOver;
+
   Link({
     required this.id,
     required this.slug,
@@ -62,6 +71,9 @@ class Link {
     this.hasPassword = false,
     this.identity,
     this.request = '',
+    this.connection = '',
+    this.ref = '',
+    this.handedOver = false,
   });
 
   /// Legacy alias used by older UI code. Prefer [viewCount].
@@ -118,6 +130,9 @@ class Link {
       hasPassword: hasPassword,
       identity: json['identity'] as String?,
       request: json['request'] as String? ?? '',
+      connection: json['connection'] as String? ?? '',
+      ref: json['ref'] as String? ?? '',
+      handedOver: json['handedOver'] as bool? ?? false,
     );
   }
 
@@ -141,6 +156,9 @@ class Link {
     bool? hasPassword,
     String? identity,
     String? request,
+    String? connection,
+    String? ref,
+    bool? handedOver,
   }) {
     return Link(
       id: id ?? this.id,
@@ -162,6 +180,9 @@ class Link {
       hasPassword: hasPassword ?? this.hasPassword,
       identity: identity ?? this.identity,
       request: request ?? this.request,
+      connection: connection ?? this.connection,
+      ref: ref ?? this.ref,
+      handedOver: handedOver ?? this.handedOver,
     );
   }
 }

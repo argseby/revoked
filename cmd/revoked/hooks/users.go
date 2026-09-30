@@ -16,22 +16,25 @@ import (
 // validation on update, and adopting an existing membership as the active
 // context on sign-in.
 func BindUsersHooks(app core.App) {
-	// Self-service registration is off unless the operator turns it on. The
-	// collection's create rule stays public because a rule cannot read the
-	// environment, so the refusal lives here — which also means it applies to
-	// requests only: a superuser creating an account through the dashboard, and
-	// the seed accounts written directly with app.Save, both still work.
+	// Nobody makes an account through the collection API: an account made
+	// here would have a password nothing accepts and no passkey, so it could
+	// never be signed into — only squatted on. Registration is the passkey
+	// route's, which is also where the operator's signup policy applies. The
+	// refusal is for requests only: a superuser creating an account through
+	// the dashboard, and the accounts the operator writes directly with
+	// app.Save, both still work and get their passkey from a ticket.
 	app.OnRecordCreateRequest(util.Coll.Users).BindFunc(func(e *core.RecordRequestEvent) error {
-		if !util.SignupsAllowed() && !e.RequestEvent.HasSuperuserAuth() {
+		if !e.RequestEvent.HasSuperuserAuth() {
+			reason := util.Errors.PasskeySignupOnly
+			if !util.SignupsAllowed() {
+				reason = util.Errors.SignupsDisabled
+			}
 			// Carried in Data, like every other typed hook denial: PocketBase
 			// title-cases a bare message, which would stop it being a code.
 			return router.NewApiError(http.StatusForbidden,
-				util.Errors.SignupsDisabled.ErrorText,
+				reason.ErrorText,
 				validation.Errors{
-					"signup": validation.NewError(
-						util.Errors.SignupsDisabled.ErrorCode,
-						util.Errors.SignupsDisabled.ErrorText,
-					),
+					"signup": validation.NewError(reason.ErrorCode, reason.ErrorText),
 				})
 		}
 		return e.Next()

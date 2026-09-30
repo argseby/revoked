@@ -59,13 +59,6 @@ func (c *PBClient) Delete(collection string, id string, token string) *httpexpec
 	return applyAuth(req, token)
 }
 
-func (c *PBClient) AuthWithPassword(collection string, email, password string) *httpexpect.Request {
-	return c.Request("POST", collection, "/auth-with-password").WithJSON(map[string]any{
-		"identity": email,
-		"password": password,
-	})
-}
-
 // applyAuth picks the header by token length: auth JWTs are long, API keys are
 // short.
 func applyAuth(req *httpexpect.Request, token string) *httpexpect.Request {

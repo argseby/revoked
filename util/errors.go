@@ -101,6 +101,27 @@ var Errors = struct {
 	AliasCycle                    AppError
 	AliasParentMissing            AppError
 	RateLimited                   AppError
+	ApiKeyVaultScope              AppError
+	ConnectionClientInvalid       AppError
+	ConnectionRedirectInvalid     AppError
+	ConnectionChallengeInvalid    AppError
+	ConnectionGrantInvalid        AppError
+	ConnectionUnauthorized        AppError
+	ConnectionExpired             AppError
+	ConnectionNotConnected        AppError
+	ConnectionRevokeNotAllowed    AppError
+	LinkHandOverNotAllowed        AppError
+	LinkConnectionForeign         AppError
+	PasskeyOriginInvalid          AppError
+	PasskeyRequestInvalid         AppError
+	PasskeyEmailInvalid           AppError
+	PasskeyEmailTaken             AppError
+	PasskeyTicketInvalid          AppError
+	PasskeyCeremonyInvalid        AppError
+	PasskeyVerificationFailed     AppError
+	PasskeyGrantInvalid           AppError
+	PasskeyLast                   AppError
+	PasskeySignupOnly             AppError
 }{
 	DuplicateWorkspaceMember: AppError{
 		ErrorCode: "duplicate_workspace_member",
@@ -433,6 +454,90 @@ var Errors = struct {
 	RateLimited: AppError{
 		ErrorCode: "rate_limited",
 		ErrorText: "Too many attempts. Please wait a moment and try again.",
+	},
+	ApiKeyVaultScope: AppError{
+		ErrorCode: "api_key_vault_scope",
+		ErrorText: "An API key cannot read or write the vault.",
+	},
+	ConnectionClientInvalid: AppError{
+		ErrorCode: "connection_client_invalid",
+		ErrorText: "A tool is identified by an https origin (or http on localhost), and nothing else.",
+	},
+	ConnectionRedirectInvalid: AppError{
+		ErrorCode: "connection_redirect_invalid",
+		ErrorText: "The return address must be on the tool's own origin.",
+	},
+	ConnectionChallengeInvalid: AppError{
+		ErrorCode: "connection_challenge_invalid",
+		ErrorText: "The PKCE challenge is missing or malformed.",
+	},
+	ConnectionGrantInvalid: AppError{
+		ErrorCode: "connection_grant_invalid",
+		ErrorText: "This code is unknown, expired, already used, or does not match its verifier.",
+	},
+	ConnectionUnauthorized: AppError{
+		ErrorCode: "connection_unauthorized",
+		ErrorText: "This connection token is unknown or was disconnected.",
+	},
+	ConnectionExpired: AppError{
+		ErrorCode: "connection_expired",
+		ErrorText: "This connection has expired. Connect the tool again from the app.",
+	},
+	ConnectionNotConnected: AppError{
+		ErrorCode: "connection_not_connected",
+		ErrorText: "This tool has no live connection to reuse. Connect it from the app.",
+	},
+	ConnectionRevokeNotAllowed: AppError{
+		ErrorCode: "connection_revoke_not_allowed",
+		ErrorText: "The owner has not allowed this tool to revoke links.",
+	},
+	LinkHandOverNotAllowed: AppError{
+		ErrorCode: "link_hand_over_not_allowed",
+		ErrorText: "The owner has not allowed this tool to receive links.",
+	},
+	LinkConnectionForeign: AppError{
+		ErrorCode: "link_connection_foreign",
+		ErrorText: "A link can only name one of your own connections, and keeps the one it was created with.",
+	},
+	PasskeyOriginInvalid: AppError{
+		ErrorCode: "passkey_origin_invalid",
+		ErrorText: "Passkeys only work at this server's own address. On a development machine that is localhost, not 127.0.0.1.",
+	},
+	PasskeyRequestInvalid: AppError{
+		ErrorCode: "passkey_request_invalid",
+		ErrorText: "The sign-in request is malformed.",
+	},
+	PasskeyEmailInvalid: AppError{
+		ErrorCode: "passkey_email_invalid",
+		ErrorText: "Enter a valid email address.",
+	},
+	PasskeyEmailTaken: AppError{
+		ErrorCode: "passkey_email_taken",
+		ErrorText: "An account with this email address already exists. Sign in instead.",
+	},
+	PasskeyTicketInvalid: AppError{
+		ErrorCode: "passkey_ticket_invalid",
+		ErrorText: "This link is unknown, already used, or has expired. Ask for a new one.",
+	},
+	PasskeyCeremonyInvalid: AppError{
+		ErrorCode: "passkey_ceremony_invalid",
+		ErrorText: "This attempt took too long or was already finished. Start again.",
+	},
+	PasskeyVerificationFailed: AppError{
+		ErrorCode: "passkey_verification_failed",
+		ErrorText: "The passkey could not be verified.",
+	},
+	PasskeyGrantInvalid: AppError{
+		ErrorCode: "passkey_grant_invalid",
+		ErrorText: "This code is unknown, expired, already used, or does not match its verifier.",
+	},
+	PasskeySignupOnly: AppError{
+		ErrorCode: "passkey_signup_only",
+		ErrorText: "Accounts are created with a passkey, on this server's sign-in page.",
+	},
+	PasskeyLast: AppError{
+		ErrorCode: "passkey_last",
+		ErrorText: "This is your only passkey. Add another before removing it, or you could not sign in again.",
 	},
 }
 

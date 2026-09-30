@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:http/http.dart' as http;
+
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/services/domain_verification_service.dart';
@@ -11,10 +13,12 @@ import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/store/server_settings_store.dart';
 import 'package:revoked_app/features/bookmarks/store/bookmarks_store.dart';
+import 'package:revoked_app/features/connections/store/connections_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
+import 'package:revoked_app/features/passkeys/store/passkeys_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
@@ -39,6 +43,8 @@ abstract final class Stores {
   static late final VaultStore vault;
   static late final SharesStore shares;
   static late final BookmarksStore bookmarks;
+  static late final ConnectionsStore connections;
+  static late final PasskeysStore passkeys;
   static late final RequestsStore requests;
   static late final TemplatesStore templates;
   static late final ApiKeysStore apiKeys;
@@ -50,8 +56,9 @@ abstract final class Stores {
   static late final LinkSearchStore linkSearch;
   static late final OnboardingStore onboarding;
 
-  static Future<void> init() async {
-    api = ApiClient();
+  /// [httpClient] replaces the network, for tests that play a server.
+  static Future<void> init({http.Client? httpClient}) async {
+    api = ApiClient(httpClient: httpClient);
     await api.loadServerConfig();
 
     crypto = CryptoService();
@@ -77,6 +84,8 @@ abstract final class Stores {
     vault = VaultStore(api);
     shares = SharesStore(api);
     bookmarks = BookmarksStore(api);
+    connections = ConnectionsStore(api);
+    passkeys = PasskeysStore(api);
     requests = RequestsStore(api);
     templates = TemplatesStore(api);
     apiKeys = ApiKeysStore(api);

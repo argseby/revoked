@@ -2,52 +2,52 @@ package bootstrap
 
 import (
 	"fmt"
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 
 	"github.com/pocketbase/pocketbase"
-	"github.com/pocketbase/pocketbase/core"
 	"github.com/spf13/cobra"
 )
 
-// BindUserCommand adds `user upsert EMAIL PASSWORD`, the way to add an account
-// to a server that does not accept registrations. It mirrors PocketBase's own
-// `superuser upsert`, but for the regular users collection, and writes through
-// app.Save so it is not subject to the request-time signup refusal.
-func BindUserCommand(app *pocketbase.PocketBase) {
+// BindUserCommand adds `user upsert EMAIL`, the way to add an account to a
+// server that does not accept registrations, and the way back in for someone
+// who lost every device holding a passkey. It writes through app.Save, so it
+// is not subject to the request-time signup refusal.
+//
+// An account has no password. The command prints a one-time link instead: the
+// person opens it and saves a passkey on their device.
+func BindUserCommand(app *pocketbase.PocketBase, domain string) {
 	cmd := &cobra.Command{
 		Use:   "user",
 		Short: "Manage regular user accounts",
 	}
 
 	cmd.AddCommand(&cobra.Command{
-		Use:   "upsert EMAIL PASSWORD",
-		Short: "Create a user, or reset the password of an existing one",
-		Args:  cobra.ExactArgs(2),
+		Use:   "upsert EMAIL",
+		Short: "Create a user if needed, and print a one-time link to add a passkey",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			email, password := args[0], args[1]
+			email := args[0]
 
 			if err := app.Bootstrap(); err != nil {
 				return err
 			}
 
-			users, err := app.FindCollectionByNameOrId(util.Coll.Users)
+			user, created, err := services.EnsurePasskeyAccount(app, email)
 			if err != nil {
-				return fmt.Errorf("users collection: %w", err)
+				return err
 			}
-
-			record, err := app.FindAuthRecordByEmail(users, email)
-			if err != nil || record == nil {
-				record = core.NewRecord(users)
-				record.Set(util.Fields.User.Email, email)
-			}
-			record.Set(util.Fields.User.Verified, true)
-			record.SetPassword(password)
-
-			if err := app.Save(record); err != nil {
+			ticket, expires, err := services.IssuePasskeyTicket(app, user.Id, util.PasskeyOperatorTicketTTL)
+			if err != nil {
 				return err
 			}
 
-			fmt.Printf("Saved user %q.\n", email)
+			if created {
+				fmt.Printf("Created user %q.\n", email)
+			}
+			fmt.Printf("Link to add a passkey for %q (one use, until %s):\n  %s\n",
+				email, expires.Local().Format("2006-01-02 15:04"), services.PasskeyTicketURL(domain, ticket))
+			fmt.Println("On a development machine, open it at http://localhost:<port> instead of the domain.")
 			return nil
 		},
 	})

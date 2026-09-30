@@ -27,14 +27,13 @@ file needed there.
 
 ## Seed accounts
 
-Created on first boot when both halves of a pair are set. Convenient on a
-test box; on anything reachable, create the superuser interactively and leave
-these blank.
+Created on first boot. Convenient on a test box; on anything reachable,
+create the superuser interactively and leave these blank.
 
 | Variable | Meaning |
 |---|---|
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Seed superuser for the `/_/` dashboard. |
-| `USER_EMAIL` / `USER_PASSWORD` | Seed regular account. |
+| `USER_EMAIL` | Seed regular account. It has no password: while it has no passkey, every start logs a one-time link to add one. See [Accounts](accounts.md). |
 
 ## Outbound requests
 
@@ -67,6 +66,7 @@ Public-surface budgets, read once at startup — a change needs a restart.
 | `RATELIMIT_GATE_ATTEMPTS` | `10` | Password/identifier attempts on a share gate, per IP + slug, per 5 minutes. |
 | `RATELIMIT_PROBE_REQUESTS` | `120` | Metadata probes and short-link reads, per IP, per minute — the enumeration budget across every slug. |
 | `RATELIMIT_CHALLENGE_REQUESTS` | `60` | Handshake nonce issuance, per IP, per minute. |
+| `RATELIMIT_PASSKEY_REQUESTS` | `60` | Passkey sign-in and registration steps, per IP, per minute. A sign-in is three. |
 
 These budgets are per-IP, which is why the
 [trusted-proxy header](reverse-proxy.md#let-rate-limits-see-real-ips) matters:

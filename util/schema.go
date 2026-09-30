@@ -29,6 +29,15 @@ type collectionSchema struct {
 	IdentityRevocations string
 	Bookmarks           string
 	BookmarkGroups      string
+	// Connections are tools the owner connected: what they may do, and their
+	// own small store. ConnectionTokens are the per-browser credentials.
+	Connections      string
+	ConnectionTokens string
+	// Passkeys are how a person signs in: one row per authenticator they
+	// registered. PasskeyTickets are the one-time links that let an account
+	// register one without being signed in with another.
+	Passkeys       string
+	PasskeyTickets string
 }
 
 type inviteFields struct {
@@ -49,7 +58,7 @@ type linkFields struct {
 	Slug, Label, User, Workspace, Sections, Records, Status,
 	Password, ExpiresAt, MaxViews, ViewCount, Identity, RequireHandshake,
 	Request, Grants, Data, SenderName, Identifier, Watermark, WatermarkText,
-	Purpose, Created, Updated string
+	Purpose, Connection, Ref, HandedOver, Created, Updated string
 }
 
 type workspaceFields struct {
@@ -119,6 +128,23 @@ type bookmarkGroupFields struct {
 	User, Name, Created, Updated string
 }
 
+type connectionFields struct {
+	User, Workspace, ClientId, ClientName, AllowRevoke, AllowHandOver, ExpiresAt, LastUsedAt, Created, Updated string
+}
+
+type connectionTokenFields struct {
+	Connection, CodeHash, CodeChallenge, CodeExpiresAt, RedirectUri,
+	Poll, TokenHash, LastUsedAt, Created string
+}
+
+type passkeyFields struct {
+	User, CredentialId, Credential, Name, LastUsedAt, Created string
+}
+
+type passkeyTicketFields struct {
+	User, TokenHash, ExpiresAt, Created string
+}
+
 // Coll holds the collection (table) names used across the backend.
 var Coll = collectionSchema{
 	Workspaces:       "workspaces",
@@ -141,6 +167,10 @@ var Coll = collectionSchema{
 	IdentityRevocations: "identityRevocations",
 	Bookmarks:           "bookmarks",
 	BookmarkGroups:      "bookmarkGroups",
+	Connections:         "connections",
+	ConnectionTokens:    "connectionTokens",
+	Passkeys:            "passkeys",
+	PasskeyTickets:      "passkeyTickets",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -163,6 +193,10 @@ var Fields = struct {
 	Invite             inviteFields
 	Bookmark           bookmarkFields
 	BookmarkGroup      bookmarkGroupFields
+	Connection         connectionFields
+	ConnectionToken    connectionTokenFields
+	Passkey            passkeyFields
+	PasskeyTicket      passkeyTicketFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -249,6 +283,9 @@ var Fields = struct {
 		Watermark:        "watermark",
 		WatermarkText:    "watermarkText",
 		Purpose:          "purpose",
+		Connection:       "connection",
+		Ref:              "ref",
+		HandedOver:       "handedOver",
 		Created:          "created",
 		Updated:          "updated",
 	},
@@ -377,5 +414,42 @@ var Fields = struct {
 		Name:    "name",
 		Created: "created",
 		Updated: "updated",
+	},
+	Connection: connectionFields{
+		User:          "user",
+		Workspace:     "workspace",
+		ClientId:      "clientId",
+		ClientName:    "clientName",
+		AllowRevoke:   "allowRevoke",
+		AllowHandOver: "allowHandOver",
+		ExpiresAt:     "expiresAt",
+		LastUsedAt:    "lastUsedAt",
+		Created:       "created",
+		Updated:       "updated",
+	},
+	ConnectionToken: connectionTokenFields{
+		Connection:    "connection",
+		CodeHash:      "codeHash",
+		CodeChallenge: "codeChallenge",
+		CodeExpiresAt: "codeExpiresAt",
+		RedirectUri:   "redirectUri",
+		Poll:          "poll",
+		TokenHash:     "tokenHash",
+		LastUsedAt:    "lastUsedAt",
+		Created:       "created",
+	},
+	Passkey: passkeyFields{
+		User:         "user",
+		CredentialId: "credentialId",
+		Credential:   "credential",
+		Name:         "name",
+		LastUsedAt:   "lastUsedAt",
+		Created:      "created",
+	},
+	PasskeyTicket: passkeyTicketFields{
+		User:      "user",
+		TokenHash: "tokenHash",
+		ExpiresAt: "expiresAt",
+		Created:   "created",
 	},
 }

@@ -1,12 +1,12 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"revoked/tests/testutils"
 
-	"github.com/gavv/httpexpect/v2"
 	"revoked/util"
 	"testing"
 	"time"
@@ -17,39 +17,41 @@ import (
 // can add people to, not one the internet can.
 func TestSignups_DisabledByDefault(t *testing.T) {
 	baseURL, _ := testutils.SetupTestApp(t)
-	api := testutils.NewPBClient(t, baseURL)
 
 	// The harness enables signups for the rest of the suite; this case is about
 	// what happens when an operator has not.
 	previous := os.Getenv(util.AllowSignupsEnv)
 	t.Cleanup(func() { _ = os.Setenv(util.AllowSignupsEnv, previous) })
 
-	register := func(api *testutils.PBClient) *httpexpect.Request {
-		return api.Create(util.Coll.Users, "", map[string]any{
-			"email":           fmt.Sprintf("signup-%d@test.com", time.Now().UnixNano()),
-			"password":        "password12345",
-			"passwordConfirm": "password12345",
+	register := func() error {
+		_, err := testutils.NewPasskeyDevice(baseURL).Register(map[string]any{
+			"email": fmt.Sprintf("signup-%d@test.com", time.Now().UnixNano()),
 		})
+		return err
+	}
+	refused := func(t *testing.T, err error) {
+		t.Helper()
+		var refusal *testutils.PasskeyError
+		if !errors.As(err, &refusal) || refusal.Status != http.StatusForbidden ||
+			refusal.Code != util.Errors.SignupsDisabled.ErrorCode {
+			t.Fatalf("registration was not refused as signups_disabled: %v", err)
+		}
 	}
 
 	t.Run("unset refuses the registration", func(t *testing.T) {
 		_ = os.Unsetenv(util.AllowSignupsEnv)
-		api := api.T(t)
-		body := api.AssertStatus(register(api), http.StatusForbidden)
-		body.JSON().Object().Value("data").Object().
-			Value("signup").Object().Value("code").String().
-			IsEqual(util.Errors.SignupsDisabled.ErrorCode)
+		refused(t, register())
 	})
 
 	t.Run("an explicit false refuses it too", func(t *testing.T) {
 		_ = os.Setenv(util.AllowSignupsEnv, "false")
-		api := api.T(t)
-		api.AssertStatus(register(api), http.StatusForbidden)
+		refused(t, register())
 	})
 
 	t.Run("opting in accepts it", func(t *testing.T) {
 		_ = os.Setenv(util.AllowSignupsEnv, "true")
-		api := api.T(t)
-		api.AssertStatus(register(api), http.StatusOK)
+		if err := register(); err != nil {
+			t.Fatalf("registration refused: %v", err)
+		}
 	})
 }

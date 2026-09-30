@@ -20,6 +20,8 @@ func PermissionsRoute(app core.App) {
 					"label":       p.Label,
 					"description": p.Description,
 					"destructive": p.Destructive,
+					// Grantable to a member, never to an API key.
+					"membersOnly": p.MembersOnly,
 					// Grants are stored expanded; clients need the mapping to name them back.
 					"scopes": p.Scopes,
 				})

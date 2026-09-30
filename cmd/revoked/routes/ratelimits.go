@@ -56,6 +56,13 @@ func ConfigureRateLimits(gateAttempts, probeRequests, challengeRequests int) {
 	challengeLimiter = util.NewRateLimiter(challengeRequests, time.Minute)
 }
 
+// ConfigurePasskeyRateLimit replaces the passkey limiter (0 disables it). For
+// the test harness only, which registers every account it uses from one
+// loopback address.
+func ConfigurePasskeyRateLimit(requests int) {
+	passkeyLimiter = util.NewRateLimiter(requests, time.Minute)
+}
+
 // limitFromEnv reads a non-negative integer limit from the environment,
 // falling back to def when unset or malformed.
 func limitFromEnv(name string, def int) int {

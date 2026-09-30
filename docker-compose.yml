@@ -36,7 +36,6 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       USER_EMAIL: ${USER_EMAIL:-}
-      USER_PASSWORD: ${USER_PASSWORD:-}
       ALLOW_SIGNUPS: ${ALLOW_SIGNUPS:-false}
       ALLOW_PRIVATE_CALLBACKS: ${ALLOW_PRIVATE_CALLBACKS:-false}
       # Megabytes; unset means unlimited, 0 disables uploads. Keep

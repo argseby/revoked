@@ -14,6 +14,9 @@ func BindLinkHooks(app core.App) {
 		if err := requireApplicationWatermark(e.Record); err != nil {
 			return err
 		}
+		if err := validateLinkConnection(e.App, e.Record, ""); err != nil {
+			return err
+		}
 		resolvePasswordWrite(e.Record, util.Fields.Link.Password)
 		if e.Record.GetString(util.Fields.Link.Status) == "" {
 			e.Record.Set(util.Fields.Link.Status, util.StatusActive)
@@ -23,6 +26,10 @@ func BindLinkHooks(app core.App) {
 
 	app.OnRecordUpdate(util.Coll.Links).BindFunc(func(e *core.RecordEvent) error {
 		if err := requireApplicationWatermark(e.Record); err != nil {
+			return err
+		}
+		if err := validateLinkConnection(e.App, e.Record,
+			e.Record.Original().GetString(util.Fields.Link.Connection)); err != nil {
 			return err
 		}
 		resolvePasswordWrite(e.Record, util.Fields.Link.Password)
@@ -56,6 +63,43 @@ func requireApplicationWatermark(rec *core.Record) error {
 	if rec.GetString(util.Fields.Link.Purpose) == util.PurposeApplication &&
 		!rec.GetBool(util.Fields.Link.Watermark) {
 		return util.AsFieldValidationError(util.Fields.Link.Watermark, util.Errors.ApplicationNeedsWatermark)
+	}
+	return nil
+}
+
+// validateLinkConnection keeps a link's tool honest. A link may name one of
+// its owner's own connections in the same workspace — the tool whose proposal
+// it came from — and only when it is created: attaching an existing link to a
+// tool later would hand that tool its status without a proposal behind it.
+// Clearing it is allowed; it hides the link from the tool. Without a
+// connection there is no tool to hand the link to or to keep a reference for.
+func validateLinkConnection(app core.App, rec *core.Record, before string) error {
+	id := rec.GetString(util.Fields.Link.Connection)
+	if id == "" {
+		rec.Set(util.Fields.Link.HandedOver, false)
+		rec.Set(util.Fields.Link.Ref, "")
+		return nil
+	}
+	if !rec.IsNew() && id != before {
+		return util.AsFieldValidationError(util.Fields.Link.Connection, util.Errors.LinkConnectionForeign)
+	}
+	conn, err := app.FindRecordById(util.Coll.Connections, id)
+	if err != nil || conn == nil ||
+		conn.GetString(util.Fields.Connection.User) != rec.GetString(util.Fields.Link.User) ||
+		conn.GetString(util.Fields.Connection.Workspace) != rec.GetString(util.Fields.Link.Workspace) {
+		return util.AsFieldValidationError(util.Fields.Link.Connection, util.Errors.LinkConnectionForeign)
+	}
+	// A link goes to a tool only when the owner lets that tool receive links.
+	// Checked when it is handed over, not after: taking the permission away
+	// later hides the link from the tool without making it unsaveable.
+	if rec.GetBool(util.Fields.Link.HandedOver) &&
+		(rec.IsNew() || !rec.Original().GetBool(util.Fields.Link.HandedOver)) &&
+		!conn.GetBool(util.Fields.Connection.AllowHandOver) {
+		return util.AsFieldValidationError(util.Fields.Link.HandedOver, util.Errors.LinkHandOverNotAllowed)
+	}
+	// A new link cannot join a connection the owner has let lapse.
+	if rec.IsNew() && util.ConnectionExpired(conn.GetDateTime(util.Fields.Connection.ExpiresAt).Time()) {
+		return util.AsFieldValidationError(util.Fields.Link.Connection, util.Errors.ConnectionExpired)
 	}
 	return nil
 }

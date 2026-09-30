@@ -38,6 +38,8 @@ import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
+import 'package:revoked_app/features/connections/view/connections_section.dart';
+import 'package:revoked_app/features/passkeys/view/passkeys_section.dart';
 
 /// The Account tab — a single, calm, scrollable surface grouped into sections
 /// (profile, workspaces, identities, developer tools, connection) instead of
@@ -118,6 +120,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           subtitle: 'Match your system, or force light or dark.',
         ),
         _buildAppearance(context),
+
+        const SizedBox(height: AppSpacing.xxl),
+        const _GroupHeader(
+          title: 'Passkeys',
+          subtitle: 'How you sign in. One per device; there is no password.',
+        ),
+        const PasskeysSection(),
 
         const SizedBox(height: AppSpacing.xxl),
         _GroupHeader(
@@ -333,6 +342,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           action: _AddButton(onPressed: _openCreateIdentity),
         ),
         _buildIdentities(context),
+
+        const SizedBox(height: AppSpacing.xxl),
+        const _GroupHeader(
+          title: 'Connected tools',
+          subtitle:
+              'Tools that propose links for you. They never read your '
+              'vault.',
+        ),
+        const ConnectionsSection(),
       ],
     );
   }

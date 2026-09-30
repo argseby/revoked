@@ -30,7 +30,7 @@ func TestUserManagement_Refactored(t *testing.T) {
 		{"User A fails to update User B", "PATCH", idB, map[string]any{"name": "hacker"}, http.StatusNotFound},
 		{"User A fails to delete User B", "DELETE", idB, nil, http.StatusNotFound},
 
-		{"User A fails to create another user via standard endpoint", "POST", "", map[string]any{"email": "x@x.com", "password": "123", "passwordConfirm": "123"}, http.StatusBadRequest},
+		{"User A fails to create another user via standard endpoint", "POST", "", map[string]any{"email": "x@x.com", "password": "123", "passwordConfirm": "123"}, http.StatusForbidden},
 	}
 
 	for _, tc := range tests {

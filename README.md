@@ -175,17 +175,19 @@ cheapest fix.
 
 ## Accounts
 
-Self-service registration is off unless `ALLOW_SIGNUPS=true`. With it off the
-app's sign-up screen reports that the server is invite-only, and accounts are
-created by whoever runs it:
+People sign in with a passkey; there are no passwords. Self-service
+registration is off unless `ALLOW_SIGNUPS=true`. With it off the sign-in page
+reports that the server is invite-only, and accounts are created by whoever
+runs it:
 
 ```bash
-docker compose exec api /pb/revoked user upsert someone@example.com 'a-long-password'
+docker compose exec api /pb/revoked user upsert someone@example.com
 ```
 
-The same command resets an existing account's password. The dashboard and the
-`USER_EMAIL`/`USER_PASSWORD` seed pair also work; neither goes through the
-refusal, which applies to HTTP registrations only.
+It prints a one-time link, good for 24 hours, where that person saves a passkey
+on their device. The same command is the way back in for someone who lost every
+device holding one. The `USER_EMAIL` seed also works, and logs the link on
+start.
 
 ## Backups
 

@@ -59,7 +59,7 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("admin-key-%d", ts),
 			"workspace": workspaceID,
 			"user":      userA_ID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}), http.StatusOK)
 	})
 
@@ -70,7 +70,7 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("member-key-%d", ts),
 			"workspace": workspaceID,
 			"user":      userB_ID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}), http.StatusForbidden)
 	})
 
@@ -81,7 +81,7 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("spoofed-key-%d", ts),
 			"workspace": workspaceID,
 			"user":      userB_ID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}), http.StatusForbidden)
 	})
 
@@ -93,7 +93,7 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("escalation-base-%d", ts),
 			"workspace": workspaceID,
 			"user":      userA_ID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}).Expect().Status(http.StatusOK)
 
 		apiKeyToken := res.Header("X-Plain-Token").Raw()
@@ -102,7 +102,7 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("escalated-key-%d", ts),
 			"workspace": workspaceID,
 			"user":      userA_ID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}), http.StatusForbidden)
 	})
 
@@ -114,18 +114,18 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("immutable-%d", ts),
 			"workspace": workspaceID,
 			"user":      userA_ID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}).Expect().Status(http.StatusOK)
 
 		actualID := testutils.ExtractString(res, "id")
 		token := res.Header("X-Plain-Token").Raw()
 
 		api.AssertStatus(api.Update(util.Coll.ApiKeys, actualID, userA_Token, map[string]any{
-			"scopes": []string{util.ScopeRecordRead, util.ScopeRecordCreate},
+			"scopes": []string{util.ScopeLinkRead, util.ScopeLinkCreate},
 		}), http.StatusForbidden)
 
 		api.AssertStatus(api.Update(util.Coll.ApiKeys, actualID, token, map[string]any{
-			"scopes": []string{util.ScopeRecordRead, util.ScopeRecordCreate},
+			"scopes": []string{util.ScopeLinkRead, util.ScopeLinkCreate},
 		}), http.StatusForbidden)
 	})
 
@@ -137,7 +137,7 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("deletion-%d", ts),
 			"workspace": workspaceID,
 			"user":      userA_ID,
-			"scopes":    []string{util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead},
 		}).Expect().Status(http.StatusOK)
 
 		keyID := testutils.ExtractString(res, "id")
@@ -164,7 +164,7 @@ func TestApiKeySecurity_Rigorous_Refactored(t *testing.T) {
 			"label":     fmt.Sprintf("duplicate-scope-%d", ts),
 			"workspace": workspaceID,
 			"user":      userA_ID,
-			"scopes":    []string{util.ScopeRecordRead, util.ScopeRecordRead},
+			"scopes":    []string{util.ScopeLinkRead, util.ScopeLinkRead},
 		}), http.StatusBadRequest)
 	})
 }

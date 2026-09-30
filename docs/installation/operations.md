@@ -10,6 +10,17 @@ agent). Secret material is redacted before the snapshot is stored — vault
 values, submitted gate passwords, collected data, credential tokens — so the
 log can answer "what happened" without becoming a second copy of the secrets.
 
+What a connected tool does is recorded under the `connections` collection, by
+the tool's origin: `tool_authorized` (the owner connected or renewed it),
+`tool_browser_added` (the app let another of the owner's browsers into a
+connection that was already live, without asking again and without renewing
+it), `tool_connected` (a browser exchanged its code for a token), `tool_read` (it
+read where its links stand — one entry per ten minutes of use, not one per
+request) `tool_revoked_link` (it revoked one of its links, named in the row),
+`tool_permission_changed` (the owner allowed or stopped that) and
+`tool_disconnected` (it disconnected itself). The owner
+disconnecting a tool is an ordinary `delete`.
+
 The log is superuser-only, readable through the `/_/` dashboard. Server-side
 writes the system makes on its own behalf (notifications, grant
 materialisation) are not request-driven and do not appear.

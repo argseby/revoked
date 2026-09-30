@@ -37,6 +37,10 @@ class AppCheckRow extends StatelessWidget {
   final String label;
   final String? subtitle;
 
+  /// Someone else's words about this choice — a tool's stated reason — set
+  /// in italics under the subtitle so it never reads as the app's own.
+  final String? note;
+
   /// Rendered after the label, for a marker the label itself cannot carry.
   final Widget? badge;
 
@@ -49,6 +53,7 @@ class AppCheckRow extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.subtitle,
+    this.note,
     this.badge,
   });
 
@@ -84,6 +89,10 @@ class AppCheckRow extends StatelessWidget {
                     if (subtitle != null) ...[
                       AppSpacing.gapXxs,
                       Text(subtitle!).muted.small,
+                    ],
+                    if (note != null) ...[
+                      AppSpacing.gapXxs,
+                      Text(note!).muted.small.italic,
                     ],
                   ],
                 ),

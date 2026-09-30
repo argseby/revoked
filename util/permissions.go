@@ -11,6 +11,8 @@ type Permission struct {
 	Description string
 	// Destructive marks a permission that can escalate or lock others out.
 	Destructive bool
+	// MembersOnly marks a permission a person may hold but an API key may not.
+	MembersOnly bool
 	Scopes      []string
 }
 
@@ -39,11 +41,13 @@ var Permissions = []Permission{
 	{
 		Key: PermVaultRead, Label: "Read vault",
 		Description: "View the entries and sections in this workspace's vault.",
+		MembersOnly: true,
 		Scopes:      []string{ScopeRecordRead, ScopeSectionRead},
 	},
 	{
 		Key: PermVaultWrite, Label: "Manage vault",
 		Description: "Create, edit and delete vault entries and sections.",
+		MembersOnly: true,
 		Scopes: []string{
 			ScopeRecordCreate, ScopeRecordUpdate, ScopeRecordDelete,
 			ScopeSectionCreate, ScopeSectionUpdate, ScopeSectionDelete,
@@ -128,6 +132,25 @@ var Permissions = []Permission{
 // AdminPermissions are the grants that extend or revoke other people's access;
 // a workspace must always retain a member holding both.
 var AdminPermissions = []string{PermMembersAdd, PermMembersRemove}
+
+// MembersOnlyScopes returns the scopes in a set that only a person may hold:
+// the vault. A key is a string that gets pasted into other services, and one
+// that reads the vault hands over everything in it. Tools connect and propose
+// instead; companies send requests.
+func MembersOnlyScopes(scopes []string) []string {
+	out := []string{}
+	for _, p := range Permissions {
+		if !p.MembersOnly {
+			continue
+		}
+		for _, s := range p.Scopes {
+			if slices.Contains(scopes, s) && !slices.Contains(out, s) {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
 
 // AllPermissionKeys lists every permission key in catalogue order.
 func AllPermissionKeys() []string {

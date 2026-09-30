@@ -54,11 +54,8 @@ func main() {
 		hooks.BindCreateSuperuserAccount(app, adminEmail, adminPass)
 	}
 
-	userEmail := os.Getenv("USER_EMAIL")
-	userPass := os.Getenv("USER_PASSWORD")
-
-	if userEmail != "" && userPass != "" {
-		hooks.BindCreateUserAccount(app, userEmail, userPass)
+	if userEmail := os.Getenv("USER_EMAIL"); userEmail != "" {
+		hooks.BindCreateUserAccount(app, userEmail, domain)
 	}
 
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
@@ -66,7 +63,7 @@ func main() {
 	})
 
 	bootstrap.Bind(app, root)
-	bootstrap.BindUserCommand(app)
+	bootstrap.BindUserCommand(app, domain)
 
 	if err := app.Start(); err != nil {
 		log.Fatal(err)

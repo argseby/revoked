@@ -80,6 +80,7 @@ func SetupTestApp(t testing.TB) (string, *pocketbase.PocketBase) {
 		// public-surface limits would trip as tests are added. Tests that assert
 		// 429 re-enable a low limit for their duration.
 		routes.ConfigureRateLimits(0, 0, 0)
+		routes.ConfigurePasskeyRateLimit(0)
 
 		bootstrap.Bind(testApp, root)
 

@@ -7,73 +7,25 @@ import (
 	"net/http"
 	"revoked/util"
 	"strings"
-	"time"
 
 	"github.com/gavv/httpexpect/v2"
 	"github.com/google/uuid"
 )
 
-// CreateRandomUser registers a user over the HTTP API and returns its record id
-// and a real JWT for authenticating later requests.
+// CreateRandomUser registers a user over the HTTP API, the way a person does —
+// with a passkey — and returns its record id and a real JWT for authenticating
+// later requests.
 func CreateRandomUser(baseURL string) (id string, token string, err error) {
 	email := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
-	password := "password12345"
-
-	createData := map[string]any{
-		"email":           email,
-		"password":        password,
-		"passwordConfirm": password,
-	}
-	createBody, _ := json.Marshal(createData)
-
-	createURL := fmt.Sprintf("%s/api/collections/%s/records", baseURL, util.Coll.Users)
-	resp, err := http.Post(createURL, "application/json", bytes.NewBuffer(createBody))
+	device := NewPasskeyDevice(baseURL)
+	session, err := device.Register(map[string]any{"email": email})
 	if err != nil {
-		return "", "", fmt.Errorf("failed to send create request: %w", err)
+		return "", "", err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var errBody any
-		json.NewDecoder(resp.Body).Decode(&errBody)
-		return "", "", fmt.Errorf("create user failed with status %d: %v", resp.StatusCode, errBody)
+	if err := provisionWorkspace(baseURL, session.UserID, session.Token); err != nil {
+		return "", "", err
 	}
-
-	var createResult struct {
-		Id string `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&createResult); err != nil {
-		return "", "", fmt.Errorf("failed to decode create response: %w", err)
-	}
-
-	authData := map[string]any{
-		"identity": email,
-		"password": password,
-	}
-	authBody, _ := json.Marshal(authData)
-	authURL := fmt.Sprintf("%s/api/collections/%s/auth-with-password", baseURL, util.Coll.Users)
-
-	for i := 0; i < 5; i++ {
-		authResp, err := http.Post(authURL, "application/json", bytes.NewBuffer(authBody))
-		if err == nil && authResp.StatusCode == http.StatusOK {
-			var authResult struct {
-				Token string `json:"token"`
-			}
-			if err := json.NewDecoder(authResp.Body).Decode(&authResult); err == nil {
-				authResp.Body.Close()
-				if err := provisionWorkspace(baseURL, createResult.Id, authResult.Token); err != nil {
-					return "", "", err
-				}
-				return createResult.Id, authResult.Token, nil
-			}
-		}
-		if authResp != nil {
-			authResp.Body.Close()
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-
-	return "", "", fmt.Errorf("failed to authenticate user after creation at %s", authURL)
+	return session.UserID, session.Token, nil
 }
 
 // ExtractString grabs a top-level string field from a JSON response.

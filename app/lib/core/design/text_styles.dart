@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 /// The app's entire text vocabulary: three sizes, two modifiers.
 ///
 /// `Text('x')` is body (14). `.header` (18, bold) and `.small` (12) are the
-/// only other sizes; `.muted` (secondary color) and `.mono` (fingerprints,
-/// keys, code) the only modifiers. Nothing else exists — no inline fontSize or
+/// only other sizes; `.muted` (secondary color), `.mono` (fingerprints,
+/// keys, code) and `.italic` (someone else's words, quoted) the only
+/// modifiers. Nothing else exists — no inline fontSize or
 /// fontWeight anywhere in a view.
 class AppText extends StatelessWidget {
   final String data;
@@ -13,6 +14,7 @@ class AppText extends StatelessWidget {
   final bool _bold;
   final bool _muted;
   final bool _mono;
+  final bool _italic;
   final bool _selectable;
   final TextAlign? textAlign;
   final int? maxLines;
@@ -26,6 +28,7 @@ class AppText extends StatelessWidget {
     bool muted = false,
     bool bold = false,
     bool mono = false,
+    bool italic = false,
     bool selectable = false,
     this.textAlign,
     this.maxLines,
@@ -35,6 +38,7 @@ class AppText extends StatelessWidget {
        _muted = muted,
        _bold = bold,
        _mono = mono,
+       _italic = italic,
        _selectable = selectable;
 
   AppText _copy({
@@ -43,6 +47,7 @@ class AppText extends StatelessWidget {
     bool? muted,
     bool? bold,
     bool? mono,
+    bool? italic,
     bool? selectable,
   }) {
     return AppText(
@@ -52,6 +57,7 @@ class AppText extends StatelessWidget {
       small: small ?? _small,
       muted: muted ?? _muted,
       mono: mono ?? _mono,
+      italic: italic ?? _italic,
       bold: bold ?? _bold,
       selectable: selectable ?? _selectable,
       textAlign: textAlign,
@@ -64,6 +70,7 @@ class AppText extends StatelessWidget {
   AppText get small => _copy(small: true, header: false);
   AppText get muted => _copy(muted: true);
   AppText get mono => _copy(mono: true);
+  AppText get italic => _copy(italic: true);
   AppText get bold => _copy(bold: true);
 
   /// Lets the reader copy the text — fingerprints, keys, generated slugs.
@@ -82,6 +89,7 @@ class AppText extends StatelessWidget {
       // Non-muted text inherits, so buttons and alerts keep their own color.
       color: _muted ? scheme.onSurfaceVariant : null,
       fontFamily: _mono ? 'monospace' : null,
+      fontStyle: _italic ? FontStyle.italic : null,
     );
     if (_selectable) {
       return SelectableText(

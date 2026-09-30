@@ -15,6 +15,9 @@ class InvitePermission {
   /// access, so the UI can warn before it is handed out.
   final bool destructive;
 
+  /// Marks a permission a person may hold but an API key may not: the vault.
+  final bool membersOnly;
+
   /// The scopes this permission expands to. Grants are stored expanded, so this
   /// is what lets a stored grant be named back as the permissions that were
   /// picked — counting the scopes instead would report a larger number.
@@ -25,6 +28,7 @@ class InvitePermission {
     required this.label,
     required this.description,
     this.destructive = false,
+    this.membersOnly = false,
     this.scopes = const [],
   });
 
@@ -34,6 +38,7 @@ class InvitePermission {
       label: json['label'] as String? ?? '',
       description: json['description'] as String? ?? '',
       destructive: json['destructive'] as bool? ?? false,
+      membersOnly: json['membersOnly'] as bool? ?? false,
       scopes: ((json['scopes'] as List<dynamic>?) ?? const [])
           .map((e) => e.toString())
           .toList(),

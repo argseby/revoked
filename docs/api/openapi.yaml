@@ -62,6 +62,24 @@ tags:
       The vault. Records hold the values that shares resolve at read time.
   - name: Grants
     description: Shares and requests as owned resources.
+  - name: Sign-in
+    description: |
+      People sign in with a passkey and nothing else; there are no passwords.
+      A passkey is bound to the address it was made at, so the ceremony runs
+      on this server's own page in the browser, and the app collects the
+      result with a one-time code bound to a PKCE challenge. An account gets
+      its first passkey by signing up (where the operator allows it) or from
+      a one-time ticket the operator issues; further passkeys from a ticket a
+      signed-in person issues.
+  - name: Connections
+    description: |
+      Tools the owner connected. A tool proposes shares (`revoked://p`) and,
+      once connected, reads the status of the links its proposals became and
+      receives the links the owner handed it. It never reads the vault and
+      stores nothing here. It is connected from the app — the owner
+      authorizes, the tool exchanges a one-time code (PKCE) for a token it
+      sends as `X-Revoked-Connection`. A connection lapses 90 days after the
+      owner last connected the tool.
 
 paths:
   /healthz:
@@ -744,6 +762,249 @@ paths:
               schema: { $ref: "#/components/schemas/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /api/connections/authorize:
+    post:
+      tags: [Connections]
+      summary: Authorize a tool (from the app)
+      description: |
+        Called by the owner's app after they agreed to connect a tool. Finds or
+        creates the connection for the tool's origin in the active workspace,
+        renews it for 90 days (tokens of a connection that had lapsed are
+        deleted, not revived), and returns a one-time code, valid for five minutes, bound to the tool's PKCE
+        challenge and return address. The app then opens the return address with
+        `code` and the tool's `state`.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, redirectUri, challenge]
+              properties:
+                clientId: { type: string, example: "https://mietunterlagen.revoked.link", description: "The tool's origin." }
+                clientName: { type: string, maxLength: 40, description: "The name the tool gives itself; shown as a claim." }
+                redirectUri: { type: string, description: "Where the code is delivered; must be on `clientId`'s origin." }
+                allowRevoke:
+                  type: boolean
+                  description: |
+                    Whether the tool may revoke the links its proposals became.
+                    Left out, a connection keeps what it had; a new one starts
+                    without it.
+                allowHandOver:
+                  type: boolean
+                  description: |
+                    Whether the tool may receive links the owner shares with
+                    it. Left out, a connection keeps what it had; a new one
+                    starts without it. A link can only be created with
+                    `handedOver` while this is set
+                    (`link_hand_over_not_allowed` otherwise), and the tool
+                    stops seeing the URLs it was given when it is taken away.
+                challenge: { type: string, description: "PKCE S256 challenge, base64url." }
+                reuse:
+                  type: boolean
+                  description: |
+                    Set when the owner was not asked again because the tool is
+                    already connected and another of their browsers wants in.
+                    Only issues a code: the connection keeps its name,
+                    permissions and expiry (`allowRevoke` and `allowHandOver`
+                    are ignored). Refused with `connection_not_connected` when
+                    there is no live connection for the origin.
+                poll:
+                  type: boolean
+                  description: |
+                    Set when the page that asked collects the answer itself:
+                    the tool named the owner's server in its link (`poll`), so
+                    the app opens no return address and the page exchanges its
+                    verifier alone at `/api/connect/token`. No return address
+                    ties such an answer to one of the owner's own browsers, so
+                    the app never sets it unasked, `reuse` included: the owner
+                    compares a code both ends derive from the challenge (the
+                    first three bytes of its SHA-256, as `83C-047`).
+      responses:
+        "200":
+          description: The one-time code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+                  connectionId: { type: string }
+        "400":
+          description: "`connection_client_invalid`, `connection_redirect_invalid` or `connection_challenge_invalid`."
+        "409":
+          description: "`connection_not_connected`: `reuse` was set, but the tool is not connected or its connection has lapsed."
+  /api/connect/token:
+    post:
+      tags: [Connections]
+      summary: Exchange a code for a connection token (the tool)
+      description: |
+        Spends the one-time code — right or wrong, a code works once — and, when
+        the verifier matches its challenge and the return address matches,
+        returns a token for this browser. Rate-limited per IP.
+
+        Without `code`, the page asks for an answer the app left for it
+        (`poll` on authorize): it is found by the verifier's challenge, and
+        given only to a request whose `Origin` is the tool's own. Until the
+        owner has answered there is nothing to find, and the reply is `202`;
+        a tool asks again every few seconds, for as long as an answer is kept
+        (five minutes). An answer issued as a code is never found this way.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verifier, redirectUri]
+              properties:
+                code: { type: string, description: "Left out by a page that collects its answer itself." }
+                verifier: { type: string, description: "The PKCE verifier." }
+                redirectUri: { type: string, description: "The same return address the code was issued for." }
+      responses:
+        "200":
+          description: The token, shown once.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  connection:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      clientName: { type: string }
+                      expiresAt: { type: string, description: "When the connection lapses." }
+        "202":
+          description: No code was sent, and the owner has not answered yet.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending: { type: boolean }
+        "400":
+          description: "`connection_grant_invalid`."
+        "429":
+          description: "`rate_limited`."
+  /api/connection:
+    get:
+      tags: [Connections]
+      summary: The status of the tool's links
+      description: |
+        The links the tool's proposals became — status, views, expiry. `url`
+        appears only on links the owner handed to the tool, and only while they
+        can be opened. A tool stores nothing here: `ref` and `label` are what it
+        set on the proposal.
+      security:
+        - Connection: []
+      responses:
+        "200":
+          description: The connection as the tool may see it.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  clientId: { type: string }
+                  clientName: { type: string }
+                  expiresAt:
+                    type: string
+                    description: |
+                      When the connection lapses, 90 days after the owner last
+                      connected the tool. Only connecting again from the app
+                      renews it.
+                  allowRevoke:
+                    type: boolean
+                    description: Whether the owner lets the tool revoke its links.
+                  allowHandOver:
+                    type: boolean
+                    description: Whether the owner lets the tool receive links.
+                  links:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        ref: { type: string, description: "The tool's own reference from the proposal." }
+                        label: { type: string }
+                        status: { type: string, enum: [active, paused, revoked, expired] }
+                        viewCount: { type: integer }
+                        maxViews: { type: integer }
+                        expiresAt: { type: string }
+                        created: { type: string }
+                        handedOver: { type: boolean }
+                        url: { type: string, description: "Only when handed over and active." }
+        "401":
+          description: "`connection_unauthorized`, or `connection_expired` once the connection has lapsed."
+    delete:
+      tags: [Connections]
+      summary: Disconnect (the tool)
+      description: Deletes the connection. The owner's links stay; they no longer name the tool.
+      security:
+        - Connection: []
+      responses:
+        "204":
+          description: Disconnected.
+        "401":
+          description: "`connection_unauthorized`, or `connection_expired` once the connection has lapsed."
+  /api/connection/links/{id}/revoke:
+    post:
+      tags: [Connections]
+      summary: Revoke one of the tool's links (the tool)
+      description: |
+        Ends a link the tool's proposal became. Only when the owner allowed it
+        (`allowRevoke`); a tool can end a share, never start one or read it.
+        The owner is notified as for any revocation. Revoking a link that is
+        already revoked succeeds.
+      security:
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The link as the tool may see it, now revoked.
+        "401":
+          description: "`connection_unauthorized` or `connection_expired`."
+        "403":
+          description: "`connection_revoke_not_allowed`."
+        "404":
+          description: Not a link of this tool.
+  /api/connections/{id}/permissions:
+    post:
+      tags: [Connections]
+      summary: Change what a tool is allowed (the owner)
+      description: |
+        The two things the owner decides per connection. A field left out
+        stays as it is.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                allowRevoke: { type: boolean, description: "The tool may revoke the links its proposals became." }
+                allowHandOver: { type: boolean, description: "The tool may receive the links its proposals became." }
+      responses:
+        "200":
+          description: Both permissions as they now stand.
+        "404":
+          description: Not one of your connections.
   /api/requests/callback-test:
     post:
       tags: [Grants]
@@ -819,11 +1080,39 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
 
-  /api/collections/users/auth-with-password:
+  /passkey:
+    get:
+      tags: [Sign-in]
+      summary: The sign-in page
+      description: |
+        The page every passkey ceremony runs on, opened in the system browser.
+        What it does is read from its address: `mode=signin` (the default) or
+        `mode=signup`, or a `ticket` to add a passkey to the account the
+        ticket names. An app passes its PKCE `challenge` and a `state`; when
+        the ceremony succeeds the page opens
+        `revoked://auth?code=…&state=…`, and the app redeems the code at
+        `/api/passkeys/token`.
+      security: []
+      parameters:
+        - { name: mode, in: query, schema: { type: string, enum: [signin, signup, enroll] } }
+        - { name: ticket, in: query, schema: { type: string } }
+        - { name: challenge, in: query, schema: { type: string }, description: "PKCE S256 challenge, base64url." }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html: {}
+
+  /api/passkeys/login/begin:
     post:
-      tags: [Workspaces]
-      summary: Sign in
-      description: Exchanges credentials for a session token. Not needed for API-key access.
+      tags: [Sign-in]
+      summary: Start a passkey sign-in
+      description: |
+        Returns WebAuthn request options for a discoverable credential — no
+        account is named; the authenticator's answer says whose passkey it is.
+        Must be called at the server's own address (`localhost` on a
+        development machine, never a loopback IP). Rate-limited per IP.
       security: []
       requestBody:
         required: true
@@ -831,10 +1120,173 @@ paths:
           application/json:
             schema:
               type: object
-              required: [identity, password]
+              required: [challenge]
               properties:
-                identity: { type: string, description: Email address. }
-                password: { type: string }
+                challenge: { type: string, description: "The app's PKCE S256 challenge; the code issued at the end is bound to it." }
+      responses:
+        "200":
+          description: The ceremony, good for five minutes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session: { type: string }
+                  options: { type: object, description: "`{publicKey: PublicKeyCredentialRequestOptions}`, binary members base64url." }
+        "400":
+          description: "`passkey_request_invalid` or `passkey_origin_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/passkeys/login/finish:
+    post:
+      tags: [Sign-in]
+      summary: Finish a passkey sign-in
+      description: |
+        Verifies the authenticator's assertion and returns a one-time code,
+        good for two minutes, that only the holder of the PKCE verifier can
+        redeem. A ceremony is answered once, right or wrong.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session, credential]
+              properties:
+                session: { type: string }
+                credential: { type: object, description: "The `PublicKeyCredential`, binary members base64url." }
+      responses:
+        "200":
+          description: The one-time code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+        "400":
+          description: "`passkey_ceremony_invalid`, `passkey_request_invalid` or `passkey_origin_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401":
+          description: "`passkey_verification_failed`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/passkeys/register/begin:
+    post:
+      tags: [Sign-in]
+      summary: Start registering a passkey
+      description: |
+        Either a new account — `email`, where the operator allows signups — or
+        a `ticket`, which adds a passkey to the account it names. Returns
+        WebAuthn creation options that require a discoverable credential and
+        user verification. Nothing is written until the ceremony finishes.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, description: "The new account's address. Ignored with a ticket." }
+                ticket: { type: string, description: "A one-time ticket from `/api/passkeys/tickets` or the operator." }
+                name: { type: string, maxLength: 60, description: "What the passkey is called in the owner's list." }
+                challenge: { type: string, description: "The app's PKCE S256 challenge, when the result should sign an app in." }
+      responses:
+        "200":
+          description: The ceremony, good for five minutes.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session: { type: string }
+                  options: { type: object, description: "`{publicKey: PublicKeyCredentialCreationOptions}`, binary members base64url." }
+        "400":
+          description: "`passkey_email_invalid`, `passkey_ticket_invalid`, `passkey_request_invalid` or `passkey_origin_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: "`signups_disabled`: no ticket, and this server does not accept registrations."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "409":
+          description: "`passkey_email_taken`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/passkeys/register/finish:
+    post:
+      tags: [Sign-in]
+      summary: Finish registering a passkey
+      description: |
+        Verifies the attestation, then writes the passkey — and, for a signup,
+        the account — and spends the ticket. Returns a one-time code when the
+        ceremony was started with a PKCE challenge.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session, credential]
+              properties:
+                session: { type: string }
+                credential: { type: object, description: "The `PublicKeyCredential`, binary members base64url." }
+      responses:
+        "200":
+          description: Saved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string, description: "Present when a PKCE challenge was given." }
+        "400":
+          description: "`passkey_ceremony_invalid`, `passkey_verification_failed`, `passkey_ticket_invalid` or `passkey_origin_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "409":
+          description: "`passkey_email_taken`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/passkeys/token:
+    post:
+      tags: [Sign-in]
+      summary: Exchange a code for a session (the app)
+      description: |
+        Spends the one-time code — right or wrong, a code works once — and,
+        when the verifier matches its challenge, returns a session token. Not
+        needed for API-key access.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, verifier]
+              properties:
+                code: { type: string }
+                verifier: { type: string, description: "The PKCE verifier." }
       responses:
         "200":
           description: A session token and the user record.
@@ -845,7 +1297,58 @@ paths:
                 properties:
                   token: { type: string }
                   record: { type: object }
-        "400": { $ref: "#/components/responses/AppError" }
+        "400":
+          description: "`passkey_grant_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/passkeys/tickets:
+    post:
+      tags: [Sign-in]
+      summary: Issue a link to add a passkey
+      description: |
+        Returns a one-time link, good for fifteen minutes, to the sign-in page
+        where the caller's account can register another passkey — on this
+        device or, opened elsewhere, on another. Users only: an API key cannot
+        let itself in as the person behind it.
+      security:
+        - Session: []
+      responses:
+        "200":
+          description: The link.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/AppError" }
+
+  /api/passkeys/{id}:
+    delete:
+      tags: [Sign-in]
+      summary: Remove a passkey
+      description: |
+        Removes one of the caller's passkeys; it stops signing in at once. The
+        last one cannot be removed. Passkeys are listed through
+        `/api/collections/passkeys/records` (name, created, last used — never
+        the key).
+      security:
+        - Session: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Removed. }
+        "401": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: "`passkey_last`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
 
   /api/collections/{collection}/records:
     parameters:
@@ -1023,6 +1526,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: A session token from sign-in. Used by the app.
+    Connection:
+      type: apiKey
+      in: header
+      name: X-Revoked-Connection
+      description: A connected tool's token, from `/api/connect/token`.
 
   parameters:
     Slug:
@@ -1054,6 +1562,7 @@ components:
           - notifications
           - bookmarks
           - bookmarkGroups
+          - passkeys
 
   responses:
     NotFound:
@@ -1097,6 +1606,12 @@ components:
         destructive:
           type: boolean
           description: Whether holding it lets someone extend or revoke other people's access.
+        membersOnly:
+          type: boolean
+          description: |
+            Grantable to a member, never to an API key. The vault permissions
+            are: creating a key with one, or with a scope of one, fails with
+            `api_key_vault_scope`.
         scopes:
           type: array
           description: What the permission expands to when stored.

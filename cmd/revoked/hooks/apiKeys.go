@@ -13,7 +13,8 @@ import (
 )
 
 // BindApiKeyHooks binds a new key to the creator's active workspace, issues and
-// hashes its token (returned once via X-Plain-Token), and validates its scopes.
+// hashes its token (returned once via X-Plain-Token), and validates its scopes:
+// what the creator holds, and never the vault.
 func BindApiKeyHooks(app core.App) {
 	app.OnRecordCreateRequest(util.Coll.ApiKeys).BindFunc(func(e *core.RecordRequestEvent) error {
 		if e.Auth == nil {
@@ -81,6 +82,17 @@ func BindApiKeyHooks(app core.App) {
 			e.Record.GetString(util.Fields.ApiKey.Workspace),
 		); err != nil {
 			return err
+		}
+
+		// No new key opens the vault, whoever asks. Keys issued before this
+		// rule keep their scopes until they expire or are revoked.
+		if vault := util.MembersOnlyScopes(e.Record.GetStringSlice(util.Fields.ApiKey.Scopes)); len(vault) > 0 {
+			return validation.Errors{
+				util.Fields.ApiKey.Scopes: validation.NewError(
+					util.Errors.ApiKeyVaultScope.ErrorCode,
+					util.Errors.ApiKeyVaultScope.ErrorText+" Refused: "+vault[0]+".",
+				),
+			}
 		}
 
 		return e.Next()

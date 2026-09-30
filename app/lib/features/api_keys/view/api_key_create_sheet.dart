@@ -51,7 +51,9 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                   const Text('New API key').header,
                   const SizedBox(height: AppSpacing.xxs),
                   const Text(
-                    'A key can do only what you grant it here.',
+                    'A key can do only what you grant it here, and never '
+                    'read your vault. Do not give it to another service: '
+                    'tools connect instead, and companies send requests.',
                   ).muted.small,
                 ],
               ),
@@ -96,7 +98,9 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                     const AppFormSectionHeader('What this key may do'),
                     Observer(
                       builder: (_) {
-                        final catalogue = Stores.invites.catalogue;
+                        final catalogue = _keyPermissions(
+                          Stores.invites.catalogue,
+                        );
                         if (catalogue.isEmpty) {
                           return const Padding(
                             padding: EdgeInsets.all(AppSpacing.xl),
@@ -234,7 +238,13 @@ class ApiKeyCard extends StatelessWidget {
   }
 
   Widget _build(BuildContext context) {
-    final catalogue = Stores.invites.catalogue;
+    final scopes = apiKey.scopes as List<String>;
+    final catalogue = _keyPermissions(Stores.invites.catalogue);
+    // A key from before keys were kept out of the vault still holds what it
+    // was granted, until it expires or is revoked.
+    final opensVault = Stores.invites.catalogue.any(
+      (p) => p.membersOnly && p.scopes.any(scopes.contains),
+    );
     final expires = AppEntityCard.formatDate(apiKey.expiresAt as String?);
 
     return AppEntityCard(
@@ -246,12 +256,15 @@ class ApiKeyCard extends StatelessWidget {
           AppBadge(
             icon: AppIcons.shieldCheck,
             label: permissionCountLabel(
-              permissionsFromScopes(
-                catalogue,
-                apiKey.scopes as List<String>,
-              ).length,
+              permissionsFromScopes(catalogue, scopes).length,
               catalogue.length,
             ),
+          ),
+        if (opensVault)
+          const AppBadge(
+            icon: AppIcons.exclamationTriangle,
+            label: 'Can open the vault — replace this key',
+            variant: AppBadgeVariant.destructive,
           ),
         AppBadge(
           icon: AppIcons.clock,
@@ -269,6 +282,10 @@ class ApiKeyCard extends StatelessWidget {
     );
   }
 }
+
+/// What a key may be granted: everything but the vault.
+List<InvitePermission> _keyPermissions(List<InvitePermission> catalogue) =>
+    catalogue.where((p) => !p.membersOnly).toList();
 
 class _ExpiryOption {
   final String label;
