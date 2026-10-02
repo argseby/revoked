@@ -44,6 +44,12 @@ const (
 	NotificationCallbackFailed  = "callback_failed"
 	NotificationInviteAccepted  = "invite_accepted"
 	NotificationLinkOpened      = "link_opened"
+	NotificationReminder        = "reminder"
+
+	// A reminder fires at a point in time, or the first time the entry it
+	// watches changes.
+	ReminderKindDate   = "date"
+	ReminderKindChange = "change"
 
 	PurposeApplication = "application"
 
@@ -113,4 +119,8 @@ var NotificationTypes = []string{
 	NotificationCallbackFailed,
 	NotificationInviteAccepted,
 	NotificationLinkOpened,
+	NotificationReminder,
 }
+
+// ReminderKinds lists the valid reminder kinds.
+var ReminderKinds = []string{ReminderKindDate, ReminderKindChange}

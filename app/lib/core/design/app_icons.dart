@@ -51,6 +51,7 @@ abstract class AppIcons {
   static const IconData funnel = Icons.filter_alt_outlined;
   static const IconData funnelFill = Icons.filter_alt;
   static const IconData hash = Icons.numbers;
+  static const IconData hourglass = Icons.hourglass_empty;
   static const IconData inboxFill = Icons.inbox;
   static const IconData info = Icons.info_outline;
   static const IconData key = Icons.key_outlined;
@@ -70,6 +71,7 @@ abstract class AppIcons {
   static const IconData personPlus = Icons.person_add_outlined;
   static const IconData personWorkspace = Icons.workspaces_outlined;
   static const IconData play = Icons.play_arrow;
+  static const IconData plug = Icons.extension_outlined;
   static const IconData plus = Icons.add;
   static const IconData plusSlashMinus = Icons.exposure;
   static const IconData recordCircleFill = Icons.fiber_manual_record;

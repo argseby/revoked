@@ -24,7 +24,6 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
-import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 
 /// Grant status for a connection.
 enum GrantStatus { live, revoked, vault }
@@ -105,7 +104,6 @@ class _DataScreenState extends State<DataScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ShellSlots.title.claim(_title);
-        ShellSlots.filter.claim(_filterButton);
       }
       _load();
     });
@@ -117,7 +115,6 @@ class _DataScreenState extends State<DataScreen> {
   @override
   void dispose() {
     ShellSlots.title.release(_title);
-    ShellSlots.filter.release(_filterButton);
     _table.dispose();
     super.dispose();
   }
@@ -130,20 +127,6 @@ class _DataScreenState extends State<DataScreen> {
       onBack: widget.requestId != null
           ? () => context.go(AppRoutes.inbox)
           : null,
-    );
-  }
-
-  Widget _filterButton(BuildContext context) {
-    return FilterButton<DataItem>(
-      controller: _table,
-      columns: const [
-        DataTableColumn(value: 'name', label: 'Name'),
-        DataTableColumn(value: 'value', label: 'Value'),
-        DataTableColumn(value: 'source', label: 'Source'),
-        DataTableColumn(value: 'template', label: 'Template ID'),
-        DataTableColumn(value: 'sender', label: 'Sender'),
-        DataTableColumn(value: 'status', label: 'Status (live/revoked/vault)'),
-      ],
     );
   }
 

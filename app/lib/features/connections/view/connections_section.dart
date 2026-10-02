@@ -1,37 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 
-/// The tools connected to this workspace: what each may do, what it did, and
-/// the way out. One place answers "what can this tool do, and what
-/// has it done?".
-class ConnectionsSection extends StatefulWidget {
-  const ConnectionsSection({super.key});
-
-  @override
-  State<ConnectionsSection> createState() => _ConnectionsSectionState();
-}
-
-class _ConnectionsSectionState extends State<ConnectionsSection> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => Stores.connections.load(),
-    );
-  }
+/// The tools connected to this workspace, one row each; a row opens the
+/// tool's own page, which answers "what can this tool do, and what has it
+/// done?".
+class ConnectionsList extends StatelessWidget {
+  const ConnectionsList({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -39,34 +32,50 @@ class _ConnectionsSectionState extends State<ConnectionsSection> {
     return Observer(
       builder: (_) {
         if (store.isLoading && store.connections.isEmpty) {
-          return const AppCard(
-            padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-            child: Center(child: AppSpinner(large: true)),
+          return const AppListGroup(
+            title: 'Connected tools',
+            trailing: SizedBox.shrink(),
+            children: [_Loading()],
           );
         }
-        if (store.connections.isEmpty) {
-          return AppCard(
-            child: const Text(
-              'No tools connected. A tool asks to connect when you use it. '
-              'It can then see the status of links it proposes, but never '
-              'read your vault.',
-            ).muted.small,
-          );
-        }
-        return Column(
-          children: [
-            for (final c in store.connections)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: _ConnectionCard(
-                  connection: c,
-                  links: store.linksByConnection[c.id] ?? const [],
-                ),
-              ),
-          ],
+        return AppListGroup(
+          title: 'Connected tools',
+          footer: const Text(
+            'A tool asks to connect when you use it. It can then see the '
+            'status of links it proposes, but never read your vault.',
+          ),
+          children: store.connections.isEmpty
+              ? const [
+                  AppDetailRow(
+                    icon: AppIcons.info,
+                    label: 'No tools connected',
+                  ),
+                ]
+              : [
+                  for (final c in store.connections)
+                    AppListRow(
+                      icon: AppIcons.plug,
+                      title: c.name,
+                      subtitle: _summary(
+                        c,
+                        store.linksByConnection[c.id] ?? const [],
+                      ),
+                      trailing: c.isExpired
+                          ? const AppBadge(label: 'Expired')
+                          : null,
+                      onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+                    ),
+                ],
         );
       },
     );
+  }
+
+  String _summary(Connection c, List<Link> links) {
+    final count = links.isEmpty
+        ? 'No links yet'
+        : '${links.length} ${links.length == 1 ? 'link' : 'links'}';
+    return '$count · last used ${_day(c.lastUsedAt)}';
   }
 }
 
@@ -78,13 +87,47 @@ String _day(String? iso) {
       '${d.day.toString().padLeft(2, '0')}';
 }
 
-class _ConnectionCard extends StatelessWidget {
-  final Connection connection;
-  final List<Link> links;
+/// One connected tool: when it was connected, what it may do, the links it
+/// proposed, and the way to disconnect it.
+class ConnectedToolPage extends StatefulWidget {
+  final String connectionId;
 
-  const _ConnectionCard({required this.connection, required this.links});
+  const ConnectedToolPage({super.key, required this.connectionId});
 
-  Future<void> _disconnect(BuildContext context) async {
+  @override
+  State<ConnectedToolPage> createState() => _ConnectedToolPageState();
+}
+
+class _ConnectedToolPageState extends State<ConnectedToolPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ShellSlots.title.claim(_title);
+      // Opened straight from a link, the list has not loaded anything yet.
+      if (Stores.connections.connections.isEmpty) Stores.connections.load();
+    });
+  }
+
+  @override
+  void dispose() {
+    ShellSlots.title.release(_title);
+    super.dispose();
+  }
+
+  Connection? get _connection {
+    for (final c in Stores.connections.connections) {
+      if (c.id == widget.connectionId) return c;
+    }
+    return null;
+  }
+
+  void _back() => context.go(AppRoutes.connectedTools);
+
+  Widget _title(BuildContext context) =>
+      AppBarTitle(title: _connection?.name ?? 'Connected tool', onBack: _back);
+
+  Future<void> _disconnect(Connection connection) async {
     final ok = await showAppDialog(
       context: context,
       title: 'Disconnect ${connection.name}?',
@@ -97,9 +140,10 @@ class _ConnectionCard extends StatelessWidget {
       cancelLabel: 'Keep',
       destructive: true,
     );
-    if (!ok || !context.mounted) return;
-    if (!await Stores.connections.disconnect(connection.id) &&
-        context.mounted) {
+    if (!ok || !mounted) return;
+    if (await Stores.connections.disconnect(connection.id)) {
+      if (mounted) _back();
+    } else if (mounted) {
       AppToast.error(
         context,
         'Could not disconnect',
@@ -108,79 +152,7 @@ class _ConnectionCard extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(connection.name).header,
-                    Text(connection.clientId).muted.small,
-                  ],
-                ),
-              ),
-              AppButton(
-                label: 'Disconnect',
-                icon: AppIcons.linkSlash,
-                style: AppButtonStyle.destructive,
-                size: AppButtonSize.small,
-                onTap: () => _disconnect(context),
-              ),
-            ],
-          ),
-          AppSpacing.gapXs,
-          Text(
-            'Connected ${_day(connection.created)} · last used '
-            '${_day(connection.lastUsedAt)} · '
-            '${connection.isExpired ? 'expired' : 'expires'} '
-            '${_day(connection.expiresAt)}',
-          ).muted.small,
-          if (connection.isExpired) ...[
-            AppSpacing.gapXs,
-            const Text(
-              'This connection has expired. Connect again from the tool to '
-              'renew it.',
-            ).muted.small,
-          ],
-          AppSpacing.gapMd,
-          ToolPermissions(
-            name: connection.name,
-            allowRevoke: connection.allowRevoke,
-            allowHandOver: connection.allowHandOver,
-            onAllowRevoke: (v) => Stores.connections.setPermissions(
-              connection.id,
-              allowRevoke: v,
-            ),
-            onAllowHandOver: (v) => Stores.connections.setPermissions(
-              connection.id,
-              allowHandOver: v,
-            ),
-          ),
-          AppSpacing.gapLg,
-          Text(
-            links.isEmpty
-                ? 'No links from this tool yet.'
-                : 'Links from this tool',
-          ).muted.small,
-          for (final link in links) _LinkRow(link: link),
-        ],
-      ),
-    );
-  }
-}
-
-class _LinkRow extends StatelessWidget {
-  final Link link;
-
-  const _LinkRow({required this.link});
-
-  Future<void> _revoke(BuildContext context) async {
+  Future<void> _revoke(Link link) async {
     final ok = await showAppDialog(
       context: context,
       title: 'Revoke ${link.label}?',
@@ -193,55 +165,151 @@ class _LinkRow extends StatelessWidget {
       cancelLabel: 'Keep',
       destructive: true,
     );
-    if (!ok || !context.mounted) return;
+    if (!ok || !mounted) return;
     await Stores.connections.revokeLink(link);
   }
 
   @override
   Widget build(BuildContext context) {
-    final live = link.status == 'active' || link.status == 'paused';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(link.label.isEmpty ? link.slug : link.label),
-                AppSpacing.gapXxs,
-                Wrap(
-                  spacing: AppSpacing.xs,
-                  runSpacing: AppSpacing.xxs,
-                  children: [
-                    AppBadge(label: link.status),
-                    AppBadge(
-                      label: link.viewCount == 0
-                          ? 'not opened'
-                          : 'opened ${link.viewCount}×',
-                      icon: AppIcons.eye,
-                    ),
-                    if (link.handedOver)
-                      const AppBadge(
-                        label: 'shared with tool',
-                        icon: AppIcons.share,
-                        variant: AppBadgeVariant.primary,
-                      ),
-                  ],
-                ),
-              ],
+    return Observer(builder: (_) => _build(context));
+  }
+
+  Widget _build(BuildContext context) {
+    final store = Stores.connections;
+    final connection = _connection;
+    if (connection == null) {
+      if (store.isLoading) {
+        return const Center(child: AppSpinner(large: true));
+      }
+      return AppEmptyState(
+        icon: AppIcons.plug,
+        title: 'Tool not found',
+        subtitle: 'It may have been disconnected.',
+        action: AppButton(
+          icon: AppIcons.arrowLeft,
+          label: 'Back to connected tools',
+          style: AppButtonStyle.accent,
+          onTap: _back,
+        ),
+      );
+    }
+    final links = store.linksByConnection[connection.id] ?? const <Link>[];
+
+    return AppDetailPage(
+      header: AppDetailHeader(
+        badges: [if (connection.isExpired) const AppBadge(label: 'Expired')],
+        title: connection.name,
+        subtitle: connection.clientId,
+        subtitleMono: true,
+      ),
+      sections: [
+        AppListGroup(
+          title: 'Connection',
+          trailing: const SizedBox.shrink(),
+          footer: connection.isExpired
+              ? const Text(
+                  'This connection has expired. Connect again from the tool '
+                  'to renew it.',
+                )
+              : null,
+          children: [
+            AppDetailRow(
+              icon: AppIcons.calendar,
+              label: 'Connected',
+              value: _day(connection.created),
             ),
+            AppDetailRow(
+              icon: AppIcons.clock,
+              label: 'Last used',
+              value: _day(connection.lastUsedAt),
+            ),
+            AppDetailRow(
+              icon: AppIcons.hourglass,
+              label: connection.isExpired ? 'Expired' : 'Expires',
+              value: _day(connection.expiresAt),
+            ),
+          ],
+        ),
+        ToolPermissions(
+          name: connection.name,
+          allowRevoke: connection.allowRevoke,
+          allowHandOver: connection.allowHandOver,
+          onAllowRevoke: (v) =>
+              store.setPermissions(connection.id, allowRevoke: v),
+          onAllowHandOver: (v) =>
+              store.setPermissions(connection.id, allowHandOver: v),
+        ),
+        AppListGroup(
+          title: 'Links from ${connection.name}',
+          noun: 'links',
+          previewCount: 5,
+          children: links.isEmpty
+              ? const [
+                  AppDetailRow(
+                    icon: AppIcons.info,
+                    label: 'No links from this tool yet',
+                  ),
+                ]
+              : [for (final link in links) _linkRow(link)],
+        ),
+        AppDetailManage(
+          actions: [
+            AppButton(
+              label: 'Disconnect',
+              icon: AppIcons.linkSlash,
+              style: AppButtonStyle.destructive,
+              onTap: () => _disconnect(connection),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _linkRow(Link link) {
+    final live = link.status == 'active' || link.status == 'paused';
+    final opened = link.viewCount == 0
+        ? 'not opened'
+        : 'opened ${link.viewCount}×';
+    return AppListRow(
+      icon: AppIcons.link,
+      title: link.label.isEmpty ? link.slug : link.label,
+      subtitle: [
+        link.status,
+        opened,
+        if (link.handedOver) 'shared with the tool',
+      ].join(' · '),
+      onTap: () => showAppOptionsSheet(
+        context: context,
+        title: link.label.isEmpty ? link.slug : link.label,
+        subtitle: link.slug,
+        actions: [
+          AppSheetAction(
+            icon: AppIcons.share,
+            label: 'Open link',
+            onTap: () => context.go(AppRoutes.shareDetailFor(link.id)),
           ),
           if (live)
-            AppButton(
-              label: 'Revoke',
+            AppSheetAction(
               icon: AppIcons.linkSlash,
-              style: AppButtonStyle.accent,
-              size: AppButtonSize.small,
-              onTap: () => _revoke(context),
+              label: 'Revoke',
+              destructive: true,
+              onTap: () => _revoke(link),
             ),
         ],
       ),
+    );
+  }
+}
+
+class _Loading extends StatelessWidget {
+  const _Loading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(24),
+      child: Center(child: AppSpinner()),
     );
   }
 }

@@ -20,6 +20,7 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/view/record_value_input.dart';
 
 /// Edits one vault record — its label, value or file, type and masking — in a
 /// bottom sheet. Opened from the record's detail page.
@@ -55,6 +56,17 @@ void openRecordEditSheet(
             builder: (observerContext) {
               final _ = store.errorMessage;
               final theme = Theme.of(ctx);
+              final hidden = store.editRecordFormat == 'hidden';
+              void setHidden(bool on) =>
+                  store.setEditRecordFormat(on ? 'hidden' : 'default');
+              void pickType(String type) {
+                store.setEditRecordType(type);
+                store.editRecordValue.text = recordValueForType(
+                  type,
+                  store.editRecordValue.text,
+                );
+                validateAndDetectType(store.editRecordValue.text);
+              }
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -125,6 +137,50 @@ void openRecordEditSheet(
                           ),
                           const SizedBox(height: AppSpacing.lg),
 
+                          _fieldLabel(
+                            ctx,
+                            'Type',
+                            explanation: isFile
+                                ? 'A file record stays a file. To store '
+                                      'something else, make a new record.'
+                                : 'How this data should be interpreted.',
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          if (isFile)
+                            const Align(
+                              alignment: Alignment.centerLeft,
+                              child: AppBadge(label: 'FILE'),
+                            )
+                          else
+                            Wrap(
+                              spacing: AppSpacing.sm,
+                              runSpacing: AppSpacing.sm,
+                              children: [
+                                if (store.editRecordDetectedType != null)
+                                  AppButton(
+                                    icon: AppIcons.stars,
+                                    label:
+                                        'Auto: ${store.editRecordDetectedType!.toUpperCase()}',
+                                    size: AppButtonSize.small,
+                                    onTap: () =>
+                                        pickType(store.editRecordDetectedType!),
+                                  ),
+                                for (final type
+                                    in RecordTypeUtils.supportedTypes)
+                                  if (type != 'file')
+                                    AppButton(
+                                      icon: RecordTypeUtils.icon(type),
+                                      label: type.toUpperCase(),
+                                      size: AppButtonSize.small,
+                                      style: store.editRecordType == type
+                                          ? AppButtonStyle.primary
+                                          : AppButtonStyle.accent,
+                                      onTap: () => pickType(type),
+                                    ),
+                              ],
+                            ),
+                          const SizedBox(height: AppSpacing.lg),
+
                           if (isFile) ...[
                             _fieldLabel(
                               ctx,
@@ -132,12 +188,22 @@ void openRecordEditSheet(
                               isRequired: true,
                               explanation:
                                   'What a recipient downloads this file as. '
-                                  'Renaming never touches the file itself.',
+                                  'Renaming never touches the file itself. '
+                                  'The eye masks the name on screen — a name '
+                                  'is content too.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             AppTextField(
                               controller: store.editRecordFilename,
                               hint: 'Lebenslauf.pdf',
+                              trailing: Padding(
+                                padding: const EdgeInsets.all(AppSpacing.sm),
+                                child: RecordHiddenToggle(
+                                  isFile: true,
+                                  hidden: hidden,
+                                  onChanged: setHidden,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: AppSpacing.lg),
 
@@ -188,158 +254,28 @@ void openRecordEditSheet(
                                 onCancel: store.cancelUpload,
                               ),
                             ],
-                            const SizedBox(height: AppSpacing.lg),
                           ] else ...[
                             _fieldLabel(
                               ctx,
                               'Value',
                               isRequired: true,
                               explanation:
-                                  'The actual sensitive data or configuration value.',
+                                  'The actual sensitive data or configuration '
+                                  'value. The eye masks it on screen.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
-                            AppTextField(
+                            RecordValueField(
+                              type: store.editRecordType,
                               controller: store.editRecordValue,
-                              hint: 'sk-1234...',
-                              onChanged: (v) => validateAndDetectType(v),
+                              hidden: hidden,
+                              onHiddenChanged: setHidden,
+                              onChanged: validateAndDetectType,
                             ),
                             if (store.editRecordTypeWarning != null) ...[
                               const SizedBox(height: AppSpacing.xs),
                               AppErrorText(store.editRecordTypeWarning!),
                             ],
-                            const SizedBox(height: AppSpacing.lg),
                           ],
-
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: isFile
-                                      ? [
-                                          _fieldLabel(
-                                            ctx,
-                                            'Type',
-                                            explanation:
-                                                'A file record stays a file. '
-                                                'To store something else, '
-                                                'make a new record.',
-                                          ),
-                                          const SizedBox(height: AppSpacing.xs),
-                                          const Align(
-                                            alignment: Alignment.centerLeft,
-                                            child: AppBadge(label: 'FILE'),
-                                          ),
-                                        ]
-                                      : [
-                                          _fieldLabel(
-                                            ctx,
-                                            'Type',
-                                            explanation:
-                                                'How this data should be interpreted.',
-                                          ),
-                                          const SizedBox(height: AppSpacing.xs),
-                                          Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: [
-                                              if (store
-                                                      .editRecordDetectedType !=
-                                                  null)
-                                                AppButton(
-                                                  icon: AppIcons.stars,
-                                                  label:
-                                                      'Auto: ${store.editRecordDetectedType!.toUpperCase()}',
-                                                  size: AppButtonSize.small,
-                                                  onTap: () {
-                                                    store.setEditRecordType(
-                                                      store
-                                                          .editRecordDetectedType!,
-                                                    );
-                                                    validateAndDetectType(
-                                                      store
-                                                          .editRecordValue
-                                                          .text,
-                                                    );
-                                                  },
-                                                ),
-                                              ...RecordTypeUtils.supportedTypes.map((
-                                                type,
-                                              ) {
-                                                final isSelected =
-                                                    store.editRecordType ==
-                                                    type;
-                                                return isSelected
-                                                    ? AppButton(
-                                                        icon:
-                                                            RecordTypeUtils.icon(
-                                                              type,
-                                                            ),
-                                                        label: type
-                                                            .toUpperCase(),
-                                                        onTap: () {},
-                                                      )
-                                                    : AppButton(
-                                                        icon:
-                                                            RecordTypeUtils.icon(
-                                                              type,
-                                                            ),
-                                                        label: type
-                                                            .toUpperCase(),
-                                                        onTap: () {
-                                                          store
-                                                              .setEditRecordType(
-                                                                type,
-                                                              );
-                                                          validateAndDetectType(
-                                                            store
-                                                                .editRecordValue
-                                                                .text,
-                                                          );
-                                                        },
-                                                        style: AppButtonStyle
-                                                            .accent,
-                                                      );
-                                              }),
-                                            ],
-                                          ),
-                                        ],
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _fieldLabel(
-                                      ctx,
-                                      isFile ? 'Hidden name' : 'Hidden Value',
-                                      explanation: isFile
-                                          ? 'Mask the file name on screen — '
-                                                'a name is content too.'
-                                          : 'Mask value on screen.',
-                                    ),
-                                    const SizedBox(height: AppSpacing.xs),
-                                    AppButton(
-                                      icon: store.editRecordFormat == 'hidden'
-                                          ? AppIcons.eyeSlash
-                                          : AppIcons.eye,
-                                      label: store.editRecordFormat == 'hidden'
-                                          ? 'Hidden'
-                                          : 'Visible',
-                                      style: AppButtonStyle.accent,
-                                      onTap: () => store.setEditRecordFormat(
-                                        store.editRecordFormat == 'hidden'
-                                            ? 'default'
-                                            : 'hidden',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
                           const SizedBox(height: AppSpacing.xl),
 
                           if (store.errorMessage != null) ...[

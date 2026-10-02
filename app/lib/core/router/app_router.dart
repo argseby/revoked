@@ -7,6 +7,7 @@ import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/login_screen.dart';
 import 'package:revoked_app/features/shell/view/app_shell.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/settings/view/settings_screen.dart';
 import 'package:revoked_app/features/shell/view/splash_screen.dart';
 import 'package:revoked_app/features/vault/view/record_detail_screen.dart';
@@ -16,8 +17,7 @@ import 'package:revoked_app/features/shares/view/shares_screen.dart';
 import 'package:revoked_app/features/shares/view/public_share_screen.dart';
 import 'package:revoked_app/features/shares/view/share_proposal_screen.dart';
 import 'package:revoked_app/features/connections/view/connect_screen.dart';
-import 'package:revoked_app/features/api_keys/view/api_keys_screen.dart';
-import 'package:revoked_app/features/templates/view/templates_screen.dart';
+import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/requests/view/inbox_screen.dart';
 import 'package:revoked_app/features/requests/view/request_detail_screen.dart';
 import 'package:revoked_app/features/requests/view/public_request_screen.dart';
@@ -44,9 +44,14 @@ abstract class AppRoutes {
   /// One link's detail page, opened from the Links list.
   static String shareDetailFor(String id) => '$shares/$id';
   static const settings = '/settings';
-  static const settingsWorkspace = '/settings?tab=workspace';
+
+  /// Each settings topic is a page of its own under Settings.
+  static String settingsPage(String slug) => '$settings/$slug';
+  static const settingsWorkspace = '/settings/workspaces';
   static const apiKeys = '/settings/api-keys';
   static const templates = '/settings/templates';
+  static const connectedTools = '/settings/connected-tools';
+  static String connectedToolFor(String id) => '$connectedTools/$id';
   static const share = '/share/:slug';
   static const request = '/request/:slug';
   // Short, canonical public paths (the deep links generate these).
@@ -320,29 +325,38 @@ class AppRouter {
             ),
             GoRoute(
               path: AppRoutes.settings,
-              pageBuilder: (context, state) {
-                final tab = switch (state.uri.queryParameters['tab']) {
-                  'workspace' => 1,
-                  'developer' => 2,
-                  _ => 0,
-                };
-                return NoTransitionPage(
-                  child: SettingsScreen(
-                    key: ValueKey('settings-tab-$tab'),
-                    initialTab: tab,
-                  ),
-                );
-              },
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: SettingsScreen()),
               routes: [
                 GoRoute(
-                  path: 'api-keys',
-                  pageBuilder: (context, state) =>
-                      const NoTransitionPage(child: ApiKeysScreen()),
+                  path: 'connected-tools/:id',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: ConnectedToolPage(
+                      key: ValueKey(state.pathParameters['id']),
+                      connectionId: state.pathParameters['id']!,
+                    ),
+                  ),
                 ),
                 GoRoute(
-                  path: 'templates',
-                  pageBuilder: (context, state) =>
-                      const NoTransitionPage(child: TemplatesScreen()),
+                  path: ':page',
+                  // An unknown topic — or an old ?tab= link — lands on the
+                  // list rather than on an empty page.
+                  redirect: (context, state) =>
+                      SettingsPage.fromSlug(state.pathParameters['page']) ==
+                          null
+                      ? AppRoutes.settings
+                      : null,
+                  pageBuilder: (context, state) {
+                    final page = SettingsPage.fromSlug(
+                      state.pathParameters['page'],
+                    )!;
+                    return NoTransitionPage(
+                      child: SettingsPageScreen(
+                        key: ValueKey(page),
+                        page: page,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

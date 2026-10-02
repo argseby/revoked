@@ -24,6 +24,23 @@ file needed there.
 | Variable | Default | Meaning |
 |---|---|---|
 | `ALLOW_SIGNUPS` | `false` | Whether anyone may create their own account over HTTP. Off by default: a fresh server should be one only its operator can add people to. See [Accounts](accounts.md) for how to create users while it is off. |
+| `SIGNUP_VERIFY_EMAIL` | `false` | Whether a new account must first confirm its address with a 6-digit code mailed to it. Without it, anyone can register any address. Needs the [mail server](#mail) below — the server refuses to boot with this on and no `SMTP_HOST`/`SMTP_SENDER_ADDRESS`. Accounts made by the operator are not affected. |
+
+## Mail
+
+The outbound mail server, used for signup confirmation codes. These override
+whatever the `/_/` dashboard has stored, at every start. Unset `SMTP_HOST`
+leaves the dashboard's settings alone.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SMTP_HOST` | — | The mail server's host name. |
+| `SMTP_PORT` | `587` (`465` with `SMTP_TLS`) | Its port. |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | — | Credentials, if the server wants them. |
+| `SMTP_TLS` | `false` | `true` for implicit TLS (usually port 465). Off means STARTTLS when the server offers it (usually 587). |
+| `SMTP_AUTH_METHOD` | `PLAIN` | `PLAIN` or `LOGIN`. |
+| `SMTP_SENDER_ADDRESS` | — | The From address, e.g. `no-reply@example.com`. |
+| `SMTP_SENDER_NAME` | `Revoked` | The From name. |
 
 ## Seed accounts
 
@@ -67,6 +84,7 @@ Public-surface budgets, read once at startup — a change needs a restart.
 | `RATELIMIT_PROBE_REQUESTS` | `120` | Metadata probes and short-link reads, per IP, per minute — the enumeration budget across every slug. |
 | `RATELIMIT_CHALLENGE_REQUESTS` | `60` | Handshake nonce issuance, per IP, per minute. |
 | `RATELIMIT_PASSKEY_REQUESTS` | `60` | Passkey sign-in and registration steps, per IP, per minute. A sign-in is three. |
+| `RATELIMIT_SIGNUP_EMAILS` | `10` | Signup confirmation codes mailed, per IP, per hour. Each address is also limited to one code a minute and five an hour, whoever asks. |
 
 These budgets are per-IP, which is why the
 [trusted-proxy header](reverse-proxy.md#let-rate-limits-see-real-ips) matters:

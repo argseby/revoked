@@ -13,6 +13,7 @@ import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/view/record_value_input.dart';
 import 'package:revoked_app/features/vault/view/vault_file_row.dart';
 
 /// One field a template asks for, flattened out of its schema. [group] is the
@@ -266,43 +267,19 @@ Future<bool> _fillBoolean(
 }
 
 /// A date is picked, not typed: the stored value has to parse as ISO 8601,
-/// which is not what anyone writes by hand. The time step is optional — a
-/// date of birth has no time, so dismissing it stores the day alone.
+/// which is not what anyone writes by hand.
 Future<bool> _fillDateTime(
   BuildContext context,
   BuildContext toastContext,
   _Section section,
   TemplateField field,
 ) async {
-  final now = DateTime.now();
-  final stored = templateFieldAnswer(field)?.value ?? field.value;
-  final initial = DateTime.tryParse(stored) ?? now;
-
-  final date = await showDatePicker(
-    context: context,
-    initialDate: initial,
-    firstDate: DateTime(1900),
-    lastDate: DateTime(now.year + 50),
-    helpText: field.title,
+  final value = await pickRecordDateTime(
+    context,
+    title: field.title,
+    current: templateFieldAnswer(field)?.value ?? field.value,
   );
-  if (date == null || !context.mounted) return false;
-
-  final time = await showTimePicker(
-    context: context,
-    initialTime: TimeOfDay.fromDateTime(initial),
-    helpText: '${field.title} — time (optional)',
-  );
-
-  final day =
-      '${date.year.toString().padLeft(4, '0')}-'
-      '${date.month.toString().padLeft(2, '0')}-'
-      '${date.day.toString().padLeft(2, '0')}';
-  final value = time == null
-      ? day
-      : '${day}T${time.hour.toString().padLeft(2, '0')}:'
-            '${time.minute.toString().padLeft(2, '0')}';
-
-  if (!toastContext.mounted) return false;
+  if (value == null || !toastContext.mounted) return false;
   return _save(toastContext, section, field, value);
 }
 

@@ -18,6 +18,7 @@ import (
 // client-supplied fields, and audit logging binds last so it runs innermost and
 // records only what committed.
 func Bind(app core.App, root *server.RootKey) {
+	hooks.BindMailSettings(app)
 	hooks.BindUsersHooks(app)
 	hooks.BindWorkspacesHooks(app)
 	hooks.BindWorkspaceMembersHooks(app)
@@ -28,6 +29,7 @@ func Bind(app core.App, root *server.RootKey) {
 	hooks.BindLinkHooks(app)
 	hooks.BindIdentitiesHooks(app, root)
 	hooks.BindRecordHooks(app)
+	hooks.BindReminderHooks(app)
 	hooks.BindInviteHooks(app)
 	hooks.BindBookmarkHooks(app)
 	hooks.RegisterTenancyHooks(app)
@@ -54,4 +56,5 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.DeleteAccountRoute(app)
 	routes.ConnectionsRoute(app, root)
 	routes.PasskeysRoute(app, root)
+	routes.SignupEmailRoute(app, root)
 }

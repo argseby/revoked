@@ -42,8 +42,9 @@ var passkeyLimiter = util.NewRateLimiter(limitFromEnv("RATELIMIT_PASSKEY_REQUEST
 //	POST /api/passkeys/token            {code, verifier}           -> session
 //
 // Registering is either a new account (an email address, where the operator
-// allows signups) or a ticket: a one-time link that lets the account it names
-// add a passkey. The operator issues one for a new or locked-out account; a
+// allows signups, confirmed with a code first where the operator asks for
+// that — see SignupEmailRoute) or a ticket: a one-time link that lets the
+// account it names add a passkey. The operator issues one for a new or locked-out account; a
 // signed-in person issues one for another device:
 //
 //	POST   /api/passkeys/tickets        (the owner, signed in)     -> {url}
@@ -144,6 +145,8 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 				Ticket    string `json:"ticket"`
 				Name      string `json:"name"`
 				Challenge string `json:"challenge"`
+				// The confirmed address, where the operator asks for one.
+				Proof string `json:"proof"`
 			}
 			if err := re.BindBody(&body); err != nil ||
 				(body.Challenge != "" && !util.ValidPKCE(body.Challenge)) {
@@ -179,6 +182,15 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 				}
 				if taken, _ := app.FindAuthRecordByEmail(users, email); taken != nil {
 					return appErrorResponse(re, http.StatusConflict, &util.Errors.PasskeyEmailTaken)
+				}
+				// Checked, not spent: the account is written, and the proof
+				// spent, only once the passkey verified.
+				if util.SignupEmailVerification() {
+					proof, ok := emailProofs.peek(body.Proof)
+					if !ok || proof.email != email {
+						return appErrorResponse(re, http.StatusForbidden, &util.Errors.EmailVerificationRequired)
+					}
+					ceremony.proof = body.Proof
 				}
 				// The account is only written once its passkey verified, under
 				// the id the authenticator is about to be told.
@@ -240,6 +252,17 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.PasskeyVerificationFailed)
 			}
 
+			// A new account's confirmed address is spent with the account it
+			// pays for; one confirmation makes one account.
+			verified := false
+			if ceremony.ticket == "" && (ceremony.proof != "" || util.SignupEmailVerification()) {
+				proof, ok := emailProofs.take(ceremony.proof)
+				if !ok || proof.email != ceremony.email {
+					return appErrorResponse(re, http.StatusForbidden, &util.Errors.EmailVerificationRequired)
+				}
+				verified = true
+			}
+
 			var refused *util.AppError
 			err = app.RunInTransaction(func(tx core.App) error {
 				if ceremony.ticket != "" {
@@ -261,6 +284,7 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 					account := core.NewRecord(users)
 					account.Id = ceremony.user
 					account.SetEmail(ceremony.email)
+					account.SetVerified(verified)
 					account.SetRandomPassword()
 					if err := tx.Save(account); err != nil {
 						// Someone took the address while this ceremony was open.
@@ -412,6 +436,9 @@ type passkeyCeremony struct {
 	name string
 	// The app's PKCE challenge, when the result goes back to an app.
 	pkce string
+	// The proof that a new account's address was confirmed, when one was asked
+	// for.
+	proof string
 }
 
 // passkeyGrant is a finished ceremony waiting for the app to collect it.
@@ -460,6 +487,20 @@ func (v *passkeyVault[T]) put(value *T, ttl time.Duration) string {
 	}
 	v.items[util.HashToken(key)] = passkeyEntry[T]{value: value, expires: now.Add(ttl)}
 	return key
+}
+
+// peek returns the value under key, if it is still good, and leaves it there.
+func (v *passkeyVault[T]) peek(key string) (*T, bool) {
+	if key == "" {
+		return nil, false
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	e, ok := v.items[util.HashToken(key)]
+	if !ok || !e.expires.After(time.Now()) {
+		return nil, false
+	}
+	return e.value, true
 }
 
 // take removes and returns the value under key, if it is still good.

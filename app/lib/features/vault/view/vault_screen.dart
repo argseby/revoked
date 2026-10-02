@@ -29,7 +29,6 @@ import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
@@ -74,7 +73,6 @@ class _VaultScreenState extends State<VaultScreen> {
       if (mounted) {
         ShellSlots.title.claim(_title);
         ShellSlots.action.claim(_primaryAction);
-        ShellSlots.filter.claim(_filterButton);
       }
       store.loadRecords();
       if (widget.editingShareId != null || widget.shareFilterId != null) {
@@ -87,7 +85,6 @@ class _VaultScreenState extends State<VaultScreen> {
   void dispose() {
     ShellSlots.title.release(_title);
     ShellSlots.action.release(_primaryAction);
-    ShellSlots.filter.release(_filterButton);
     _tableController.dispose();
     super.dispose();
   }
@@ -123,34 +120,6 @@ class _VaultScreenState extends State<VaultScreen> {
       );
     }
     return const SizedBox.shrink();
-  }
-
-  Widget _filterButton(BuildContext context) {
-    return FilterButton<models.Record>(
-      controller: _tableController,
-      columns: const [
-        DataTableColumn(value: 'label', label: 'Label'),
-        DataTableColumn(value: 'key', label: 'Key'),
-        DataTableColumn(value: 'value', label: 'Value'),
-        DataTableColumn(value: 'type', label: 'Type'),
-        DataTableColumn(value: 'format', label: 'Format'),
-      ],
-      helper: Row(
-        children: [
-          Icon(
-            AppIcons.info,
-            size: 14,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: const Text(
-              'Filters on Value, Type, or Format only apply to Records, while Label and Key apply to both.',
-            ).muted.small,
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -311,8 +280,7 @@ class _VaultScreenState extends State<VaultScreen> {
           final matchesSection =
               filter == _VaultFilter.all &&
               (section.name.toLowerCase().contains(searchQuery) ||
-                  section.key.toLowerCase().contains(searchQuery)) &&
-              _sectionMatchesFilters(section, _tableController.filters);
+                  section.key.toLowerCase().contains(searchQuery));
           if (matchesSection || sectionRecords.isNotEmpty) {
             visibleSections.add((section, sectionRecords));
           }
@@ -492,6 +460,7 @@ class _VaultScreenState extends State<VaultScreen> {
         AppMenuButton(
           icon: AppIcons.threeDotsVertical,
           tooltip: 'Section actions',
+          style: AppButtonStyle.ghost,
           size: AppButtonSize.small,
           chevron: false,
           items: [
@@ -611,42 +580,6 @@ class _VaultScreenState extends State<VaultScreen> {
       'sections': newSections,
       'records': newRecords,
     });
-  }
-
-  bool _sectionMatchesFilters(Section section, List<DataTableFilter> filters) {
-    for (final f in filters) {
-      if (f.value.isEmpty) continue;
-      String? val;
-      if (f.column == 'label') {
-        val = section.name;
-      } else if (f.column == 'key') {
-        val = section.key;
-      } else if (f.column == 'created') {
-        val = section.created ?? '';
-      }
-
-      if (val != null) {
-        final target = f.value.toLowerCase();
-        final source = val.toLowerCase();
-        bool match = true;
-        switch (f.operator) {
-          case 'equals':
-            match = source == target;
-            break;
-          case 'contains':
-            match = source.contains(target);
-            break;
-          case 'starts_with':
-            match = source.startsWith(target);
-            break;
-          case 'ends_with':
-            match = source.endsWith(target);
-            break;
-        }
-        if (!match) return false;
-      }
-    }
-    return true;
   }
 
   Future<void> _confirmDeleteSection(

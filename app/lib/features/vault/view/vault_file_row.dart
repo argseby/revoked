@@ -50,7 +50,11 @@ Widget vaultDropTarget({
 /// record drawer and by a template's file field, so a file behaves the same
 /// wherever it is attached.
 class VaultFileRow extends StatelessWidget {
-  const VaultFileRow({super.key});
+  /// Controls behind the file row — the record drawer's eye that masks the
+  /// file's name.
+  final List<Widget> trailing;
+
+  const VaultFileRow({super.key, this.trailing = const []});
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +81,7 @@ class VaultFileRow extends StatelessWidget {
               isPlaceholder: file == null,
               isError: file == null || refusal != null,
               onTap: pickVaultFile,
+              trailing: trailing,
             ),
             if (preview != null)
               Padding(

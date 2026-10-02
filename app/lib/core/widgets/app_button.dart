@@ -4,10 +4,11 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 
-/// How much weight a button carries. There is no fourth style on purpose: a
-/// control that is neither the screen's main action nor destructive is
-/// [accent], and the moment a "just one more" style exists the screens drift.
-enum AppButtonStyle { primary, accent, destructive }
+/// How much weight a button carries. A control that is neither the screen's
+/// main action nor destructive is [accent]. [ghost] has no fill of its own and
+/// is only for a control repeated on every row or group — a ⋮ menu — where an
+/// [accent] fill on each one would outweigh the content it sits beside.
+enum AppButtonStyle { primary, accent, destructive, ghost }
 
 enum AppButtonSize { normal, small }
 
@@ -74,6 +75,7 @@ class AppButton extends StatelessWidget {
         scheme.onSecondaryContainer,
       ),
       AppButtonStyle.destructive => (scheme.error, scheme.onError),
+      AppButtonStyle.ghost => (Colors.transparent, scheme.onSurfaceVariant),
     };
 
     final AppText? text = iconOnly

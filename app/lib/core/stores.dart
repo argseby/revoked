@@ -19,6 +19,7 @@ import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
 import 'package:revoked_app/features/passkeys/store/passkeys_store.dart';
+import 'package:revoked_app/features/reminders/store/reminders_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
@@ -50,6 +51,7 @@ abstract final class Stores {
   static late final ApiKeysStore apiKeys;
   static late final IdentitiesStore identities;
   static late final NotificationsStore notifications;
+  static late final RemindersStore reminders;
   static late final SettingsStore settings;
   static late final InvitesStore invites;
   static late final ServerSettingsStore serverSettings;
@@ -91,6 +93,7 @@ abstract final class Stores {
     apiKeys = ApiKeysStore(api);
     identities = IdentitiesStore(api, crypto);
     notifications = NotificationsStore(api);
+    reminders = RemindersStore(api);
     settings = SettingsStore(api);
     invites = InvitesStore(api, domainVerification);
     serverSettings = ServerSettingsStore(api);

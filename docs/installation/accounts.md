@@ -62,7 +62,14 @@ manages collections and settings — it is not a login for the app itself.
 ## Opening registration
 
 Set `ALLOW_SIGNUPS=true` and restart. Anyone who can reach the server can then
-create an account with an email address and a passkey. Inviting members into an
+create an account with an email address and a passkey.
+
+That address is whatever the person typed. To make sure it is theirs, also set
+`SIGNUP_VERIFY_EMAIL=true` and configure the [mail server](env.md#mail): the
+sign-in page then mails a 6-digit code, and only the right code lets the
+passkey be saved. The code works for ten minutes and five guesses; an address
+gets at most one a minute and five an hour. Accounts confirmed this way are
+marked verified. Inviting members into an
 *existing* workspace is a separate, in-app flow (workspace invites) and works
 regardless of this flag.
 

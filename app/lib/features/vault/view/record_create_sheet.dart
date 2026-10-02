@@ -12,6 +12,7 @@ import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -19,6 +20,7 @@ import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/view/record_value_input.dart';
 import 'package:revoked_app/features/vault/view/vault_file_row.dart';
 
 /// Opens the record-create / duplicate drawer.
@@ -259,20 +261,13 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 const AppFormSectionHeader('Details'),
                 _buildLabelRow(),
                 _buildKeyRow(),
-                if (_isFileType) const VaultFileRow() else _buildValueRow(),
+                // The type decides how the value is entered, so it comes
+                // first.
                 _buildTypeRow(),
-
-                const AppFormSectionHeader('Display'),
-                AppFormToggleRow(
-                  icon: _store.recordFormat == 'hidden'
-                      ? AppIcons.eyeSlash
-                      : AppIcons.eye,
-                  label: 'Hidden value',
-                  subtitle: 'Mask the value when shown in the vault.',
-                  value: _store.recordFormat == 'hidden',
-                  onChanged: (on) =>
-                      _store.setRecordFormat(on ? 'hidden' : 'default'),
-                ),
+                if (_isFileType)
+                  VaultFileRow(trailing: [_hiddenToggle()])
+                else
+                  _buildValueRow(),
 
                 const AppFormSectionHeader('Developer'),
                 Padding(
@@ -383,16 +378,59 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     },
   );
 
+  /// The eye behind the value row: whether the vault masks the value.
+  Widget _hiddenToggle() => RecordHiddenToggle(
+    isFile: _isFileType,
+    hidden: _store.recordFormat == 'hidden',
+    onChanged: (on) => _store.setRecordFormat(on ? 'hidden' : 'default'),
+  );
+
+  /// The value, entered the way its type asks: a yes/no is switched in the
+  /// row itself, a date is picked from a calendar, anything else is typed.
   Widget _buildValueRow() {
     final v = _store.recordValue.text;
     final empty = v.trim().isEmpty;
-    final summary = _store.recordFormat == 'hidden' ? '••••••••' : v;
+    final hidden = _store.recordFormat == 'hidden';
+
+    if (_store.recordType == 'boolean') {
+      final on = v.trim().toLowerCase() == 'true';
+      void set(bool value) {
+        _store.recordValue.text = value ? 'true' : 'false';
+        _validateAndDetectType(_store.recordValue.text);
+      }
+
+      return AppFormRow(
+        icon: RecordTypeUtils.icon('boolean'),
+        label: 'Value',
+        valueText: hidden ? '••••••••' : (on ? 'True' : 'False'),
+        showChevron: false,
+        trailing: [
+          AppSwitch(value: on, onChanged: set),
+          _hiddenToggle(),
+        ],
+        onTap: () => set(!on),
+      );
+    }
+
+    final String summary;
+    if (hidden) {
+      summary = '••••••••';
+    } else if (_store.recordType == 'datetime') {
+      summary = recordDateTimeLabel(v);
+    } else {
+      summary = v;
+    }
     return AppFormRow(
-      icon: AppIcons.key,
+      icon: _store.recordType == 'datetime' ? AppIcons.calendar : AppIcons.key,
       label: 'Value',
-      valueText: empty ? 'Required' : (_store.recordTypeWarning ?? summary),
+      valueText: empty
+          ? (_store.recordType == 'datetime'
+                ? 'Required — tap to pick a date'
+                : 'Required')
+          : (_store.recordTypeWarning ?? summary),
       isPlaceholder: empty,
       isError: empty || _store.recordTypeWarning != null,
+      trailing: [_hiddenToggle()],
       onTap: _editValue,
     );
   }
@@ -410,12 +448,35 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   }
 
   Future<void> _editValue() async {
+    if (_store.recordType == 'datetime') {
+      final picked = await pickRecordDateTime(
+        context,
+        title: 'Value',
+        current: _store.recordValue.text,
+      );
+      if (picked == null || !mounted) return;
+      _store.recordValue.text = picked;
+      _validateAndDetectType(picked);
+      return;
+    }
     await showAppEditSheet(
       context: context,
       title: 'Value',
       description: 'The actual sensitive data or configuration value.',
       controller: _store.recordValue,
-      hint: 'sk-123456789...',
+      hint: switch (_store.recordType) {
+        'number' => '42',
+        'url' => 'https://example.com',
+        _ => 'sk-123456789...',
+      },
+      keyboardType: switch (_store.recordType) {
+        'number' => const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
+        ),
+        'url' => TextInputType.url,
+        _ => null,
+      },
     );
     if (mounted) _validateAndDetectType(_store.recordValue.text);
   }
@@ -529,7 +590,11 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       },
     );
     if (picked != null && mounted) {
-      _store.recordType = picked;
+      _store.setRecordType(picked);
+      _store.recordValue.text = recordValueForType(
+        picked,
+        _store.recordValue.text,
+      );
       _validateAndDetectType(_store.recordValue.text);
     }
   }

@@ -36,7 +36,14 @@ class _AppShellState extends State<AppShell> {
     // Notifications power the top-bar bell, which is visible on every screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Stores.notifications.load();
+      Stores.notifications.startPolling();
     });
+  }
+
+  @override
+  void dispose() {
+    Stores.notifications.stopPolling();
+    super.dispose();
   }
 
   @override
@@ -140,19 +147,19 @@ class _AppShellState extends State<AppShell> {
       ),
       appBar: AppBar(
         titleSpacing: AppSpacing.lg,
-        // The switcher only earns its space on Settings, the one tab that acts
-        // on the active workspace; everywhere else the bar carries the
-        // screen's own title, which used to cost a row of the body.
-        title: _selectedIndex == _settingsIndex
-            ? const Row(children: [WorkspaceChip()])
-            : Observer(
-                builder: (context) =>
-                    ShellSlots.title.builder?.call(context) ??
-                    const SizedBox.shrink(),
-              ),
+        // The bar carries the screen's own title, which used to cost a row of
+        // the body. The switcher only earns its space on the Settings list,
+        // the one tab that acts on the active workspace; a settings page
+        // claims the slot for its own title and back arrow.
+        title: Observer(
+          builder: (context) =>
+              ShellSlots.title.builder?.call(context) ??
+              (_selectedIndex == _settingsIndex
+                  ? const Row(children: [WorkspaceChip()])
+                  : const SizedBox.shrink()),
+        ),
         actions: [
           _slot(ShellSlots.action),
-          _slot(ShellSlots.filter),
           const _NotificationBell(),
           // The window's own buttons land here, drawn by the shared overlay.
           const WindowControlsGap(),

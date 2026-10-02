@@ -38,6 +38,9 @@ type collectionSchema struct {
 	// register one without being signed in with another.
 	Passkeys       string
 	PasskeyTickets string
+	// Reminders are a person's own: a vault entry to be reminded about, at a
+	// date or when an entry changes.
+	Reminders string
 }
 
 type inviteFields struct {
@@ -145,6 +148,10 @@ type passkeyTicketFields struct {
 	User, TokenHash, ExpiresAt, Created string
 }
 
+type reminderFields struct {
+	User, Workspace, Record, Kind, DueAt, Watch, Note, FiredAt, Created, Updated string
+}
+
 // Coll holds the collection (table) names used across the backend.
 var Coll = collectionSchema{
 	Workspaces:       "workspaces",
@@ -171,6 +178,7 @@ var Coll = collectionSchema{
 	ConnectionTokens:    "connectionTokens",
 	Passkeys:            "passkeys",
 	PasskeyTickets:      "passkeyTickets",
+	Reminders:           "reminders",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -197,6 +205,7 @@ var Fields = struct {
 	ConnectionToken    connectionTokenFields
 	Passkey            passkeyFields
 	PasskeyTicket      passkeyTicketFields
+	Reminder           reminderFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -452,5 +461,17 @@ var Fields = struct {
 		TokenHash: "tokenHash",
 		ExpiresAt: "expiresAt",
 		Created:   "created",
+	},
+	Reminder: reminderFields{
+		User:      "user",
+		Workspace: "workspace",
+		Record:    "record",
+		Kind:      "kind",
+		DueAt:     "dueAt",
+		Watch:     "watch",
+		Note:      "note",
+		FiredAt:   "firedAt",
+		Created:   "created",
+		Updated:   "updated",
 	},
 }

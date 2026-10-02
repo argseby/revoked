@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/models/reminder.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -26,6 +27,7 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/file_view_sheet.dart';
+import 'package:revoked_app/features/reminders/view/reminder_sheet.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
@@ -54,6 +56,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       // Opened straight from a link, the list has not loaded anything yet.
       if (Stores.vault.records.isEmpty) Stores.vault.loadRecords();
       if (Stores.shares.shares.isEmpty) Stores.shares.loadShares();
+      // Always: one may have fired, or been added on another device.
+      Stores.reminders.load();
     });
   }
 
@@ -113,6 +117,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           sections: [
             _valueSection(record),
             _sharedIn(context, record),
+            _reminders(context, record),
             _details(record),
             AppDetailManage(
               actions: [
@@ -311,6 +316,103 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 ],
         ),
       ],
+    );
+  }
+
+  /// The owner's own reminders on this record, and the way to add one.
+  Widget _reminders(BuildContext context, models.Record r) {
+    final list = Stores.reminders.forRecord(r.id);
+    String nameOf(String id) {
+      final other = _find(id);
+      return other == null ? 'another entry' : _name(other);
+    }
+
+    return AppListGroup(
+      title: 'Reminders',
+      trailing: AppButton(
+        icon: AppIcons.plus,
+        label: 'Add',
+        style: AppButtonStyle.accent,
+        size: AppButtonSize.small,
+        onTap: () => openReminderSheet(context, r),
+      ),
+      children: list.isEmpty
+          ? const [
+              AppDetailRow(
+                icon: AppIcons.bell,
+                label: 'No reminders. Add one for a date, or for a change.',
+              ),
+            ]
+          : [
+              for (final rem in list)
+                AppListRow(
+                  icon: rem.isDate ? AppIcons.calendar : AppIcons.arrowRepeat,
+                  title: describeReminder(rem, r.id, nameOf),
+                  subtitle: _reminderStatus(rem),
+                  showChevron: false,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (rem.hasFired)
+                        AppButton(
+                          icon: AppIcons.arrowClockwise,
+                          tooltip: 'Remind me again',
+                          style: AppButtonStyle.ghost,
+                          size: AppButtonSize.small,
+                          onTap: () => _rearmReminder(context, rem),
+                        ),
+                      AppButton(
+                        icon: AppIcons.trash,
+                        tooltip: 'Delete reminder',
+                        style: AppButtonStyle.ghost,
+                        size: AppButtonSize.small,
+                        onTap: () => _deleteReminder(context, rem),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+    );
+  }
+
+  String _reminderStatus(Reminder rem) {
+    final parts = <String>[
+      if (rem.note.isNotEmpty) rem.note,
+      if (rem.hasFired)
+        'Reminded on ${formatReminderDay(rem.firedAt!)}'
+      else if (!rem.isDate)
+        'Waiting for a change',
+    ];
+    return parts.join(' · ');
+  }
+
+  Future<void> _rearmReminder(BuildContext context, Reminder rem) async {
+    // A date that has passed would fire again at once: ask for a new one.
+    if (rem.isDate) {
+      final record = _record;
+      if (record != null) await openReminderSheet(context, record);
+      return;
+    }
+    final ok = await Stores.reminders.rearm(rem.id);
+    if (!context.mounted) return;
+    if (ok) {
+      AppToast.success(context, 'You will be reminded at the next change');
+    } else {
+      AppToast.error(
+        context,
+        'Could not update the reminder',
+        subtitle: Stores.reminders.error?.description,
+      );
+    }
+  }
+
+  Future<void> _deleteReminder(BuildContext context, Reminder rem) async {
+    final ok = await Stores.reminders.delete(rem.id);
+    if (!context.mounted || ok) return;
+    AppToast.error(
+      context,
+      'Could not delete the reminder',
+      subtitle: Stores.reminders.error?.description,
     );
   }
 

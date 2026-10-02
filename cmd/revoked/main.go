@@ -32,6 +32,16 @@ func main() {
 		log.Fatal("DOMAIN environment variable is required. Set it to the externally-facing hostname this server is reachable at (e.g. DOMAIN=bmw.com). Without it identities cannot be DNS-verified by peers.")
 	}
 
+	// Confirming addresses without a way to send mail would refuse every
+	// signup with an error the person cannot do anything about.
+	if util.SignupEmailVerification() {
+		if smtp, ok := util.SMTPFromEnv(); !ok || smtp.SenderAddress == "" {
+			log.Fatalf("%s is on, but no mail server is configured. Set %s and %s (and usually %s/%s), or turn %s off.",
+				util.SignupVerifyEmailEnv, util.SMTPHostEnv, util.SMTPSenderAddressEnv,
+				util.SMTPUsernameEnv, util.SMTPPasswordEnv, util.SignupVerifyEmailEnv)
+		}
+	}
+
 	keyPath := os.Getenv("SERVER_KEY_PATH")
 	if keyPath == "" {
 		keyPath = filepath.Join("pb_data", "server_root.pem")

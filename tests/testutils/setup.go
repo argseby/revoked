@@ -81,6 +81,7 @@ func SetupTestApp(t testing.TB) (string, *pocketbase.PocketBase) {
 		// 429 re-enable a low limit for their duration.
 		routes.ConfigureRateLimits(0, 0, 0)
 		routes.ConfigurePasskeyRateLimit(0)
+		routes.ConfigureSignupMailRateLimit(0)
 
 		bootstrap.Bind(testApp, root)
 

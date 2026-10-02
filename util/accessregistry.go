@@ -90,6 +90,14 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 		ActionUpdate: {Kind: AccessUserSelf, Extra: OwnerImmutable},
 		ActionDelete: {Kind: AccessUserSelf},
 	},
+	// Personal: a reminder is one person's note to self about an entry, and
+	// its notification goes to them alone. The hooks bind it to the entry's
+	// workspace and require membership there.
+	Coll.Reminders: {
+		ActionCreate: {Kind: AccessUserSelf},
+		ActionUpdate: {Kind: AccessUserSelf, Extra: OwnerImmutable},
+		ActionDelete: {Kind: AccessUserSelf},
+	},
 }
 
 // AccessSpecFor returns the requirement for a collection action, if declared.

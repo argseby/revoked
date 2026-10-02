@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/notification.dart';
+import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
@@ -97,6 +100,9 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                     return _NotificationCard(
                       notification: notif,
                       onMarkRead: () => store.markRead(notif.id, read: true),
+                      onOpen: _opensRecord(notif)
+                          ? () => _openRecord(context, notif)
+                          : null,
                     );
                   },
                 );
@@ -109,13 +115,29 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
   }
 }
 
+/// A reminder names the vault entry it is about; tapping it opens that entry.
+bool _opensRecord(AppNotification n) =>
+    n.refCollection == AppConfig.recordsCollection &&
+    (n.refId ?? '').isNotEmpty;
+
+void _openRecord(BuildContext context, AppNotification n) {
+  if (!n.read) Stores.notifications.markRead(n.id);
+  final router = GoRouter.of(context);
+  Navigator.of(context).pop();
+  router.go(AppRoutes.recordDetailFor(n.refId!));
+}
+
 class _NotificationCard extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onMarkRead;
 
+  /// Opens what the notification is about, when it names something.
+  final VoidCallback? onOpen;
+
   const _NotificationCard({
     required this.notification,
     required this.onMarkRead,
+    this.onOpen,
   });
 
   @override
@@ -126,6 +148,7 @@ class _NotificationCard extends StatelessWidget {
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpacing.lg),
+      onTap: onOpen,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

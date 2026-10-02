@@ -12,6 +12,7 @@ import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
@@ -225,12 +226,12 @@ Future<void> confirmRevokeApiKey(BuildContext context, String id) async {
   if (confirmed) await Stores.apiKeys.deleteApiKey(id);
 }
 
-/// One key as an expanding card: permissions and expiry as pills, revoke at
-/// the bottom.
-class ApiKeyCard extends StatelessWidget {
+/// One key as a row: what it may do and when it expires; tapping it offers
+/// the revoke.
+class ApiKeyRow extends StatelessWidget {
   final dynamic apiKey;
 
-  const ApiKeyCard({super.key, required this.apiKey});
+  const ApiKeyRow({super.key, required this.apiKey});
 
   @override
   Widget build(BuildContext context) {
@@ -246,39 +247,40 @@ class ApiKeyCard extends StatelessWidget {
       (p) => p.membersOnly && p.scopes.any(scopes.contains),
     );
     final expires = AppEntityCard.formatDate(apiKey.expiresAt as String?);
+    final label = apiKey.label as String;
 
-    return AppEntityCard(
-      title: apiKey.label,
-      tags: [
+    return AppListRow(
+      icon: AppIcons.key,
+      title: label,
+      subtitle: [
         // Stored scopes are the expanded form, so they are counted as the
         // permissions they satisfy — the same count members and invites show.
         if (catalogue.isNotEmpty)
-          AppBadge(
-            icon: AppIcons.shieldCheck,
-            label: permissionCountLabel(
-              permissionsFromScopes(catalogue, scopes).length,
-              catalogue.length,
-            ),
+          permissionCountLabel(
+            permissionsFromScopes(catalogue, scopes).length,
+            catalogue.length,
           ),
-        if (opensVault)
-          const AppBadge(
-            icon: AppIcons.exclamationTriangle,
-            label: 'Can open the vault — replace this key',
-            variant: AppBadgeVariant.destructive,
+        expires == null ? 'Never expires' : 'Expires $expires',
+      ].join(' · '),
+      trailing: opensVault
+          ? const AppBadge(
+              icon: AppIcons.exclamationTriangle,
+              label: 'Can open the vault — replace it',
+              variant: AppBadgeVariant.destructive,
+            )
+          : null,
+      onTap: () => showAppOptionsSheet(
+        context: context,
+        title: label,
+        actions: [
+          AppSheetAction(
+            icon: AppIcons.xCircle,
+            label: 'Revoke key',
+            destructive: true,
+            onTap: () => confirmRevokeApiKey(context, apiKey.id as String),
           ),
-        AppBadge(
-          icon: AppIcons.clock,
-          label: expires == null ? 'Never expires' : 'Expires $expires',
-        ),
-      ],
-      actions: [
-        AppSheetAction(
-          icon: AppIcons.xCircle,
-          label: 'Revoke key',
-          destructive: true,
-          onTap: () => confirmRevokeApiKey(context, apiKey.id as String),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

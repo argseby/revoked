@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
@@ -107,4 +109,21 @@ abstract class _NotificationsStore with Store {
 
   @action
   void clearError() => errorMessage = null;
+
+  Timer? _poll;
+
+  /// Keeps the bell current while the app is open. Reminders fire on the
+  /// server's clock, not on anything this app does, so nothing else would
+  /// bring them in until the next start.
+  void startPolling({Duration every = const Duration(minutes: 1)}) {
+    _poll?.cancel();
+    _poll = Timer.periodic(every, (_) {
+      if (!isLoading) load();
+    });
+  }
+
+  void stopPolling() {
+    _poll?.cancel();
+    _poll = null;
+  }
 }

@@ -38,6 +38,21 @@ resolves the parent's *current* value at read time. This is how you answer
 someone's requested key with data you already hold: the alias carries the key
 they asked for, the value stays in one place.
 
+### Reminders
+
+A record can remind you about itself. Open it and add a reminder:
+
+- **On a date** — in a week, a month, a year, or on a day you pick. Good for
+  a passport that needs renewing or a contract to cancel.
+- **When something changes** — the first time this record's value changes,
+  or another record's in the same workspace. For an alias, a change to the
+  record it points at counts.
+
+When it fires, the reminder lands in your notifications, with your note. It
+names the record but never shows its value. A reminder fires once; arm it again
+from the record to be told next time too. Reminders are yours alone — other
+members of the workspace do not see them.
+
 ## Sections
 
 A section is a named group of records — "Banking", "Onboarding pack" — that

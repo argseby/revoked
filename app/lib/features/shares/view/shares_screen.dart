@@ -19,7 +19,6 @@ import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
-import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
@@ -60,7 +59,6 @@ class _SharesScreenState extends State<SharesScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ShellSlots.title.claim(_title);
-        ShellSlots.filter.claim(_filterButton);
       }
       Stores.shares.loadShares();
       Stores.bookmarks.load();
@@ -72,7 +70,6 @@ class _SharesScreenState extends State<SharesScreen> {
   @override
   void dispose() {
     ShellSlots.title.release(_title);
-    ShellSlots.filter.release(_filterButton);
     _table.dispose();
     super.dispose();
   }
@@ -83,17 +80,6 @@ class _SharesScreenState extends State<SharesScreen> {
     return AppSearchField<Link>(
       controller: _table,
       hint: 'Search $count ${count == 1 ? 'link' : 'links'}',
-    );
-  }
-
-  Widget _filterButton(BuildContext context) {
-    return FilterButton<Link>(
-      controller: _table,
-      columns: const [
-        DataTableColumn(value: 'label', label: 'Label'),
-        DataTableColumn(value: 'slug', label: 'Slug'),
-        DataTableColumn(value: 'status', label: 'Status'),
-      ],
     );
   }
 

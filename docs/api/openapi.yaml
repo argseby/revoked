@@ -1196,6 +1196,11 @@ paths:
         a `ticket`, which adds a passkey to the account it names. Returns
         WebAuthn creation options that require a discoverable credential and
         user verification. Nothing is written until the ceremony finishes.
+
+        Where the operator asks new accounts to confirm their address
+        (`SIGNUP_VERIFY_EMAIL`), a new account also needs the `proof` from
+        `/api/passkeys/register/verify`. It is checked here and spent when the
+        ceremony finishes.
       security: []
       requestBody:
         required: true
@@ -1208,6 +1213,7 @@ paths:
                 ticket: { type: string, description: "A one-time ticket from `/api/passkeys/tickets` or the operator." }
                 name: { type: string, maxLength: 60, description: "What the passkey is called in the owner's list." }
                 challenge: { type: string, description: "The app's PKCE S256 challenge, when the result should sign an app in." }
+                proof: { type: string, description: "The confirmed address, from `/api/passkeys/register/verify`. Required for a new account where the operator asks for confirmation." }
       responses:
         "200":
           description: The ceremony, good for five minutes.
@@ -1224,12 +1230,103 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
         "403":
-          description: "`signups_disabled`: no ticket, and this server does not accept registrations."
+          description: "`signups_disabled`: no ticket, and this server does not accept registrations. `email_verification_required`: the address was not confirmed, or the proof is for another one."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
         "409":
           description: "`passkey_email_taken`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/passkeys/register/email:
+    post:
+      tags: [Sign-in]
+      summary: Send a code that confirms a new account's address
+      description: |
+        Only where the operator asks new accounts to confirm their address
+        (`SIGNUP_VERIFY_EMAIL`). Mails a 6-digit code, good for ten minutes
+        and five guesses, replacing any earlier one. An address is sent at most
+        one code a minute and five an hour; each client is limited separately
+        (`RATELIMIT_SIGNUP_EMAILS` per hour).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+      responses:
+        "200":
+          description: Sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expiresAt: { type: string, format: date-time }
+                  resendAfter: { type: integer, description: "Seconds until another code may be asked for." }
+        "400":
+          description: "`passkey_email_invalid`, `passkey_request_invalid`, or `email_verification_off`: this server does not confirm addresses."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: "`signups_disabled`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "409":
+          description: "`passkey_email_taken`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429":
+          description: "`email_code_too_soon`, or `rate_limited`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "502":
+          description: "`email_send_failed`: the mail server refused or could not be reached."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+
+  /api/passkeys/register/verify:
+    post:
+      tags: [Sign-in]
+      summary: Trade the mailed code for a proof
+      description: |
+        The right code is spent and returns a proof of the address, good for
+        fifteen minutes, that `/api/passkeys/register/begin` then carries. A
+        wrong code costs one of its five attempts.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string }
+                code: { type: string, pattern: "^[0-9]{6}$" }
+      responses:
+        "200":
+          description: Confirmed.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  proof: { type: string }
+        "400":
+          description: "`email_code_invalid`: wrong, expired, spent, or guessed too often."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
@@ -1265,6 +1362,11 @@ paths:
                   code: { type: string, description: "Present when a PKCE challenge was given." }
         "400":
           description: "`passkey_ceremony_invalid`, `passkey_verification_failed`, `passkey_ticket_invalid` or `passkey_origin_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: "`email_verification_required`: the proof was already spent on another account, or expired."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
@@ -1570,6 +1672,7 @@ components:
           - bookmarks
           - bookmarkGroups
           - passkeys
+          - reminders
 
   responses:
     NotFound:

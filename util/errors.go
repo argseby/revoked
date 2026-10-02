@@ -122,6 +122,15 @@ var Errors = struct {
 	PasskeyGrantInvalid           AppError
 	PasskeyLast                   AppError
 	PasskeySignupOnly             AppError
+	EmailVerificationOff          AppError
+	EmailVerificationRequired     AppError
+	EmailCodeInvalid              AppError
+	EmailCodeTooSoon              AppError
+	EmailSendFailed               AppError
+	ReminderRecordMissing         AppError
+	ReminderWatchMissing          AppError
+	ReminderDueRequired           AppError
+	ReminderKindInvalid           AppError
 }{
 	DuplicateWorkspaceMember: AppError{
 		ErrorCode: "duplicate_workspace_member",
@@ -538,6 +547,42 @@ var Errors = struct {
 	PasskeyLast: AppError{
 		ErrorCode: "passkey_last",
 		ErrorText: "This is your only passkey. Add another before removing it, or you could not sign in again.",
+	},
+	EmailVerificationOff: AppError{
+		ErrorCode: "email_verification_off",
+		ErrorText: "This server does not confirm email addresses. Create the account directly.",
+	},
+	EmailVerificationRequired: AppError{
+		ErrorCode: "email_verification_required",
+		ErrorText: "Confirm your email address with the code we sent before creating the account.",
+	},
+	EmailCodeInvalid: AppError{
+		ErrorCode: "email_code_invalid",
+		ErrorText: "This code is wrong, expired, or was tried too often. Request a new one.",
+	},
+	EmailCodeTooSoon: AppError{
+		ErrorCode: "email_code_too_soon",
+		ErrorText: "A code was just sent to this address. Wait a minute before asking for another.",
+	},
+	EmailSendFailed: AppError{
+		ErrorCode: "email_send_failed",
+		ErrorText: "The confirmation email could not be sent. Try again later.",
+	},
+	ReminderRecordMissing: AppError{
+		ErrorCode: "reminder_record_missing",
+		ErrorText: "The entry this reminder is for does not exist, or is not in a workspace you belong to.",
+	},
+	ReminderWatchMissing: AppError{
+		ErrorCode: "reminder_watch_missing",
+		ErrorText: "The watched entry does not exist, or is not in the same workspace.",
+	},
+	ReminderDueRequired: AppError{
+		ErrorCode: "reminder_due_required",
+		ErrorText: "Pick when to be reminded.",
+	},
+	ReminderKindInvalid: AppError{
+		ErrorCode: "reminder_kind_invalid",
+		ErrorText: "A reminder is either for a date or for a change.",
 	},
 }
 

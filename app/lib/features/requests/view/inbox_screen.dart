@@ -17,7 +17,6 @@ import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
-import 'package:revoked_app/core/widgets/data_table/filter_bar.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/requests/view/request_groups.dart';
 
@@ -51,7 +50,6 @@ class _InboxScreenState extends State<InboxScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ShellSlots.title.claim(_title);
-        ShellSlots.filter.claim(_filterButton);
       }
       Stores.requests.loadRequests();
     });
@@ -60,7 +58,6 @@ class _InboxScreenState extends State<InboxScreen> {
   @override
   void dispose() {
     ShellSlots.title.release(_title);
-    ShellSlots.filter.release(_filterButton);
     super.dispose();
   }
 
@@ -70,17 +67,6 @@ class _InboxScreenState extends State<InboxScreen> {
     return AppSearchField<DataRequest>(
       controller: _table,
       hint: 'Search $count ${count == 1 ? 'request' : 'requests'}',
-    );
-  }
-
-  Widget _filterButton(BuildContext context) {
-    return FilterButton<DataRequest>(
-      controller: _table,
-      columns: const [
-        DataTableColumn(value: 'label', label: 'Label'),
-        DataTableColumn(value: 'slug', label: 'Slug'),
-        DataTableColumn(value: 'status', label: 'Status'),
-      ],
     );
   }
 

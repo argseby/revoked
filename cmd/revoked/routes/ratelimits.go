@@ -16,11 +16,12 @@ import (
 // the gate passwords. Each is env-overridable for a busy NAT or an exposed host; 0
 // disables that limiter, which is only ever safe outside a public deployment.
 const (
-	envLimitGate      = "RATELIMIT_GATE_ATTEMPTS"
-	envLimitProbe     = "RATELIMIT_PROBE_REQUESTS"
-	envLimitChallenge = "RATELIMIT_CHALLENGE_REQUESTS"
-	envLimitCallback  = "RATELIMIT_CALLBACK_TESTS"
-	envLimitStamp     = "RATELIMIT_STAMP_REQUESTS"
+	envLimitGate       = "RATELIMIT_GATE_ATTEMPTS"
+	envLimitProbe      = "RATELIMIT_PROBE_REQUESTS"
+	envLimitChallenge  = "RATELIMIT_CHALLENGE_REQUESTS"
+	envLimitCallback   = "RATELIMIT_CALLBACK_TESTS"
+	envLimitStamp      = "RATELIMIT_STAMP_REQUESTS"
+	envLimitSignupMail = "RATELIMIT_SIGNUP_EMAILS"
 )
 
 var (
@@ -45,6 +46,11 @@ var (
 	// signed-in caller alone: stamping is CPU work, and switching addresses
 	// must not buy more of it.
 	stampLimiter = util.NewRateLimiter(limitFromEnv(envLimitStamp, 30), time.Minute)
+
+	// signupMailLimiter covers confirmation codes sent to new addresses, keyed
+	// by IP, per hour: each one is an email this server sends to whatever
+	// address it is given. Each address has its own fixed budget on top.
+	signupMailLimiter = util.NewRateLimiter(limitFromEnv(envLimitSignupMail, 10), time.Hour)
 )
 
 // ConfigureRateLimits replaces the public-surface limiters (0 disables one). For the
@@ -61,6 +67,12 @@ func ConfigureRateLimits(gateAttempts, probeRequests, challengeRequests int) {
 // loopback address.
 func ConfigurePasskeyRateLimit(requests int) {
 	passkeyLimiter = util.NewRateLimiter(requests, time.Minute)
+}
+
+// ConfigureSignupMailRateLimit replaces the per-IP confirmation-code limiter
+// (0 disables it). For the test harness only, for the same reason.
+func ConfigureSignupMailRateLimit(perHour int) {
+	signupMailLimiter = util.NewRateLimiter(perHour, time.Hour)
 }
 
 // limitFromEnv reads a non-negative integer limit from the environment,

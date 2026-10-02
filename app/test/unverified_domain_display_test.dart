@@ -100,7 +100,7 @@ void main() {
       'lib/core/widgets/identity_picker.dart',
     ).readAsStringSync();
     final settings = File(
-      'lib/features/settings/view/settings_screen.dart',
+      'lib/features/settings/view/settings_pages.dart',
     ).readAsStringSync();
     expect(picker, contains('TrustClaimText('));
     expect(settings, contains('TrustClaimBadge('));

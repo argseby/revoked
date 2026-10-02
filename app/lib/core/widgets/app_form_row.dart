@@ -28,6 +28,14 @@ class AppFormRow extends StatelessWidget {
   /// If provided (and a value is set), shows a clear button before the chevron.
   final VoidCallback? onClear;
 
+  /// Controls that act on the value in place, after the clear button — a
+  /// switch, or the eye that masks a record's value.
+  final List<Widget> trailing;
+
+  /// A row whose value is changed in place rather than in a sub-sheet drops
+  /// the chevron.
+  final bool showChevron;
+
   final VoidCallback onTap;
 
   const AppFormRow({
@@ -39,6 +47,8 @@ class AppFormRow extends StatelessWidget {
     this.isPlaceholder = false,
     this.isError = false,
     this.onClear,
+    this.trailing = const [],
+    this.showChevron = true,
   });
 
   @override
@@ -69,7 +79,13 @@ class AppFormRow extends StatelessWidget {
               tooltip: 'Clear',
               onTap: onClear,
             ),
-          Icon(AppIcons.chevronRight, size: 20, color: scheme.onSurfaceVariant),
+          for (final t in trailing) ...[AppSpacing.gapXs, t],
+          if (showChevron)
+            Icon(
+              AppIcons.chevronRight,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
         ],
       ),
       onTap: onTap,
