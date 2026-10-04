@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -8,6 +9,7 @@ import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -113,5 +115,59 @@ void main() {
       Pkce.challenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'),
       'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
     );
+  });
+
+  // On Android the page opens inside the app, in a Custom Tab - never in a
+  // web view, where passkeys do not work.
+  group('where the sign-in page opens', () {
+    final page = Uri.parse('https://revoked.example/passkey');
+
+    Future<LaunchMode> openedWith(
+      TargetPlatform platform, {
+      Future<bool> Function(LaunchMode mode)? supports,
+    }) async {
+      LaunchMode? used;
+      await openSignInPage(
+        page,
+        platform: platform,
+        supports: supports ?? (_) async => true,
+        launch: (_, mode) async {
+          used = mode;
+          return true;
+        },
+      );
+      return used!;
+    }
+
+    test('a Custom Tab on Android', () async {
+      expect(
+        await openedWith(TargetPlatform.android),
+        LaunchMode.inAppBrowserView,
+      );
+    });
+
+    test('the browser on Android without Custom Tabs', () async {
+      expect(
+        await openedWith(TargetPlatform.android, supports: (_) async => false),
+        LaunchMode.externalApplication,
+      );
+      expect(
+        await openedWith(
+          TargetPlatform.android,
+          supports: (_) => Future.error(Exception('no plugin')),
+        ),
+        LaunchMode.externalApplication,
+      );
+    });
+
+    test('the browser on the desktop', () async {
+      for (final platform in [
+        TargetPlatform.windows,
+        TargetPlatform.linux,
+        TargetPlatform.macOS,
+      ]) {
+        expect(await openedWith(platform), LaunchMode.externalApplication);
+      }
+    });
   });
 }

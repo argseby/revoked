@@ -62,6 +62,15 @@ tags:
       The vault. Records hold the values that shares resolve at read time.
   - name: Grants
     description: Shares and requests as owned resources.
+  - name: Peers
+    description: |
+      Calls one server makes to another when an answer to a request lives on
+      the responder's own server. The responder's server holds the values and
+      hands the requester's server a grant id and a token; the requester's
+      server reads the grant with that token and is told by signed events when
+      it changes. Every endpoint here is called by a server, not by a person,
+      and every outbound call goes through the client that refuses redirects
+      and private addresses.
   - name: Sign-in
     description: |
       People sign in with a passkey and nothing else; there are no passwords.
@@ -71,6 +80,27 @@ tags:
       its first passkey by signing up (where the operator allows it) or from
       a one-time ticket the operator issues; further passkeys from a ticket a
       signed-in person issues.
+  - name: OpenID Connect
+    description: |
+      Sign in with Revoked. A service signs people in with an ordinary
+      OpenID Connect client library: the authorization code flow with PKCE,
+      with the service identified by its origin and no registration. Each
+      service sees its own subject for a person, so services cannot match
+      their users across each other. Vault entries a service asks for are
+      given as grants it reads with a token, never as copies. Every sign-in
+      is confirmed with a passkey; there is no session at the provider.
+  - name: Attestations
+    description: |
+      Statements one domain signs about an identity, usually one issued by
+      another domain. An attestation is created as an offer; its subject
+      accepts it by proving possession of an identity key, and receives a
+      credential bound to that key. The credential is an SD-JWT VC: each
+      claim is disclosed or withheld by its holder, and a presentation is
+      bound to one verifier and one occasion. The issuer's key is certified
+      by its root key, so the DNS pin anchors every credential, and a status
+      list tells whether a credential still stands without the issuer
+      learning who asked. Which attesters to believe is left to whoever
+      verifies.
   - name: Connections
     description: |
       Tools the owner connected. A tool proposes shares (`revoked://p`) and,
@@ -132,6 +162,16 @@ paths:
                       maxFileSize:
                         type: integer
                         description: Largest accepted upload in bytes; `-1` means no cap.
+                  attestations:
+                    type: object
+                    description: Operator policy on attestations.
+                    properties:
+                      issuing:
+                        type: boolean
+                        description: |
+                          Whether this server issues attestations in its
+                          domain's name (`ALLOW_ATTESTATIONS`). Holding and
+                          verifying credentials do not depend on it.
 
   /api/permissions:
     get:
@@ -267,15 +307,17 @@ paths:
       summary: Issue a handshake nonce
       description: |
         Returns a single-use nonce to sign when a share or request requires a
-        proven identity. The signature is submitted with the resolve or the
-        response; a spent nonce is refused.
+        proven identity, or when an attestation offer is accepted (scope
+        `attestation`, with the offer's token as the slug). The signature is
+        submitted with the resolve, the response or the claim; a spent nonce
+        is refused.
       security: []
       parameters:
         - name: scope
           in: path
           required: true
           description: Which kind of grant the challenge is for.
-          schema: { type: string, enum: [link, request] }
+          schema: { type: string, enum: [link, request, attestation] }
         - name: slug
           in: path
           required: true
@@ -548,6 +590,10 @@ paths:
         account updates the existing response rather than creating a second
         one.
 
+        A responder whose account is on another server answers through that
+        server instead (`POST /api/requests/remote` there), and the answer
+        stays in their vault on it.
+
         An identity is recorded only when a challenge signature verified. A
         claimed `identityId` without one is dropped, not attributed — otherwise
         anyone could submit under someone else's name.
@@ -592,6 +638,271 @@ paths:
         "401": { $ref: "#/components/responses/AppError" }
         "404": { $ref: "#/components/responses/NotFound" }
         "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/requests/remote:
+    post:
+      tags: [Requests]
+      summary: Answer a request on another server
+      description: |
+        Answers a request published by another Revoked server for the person
+        signed in here. The answers become entries in their vault on this
+        server and a link they own, as for a request on this server; the
+        other server receives the link's id and a token to read it with, and
+        reads the values from here whenever it needs them. Revoking the link
+        here revokes the answer there.
+
+        `origin` is the address the request was opened at. This server reads
+        the request's probe there first, checks that the server at that
+        address claims the domain the address belongs to, and checks the
+        answer against the published template before writing anything. If
+        the other server then refuses the answer, everything written for it
+        is taken back and the refusal is passed on with its own code, so a
+        wrong password there reads as `request_password_invalid` here.
+
+        For a request that requires a proven identity, the challenge comes
+        from the other server (`GET /api/challenges/request/{slug}` there,
+        with this server's `identityId`) and is signed on the device as
+        usual. This server passes the identity's public material along; the
+        other server checks it against this server's DNS-pinned root key and
+        asks this server whether it still vouches for it.
+
+        Answering the same request again updates the same link and rotates
+        its token.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [origin, slug]
+              properties:
+                origin:
+                  type: string
+                  description: |
+                    The other server's address, e.g. `https://requests.example`.
+                    Plain `http` is accepted only for a domain listed in
+                    `PEER_OVERRIDES`.
+                slug: { type: string }
+                data:
+                  type: object
+                  description: Answers keyed by template key.
+                  additionalProperties: true
+                mappings:
+                  type: object
+                  description: Answers supplied as references to the responder's own vault entries.
+                  additionalProperties: { type: string }
+                senderName: { type: string }
+                identifier: { type: string }
+                password: { type: string }
+                identityId: { type: string, description: An identity of the signed-in person on this server. }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string }
+      responses:
+        "200":
+          description: The other server accepted the answer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  linkId: { type: string, description: The responder's link on this server. }
+                  responseId: { type: string, description: The answer's id on the other server. }
+                  server: { type: string, description: The other server's domain. }
+                  completed: { type: boolean }
+                  updated: { type: boolean }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: |
+            `remote_unreachable` when the other server could not be reached,
+            `remote_server_mismatch` when it claims a different domain than
+            its address, or the other server's own refusal when it failed.
+
+  /api/public/requests/{slug}/remote:
+    post:
+      tags: [Peers]
+      summary: Accept an answer that lives on another server
+      description: |
+        Called by the responder's server on behalf of a person signed in
+        there. Every gate a local answer passes applies: status, password,
+        identifier, and a proven identity when the request requires one.
+
+        Instead of a session, the call carries the grant: its id on the
+        responder's server and the token to read it with. This server reads
+        it once before accepting, which proves the responder's server is
+        reachable at the domain it claims and recognises the token, and
+        yields the values the template is checked against. The values are
+        passed to the request's callback URL and not stored.
+
+        An identity is accepted only when it was issued by the relaying
+        server: its fingerprint matches its certificate, that server's root
+        key (tied to its domain by the DNS pin) signed the fingerprint, that
+        server reports it active, and it signed this request's challenge.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [server, grant]
+              properties:
+                server: { type: string, description: The responder's server's domain. }
+                grant:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    token: { type: string }
+                password: { type: string }
+                identifier: { type: string }
+                senderName: { type: string }
+                identity:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    name: { type: string }
+                    fingerprint: { type: string }
+                    certificate: { type: string }
+                    parentSignature: { type: string }
+                    domainAtIssue: { type: string }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string }
+      responses:
+        "200":
+          description: The answer was recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  responseId: { type: string }
+                  completed: { type: boolean }
+                  updated: { type: boolean }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: "`remote_unreachable`: the responder's server could not be asked for the grant."
+
+  /api/grants/resolve:
+    post:
+      tags: [Peers]
+      summary: Read grants in bulk
+      description: |
+        Reads up to 100 grants in one call, each with its own token: grants
+        held by another server, and grants a service received at sign-in
+        (`revoked_links`). A grant that does not exist, was not handed out
+        with a token, or is presented with the wrong token answers
+        `not_found`; the three cannot be told apart.
+
+        Each answer carries an `etag`. Sending it back with the next read
+        yields `notModified: true` and no values when nothing changed. Each
+        answer also carries `maxAge`, the number of seconds the reader may
+        keep the values before asking again (`GRANT_MAX_AGE` on this server,
+        60 by default). Values are present only while the grant is `active`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grants]
+              properties:
+                grants:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [id, token]
+                    properties:
+                      id: { type: string }
+                      token: { type: string }
+                      etag: { type: string }
+      responses:
+        "200":
+          description: One answer per grant asked for, in the same order.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        status:
+                          type: string
+                          enum: [active, paused, revoked, expired, not_found]
+                        values:
+                          type: object
+                          additionalProperties: { type: string }
+                        etag: { type: string }
+                        maxAge: { type: integer }
+                        notModified: { type: boolean }
+        "400":
+          description: No grants, or more than 100.
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/grants/events:
+    post:
+      tags: [Peers]
+      summary: Receive grant events
+      description: |
+        Receives a batch of events from a server holding grants this server
+        reads. An event names the grant, what happened (`grant.revoked`,
+        `grant.changed`, `grant.expired`) and the grant's status now. It
+        never carries a value; the receiver reads the grant again if it
+        needs one.
+
+        The body is the exact signed bytes (`payload`, base64url) and the
+        sender's root-key signature over them (`signature`, hex). The batch
+        names its sender and its audience; it is accepted only when the
+        sender's root key, tied to its domain by the DNS pin, verifies the
+        signature, the audience is this server, and the batch is under five
+        minutes old. Events older than the status already recorded are
+        ignored. Each applied event is passed on to the request's callback
+        URL.
+
+        A sender whose key cannot be fetched gets `503` and retries; one
+        whose signature does not verify gets `401` and does not.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payload, signature]
+              properties:
+                payload: { type: string }
+                signature: { type: string }
+      responses:
+        "200":
+          description: The batch verified.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applied: { type: integer, description: Events about grants this server holds. }
+        "401": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503":
+          description: "`peer_key_unavailable`: the sender's key could not be checked. Retry later."
 
   /api/public/invites/{token}:
     get:
@@ -671,6 +982,15 @@ paths:
     get:
       tags: [Grants]
       summary: Responses collected by a request
+      description: |
+        Every answer with its current values. Answers kept on this server are
+        read from the responders' vaults here; answers that live on the
+        responders' own servers (`remote: true`, with `server` naming it) are
+        read from there, in batches per server, and kept for at most the
+        `maxAge` that server allows.
+
+        A remote answer whose server could not be asked carries
+        `unreachable: true` and no values, rather than a stale copy.
       security:
         - Session: []
         - ApiKey: []
@@ -1261,6 +1581,7 @@ paths:
               required: [email]
               properties:
                 email: { type: string }
+                locale: { type: string, enum: [en, de], description: "Language of the mail; anything else sends English." }
       responses:
         "200":
           description: Sent.
@@ -1459,6 +1780,654 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
 
+  /.well-known/openid-configuration:
+    get:
+      tags: [OpenID Connect]
+      summary: Provider metadata
+      description: |
+        The discovery document client libraries start from. The issuer is
+        `https://<domain>`. A server reached at localhost answers as
+        `http://localhost:<port>`, so a development setup with the real
+        `DOMAIN` works; any other Host header falls back to the domain. Only the code flow with PKCE (S256) and public clients
+        (`token_endpoint_auth_methods_supported: none`) are offered; subjects
+        are pairwise.
+      security: []
+      responses:
+        "200":
+          description: The provider's metadata.
+          content:
+            application/json:
+              schema: { type: object }
+
+  /oidc/jwks:
+    get:
+      tags: [OpenID Connect]
+      summary: ID-token signing keys
+      description: |
+        The key ID tokens are signed with (RS256). It is not the root key: it
+        is a separate key the root key certifies. `revoked_certification`
+        carries that certification in the format of every root-key
+        statement — `payload` (base64url of a JSON body naming the domain and
+        the key's RFC 7638 thumbprint as `kid`) and `signature` (hex) — so a
+        client that walks the DNS pin to the root key can tie the signing key
+        to the domain as well. Ordinary clients ignore the member.
+      security: []
+      responses:
+        "200":
+          description: A JSON Web Key Set.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kty: { type: string }
+                        use: { type: string }
+                        alg: { type: string }
+                        kid: { type: string }
+                        "n": { type: string }
+                        e: { type: string }
+                        revoked_certification:
+                          type: object
+                          properties:
+                            payload: { type: string }
+                            signature: { type: string }
+
+  /oidc/authorize:
+    get:
+      tags: [OpenID Connect]
+      summary: Authorization endpoint
+      description: |
+        The page a service sends the browser to. It shows what the service
+        asks for, has the person confirm with their passkey, and lets them
+        choose what to give: each optional scope can be declined, and each
+        requested vault key can be answered with one of their entries or
+        left out.
+
+        `client_id` is the service's origin (`https://game.example`), and
+        `redirect_uri` must lie on that origin. Until both check out, nothing
+        is sent back: the page shows an error instead of redirecting. Every
+        later refusal goes back to `redirect_uri` with `error`, `state` and
+        `iss`.
+
+        `prompt=none` always answers `login_required`, since every sign-in
+        needs the passkey.
+      security: []
+      parameters:
+        - { name: client_id, in: query, required: true, schema: { type: string }, description: The service's origin. }
+        - { name: redirect_uri, in: query, required: true, schema: { type: string } }
+        - { name: response_type, in: query, required: true, schema: { type: string, enum: [code] } }
+        - name: scope
+          in: query
+          required: true
+          schema: { type: string }
+          description: "`openid`, plus any of `profile`, `email`, `revoked_identity`."
+        - { name: code_challenge, in: query, required: true, schema: { type: string } }
+        - { name: code_challenge_method, in: query, required: true, schema: { type: string, enum: [S256] } }
+        - { name: state, in: query, schema: { type: string } }
+        - { name: nonce, in: query, schema: { type: string } }
+        - { name: prompt, in: query, schema: { type: string } }
+        - name: claims
+          in: query
+          schema: { type: string }
+          description: |
+            JSON. `{"userinfo": {"revoked_links": {"values": ["shipping_address"]}}}`
+            asks for vault entries by key, at most 20.
+      responses:
+        "200":
+          description: The sign-in and consent page.
+          content:
+            text/html:
+              schema: { type: string }
+        "302":
+          description: A refusal sent back to the service.
+        "400":
+          description: The service's origin or redirect address did not check out.
+
+  /oidc/authorize/session:
+    post:
+      tags: [OpenID Connect]
+      summary: Join a passkey sign-in to a request (the page)
+      description: |
+        Called by the authorization page once the passkey sign-in finished
+        (`/api/passkeys/login/finish`, with a PKCE challenge the page made).
+        Spends the request and the code, and returns what the consent screen
+        shows: the account, what each scope would reveal, and the person's
+        entries for each key asked for.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [request, code, verifier]
+              properties:
+                request: { type: string, description: The id the page was rendered with. }
+                code: { type: string }
+                verifier: { type: string }
+      responses:
+        "200":
+          description: The consent data and a ticket for the decision.
+          content:
+            application/json:
+              schema: { type: object }
+        "400": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /oidc/authorize/consent:
+    post:
+      tags: [OpenID Connect]
+      summary: Record the decision (the page)
+      description: |
+        Spends the ticket. With `approve: true`, grants `openid` plus the
+        listed scopes that were asked for, and gives the service a grant over
+        the chosen entries — one link per person and service, updated on
+        every sign-in that shares something, with a fresh token each time.
+        The answer is the address to send the browser to: with a `code`, or
+        with `error=access_denied`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket, approve]
+              properties:
+                ticket: { type: string }
+                approve: { type: boolean }
+                scopes:
+                  type: array
+                  items: { type: string }
+                links:
+                  type: object
+                  description: Requested key → the person's entry id.
+                  additionalProperties: { type: string }
+      responses:
+        "200":
+          description: Where to send the browser.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  redirect: { type: string }
+        "400":
+          description: "`oidc_request_invalid`, or `oidc_link_record_invalid` for an entry that is not the person's."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+
+  /oidc/token:
+    post:
+      tags: [OpenID Connect]
+      summary: Token endpoint
+      description: |
+        Redeems an authorization code. The code is spent the moment it is
+        presented; `client_id`, `redirect_uri` and the PKCE verifier must
+        match the authorization request. There is no client secret and no
+        refresh token: the ID token proves a sign-in that just happened, and
+        the service keeps its own session after that.
+
+        The ID token (RS256, 10 minutes) carries `sub`, `aud`, `iss`, `iat`,
+        `exp`, `auth_time`, `nonce`, and the claims of the granted scopes:
+        `name`, `email` and `email_verified`, and `revoked_identity` (the
+        fingerprint of the person's primary identity).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, code, client_id, redirect_uri, code_verifier]
+              properties:
+                grant_type: { type: string, enum: [authorization_code] }
+                code: { type: string }
+                client_id: { type: string }
+                redirect_uri: { type: string }
+                code_verifier: { type: string }
+      responses:
+        "200":
+          description: The tokens.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  token_type: { type: string }
+                  expires_in: { type: integer }
+                  id_token: { type: string }
+                  scope: { type: string }
+        "400":
+          description: "An OAuth error: `invalid_grant`, `unsupported_grant_type` or `invalid_request`."
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /oidc/userinfo:
+    get:
+      tags: [OpenID Connect]
+      summary: Userinfo endpoint
+      description: |
+        The claims of the granted scopes, and `revoked_links` when the person
+        shared entries:
+
+        ```json
+        { "revoked_links": { "endpoint": "https://<domain>/api/grants/resolve",
+            "grants": [ { "id": "…", "token": "…", "keys": ["shipping_address"] } ] } }
+        ```
+
+        The service reads the values with `POST /api/grants/resolve`, as
+        often as it needs them, for as long as the person does not revoke the
+        grant. The grant token is delivered here only, never in the ID token.
+      security:
+        - OIDCAccessToken: []
+      responses:
+        "200":
+          description: The claims.
+          content:
+            application/json:
+              schema: { type: object }
+        "401":
+          description: "`invalid_token`."
+        "429": { $ref: "#/components/responses/RateLimited" }
+    post:
+      tags: [OpenID Connect]
+      summary: Userinfo endpoint (POST)
+      description: The same as the GET form.
+      security:
+        - OIDCAccessToken: []
+      responses:
+        "200":
+          description: The claims.
+          content:
+            application/json:
+              schema: { type: object }
+        "401":
+          description: "`invalid_token`."
+
+  /.well-known/jwt-vc-issuer:
+    get:
+      tags: [Attestations]
+      summary: Credential issuer metadata
+      description: |
+        The key this server signs credentials and status lists with, in the
+        form SD-JWT VC defines for issuer metadata. `issuer` is
+        `https://<domain>`, the value every credential issued here carries
+        as `iss`.
+
+        The key is ECDSA P-256 (ES256). It is not the root key: it is a
+        separate key the root key certifies. `revoked_certification` carries
+        that certification in the format of every root-key statement —
+        `payload` (base64url of a JSON body with `type: credential-key-v1`,
+        the domain, and the key's RFC 7638 thumbprint as `kid`) and
+        `signature` (hex). A verifier that walked the DNS pin to the root
+        key checks the certification and so ties every credential to the
+        domain. A key served here without a certification under the pinned
+        root key proves nothing.
+      security: []
+      responses:
+        "200":
+          description: The issuer identifier and its key set.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  issuer: { type: string, description: "`https://<domain>`." }
+                  jwks:
+                    type: object
+                    properties:
+                      keys:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            kty: { type: string }
+                            crv: { type: string }
+                            x: { type: string }
+                            "y": { type: string }
+                            use: { type: string }
+                            alg: { type: string }
+                            kid: { type: string }
+                            revoked_certification:
+                              type: object
+                              properties:
+                                payload: { type: string }
+                                signature: { type: string }
+
+  /api/attestations/status:
+    get:
+      tags: [Attestations]
+      summary: Status list of the credentials issued here
+      description: |
+        The revocation state of every credential this server issued, as one
+        Token Status List: a JWT of type `statuslist+jwt`, signed with the
+        credential key, whose `status_list.lst` is a zlib-compressed bit
+        array, one bit per credential. A set bit means revoked. Each
+        credential names its position in its `status` claim.
+
+        A verifier reads the whole list and looks its credential up in it,
+        so this server does not learn which credential was checked or by
+        whom. The list is at least twice as long as the number of
+        credentials issued, and positions are assigned at random.
+
+        A revocation is never undone, and it outlives the attestation: a
+        deleted attestation, or one whose workspace was deleted, stays
+        revoked. A position the list does not reach says nothing about its
+        credential, which is not the same as revoked.
+      security: []
+      responses:
+        "200":
+          description: |
+            The status list token, as `application/statuslist+jwt`. It may be
+            kept for `ttl` seconds (five minutes), which is the revocation
+            latency in the usual case, and is not valid past `exp`.
+          content:
+            application/statuslist+jwt:
+              schema: { type: string }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/attestations/offers/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        description: |
+          The offer's one-time token, returned once in the
+          `X-Attestation-Token` header when the attestation was created.
+        schema: { type: string }
+    get:
+      tags: [Attestations]
+      summary: What an offer states
+      description: |
+        Shows an offer to whoever holds its token, before anything is
+        decided: the attesting server, the workspace, the type, and every
+        claim with its value, so the subject sees what would be stated about
+        them. Once the offer was accepted the claims are left out.
+
+        `server` names the domain and root key fingerprint to walk the DNS
+        chain against.
+      security: []
+      responses:
+        "200":
+          description: The offer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type: { type: string }
+                  label: { type: string }
+                  status: { type: string, enum: [offered, active] }
+                  claims:
+                    type: object
+                    description: Present while the offer is open.
+                    additionalProperties: true
+                  expiresAt: { type: string, description: When the credential stops being valid; empty for none. }
+                  offerExpiresAt: { type: string, description: Until when the offer can be accepted. }
+                  subjectFingerprint:
+                    type: string
+                    description: Set when the offer was made for one identity, or accepted by one.
+                  server: { $ref: "#/components/schemas/ServerClaim" }
+                  workspace:
+                    type: object
+                    properties:
+                      name: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: |
+            `attestation_offer_expired` or `attestation_offer_revoked`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/attestations/offers/{token}/claim:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Attestations]
+      summary: Accept an offer and receive the credential
+      description: |
+        Issues the credential to an identity that proves its key. The caller
+        is usually the subject's own server, relaying for the app
+        (`POST /api/credentials/claim` there); nothing but the token and the
+        proof is needed.
+
+        The challenge comes from `GET /api/challenges/attestation/{token}`
+        with the identity's id, and is signed on the device with the
+        identity key. This server then checks the identity with the server
+        that issued it: the certificate is the one fingerprinted, that
+        server's DNS-pinned root key signed the fingerprint, and it still
+        vouches for the identity. An identity issued here is checked against
+        this server's own records.
+
+        The credential is an SD-JWT VC signed with the credential key. It
+        names the issuer (`iss`), the type (`vct`), the holder's key
+        (`cnf.jwk`), the identity it is about (`revoked_holder`: fingerprint
+        and domain) and its position in the status list (`status`). Every
+        claim of the attestation is selectively disclosable.
+
+        An offer is accepted once. The identity that accepted it may claim
+        it again until the offer's date and receives the same statement
+        again, so a lost answer costs nothing; any other identity is refused
+        with `attestation_offer_claimed`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identity, challengeNonce, challengeSignature]
+              properties:
+                identity:
+                  type: object
+                  description: The public half of the subject's identity.
+                  properties:
+                    id: { type: string, description: The identity's id on its own server; the id the challenge was issued for. }
+                    name: { type: string }
+                    fingerprint: { type: string }
+                    certificate: { type: string }
+                    parentSignature: { type: string }
+                    domainAtIssue: { type: string }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string }
+      responses:
+        "200":
+          description: The credential, with every disclosure.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credential: { type: string, description: "`<issuer JWT>~<disclosure>~…~`" }
+                  issuer: { type: string, description: The attesting domain. }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401":
+          description: |
+            `challenge_required`, `challenge_invalid` or `signature_invalid`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: |
+            `remote_identity_invalid` when the identity could not be verified
+            with the server that issued it, `identity_revoked` when that
+            server withdrew it, `attestation_identity_mismatch` when the
+            offer was made for another identity.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: |
+            `attestation_offer_claimed`, `attestation_offer_expired` or
+            `attestation_offer_revoked`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/attestations/verify:
+    post:
+      tags: [Attestations]
+      summary: Verify a presented credential
+      description: |
+        Checks a presentation along both chains and answers with a verdict.
+
+        The attester's chain: the issuer's domain is read from `iss`, its
+        root key is tied to the domain through the `_revoked` TXT record,
+        the credential key is checked against the root key's certification,
+        the credential's signature against that key, and its position in the
+        issuer's status list.
+
+        The holder's chain: the key binding is checked against the key the
+        credential names, for the `audience` and `nonce` given here, and the
+        server that issued the holder's identity is asked whether that
+        identity still stands.
+
+        The verdict states who attested and what was disclosed. It does not
+        decide whether the attester deserves to be believed: which domains
+        are accepted for which statement is the caller's policy.
+
+        Without `audience` and `nonce` no key binding is checked, and the
+        verdict is never `verified`: a credential without a key binding
+        could be presented by anyone holding a copy. A service chooses a
+        fresh nonce for every request and passes its own origin as audience.
+
+        Always answers `200`; a presentation that cannot be read is the
+        verdict `invalid`, and a check that could not be completed is
+        `unverified`, never an error to ignore.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [presentation]
+              properties:
+                presentation:
+                  type: string
+                  description: "`<issuer JWT>~<disclosure>~…~<key binding JWT>`"
+                audience: { type: string, description: The verifier as the presentation names it, e.g. its origin. }
+                nonce: { type: string, description: The value the verifier chose for this occasion. }
+      responses:
+        "200":
+          description: The verdict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AttestationVerdict" }
+        "400": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/credentials/claim:
+    post:
+      tags: [Attestations]
+      summary: Accept an offer and keep the credential
+      description: |
+        Accepts an attestation offer for the person signed in here and keeps
+        the credential for them. This is what the app calls; the offer may
+        live on this server or on any other.
+
+        The app obtains the challenge from the offer's server and signs it on
+        the device. This server adds the identity's public half, calls the
+        offer's server, and checks what comes back before keeping it: the
+        server that was asked signed it, with a key tied to its domain, and
+        it is bound to the key and the identity that asked. A credential
+        that fails this is not kept, and `credential_invalid` is returned;
+        the offer can be accepted again.
+
+        `origin` is the address of the offer's server and is left out for an
+        offer on this server. Accepting an offer again replaces the kept
+        copy.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, identityId, challengeNonce, challengeSignature]
+              properties:
+                origin:
+                  type: string
+                  description: |
+                    The other server's address, e.g. `https://verify.example`.
+                    Plain `http` is accepted only for a domain listed in
+                    `PEER_OVERRIDES`.
+                token: { type: string }
+                identityId: { type: string, description: An identity of the signed-in person on this server. }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string }
+      responses:
+        "200":
+          description: The kept credential, as its `credentials` record.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  issuer: { type: string, description: The attesting domain. }
+                  type: { type: string }
+                  identity: { type: string }
+                  credential: { type: string, description: The SD-JWT with every disclosure. }
+                  claims: { type: object, additionalProperties: true }
+                  issuedAt: { type: string }
+                  expiresAt: { type: string }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: |
+            `remote_unreachable` when the other server could not be reached,
+            `credential_invalid` when what it returned did not verify.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+
+  /api/credentials/{id}/status:
+    get:
+      tags: [Attestations]
+      summary: Whether a held credential still stands
+      description: |
+        The holder's view of a credential they keep: the same checks as
+        `POST /api/attestations/verify`, without a key binding, since
+        nothing is being presented. It tells whether the attester's key
+        still verifies, whether the credential was revoked or has expired,
+        and whether the identity it is bound to still stands.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The verdict. `keyBound` is always false here.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AttestationVerdict" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /api/collections/{collection}/records:
     parameters:
       - $ref: "#/components/parameters/Collection"
@@ -1640,6 +2609,10 @@ components:
       in: header
       name: X-Revoked-Connection
       description: A connected tool's token, from `/api/connect/token`.
+    OIDCAccessToken:
+      type: http
+      scheme: bearer
+      description: An access token from `/oidc/token`, valid for one hour.
 
   parameters:
     Slug:
@@ -1673,6 +2646,8 @@ components:
           - bookmarkGroups
           - passkeys
           - reminders
+          - attestations
+          - credentials
 
   responses:
     NotFound:
@@ -1694,6 +2669,48 @@ components:
           schema: { $ref: "#/components/schemas/AppError" }
 
   schemas:
+    AttestationVerdict:
+      type: object
+      description: |
+        The result of checking a credential. `state` is the answer;
+        the other fields say what it rests on.
+
+        | `state` | Meaning |
+        |---|---|
+        | `verified` | Both chains hold and the holder presented it. |
+        | `unverified` | A check could not be completed: the issuer or the holder's server was unreachable, the status list does not reach the credential, or no key binding was checked. |
+        | `dnsMissing` | The issuer publishes no `_revoked` TXT record. |
+        | `spoofed` | The credential is not signed by a key the issuer's DNS-pinned root key certified. |
+        | `revoked` | The credential is genuine, and the issuer revoked it or the holder's identity was withdrawn. |
+        | `expired` | The credential is genuine and past its own validity. |
+        | `invalid` | Not a readable credential, or the key binding does not verify. |
+      properties:
+        state:
+          type: string
+          enum: [verified, unverified, dnsMissing, spoofed, revoked, expired, invalid]
+        reason: { type: string, description: The first reason the credential was held back, or what was verified. }
+        issuer: { type: string, description: The attesting domain. }
+        issuerState: { type: string, description: How the issuer's key was tied to its domain. }
+        type: { type: string, description: The credential's `vct`. }
+        claims:
+          type: object
+          description: The disclosed claims. Left out unless the issuer's signature verified.
+          additionalProperties: true
+        withheld: { type: integer, description: How many claims the credential holds that were not disclosed. }
+        status: { type: string, enum: [valid, revoked, unknown], description: What the issuer's status list says. }
+        issuedAt: { type: integer, description: Unix seconds. }
+        expiresAt: { type: integer, description: Unix seconds; absent when the credential does not expire. }
+        holder:
+          type: object
+          description: The identity the credential was issued to.
+          properties:
+            fingerprint: { type: string }
+            domain: { type: string }
+            state: { type: string, description: "verified, revoked, dnsMissing, spoofed, or unverified when its server could not be asked." }
+            status: { type: string, description: "That server's own word: active, revoked or unknown." }
+        keyBound:
+          type: boolean
+          description: Whether the presentation proved possession of the holder's key for the audience and nonce given.
     AppError:
       type: object
       description: |

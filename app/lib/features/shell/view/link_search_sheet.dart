@@ -66,7 +66,14 @@ class LinkSearchSheet extends StatelessWidget {
 
   /// Parses the current input into the in-app location plus the link's type
   /// and slug, or null when it isn't a recognized `revoked://` link.
-  ({String location, bool isRequest, String slug, String? origin})? _resolve() {
+  ({
+    String location,
+    bool isRequest,
+    bool isOffer,
+    String slug,
+    String? origin,
+  })?
+  _resolve() {
     final path = _store.stripScheme(_controller.text.trim());
     if (path.isEmpty) return null;
     final uri = Uri.tryParse('${DeepLinks.scheme}://$path');
@@ -76,6 +83,7 @@ class LinkSearchSheet extends StatelessWidget {
     return (
       location: DeepLinks.locationFor(uri)!,
       isRequest: link.kind == 'r',
+      isOffer: link.kind == 'a',
       slug: link.slug,
       origin: link.origin,
     );
@@ -129,6 +137,21 @@ class LinkSearchSheet extends StatelessWidget {
           claimedDomain: domain,
           identityFingerprint: fingerprint,
           parentSignatureHex: parentSig,
+        );
+      } else if (resolved.isOffer) {
+        // An attestation offer names the server that would attest. Whether
+        // that server is the domain it claims is the whole question.
+        final probe = await Stores.api.getFromOrigin(
+          resolved.origin,
+          '/api/attestations/offers/${Uri.encodeComponent(resolved.slug)}',
+        );
+        final server = probe is Map<String, dynamic> ? probe['server'] : null;
+        verdict = await Stores.domainVerification.verify(
+          claimedDomain: server is Map<String, dynamic>
+              ? (server['domain'] as String? ?? '')
+              : '',
+          identityFingerprint: '',
+          parentSignatureHex: '',
         );
       } else {
         // A successful probe proves the share is live (not revoked / expired /

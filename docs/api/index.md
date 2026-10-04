@@ -12,6 +12,9 @@ is no shared base URL: substitute your own host throughout.
 | Read or write vault data | [Records](reference/records.md) |
 | Consume a share someone sent you | [Shares](reference/shares.md) |
 | Collect data from other people | [Requests](reference/requests.md), then [Callbacks](callbacks.md) |
+| Build a tool that people share their data with | [Building a tool](tools.md) |
+| Let people sign in to your service with their Revoked account | [Sign in with Revoked](sign-in.md) |
+| Check something a third party confirmed about a person, or confirm such things yourself | [Attestations](attestations.md) |
 | Verify who a share or request came from | [Trust chain](trust-chain.md) |
 | Generate a client | [`openapi.yaml`](openapi.yaml) |
 

@@ -26,6 +26,12 @@ file needed there.
 | `ALLOW_SIGNUPS` | `false` | Whether anyone may create their own account over HTTP. Off by default: a fresh server should be one only its operator can add people to. See [Accounts](accounts.md) for how to create users while it is off. |
 | `SIGNUP_VERIFY_EMAIL` | `false` | Whether a new account must first confirm its address with a 6-digit code mailed to it. Without it, anyone can register any address. Needs the [mail server](#mail) below — the server refuses to boot with this on and no `SMTP_HOST`/`SMTP_SENDER_ADDRESS`. Accounts made by the operator are not affected. |
 
+## Attestations
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ALLOW_ATTESTATIONS` | `false` | Whether this server issues [attestations](../guide/attestations.md): statements about other people's identities, signed in the name of `DOMAIN`. Off by default, for the reason signups are: whoever trusts the domain trusts everything issued under it, and on a server several people share that is the operator's decision. With it on, a workspace member still needs the *Issue attestations* permission. Holding and verifying credentials work either way. |
+
 ## Mail
 
 The outbound mail server, used for signup confirmation codes. These override
@@ -57,6 +63,13 @@ create the superuser interactively and leave these blank.
 | Variable | Default | Meaning |
 |---|---|---|
 | `ALLOW_PRIVATE_CALLBACKS` | `false` | Lets user-supplied [callback URLs](../api/callbacks.md) resolve to loopback and private ranges. On a public host that is a server-side request forgery primitive — enable it only on a LAN-only or development install. Link-local (cloud metadata), multicast and `0.0.0.0` stay blocked regardless. |
+| `PEER_OVERRIDES` | empty | Other Revoked servers reached at a fixed address instead of `https://<domain>`, as `a.example=http://127.0.0.1:8091,b.example=http://127.0.0.1:8092`. A listed server's root key is taken from that address without the DNS pin, so the list is the operator vouching for it. Meant for two development instances or a closed network; empty on a public host. Loopback and private addresses additionally need `ALLOW_PRIVATE_CALLBACKS`. |
+
+## Grants between servers
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `GRANT_MAX_AGE` | `60` | Seconds another server may keep a value it read from one of this server's grants before asking again. `0` asks it to keep nothing. A revocation that the other server does not hear about as an event takes effect there within this window. |
 
 ## Files
 
@@ -85,6 +98,7 @@ Public-surface budgets, read once at startup — a change needs a restart.
 | `RATELIMIT_CHALLENGE_REQUESTS` | `60` | Handshake nonce issuance, per IP, per minute. |
 | `RATELIMIT_PASSKEY_REQUESTS` | `60` | Passkey sign-in and registration steps, per IP, per minute. A sign-in is three. |
 | `RATELIMIT_SIGNUP_EMAILS` | `10` | Signup confirmation codes mailed, per IP, per hour. Each address is also limited to one code a minute and five an hour, whoever asks. |
+| `RATELIMIT_GRANT_REQUESTS` | `300` | Calls between servers — grant reads, grant events and accepted answers — and calls to the OpenID Connect token and userinfo endpoints, per IP, per minute; and answers to requests on other servers, per account. A read carries up to 100 grants. |
 
 These budgets are per-IP, which is why the
 [trusted-proxy header](reverse-proxy.md#let-rate-limits-see-real-ips) matters:

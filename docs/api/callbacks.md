@@ -8,6 +8,9 @@ importer) without anything polling the API.
 Callbacks exist on **requests only**. Shares have no callback; their data is
 pulled, not pushed.
 
+Besides submissions, a callback receives [grant events](#grant-events): a
+note that an answer was revoked, changed or expired, without its values.
+
 ## Configuring
 
 Set the callback when creating or editing a request (the `callbackUrl` field,
@@ -32,9 +35,10 @@ with the reason in the message.
 - Delivered from a background goroutine; the responder never waits on it.
 - Bounded at **10 seconds** total. Redirects are **not followed** — a redirect
   is treated as delivery to a different host and refused.
-- **At-most-once, no retries.** Any transport error, timeout, or a response
-  status ≥ 400 marks the delivery failed. Answer with a 2xx quickly and do
-  your processing after responding.
+- **At-most-once, no retries** for submissions. Any transport error,
+  timeout, or a response status ≥ 400 marks the delivery failed. Answer with
+  a 2xx quickly and do your processing after responding. Grant events are
+  retried; see below.
 - Fires for **new and updated** responses alike. The payload does not carry a
   new-vs-update flag; if the distinction matters, key on `responseId` — an
   update re-delivers the same id.
@@ -74,13 +78,65 @@ resolves at read time — the whole point is that the value is *not* copied
 around. Those fields are absent from the callback payload; fetch the response
 through the API (or the app) to see grants resolved to their current values.
 
+### Answers kept on another server
+
+A responder whose account is on another Revoked server answers through that
+server, and the answer stays in their vault there. The submission callback
+then carries one more field, `server`, naming the responder's server, and
+`data` holds the values as this server read them from there at the moment
+of submission. `identity` is the identity's fingerprint rather than an id,
+since the identity is registered on the other server.
+
+## Grant events
+
+An answer is a living grant, so it can change after it was submitted: the
+responder edits the entry behind it, pauses or revokes it, deletes the
+entry, or the grant reaches its expiry. Each of these is delivered to the
+callback as an event:
+
+```json
+{
+  "event": "grant.revoked",
+  "requestId": "lxt7nlkvfqairg5",
+  "slug": "vendor-onboarding",
+  "responseId": "9k2m4pqx81zvwy3",
+  "linkId": "9k2m4pqx81zvwy3",
+  "status": "revoked",
+  "at": "2026-10-02T09:14:03Z"
+}
+```
+
+| `event` | Sent when |
+|---|---|
+| `grant.changed` | An entry the answer resolves changed value, directly or through an alias, or the answer was paused, resumed, or answered again with different entries. `status` says which state it is in now. |
+| `grant.revoked` | The responder revoked the answer, deleted it, or deleted the last entry behind it. |
+| `grant.expired` | The answer reached its expiry or view cap. |
+
+An event never carries a value. When the current value matters, it is read
+through `GET /api/requests/{id}/links`, which resolves every answer at the
+moment of the call. For an answer kept on another server, the event also
+carries `server`, and it reaches this server first as a signed event from
+that server (`POST /api/grants/events`), which is checked against that
+server's DNS-pinned root key before anything is passed on.
+
+Unlike submissions, events are **retried**: a transport error, a timeout,
+`408`, `429` or a `5xx` is tried again after 30 seconds, then after doubling
+intervals up to six hours, for about a day and a half in total. Any other
+`4xx` ends the delivery at once. An event can therefore arrive more than
+once, and late; `responseId` together with `at` identifies it, and an event
+older than one already processed for the same `responseId` can be ignored.
+
+A payload with `event` set is an event; a payload without it is a
+submission.
+
 ## Failures
 
 A failed delivery emits an in-app notification (`callback_failed`) to the
 request's owner, naming the request and the reason — a blocked URL, a timeout,
-or the status your endpoint returned. There is no automatic retry; fix the
-endpoint and ask the responder to re-submit, or read the response through the
-API.
+or the status your endpoint returned. A submission is not retried; after the
+endpoint is fixed, the responder can re-submit, or the response can be read
+through the API. A grant event raises the notification only once its retries
+are used up.
 
 ## Security
 

@@ -333,6 +333,28 @@ class ApiClient {
     );
   }
 
+  /// POST to a service's own address — not a Revoked server, and never with
+  /// the session token: the address came out of a link, and the token is a
+  /// credential for this server alone. What the service answers is returned
+  /// when it is JSON, and ignored otherwise.
+  Future<dynamic> postToService(Uri uri, Map<String, dynamic> body) async {
+    final response = await _send(
+      _httpClient.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ),
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      try {
+        return response.body.isEmpty ? null : jsonDecode(response.body);
+      } catch (_) {
+        return null;
+      }
+    }
+    return _handleResponse(response, foreign: true);
+  }
+
   Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
     final uri = Uri.parse(
       '$baseUrl$path',

@@ -35,6 +35,14 @@ The check runs against public DNS-over-HTTPS resolvers, so it does not trust
 the network you happen to be on. A check that cannot complete counts as
 unverified — the gate fails safe instead of silently disengaging.
 
+## What others confirm about an identity
+
+An identity says where something came from. It says nothing else about the
+person behind it. Facts about that person — an age, a membership, a role —
+are confirmed by other parties as [attestations](attestations.md), each
+bound to one identity's key. Revoking an identity ends the use of every
+attestation bound to it.
+
 ## When you leave a workspace
 
 Being removed from a workspace revokes the identities you used in it, in the

@@ -5,6 +5,7 @@ import 'package:basic_utils/basic_utils.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pointycastle/export.dart' as pc;
 import 'package:revoked_app/core/services/secure_storage.dart';
+import 'package:revoked_app/core/utils/sd_jwt.dart';
 
 /// Owns all ECDSA (secp256r1) key generation, signing, and X.509 work
 /// performed inside the client.
@@ -92,6 +93,34 @@ class CryptoService {
       algorithmName: ecdsaAlgorithm,
     );
     return CryptoUtils.ecSignatureToBase64(sig);
+  }
+
+  /// Presents a credential bound to [identityId]: only the claims named in
+  /// [disclose] travel, and a key binding signed with the identity's key —
+  /// which is here and nowhere else — ties them to this verifier and this
+  /// occasion. That signature is what tells the holder from someone who
+  /// merely has a copy of the credential.
+  Future<String> presentCredential({
+    required String identityId,
+    required String credential,
+    required Iterable<String> disclose,
+    required String audience,
+    required String nonce,
+  }) async {
+    final pem = await loadPrivateKey(identityId);
+    if (pem == null || pem.isEmpty) {
+      throw StateError(
+        'The key of the identity this credential is bound to is not on this '
+        'device, so it cannot be presented from here.',
+      );
+    }
+    return presentSdJwt(
+      credential: credential,
+      disclose: disclose,
+      audience: audience,
+      nonce: nonce,
+      privateKeyPem: pem,
+    );
   }
 
   /// Verifies an ECDSA / SHA-256 signature.

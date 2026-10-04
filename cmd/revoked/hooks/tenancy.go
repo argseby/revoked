@@ -23,6 +23,8 @@ func scopeForCollection(name string) string {
 		return util.ScopeIdentityCreate
 	case util.Coll.Requests:
 		return util.ScopeRequestCreate
+	case util.Coll.Attestations:
+		return util.ScopeAttestationCreate
 	}
 	return ""
 }
@@ -45,6 +47,8 @@ func readScopeForCollection(name string) string {
 		return util.ScopeRequestRead
 	case util.Coll.Notifications:
 		return util.ScopeNotificationRead
+	case util.Coll.Attestations:
+		return util.ScopeAttestationRead
 	}
 	return ""
 }
@@ -90,6 +94,7 @@ func RegisterTenancyHooks(app core.App) {
 		util.Coll.Templates,
 		util.Coll.Identities,
 		util.Coll.Requests,
+		util.Coll.Attestations,
 	}
 
 	// Identity ownership is checked on update too: a record can be created

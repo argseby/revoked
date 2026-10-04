@@ -10,6 +10,7 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/invite_trust_summary.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
@@ -45,6 +46,8 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
 
   Future<void> _accept() async {
     if (!Stores.auth.isAuthenticated) {
+      // Comes back here after signing in or up, instead of to the vault.
+      ResumeLocation.hold(GoRouterState.of(context).uri.toString());
       context.go(AppRoutes.login);
       return;
     }

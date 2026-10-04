@@ -1,25 +1,12 @@
 package routes
 
 import (
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/hex"
-	"encoding/json"
-	"encoding/pem"
-	"errors"
-	"fmt"
-	"io"
-	"net"
 	"net/http"
-	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
 	"revoked/cmd/revoked/server"
-	"revoked/util"
+	"revoked/cmd/revoked/services"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -38,9 +25,6 @@ const (
 	// "could not verify".
 	trustRevoked = "revoked"
 )
-
-// txtPinPattern matches the pinned root fingerprint in a `_revoked.<domain>` TXT record.
-var txtPinPattern = regexp.MustCompile(`(?i)v=revoked1;\s*k=sha256/([0-9a-f]{64})`)
 
 type verifyPeerRequest struct {
 	Domain              string `json:"domain"`
@@ -96,7 +80,7 @@ func VerifyPeerRoute(app core.App) {
 
 			now := time.Now()
 
-			pin, err := lookupRevokedTXTPin(domain)
+			pin, err := services.LookupRevokedTXTPin(domain)
 			if err != nil {
 				return re.JSON(http.StatusOK, verifyPeerResponse{
 					State:  trustDNSMissing,
@@ -113,7 +97,7 @@ func VerifyPeerRoute(app core.App) {
 				})
 			}
 
-			assertion, err := fetchServerAssertion(domain)
+			assertion, err := services.FetchServerAssertion(domain)
 			if err != nil {
 				return re.JSON(http.StatusOK, verifyPeerResponse{
 					State:  trustUnverified,
@@ -149,10 +133,9 @@ func VerifyPeerRoute(app core.App) {
 			}
 
 			if req.IdentityFingerprint != "" && req.ParentSignature != "" {
-				ok, verr := verifyParentSignature(
+				if verr := server.VerifyParentSignature(
 					assertion.Body.PublicKey, req.IdentityFingerprint, req.ParentSignature,
-				)
-				if verr != nil || !ok {
+				); verr != nil {
 					return re.JSON(http.StatusOK, verifyPeerResponse{
 						State:  trustSpoofed,
 						Domain: domain,
@@ -203,7 +186,7 @@ func checkPeerIdentityStatus(domain, rootPubPEM, fingerprint string, now time.Ti
 			"DNS-verified — the root key on " + domain + " matches the published TXT record and signed this identity."
 	}
 
-	assertion, err := fetchPeerIdentityStatus(domain, fingerprint)
+	assertion, err := services.FetchPeerIdentityStatus(domain, fingerprint)
 	if err != nil {
 		return trustUnverified, "",
 			"The identity is signed by " + domain + ", but that server could not be " +
@@ -230,108 +213,4 @@ func checkPeerIdentityStatus(domain, rootPubPEM, fingerprint string, now time.Ti
 			domain + " has no record of this identity. The signature verifies, so it " +
 				"was issued there once, but the server does not currently claim it."
 	}
-}
-
-// fetchPeerIdentityStatus retrieves a peer's signed status answer.
-//
-// Through the SSRF-safe client: the domain arrives in the request body, so this
-// is a server-side fetch of a caller-chosen URL. Validating the hostname alone
-// loses to DNS rebinding, and the answer is signed anyway — the transport only
-// has to be prevented from reaching somewhere it shouldn't.
-func fetchPeerIdentityStatus(domain, fingerprint string) (server.IdentityStatusAssertion, error) {
-	client := util.NewSafeCallbackClient(8 * time.Second)
-	resp, err := client.Get("https://" + domain + "/api/identities/" + url.PathEscape(fingerprint) + "/status")
-	if err != nil {
-		return server.IdentityStatusAssertion{}, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return server.IdentityStatusAssertion{}, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return server.IdentityStatusAssertion{}, err
-	}
-	var assertion server.IdentityStatusAssertion
-	if err := json.Unmarshal(body, &assertion); err != nil {
-		return server.IdentityStatusAssertion{}, err
-	}
-	return assertion, nil
-}
-
-// lookupRevokedTXTPin resolves the pinned root fingerprint from the domain's _revoked
-// TXT record. A genuinely absent record yields ("", nil); an error means the lookup
-// itself failed.
-func lookupRevokedTXTPin(domain string) (string, error) {
-	host := server.TXTPrefix + "." + domain
-	records, err := net.LookupTXT(host)
-	if err != nil {
-		var dnsErr *net.DNSError
-		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
-			return "", nil
-		}
-		return "", err
-	}
-	for _, rec := range records {
-		if m := txtPinPattern.FindStringSubmatch(rec); m != nil {
-			return strings.ToLower(m[1]), nil
-		}
-	}
-	return "", nil
-}
-
-// fetchServerAssertion fetches and decodes the peer's /api/server assertion.
-func fetchServerAssertion(domain string) (server.Assertion, error) {
-	// The domain is caller-supplied, so this is a server-side fetch of an
-	// attacker-chosen URL: through the SSRF-safe client, exactly like
-	// fetchPeerIdentityStatus. A bare client would follow redirects and reach
-	// loopback / link-local / private ranges, and validating the hostname alone
-	// loses to DNS rebinding.
-	client := util.NewSafeCallbackClient(8 * time.Second)
-	resp, err := client.Get("https://" + domain + "/api/server")
-	if err != nil {
-		return server.Assertion{}, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return server.Assertion{}, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return server.Assertion{}, err
-	}
-	var payload struct {
-		Assertion server.Assertion `json:"assertion"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return server.Assertion{}, err
-	}
-	return payload.Assertion, nil
-}
-
-// verifyParentSignature checks parentSigHex as an RSA-SHA256 signature over
-// identityFingerprint under the root key in rootPubPEM, mirroring the client-side
-// check in DomainVerificationService.verify.
-func verifyParentSignature(rootPubPEM, identityFingerprint, parentSigHex string) (bool, error) {
-	block, _ := pem.Decode([]byte(rootPubPEM))
-	if block == nil {
-		return false, errors.New("root public key is not PEM")
-	}
-	pubAny, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return false, err
-	}
-	pub, ok := pubAny.(*rsa.PublicKey)
-	if !ok {
-		return false, errors.New("root public key is not RSA")
-	}
-	sig, err := hex.DecodeString(parentSigHex)
-	if err != nil {
-		return false, err
-	}
-	digest := sha256.Sum256([]byte(identityFingerprint))
-	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sig); err != nil {
-		return false, err
-	}
-	return true, nil
 }

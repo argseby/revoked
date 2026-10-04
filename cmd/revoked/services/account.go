@@ -40,6 +40,10 @@ var accountOwned = []string{
 var workspaceContent = []string{
 	util.Coll.Sections,
 	util.Coll.Records,
+	// What a shared workspace attested stays attested when one issuer leaves:
+	// the statements were the workspace's, and someone has to be able to
+	// revoke them.
+	util.Coll.Attestations,
 }
 
 // PurgeAccount deletes everything the account can still be reached through and

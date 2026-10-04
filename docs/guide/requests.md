@@ -5,6 +5,10 @@ people for data. What comes back lands in **Data**, structured the way you
 asked for it — and when a responder answers from their own vault, what you
 receive is a living grant they can revoke, not a copy they lost control of.
 
+The opposite direction — a tool asking for records someone already holds —
+is covered by [link proposals](tools.md). A request brings answers into the
+requester's workspace; a proposal creates a share in the owner's own.
+
 ## Creating a request
 
 A request is shaped by a [template](templates.md): the template's fields are
@@ -41,6 +45,11 @@ spoofed request — one whose cryptographic claim contradicts DNS — is a hard
 block; an unverified one needs an explicit confirmation. Submitting again
 later updates the same response rather than creating a second one.
 
+A request published on another Revoked server is answered the same way,
+from the responder's own account. The answer is kept in their vault on their
+own server, and the requester's server reads it from there each time it is
+needed; revoking it at home revokes it for the requester too.
+
 ## Reading what came back
 
 The **Data** tab collects responses across all requests; each request also
@@ -48,7 +57,9 @@ has its own view, as a list or pivoted into a **sheet** — responders as rows,
 requested fields as columns.
 
 Each answer shows whether it is a typed value or a living grant, and whether
-that grant is still resolving or has been revoked by the responder. Answers
+that grant is still resolving or has been revoked by the responder. An answer
+kept on the responder's own server is read from there; while that server
+cannot be reached, the answer shows no values rather than an old copy. Answers
 you want to keep can be opened into your vault. Revoking the request itself
 stops further submissions.
 

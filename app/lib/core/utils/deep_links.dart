@@ -1,4 +1,6 @@
+import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/models/share_proposal.dart';
+import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 
 /// Builds and parses `revoked://` deep links.
@@ -13,6 +15,10 @@ import 'package:revoked_app/core/models/tool_client.dart';
 ///   `revoked://s/<host[:port]>/<slug>`  ->  `/s/<slug>?o=<host[:port]>`
 ///   `revoked://r/<host[:port]>/<slug>`  ->  `/r/<slug>?o=<host[:port]>`
 ///   `revoked://i/<host[:port]>/<token>` ->  `/i/<token>?o=<host[:port]>`
+///   `revoked://a/<host[:port]>/<token>` ->  `/a/<token>?o=<host[:port]>`
+///
+/// The last is an attestation offer: a statement another party is ready to
+/// sign about one of the recipient's identities.
 ///
 /// The embedded origin is untrusted input — it routes the fetch and nothing
 /// more. Who the sender *is* stays a question for the DNS trust chain.
@@ -27,6 +33,17 @@ import 'package:revoked_app/core/models/tool_client.dart';
 /// A tool asking to be connected, answered on the same server:
 ///
 ///   `revoked://connect?client=…&redirect=…&state=…&challenge=…` -> `/connect?…`
+///
+/// A service signing its user in with Revoked, without knowing their server:
+/// the app opens the authorization page of the server it is signed into.
+///
+///   `revoked://signin?client_id=…&redirect_uri=…&code_challenge=…` -> `/signin?…`
+///
+/// A service asking to be shown an attestation the person holds. The
+/// credential is kept on the server the app is signed into; the presentation
+/// is made on this device, with the identity key:
+///
+///   `revoked://present?client_id=…&response_uri=…&nonce=…&type=…` -> `/present?…`
 ///
 /// And the server's sign-in page sending the person back with a one-time
 /// code, which is an answer rather than a destination:
@@ -47,6 +64,8 @@ class DeepLinks {
       origin.isEmpty ? '$scheme://s/$slug' : '$scheme://s/$origin/$slug';
   static String invite(String token, {String origin = ''}) =>
       origin.isEmpty ? '$scheme://i/$token' : '$scheme://i/$origin/$token';
+  static String attestation(String token, {String origin = ''}) =>
+      origin.isEmpty ? '$scheme://a/$token' : '$scheme://a/$origin/$token';
 
   /// A recognized link: which kind, which slug, and — when the link carries
   /// one — which server it lives on.
@@ -56,6 +75,7 @@ class DeepLinks {
       's' || 'share' => 's',
       'r' || 'request' => 'r',
       'i' || 'invite' => 'i',
+      'a' || 'attestation' => 'a',
       _ => null,
     };
     if (kind == null) return null;
@@ -102,6 +122,22 @@ class DeepLinks {
       if (request == null) return null;
       return Uri(
         path: '/connect',
+        queryParameters: request.toQuery(),
+      ).toString();
+    }
+    if (uri.scheme == scheme && uri.host == 'signin') {
+      final request = SignInRequest.fromQuery(uri.queryParameters);
+      if (request == null) return null;
+      return Uri(
+        path: '/signin',
+        queryParameters: request.toQuery(),
+      ).toString();
+    }
+    if (uri.scheme == scheme && uri.host == 'present') {
+      final request = PresentationRequest.fromQuery(uri.queryParameters);
+      if (request == null) return null;
+      return Uri(
+        path: '/present',
         queryParameters: request.toQuery(),
       ).toString();
     }

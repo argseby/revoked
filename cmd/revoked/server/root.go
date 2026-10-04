@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const (
@@ -39,6 +40,17 @@ type RootKey struct {
 	priv        *rsa.PrivateKey
 	pubPEM      string
 	fingerprint string
+
+	// keyDir holds the root key and the keys it certifies.
+	keyDir string
+
+	issuerOnce sync.Once
+	issuer     *IssuerKeys
+	issuerErr  error
+
+	credentialOnce sync.Once
+	credential     *CredentialKeys
+	credentialErr  error
 }
 
 // Load reads the keypair at path, generating and persisting one with mode 0600
@@ -63,6 +75,7 @@ func Load(domain, path string) (*RootKey, error) {
 		priv:        priv,
 		pubPEM:      pubPEM,
 		fingerprint: fingerprintPEM(pubPEM),
+		keyDir:      filepath.Dir(path),
 	}, nil
 }
 
@@ -145,31 +158,39 @@ func loadOrGenerate(path string) (*rsa.PrivateKey, error) {
 		Type:  pemPrivateLabel,
 		Bytes: x509.MarshalPKCS1PrivateKey(priv),
 	})
+	if err := writeSecretFile(path, encoded); err != nil {
+		return nil, err
+	}
+	return priv, nil
+}
 
+// writeSecretFile writes data atomically with mode 0600, so a crash cannot
+// leave a corrupt or world-readable key behind.
+func writeSecretFile(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".server_root.*.tmp")
 	if err != nil {
-		return nil, fmt.Errorf("server: tempfile: %w", err)
+		return fmt.Errorf("server: tempfile: %w", err)
 	}
 	tmpName := tmp.Name()
-	if _, err := tmp.Write(encoded); err != nil {
+	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		os.Remove(tmpName)
-		return nil, fmt.Errorf("server: write temp key: %w", err)
+		return fmt.Errorf("server: write temp key: %w", err)
 	}
 	if err := tmp.Chmod(0o600); err != nil {
 		tmp.Close()
 		os.Remove(tmpName)
-		return nil, fmt.Errorf("server: chmod temp key: %w", err)
+		return fmt.Errorf("server: chmod temp key: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmpName)
-		return nil, fmt.Errorf("server: close temp key: %w", err)
+		return fmt.Errorf("server: close temp key: %w", err)
 	}
 	if err := os.Rename(tmpName, path); err != nil {
 		os.Remove(tmpName)
-		return nil, fmt.Errorf("server: rename to %s: %w", path, err)
+		return fmt.Errorf("server: rename to %s: %w", path, err)
 	}
-	return priv, nil
+	return nil
 }
 
 func encodePublicKeyPEM(pub *rsa.PublicKey) (string, error) {

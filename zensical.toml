@@ -33,11 +33,17 @@ nav = [
     { "Requests" = "guide/requests.md" },
     { "Templates" = "guide/templates.md" },
     { "Identities & trust" = "guide/identities.md" },
+    { "Attestations" = "guide/attestations.md" },
     { "Workspaces & members" = "guide/workspaces.md" },
+    { "Tools & link proposals" = "guide/tools.md" },
+    { "Example: Notfallkarte" = "guide/notfallkarte.md" },
   ] },
   { "Developer API" = [
     "api/index.md",
     { "Authentication" = "api/authentication.md" },
+    { "Building a tool" = "api/tools.md" },
+    { "Sign in with Revoked" = "api/sign-in.md" },
+    { "Attestations" = "api/attestations.md" },
     { "Callbacks" = "api/callbacks.md" },
     { "Trust chain" = "api/trust-chain.md" },
     { "Reference" = [
@@ -50,9 +56,15 @@ nav = [
       { "Discovery" = "api/reference/discovery.md" },
       { "Workspaces" = "api/reference/workspaces.md" },
       { "Invites" = "api/reference/invites.md" },
+      { "Sign-in" = "api/reference/sign-in.md" },
+      { "Connections" = "api/reference/connections.md" },
+      { "Peers" = "api/reference/peers.md" },
+      { "OpenID Connect" = "api/reference/openid-connect.md" },
+      { "Attestations" = "api/reference/attestations.md" },
       { "Schemas" = "api/reference/schemas.md" },
     ] },
   ] },
+  { "Roadmap" = "roadmap.md" },
 ]
 
 [project.theme]

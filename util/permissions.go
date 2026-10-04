@@ -18,22 +18,24 @@ type Permission struct {
 
 // Permission keys.
 const (
-	PermVaultRead        = "vault:read"
-	PermVaultWrite       = "vault:write"
-	PermResponsesRead    = "responses:read"
-	PermResponsesManage  = "responses:manage"
-	PermSharesRead       = "shares:read"
-	PermSharesManage     = "shares:manage"
-	PermRequestsRead     = "requests:read"
-	PermRequestsManage   = "requests:manage"
-	PermTemplatesRead    = "templates:read"
-	PermTemplatesManage  = "templates:manage"
-	PermIdentitiesRead   = "identities:read"
-	PermIdentitiesManage = "identities:manage"
-	PermMembersRead      = "members:read"
-	PermMembersAdd       = "members:add"
-	PermMembersRemove    = "members:remove"
-	PermSettingsManage   = "settings:manage"
+	PermVaultRead         = "vault:read"
+	PermVaultWrite        = "vault:write"
+	PermResponsesRead     = "responses:read"
+	PermResponsesManage   = "responses:manage"
+	PermSharesRead        = "shares:read"
+	PermSharesManage      = "shares:manage"
+	PermRequestsRead      = "requests:read"
+	PermRequestsManage    = "requests:manage"
+	PermTemplatesRead     = "templates:read"
+	PermTemplatesManage   = "templates:manage"
+	PermIdentitiesRead    = "identities:read"
+	PermIdentitiesManage  = "identities:manage"
+	PermAttestationsRead  = "attestations:read"
+	PermAttestationsIssue = "attestations:issue"
+	PermMembersRead       = "members:read"
+	PermMembersAdd        = "members:add"
+	PermMembersRemove     = "members:remove"
+	PermSettingsManage    = "settings:manage"
 )
 
 // Permissions is the catalogue offered when granting access, in display order.
@@ -103,6 +105,17 @@ var Permissions = []Permission{
 		Description: "Create and remove signing identities. Identities are what recipients verify a share or request against.",
 		Destructive: true,
 		Scopes:      []string{ScopeIdentityCreate, ScopeIdentityUpdate, ScopeIdentityDelete},
+	},
+	{
+		Key: PermAttestationsRead, Label: "View attestations",
+		Description: "See the attestations this workspace has issued, including what they state and about whom.",
+		Scopes:      []string{ScopeAttestationRead},
+	},
+	{
+		Key: PermAttestationsIssue, Label: "Issue attestations",
+		Description: "Sign statements about other people's identities in the name of this server's domain, and revoke them. Whoever trusts the domain trusts what is issued here.",
+		Destructive: true,
+		Scopes:      []string{ScopeAttestationCreate, ScopeAttestationUpdate, ScopeAttestationDelete, ScopeAttestationRead},
 	},
 	{
 		Key: PermMembersRead, Label: "View members",

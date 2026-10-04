@@ -177,8 +177,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   /// reference rather than re-typed.
   Future<void> _prefillFromVault() async {
     // The vault, identities and any existing response live on the signed-in
-    // server; against a foreign origin those lookups would be nonsense.
-    if (_isForeign) return;
+    // server, also for a request on another one: the answer is kept here and
+    // only read from there.
     if (!Stores.auth.isAuthenticated) return;
     try {
       await Stores.vault.loadRecords();
@@ -204,17 +204,28 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
 
       // Already answered this request? Surface it and prefill from the existing
       // grant so re-submitting updates in place instead of creating a duplicate.
-      final requestId = _store.publicProbe?['requestId'] as String? ?? '';
-      if (requestId.isEmpty) return;
-      final existing = await Stores.requests.getMyLinkForRequest(requestId);
+      final Map<String, dynamic>? existing;
+      if (_isForeign) {
+        final server = _store.publicProbe?['server'];
+        final domain = server is Map ? server['domain'] as String? ?? '' : '';
+        if (domain.isEmpty) return;
+        existing = await Stores.requests.getMyRemoteLink(
+          domain,
+          widget.requestSlug,
+        );
+      } else {
+        final requestId = _store.publicProbe?['requestId'] as String? ?? '';
+        if (requestId.isEmpty) return;
+        existing = await Stores.requests.getMyLinkForRequest(requestId);
+      }
       if (!mounted) return;
-      if (existing == null ||
-          (existing['status'] as String? ?? '') == 'revoked') {
+      final link = existing;
+      if (link == null || (link['status'] as String? ?? '') == 'revoked') {
         return;
       }
       runInAction(() {
-        _store.publicExistingLink = existing;
-        final grants = existing['grants'];
+        _store.publicExistingLink = link;
+        final grants = link['grants'];
         if (grants is Map) {
           grants.forEach((k, v) {
             if (v is String && v.isNotEmpty && !_answered(k.toString())) {
@@ -575,7 +586,18 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           scope: HandshakeService.scopeRequest,
           slug: widget.requestSlug,
           identityId: identityId,
+          origin: _isForeign ? widget.origin : null,
         );
+      }
+
+      if (_isForeign) {
+        await _submitRemote(
+          data: data,
+          mappings: mappings,
+          identityId: identityId,
+          challenge: challenge,
+        );
+        return;
       }
 
       final response = await Stores.requests.submitPublicRequest(
@@ -643,6 +665,44 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     }
   }
 
+  /// Answers a request on another server through the signed-in one, which
+  /// keeps the answer and hands the other server a grant to read it with.
+  /// Errors propagate to the caller's handlers, as for a local submission.
+  Future<void> _submitRemote({
+    required Map<String, dynamic> data,
+    required Map<String, String> mappings,
+    required String? identityId,
+    required SignedChallenge? challenge,
+  }) async {
+    await Stores.requests.submitRemoteRequest(
+      widget.origin!,
+      widget.requestSlug,
+      password: _store.responderPassword.text.trim().isEmpty
+          ? null
+          : _store.responderPassword.text.trim(),
+      identifier: _store.responderIdentifier.text.trim().isEmpty
+          ? null
+          : _store.responderIdentifier.text.trim(),
+      identityId: identityId,
+      challengeNonce: challenge?.nonce,
+      challengeSignature: challenge?.signature,
+      senderName: _store.responderName.text.trim().isEmpty
+          ? null
+          : _store.responderName.text.trim(),
+      data: data,
+      mappings: mappings.isEmpty ? null : mappings,
+    );
+    if (!mounted) return;
+    runInAction(() {
+      _store.publicSuccess = true;
+      _store.isSubmittingPublic = false;
+    });
+    AppToast.success(
+      context,
+      _store.publicExistingLink != null ? 'Response updated' : 'Submitted',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Observer(builder: (_) => _build(context));
@@ -659,7 +719,6 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         !(_store.publicTerminalError?.isTerminal ?? false) &&
         !_store.publicSuccess &&
         _store.publicProbe != null &&
-        !_isForeign &&
         Stores.auth.isAuthenticated;
 
     final fields = _store.publicTemplate.where((t) => t.isRecord).length;
@@ -743,11 +802,12 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         ),
       );
     }
-    // Responding requires an account on the request's server: the answer is
-    // minted as a link in the responder's workspace, where they can update
-    // or revoke it later. Without one there is nothing to hold their side
-    // of the grant.
-    if (_isForeign || !Stores.auth.isAuthenticated) {
+    // Responding requires an account: the answer is minted as a link in the
+    // responder's workspace, where they can update or revoke it later. For a
+    // request on another server that is the responder's own server, which
+    // keeps the answer and lets the other one read it. Without an account
+    // there is nothing to hold their side of the grant.
+    if (!Stores.auth.isAuthenticated) {
       return _buildAccountGate(theme);
     }
     return _buildForm(theme);
@@ -758,9 +818,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       icon: AppIcons.personBoundingBox,
       title: 'Sign in to respond',
       message: _isForeign
-          ? 'This request lives on ${widget.origin}. Your answer is kept as a '
-                'revocable link in your account there, so please sign in with '
-                'an account on that server to respond.'
+          ? 'This request comes from ${widget.origin}. Your answer is kept as '
+                'a revocable link in your own account, and ${widget.origin} '
+                'reads it from there. Please sign in to respond.'
           : 'Your answer is kept in your account as a revocable link, so you '
                 'can update or withdraw it at any time. Please sign in to '
                 'respond.',

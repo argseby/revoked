@@ -3,7 +3,9 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
+	"revoked/cmd/revoked/services"
 	"revoked/util"
+	"sort"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -37,6 +39,26 @@ func RequestGrantsRoute(app core.App) {
 			items := make([]map[string]any, 0, len(links))
 			for _, link := range links {
 				items = append(items, resolveLinkPayload(app, link))
+			}
+
+			// Answers that live on the responders' own servers, read from there
+			// in batches per server.
+			remotes, err := app.FindRecordsByFilter(
+				util.Coll.RemoteGrants,
+				"request = {:r}", "-created", 200, 0,
+				map[string]any{"r": req.Id},
+			)
+			if err != nil {
+				return re.InternalServerError("Failed to load links", nil)
+			}
+			if len(remotes) > 0 {
+				resolved := services.ResolveRemoteGrants(app, remotes)
+				for _, rg := range remotes {
+					items = append(items, remoteGrantPayload(rg, resolved[rg.Id]))
+				}
+				sort.SliceStable(items, func(i, j int) bool {
+					return items[i]["created"].(string) > items[j]["created"].(string)
+				})
 			}
 			return re.JSON(http.StatusOK, map[string]any{"items": items})
 		})
@@ -104,5 +126,50 @@ func resolveLinkPayload(app core.App, link *core.Record) map[string]any {
 		"data":           data,
 		"live":           live,
 		"created":        link.GetDateTime(util.Fields.Link.Created).Time().UTC().Format(time.RFC3339),
+		"remote":         false,
+	}
+}
+
+// remoteGrantPayload projects an answer that lives on another server into the
+// same shape as a local one. Values are present only while the grant resolves;
+// `unreachable` says the responder's server could not be asked, which is why
+// nothing is shown, rather than letting that look like a revocation.
+func remoteGrantPayload(rg *core.Record, res services.RemoteResolution) map[string]any {
+	f := util.Fields.RemoteGrant
+	var keys []string
+	_ = rg.UnmarshalJSONField(f.Keys, &keys)
+
+	status := res.Status
+	if status == "" {
+		status = rg.GetString(f.Status)
+	}
+	data := map[string]any{}
+	live := map[string]bool{}
+	for _, k := range keys {
+		v, ok := res.Values[k]
+		if status == util.StatusActive && ok {
+			data[k] = v
+		}
+		live[k] = status == util.StatusActive && ok
+	}
+
+	return map[string]any{
+		"id":             rg.Id,
+		"slug":           "",
+		"request":        rg.GetString(f.Request),
+		"identity":       rg.GetString(f.IdentityFingerprint),
+		"identityName":   rg.GetString(f.IdentityName),
+		"identityDomain": rg.GetString(f.IdentityDomain),
+		"identifier":     rg.GetString(f.Identifier),
+		"senderName":     rg.GetString(f.SenderName),
+		"status":         status,
+		"data":           data,
+		"live":           live,
+		"created":        rg.GetDateTime(f.Created).Time().UTC().Format(time.RFC3339),
+		"remote":         true,
+		"server":         rg.GetString(f.Domain),
+		"unreachable":    res.Unreachable,
+		"etag":           res.ETag,
+		"maxAge":         res.MaxAge,
 	}
 }

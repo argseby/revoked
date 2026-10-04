@@ -74,6 +74,16 @@ abstract class AppErrorCode {
   static const recordNotFound = 'record_not_found';
   static const watermarkTextInvalid = 'watermark_text_invalid';
   static const archiveEmpty = 'archive_empty';
+
+  static const attestationsDisabled = 'attestations_disabled';
+  static const attestationOfferNotFound = 'attestation_offer_not_found';
+  static const attestationOfferExpired = 'attestation_offer_expired';
+  static const attestationOfferClaimed = 'attestation_offer_claimed';
+  static const attestationOfferRevoked = 'attestation_offer_revoked';
+  static const attestationIdentityMismatch = 'attestation_identity_mismatch';
+  static const attestationKeyUnsupported = 'attestation_key_unsupported';
+  static const credentialInvalid = 'credential_invalid';
+  static const remoteIdentityInvalid = 'remote_identity_invalid';
 }
 
 /// Translates an [ApiException] into a short, user-friendly message and a
@@ -492,6 +502,82 @@ class AppErrorMessage {
               'no longer sign for that domain, and a new identity is needed.',
           code: e.code,
           isTerminal: true,
+        );
+      case AppErrorCode.attestationsDisabled:
+        return AppErrorMessage(
+          title: 'This server does not issue attestations',
+          description:
+              'An attestation speaks for the server\'s domain, so its '
+              'operator decides whether any are issued.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.attestationOfferNotFound:
+        return AppErrorMessage(
+          title: 'Offer not found',
+          description:
+              'This link does not lead to an attestation. Check that it was '
+              'copied in full.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.attestationOfferExpired:
+        return AppErrorMessage(
+          title: 'Offer expired',
+          description:
+              'This offer is past its date. Its issuer can make a new one.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.attestationOfferClaimed:
+        return AppErrorMessage(
+          title: 'Already accepted',
+          description:
+              'This offer was accepted with another identity. An offer works '
+              'for one identity only.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.attestationOfferRevoked:
+        return AppErrorMessage(
+          title: 'Offer withdrawn',
+          description: 'Its issuer withdrew this offer.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.attestationIdentityMismatch:
+        return AppErrorMessage(
+          title: 'Made for another identity',
+          description:
+              'This offer was made for one particular identity, and it is '
+              'not the one chosen here.',
+          code: e.code,
+        );
+      case AppErrorCode.attestationKeyUnsupported:
+        return AppErrorMessage(
+          title: 'Identity cannot hold a credential',
+          description:
+              'The key of this identity is of a kind a credential cannot be '
+              'bound to. A newly created identity can.',
+          code: e.code,
+        );
+      case AppErrorCode.credentialInvalid:
+        return AppErrorMessage(
+          title: 'Credential not kept',
+          description:
+              'What the issuer returned could not be verified, so it was not '
+              'kept. The offer can be accepted again once the issuer\'s '
+              'domain verifies.',
+          code: e.code,
+        );
+      case AppErrorCode.remoteIdentityInvalid:
+        return AppErrorMessage(
+          title: 'Identity not confirmed',
+          description:
+              'The other server could not confirm this identity with the '
+              'server that issued it. That needs the issuing server\'s '
+              'domain to be verified and reachable.',
+          code: e.code,
         );
       case AppErrorCode.identityFingerprintInvalid:
         return AppErrorMessage(

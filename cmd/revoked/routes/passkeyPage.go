@@ -186,11 +186,20 @@ html[data-theme="dark"] .logo-dark { display: block; }
 html:not([data-theme="light"]) .logo-light { display: none; }
 html:not([data-theme="light"]) .logo-dark { display: block; }
 }
-.theme {
-width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--border);
+.tools { display: flex; gap: 8px; }
+.theme, .lang {
+min-width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--border);
 background: var(--card); color: var(--fg); cursor: pointer;
 display: inline-flex; align-items: center; justify-content: center;
 }
+.lang { padding: 0 10px; font-size: 13px; font-weight: 650; letter-spacing: .04em; }
+
+.steps { display: flex; flex-direction: column; gap: 8px; }
+.steps-t { font-size: 13px; font-weight: 600; color: var(--fg-muted); }
+.steps ol { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.steps li { height: 4px; border-radius: 2px; background: var(--border); transition: background .3s; }
+.steps li.done { background: var(--primary); }
+.steps li.now { background: color-mix(in srgb, var(--primary) 55%, var(--border)); }
 
 main {
 max-width: 440px;
@@ -263,7 +272,7 @@ transition: transform .12s var(--ease), filter .15s, background .15s;
 .quiet:hover { background: var(--surface-subtle); }
 .big:active, .quiet:active { transform: scale(.985); }
 .big:disabled { cursor: progress; opacity: .75; }
-.big:focus-visible, .quiet:focus-visible, .theme:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.big:focus-visible, .quiet:focus-visible, .theme:focus-visible, .lang:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; display: none; flex: none; }
 .big.loading .spin { display: block; }
 .big.loading .big-ic { display: none; }
@@ -290,11 +299,19 @@ transition: transform .12s var(--ease), filter .15s, background .15s;
 <img class="logo logo-dark" src="{{logoDark}}" alt="">
 <span>Revoked</span>
 </div>
+<div class="tools">
+<button class="lang" id="lang-toggle"></button>
 <button class="theme" id="theme-toggle" aria-label="Toggle visual theme"></button>
+</div>
 </div>
 </header>
 
 <main>
+<div class="steps" id="steps" hidden>
+<span class="steps-t" id="steps-t"></span>
+<ol id="steps-bar" aria-hidden="true"></ol>
+</div>
+
 <div class="hero">
 <div class="hero-tile" id="tile"></div>
 <div style="min-width: 0;">
@@ -305,16 +322,16 @@ transition: transform .12s var(--ease), filter .15s, background .15s;
 
 <div class="card" id="card">
 <div id="error" class="callout" role="alert" hidden><i data-i="alert" data-s="20"></i><span id="error-t"></span></div>
-<label class="field" id="emailRow" hidden>Email
+<label class="field" id="emailRow" hidden><span data-t="field.email">Email</span>
 <input id="email" type="email" autocomplete="username webauthn" placeholder="name@example.com">
 </label>
-<label class="field" id="codeRow" hidden>Confirmation code
+<label class="field" id="codeRow" hidden><span data-t="field.code">Confirmation code</span>
 <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
 </label>
 <button id="go" class="big" hidden><span class="spin"></span><span class="big-ic" id="go-ic"></span><span id="go-t"></span></button>
 <button id="resend" class="quiet" hidden></button>
 <button id="other" class="quiet" hidden></button>
-<a id="open" class="big" hidden><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt="">Open Revoked</a>
+<a id="open" class="big" hidden><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt=""><span data-t="open">Open Revoked</span></a>
 <p id="note" class="fine"></p>
 </div>
 </main>
@@ -332,6 +349,127 @@ var mode = ticket ? 'enroll' : (query.get('mode') === 'signup' ? 'signup' : 'sig
 var $ = function (id) { return document.getElementById(id); };
 function show(el, on) { el.hidden = !on; }
 
+// ---- Language: English and German, like the tools around revoked ---------
+// Both catalogues are here: the page loads nothing but its own origin. The
+// server's refusals carry a code, so they are said in the page's language
+// too; one this page does not know keeps the server's English.
+var STRINGS = {
+  en: {
+    'lang.label': 'DE', 'lang.switch': 'Auf Deutsch wechseln',
+    'theme.light': 'Switch to light theme', 'theme.dark': 'Switch to dark theme',
+    'field.email': 'Email', 'field.code': 'Confirmation code', 'open': 'Open Revoked',
+    'step': function (n, total, label) { return 'Step ' + n + ' of ' + total + ' · ' + label; },
+    'step.email': 'Your email', 'step.code': 'Confirm email', 'step.passkey': 'Save passkey',
+    'signin.title': 'Sign in', 'signin.lead': 'Use the passkey saved on this device.',
+    'signin.fromApp': 'Start from the Revoked app: it opens this page and takes you back signed in.',
+    'signin.go': 'Sign in with a passkey', 'signin.other': 'Create an account',
+    'signin.noPasskey': 'No passkey yet? Ask whoever runs this server for a link to add one.',
+    'signup.title': 'Create an account',
+    'signup.leadCode': 'No password: a passkey saved on this device is how you sign in. It takes about 2 minutes.',
+    'signup.lead': 'No password: a passkey saved on this device is how you sign in. It takes about a minute.',
+    'signup.sendCode': 'Send code', 'signup.create': 'Create account', 'signup.other': 'I already have an account',
+    'code.title': 'Confirm your email',
+    'code.lead': function (email) { return 'Enter the 6-digit code we sent to ' + email + '.'; },
+    'code.go': 'Continue',
+    'code.note': 'No email? Check your spam folder. The code works for 10 minutes.',
+    'code.resendIn': function (s) { return 'Send a new code in ' + s + ' s'; },
+    'code.resend': 'Send a new code',
+    'passkey.title': 'Save your passkey',
+    'passkey.lead': 'Your device asks for your fingerprint, face or PIN. That is how you sign in from now on.',
+    'passkey.go': 'Create passkey',
+    'enroll.title': 'Add a passkey',
+    'enroll.lead': function (email) { return 'For ' + email + '. It is saved on this device and is how you sign in from now on.'; },
+    'enroll.dead': 'This link no longer works',
+    'enroll.deadLead': 'It is unknown, already used, or has expired. Ask for a new one.',
+    'done.signedIn': 'Signed in', 'done.created': 'Account created',
+    'done.returning': 'Returning to Revoked…',
+    'done.next': 'Returning to Revoked… There you name your workspace, and you are set.',
+    'done.close': 'You can close this page once the app has opened.',
+    'done.saved': 'Passkey saved', 'done.savedLead': 'Open Revoked on this device and sign in with it.',
+    'done.closeNow': 'You can close this page.',
+    'stop.title': 'Passkeys unavailable',
+    'stop.origin': 'Passkeys only work at this server’s own address.',
+    'stop.browser': 'This browser does not support passkeys.',
+    'err.codeFormat': 'Enter the 6-digit code from the email.',
+    'err.exists': 'This device already has a passkey for this account.',
+    'err.refused': 'The server refused the request.', 'err.generic': 'Something went wrong.'
+  },
+  de: {
+    'lang.label': 'EN', 'lang.switch': 'Switch to English',
+    'theme.light': 'Zum hellen Design wechseln', 'theme.dark': 'Zum dunklen Design wechseln',
+    'field.email': 'E-Mail', 'field.code': 'Bestätigungscode', 'open': 'Revoked öffnen',
+    'step': function (n, total, label) { return 'Schritt ' + n + ' von ' + total + ' · ' + label; },
+    'step.email': 'Deine E-Mail', 'step.code': 'E-Mail bestätigen', 'step.passkey': 'Passkey speichern',
+    'signin.title': 'Anmelden', 'signin.lead': 'Mit dem Passkey, der auf diesem Gerät gespeichert ist.',
+    'signin.fromApp': 'Starte in der Revoked-App: Sie öffnet diese Seite und bringt dich angemeldet zurück.',
+    'signin.go': 'Mit Passkey anmelden', 'signin.other': 'Konto erstellen',
+    'signin.noPasskey': 'Noch kein Passkey? Bitte die Person, die diesen Server betreibt, um einen Link dafür.',
+    'signup.title': 'Konto erstellen',
+    'signup.leadCode': 'Kein Passwort: Du meldest dich mit einem Passkey auf diesem Gerät an. Dauert etwa 2 Minuten.',
+    'signup.lead': 'Kein Passwort: Du meldest dich mit einem Passkey auf diesem Gerät an. Dauert etwa eine Minute.',
+    'signup.sendCode': 'Code senden', 'signup.create': 'Konto erstellen', 'signup.other': 'Ich habe schon ein Konto',
+    'code.title': 'E-Mail bestätigen',
+    'code.lead': function (email) { return 'Gib den 6-stelligen Code ein, den wir an ' + email + ' geschickt haben.'; },
+    'code.go': 'Weiter',
+    'code.note': 'Keine E-Mail? Schau im Spam-Ordner nach. Der Code gilt 10 Minuten.',
+    'code.resendIn': function (s) { return 'Neuen Code senden in ' + s + ' s'; },
+    'code.resend': 'Neuen Code senden',
+    'passkey.title': 'Passkey speichern',
+    'passkey.lead': 'Dein Gerät fragt nach Fingerabdruck, Gesicht oder PIN. Damit meldest du dich ab jetzt an.',
+    'passkey.go': 'Passkey erstellen',
+    'enroll.title': 'Passkey hinzufügen',
+    'enroll.lead': function (email) { return 'Für ' + email + '. Er wird auf diesem Gerät gespeichert; damit meldest du dich ab jetzt an.'; },
+    'enroll.dead': 'Dieser Link funktioniert nicht mehr',
+    'enroll.deadLead': 'Er ist unbekannt, schon benutzt oder abgelaufen. Bitte um einen neuen.',
+    'done.signedIn': 'Angemeldet', 'done.created': 'Konto erstellt',
+    'done.returning': 'Zurück zu Revoked …',
+    'done.next': 'Zurück zu Revoked … Dort benennst du noch deinen Workspace, dann bist du startklar.',
+    'done.close': 'Du kannst diese Seite schließen, sobald sich die App geöffnet hat.',
+    'done.saved': 'Passkey gespeichert', 'done.savedLead': 'Öffne Revoked auf diesem Gerät und melde dich damit an.',
+    'done.closeNow': 'Du kannst diese Seite schließen.',
+    'stop.title': 'Passkeys nicht verfügbar',
+    'stop.origin': 'Passkeys funktionieren nur unter der eigenen Adresse dieses Servers.',
+    'stop.browser': 'Dieser Browser unterstützt keine Passkeys.',
+    'err.codeFormat': 'Gib den 6-stelligen Code aus der E-Mail ein.',
+    'err.exists': 'Dieses Gerät hat schon einen Passkey für dieses Konto.',
+    'err.refused': 'Der Server hat die Anfrage abgelehnt.', 'err.generic': 'Etwas ist schiefgelaufen.',
+    'server.signups_disabled': 'Dieser Server nimmt keine neuen Registrierungen an.',
+    'server.rate_limited': 'Zu viele Versuche. Warte kurz und versuche es noch einmal.',
+    'server.passkey_request_invalid': 'Die Anfrage ist fehlerhaft.',
+    'server.passkey_email_invalid': 'Gib eine gültige E-Mail-Adresse ein.',
+    'server.passkey_email_taken': 'Für diese E-Mail-Adresse gibt es schon ein Konto. Melde dich stattdessen an.',
+    'server.passkey_ticket_invalid': 'Dieser Link ist unbekannt, schon benutzt oder abgelaufen. Bitte um einen neuen.',
+    'server.passkey_ceremony_invalid': 'Das hat zu lange gedauert oder war schon abgeschlossen. Fang noch einmal an.',
+    'server.passkey_verification_failed': 'Der Passkey konnte nicht geprüft werden.',
+    'server.email_verification_off': 'Dieser Server bestätigt keine E-Mail-Adressen. Erstelle das Konto direkt.',
+    'server.email_verification_required': 'Bestätige zuerst deine E-Mail-Adresse mit dem Code, den wir geschickt haben.',
+    'server.email_code_invalid': 'Dieser Code ist falsch, abgelaufen oder wurde zu oft versucht. Fordere einen neuen an.',
+    'server.email_code_too_soon': 'Gerade wurde ein Code an diese Adresse geschickt. Warte eine Minute, bevor du einen neuen anforderst.',
+    'server.email_send_failed': 'Die Bestätigungs-E-Mail konnte nicht gesendet werden. Versuche es später noch einmal.'
+  }
+};
+// The key the web tools use, so a choice made there holds here on the same
+// origin.
+var LANG_KEY = 'revoked.web.locale';
+var lang = (function () {
+  try {
+    var saved = localStorage.getItem(LANG_KEY);
+    if (saved === 'en' || saved === 'de') return saved;
+  } catch (e) {}
+  var langs = navigator.languages || [navigator.language || ''];
+  for (var i = 0; i < langs.length; i++) if (/^de\b/i.test(langs[i])) return 'de';
+  return 'en';
+})();
+function t(key) {
+  var v = STRINGS[lang][key];
+  if (v === undefined) v = STRINGS.en[key];
+  if (typeof v === 'function') return v.apply(null, Array.prototype.slice.call(arguments, 1));
+  return v === undefined ? key : v;
+}
+function serverMessage(data) {
+  return (data.code && STRINGS[lang]['server.' + data.code]) || data.message || t('err.refused');
+}
+
 // Icons are drawn here rather than fetched: the page loads nothing but its
 // own origin.
 var ICONS = {
@@ -341,6 +479,7 @@ var ICONS = {
   'alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4M12 17h.01"/>',
   'check': '<path d="M20 6 9 17l-5-5"/>',
   'mail': '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  'arrow-right': '<path d="M5 12h14M12 5l7 7-7 7"/>',
   'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
   'moon': '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
 };
@@ -365,7 +504,7 @@ function isDark() {
 function updateToggle() {
   themeToggle.textContent = '';
   themeToggle.appendChild(svg(isDark() ? 'sun' : 'moon', 16));
-  themeToggle.setAttribute('aria-label', isDark() ? 'Switch to light theme' : 'Switch to dark theme');
+  themeToggle.setAttribute('aria-label', isDark() ? t('theme.light') : t('theme.dark'));
 }
 function applyTheme(theme) {
   if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
@@ -386,6 +525,26 @@ if (window.matchMedia) {
   else if (mq.addListener) mq.addListener(updateToggle);
 }
 
+// What is on screen, drawn again when the language changes: the form, a
+// result, or a stop.
+var redraw = function () {};
+function applyLang() {
+  document.documentElement.lang = lang;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (n) {
+    n.textContent = t(n.getAttribute('data-t'));
+  });
+  $('lang-toggle').textContent = t('lang.label');
+  $('lang-toggle').setAttribute('aria-label', t('lang.switch'));
+  updateToggle();
+}
+$('lang-toggle').addEventListener('click', function () {
+  lang = lang === 'de' ? 'en' : 'de';
+  try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+  applyLang();
+  redraw();
+});
+applyLang();
+
 // ---- Layout helpers ------------------------------------------------------
 function heading(title, lead, icon, tone) {
   $('title').textContent = title;
@@ -401,11 +560,32 @@ function action(label, icon) {
   $('go-ic').textContent = '';
   $('go-ic').appendChild(svg(icon, 20));
 }
+// Where a new account is in its setup: a numbered step with a bar, so it is
+// clear how much is left. A step past the last marks them all done.
+function steps(at) {
+  var names = server.verifyEmail ? ['step.email', 'step.code', 'step.passkey'] : ['step.email', 'step.passkey'];
+  if (!at) { show($('steps'), false); return; }
+  var bar = $('steps-bar');
+  bar.textContent = '';
+  names.forEach(function (_, i) {
+    var li = document.createElement('li');
+    if (i + 1 < at) li.className = 'done';
+    else if (i + 1 === at) li.className = 'now';
+    bar.appendChild(li);
+  });
+  $('steps-t').textContent = at > names.length ? '' : t('step', at, names.length, t(names[at - 1]));
+  show($('steps-t'), at <= names.length);
+  show($('steps'), true);
+}
 function fail(message) { $('error-t').textContent = message; show($('error'), true); }
 // Says the page cannot go on, with nothing left to press.
-function stop(title, message) {
-  heading(title, '', 'alert', 'bad');
-  fail(message);
+function stop(titleKey, messageKey) {
+  redraw = function () {
+    show($('error'), false);
+    heading(t(titleKey), '', 'alert', 'bad');
+    fail(t(messageKey));
+  };
+  redraw();
 }
 
 // A passkey cannot be bound to an IP address; on a development machine the
@@ -416,11 +596,11 @@ if (!server.originOK) {
       location.pathname + location.search);
     return;
   }
-  stop('Passkeys unavailable', 'Passkeys only work at this server’s own address.');
+  stop('stop.title', 'stop.origin');
   return;
 }
 if (!window.PublicKeyCredential) {
-  stop('Passkeys unavailable', 'This browser does not support passkeys.');
+  stop('stop.title', 'stop.browser');
   return;
 }
 
@@ -457,7 +637,11 @@ async function call(path, body) {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   });
   var data = await res.json().catch(function () { return {}; });
-  if (!res.ok) throw new Error(data.message || 'The server refused the request.');
+  if (!res.ok) {
+    var err = new Error(serverMessage(data));
+    err.code = data.code || '';
+    throw err;
+  }
   return data;
 }
 // Names a passkey after where it was made, so its owner can tell them apart.
@@ -495,6 +679,63 @@ async function register() {
   return call('/api/passkeys/register/finish', { session: begin.session, credential: credentialJSON(credential) });
 }
 
+// ---- Passkeys offered in the email field -------------------------------
+// Someone who already has an account and pressed "Create" anyway: the browser
+// offers their passkey as they tap the email field, and picking it signs them
+// in. Only where the app started this page (it holds the PKCE verifier the
+// answer is redeemed with) and the browser can do it.
+var suggesting = null, suggestTimer = null, done = false;
+// Ends the offer; true when one was open. A browser allows one passkey
+// request at a time, so this comes before any other.
+function stopSuggesting() {
+  clearTimeout(suggestTimer);
+  suggestTimer = null;
+  if (!suggesting) return false;
+  suggesting.abort();
+  suggesting = null;
+  return true;
+}
+async function suggestPasskeys() {
+  stopSuggesting();
+  if (done || !pkce || mode !== 'signup' || confirming() || saving()) return;
+  var mine = new AbortController();
+  suggesting = mine;
+  try {
+    if (!PublicKeyCredential.isConditionalMediationAvailable ||
+        !(await PublicKeyCredential.isConditionalMediationAvailable())) return;
+    if (mine.signal.aborted) return;
+    // The server forgets an unanswered sign-in after five minutes: offer a
+    // fresh one before then, so a passkey picked late still works.
+    suggestTimer = setTimeout(suggestPasskeys, 4 * 60 * 1000);
+    var begin = await call('/api/passkeys/login/begin', { challenge: pkce });
+    if (mine.signal.aborted) return;
+    var options = begin.options.publicKey;
+    options.challenge = decode(options.challenge);
+    (options.allowCredentials || []).forEach(function (c) { c.id = decode(c.id); });
+    var credential = await navigator.credentials.get({ publicKey: options, mediation: 'conditional', signal: mine.signal });
+    if (mine.signal.aborted || !credential) return;
+    stopSuggesting();
+    busy = true;
+    $('go').disabled = true;
+    $('go').classList.add('loading');
+    try {
+      var result = await call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
+      mode = 'signin';
+      finished(result);
+    } catch (e) {
+      fail((e && e.message) || t('err.generic'));
+      suggestPasskeys();
+    } finally {
+      busy = false;
+      $('go').disabled = false;
+      $('go').classList.remove('loading');
+    }
+  } catch (e) {
+    // Withdrawn for another request, or not possible here: the form works
+    // as it is.
+  }
+}
+
 // ---- Confirming a new account's address --------------------------------
 // The address the last code went to, and the proof the right code bought. The
 // proof outlives a dismissed passkey sheet: it is spent with the account.
@@ -502,7 +743,7 @@ var codeSentTo = '', proof = '', resendAt = 0, resendTimer = null;
 function currentEmail() { return $('email').value.trim().toLowerCase(); }
 async function sendCode() {
   var email = currentEmail();
-  var sent = await call('/api/passkeys/register/email', { email: email });
+  var sent = await call('/api/passkeys/register/email', { email: email, locale: lang });
   codeSentTo = email;
   proof = '';
   resendAt = Date.now() + (sent.resendAfter || 60) * 1000;
@@ -512,82 +753,115 @@ async function sendCode() {
 }
 async function confirmCode() {
   var code = $('code').value.replace(/\s+/g, '');
-  if (!/^[0-9]{6}$/.test(code)) throw new Error('Enter the 6-digit code from the email.');
+  if (!/^[0-9]{6}$/.test(code)) throw new Error(t('err.codeFormat'));
   proof = (await call('/api/passkeys/register/verify', { email: codeSentTo, code: code })).proof;
 }
 function updateResend() {
   var wait = Math.ceil((resendAt - Date.now()) / 1000);
   $('resend').disabled = wait > 0;
-  $('resend').textContent = wait > 0 ? 'Send a new code in ' + wait + ' s' : 'Send a new code';
+  $('resend').textContent = wait > 0 ? t('code.resendIn', wait) : t('code.resend');
   if (wait <= 0 && resendTimer) { clearInterval(resendTimer); resendTimer = null; }
 }
-function confirming() { return mode === 'signup' && server.verifyEmail && codeSentTo !== ''; }
+function confirming() { return mode === 'signup' && server.verifyEmail && codeSentTo !== '' && !proof; }
+// The address is confirmed and only the passkey is left.
+function saving() { return mode === 'signup' && server.verifyEmail && proof !== ''; }
 
 function finished(result) {
-  show($('emailRow'), false); show($('codeRow'), false); show($('go'), false); show($('other'), false); show($('resend'), false);
+  done = true;
+  stopSuggesting();
+  var created = mode === 'signup';
   if (result.code) {
     // The code is useless without the verifier only the app that asked holds.
     var back = 'revoked://auth?code=' + encodeURIComponent(result.code) + '&state=' + encodeURIComponent(state);
-    heading('Signed in', 'Returning to Revoked…', 'check', 'ok');
-    $('open').href = back;
-    show($('open'), true);
-    $('note').textContent = 'You can close this page once the app has opened.';
+    redraw = function () {
+      show($('emailRow'), false); show($('codeRow'), false); show($('go'), false); show($('other'), false); show($('resend'), false);
+      steps(created ? 99 : 0);
+      heading(t(created ? 'done.created' : 'done.signedIn'), t(created ? 'done.next' : 'done.returning'), 'check', 'ok');
+      $('open').href = back;
+      show($('open'), true);
+      $('note').textContent = t('done.close');
+    };
+    redraw();
     location.href = back;
     return;
   }
-  heading('Passkey saved', 'Open Revoked on this device and sign in with it.', 'check', 'ok');
-  $('note').textContent = 'You can close this page.';
+  redraw = function () {
+    show($('emailRow'), false); show($('codeRow'), false); show($('go'), false); show($('other'), false); show($('resend'), false);
+    steps(created ? 99 : 0);
+    heading(t('done.saved'), t('done.savedLead'), 'check', 'ok');
+    $('note').textContent = t('done.closeNow');
+  };
+  redraw();
 }
 
 function render() {
+  redraw = render;
   show($('card'), true);
   show($('error'), false);
-  show($('emailRow'), mode === 'signup');
+  show($('emailRow'), mode === 'signup' && !saving());
   show($('codeRow'), confirming());
   show($('resend'), confirming());
   show($('go'), true);
   show($('other'), false);
+  steps(0);
   $('note').textContent = '';
   if (mode === 'enroll') {
     if (!server.ticketEmail) {
       show($('go'), false);
-      heading('This link no longer works', 'It is unknown, already used, or has expired. Ask for a new one.', 'alert', 'warn');
+      heading(t('enroll.dead'), t('enroll.deadLead'), 'alert', 'warn');
       show($('card'), false);
       return;
     }
-    heading('Add a passkey', 'For ' + server.ticketEmail + '. It is saved on this device and is how you sign in from now on.', 'key');
-    action('Create passkey', 'key');
+    heading(t('enroll.title'), t('enroll.lead', server.ticketEmail), 'key');
+    action(t('passkey.go'), 'key');
     return;
   }
+  // Passkeys are offered only on the first step of a new account, where
+  // someone who has one may have landed by mistake.
+  if (mode === 'signup' && !confirming() && !saving()) {
+    if (!suggesting) suggestPasskeys();
+  } else {
+    stopSuggesting();
+  }
   if (mode === 'signup') {
+    if (saving()) {
+      steps(3);
+      heading(t('passkey.title'), t('passkey.lead'), 'key');
+      action(t('passkey.go'), 'key');
+      return;
+    }
     if (confirming()) {
-      heading('Confirm your email', 'Enter the 6-digit code we sent to ' + codeSentTo + '. Then save your passkey.', 'mail');
-      action('Create account', 'user-plus');
+      steps(2);
+      heading(t('code.title'), t('code.lead', codeSentTo), 'mail');
+      action(t('code.go'), 'arrow-right');
+      $('note').textContent = t('code.note');
       updateResend();
       if (!resendTimer && $('resend').disabled) resendTimer = setInterval(updateResend, 1000);
     } else if (server.verifyEmail) {
-      heading('Create an account', 'No password: a passkey saved on this device is how you sign in. First, confirm your email address with a code.', 'user-plus');
-      action('Send code', 'mail');
+      steps(1);
+      heading(t('signup.title'), t('signup.leadCode'), 'user-plus');
+      action(t('signup.sendCode'), 'mail');
     } else {
-      heading('Create an account', 'No password: a passkey saved on this device is how you sign in.', 'user-plus');
-      action('Create account', 'user-plus');
+      steps(1);
+      heading(t('signup.title'), t('signup.lead'), 'user-plus');
+      action(t('signup.create'), 'user-plus');
     }
-    $('other').textContent = 'I already have an account';
+    $('other').textContent = t('signup.other');
     show($('other'), true);
     return;
   }
   if (!pkce) {
-    heading('Sign in', 'Start from the Revoked app: it opens this page and takes you back signed in.', 'smartphone');
+    heading(t('signin.title'), t('signin.fromApp'), 'smartphone');
     show($('card'), false);
     return;
   }
-  heading('Sign in', 'Use the passkey saved on this device.', 'key');
-  action('Sign in with a passkey', 'key');
+  heading(t('signin.title'), t('signin.lead'), 'key');
+  action(t('signin.go'), 'key');
   if (server.signups) {
-    $('other').textContent = 'Create an account';
+    $('other').textContent = t('signin.other');
     show($('other'), true);
   } else {
-    $('note').textContent = 'No passkey yet? Ask whoever runs this server for a link to add one.';
+    $('note').textContent = t('signin.noPasskey');
   }
 }
 
@@ -596,11 +870,17 @@ $('other').addEventListener('click', function () {
   render();
   if (mode === 'signup') $('email').focus();
 });
+var busy = false;
 $('go').addEventListener('click', async function () {
+  if (busy) return;
+  busy = true;
   show($('error'), false);
   $('go').disabled = true;
   $('go').classList.add('loading');
   try {
+    // The offer in the email field yields to this request; browsers need a
+    // moment to let go of it.
+    if (stopSuggesting()) await new Promise(function (r) { setTimeout(r, 50); });
     if (mode === 'signin') {
       finished(await signIn());
     } else if (mode === 'signup' && server.verifyEmail && !proof) {
@@ -609,21 +889,41 @@ $('go').addEventListener('click', async function () {
         return;
       }
       await confirmCode();
+      // Confirmed: the passkey is the last step, and the device's own
+      // sheet opens for it right away.
+      render();
       finished(await register());
     } else {
+      if (mode === 'signup' && !server.verifyEmail) steps(2);
       finished(await register());
     }
   } catch (e) {
+    // A proof that ran out sends the address back to be confirmed again.
+    if (e && e.code === 'email_verification_required') {
+      proof = ''; codeSentTo = '';
+      render();
+    } else if (mode === 'signup' && !server.verifyEmail) {
+      steps(1);
+    }
     // Dismissing the system sheet is not an error worth explaining.
-    if (!e || e.name !== 'NotAllowedError') fail((e && e.message) || 'Something went wrong.');
-    if (e && e.name === 'InvalidStateError') fail('This device already has a passkey for this account.');
+    if (!e || e.name !== 'NotAllowedError') fail((e && e.message) || t('err.generic'));
+    if (e && e.name === 'InvalidStateError') fail(t('err.exists'));
   } finally {
+    busy = false;
     $('go').disabled = false;
     $('go').classList.remove('loading');
+    // Still on the first step: offer the passkeys again.
+    if (!done && mode === 'signup' && !confirming() && !saving()) suggestPasskeys();
   }
 });
 $('email').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });
 $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });
+// Six digits typed or pasted are the whole code: go on without a click.
+$('code').addEventListener('input', function () {
+  var digits = $('code').value.replace(/[^0-9]/g, '').slice(0, 6);
+  if (digits !== $('code').value) $('code').value = digits;
+  if (digits.length === 6) $('go').click();
+});
 // A different address needs its own code.
 $('email').addEventListener('input', function () {
   if (codeSentTo && currentEmail() !== codeSentTo) {
@@ -634,9 +934,10 @@ $('email').addEventListener('input', function () {
 $('resend').addEventListener('click', async function () {
   show($('error'), false);
   $('resend').disabled = true;
-  try { await sendCode(); } catch (e) { fail((e && e.message) || 'Something went wrong.'); updateResend(); }
+  try { await sendCode(); } catch (e) { fail((e && e.message) || t('err.generic')); updateResend(); }
 });
 render();
+if (mode === 'signup') $('email').focus();
 })();
 </script>
 </body>

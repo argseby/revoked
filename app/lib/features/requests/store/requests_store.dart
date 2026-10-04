@@ -621,6 +621,66 @@ abstract class _RequestsStore with Store {
     );
   }
 
+  /// Answers a request on another server through the signed-in one. The
+  /// answer is kept in the caller's own vault, as a link they own; the other
+  /// server receives a grant to read it with. [origin] is the other server's
+  /// link origin (host[:port]).
+  Future<Map<String, dynamic>> submitRemoteRequest(
+    String origin,
+    String slug, {
+    String? password,
+    String? identifier,
+    String? identityId,
+    String? challengeNonce,
+    String? challengeSignature,
+    String? senderName,
+    Map<String, dynamic>? data,
+    Map<String, String>? mappings,
+  }) async {
+    final base = ApiClient.publicBaseFor(origin);
+    if (base == null) {
+      throw ApiException(
+        0,
+        'The link names an invalid server.',
+        code: 'invalid_origin',
+      );
+    }
+    final result = await _api.post(
+      '/api/requests/remote',
+      body: {
+        'origin': base,
+        'slug': slug,
+        'password': ?password,
+        'identifier': ?identifier,
+        'identityId': ?identityId,
+        'challengeNonce': ?challengeNonce,
+        'challengeSignature': ?challengeSignature,
+        'senderName': ?senderName,
+        'data': ?data,
+        'mappings': ?mappings,
+      },
+    );
+    return result as Map<String, dynamic>;
+  }
+
+  /// The caller's own link answering a request on another server, if they
+  /// already answered it.
+  Future<Map<String, dynamic>?> getMyRemoteLink(
+    String domain,
+    String slug,
+  ) async {
+    final data = await _api.get(
+      '/api/collections/${AppConfig.linksCollection}/records',
+      queryParams: {
+        'filter': 'remoteDomain = "$domain" && remoteRequest = "$slug"',
+        'perPage': '1',
+        'sort': '-created',
+      },
+    );
+    final items = (data['items'] as List<dynamic>?) ?? [];
+    return items.isEmpty ? null : items.first as Map<String, dynamic>;
+  }
+
   /// Create a new request.
   Future<DataRequest> create({
     required String slug,

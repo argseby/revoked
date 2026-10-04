@@ -53,6 +53,13 @@ const (
 	ScopeNotificationRead   = "notification:read"
 	ScopeNotificationUpdate = "notification:update"
 	ScopeNotificationDelete = "notification:delete"
+
+	// attestation:* covers statements this workspace signs about other
+	// people's identities, in the name of the server's domain.
+	ScopeAttestationRead   = "attestation:read"
+	ScopeAttestationCreate = "attestation:create"
+	ScopeAttestationUpdate = "attestation:update"
+	ScopeAttestationDelete = "attestation:delete"
 )
 
 // AllScopes lists every defined API key scope.
@@ -95,4 +102,17 @@ var AllScopes = []string{
 	ScopeNotificationRead,
 	ScopeNotificationUpdate,
 	ScopeNotificationDelete,
+	ScopeAttestationRead,
+	ScopeAttestationCreate,
+	ScopeAttestationUpdate,
+	ScopeAttestationDelete,
+}
+
+// AttestationScopes are the scopes added with attestations, for the migration
+// that hands them to the members who already administer a workspace.
+var AttestationScopes = []string{
+	ScopeAttestationRead,
+	ScopeAttestationCreate,
+	ScopeAttestationUpdate,
+	ScopeAttestationDelete,
 }

@@ -98,6 +98,20 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 		ActionUpdate: {Kind: AccessUserSelf, Extra: OwnerImmutable},
 		ActionDelete: {Kind: AccessUserSelf},
 	},
+	// Governed by the permission alone, like templates: owning the row is not
+	// enough, because an attestation speaks for the domain and a member whose
+	// permission was withdrawn must not keep issuing through rows they made.
+	Coll.Attestations: {
+		ActionCreate: {Kind: AccessWorkspaceAdmin, Scope: ScopeAttestationCreate},
+		ActionUpdate: {Kind: AccessWorkspaceAdmin, Scope: ScopeAttestationUpdate},
+		ActionDelete: {Kind: AccessWorkspaceAdmin, Scope: ScopeAttestationDelete},
+	},
+	// Personal, like the vault: a credential carries everything it states
+	// about its holder. It is written by the claim route alone; its owner may
+	// read and remove it, and no API key reaches it.
+	Coll.Credentials: {
+		ActionDelete: {Kind: AccessUserSelf},
+	},
 }
 
 // AccessSpecFor returns the requirement for a collection action, if declared.

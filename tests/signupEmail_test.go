@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 
@@ -197,4 +198,38 @@ func TestSignupConfirmsTheEmailAddress(t *testing.T) {
 		setEnvForTest(t, util.AllowSignupsEnv, "false")
 		passkeyRefusal(t, sendCode(passkeyEmail()), http.StatusForbidden, util.Errors.SignupsDisabled)
 	})
+}
+
+// The code arrives in the language the sign-in page was shown in, so someone
+// who read the page in German is not handed an English mail. A language the
+// server does not know falls back to English rather than failing.
+func TestSignupCodeMailFollowsThePageLanguage(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	box := catchMail(t, app)
+	setEnvForTest(t, util.SignupVerifyEmailEnv, "true")
+
+	for _, tc := range []struct {
+		locale string
+		want   string
+	}{
+		{"de", "ist dein Revoked-Bestätigungscode"},
+		{"en", "is your Revoked confirmation code"},
+		{"fr", "is your Revoked confirmation code"},
+		{"", "is your Revoked confirmation code"},
+	} {
+		email := passkeyEmail()
+		body := map[string]any{"email": email}
+		if tc.locale != "" {
+			body["locale"] = tc.locale
+		}
+		if err := testutils.NewPasskeyDevice(baseURL).Post("/api/passkeys/register/email", body, nil); err != nil {
+			t.Fatalf("%q: send code: %v", tc.locale, err)
+		}
+		box.mu.Lock()
+		subject := box.sent[email][0]
+		box.mu.Unlock()
+		if !strings.Contains(subject, tc.want) {
+			t.Errorf("%q: subject %q, want it to contain %q", tc.locale, subject, tc.want)
+		}
+	}
 }

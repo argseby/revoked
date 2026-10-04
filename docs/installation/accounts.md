@@ -4,7 +4,9 @@ People sign in with a **passkey** — a key their device keeps and unlocks with 
 fingerprint, face or PIN. There are no passwords: nothing to reuse, leak or
 phish. A passkey is bound to the address it was made at, so signing in happens
 on this server's own page, `/passkey`, which the app opens in the browser and
-which sends the person back signed in.
+which sends the person back signed in. On Android it opens inside the app, in a
+browser tab (a Custom Tab) that closes itself once they are signed in; without
+a browser that offers one, and on the desktop, it opens in the browser.
 
 That page has to be reached at the server's real address over HTTPS (your
 `DOMAIN`). On a development machine it is `http://localhost:<port>` — not
@@ -69,12 +71,22 @@ That address is whatever the person typed. To make sure it is theirs, also set
 sign-in page then mails a 6-digit code, and only the right code lets the
 passkey be saved. The code works for ten minutes and five guesses; an address
 gets at most one a minute and five an hour. Accounts confirmed this way are
-marked verified. Inviting members into an
+marked verified.
+
+The sign-in page shows a new account's steps as it goes (*Step 2 of 3 ·
+Confirm email*: email, code, passkey; two steps without confirmation). It is
+in English and German, picked from the browser and switchable at the top, and
+the code is mailed in the language the page was showing. Someone who already
+has an account but chose *Create an account* is offered their passkey as they
+tap the email field, where the browser can do that, and is signed in with it. Inviting members into an
 *existing* workspace is a separate, in-app flow (workspace invites) and works
 regardless of this flag.
 
 ## First login
 
-On first login a user lands in onboarding: create a workspace (naming
-themselves for their signing identity — that name is what recipients of their
-shares and requests see) or join one by pasting an invite key.
+On first login a user lands in onboarding: create a workspace (named
+*Personal* unless they change it, and naming themselves for their signing
+identity — suggested from their email address, and what recipients of their
+shares and requests see) or join one by pasting an invite key. A link that
+brought them to the app — a link proposal, a connect request, an invite — is
+opened once they are through.

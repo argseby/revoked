@@ -16,16 +16,23 @@ import (
 // with a passkey — and returns its record id and a real JWT for authenticating
 // later requests.
 func CreateRandomUser(baseURL string) (id string, token string, err error) {
+	id, token, _, err = CreateRandomUserWithDevice(baseURL)
+	return id, token, err
+}
+
+// CreateRandomUserWithDevice is CreateRandomUser, also returning the device
+// holding the account's passkey, for tests that sign in again with it.
+func CreateRandomUserWithDevice(baseURL string) (id, token string, device *PasskeyDevice, err error) {
 	email := fmt.Sprintf("test-%s@example.com", uuid.New().String()[:8])
-	device := NewPasskeyDevice(baseURL)
+	device = NewPasskeyDevice(baseURL)
 	session, err := device.Register(map[string]any{"email": email})
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	if err := provisionWorkspace(baseURL, session.UserID, session.Token); err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
-	return session.UserID, session.Token, nil
+	return session.UserID, session.Token, device, nil
 }
 
 // ExtractString grabs a top-level string field from a JSON response.

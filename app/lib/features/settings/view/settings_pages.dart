@@ -32,6 +32,7 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
+import 'package:revoked_app/features/attestations/view/attestations_section.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
@@ -47,6 +48,7 @@ enum SettingsPage {
   members('members', 'Members'),
   invites('invites', 'Invites'),
   identities('identities', 'Identities'),
+  attestations('attestations', 'Attestations'),
   connectedTools('connected-tools', 'Connected tools'),
   apiKeys('api-keys', 'API keys'),
   templates('templates', 'Templates'),
@@ -120,6 +122,11 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.invites.loadCatalogue();
       case SettingsPage.identities:
         Stores.identities.loadIdentities();
+      case SettingsPage.attestations:
+        // The identities name whom each credential is held by.
+        Stores.identities.loadIdentities();
+        Stores.credentials.load();
+        Stores.attestations.load();
       case SettingsPage.connectedTools:
         Stores.connections.load();
       case SettingsPage.apiKeys:
@@ -140,6 +147,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
           SettingsPage.members => const _MembersPage(),
           SettingsPage.invites => const _InvitesPage(),
           SettingsPage.identities => const _IdentitiesPage(),
+          SettingsPage.attestations => const AttestationsSection(),
           SettingsPage.connectedTools => const ConnectionsList(),
           SettingsPage.apiKeys => const _ApiKeysPage(),
           SettingsPage.templates => const _TemplatesPage(),

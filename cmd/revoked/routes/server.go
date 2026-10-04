@@ -36,6 +36,12 @@ func ServerInfoRoute(app core.App, root *server.RootKey) {
 				"limits": map[string]any{
 					"maxFileSize": util.FileLimitBytes(util.FileMaxSizeEnv),
 				},
+				// Operator policy as well: whether this server issues
+				// attestations in its domain's name. Holding and verifying
+				// credentials do not depend on it.
+				"attestations": map[string]any{
+					"issuing": util.AttestationsAllowed(),
+				},
 			})
 		})
 		return e.Next()

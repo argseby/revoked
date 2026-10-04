@@ -1,13 +1,30 @@
 # Authentication
 
-Two credentials reach the API, and each has its own header. An API key sent as
-a Bearer token authenticates as nobody — the request is treated as a guest and
-refused by the collection rules.
+Three credentials reach the API, and each has its own header. A credential
+sent in another one's header authenticates as nobody — an API key sent as a
+Bearer token, for example, is treated as a guest and refused by the
+collection rules.
 
 | Credential | Header | Used by |
 |---|---|---|
-| API key | `X-API-Key: <key>` | Scripts, integrations, anything programmatic |
+| API key | `X-API-Key: <key>` | Scripts and integrations of the workspace's own |
 | Session token | `Authorization: Bearer <jwt>` | The app itself, after signing in with a passkey |
+| Connection token | `X-Revoked-Connection: <token>` | A connected tool, for the links it proposed |
+
+## Choosing a credential
+
+| Situation | Credential | Reach |
+|---|---|---|
+| A **personal setup** — a cron job, a home server, a script keeping a record current | An [API key](#api-keys), created in the app | The scopes granted to it, never the vault |
+| A tool used by **other people** with **their own** data | A [connection](tools.md), granted by each of them in their app | The links created from its proposals: status, and — where allowed — receiving or revoking them. Never the vault. |
+| Answers collected from other people into the **own** workspace | A [request](reference/requests.md), optionally with a [callback](callbacks.md) | What is submitted |
+
+The difference lies in whose credential it is: an API key belongs to the
+workspace that created it, a connection to the person who granted it. An API
+key handed out for someone else's tool would be a long-lived string carrying
+all of its permissions, pasted into a foreign service. A connection, by
+contrast, is limited to the links that were approved, appears under
+*Connected tools*, lapses after 90 days and ends with a disconnect.
 
 The in-app API preview on every create drawer shows a ready-to-run `curl` with
 the correct header for the request in front of you.
@@ -67,6 +84,15 @@ The header value is in double quotes on purpose: `'$TOKEN'` in single quotes
 is sent as the six literal characters, since the shell expands variables only
 inside double quotes.
 
+## Connection tokens
+
+A connection token is issued at `POST /api/connect/token`, in exchange for a
+one-time code and its PKCE verifier, after the tool was connected in the app.
+It travels as `X-Revoked-Connection` and opens only the `/api/connection`
+endpoints; it is not a session, so no collection rule admits it. The whole
+flow, including a minimal working page, is described in
+[Building a tool](tools.md).
+
 ## Reading a failure
 
 | Code | Meaning |
@@ -74,6 +100,8 @@ inside double quotes.
 | `not_authenticated` | No usable credential arrived — wrong header, an unexpanded variable, or an empty value. |
 | `invalid_api_key` | The header arrived, but no key matches it: mistyped, revoked, or expired. |
 | `api_key_vault_scope` | The key being created asks for the vault, which no key may hold. |
+| `connection_unauthorized` | No connection matches the `X-Revoked-Connection` token: mistyped, or the owner disconnected the tool. |
+| `connection_expired` | The connection lapsed, 90 days after the owner last connected the tool. Only the owner can connect it again. |
 | A named scope error | The key is valid but was not granted that permission. Create a key with the right grants; scopes are fixed at creation. |
 
 ## Revoking

@@ -24,6 +24,7 @@ Everything in Revoked is a **living grant**:
 | Run your own server, or install the app | [Installation](installation/index.md) |
 | Use the app — keep a vault, share secrets, collect data | [Guide](guide/index.md) |
 | Script against the HTTP API or integrate a system | [Developer API](api/index.md) |
+| Let a tool ask for data it never holds, such as an emergency card | [Tools & link proposals](guide/tools.md), [Notfallkarte](guide/notfallkarte.md) |
 
 There is no hosted instance: you run the server, and the whole trust chain —
 data, keys and domain — stays under your own control. The app connects to

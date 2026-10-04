@@ -23,8 +23,8 @@ import (
 // sent to the address, and trades the right code for a proof the
 // registration then has to carry:
 //
-//	POST /api/passkeys/register/email   {email}         -> {expiresAt, resendAfter}
-//	POST /api/passkeys/register/verify  {email, code}   -> {proof}
+//	POST /api/passkeys/register/email   {email, locale?} -> {expiresAt, resendAfter}
+//	POST /api/passkeys/register/verify  {email, code}    -> {proof}
 //	POST /api/passkeys/register/begin   {email, proof, ...}
 //
 // The proof is checked when the ceremony begins and spent when the account is
@@ -43,6 +43,8 @@ func bindSignupEmailRoutes(app core.App, e *core.ServeEvent, root *server.RootKe
 		}
 		var body struct {
 			Email string `json:"email"`
+			// The page's language, so the mail matches it. Unknown means English.
+			Locale string `json:"locale"`
 		}
 		if err := re.BindBody(&body); err != nil {
 			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.PasskeyRequestInvalid)
@@ -75,7 +77,7 @@ func bindSignupEmailRoutes(app core.App, e *core.ServeEvent, root *server.RootKe
 			signupCodes.forget(email)
 			return rateLimitedResponse(re)
 		}
-		if err := services.SendSignupCode(app, email, code, pageOrigin(re, root)); err != nil {
+		if err := services.SendSignupCode(app, email, code, pageOrigin(re, root), body.Locale); err != nil {
 			signupCodes.forget(email)
 			app.Logger().Error("Failed to send a confirmation code", "error", err, "ip", re.RealIP())
 			return appErrorResponse(re, http.StatusBadGateway, &util.Errors.EmailSendFailed)

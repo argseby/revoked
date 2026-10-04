@@ -42,6 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Stores.apiKeys.loadApiKeys();
       Stores.passkeys.load();
       Stores.connections.load();
+      Stores.credentials.load();
       if (ws.isNotEmpty) {
         Stores.invites.load(ws);
         Stores.invites.loadMembers(ws);
@@ -137,6 +138,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'identity',
                 'identities',
                 'Sign and verify what you share',
+              ),
+            ),
+            _page(
+              SettingsPage.attestations,
+              AppIcons.shieldCheck,
+              _count(
+                Stores.credentials.credentials.length,
+                'attestation held',
+                'attestations held',
+                'What others confirmed about you',
               ),
             ),
             _page(

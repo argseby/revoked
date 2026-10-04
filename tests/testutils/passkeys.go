@@ -88,6 +88,11 @@ type passkeyBegin struct {
 	Options json.RawMessage `json:"options"`
 }
 
+// PKCEPair returns a verifier and its S256 challenge.
+func PKCEPair() (verifier, challenge string) {
+	return pkcePair()
+}
+
 // pkcePair returns a verifier and its S256 challenge.
 func pkcePair() (verifier, challenge string) {
 	verifier = strings.Repeat("v", 20) + strings.ReplaceAll(uuid.New().String(), "-", "")

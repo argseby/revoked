@@ -34,6 +34,15 @@ abstract class _IdentitiesStore with Store {
     return identities.isNotEmpty ? identities.first : null;
   }
 
+  /// The identity with [id], when it is among this person's: for a view that
+  /// names the identity something is bound to.
+  Identity? byId(String id) {
+    for (final identity in identities) {
+      if (identity.id == id) return identity;
+    }
+    return null;
+  }
+
   @action
   Future<void> loadIdentities() async {
     isLoading = true;

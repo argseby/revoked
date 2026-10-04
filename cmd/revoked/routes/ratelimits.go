@@ -22,6 +22,7 @@ const (
 	envLimitCallback   = "RATELIMIT_CALLBACK_TESTS"
 	envLimitStamp      = "RATELIMIT_STAMP_REQUESTS"
 	envLimitSignupMail = "RATELIMIT_SIGNUP_EMAILS"
+	envLimitGrantPeer  = "RATELIMIT_GRANT_REQUESTS"
 )
 
 var (
@@ -51,6 +52,11 @@ var (
 	// by IP, per hour: each one is an email this server sends to whatever
 	// address it is given. Each address has its own fixed budget on top.
 	signupMailLimiter = util.NewRateLimiter(limitFromEnv(envLimitSignupMail, 10), time.Hour)
+
+	// grantPeerLimiter covers what other servers call: bulk grant reads,
+	// grant events and relayed answers, keyed by IP. Each call carries up to
+	// a batch of grants, so the budget is per call, not per grant.
+	grantPeerLimiter = util.NewRateLimiter(limitFromEnv(envLimitGrantPeer, 300), time.Minute)
 )
 
 // ConfigureRateLimits replaces the public-surface limiters (0 disables one). For the
@@ -73,6 +79,12 @@ func ConfigurePasskeyRateLimit(requests int) {
 // (0 disables it). For the test harness only, for the same reason.
 func ConfigureSignupMailRateLimit(perHour int) {
 	signupMailLimiter = util.NewRateLimiter(perHour, time.Hour)
+}
+
+// ConfigureGrantRateLimit replaces the server-to-server limiter (0 disables
+// it). For the test harness only, whose two "servers" share one address.
+func ConfigureGrantRateLimit(requests int) {
+	grantPeerLimiter = util.NewRateLimiter(requests, time.Minute)
 }
 
 // limitFromEnv reads a non-negative integer limit from the environment,

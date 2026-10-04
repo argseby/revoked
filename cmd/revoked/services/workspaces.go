@@ -30,6 +30,9 @@ var workspaceTeardown = []string{
 	util.Coll.Notifications,
 	util.Coll.Invites,
 	util.Coll.Templates,
+	// Ahead of identities, and through its delete hook: every credential
+	// issued here is revoked with the workspace that issued it.
+	util.Coll.Attestations,
 	util.Coll.Identities,
 	util.Coll.ApiKeys,
 	util.Coll.Sections,

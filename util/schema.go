@@ -41,6 +41,27 @@ type collectionSchema struct {
 	// Reminders are a person's own: a vault entry to be reminded about, at a
 	// date or when an entry changes.
 	Reminders string
+	// RemoteGrants are answers to this server's requests that live on another
+	// server: an address and a token, never the values themselves.
+	RemoteGrants string
+	// GrantRecords index which request-born links resolve which vault entry,
+	// so a change to an entry reaches every grant that reads it.
+	GrantRecords string
+	// GrantDeliveries are the outbox for grant events: to another server, or
+	// to a request's callback URL. Retried with backoff until delivered.
+	GrantDeliveries string
+	// Attestations are statements this server signs about an identity, usually
+	// one issued elsewhere: what is stated, about whom, and whether it still
+	// stands. The signed credential itself is handed to its subject and not
+	// kept here.
+	Attestations string
+	// AttestationStatus holds one bit per issued credential: revoked or not.
+	// It outlives the attestation row, so deleting a workspace cannot turn a
+	// revoked credential back into a valid one.
+	AttestationStatus string
+	// Credentials are attestations a person holds about one of their own
+	// identities, issued by this server or any other.
+	Credentials string
 }
 
 type inviteFields struct {
@@ -61,7 +82,8 @@ type linkFields struct {
 	Slug, Label, User, Workspace, Sections, Records, Status,
 	Password, ExpiresAt, MaxViews, ViewCount, Identity, RequireHandshake,
 	Request, Grants, Data, SenderName, Identifier, Watermark, WatermarkText,
-	Purpose, Connection, Ref, HandedOver, ProposedBy, Created, Updated string
+	Purpose, Connection, Ref, HandedOver, ProposedBy,
+	RemoteDomain, RemoteRequest, GrantTokenHash, SignInClient, Created, Updated string
 }
 
 type workspaceFields struct {
@@ -148,8 +170,38 @@ type passkeyTicketFields struct {
 	User, TokenHash, ExpiresAt, Created string
 }
 
+type remoteGrantFields struct {
+	Request, Domain, Grant, Token, Status, StatusAt, Keys, SenderName, Identifier,
+	IdentityName, IdentityFingerprint, IdentityDomain, Created, Updated string
+}
+
+type grantRecordFields struct {
+	Link, Record string
+}
+
+type grantDeliveryFields struct {
+	Kind, Target, Request, Payload, Attempts, NextAttemptAt, DeliveredAt,
+	FailedAt, LastError, Created string
+}
+
 type reminderFields struct {
 	User, Workspace, Record, Kind, DueAt, Watch, Note, FiredAt, Created, Updated string
+}
+
+type attestationFields struct {
+	User, Workspace, Type, Label, Claims, Status, ExpiresAt,
+	OfferTokenHash, OfferExpiresAt,
+	SubjectFingerprint, SubjectDomain, SubjectName,
+	IssuedAt, RevokedAt, RevokedReason, Created, Updated string
+}
+
+type attestationStatusFields struct {
+	Idx, Attestation, Revoked, RevokedAt, Created string
+}
+
+type credentialFields struct {
+	User, Workspace, Identity, Issuer, Type, Credential, Claims,
+	IssuedAt, ExpiresAt, Created, Updated string
 }
 
 // Coll holds the collection (table) names used across the backend.
@@ -179,6 +231,12 @@ var Coll = collectionSchema{
 	Passkeys:            "passkeys",
 	PasskeyTickets:      "passkeyTickets",
 	Reminders:           "reminders",
+	RemoteGrants:        "remoteGrants",
+	GrantRecords:        "grantRecords",
+	GrantDeliveries:     "grantDeliveries",
+	Attestations:        "attestations",
+	AttestationStatus:   "attestationStatus",
+	Credentials:         "credentials",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -206,6 +264,12 @@ var Fields = struct {
 	Passkey            passkeyFields
 	PasskeyTicket      passkeyTicketFields
 	Reminder           reminderFields
+	RemoteGrant        remoteGrantFields
+	GrantRecord        grantRecordFields
+	GrantDelivery      grantDeliveryFields
+	Attestation        attestationFields
+	AttestationStatus  attestationStatusFields
+	Credential         credentialFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -296,6 +360,10 @@ var Fields = struct {
 		Ref:              "ref",
 		HandedOver:       "handedOver",
 		ProposedBy:       "proposedBy",
+		RemoteDomain:     "remoteDomain",
+		RemoteRequest:    "remoteRequest",
+		GrantTokenHash:   "grantTokenHash",
+		SignInClient:     "signInClient",
 		Created:          "created",
 		Updated:          "updated",
 	},
@@ -473,5 +541,76 @@ var Fields = struct {
 		FiredAt:   "firedAt",
 		Created:   "created",
 		Updated:   "updated",
+	},
+	RemoteGrant: remoteGrantFields{
+		Request:             "request",
+		Domain:              "domain",
+		Grant:               "grant",
+		Token:               "token",
+		Status:              "status",
+		StatusAt:            "statusAt",
+		Keys:                "keys",
+		SenderName:          "senderName",
+		Identifier:          "identifier",
+		IdentityName:        "identityName",
+		IdentityFingerprint: "identityFingerprint",
+		IdentityDomain:      "identityDomain",
+		Created:             "created",
+		Updated:             "updated",
+	},
+	GrantRecord: grantRecordFields{
+		Link:   "link",
+		Record: "record",
+	},
+	GrantDelivery: grantDeliveryFields{
+		Kind:          "kind",
+		Target:        "target",
+		Request:       "request",
+		Payload:       "payload",
+		Attempts:      "attempts",
+		NextAttemptAt: "nextAttemptAt",
+		DeliveredAt:   "deliveredAt",
+		FailedAt:      "failedAt",
+		LastError:     "lastError",
+		Created:       "created",
+	},
+	Attestation: attestationFields{
+		User:               "user",
+		Workspace:          "workspace",
+		Type:               "type",
+		Label:              "label",
+		Claims:             "claims",
+		Status:             "status",
+		ExpiresAt:          "expiresAt",
+		OfferTokenHash:     "offerTokenHash",
+		OfferExpiresAt:     "offerExpiresAt",
+		SubjectFingerprint: "subjectFingerprint",
+		SubjectDomain:      "subjectDomain",
+		SubjectName:        "subjectName",
+		IssuedAt:           "issuedAt",
+		RevokedAt:          "revokedAt",
+		RevokedReason:      "revokedReason",
+		Created:            "created",
+		Updated:            "updated",
+	},
+	AttestationStatus: attestationStatusFields{
+		Idx:         "idx",
+		Attestation: "attestation",
+		Revoked:     "revoked",
+		RevokedAt:   "revokedAt",
+		Created:     "created",
+	},
+	Credential: credentialFields{
+		User:       "user",
+		Workspace:  "workspace",
+		Identity:   "identity",
+		Issuer:     "issuer",
+		Type:       "type",
+		Credential: "credential",
+		Claims:     "claims",
+		IssuedAt:   "issuedAt",
+		ExpiresAt:  "expiresAt",
+		Created:    "created",
+		Updated:    "updated",
 	},
 }

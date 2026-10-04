@@ -49,6 +49,12 @@ func VerifySignature(keyPem, message, signature string) error {
 	}
 }
 
+// PublicKeyFromPEM extracts the public key from an X.509 certificate PEM or a
+// bare SubjectPublicKeyInfo PEM: the key an identity signs with.
+func PublicKeyFromPEM(keyPem string) (any, error) {
+	return publicKeyFromAnyPem(keyPem)
+}
+
 // publicKeyFromAnyPem extracts a public key from an X.509 certificate PEM or a
 // bare SubjectPublicKeyInfo PEM.
 func publicKeyFromAnyPem(keyPem string) (any, error) {

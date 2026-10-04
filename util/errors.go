@@ -131,6 +131,31 @@ var Errors = struct {
 	ReminderWatchMissing          AppError
 	ReminderDueRequired           AppError
 	ReminderKindInvalid           AppError
+	RemoteOriginInvalid           AppError
+	RemoteServerMismatch          AppError
+	RemoteUnreachable             AppError
+	RemoteGrantUnresolvable       AppError
+	RemoteIdentityInvalid         AppError
+	GrantEventsUnverified         AppError
+	PeerKeyUnavailable            AppError
+	OIDCRequestInvalid            AppError
+	OIDCLinkRecordInvalid         AppError
+	AttestationsDisabled          AppError
+	AttestationTypeInvalid        AppError
+	AttestationClaimsInvalid      AppError
+	AttestationClaimReserved      AppError
+	AttestationSubjectInvalid     AppError
+	AttestationImmutable          AppError
+	AttestationExpiryInvalid      AppError
+	AttestationOfferNotFound      AppError
+	AttestationOfferExpired       AppError
+	AttestationOfferClaimed       AppError
+	AttestationOfferRevoked       AppError
+	AttestationIdentityMismatch   AppError
+	AttestationKeyUnsupported     AppError
+	AttestationIssueFailed        AppError
+	CredentialInvalid             AppError
+	PresentationInvalid           AppError
 }{
 	DuplicateWorkspaceMember: AppError{
 		ErrorCode: "duplicate_workspace_member",
@@ -583,6 +608,106 @@ var Errors = struct {
 	ReminderKindInvalid: AppError{
 		ErrorCode: "reminder_kind_invalid",
 		ErrorText: "A reminder is either for a date or for a change.",
+	},
+	RemoteOriginInvalid: AppError{
+		ErrorCode: "remote_origin_invalid",
+		ErrorText: "The request names a server address that cannot be used.",
+	},
+	RemoteServerMismatch: AppError{
+		ErrorCode: "remote_server_mismatch",
+		ErrorText: "The server at this address claims to be a different domain.",
+	},
+	RemoteUnreachable: AppError{
+		ErrorCode: "remote_unreachable",
+		ErrorText: "The other server could not be reached. Try again later.",
+	},
+	RemoteGrantUnresolvable: AppError{
+		ErrorCode: "remote_grant_unresolvable",
+		ErrorText: "The answer could not be read from the server it lives on.",
+	},
+	RemoteIdentityInvalid: AppError{
+		ErrorCode: "remote_identity_invalid",
+		ErrorText: "The identity could not be verified with the server that issued it.",
+	},
+	GrantEventsUnverified: AppError{
+		ErrorCode: "grant_events_unverified",
+		ErrorText: "The events are not signed by the server they claim to come from.",
+	},
+	PeerKeyUnavailable: AppError{
+		ErrorCode: "peer_key_unavailable",
+		ErrorText: "The sending server's key could not be checked. Try again later.",
+	},
+	OIDCRequestInvalid: AppError{
+		ErrorCode: "oidc_request_invalid",
+		ErrorText: "This sign-in has expired or was already used. Start it again from the service.",
+	},
+	OIDCLinkRecordInvalid: AppError{
+		ErrorCode: "oidc_link_record_invalid",
+		ErrorText: "An entry chosen to share is not one of yours.",
+	},
+	AttestationsDisabled: AppError{
+		ErrorCode: "attestations_disabled",
+		ErrorText: "This server does not issue attestations. Its operator decides whether it speaks for its domain.",
+	},
+	AttestationTypeInvalid: AppError{
+		ErrorCode: "attestation_type_invalid",
+		ErrorText: "An attestation needs a type: up to 255 characters, without spaces.",
+	},
+	AttestationClaimsInvalid: AppError{
+		ErrorCode: "attestation_claims_invalid",
+		ErrorText: "Claims are a flat set of named values: names of letters, digits and underscores, values of text, numbers or true/false.",
+	},
+	AttestationClaimReserved: AppError{
+		ErrorCode: "attestation_claim_reserved",
+		ErrorText: "A claim uses a name the credential format sets itself.",
+	},
+	AttestationSubjectInvalid: AppError{
+		ErrorCode: "attestation_subject_invalid",
+		ErrorText: "The identity an offer is made for is named by its fingerprint: 64 hexadecimal characters.",
+	},
+	AttestationImmutable: AppError{
+		ErrorCode: "attestation_immutable",
+		ErrorText: "What an attestation states cannot be changed once it exists. Revoke it and issue a new one.",
+	},
+	AttestationExpiryInvalid: AppError{
+		ErrorCode: "attestation_expiry_invalid",
+		ErrorText: "A date an attestation or its offer ends on lies in the future.",
+	},
+	AttestationOfferNotFound: AppError{
+		ErrorCode: "attestation_offer_not_found",
+		ErrorText: "This offer does not exist.",
+	},
+	AttestationOfferExpired: AppError{
+		ErrorCode: "attestation_offer_expired",
+		ErrorText: "This offer has expired. Ask its issuer for a new one.",
+	},
+	AttestationOfferClaimed: AppError{
+		ErrorCode: "attestation_offer_claimed",
+		ErrorText: "This offer was already accepted. An offer works once.",
+	},
+	AttestationOfferRevoked: AppError{
+		ErrorCode: "attestation_offer_revoked",
+		ErrorText: "This offer was withdrawn by its issuer.",
+	},
+	AttestationIdentityMismatch: AppError{
+		ErrorCode: "attestation_identity_mismatch",
+		ErrorText: "This offer was made for a different identity.",
+	},
+	AttestationKeyUnsupported: AppError{
+		ErrorCode: "attestation_key_unsupported",
+		ErrorText: "The identity's key is of a kind a credential cannot be bound to.",
+	},
+	AttestationIssueFailed: AppError{
+		ErrorCode: "attestation_issue_failed",
+		ErrorText: "The credential could not be issued. Try again later.",
+	},
+	CredentialInvalid: AppError{
+		ErrorCode: "credential_invalid",
+		ErrorText: "The credential the issuer returned did not verify, so it was not kept.",
+	},
+	PresentationInvalid: AppError{
+		ErrorCode: "presentation_invalid",
+		ErrorText: "This is not a credential presentation that can be read.",
 	},
 }
 

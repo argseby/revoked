@@ -27,6 +27,9 @@ class HandshakeService {
   static const String scopeRequest = 'request';
   static const String scopeLink = 'link';
 
+  /// Accepting an attestation offer; the slug is the offer's token.
+  static const String scopeAttestation = 'attestation';
+
   final ApiClient _apiClient;
   final CryptoService _cryptoService;
 
@@ -37,12 +40,18 @@ class HandshakeService {
   /// Signs the server's nonce with the private key held in secure storage
   /// for [identityId] (via [CryptoService.signMessage]). Use this when the
   /// caller owns a persisted identity.
+  ///
+  /// [origin] names the server the challenge is for when it is not the
+  /// signed-in one — a request on another server checks the signature
+  /// itself, so the nonce has to come from there.
   Future<SignedChallenge> prepare({
     required String scope,
     required String slug,
     required String identityId,
+    String? origin,
   }) async {
-    final response = await _apiClient.get(
+    final response = await _apiClient.getFromOrigin(
+      origin,
       '/api/challenges/$scope/$slug',
       queryParams: {'identityId': identityId},
     );

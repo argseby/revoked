@@ -33,6 +33,10 @@ var AuditSecretFields = map[string][]string{
 	Coll.Handshakes: {Fields.Handshake.TokenHash},
 	// The slug is the capability to someone else's share.
 	Coll.Bookmarks: {Fields.Bookmark.Slug},
+	// What is stated about a person is that person's data, not the audit
+	// trail's; the row records that an attestation was issued, not its content.
+	Coll.Attestations: {Fields.Attestation.Claims, Fields.Attestation.OfferTokenHash},
+	Coll.Credentials:  {Fields.Credential.Credential, Fields.Credential.Claims},
 }
 
 // RedactAuditData returns data with the collection's secret fields replaced by

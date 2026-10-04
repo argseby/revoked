@@ -123,30 +123,8 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.RequestAccountRequired)
 			}
 
-			if hash := req.GetString(util.Fields.Request.Password); hash != "" {
-				if !allowRequest(re, gatePasswordLimiter, slug) {
-					return rateLimitedResponse(re)
-				}
-				if body.Password == "" {
-					return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.RequestPasswordRequired)
-				}
-				if !util.VerifyPassword(hash, body.Password) {
-					return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.RequestPasswordInvalid)
-				}
-				gatePasswordLimiter.Reset(rateLimitKey(re, slug))
-			}
-
-			// A defined identifier must be echoed back, which blocks spray-and-pray
-			// submissions against guessed slugs.
-			if expected := req.GetString(util.Fields.Request.Identifier); expected != "" {
-				// A shared secret like the password, so it shares that budget.
-				if !allowRequest(re, gatePasswordLimiter, slug) {
-					return rateLimitedResponse(re)
-				}
-				if body.Identifier == "" || body.Identifier != expected {
-					return appErrorResponse(re, http.StatusBadRequest, &util.Errors.RequestIdentifierMissing)
-				}
-				gatePasswordLimiter.Reset(rateLimitKey(re, slug))
+			if !enforceRequestSecrets(re, req, slug, body.Password, body.Identifier) {
+				return nil
 			}
 
 			// identityProven gates attribution. Identity ids are public (the probe
@@ -178,24 +156,14 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 
 			// Template validation runs after gating, so bad-data 400s cannot be used
 			// to probe the template without first passing the password/identifier gates.
-			tplRecords, tplSections := loadRequestTemplate(app, req)
-			templateKeys := map[string]templateEntry{}
-			for _, item := range tplRecords {
-				templateKeys[item.Key] = templateEntry{required: item.Required}
-			}
-			// Section children are answerable too, so their required flags must count.
-			for _, sec := range tplSections {
-				for _, child := range sec.Records {
-					templateKeys[child.Key] = templateEntry{required: child.Required}
-				}
-			}
+			templateKeys := templateKeysFrom(loadRequestTemplate(app, req))
 			if appErr := validateSubmissionData(body.Data, templateKeys, req.GetBool(util.Fields.Request.AllowExtraFields)); appErr != nil {
 				return appErrorResponse(re, http.StatusBadRequest, appErr)
 			}
 
 			// The responder's answers become records in their own vault — a
 			// living, revocable grant rather than a frozen copy.
-			grantMap := createGrantRecords(app, re.Auth, req, body.Data, mappedGrants, mappedAliasIds)
+			grantMap, _ := createGrantRecords(app, re.Auth, localGrantTarget(app, req), body.Data, mappedGrants, mappedAliasIds)
 
 			senderName := body.SenderName
 
@@ -270,27 +238,7 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				go deliverCallback(app, req, resp, cb, senderName)
 			}
 
-			respTitle := "Request received a new response"
-			respBody := "Request " + req.GetString(util.Fields.Request.Slug) +
-				" received a new submission."
-			if isUpdate {
-				respTitle = "A response was updated"
-				respBody = "A responder updated their submission to request " +
-					req.GetString(util.Fields.Request.Slug) + "."
-			}
-			services.EmitNotification(app, req.GetString(util.Fields.Request.User),
-				req.GetString(util.Fields.Request.Workspace),
-				util.NotificationRequestResponse,
-				respTitle, respBody,
-				util.Coll.Requests, req.Id)
-			if completed {
-				services.EmitNotification(app, req.GetString(util.Fields.Request.User),
-					req.GetString(util.Fields.Request.Workspace),
-					util.NotificationRequestComplete,
-					"Request completed",
-					"Request "+req.GetString(util.Fields.Request.Slug)+" reached its max response limit.",
-					util.Coll.Requests, req.Id)
-			}
+			notifyRequestAnswered(app, req, isUpdate, completed)
 
 			return re.JSON(http.StatusOK, map[string]any{
 				"ok":         true,
@@ -303,6 +251,57 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 
 		return e.Next()
 	})
+}
+
+// enforceRequestSecrets checks a request's password and identifier gates.
+//
+// Reports whether the caller may proceed, having already written the refusal
+// when it may not. See [denyGate] for why this is a bool and not an error.
+func enforceRequestSecrets(re *core.RequestEvent, req *core.Record, slug, password, identifier string) bool {
+	if hash := req.GetString(util.Fields.Request.Password); hash != "" {
+		if !allowRequest(re, gatePasswordLimiter, slug) {
+			_ = rateLimitedResponse(re)
+			return false
+		}
+		if password == "" {
+			return denyGate(re, http.StatusUnauthorized, &util.Errors.RequestPasswordRequired)
+		}
+		if !util.VerifyPassword(hash, password) {
+			return denyGate(re, http.StatusUnauthorized, &util.Errors.RequestPasswordInvalid)
+		}
+		gatePasswordLimiter.Reset(rateLimitKey(re, slug))
+	}
+
+	// A defined identifier must be echoed back, which blocks spray-and-pray
+	// submissions against guessed slugs.
+	if expected := req.GetString(util.Fields.Request.Identifier); expected != "" {
+		// A shared secret like the password, so it shares that budget.
+		if !allowRequest(re, gatePasswordLimiter, slug) {
+			_ = rateLimitedResponse(re)
+			return false
+		}
+		if identifier == "" || identifier != expected {
+			return denyGate(re, http.StatusBadRequest, &util.Errors.RequestIdentifierMissing)
+		}
+		gatePasswordLimiter.Reset(rateLimitKey(re, slug))
+	}
+	return true
+}
+
+// templateKeysFrom flattens a template's records and section children into
+// the key → required map validateSubmissionData checks against.
+func templateKeysFrom(records, sections []publicTemplateItem) map[string]templateEntry {
+	keys := map[string]templateEntry{}
+	for _, item := range records {
+		keys[item.Key] = templateEntry{required: item.Required}
+	}
+	// Section children are answerable too, so their required flags must count.
+	for _, sec := range sections {
+		for _, child := range sec.Records {
+			keys[child.Key] = templateEntry{required: child.Required}
+		}
+	}
+	return keys
 }
 
 type templateEntry struct {
@@ -572,26 +571,55 @@ func resolveResponseMappings(app core.App, auth *core.Record, mappings map[strin
 	return grants, aliasIds, nil
 }
 
+// grantTarget says whom a set of answers is for: the section the new entries
+// are grouped under and the requestedBy stamp each of them carries.
+type grantTarget struct {
+	sectionKey  string
+	sectionName string
+	requestedBy string
+}
+
+// localGrantTarget is the target for a request on this server.
+func localGrantTarget(app core.App, req *core.Record) grantTarget {
+	name := req.GetString(util.Fields.Request.Label)
+	if name == "" {
+		name = req.GetString(util.Fields.Request.Slug)
+	}
+	return grantTarget{
+		sectionKey:  sanitizeKey("req_" + req.GetString(util.Fields.Request.Slug)),
+		sectionName: name,
+		requestedBy: requesterDisplayName(app, req),
+	}
+}
+
+// grantCreation lists what createGrantRecords added to the vault, so a caller
+// whose answer is refused afterwards can take it back out.
+type grantCreation struct {
+	records []string
+	section string
+}
+
 // createGrantRecords turns a signed-in responder's free-typed answers into living
 // grants, reusing a vault record that already holds the same value under the same key
 // so re-answering does not spawn field_1 / field_2 duplicates. Best-effort: a failure
 // only yields fewer references, and the response still saves its data snapshot.
-func createGrantRecords(app core.App, auth *core.Record, req *core.Record, data map[string]any, mapped map[string]string, aliasIds []string) map[string]string {
+func createGrantRecords(app core.App, auth *core.Record, target grantTarget, data map[string]any, mapped map[string]string, aliasIds []string) (map[string]string, grantCreation) {
 	grants := map[string]string{}
+	created := grantCreation{}
 	for k, id := range mapped {
 		grants[k] = id
 	}
 
 	workspace := auth.GetString(util.Fields.User.ActiveWorkspace)
 	if workspace == "" {
-		return grants
+		return grants, created
 	}
 	userId := auth.Id
-	requestedBy := requesterDisplayName(app, req)
+	requestedBy := target.requestedBy
 
 	secCol, err := app.FindCollectionByNameOrId(util.Coll.Sections)
 	if err != nil {
-		return grants
+		return grants, created
 	}
 
 	// Created lazily, so a submission that only reuses existing records leaves no
@@ -601,24 +629,20 @@ func createGrantRecords(app core.App, auth *core.Record, req *core.Record, data 
 		if section != nil {
 			return section
 		}
-		secKey := sanitizeKey("req_" + req.GetString(util.Fields.Request.Slug))
 		s, _ := app.FindFirstRecordByFilter(util.Coll.Sections,
 			"key = {:k} && user = {:u} && workspace = {:w}",
-			map[string]any{"k": secKey, "u": userId, "w": workspace})
+			map[string]any{"k": target.sectionKey, "u": userId, "w": workspace})
 		if s == nil {
 			s = core.NewRecord(secCol)
-			s.Set(util.Fields.Section.Key, secKey)
-			name := req.GetString(util.Fields.Request.Label)
-			if name == "" {
-				name = req.GetString(util.Fields.Request.Slug)
-			}
-			s.Set(util.Fields.Section.Name, name)
+			s.Set(util.Fields.Section.Key, target.sectionKey)
+			s.Set(util.Fields.Section.Name, target.sectionName)
 			s.Set(util.Fields.Section.RequestedBy, requestedBy)
 			s.Set(util.Fields.Section.User, userId)
 			s.Set(util.Fields.Section.Workspace, workspace)
 			if err := app.Save(s); err != nil {
 				return nil
 			}
+			created.section = s.Id
 		}
 		section = s
 		return s
@@ -662,6 +686,7 @@ func createGrantRecords(app core.App, auth *core.Record, req *core.Record, data 
 				}
 				grants[key] = rec.Id
 				newIds = append(newIds, rec.Id)
+				created.records = append(created.records, rec.Id)
 			}
 		}
 	}
@@ -690,7 +715,7 @@ func createGrantRecords(app core.App, auth *core.Record, req *core.Record, data 
 			}
 		}
 	}
-	return grants
+	return grants, created
 }
 
 // grantRecordIdsFrom returns the unique record ids referenced by a grant map.
@@ -837,6 +862,32 @@ func deliverCallback(app core.App, req *core.Record, resp *core.Record, url, sen
 	}
 	if status >= 400 {
 		notifyCallbackFailed(app, req, "callback returned status "+strconv.Itoa(status))
+	}
+}
+
+// notifyRequestAnswered tells a request's owner about a new or updated
+// answer, and that the request is complete when this answer completed it.
+func notifyRequestAnswered(app core.App, req *core.Record, isUpdate, completed bool) {
+	respTitle := "Request received a new response"
+	respBody := "Request " + req.GetString(util.Fields.Request.Slug) +
+		" received a new submission."
+	if isUpdate {
+		respTitle = "A response was updated"
+		respBody = "A responder updated their submission to request " +
+			req.GetString(util.Fields.Request.Slug) + "."
+	}
+	services.EmitNotification(app, req.GetString(util.Fields.Request.User),
+		req.GetString(util.Fields.Request.Workspace),
+		util.NotificationRequestResponse,
+		respTitle, respBody,
+		util.Coll.Requests, req.Id)
+	if completed {
+		services.EmitNotification(app, req.GetString(util.Fields.Request.User),
+			req.GetString(util.Fields.Request.Workspace),
+			util.NotificationRequestComplete,
+			"Request completed",
+			"Request "+req.GetString(util.Fields.Request.Slug)+" reached its max response limit.",
+			util.Coll.Requests, req.Id)
 	}
 }
 

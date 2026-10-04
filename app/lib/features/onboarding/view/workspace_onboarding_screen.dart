@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
@@ -19,16 +19,29 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
 
 /// First run: an account has no workspace until it either creates one or joins
-/// one, so this asks which — rather than silently provisioning a workspace the
-/// person may not want and then having them join a second one anyway.
-class WorkspaceOnboardingScreen extends StatelessWidget {
+/// one. Creating comes first, with both names already suggested, so someone
+/// arriving from a tool is one tap away from where they were going; joining
+/// with an invite key is a link below it.
+class WorkspaceOnboardingScreen extends StatefulWidget {
   const WorkspaceOnboardingScreen({super.key});
 
+  @override
+  State<WorkspaceOnboardingScreen> createState() =>
+      _WorkspaceOnboardingScreenState();
+}
+
+class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   OnboardingStore get _store => Stores.onboarding;
 
   String get _token => DeepLinks.inviteTokenFrom(_store.keyController.text);
 
-  Future<void> _createWorkspace(BuildContext context) async {
+  @override
+  void initState() {
+    super.initState();
+    _store.prefill(Stores.auth.userEmail);
+  }
+
+  Future<void> _createWorkspace() async {
     final name = _store.nameController.text.trim();
     if (name.isEmpty) {
       _store.fail('Give your workspace a name.');
@@ -51,11 +64,11 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
       return;
     }
 
-    _store.nameController.clear();
-    _store.isBusy = false;
-
-    if (!context.mounted) return;
-    await _adoptFirstWorkspace(context);
+    try {
+      await _adoptFirstWorkspace();
+    } catch (e) {
+      _store.stopBusy(AppErrorMessage.fromException(e).description);
+    }
   }
 
   Future<void> _peekInvite() async {
@@ -75,7 +88,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _joinWorkspace(BuildContext context) async {
+  Future<void> _joinWorkspace() async {
     if (_token.isEmpty) {
       _store.fail('Paste the invite key you were given.');
       return;
@@ -84,8 +97,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
     _store.startBusy();
     try {
       await Stores.invites.accept(_token);
-      if (!context.mounted) return;
-      await _adoptFirstWorkspace(context);
+      await _adoptFirstWorkspace();
     } catch (e) {
       _store.stopBusy(AppErrorMessage.fromException(e).description);
     }
@@ -94,14 +106,20 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
   /// Re-reads the session so the new membership becomes the active context,
   /// then gives the account a signing identity now that one can be scoped to a
   /// workspace, and finally loads the workspace's data.
-  Future<void> _adoptFirstWorkspace(BuildContext context) async {
+  ///
+  /// Busy throughout: the router leaves this screen alone until then, so a
+  /// proposal waiting behind it opens with the identity it signs with.
+  Future<void> _adoptFirstWorkspace() async {
     final auth = Stores.auth;
     await auth.initialize();
     await auth.ensureIdentity(name: _store.identityNameController.text);
     await Stores.workspaceContext.reload();
-    if (!context.mounted) return;
-    AppToast.success(context, 'You are all set.');
-    context.go(AppRoutes.vault);
+    if (mounted) {
+      final next = ResumeLocation.take();
+      if (next == null) AppToast.success(context, 'You are all set.');
+      context.go(next ?? AppRoutes.vault);
+    }
+    _store.finish();
   }
 
   @override
@@ -110,6 +128,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
   }
 
   Widget _build(BuildContext context) {
+    final next = ResumeLocation.describe();
     return Scaffold(
       appBar: AppBar(
         title: const AppText('Set up your workspace', header: true),
@@ -121,9 +140,17 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
           children: [
             Text(
               'A workspace holds your vault, shares and requests. '
-              'Start your own, or join one you have been invited to.',
+              'We suggested names below - keep them or change them.',
             ).muted.small,
             AppSpacing.gapLg,
+            if (next != null) ...[
+              AppAlert(
+                leading: const Icon(AppIcons.info),
+                title: const Text('One step left'),
+                content: Text(next).small,
+              ),
+              AppSpacing.gapMd,
+            ],
             if (_store.error != null) ...[
               AppAlert(
                 destructive: true,
@@ -132,38 +159,19 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
               ),
               AppSpacing.gapMd,
             ],
-            if (_store.choice == OnboardingChoice.undecided)
-              ..._chooser(context),
-            if (_store.choice == OnboardingChoice.create)
-              ..._createForm(context),
-            if (_store.choice == OnboardingChoice.join) ..._joinForm(context),
+            if (_store.choice == OnboardingChoice.create) ..._createForm(),
+            if (_store.choice == OnboardingChoice.join) ..._joinForm(),
           ],
         ),
       ),
     );
   }
 
-  List<Widget> _chooser(BuildContext context) => [
-    _ChoiceCard(
-      icon: AppIcons.personWorkspace,
-      title: 'Create a workspace',
-      subtitle: 'Start fresh with your own vault.',
-      onTap: () => _store.choose(OnboardingChoice.create),
-    ),
-    AppSpacing.gapMd,
-    _ChoiceCard(
-      icon: AppIcons.key,
-      title: 'Join with an invite',
-      subtitle: 'Paste the key someone shared with you.',
-      onTap: () => _store.choose(OnboardingChoice.join),
-    ),
-  ];
-
-  List<Widget> _createForm(BuildContext context) => [
+  List<Widget> _createForm() => [
     AppTextField(
       controller: _store.nameController,
       label: 'Workspace name',
-      hint: 'e.g. Acme, or your own name',
+      hint: 'e.g. Personal, Family or Acme',
     ),
     AppSpacing.gapMd,
     AppTextField(
@@ -177,29 +185,31 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
       'request from sees it.',
     ).muted.small,
     AppSpacing.gapLg,
-
-    Row(
-      children: [
-        Expanded(child: _backButton()),
-        AppSpacing.gapSm,
-
-        Expanded(
-          child: AppButton(
-            icon: AppIcons.plus,
-            label: _store.isBusy ? 'Creating…' : 'Create workspace',
-            onTap:
-                _store.isBusy ||
-                    (_store.nameController.text.isEmpty ||
-                        _store.identityNameController.text.isEmpty)
-                ? null
-                : () => _createWorkspace(context),
-          ),
-        ),
-      ],
+    AppButton(
+      icon: AppIcons.plus,
+      label: _store.isBusy ? 'Creating…' : 'Create workspace',
+      onTap:
+          _store.isBusy ||
+              _store.nameController.text.trim().isEmpty ||
+              _store.identityNameController.text.trim().isEmpty
+          ? null
+          : _createWorkspace,
+    ),
+    AppSpacing.gapXl,
+    Center(
+      child: AppButton(
+        icon: AppIcons.key,
+        label: 'Join with an invite key instead',
+        style: AppButtonStyle.ghost,
+        size: AppButtonSize.small,
+        onTap: _store.isBusy
+            ? null
+            : () => _store.choose(OnboardingChoice.join),
+      ),
     ),
   ];
 
-  List<Widget> _joinForm(BuildContext context) => [
+  List<Widget> _joinForm() => [
     AppTextField(
       controller: _store.keyController,
       label: 'Invite key',
@@ -250,7 +260,7 @@ class WorkspaceOnboardingScreen extends StatelessWidget {
             label: _store.isBusy ? 'Joining…' : 'Join workspace',
             onTap: _store.isBusy || _store.keyController.text.isEmpty
                 ? null
-                : () => _joinWorkspace(context),
+                : _joinWorkspace,
           ),
         ),
       ],
@@ -274,50 +284,4 @@ String _slugify(String value) {
       .replaceAll(RegExp(r'^-+|-+$'), '');
   final suffix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
   return base.isEmpty ? 'workspace-$suffix' : '$base-$suffix';
-}
-
-class _ChoiceCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _ChoiceCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppRadius.allLg,
-      child: AppCard(
-        child: Row(
-          children: [
-            Icon(icon, color: scheme.primary),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(subtitle).muted.small,
-                ],
-              ),
-            ),
-            Icon(
-              AppIcons.chevronRight,
-              size: 16,
-              color: scheme.onSurfaceVariant,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

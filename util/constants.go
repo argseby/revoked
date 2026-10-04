@@ -34,6 +34,9 @@ const (
 	StatusRevoked   = "revoked"
 	StatusExpired   = "expired"
 	StatusCompleted = "completed"
+	// StatusOffered is an attestation that waits to be accepted: nothing has
+	// been signed yet, and nobody holds a credential for it.
+	StatusOffered = "offered"
 
 	NotificationRequestResponse = "request_response"
 	NotificationLinkExpired     = "link_expired"
@@ -45,6 +48,8 @@ const (
 	NotificationInviteAccepted  = "invite_accepted"
 	NotificationLinkOpened      = "link_opened"
 	NotificationReminder        = "reminder"
+	// The attester hears that an offer was accepted and a credential issued.
+	NotificationAttestationAccepted = "attestation_accepted"
 
 	// A reminder fires at a point in time, or the first time the entry it
 	// watches changes.
@@ -52,6 +57,18 @@ const (
 	ReminderKindChange = "change"
 
 	PurposeApplication = "application"
+
+	// Grant events: what a requester learns when a grant it holds changes.
+	// An event names the grant and its new status, never a value; the
+	// receiver reads the value again if it needs it.
+	GrantEventRevoked = "grant.revoked"
+	GrantEventChanged = "grant.changed"
+	GrantEventExpired = "grant.expired"
+
+	// A grant delivery goes to another server's event endpoint, or to the
+	// callback URL of one of this server's own requests.
+	DeliveryKindPeer     = "peer"
+	DeliveryKindCallback = "callback"
 
 	// Revocation reasons recorded on an identity. They are advisory — a verifier
 	// treats every non-active status the same — but they are what tells an
@@ -120,7 +137,20 @@ var NotificationTypes = []string{
 	NotificationInviteAccepted,
 	NotificationLinkOpened,
 	NotificationReminder,
+	NotificationAttestationAccepted,
 }
+
+// AttestationStatuses lists the valid attestation statuses. An attestation is
+// offered until its subject accepts it, active once the credential was
+// issued, and revoked from either state. Like an identity it never returns
+// from revoked: the statement was published, and verifiers may have read it.
+var AttestationStatuses = []string{StatusOffered, StatusActive, StatusRevoked}
+
+// DeliveryKinds lists the valid grant delivery kinds.
+var DeliveryKinds = []string{DeliveryKindPeer, DeliveryKindCallback}
+
+// GrantEventTypes lists the valid grant event types.
+var GrantEventTypes = []string{GrantEventRevoked, GrantEventChanged, GrantEventExpired}
 
 // ReminderKinds lists the valid reminder kinds.
 var ReminderKinds = []string{ReminderKindDate, ReminderKindChange}

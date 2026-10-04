@@ -2,9 +2,15 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 
+import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/models/share_proposal.dart';
+import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
+import 'package:revoked_app/core/router/resume_location.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/features/attestations/view/attestation_offer_screen.dart';
+import 'package:revoked_app/features/attestations/view/presentation_screen.dart';
 import 'package:revoked_app/features/auth/view/login_screen.dart';
 import 'package:revoked_app/features/shell/view/app_shell.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
@@ -17,6 +23,7 @@ import 'package:revoked_app/features/shares/view/shares_screen.dart';
 import 'package:revoked_app/features/shares/view/public_share_screen.dart';
 import 'package:revoked_app/features/shares/view/share_proposal_screen.dart';
 import 'package:revoked_app/features/connections/view/connect_screen.dart';
+import 'package:revoked_app/features/connections/view/sign_in_handoff_screen.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/requests/view/inbox_screen.dart';
 import 'package:revoked_app/features/requests/view/request_detail_screen.dart';
@@ -62,6 +69,14 @@ abstract class AppRoutes {
   static const proposal = '/p';
   // A tool asking to be connected; nothing is connected until the owner agrees.
   static const connect = '/connect';
+  // A service asking to sign its user in; continued in the browser, on the
+  // server the app is signed into.
+  static const signIn = '/signin';
+  // An offer to attest something about one of the person's identities.
+  // Accepting needs one of those identities, so it needs their session.
+  static const attestationOffer = '/a/:token';
+  // A service asking to be shown an attestation the person holds.
+  static const present = '/present';
   static const onboarding = '/onboarding';
 
   /// Shown while the stored session is being checked.
@@ -126,8 +141,18 @@ class AppRouter {
         final isLoggedIn = authStore.isAuthenticated;
         final isAuthRoute = state.matchedLocation == AppRoutes.login;
 
+        // A link that meets the login screen or onboarding is held and taken
+        // up again once they are done, rather than dropped for the vault -
+        // that made someone new go back to the tool and start over.
         if (!isLoggedIn && !isAuthRoute && !isPublicRoute) {
+          ResumeLocation.hold(state.uri.toString());
           return AppRoutes.login;
+        }
+
+        // Ahead of the workspace check, so an invite that waited for the
+        // sign-in is shown before onboarding offers to create a workspace.
+        if (isLoggedIn && isAuthRoute) {
+          return ResumeLocation.take() ?? AppRoutes.vault;
         }
 
         // An account has no workspace until it creates or joins one, and every
@@ -136,11 +161,15 @@ class AppRouter {
             isLoggedIn && (authStore.activeWorkspace ?? '').isEmpty;
         final onOnboarding = state.matchedLocation == AppRoutes.onboarding;
         if (needsWorkspace && !onOnboarding && !isPublicRoute) {
+          ResumeLocation.hold(state.uri.toString());
           return AppRoutes.onboarding;
         }
-        if (!needsWorkspace && onOnboarding) return AppRoutes.vault;
-
-        if (isLoggedIn && isAuthRoute) return AppRoutes.vault;
+        if (!needsWorkspace && onOnboarding) {
+          // Onboarding finishes setting up (the signing identity) after the
+          // workspace exists, and moves on by itself once that is done.
+          if (Stores.onboarding.isBusy) return null;
+          return ResumeLocation.take() ?? AppRoutes.vault;
+        }
         return null;
       },
       routes: [
@@ -206,6 +235,28 @@ class AppRouter {
           path: AppRoutes.connect,
           builder: (context, state) => ConnectScreen(
             request: ConnectRequest.fromQuery(state.uri.queryParameters),
+          ),
+        ),
+        // Not public: the server to continue on is the one signed into.
+        GoRoute(
+          path: AppRoutes.signIn,
+          builder: (context, state) => SignInHandoffScreen(
+            request: SignInRequest.fromQuery(state.uri.queryParameters),
+          ),
+        ),
+        // Not public: the identity an offer is accepted with, and the
+        // credentials a presentation draws on, are the signed-in person's.
+        GoRoute(
+          path: AppRoutes.attestationOffer,
+          builder: (context, state) => AttestationOfferScreen(
+            token: state.pathParameters['token'] ?? '',
+            origin: state.uri.queryParameters['o'],
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.present,
+          builder: (context, state) => PresentationScreen(
+            request: PresentationRequest.fromQuery(state.uri.queryParameters),
           ),
         ),
         // Fallbacks for public URLs missing slugs

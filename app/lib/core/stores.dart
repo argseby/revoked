@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/services/domain_verification_service.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
@@ -10,6 +11,8 @@ import 'package:revoked_app/core/services/workspace_context.dart';
 import 'package:revoked_app/core/theme/theme_store.dart';
 import 'package:revoked_app/core/window/window_store.dart';
 import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
+import 'package:revoked_app/features/attestations/store/attestations_store.dart';
+import 'package:revoked_app/features/attestations/store/credentials_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/store/server_settings_store.dart';
 import 'package:revoked_app/features/bookmarks/store/bookmarks_store.dart';
@@ -50,6 +53,8 @@ abstract final class Stores {
   static late final TemplatesStore templates;
   static late final ApiKeysStore apiKeys;
   static late final IdentitiesStore identities;
+  static late final CredentialsStore credentials;
+  static late final AttestationsStore attestations;
   static late final NotificationsStore notifications;
   static late final RemindersStore reminders;
   static late final SettingsStore settings;
@@ -77,6 +82,12 @@ abstract final class Stores {
 
     theme = ThemeStore();
     await theme.load();
+    // A link held while someone signed up in the browser, in case the system
+    // closed the app meanwhile. Bounded like the cache above.
+    await ResumeLocation.load().timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {},
+    );
 
     window = WindowStore();
 
@@ -92,6 +103,8 @@ abstract final class Stores {
     templates = TemplatesStore(api);
     apiKeys = ApiKeysStore(api);
     identities = IdentitiesStore(api, crypto);
+    credentials = CredentialsStore(api, crypto, handshake, domainVerification);
+    attestations = AttestationsStore(api);
     notifications = NotificationsStore(api);
     reminders = RemindersStore(api);
     settings = SettingsStore(api);

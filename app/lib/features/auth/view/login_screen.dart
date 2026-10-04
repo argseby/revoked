@@ -3,6 +3,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -40,6 +41,22 @@ class LoginScreen extends StatelessWidget {
                   'There is no password.',
                 ).muted,
                 const SizedBox(height: AppSpacing.xxl),
+
+                // Someone who came from a link is told it is not lost.
+                Observer(
+                  builder: (_) {
+                    final next = ResumeLocation.describe();
+                    if (next == null) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      child: AppAlert(
+                        leading: const Icon(AppIcons.info),
+                        title: const Text('Sign in or create an account first'),
+                        content: Text(next),
+                      ),
+                    );
+                  },
+                ),
 
                 Observer(
                   builder: (_) {

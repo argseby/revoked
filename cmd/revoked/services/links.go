@@ -103,6 +103,13 @@ func ClaimLinkView(app core.App, link *core.Record) (views int, revokedByLimit b
 		if _, err := app.DB().NewQuery(`UPDATE {{links}} SET status = {:status} WHERE id = {:id}`).
 			Bind(dbx.Params{"status": util.StatusRevoked, "id": link.Id}).Execute(); err != nil {
 			app.Logger().Error("Failed to auto-revoke link at max views", "error", err, "link", link.Id)
+		} else if IsRequestGrant(link) {
+			// The raw update bypasses the link hooks, so the grant's holder
+			// is told here.
+			if err := SyncGrantIndex(app, link); err != nil {
+				app.Logger().Error("Failed to drop grant index rows", "error", err, "link", link.Id)
+			}
+			DispatchGrantEvents(app, []*core.Record{link}, util.GrantEventExpired, util.StatusRevoked)
 		}
 	}
 	return views, revokedByLimit, nil

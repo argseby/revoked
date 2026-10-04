@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:revoked_app/core/files/file_opener.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mobx/mobx.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,6 +16,32 @@ import 'package:revoked_app/core/utils/pkce.dart';
 
 part 'auth_store.g.dart';
 
+/// On Android the page opens in a Custom Tab: a browser tab inside the
+/// app, which keeps the person here instead of sending them to another app
+/// and back, and which - unlike a web view - can use passkeys. The page's
+/// `revoked://auth` answer brings MainActivity forward and closes the tab
+/// with it (it is `singleTask`). Without a browser that offers Custom Tabs,
+/// and everywhere else, it opens in the browser: url_launcher would fall
+/// back to a web view, where passkeys do not work.
+Future<bool> openSignInPage(
+  Uri page, {
+  TargetPlatform? platform,
+  Future<bool> Function(LaunchMode mode)? supports,
+  Future<bool> Function(Uri page, LaunchMode mode)? launch,
+}) async {
+  final android = (platform ?? defaultTargetPlatform) == TargetPlatform.android;
+  final canTab =
+      android &&
+      await (supports ?? supportsLaunchMode)(
+        LaunchMode.inAppBrowserView,
+      ).catchError((Object _) => false);
+  final open = launch ?? ((Uri p, LaunchMode m) => launchUrl(p, mode: m));
+  return open(
+    page,
+    canTab ? LaunchMode.inAppBrowserView : LaunchMode.externalApplication,
+  );
+}
+
 // ignore: library_private_types_in_public_api
 class AuthStore = _AuthStore with _$AuthStore;
 
@@ -24,7 +50,8 @@ abstract class _AuthStore with Store {
 
   final FlutterSecureStorage _secure;
 
-  /// Opens the system browser; replaced in tests, which have none.
+  /// Opens the sign-in page ([openSignInPage]); replaced in tests, which
+  /// have no browser.
   final Future<bool> Function(Uri page) _openBrowser;
 
   _AuthStore(
@@ -32,10 +59,7 @@ abstract class _AuthStore with Store {
     FlutterSecureStorage? secureStorage,
     Future<bool> Function(Uri page)? openBrowser,
   }) : _secure = secureStorage ?? createSecureStorage(),
-       _openBrowser = openBrowser ?? _launchExternally;
-
-  static Future<bool> _launchExternally(Uri page) =>
-      launchUrl(page, mode: LaunchMode.externalApplication);
+       _openBrowser = openBrowser ?? openSignInPage;
 
   static const _pendingKey = 'passkey_sign_in_pending';
 
