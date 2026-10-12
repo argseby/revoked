@@ -19,6 +19,9 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/requests/view/request_groups.dart';
+import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 
 /// Which requests the chips above the list let through.
 enum _RequestFilter { all, open, closed }
@@ -91,9 +94,47 @@ class _InboxScreenState extends State<InboxScreen> {
         if (reqStore.requests.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.inboxFill,
-            title: 'No requests yet',
+            title: 'Requests collect data from other people',
             subtitle:
-                'Tap + to create a data request and start collecting peer data.',
+                'A request is a public form. An answer linked from someone\'s '
+                'own vault remains theirs, stays current, and can be '
+                'withdrawn by them.',
+            example: const AppEmptyExample(
+              title: 'Tenant details',
+              detail: '4 fields',
+              badge: '2 responses',
+            ),
+            steps: const [
+              AppEmptyStep(
+                'A template defines the fields',
+                'Such as a name, an address or a file',
+              ),
+              AppEmptyStep(
+                'The form is shared as a link',
+                'Optionally limited to verified identities',
+              ),
+              AppEmptyStep(
+                'Responses are collected per request',
+                'As a list or a spreadsheet',
+              ),
+            ],
+            action: AppButton(
+              icon: AppIcons.plus,
+              label: 'New request',
+              onTap: () => openRequestCreateSheet(
+                context: context,
+                store: Stores.requests,
+                authStore: Stores.auth,
+              ),
+            ),
+            secondaryAction: AppButton(
+              icon: AppIcons.fileText,
+              label: 'Templates',
+              style: AppButtonStyle.accent,
+              onTap: () => context.go(AppRoutes.templates),
+            ),
+            learnMoreLabel: 'How requests work',
+            learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
           );
         }
 

@@ -400,6 +400,12 @@ transition: transform .12s var(--ease), filter .15s;
 .fine { text-align: center; color: var(--fg-muted); font-size: 12px; margin-top: 10px; }
 .fine:empty { display: none; }
 
+/* For a reader who has never heard of Revoked: what the page is. */
+.about { padding: 0 16px; }
+.about summary { cursor: pointer; padding: 14px 0; font-weight: 600; list-style-position: inside; }
+.about p { margin: 0 0 12px; color: var(--fg-muted); font-size: 14px; line-height: 1.5; }
+.about p:last-child { margin-bottom: 16px; }
+
 /* Revealed content */
 #out { display: flex; flex-direction: column; gap: 18px; }
 .sec { animation: rise .5s var(--ease) both; }
@@ -595,6 +601,13 @@ It's protected by {{if .RequireHandshake}}a verified identity{{else}}a password{
 
 <div id="out"></div>
 {{end}}
+
+<details class="card about">
+<summary>What is this page?</summary>
+<p>{{if .SharerName}}{{.SharerName}}{{else}}The sender{{end}} shares this information through Revoked. It is read from the sender's vault each time the page is opened, so it shows the current values, not a copy made when the link was sent.</p>
+<p>The sender can pause or revoke the link at any time. After that it stops working. Anything copied or downloaded from here stays with whoever saved it.</p>
+<p><a href="https://revoked.link" target="_blank" rel="noopener noreferrer">More about Revoked</a></p>
+</details>
 
 </main>
 

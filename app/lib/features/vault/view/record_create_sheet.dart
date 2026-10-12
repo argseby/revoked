@@ -143,10 +143,21 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   bool get _isFileType => _store.recordType == 'file';
 
+  /// The key the record is saved under: the one typed under Advanced, or one
+  /// made from the label. Most people never see a key, so it is never
+  /// required of them.
+  String get _effectiveKey {
+    final typed = _store.recordKey.text.trim();
+    if (typed.isNotEmpty) return typed;
+    return keyFromLabel(
+      _store.recordLabel.text,
+      widget.store.records.map((r) => r.key),
+    );
+  }
+
   bool _canSubmit() {
     final base =
         _store.recordLabel.text.trim().isNotEmpty &&
-        _store.recordKey.text.trim().isNotEmpty &&
         _store.recordKeyWarning == null;
     if (_isFileType) {
       return base && _store.pickedFile != null;
@@ -161,7 +172,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     _store.setSubmittingRecord(true);
 
     final ok = await widget.store.createRecord(
-      key: _store.recordKey.text.trim(),
+      key: _effectiveKey,
       value: _isFileType ? '' : _store.recordValue.text,
       label: _store.recordLabel.text.trim(),
       type: _store.recordType,
@@ -260,40 +271,17 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
               children: [
                 const AppFormSectionHeader('Details'),
                 _buildLabelRow(),
-                _buildKeyRow(),
                 // The type decides how the value is entered, so it comes
                 // first.
                 _buildTypeRow(),
-                if (_isFileType)
-                  VaultFileRow(trailing: [_hiddenToggle()])
-                else
-                  _buildValueRow(),
+                if (_isFileType) const VaultFileRow() else _buildValueRow(),
+                _hiddenToggle(),
 
-                const AppFormSectionHeader('Developer'),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.xl,
-                    0,
-                    AppSpacing.xl,
-                    AppSpacing.sm,
-                  ),
-                  child: _isFileType
-                      ? const Text(
-                          'File records upload as multipart/form-data: the '
-                          'same fields as form parts, plus the file itself '
-                          'as a "file" part.',
-                        ).muted.small
-                      : ApiPreview(
-                          spec: VaultStore.createRecordSpec(
-                            key: _store.recordKey.text.trim(),
-                            value: _store.recordValue.text,
-                            label: _store.recordLabel.text.trim(),
-                            type: _store.recordType,
-                            format: _store.recordFormat,
-                            user: widget.authStore.userId,
-                            workspace: widget.authStore.activeWorkspace ?? '',
-                          ),
-                        ),
+                AppFormAdvanced(
+                  summary: 'Key and API preview',
+                  // A duplicate's key clashes until it is changed.
+                  initiallyOpen: _store.recordKeyWarning != null,
+                  children: [_buildKeyRow(), _apiPreview()],
                 ),
               ],
             ),
@@ -322,7 +310,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 Expanded(
                   child: AppButton(
                     icon: isDup ? AppIcons.copy : AppIcons.plus,
-                    label: isDup ? 'Duplicate Record' : 'Create Record',
+                    label: isDup ? 'Duplicate record' : 'Create record',
                     busy: _store.isSubmittingRecord,
                     onTap: _canSubmit() ? _submit : null,
                   ),
@@ -348,9 +336,11 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         await showAppEditSheet(
           context: context,
           title: 'Label',
-          description: 'A friendly display name for this record.',
+          description:
+              'What this is, in your own words. A key for scripts and '
+              'templates is made from it.',
           controller: _store.recordLabel,
-          hint: 'e.g. Production API Key',
+          hint: 'IBAN',
         );
       },
     );
@@ -361,12 +351,46 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     return AppFormRow(
       icon: AppIcons.hash,
       label: 'Key',
-      valueText: k.isEmpty ? 'Required' : (_store.recordKeyWarning ?? k),
+      valueText: k.isEmpty
+          ? 'From the label: $_effectiveKey'
+          : (_store.recordKeyWarning ?? k),
       isPlaceholder: k.isEmpty,
-      isError: k.isEmpty || _store.recordKeyWarning != null,
+      isError: _store.recordKeyWarning != null,
+      onClear: k.isEmpty
+          ? null
+          : () {
+              _store.recordKey.clear();
+              _validateKey('');
+            },
       onTap: _editKey,
     );
   }
+
+  /// The request this form would send, for anyone scripting the same thing.
+  Widget _apiPreview() => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.xl,
+      0,
+      AppSpacing.xl,
+      AppSpacing.sm,
+    ),
+    child: _isFileType
+        ? const Text(
+            'File records upload as multipart/form-data: the same fields as '
+            'form parts, plus the file itself as a "file" part.',
+          ).muted.small
+        : ApiPreview(
+            spec: VaultStore.createRecordSpec(
+              key: _effectiveKey,
+              value: _store.recordValue.text,
+              label: _store.recordLabel.text.trim(),
+              type: _store.recordType,
+              format: _store.recordFormat,
+              user: widget.authStore.userId,
+              workspace: widget.authStore.activeWorkspace ?? '',
+            ),
+          ),
+  );
 
   /// Desktop drops land anywhere on the drawer; dropping a file flips the
   /// draft to the file type, because the gesture already said so.
@@ -378,7 +402,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     },
   );
 
-  /// The eye behind the value row: whether the vault masks the value.
+  /// Below the value row: whether the vault masks the value.
   Widget _hiddenToggle() => RecordHiddenToggle(
     isFile: _isFileType,
     hidden: _store.recordFormat == 'hidden',
@@ -404,10 +428,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         label: 'Value',
         valueText: hidden ? '••••••••' : (on ? 'True' : 'False'),
         showChevron: false,
-        trailing: [
-          AppSwitch(value: on, onChanged: set),
-          _hiddenToggle(),
-        ],
+        trailing: [AppSwitch(value: on, onChanged: set)],
         onTap: () => set(!on),
       );
     }
@@ -430,7 +451,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
           : (_store.recordTypeWarning ?? summary),
       isPlaceholder: empty,
       isError: empty || _store.recordTypeWarning != null,
-      trailing: [_hiddenToggle()],
       onTap: _editValue,
     );
   }
@@ -506,7 +526,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   Text('Key').header,
                   const SizedBox(height: AppSpacing.xxs),
                   const Text(
-                    'A stable identifier used for sharing and templates.',
+                    'A stable identifier used by templates, requests and '
+                    'scripts. Left empty, one is made from the label.',
                   ).muted.small,
                   const SizedBox(height: AppSpacing.lg),
                   AppTextField(

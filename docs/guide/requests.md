@@ -12,7 +12,13 @@ requester's workspace; a proposal creates a share in the owner's own.
 ## Creating a request
 
 A request is shaped by a [template](templates.md): the template's fields are
-what responders are asked to fill in. The create sheet adds:
+what responders are asked to fill in. Without a template, **Allow extra fields**
+has to be on, so responders add fields of their own; a request that asks for
+nothing at all cannot be created. Left empty, the title is the template's name.
+Once created, the request's link is shown together with a message to send along
+with it, which explains that the request is answered in the Revoked app.
+
+The options below sit under **Advanced** in the create sheet:
 
 **Who can respond**
 

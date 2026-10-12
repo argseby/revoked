@@ -6,8 +6,15 @@ and every share of it updates; revoke the share and the next read is refused.
 
 ## Creating a share
 
-Pick records (or whole [sections](vault.md#sections)) and *Share*. The create
-sheet groups its options:
+The create sheet starts with **What is shared**: records, or whole
+[sections](vault.md#sections), picked from the vault. *Share* on a record opens
+the sheet with that record already picked. Left empty, the label is taken from
+what is shared, and a new share expires after 30 days unless another date is
+set or the expiry is cleared. Once created, the link is shown at once, ready to
+copy or send.
+
+Everything beyond label, expiry and password sits under **Advanced**: the URL
+slug, the view cap, the watermark, the signing identity and the API preview.
 
 **Access** — the gates, freely combinable:
 
@@ -26,7 +33,7 @@ sheet groups its options:
   own cryptographic identity in a challenge handshake before the data
   resolves.
 
-Every create sheet also shows a ready-to-run **API preview** of the exact
+Every create sheet also shows, under Advanced, a ready-to-run **API preview** of the exact
 request it is about to make — the fastest way to learn the
 [HTTP API](../api/index.md).
 

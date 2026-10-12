@@ -8,10 +8,18 @@ import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/template_fill_form.dart';
 
+/// The tabs of [openVaultCreateSheet], in the order they are shown.
+enum VaultCreateTab { record, section, template }
+
 /// The vault's one create drawer. The tabs pick what is being added, so the
 /// floating button opens the form itself rather than a menu asking which form
 /// to open — the same two forms the duplicate actions open on their own.
-void openVaultCreateSheet(BuildContext context) {
+/// [initialTab] lets a caller that already knows (the empty vault's "From
+/// template") open on the right form.
+void openVaultCreateSheet(
+  BuildContext context, {
+  VaultCreateTab initialTab = VaultCreateTab.record,
+}) {
   showAppSheet(
     context: context,
     builder: (sheetContext) => ConstrainedBox(
@@ -44,6 +52,7 @@ void openVaultCreateSheet(BuildContext context) {
           Expanded(
             child: AppTabs(
               labels: const ['Record', 'Section', 'From template'],
+              initialIndex: initialTab.index,
               views: [
                 recordCreateForm(parentContext: context),
                 sectionCreateForm(parentContext: context),

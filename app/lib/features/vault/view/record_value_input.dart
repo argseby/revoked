@@ -3,14 +3,15 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
-import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/utils/value_kind.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 
-/// The eye behind a record's value: whether the vault masks it. It sits on
-/// the value itself, so the choice is made where the value is.
+/// Whether the vault masks a record's value (or a file record's name) on
+/// screen. A labelled switch of its own, below the value, rather than an eye
+/// on the value: an eye there reads as "show what I typed", while this is a
+/// setting stored with the record.
 class RecordHiddenToggle extends StatelessWidget {
   final bool hidden;
   final ValueChanged<bool> onChanged;
@@ -18,24 +19,32 @@ class RecordHiddenToggle extends StatelessWidget {
   /// A file record masks its name, not a value.
   final bool isFile;
 
+  /// Aligns the row with a create drawer's other rows; off inside a form
+  /// that already pads its fields.
+  final bool inset;
+
   const RecordHiddenToggle({
     super.key,
     required this.hidden,
     required this.onChanged,
     this.isFile = false,
+    this.inset = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    final what = isFile ? 'name' : 'value';
-    return AppButton(
-      icon: hidden ? AppIcons.eyeSlash : AppIcons.eye,
-      tooltip: hidden
-          ? 'Hidden in the vault — show the $what'
-          : 'Shown in the vault — hide the $what',
-      style: AppButtonStyle.accent,
-      size: AppButtonSize.small,
-      onTap: () => onChanged(!hidden),
+    return AppFormToggleRow(
+      icon: inset ? AppIcons.eyeSlash : null,
+      label: isFile ? 'Hide file name' : 'Hide value',
+      subtitle: isFile
+          ? 'The name is masked on screen until it is revealed. A file '
+                'name can give its content away.'
+          : 'The value is masked on screen until it is revealed. Suited to '
+                'passwords, tokens and anything not meant to be read over a '
+                'shoulder.',
+      value: hidden,
+      onChanged: onChanged,
+      inset: inset,
     );
   }
 }
@@ -95,13 +104,11 @@ Future<String?> pickRecordDateTime(
 }
 
 /// A record's value as an input that fits its type — typed for text, numbers
-/// and web addresses, a switch for yes/no, a calendar for dates — with the
-/// [RecordHiddenToggle] right behind it.
+/// and web addresses, a switch for yes/no, a calendar for dates. Whether it is
+/// masked is the [RecordHiddenToggle] the form places below it.
 class RecordValueField extends StatelessWidget {
   final String type;
   final TextEditingController controller;
-  final bool hidden;
-  final ValueChanged<bool> onHiddenChanged;
 
   /// Runs after every change, typed or picked, so the caller can validate.
   final ValueChanged<String> onChanged;
@@ -110,8 +117,6 @@ class RecordValueField extends StatelessWidget {
     super.key,
     required this.type,
     required this.controller,
-    required this.hidden,
-    required this.onHiddenChanged,
     required this.onChanged,
   });
 
@@ -128,11 +133,6 @@ class RecordValueField extends StatelessWidget {
   }
 
   Widget _build(BuildContext context) {
-    final eye = Padding(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      child: RecordHiddenToggle(hidden: hidden, onChanged: onHiddenChanged),
-    );
-
     switch (type) {
       case 'boolean':
         final on = controller.text.trim().toLowerCase() == 'true';
@@ -140,7 +140,6 @@ class RecordValueField extends StatelessWidget {
           onTap: () => _set(on ? 'false' : 'true'),
           trailing: [
             AppSwitch(value: on, onChanged: (v) => _set(v ? 'true' : 'false')),
-            eye,
           ],
           child: Text(on ? 'True' : 'False'),
         );
@@ -156,7 +155,6 @@ class RecordValueField extends StatelessWidget {
             if (picked != null) _set(picked);
           },
           leading: const Icon(AppIcons.calendar),
-          trailing: [eye],
           child: value.isEmpty
               ? Text(
                   'Pick a date',
@@ -183,7 +181,6 @@ class RecordValueField extends StatelessWidget {
             _ => null,
           },
           onChanged: onChanged,
-          trailing: eye,
         );
     }
   }

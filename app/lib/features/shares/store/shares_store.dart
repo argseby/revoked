@@ -41,6 +41,21 @@ abstract class _SharesStore with Store {
   @observable
   DateTime? draftExpiresAt;
 
+  /// What a new link shares, picked in the form itself rather than in the
+  /// vault after the link already exists.
+  final ObservableSet<String> draftRecords = ObservableSet<String>();
+  final ObservableSet<String> draftSections = ObservableSet<String>();
+
+  @action
+  void toggleDraftRecord(String id) => draftRecords.contains(id)
+      ? draftRecords.remove(id)
+      : draftRecords.add(id);
+
+  @action
+  void toggleDraftSection(String id) => draftSections.contains(id)
+      ? draftSections.remove(id)
+      : draftSections.add(id);
+
   @observable
   String? draftIdentityId;
 
@@ -85,7 +100,15 @@ abstract class _SharesStore with Store {
     String? identityId,
     bool requireHandshake = false,
     String watermarkText = '',
+    Iterable<String> records = const [],
+    Iterable<String> sections = const [],
   }) {
+    draftRecords
+      ..clear()
+      ..addAll(records);
+    draftSections
+      ..clear()
+      ..addAll(sections);
     draftLabel.text = label;
     draftWatermarkText.text = watermarkText;
     draftSlug.text = slug;

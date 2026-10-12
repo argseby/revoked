@@ -45,9 +45,22 @@ Future<void> showShareSheet({
       webUrl: webUrl,
       appUrl: appUrl,
       apiTarget: apiTarget,
+      invitation: isRequest ? requestInvitation(title, appUrl) : null,
     ),
   );
 }
+
+/// The message a requester sends along with a request link. Someone who has
+/// never heard of revoked gets a `revoked://` link that does nothing without
+/// the app, so the message says what it is and what to do first.
+String requestInvitation(String title, String appUrl) =>
+    '$title\n\n'
+    'This request is answered in the Revoked app (https://revoked.link). '
+    'Answers taken from your own vault stay yours: they can be updated or '
+    'withdrawn at any time.\n\n'
+    '1. Install the Revoked app and sign in.\n'
+    '2. Open this link on the same device:\n'
+    '$appUrl';
 
 class _ShareSheet extends StatelessWidget {
   final String title;
@@ -55,11 +68,15 @@ class _ShareSheet extends StatelessWidget {
   final String appUrl;
   final ApiAccessTarget? apiTarget;
 
+  /// For a request: the message to send with the link.
+  final String? invitation;
+
   const _ShareSheet({
     required this.title,
     required this.webUrl,
     required this.appUrl,
     required this.apiTarget,
+    this.invitation,
   });
 
   @override
@@ -87,9 +104,12 @@ class _ShareSheet extends StatelessWidget {
               children: [
                 Text(title).header,
                 const SizedBox(height: AppSpacing.xxs),
-                const Text(
-                  'Anyone with the link can read what it grants, until you '
-                  'pause or revoke it.',
+                Text(
+                  invitation != null
+                      ? 'Whoever opens this link in the revoked app can '
+                            'answer, until you close the request.'
+                      : 'Anyone with the link can read what it grants, until '
+                            'you pause or revoke it.',
                 ).muted.small,
               ],
             ),
@@ -147,6 +167,11 @@ class _ShareSheet extends StatelessWidget {
                       : 'Opens in revoked, which verifies the server first.',
                   url: appUrl,
                 ),
+
+                if (invitation != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  _InvitationBox(text: invitation!),
+                ],
 
                 if (apiTarget != null) ...[
                   const SizedBox(height: AppSpacing.lg),
@@ -208,17 +233,23 @@ class _ShareSheet extends StatelessWidget {
                 Expanded(
                   child: AppButton(
                     icon: _hasShareSheet ? AppIcons.share : AppIcons.copy,
-                    label: _hasShareSheet ? 'Share' : 'Copy link',
+                    label: _hasShareSheet
+                        ? 'Share'
+                        : (invitation != null ? 'Copy message' : 'Copy link'),
                     onTap: () async {
+                      // A request goes out with its explanation; a bare
+                      // revoked:// link means nothing to someone new.
+                      final text = invitation ?? primaryUrl;
                       if (_hasShareSheet) {
-                        await SharePlus.instance.share(
-                          ShareParams(text: primaryUrl),
-                        );
+                        await SharePlus.instance.share(ShareParams(text: text));
                         return;
                       }
-                      await Clipboard.setData(ClipboardData(text: primaryUrl));
+                      await Clipboard.setData(ClipboardData(text: text));
                       if (context.mounted) {
-                        AppToast.success(context, 'Copied link');
+                        AppToast.success(
+                          context,
+                          invitation != null ? 'Copied message' : 'Copied link',
+                        );
                       }
                     },
                   ),
@@ -284,6 +315,42 @@ class _LinkRow extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xxs),
           Text(hint).muted.small,
+        ],
+      ),
+    );
+  }
+}
+
+/// The invitation a request is sent with, shown as it will arrive.
+class _InvitationBox extends StatelessWidget {
+  final String text;
+
+  const _InvitationBox({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Message sent with it'),
+          const SizedBox(height: AppSpacing.xxs),
+          const Text(
+            'Someone new to revoked needs the app before the link opens, so '
+            'the message says so.',
+          ).muted.small,
+          const SizedBox(height: AppSpacing.sm),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest,
+              borderRadius: AppRadius.allMd,
+            ),
+            child: Text(text).small.selectable,
+          ),
         ],
       ),
     );

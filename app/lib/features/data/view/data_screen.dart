@@ -24,6 +24,7 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/config/app_config.dart';
 
 /// Grant status for a connection.
 enum GrantStatus { live, revoked, vault }
@@ -47,6 +48,13 @@ class DataItem {
   final String identifier; // pseudonymous identifier the responder echoed back
   final String created;
 
+  /// False for the stand-in of a response with no readable field — one sent
+  /// on a form that asked for nothing, or one whose linked answers were
+  /// withdrawn. It keeps the response in the per-request list, which is
+  /// otherwise built from fields and would drop it; its [value] says why
+  /// there is nothing to read.
+  final bool answered;
+
   const DataItem({
     required this.status,
     required this.origin,
@@ -62,6 +70,7 @@ class DataItem {
     required this.identityDomain,
     required this.identifier,
     required this.created,
+    this.answered = true,
   });
 
   bool get isVault => origin == 'Vault';
@@ -159,27 +168,48 @@ class _DataScreenState extends State<DataScreen> {
         final verified = ((r['identity'] as String?) ?? '').isNotEmpty;
         final created = (r['created'] as String?) ?? '';
         final data = r['data'];
-        if (data is Map) {
-          data.forEach((key, val) {
-            items.add(
-              DataItem(
-                status: status,
-                origin: 'Request',
-                source: req.label.isEmpty ? req.slug : req.label,
-                name: key.toString(),
-                value: '${val ?? ''}',
-                templateId: req.templateId,
-                requestId: req.id,
-                linkSlug: (r['slug'] as String?) ?? '',
-                sender: sender,
-                verified: verified,
-                identityName: (r['identityName'] as String?) ?? '',
-                identityDomain: (r['identityDomain'] as String?) ?? '',
-                identifier: (r['identifier'] as String?) ?? '',
-                created: created,
-              ),
+        final fields = data is Map ? data : const {};
+        DataItem item(String name, String value, {bool answered = true}) =>
+            DataItem(
+              status: status,
+              origin: 'Request',
+              source: req.label.isEmpty ? req.slug : req.label,
+              name: name,
+              value: value,
+              templateId: req.templateId,
+              requestId: req.id,
+              linkSlug: (r['slug'] as String?) ?? '',
+              sender: sender,
+              verified: verified,
+              identityName: (r['identityName'] as String?) ?? '',
+              identityDomain: (r['identityDomain'] as String?) ?? '',
+              identifier: (r['identifier'] as String?) ?? '',
+              created: created,
+              answered: answered,
             );
-          });
+        fields.forEach((key, val) {
+          items.add(item(key.toString(), '${val ?? ''}'));
+        });
+        // The sheet lists every response; the list has to as well, even
+        // one with nothing to read.
+        if (fields.isEmpty && widget.requestId != null) {
+          final String why;
+          if (status == GrantStatus.revoked) {
+            why =
+                'The answers were withdrawn or the request was closed, so no '
+                'values can be read any more.';
+          } else if (r['unreachable'] == true) {
+            why =
+                'The responder\'s server could not be reached, so its '
+                'values cannot be shown right now.';
+          } else if (req.templateId.isEmpty && !req.allowExtraFields) {
+            why =
+                'Sent without any fields. This request asks for none: it has '
+                'no template and allows no extra fields.';
+          } else {
+            why = 'Sent without any fields.';
+          }
+          items.add(item('', why, answered: false));
         }
       }
     }
@@ -281,7 +311,7 @@ class _DataScreenState extends State<DataScreen> {
         Observer(
           builder: (_) {
             if (Stores.requests.isLoadingData) return const SizedBox.shrink();
-            final all = _buildItems();
+            final all = _buildItems().where((d) => d.answered).toList();
             final live = all.where((d) => d.status == GrantStatus.live).length;
             final revoked = all
                 .where((d) => d.status == GrantStatus.revoked)
@@ -312,14 +342,38 @@ class _DataScreenState extends State<DataScreen> {
               }
               final items = _table.filteredItems;
               if (items.isEmpty) {
-                return AppEmptyState(
+                if (widget.requestId != null) {
+                  return const AppEmptyState(
+                    icon: AppIcons.cardList,
+                    title: 'Responses are listed here',
+                    subtitle:
+                        'Each answer to this request appears here, grouped '
+                        'by who sent it. Nothing has arrived so far.',
+                    steps: [
+                      AppEmptyStep(
+                        'The request link is passed on',
+                        'From the request page, as a link or QR code',
+                      ),
+                      AppEmptyStep(
+                        'Someone fills in the form',
+                        'Typed in, or linked from their own vault',
+                      ),
+                      AppEmptyStep(
+                        'Linked answers stay current',
+                        'And can be withdrawn by the sender',
+                      ),
+                    ],
+                    learnMoreLabel: 'Reading what came back',
+                    learnMoreUrl:
+                        '${AppConfig.docsUrl}/guide/requests/'
+                        '#reading-what-came-back',
+                  );
+                }
+                return const AppEmptyState(
                   icon: AppIcons.cardList,
-                  title: widget.requestId != null
-                      ? 'No responses yet'
-                      : 'No connections yet',
-                  subtitle: widget.requestId != null
-                      ? 'Data people send in response to this request will appear here, grouped by who sent it.'
-                      : 'Data shared with you and your own vault records will show up here.',
+                  title: 'No connections yet',
+                  subtitle:
+                      'Data shared with you and your own vault records will show up here.',
                 );
               }
               // Per-request view: group every response by who sent it —
@@ -614,6 +668,8 @@ class _ResponderGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final head = items.first;
+    final fields = items.where((it) => it.answered).toList();
+    final fieldCount = fields.length;
 
     final String title;
     if (head.verified && head.identityName.isNotEmpty) {
@@ -694,7 +750,7 @@ class _ResponderGroup extends StatelessWidget {
                               label: 'ID: ${head.identifier}',
                             ),
                           Text(
-                            '${items.length} ${items.length == 1 ? 'field' : 'fields'}',
+                            '$fieldCount ${fieldCount == 1 ? 'field' : 'fields'}',
                           ).muted.small,
                           if (head.created.isNotEmpty)
                             Text('· ${_formatDate(head.created)}').muted.small,
@@ -719,9 +775,14 @@ class _ResponderGroup extends StatelessWidget {
             ),
           ),
           const AppDivider(),
-          for (var i = 0; i < items.length; i++) ...[
+          for (final standIn in items.where((it) => !it.answered))
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Text(standIn.value).muted.small,
+            ),
+          for (var i = 0; i < fields.length; i++) ...[
             if (i > 0) const AppDivider(inset: true),
-            _FieldRow(item: items[i], onTap: () => onTapItem(items[i])),
+            _FieldRow(item: fields[i], onTap: () => onTapItem(fields[i])),
           ],
         ],
       ),

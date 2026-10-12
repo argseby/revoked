@@ -18,26 +18,51 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
+import 'package:revoked_app/features/shares/view/share_contents_picker.dart';
 
+/// Opens the link drawer. A new link can start with [records] and
+/// [sections] already picked — "Share" on a record passes that record.
 void openShareCreateSheet({
   required BuildContext context,
   Link? initialShare,
   Link? editShare,
+  List<String> records = const [],
+  List<String> sections = const [],
 }) {
   Stores.shares.clearError();
   showAppSheet(
     context: context,
-    builder: (_) =>
-        _ShareCreateForm(initialShare: initialShare, editShare: editShare),
+    builder: (_) => _ShareCreateForm(
+      parentContext: context,
+      initialShare: initialShare,
+      editShare: editShare,
+      records: records,
+      sections: sections,
+    ),
   );
 }
 
+/// How long a new link lives unless the owner says otherwise. A link that
+/// never expires is the one forgotten about, so "never" is a choice, not
+/// the default.
+const _defaultLifetime = Duration(days: 30);
+
 class _ShareCreateForm extends StatefulWidget {
+  final BuildContext parentContext;
   final Link? initialShare;
   final Link? editShare;
+  final List<String> records;
+  final List<String> sections;
 
-  const _ShareCreateForm({this.initialShare, this.editShare});
+  const _ShareCreateForm({
+    required this.parentContext,
+    this.initialShare,
+    this.editShare,
+    this.records = const [],
+    this.sections = const [],
+  });
 
   @override
   State<_ShareCreateForm> createState() => _ShareCreateFormState();
@@ -72,7 +97,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       maxViews: (link?.maxViews ?? 0) > 0 ? link!.maxViews.toString() : '',
       expiresAt: link?.expiresAt != null
           ? DateTime.tryParse(link!.expiresAt!)
-          : null,
+          : (link == null ? DateTime.now().add(_defaultLifetime) : null),
+      records: widget.initialShare?.records ?? widget.records,
+      sections: widget.initialShare?.sections ?? widget.sections,
       // PocketBase returns "" for an unset relation, which `??` does not catch;
       // an empty id matches no option, so editing an unsigned share showed the
       // picker with nothing selected at all.
@@ -114,8 +141,21 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     }
   }
 
+  bool get _isEdit => widget.editShare != null;
+
+  /// The link's name: the one typed, or for a new link what it shares.
+  String get _effectiveLabel {
+    final typed = _store.draftLabel.text.trim();
+    if (typed.isNotEmpty || _isEdit) return typed;
+    return shareContentsSummary();
+  }
+
+  bool get _hasContents =>
+      _store.draftRecords.isNotEmpty || _store.draftSections.isNotEmpty;
+
   bool _canSubmit() {
-    return _store.draftLabel.text.trim().isNotEmpty &&
+    return _effectiveLabel.isNotEmpty &&
+        (_isEdit || _hasContents) &&
         _store.draftSlug.text.trim().isNotEmpty &&
         _store.draftSlugWarning == null;
   }
@@ -140,11 +180,11 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     }
     return Stores.shares.createShareSpec(
       slug: _store.draftSlug.text.trim(),
-      label: _store.draftLabel.text.trim(),
+      label: _effectiveLabel,
       user: Stores.auth.userId,
       workspace: Stores.auth.activeWorkspace ?? '',
-      sections: widget.initialShare?.sections ?? const [],
-      records: widget.initialShare?.records ?? const [],
+      sections: _store.draftSections.toList(),
+      records: _store.draftRecords.toList(),
       password: _store.draftPassword.text.isNotEmpty
           ? _store.draftPassword.text
           : null,
@@ -195,11 +235,11 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
 
     final ok = await Stores.shares.createShare(
       slug: _store.draftSlug.text.trim(),
-      label: _store.draftLabel.text.trim(),
+      label: _effectiveLabel,
       user: Stores.auth.userId,
       workspace: Stores.auth.activeWorkspace ?? '',
-      sections: widget.initialShare?.sections ?? [],
-      records: widget.initialShare?.records ?? [],
+      sections: _store.draftSections.toList(),
+      records: _store.draftRecords.toList(),
       password: _store.draftPassword.text.isNotEmpty
           ? _store.draftPassword.text
           : null,
@@ -230,10 +270,22 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     _store.setSubmittingShare(true);
     final ok = await _submit();
     if (!mounted) return;
-    if (ok) {
-      Navigator.of(context).pop();
-    } else {
+    if (!ok) {
       _store.setSubmittingShare(false);
+      return;
+    }
+    Navigator.of(context).pop();
+    // A new link is made to be sent: hand it over at once instead of leaving
+    // the owner to find it in the list.
+    final parent = widget.parentContext;
+    if (!_isEdit && parent.mounted && Stores.shares.shares.isNotEmpty) {
+      final created = Stores.shares.shares.first;
+      await showShareSheet(
+        context: parent,
+        slug: created.slug,
+        title: created.label,
+        isRequest: false,
+      );
     }
   }
 
@@ -250,7 +302,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         : (isDup ? 'Duplicate share' : 'New share link');
     final completeLabel = isEdit
         ? 'Save changes'
-        : (isDup ? 'Duplicate Share' : 'Create Share');
+        : (isDup ? 'Duplicate link' : 'Create link');
     final completeIcon = isEdit
         ? AppIcons.check
         : (isDup ? AppIcons.copy : AppIcons.plus);
@@ -275,8 +327,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                 Text(title).header,
                 AppSpacing.gapXxs,
                 const Text(
-                  'A public link to view the shared records. '
-                  'Gate it with a password, view cap or expiry.',
+                  'The recipient gets a link, never a copy. It shows the '
+                  'current values until it expires or is revoked.',
                 ).muted.small,
               ],
             ),
@@ -291,30 +343,36 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   children: [
                     const AppFormSectionHeader('Details'),
+                    if (!isEdit) const ShareContentsRow(),
                     _buildLabelRow(),
-                    _buildSlugRow(),
-
-                    const AppFormSectionHeader('Access'),
-                    _buildMaxViewsRow(),
                     _buildExpiryRow(),
                     _buildPasswordRow(),
-                    _buildWatermarkRow(),
 
-                    const AppFormSectionHeader('Verification'),
-                    _buildVerificationSection(),
-
-                    const AppFormSectionHeader('Developer'),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl,
-                        0,
-                        AppSpacing.xl,
-                        AppSpacing.sm,
-                      ),
-                      child: ApiPreview(
-                        spec: _buildSpec(),
-                        title: 'API request · ${isEdit ? 'update' : 'create'}',
-                      ),
+                    AppFormAdvanced(
+                      summary:
+                          'Address, view limit, watermark, signature and API',
+                      initiallyOpen: _store.draftSlugWarning != null,
+                      children: [
+                        _buildSlugRow(),
+                        _buildMaxViewsRow(),
+                        _buildWatermarkRow(),
+                        const AppFormSectionHeader('Verification'),
+                        _buildVerificationSection(),
+                        const AppFormSectionHeader('Developer'),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.xl,
+                            0,
+                            AppSpacing.xl,
+                            AppSpacing.sm,
+                          ),
+                          child: ApiPreview(
+                            spec: _buildSpec(),
+                            title:
+                                'API request · ${isEdit ? 'update' : 'create'}',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 );
@@ -360,17 +418,22 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
 
   Widget _buildLabelRow() {
     final v = _store.draftLabel.text.trim();
+    final fallback = _effectiveLabel;
     return AppFormRow(
       icon: AppIcons.fileText,
       label: 'Label',
-      valueText: v.isEmpty ? 'Required' : v,
+      valueText: v.isNotEmpty
+          ? v
+          : (fallback.isEmpty ? 'Required' : 'From the selection: $fallback'),
       isPlaceholder: v.isEmpty,
-      isError: v.isEmpty,
+      isError: fallback.isEmpty && (_isEdit || _hasContents),
       onTap: () async {
         await showAppEditSheet(
           context: context,
           title: 'Label',
-          description: 'A friendly name for this share link.',
+          description:
+              'Shown to the recipient as the link\'s title. Left empty, it '
+              'is named after what it shares.',
           controller: _store.draftLabel,
           hint: 'Vendor Onboarding',
         );
