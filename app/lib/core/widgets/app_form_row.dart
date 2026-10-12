@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/motion.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 
@@ -150,6 +153,68 @@ class AppFormSectionHeader extends StatelessWidget {
         AppSpacing.xxs,
       ),
       child: Text(text.toUpperCase()).muted.small,
+    );
+  }
+}
+
+/// The fields a create drawer does not need for the common case — keys,
+/// slugs, limits, the API preview — folded behind one row, so the form opens
+/// with only what most people fill in.
+///
+/// [summary] says what is inside ("Key, API preview"), so nobody has to open
+/// it to find out. Starts closed unless [initiallyOpen], which a form passes
+/// when something inside needs attention.
+class AppFormAdvanced extends StatefulWidget {
+  final String summary;
+  final List<Widget> children;
+  final bool initiallyOpen;
+
+  const AppFormAdvanced({
+    super.key,
+    required this.summary,
+    required this.children,
+    this.initiallyOpen = false,
+  });
+
+  @override
+  State<AppFormAdvanced> createState() => _AppFormAdvancedState();
+}
+
+class _AppFormAdvancedState extends State<AppFormAdvanced> {
+  late final Local<bool> _open = Local(widget.initiallyOpen);
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(builder: _build);
+  }
+
+  Widget _build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final open = _open.value;
+    return AnimatedSize(
+      duration: AppMotion.duration,
+      curve: AppMotion.curve,
+      alignment: Alignment.topCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+            ),
+            leading: Icon(AppIcons.sliders, color: scheme.onSurfaceVariant),
+            title: const Text('Advanced'),
+            subtitle: Text(widget.summary).muted.small,
+            trailing: Icon(
+              open ? AppIcons.chevronUp : AppIcons.chevronDown,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
+            onTap: () => _open.value = !open,
+          ),
+          if (open) ...widget.children,
+        ],
+      ),
     );
   }
 }

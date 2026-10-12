@@ -188,22 +188,18 @@ void openRecordEditSheet(
                               isRequired: true,
                               explanation:
                                   'What a recipient downloads this file as. '
-                                  'Renaming never touches the file itself. '
-                                  'The eye masks the name on screen — a name '
-                                  'is content too.',
+                                  'Renaming never touches the file itself.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             AppTextField(
                               controller: store.editRecordFilename,
                               hint: 'Lebenslauf.pdf',
-                              trailing: Padding(
-                                padding: const EdgeInsets.all(AppSpacing.sm),
-                                child: RecordHiddenToggle(
-                                  isFile: true,
-                                  hidden: hidden,
-                                  onChanged: setHidden,
-                                ),
-                              ),
+                            ),
+                            RecordHiddenToggle(
+                              isFile: true,
+                              hidden: hidden,
+                              onChanged: setHidden,
+                              inset: false,
                             ),
                             const SizedBox(height: AppSpacing.lg),
 
@@ -261,20 +257,23 @@ void openRecordEditSheet(
                               isRequired: true,
                               explanation:
                                   'The actual sensitive data or configuration '
-                                  'value. The eye masks it on screen.',
+                                  'value.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             RecordValueField(
                               type: store.editRecordType,
                               controller: store.editRecordValue,
-                              hidden: hidden,
-                              onHiddenChanged: setHidden,
                               onChanged: validateAndDetectType,
                             ),
                             if (store.editRecordTypeWarning != null) ...[
                               const SizedBox(height: AppSpacing.xs),
                               AppErrorText(store.editRecordTypeWarning!),
                             ],
+                            RecordHiddenToggle(
+                              hidden: hidden,
+                              onChanged: setHidden,
+                              inset: false,
+                            ),
                           ],
                           const SizedBox(height: AppSpacing.xl),
 

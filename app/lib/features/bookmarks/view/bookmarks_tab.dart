@@ -22,6 +22,8 @@ import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
+import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 
 /// Share links the user saved from links they were sent, filed into groups
 /// the way videos go into playlists. A bookmark in several groups shows in
@@ -67,12 +69,28 @@ class BookmarksTab extends StatelessWidget {
           );
         }
         if (store.bookmarks.isEmpty) {
-          return const AppEmptyState(
+          return AppEmptyState(
             icon: AppIcons.bookmark,
-            title: 'No bookmarks yet',
+            title: 'Bookmarks keep links others sent',
             subtitle:
-                'Open a share someone sent you and tap Bookmark to keep it '
-                'here.',
+                'A bookmark is only a pointer to someone else\'s share, never '
+                'the data. Its password and identity checks still apply, and '
+                'a share its owner has revoked stays closed.',
+            steps: const [
+              AppEmptyStep('A share is opened', 'From a link someone sent'),
+              AppEmptyStep('Bookmark is pressed', 'On the open share'),
+              AppEmptyStep('It is listed here', 'Sorted into groups if wanted'),
+            ],
+            action: AppButton(
+              icon: AppIcons.link,
+              label: 'Open a link',
+              style: AppButtonStyle.accent,
+              onTap: () => openLinkSearchSheet(context),
+            ),
+            learnMoreLabel: 'About bookmarks',
+            learnMoreUrl:
+                '${AppConfig.docsUrl}/guide/sharing/'
+                '#bookmarking-a-share-you-received',
           );
         }
         final ungrouped = store.ungrouped;

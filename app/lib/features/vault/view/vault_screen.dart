@@ -33,6 +33,8 @@ import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
+import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 class VaultScreen extends StatefulWidget {
   final String? editingShareId;
@@ -150,8 +152,54 @@ class _VaultScreenState extends State<VaultScreen> {
         if (store.records.isEmpty && store.sections.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.safe,
-            title: 'Your vault is empty',
-            subtitle: 'Tap + to create a section or record.',
+            title: 'Records live in the vault',
+            subtitle:
+                'A record is one piece of data, such as an IBAN or a '
+                'password. Links and requests point at it instead of copying '
+                'it, so an edit here is seen everywhere at once.',
+            example: const AppEmptyExample(
+              title: 'IBAN',
+              detail: 'DE89 •••• •••• 3000',
+              badge: 'hidden',
+            ),
+            steps: const [
+              AppEmptyStep('Record', 'A key and a value, optionally masked'),
+              AppEmptyStep('Section', 'Records grouped and shared as one'),
+              AppEmptyStep(
+                'Link',
+                'Reads the current value and can be revoked',
+              ),
+            ],
+            // New here, the tour shows the whole loop with real data; the
+            // forms are one tap further.
+            action: AppButton(
+              icon: AppIcons.play,
+              label: 'Take the 1-minute tour',
+              onTap: () => context.go(AppRoutes.tour),
+            ),
+            secondaryAction: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                AppButton(
+                  icon: AppIcons.plus,
+                  label: 'New record',
+                  style: AppButtonStyle.accent,
+                  onTap: () => openVaultCreateSheet(context),
+                ),
+                AppButton(
+                  icon: AppIcons.fileText,
+                  label: 'From template',
+                  style: AppButtonStyle.accent,
+                  onTap: () => openVaultCreateSheet(
+                    context,
+                    initialTab: VaultCreateTab.template,
+                  ),
+                ),
+              ],
+            ),
+            learnMoreLabel: 'How the vault works',
+            learnMoreUrl: '${AppConfig.docsUrl}/guide/vault/',
           );
         }
 

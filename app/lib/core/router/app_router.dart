@@ -31,6 +31,7 @@ import 'package:revoked_app/features/requests/view/public_request_screen.dart';
 import 'package:revoked_app/features/data/view/data_screen.dart';
 import 'package:revoked_app/features/requests/view/request_sheet_screen.dart';
 import 'package:revoked_app/features/invites/view/invite_accept_screen.dart';
+import 'package:revoked_app/features/onboarding/view/tour_screen.dart';
 import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen.dart';
 
 abstract class AppRoutes {
@@ -39,6 +40,9 @@ abstract class AppRoutes {
 
   /// One record's detail page, opened from the Vault list.
   static String recordDetailFor(String id) => '$vault/records/$id';
+
+  /// The one-minute walk through records, links and revoking.
+  static const tour = '$vault/tour';
   static const inbox = '/inbox';
 
   /// One request's detail page, opened from the Requests list.
@@ -295,6 +299,11 @@ class AppRouter {
                 );
               },
               routes: [
+                GoRoute(
+                  path: 'tour',
+                  pageBuilder: (context, state) =>
+                      const NoTransitionPage(child: TourScreen()),
+                ),
                 GoRoute(
                   path: 'records/:id',
                   pageBuilder: (context, state) => NoTransitionPage(

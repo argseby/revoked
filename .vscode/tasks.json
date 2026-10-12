@@ -1,0 +1,38 @@
+{
+  // Local development without Docker: backend and Flutter app side by side in
+  // VS Code's terminal panel. Start both with Cmd+Shift+B (or "Tasks: Run
+  // Task" -> "dev"). Settings such as API_PORT or DEVICE go into "env" below;
+  // see ./dev.sh --help for the full list.
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "API_PORT": "3000",
+      "DEVICE": "macos"
+    }
+  },
+  "tasks": [
+    {
+      "label": "dev",
+      "dependsOn": ["dev: backend", "dev: app"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: backend",
+      "type": "shell",
+      "command": "./dev.sh api",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always", "focus": false, "clear": true }
+    },
+    {
+      "label": "dev: app",
+      "type": "shell",
+      "command": "./dev.sh app",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "group": "dev", "panel": "dedicated", "reveal": "always", "focus": true, "clear": true }
+    }
+  ]
+}

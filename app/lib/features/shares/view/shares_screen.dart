@@ -22,6 +22,11 @@ import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
+import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/features/shares/view/access_overview.dart';
+import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
+import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 /// Which links the chips above the list let through.
 enum _LinkFilter { all, active, paused, closed }
@@ -86,8 +91,8 @@ class _SharesScreenState extends State<SharesScreen> {
   @override
   Widget build(BuildContext context) {
     return AppTabs(
-      labels: const ['My links', 'Bookmarks'],
-      views: [_myLinks(context), const BookmarksTab()],
+      labels: const ['My links', 'Access', 'Bookmarks'],
+      views: [_myLinks(context), const AccessOverview(), const BookmarksTab()],
     );
   }
 
@@ -109,10 +114,56 @@ class _SharesScreenState extends State<SharesScreen> {
         }
 
         if (store.shares.isEmpty) {
+          final vault = Stores.vault;
+          // A link points at vault records; with none there is nothing to
+          // pick, so the first step is the vault, not the link form.
+          final vaultEmpty =
+              !vault.isLoading &&
+              vault.records.isEmpty &&
+              vault.sections.isEmpty;
+          final newLink = AppButton(
+            icon: AppIcons.plus,
+            label: 'New link',
+            style: vaultEmpty ? AppButtonStyle.accent : AppButtonStyle.primary,
+            onTap: () => openShareCreateSheet(context: context),
+          );
           return AppEmptyState(
             icon: AppIcons.share,
-            title: 'No shared links',
-            subtitle: 'Tap + to securely share data from your vault.',
+            title: 'Links share data without handing it over',
+            subtitle:
+                'The recipient holds a link, not a copy. Each read resolves '
+                'the current value, and a paused or revoked link stops '
+                'working on the next read.',
+            example: const AppEmptyExample(
+              title: 'Onboarding pack',
+              detail: '3 records',
+              badge: 'active',
+            ),
+            steps: const [
+              AppEmptyStep('Records or a section are chosen', 'From the vault'),
+              AppEmptyStep(
+                'Access is gated',
+                'By a password, an identifier or a verified identity',
+              ),
+              AppEmptyStep(
+                'The link stays revocable',
+                'Paused, expired or revoked at any time',
+              ),
+            ],
+            notice: vaultEmpty
+                ? 'The vault has no records yet, so there is nothing to '
+                      'link to.'
+                : null,
+            action: vaultEmpty
+                ? AppButton(
+                    icon: AppIcons.plus,
+                    label: 'Add a record',
+                    onTap: () => openVaultCreateSheet(context),
+                  )
+                : newLink,
+            secondaryAction: vaultEmpty ? newLink : null,
+            learnMoreLabel: 'How sharing works',
+            learnMoreUrl: '${AppConfig.docsUrl}/guide/sharing/',
           );
         }
 

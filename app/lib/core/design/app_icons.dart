@@ -50,6 +50,7 @@ abstract class AppIcons {
   static const IconData folderSymlink = Icons.drive_file_move_outlined;
   static const IconData funnel = Icons.filter_alt_outlined;
   static const IconData funnelFill = Icons.filter_alt;
+  static const IconData sliders = Icons.tune;
   static const IconData hash = Icons.numbers;
   static const IconData hourglass = Icons.hourglass_empty;
   static const IconData inboxFill = Icons.inbox;

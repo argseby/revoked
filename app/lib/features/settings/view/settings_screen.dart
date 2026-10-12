@@ -11,6 +11,7 @@ import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
@@ -202,18 +203,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'An issue is public: never paste a record value, a share or '
             'request link, or a private key into one.',
           ),
-          children: const [
-            _UrlRow(
+          children: [
+            AppListRow(
+              icon: AppIcons.play,
+              title: 'Take the tour',
+              subtitle: 'Records, links and revoking, in one minute',
+              onTap: () => context.go(AppRoutes.tour),
+            ),
+            const _UrlRow(
               icon: AppIcons.code,
               title: 'Source code',
               url: AppConfig.repoUrl,
             ),
-            _UrlRow(
+            const _UrlRow(
               icon: AppIcons.fileText,
               title: 'Documentation',
               url: AppConfig.docsUrl,
             ),
-            _UrlRow(
+            const _UrlRow(
               icon: AppIcons.bug,
               title: 'Report a bug',
               url: AppConfig.issuesUrl,

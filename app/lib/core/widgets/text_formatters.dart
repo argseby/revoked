@@ -57,3 +57,26 @@ class KeyInputFormatter extends TextInputFormatter {
     );
   }
 }
+
+/// A record key made from a human label: "Steuer-ID (privat)" becomes
+/// `steuer_id_privat`. German umlauts are spelled out rather than dropped, so
+/// "Geburtsdatum Mütter" does not turn into `geburtsdatum_mtter`. The result
+/// avoids every key in [taken] by appending `_2`, `_3`, …; an empty or
+/// all-symbol label yields `record`.
+String keyFromLabel(String label, Iterable<String> taken) {
+  const spelled = {'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss'};
+  var base = label.trim().toLowerCase();
+  spelled.forEach((from, to) => base = base.replaceAll(from, to));
+  base = base
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+  if (base.isEmpty) base = 'record';
+  if (base.length > 90) base = base.substring(0, 90);
+
+  final used = taken.toSet();
+  if (!used.contains(base)) return base;
+  for (var n = 2; ; n++) {
+    final candidate = '${base}_$n';
+    if (!used.contains(candidate)) return candidate;
+  }
+}

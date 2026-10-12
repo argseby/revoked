@@ -6,7 +6,10 @@ changes what every share of it resolves to, immediately.
 
 ## Records
 
-A record is a key, a value, a label, a **type** and a **format**.
+A record is a key, a value, a label, a **type** and a **format**. The key is
+made from the label unless one is set under *Advanced* (`Steuer-ID (privat)`
+becomes `steuer_id_privat`); templates, requests and scripts refer to records
+by it.
 
 | Type | The value is |
 |---|---|

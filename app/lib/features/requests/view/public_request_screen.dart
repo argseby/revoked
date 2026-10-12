@@ -816,14 +816,17 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   Widget _buildAccountGate(ThemeData theme) {
     return AppStatusMessage(
       icon: AppIcons.personBoundingBox,
-      title: 'Sign in to respond',
+      title: 'An account is needed to answer',
       message: _isForeign
           ? 'This request comes from ${widget.origin}. Your answer is kept as '
                 'a revocable link in your own account, and ${widget.origin} '
-                'reads it from there. Please sign in to respond.'
+                'reads it from there. An account on any revoked server works. '
+                'Without one, it is created on the sign-in page, or by whoever '
+                'runs the server when sign-ups are closed.'
           : 'Your answer is kept in your account as a revocable link, so you '
-                'can update or withdraw it at any time. Please sign in to '
-                'respond.',
+                'can update or withdraw it at any time. Without an account, '
+                'one is created on the sign-in page, or by whoever runs this '
+                'server when sign-ups are closed.',
       actions: [
         AppButton(
           icon: AppIcons.boxArrowInRight,

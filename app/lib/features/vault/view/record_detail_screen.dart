@@ -6,7 +6,6 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
-import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/reminder.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/router/app_router.dart';
@@ -28,6 +27,8 @@ import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/file_view_sheet.dart';
 import 'package:revoked_app/features/reminders/view/reminder_sheet.dart';
+import 'package:revoked_app/features/shares/utils/record_access.dart';
+import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
@@ -179,6 +180,12 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             onTap: () => _downloadFile(r),
           ),
         AppButton(
+          icon: AppIcons.share,
+          tooltip: 'Share',
+          style: AppButtonStyle.accent,
+          onTap: () => openShareCreateSheet(context: context, records: [r.id]),
+        ),
+        AppButton(
           icon: AppIcons.pencil,
           tooltip: 'Edit',
           style: AppButtonStyle.accent,
@@ -251,49 +258,69 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   /// Every active link that hands this record out — directly, or because it
   /// shares a section the record is filed in.
   Widget _sharedIn(BuildContext context, models.Record r) {
-    final shares = Stores.shares;
     final sections = Stores.vault.sections
         .where((s) => s.records.contains(r.id))
         .toList();
-
-    final via = <String, String?>{}; // link id -> section name, null = direct
-    final links = <String, Link>{};
-    for (final l in shares.linksForRecord(r.id)) {
-      links[l.id] = l;
-      via[l.id] = null;
-    }
-    for (final s in sections) {
-      for (final l in shares.linksForSection(s.id)) {
-        links.putIfAbsent(l.id, () => l);
-        via.putIfAbsent(l.id, () => s.name.isEmpty ? s.key : s.name);
-      }
-    }
+    final access = accessForRecord(
+      r.id,
+      links: Stores.shares.shares,
+      sections: Stores.vault.sections,
+      records: Stores.vault.records,
+    );
+    final open = access.where((a) => a.isOpen).toList();
+    final closed = access.length - open.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppListGroup(
-          title: 'Shared in',
+          title: 'Who can see this',
           noun: 'links',
           previewCount: 5,
-          trailing: links.isEmpty ? const SizedBox.shrink() : null,
-          children: links.isEmpty
-              ? const [
-                  AppDetailRow(
-                    icon: AppIcons.info,
-                    label: 'Not in any active link',
+          trailing: open.isEmpty
+              ? const SizedBox.shrink()
+              : AppButton(
+                  icon: AppIcons.xCircle,
+                  label: open.length == 1 ? 'Revoke' : 'Revoke all',
+                  style: AppButtonStyle.accent,
+                  size: AppButtonSize.small,
+                  onTap: () => _confirmRevokeAll(context, r, open),
+                ),
+          footer: closed == 0
+              ? null
+              : Text(
+                  '$closed of these ${closed == 1 ? 'is' : 'are'} closed '
+                  'and no longer show${closed == 1 ? 's' : ''} this record.',
+                ).muted.small,
+          children: access.isEmpty
+              ? [
+                  AppListRow(
+                    icon: AppIcons.lock,
+                    title: 'Only you',
+                    subtitle:
+                        'This record is in no link and no request answer.',
+                    onTap: () =>
+                        openShareCreateSheet(context: context, records: [r.id]),
+                    trailing: const AppBadge(
+                      icon: AppIcons.share,
+                      label: 'Share',
+                      variant: AppBadgeVariant.outline,
+                    ),
                   ),
                 ]
               : [
-                  for (final l in links.values)
+                  for (final a in access)
                     AppListRow(
-                      icon: AppIcons.link,
-                      title: l.label,
-                      subtitle: via[l.id] == null
-                          ? 'Shared directly'
-                          : 'Through section ${via[l.id]}',
-                      trailing: AppStatusBadge(l.status),
-                      onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
+                      icon: switch (a.kind) {
+                        AccessKind.link => AppIcons.link,
+                        AccessKind.requestAnswer => AppIcons.inboxFill,
+                        AccessKind.tool => AppIcons.plug,
+                      },
+                      title: a.link.label,
+                      subtitle: '${a.audience} · ${a.route}',
+                      trailing: AppStatusBadge(a.link.status),
+                      onTap: () =>
+                          context.go(AppRoutes.shareDetailFor(a.link.id)),
                     ),
                 ],
         ),
@@ -317,6 +344,47 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         ),
       ],
     );
+  }
+
+  /// Closes every open link that shows [r]. A link may carry other records
+  /// too; the dialog says so, because revoking it closes those as well.
+  Future<void> _confirmRevokeAll(
+    BuildContext context,
+    models.Record r,
+    List<RecordAccess> open,
+  ) async {
+    final n = open.length;
+    final confirmed = await showAppDialog(
+      context: context,
+      title: n == 1 ? 'Revoke this link?' : 'Revoke all $n links?',
+      message:
+          'Nobody can read ${_name(r)} through '
+          '${n == 1 ? 'it' : 'them'} any more, starting with the next read. '
+          'Everything else ${n == 1 ? 'the link carries' : 'these links carry'} '
+          'stops being readable too. A revoked link cannot be reopened. The '
+          'record itself stays in the vault.',
+      confirmLabel: n == 1 ? 'Revoke' : 'Revoke all',
+      confirmIcon: AppIcons.xCircle,
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+    var failed = 0;
+    for (final a in open) {
+      final ok = await Stores.shares.updateShare(a.link.id, {
+        'status': 'revoked',
+      });
+      if (!ok) failed++;
+    }
+    if (!context.mounted) return;
+    if (failed == 0) {
+      AppToast.success(context, n == 1 ? 'Link revoked' : '$n links revoked');
+    } else {
+      AppToast.error(
+        context,
+        '$failed of $n links could not be revoked',
+        subtitle: Stores.shares.errorMessage,
+      );
+    }
   }
 
   /// The owner's own reminders on this record, and the way to add one.

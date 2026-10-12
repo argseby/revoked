@@ -1,8 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, TextInputFormatter;
+import 'package:flutter/services.dart' show TextInputFormatter;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -14,7 +13,6 @@ import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -30,6 +28,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
@@ -38,8 +37,9 @@ import 'package:revoked_app/features/requests/store/requests_store.dart';
 ///
 /// Single drawer: every setting is a row showing its current value. Tapping a
 /// row opens a focused sub-sheet to edit it (text, password, picker, date);
-/// boolean settings are toggled inline. Title, slug and identity are required
-/// and gate the Create button — everything else is optional.
+/// boolean settings are toggled inline. What is asked comes first and is
+/// required — a form with no template and no extra fields could only ever
+/// collect empty answers. The rest sits under Advanced.
 void openRequestCreateSheet({
   required BuildContext context,
   required RequestsStore store,
@@ -49,6 +49,7 @@ void openRequestCreateSheet({
   showAppSheet(
     context: context,
     builder: (_) => _RequestCreateForm(
+      parentContext: context,
       store: store,
       authStore: authStore,
       editRequest: editRequest,
@@ -64,11 +65,13 @@ const _pickerRowPadding = EdgeInsets.symmetric(
 );
 
 class _RequestCreateForm extends StatefulWidget {
+  final BuildContext parentContext;
   final RequestsStore store;
   final AuthStore authStore;
   final DataRequest? editRequest;
 
   const _RequestCreateForm({
+    required this.parentContext,
     required this.store,
     required this.authStore,
     this.editRequest,
@@ -142,8 +145,21 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     }
   }
 
+  /// The request's title: the one typed, or the template's name.
+  String get _effectiveLabel {
+    final typed = _store.draftLabel.text.trim();
+    if (typed.isNotEmpty) return typed;
+    return _store.draftTemplateId == null ? '' : (_templateName() ?? '');
+  }
+
+  /// Whether the form asks for anything at all: a template's fields, or
+  /// fields the responder adds.
+  bool get _asksSomething =>
+      _store.draftTemplateId != null || _store.draftAllowExtraFields;
+
   bool _canSubmit() {
-    if (_store.draftLabel.text.trim().isEmpty) return false;
+    if (!_asksSomething) return false;
+    if (_effectiveLabel.isEmpty) return false;
     final slug = _store.draftSlug.text.trim();
     if (slug.length < 6) return false;
     if (_store.draftSlugWarning != null) return false;
@@ -158,7 +174,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     final edit = widget.editRequest;
     if (edit != null) {
       final body = <String, dynamic>{
-        'label': _store.draftLabel.text.trim(),
+        'label': _effectiveLabel,
         'slug': _store.draftSlug.text.trim(),
         'identity': _store.draftIdentityId,
         'template': _store.draftTemplateId ?? '',
@@ -191,7 +207,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
     final ok = await widget.store.createRequest(
       slug: _store.draftSlug.text.trim(),
-      label: _store.draftLabel.text.trim(),
+      label: _effectiveLabel,
       identityId: _store.draftIdentityId!,
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
@@ -215,16 +231,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
     if (!mounted) return false;
     if (ok) {
-      final url = DeepLinks.request(
-        _store.draftSlug.text.trim(),
-        origin: Stores.api.originAuthority,
-      );
-      Clipboard.setData(ClipboardData(text: url));
-      AppToast.success(
-        context,
-        'Request created',
-        subtitle: 'Link copied to clipboard',
-      );
+      AppToast.success(context, 'Request created');
       return true;
     }
     AppToast.error(
@@ -239,10 +246,22 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     _store.setSubmittingRequest(true);
     final ok = await _submit();
     if (!mounted) return;
-    if (ok) {
-      Navigator.of(context).pop();
-    } else {
+    if (!ok) {
       _store.setSubmittingRequest(false);
+      return;
+    }
+    final slug = _store.draftSlug.text.trim();
+    final title = _effectiveLabel;
+    Navigator.of(context).pop();
+    // A new request is made to be passed on: hand its link over at once.
+    final parent = widget.parentContext;
+    if (widget.editRequest == null && parent.mounted) {
+      await showShareSheet(
+        context: parent,
+        slug: slug,
+        title: title,
+        isRequest: true,
+      );
     }
   }
 
@@ -293,55 +312,69 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   shrinkWrap: true,
                   children: [
-                    const AppFormSectionHeader('Basics'),
-                    _buildTitleRow(),
-                    _buildSlugRow(),
-                    _buildIdentityRow(),
-
-                    const AppFormSectionHeader('Template'),
+                    const AppFormSectionHeader('What is asked'),
                     _buildTemplateRow(),
                     AppFormToggleRow(
                       icon: AppIcons.plus,
                       label: 'Allow extra fields',
-                      subtitle:
-                          'Responders can add ad-hoc fields beyond the template.',
+                      subtitle: _store.draftTemplateId == null
+                          ? 'Responders add their own fields. Without a '
+                                'template this is the only way to ask '
+                                'for anything.'
+                          : 'Responders can add fields beyond the template.',
                       value: _store.draftAllowExtraFields,
                       onChanged: _store.setDraftAllowExtraFields,
                     ),
 
-                    const AppFormSectionHeader('Who can respond'),
-                    _buildAccessSummary(),
-                    AppFormToggleRow(
-                      icon: AppIcons.shieldCheck,
-                      label: 'Require a verified identity',
-                      subtitle:
-                          'Responder must be signed in with a cryptographic identity.',
-                      value: _store.draftRequireHandshake,
-                      onChanged: _store.setDraftHandshake,
-                    ),
-                    if (_store.draftRequireHandshake) _buildIdentityScopeRow(),
-                    _buildIdentifierRow(),
-                    _buildPasswordRow(),
-
-                    const AppFormSectionHeader('Limits & callback'),
-                    _buildMaxResponsesRow(),
+                    const AppFormSectionHeader('Details'),
+                    _buildTitleRow(),
                     _buildExpiryRow(),
-                    _buildCallbackRow(),
-                    _buildCallbackTestRow(),
+                    // Required, so it stays in view until one is picked.
+                    if (_store.draftIdentityId == null) _buildIdentityRow(),
+                    _buildAccessSummary(),
 
-                    const AppFormSectionHeader('Developer'),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl,
-                        0,
-                        AppSpacing.xl,
-                        AppSpacing.sm,
-                      ),
-                      child: ApiPreview(
-                        spec: _buildSpec(),
-                        title:
-                            'API request · ${widget.editRequest != null ? 'update' : 'create'}',
-                      ),
+                    AppFormAdvanced(
+                      summary:
+                          'Address, identity checks, password, limits, '
+                          'callback and API',
+                      initiallyOpen: _store.draftSlugWarning != null,
+                      children: [
+                        _buildSlugRow(),
+                        if (_store.draftIdentityId != null) _buildIdentityRow(),
+                        const AppFormSectionHeader('Who can respond'),
+                        AppFormToggleRow(
+                          icon: AppIcons.shieldCheck,
+                          label: 'Require a verified identity',
+                          subtitle:
+                              'Responder must be signed in with a cryptographic identity.',
+                          value: _store.draftRequireHandshake,
+                          onChanged: _store.setDraftHandshake,
+                        ),
+                        if (_store.draftRequireHandshake)
+                          _buildIdentityScopeRow(),
+                        _buildIdentifierRow(),
+                        _buildPasswordRow(),
+
+                        const AppFormSectionHeader('Limits and callback'),
+                        _buildMaxResponsesRow(),
+                        _buildCallbackRow(),
+                        _buildCallbackTestRow(),
+
+                        const AppFormSectionHeader('Developer'),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.xl,
+                            0,
+                            AppSpacing.xl,
+                            AppSpacing.sm,
+                          ),
+                          child: ApiPreview(
+                            spec: _buildSpec(),
+                            title:
+                                'API request · ${widget.editRequest != null ? 'update' : 'create'}',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 );
@@ -376,7 +409,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                         : AppIcons.plus,
                     label: widget.editRequest != null
                         ? 'Save changes'
-                        : 'Create Request',
+                        : 'Create request',
                     busy: _store.isSubmittingRequest,
                     onTap: _canSubmit() ? _onCreate : null,
                   ),
@@ -396,7 +429,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     final edit = widget.editRequest;
     if (edit != null) {
       final body = <String, dynamic>{
-        'label': _store.draftLabel.text.trim(),
+        'label': _effectiveLabel,
         'slug': _store.draftSlug.text.trim(),
         'identity': _store.draftIdentityId,
         'template': _store.draftTemplateId ?? '',
@@ -416,7 +449,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     }
     return RequestsStore.createRequestSpec(
       slug: _store.draftSlug.text.trim(),
-      label: _store.draftLabel.text.trim(),
+      label: _effectiveLabel,
       identityId: _store.draftIdentityId ?? '',
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
@@ -445,12 +478,18 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     return AppFormRow(
       icon: AppIcons.fileText,
       label: 'Title',
-      valueText: v.isEmpty ? 'Required' : v,
+      valueText: v.isNotEmpty
+          ? v
+          : (_effectiveLabel.isEmpty
+                ? 'Required'
+                : 'From the template: $_effectiveLabel'),
       isPlaceholder: v.isEmpty,
-      isError: v.isEmpty,
+      isError: _effectiveLabel.isEmpty && _store.draftTemplateId != null,
       onTap: () => _editText(
         title: 'Title',
-        description: 'A short name for this request.',
+        description:
+            'Shown to responders as the form\'s heading. Left empty, the '
+            'template\'s name is used.',
         controller: _store.draftLabel,
         hint: 'e.g. Onboarding intake',
       ),
@@ -517,8 +556,13 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     return AppFormRow(
       icon: AppIcons.cardList,
       label: 'Template',
-      valueText: name ?? 'None — free-form submission',
+      valueText:
+          name ??
+          (_store.draftAllowExtraFields
+              ? 'None — responders add their own fields'
+              : 'Required — pick the fields to ask for'),
       isPlaceholder: name == null,
+      isError: !_asksSomething,
       onClear: () => _store.setDraftTemplate(null),
       onTap: _pickTemplate,
     );
@@ -949,7 +993,8 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                   padding: _pickerRowPadding,
                   title: const Text('None'),
                   subtitle: const Text(
-                    'Free-form key/value submission.',
+                    'Responders add their own fields. Extra fields are '
+                    'turned on with it.',
                   ).muted.small,
                   trailing: _store.draftTemplateId == null
                       ? Icon(
@@ -1007,6 +1052,8 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
     if (picked != null && mounted) {
       _store.setDraftTemplate(picked.isEmpty ? null : picked);
+      // Without a template, extra fields are the only thing a form can ask.
+      if (picked.isEmpty) _store.setDraftAllowExtraFields(true);
     }
   }
 
