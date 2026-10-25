@@ -35,6 +35,5 @@ export const config = Object.freeze({
   secureCookies: publicUrl.protocol === 'https:',
   scope: 'openid profile email',
   requestedKeys,
-  defaultServer: process.env.REVOKED_SERVER ?? '',
   allowedServers: list(process.env.REVOKED_SERVERS).map((s) => s.toLowerCase()),
 });

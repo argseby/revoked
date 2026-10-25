@@ -167,7 +167,7 @@ unchanged.
 
 | OpenID Connect part | Revoked |
 |---|---|
-| Authorization endpoint | The browser passkey page, extended by a consent screen for the service |
+| Authorization endpoint | A page that hands the request to the Revoked app, where the person approves it |
 | Authorization code with PKCE | The one-time code flow already used by `/api/passkeys/token` |
 | Client identification | The client's origin, as with connected tools; no prior registration needed for public clients |
 | ID token signature | The root key, RS256 (the algorithm every OpenID Connect client supports) |
@@ -193,7 +193,7 @@ offered (see the decisions below).
 | Question | Decision |
 |---|---|
 | Which key signs ID tokens | A separate RS256 key (`oidc_signing.pem`), certified by the root key. The certification names the key by its RFC 7638 thumbprint and is published with it in the JWKS, so the DNS pin anchors every ID token while the root key signs only the certification. Replacing the signing key needs no DNS change. |
-| Session lifetime at the provider | None. Every sign-in at a service is confirmed with a passkey, `prompt=none` answers `login_required`, and no refresh tokens are issued. A service keeps its own session after the sign-in. |
+| Session lifetime at the provider | None. Every sign-in at a service is approved in the Revoked app, `prompt=none` answers `login_required`, and no refresh tokens are issued. A service keeps its own session after the sign-in. |
 | Logout notifications | Not needed while there is no provider session: there is nothing at the provider to end. |
 | Copies of values | Not offered. Vault entries are given only as grants (`revoked_links`), delivered at userinfo and never in the ID token. A service that wants a copy reads the grant and stores the value itself, which is its own decision and its own retention duty. |
 
@@ -205,7 +205,7 @@ That question belongs to the trust chain as a whole rather than to this step.
 | Part | Implementation |
 |---|---|
 | Discovery and keys | `/.well-known/openid-configuration`, `/oidc/jwks`. The issuer is `https://<domain>`; a server reached at localhost answers as `http://localhost:<port>`, as the passkey page does, and any other Host header falls back to the domain. The issuer is fixed when a sign-in starts. |
-| Authorization | `/oidc/authorize` validates the request, then serves a page that runs the passkey sign-in in the browser with a PKCE pair of its own (`/api/passkeys/login/*`), joins the result to the request (`/oidc/authorize/session`), and records the decision (`/oidc/authorize/consent`). Until the client's origin and redirect address check out, errors are shown, never redirected. |
+| Authorization | `/oidc/authorize` validates the request and serves a page that opens the app with it (`revoked://signin`); nothing is decided in the browser. The app opens the request with its session (`/oidc/authorize/app`) and records the decision (`/oidc/authorize/consent`), an approval signed with an identity key held on the device, after the person confirms with fingerprint, face or device PIN (`local_auth`; Linux, which has no system prompt, relies on the key alone). Until the client's origin and redirect address check out, errors are shown, never redirected. |
 | Tokens | `/oidc/token` (authorization code with PKCE, public clients, no secret) returns an ID token valid for 10 minutes and an access token valid for an hour. `/oidc/userinfo` answers with the granted claims. |
 | Subjects | Pairwise: an HMAC of the person and the client origin under `oidc_subject.key`. |
 | Shared entries | One link per person and service (`links.signInClient`), read through `POST /api/grants/resolve` with the token from userinfo, and revoked from the app like any link. |

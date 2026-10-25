@@ -26,8 +26,8 @@ const maxOIDCParamLength = 1024
 const maxLinkOptions = 500
 
 // oidcAuthRequest is a validated authorization request, held while the
-// person signs in and decides. The page never carries the parameters back:
-// it names this by id, so it cannot change what was asked.
+// person decides in the app. The app names it by ticket and never sends the
+// parameters back, so it cannot change what was asked.
 type oidcAuthRequest struct {
 	// The issuer the request was made to, which every answer to it names.
 	issuer                                         string
@@ -38,11 +38,11 @@ type oidcAuthRequest struct {
 	linkKeys []string
 }
 
-// oidcTicket is a request whose person has signed in and not yet decided.
+// oidcTicket is a request opened in the app of the person it is for, not yet
+// decided.
 type oidcTicket struct {
-	req      oidcAuthRequest
-	user     string
-	authTime time.Time
+	req  oidcAuthRequest
+	user string
 }
 
 // oidcCode is a decision waiting for the service to redeem it.
@@ -62,26 +62,36 @@ type oidcAccess struct {
 	grant          *services.SignInGrant
 }
 
-// All four live in memory, like the passkey ceremonies: a restart costs a
+// All three live in memory, like the passkey ceremonies: a restart costs a
 // sign-in in progress and nothing else. There is no provider session to
-// lose, since every sign-in is confirmed with a passkey.
+// lose, since every sign-in is approved in the app.
 var (
-	oidcRequests passkeyVault[oidcAuthRequest]
-	oidcTickets  passkeyVault[oidcTicket]
-	oidcCodes    passkeyVault[oidcCode]
-	oidcTokens   passkeyVault[oidcAccess]
+	oidcTickets passkeyVault[oidcTicket]
+	oidcCodes   passkeyVault[oidcCode]
+	oidcTokens  passkeyVault[oidcAccess]
 )
+
+// oidcConsentPrefix starts the message an approval is signed over. A
+// challenge nonce never contains a colon, so a signature made for a
+// challenge — even one a foreign server chose — never approves a sign-in.
+const oidcConsentPrefix = "revoked-oidc-consent:"
 
 // OIDCRoute makes this server an OpenID Connect provider, so a service signs
 // people in with their Revoked account using an ordinary OIDC client library:
 //
 //	GET  /.well-known/openid-configuration
 //	GET  /oidc/jwks
-//	GET  /oidc/authorize                 the page: passkey, then consent
-//	POST /oidc/authorize/session         {request, code, verifier} -> consent data
-//	POST /oidc/authorize/consent         {ticket, approve, scopes, links} -> {redirect}
+//	GET  /oidc/authorize                 the page: hands the request to the app
+//	POST /oidc/authorize/app             app session + request -> consent data
+//	POST /oidc/authorize/consent         app session + {ticket, approve, scopes, links, identityId, signature} -> {redirect}
 //	POST /oidc/token                     authorization_code + PKCE -> id_token
 //	GET  /oidc/userinfo                  Bearer access token -> claims
+//
+// A sign-in is approved in the Revoked app and nowhere else. The browser page
+// only passes the request on to the app; the app opens it with its session,
+// shows what the service asks for, and signs the person's approval with an
+// identity key that never leaves the device. A session token alone, without
+// the device, cannot approve anything.
 //
 // A service is identified by its origin, as a connected tool is: client_id is
 // the origin, redirect_uri must lie on it, and PKCE (S256) stands in for a
@@ -132,8 +142,8 @@ func OIDCRoute(app core.App, root *server.RootKey) {
 			return serveOIDCAuthorize(re, root)
 		})
 
-		e.Router.POST("/oidc/authorize/session", func(re *core.RequestEvent) error {
-			return oidcSession(app, re)
+		e.Router.POST("/oidc/authorize/app", func(re *core.RequestEvent) error {
+			return oidcAppRequest(app, re, root)
 		})
 
 		e.Router.POST("/oidc/authorize/consent", func(re *core.RequestEvent) error {
@@ -165,29 +175,37 @@ func oidcIssuer(re *core.RequestEvent, root *server.RootKey) string {
 	return util.OIDCIssuer(pageOrigin(re, root))
 }
 
-// serveOIDCAuthorize validates an authorization request and renders the page
-// it continues on.
+// oidcForwarded are the authorization request parameters the page passes on
+// to the app. Anything else is dropped, as the app drops it too.
+var oidcForwarded = []string{
+	"client_id", "redirect_uri", "response_type", "scope", "state", "nonce",
+	"code_challenge", "code_challenge_method", "claims", "prompt",
+}
+
+// errOIDCClient means a request whose service or redirect address did not
+// check out: nothing may be sent back to it.
+var errOIDCClient = errors.New("oidc: client not identified")
+
+// checkOIDCRequest validates an authorization request made to issuer.
 //
 // Until the service's origin and redirect address check out, nothing is sent
-// back to it: an error is shown here, never redirected to an address nobody
-// vouched for. After that, every refusal goes back to the service in the
-// standard form.
-func serveOIDCAuthorize(re *core.RequestEvent, root *server.RootKey) error {
-	issuer := oidcIssuer(re, root)
-	q := re.Request.URL.Query()
+// back to it: errOIDCClient says so, and the caller shows the error itself,
+// never redirecting to an address nobody vouched for. After that, a refusal
+// is returned as the redirect that tells the service, in the standard form.
+func checkOIDCRequest(issuer string, q url.Values) (req *oidcAuthRequest, refusal string, err error) {
 	clientID, ok := util.NormalizeOrigin(q.Get("client_id"))
 	redirectURI := q.Get("redirect_uri")
 	if !ok || !util.RedirectWithinOrigin(redirectURI, clientID) {
-		return renderOIDCPage(re, root, oidcPageData{Problem: "client"}, http.StatusBadRequest)
+		return nil, "", errOIDCClient
 	}
 	state := q.Get("state")
 	if len(state) > maxOIDCParamLength {
 		state = ""
 	}
-	back := func(code, description string) error {
-		return re.Redirect(http.StatusFound, oidcRedirect(redirectURI, map[string]string{
+	back := func(code, description string) (*oidcAuthRequest, string, error) {
+		return nil, oidcRedirect(redirectURI, map[string]string{
 			"error": code, "error_description": description, "state": state, "iss": issuer,
-		}))
+		}), nil
 	}
 
 	if q.Get("response_type") != "code" {
@@ -213,10 +231,10 @@ func serveOIDCAuthorize(re *core.RequestEvent, root *server.RootKey) error {
 	if len(q.Get("state")) > maxOIDCParamLength || len(q.Get("nonce")) > maxOIDCParamLength {
 		return back("invalid_request", "state or nonce is too long.")
 	}
-	// Every sign-in is confirmed with a passkey; there is no session here a
-	// silent request could be answered from.
+	// Every sign-in is approved by the person in the app; there is no session
+	// here a silent request could be answered from.
 	if slices.Contains(strings.Fields(q.Get("prompt")), "none") {
-		return back("login_required", "Signing in needs the person's passkey.")
+		return back("login_required", "Signing in needs the person's approval in the Revoked app.")
 	}
 	linkKeys, err := parseLinkClaims(q.Get("claims"))
 	if err != nil {
@@ -229,7 +247,7 @@ func serveOIDCAuthorize(re *core.RequestEvent, root *server.RootKey) error {
 			optional = append(optional, s)
 		}
 	}
-	id := oidcRequests.put(&oidcAuthRequest{
+	return &oidcAuthRequest{
 		issuer:      issuer,
 		clientID:    clientID,
 		redirectURI: redirectURI,
@@ -238,13 +256,33 @@ func serveOIDCAuthorize(re *core.RequestEvent, root *server.RootKey) error {
 		challenge:   challenge,
 		scopes:      optional,
 		linkKeys:    linkKeys,
-	}, util.OIDCRequestTTL)
+	}, "", nil
+}
 
+// serveOIDCAuthorize checks an authorization request and hands it to the
+// Revoked app. Nothing is decided in the browser: the page only opens the
+// app with the request, which the app then opens on the server it is signed
+// into.
+func serveOIDCAuthorize(re *core.RequestEvent, root *server.RootKey) error {
+	q := re.Request.URL.Query()
+	req, refusal, err := checkOIDCRequest(oidcIssuer(re, root), q)
+	if err != nil {
+		return renderOIDCPage(re, root, oidcPageData{Problem: "client"}, http.StatusBadRequest)
+	}
+	if refusal != "" {
+		return re.Redirect(http.StatusFound, refusal)
+	}
+	forward := url.Values{}
+	for _, k := range oidcForwarded {
+		if v := q.Get(k); v != "" {
+			forward.Set(k, v)
+		}
+	}
+	// The app reads the service's origin as the server will.
+	forward.Set("client_id", req.clientID)
 	return renderOIDCPage(re, root, oidcPageData{
-		Request:  id,
-		Client:   clientID,
-		Scopes:   optional,
-		LinkKeys: linkKeys,
+		Client:  req.clientID,
+		AppLink: util.OIDCAppScheme + "?" + forward.Encode(),
 	}, http.StatusOK)
 }
 
@@ -300,36 +338,42 @@ func oidcRedirect(redirectURI string, params map[string]string) string {
 	return u.String()
 }
 
-// oidcSession joins a finished passkey sign-in to the authorization request it
-// was made for, and returns what the consent screen shows: the account, what
-// each scope would reveal, and the person's entries for each key asked for.
-func oidcSession(app core.App, re *core.RequestEvent) error {
-	if !allowRequest(re, passkeyLimiter, "") {
+// oidcAppRequest opens an authorization request in the app of the person
+// it is for. The app is signed in, so its session names the person; what
+// comes back is what the consent screen shows: the account, what each scope
+// would reveal, and the person's entries for each key asked for.
+//
+// A request that cannot go on but names a service correctly is answered
+// with the redirect that tells the service so, for the app to open.
+func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) error {
+	if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
+		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
+	}
+	if !allowRequest(re, passkeyLimiter, "oidc|"+re.Auth.Id) {
 		return rateLimitedResponse(re)
 	}
 	var body struct {
-		Request  string `json:"request"`
-		Code     string `json:"code"`
-		Verifier string `json:"verifier"`
+		Params map[string]string `json:"params"`
 	}
 	if err := re.BindBody(&body); err != nil {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
 	}
-	req, ok := oidcRequests.take(body.Request)
-	if !ok {
+	q := url.Values{}
+	for _, k := range oidcForwarded {
+		if v := body.Params[k]; v != "" {
+			q.Set(k, v)
+		}
+	}
+	req, refusal, err := checkOIDCRequest(oidcIssuer(re, root), q)
+	if err != nil {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
 	}
-	grant, ok := passkeyCodes.take(body.Code)
-	if !ok || !util.ValidPKCE(body.Verifier) ||
-		subtle.ConstantTimeCompare([]byte(util.PKCEChallenge(body.Verifier)), []byte(grant.pkce)) != 1 {
-		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.PasskeyGrantInvalid)
+	if refusal != "" {
+		return re.JSON(http.StatusOK, map[string]any{"redirect": refusal})
 	}
-	user, err := app.FindRecordById(util.Coll.Users, grant.user)
-	if err != nil || user == nil {
-		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.PasskeyGrantInvalid)
-	}
+	user := re.Auth
 
-	ticket := oidcTickets.put(&oidcTicket{req: *req, user: user.Id, authTime: time.Now()}, util.OIDCRequestTTL)
+	ticket := oidcTickets.put(&oidcTicket{req: *req, user: user.Id}, util.OIDCRequestTTL)
 
 	// What each scope would give away, shown before the person agrees to it.
 	preview := services.OIDCClaims(app, user, req.clientID, nil, util.OIDCOptionalScopes)
@@ -403,21 +447,35 @@ func truncateRunes(s string, n int) string {
 
 // oidcConsent records the person's decision and sends them back to the
 // service: with a code when they agreed, with access_denied when they did not.
+//
+// Only the app the ticket was opened in can answer it, and an approval must
+// be signed with one of the person's active identities: the key is held on
+// the device, so a session token without the device approves nothing.
 func oidcConsent(app core.App, re *core.RequestEvent) error {
+	if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
+		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
+	}
 	var body struct {
-		Ticket  string            `json:"ticket"`
-		Approve bool              `json:"approve"`
-		Scopes  []string          `json:"scopes"`
-		Links   map[string]string `json:"links"`
+		Ticket     string            `json:"ticket"`
+		Approve    bool              `json:"approve"`
+		Scopes     []string          `json:"scopes"`
+		Links      map[string]string `json:"links"`
+		IdentityID string            `json:"identityId"`
+		Signature  string            `json:"signature"`
 	}
 	if err := re.BindBody(&body); err != nil {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
 	}
 	t, ok := oidcTickets.take(body.Ticket)
-	if !ok {
+	if !ok || t.user != re.Auth.Id {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
 	}
 	req := t.req
+	if body.Approve {
+		if appErr, status := verifyOIDCApproval(app, t.user, body.Ticket, body.IdentityID, body.Signature); appErr != nil {
+			return appErrorResponse(re, status, appErr)
+		}
+	}
 	if !body.Approve {
 		return re.JSON(http.StatusOK, map[string]any{"redirect": oidcRedirect(req.redirectURI, map[string]string{
 			"error": "access_denied", "error_description": "The person declined.", "state": req.state, "iss": req.issuer,
@@ -468,7 +526,7 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		req:      req,
 		user:     t.user,
 		scopes:   granted,
-		authTime: t.authTime,
+		authTime: time.Now(),
 		grant:    grant,
 	}, util.OIDCCodeTTL)
 	app.Logger().Info("OIDC sign-in approved", "user", t.user, "client", req.clientID)
@@ -476,6 +534,30 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 	return re.JSON(http.StatusOK, map[string]any{"redirect": oidcRedirect(req.redirectURI, map[string]string{
 		"code": code, "state": req.state, "iss": req.issuer,
 	})})
+}
+
+// verifyOIDCApproval checks that an approval of ticket was signed by one of
+// user's active identities, over oidcConsentPrefix followed by the ticket.
+func verifyOIDCApproval(app core.App, user, ticket, identityID, signature string) (*util.AppError, int) {
+	if identityID == "" || signature == "" {
+		return &util.Errors.IdentityRequired, http.StatusUnauthorized
+	}
+	f := util.Fields.Identity
+	id, err := app.FindRecordById(util.Coll.Identities, identityID)
+	if err != nil || id == nil || id.GetString(f.User) != user {
+		return &util.Errors.IdentityNotOwned, http.StatusForbidden
+	}
+	if id.GetString(f.Status) != util.StatusActive {
+		return &util.Errors.IdentityRevoked, http.StatusForbidden
+	}
+	key := id.GetString(f.Certificate)
+	if key == "" {
+		key = id.GetString(f.PublicKey)
+	}
+	if err := util.VerifySignature(key, oidcConsentPrefix+ticket, signature); err != nil {
+		return &util.Errors.SignatureInvalid, http.StatusUnauthorized
+	}
+	return nil, 0
 }
 
 // oauthError writes an OAuth 2.0 error response.

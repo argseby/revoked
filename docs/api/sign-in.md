@@ -3,8 +3,8 @@
 Every Revoked server is an OpenID Connect provider. A service — a game
 server, a shop, a forum — signs people in with their Revoked account through
 an ordinary OpenID Connect client library, without keeping passwords or
-accounts of its own. What the service learns is decided by the person on a
-consent screen, and data it asks for arrives as a living grant rather than a
+accounts of its own. What the service learns is decided by the person in the
+Revoked app, and data it asks for arrives as a living grant rather than a
 copy.
 
 The endpoint reference is under [OpenID Connect](reference/openid-connect.md).
@@ -23,11 +23,30 @@ Nothing is registered in advance. The values a client library asks for are:
 | Client secret | None. The client is public; PKCE with `S256` is required in its place. |
 | Flow | Authorization code. |
 
+## Approving in the app
+
+A sign-in is approved in the person's Revoked app and nowhere else. There is
+no passkey prompt and no consent screen in the browser: the authorization
+endpoint only hands the request to the app.
+
+The app shows who is asking, as which account, and what the service would
+learn. An approval asks for the person's fingerprint, face or device PIN —
+Face ID or Touch ID on Apple devices, the biometric prompt on Android,
+Windows Hello on Windows — and the app signs it with an identity key that
+never leaves the device. Linux has no such prompt; there the identity key is
+the only proof. A session token on its own, or a copied link opened
+elsewhere, approves nothing.
+
+Once the person decides, the app opens the redirect address in the system
+browser with the code, the state, and `iss` — the issuer of the server that
+answered (RFC 9207). The service's session cookie must be there for the
+`state` to be found, so the button belongs on pages opened in the default
+browser of a device that has the app.
+
 ## Finding the person's server
 
 Which server a person uses is not known in advance, since every instance is
-self-hosted. The person's Revoked app knows it, so a sign-in usually starts
-there.
+self-hosted. The person's Revoked app knows it, so a sign-in starts there.
 
 ### Through the app
 
@@ -42,12 +61,10 @@ revoked://signin?client_id=https%3A%2F%2Fgame.example
   &claims=…
 ```
 
-The app opens the authorization page of the server it is signed into, in
-the browser, with the same parameters. The person confirms with their passkey
-there, and the browser returns to the redirect address with the code, the
-state, and `iss` — the issuer of the server that answered (RFC 9207).
+The app opens the request on the server it is signed into, and the person
+approves it there, in the app.
 
-The service then works as with a known server, starting from that issuer:
+The service then works as with a known server, starting from `iss`:
 
 1. `iss` is checked like any server the service accepts: an `https` origin,
    on an allow-list if the service keeps one.
@@ -62,16 +79,19 @@ other than the person's own cannot sign anyone in as one of that server's
 users: the code, the ID token and the subject all belong to the server that
 issued them.
 
-The app opens the system browser, so the service's session cookie must be
-there for the `state` to be found: the button belongs on pages opened in the
-default browser.
+### Through the authorization endpoint
+
+A client library that sends the browser to a known server's
+`authorization_endpoint` reaches a page that opens the app with the same
+request, as a `revoked://signin` link. The app answers on the server it is
+signed into; a service that expects a particular issuer compares `iss` with
+it.
 
 ### Without the app
 
-On a device without the app, `revoked://` leads nowhere: most browsers stay on
-the page, some show an error. The service then asks for the server's domain
-and starts the sign-in there, as above. Remembering the issuer after the
-first sign-in spares the question on later visits.
+Signing in needs the Revoked app. On a device without it, `revoked://` leads
+nowhere: most browsers stay on the page, some show an error, and the
+authorization page says the app is needed.
 
 ## Scopes and claims
 
@@ -86,7 +106,7 @@ first sign-in spares the question on later visits.
 services gives each its own identifier, so services cannot match their users
 with each other. It stays the same for one service across sign-ins.
 
-The person can decline every scope but `openid` on the consent screen. The
+The person can decline every scope but `openid` in the app. The
 `scope` returned by the token endpoint lists what was granted.
 
 ## Asking for vault entries
@@ -98,8 +118,7 @@ parameter:
 { "userinfo": { "revoked_links": { "values": ["shipping_address", "phone"] } } }
 ```
 
-On the consent screen the person picks one of their entries for each key, or
-none. The userinfo endpoint then returns a grant over the chosen entries:
+In the app the person picks one of their entries for each key, or none. The userinfo endpoint then returns a grant over the chosen entries:
 
 ```json
 {
@@ -130,8 +149,8 @@ link and replaces its token.
 
 ## Sessions
 
-Every sign-in is confirmed with the person's passkey, and the provider keeps
-no session of its own. Consequently:
+Every sign-in is approved in the person's app, and the provider keeps no
+session of its own. Consequently:
 
 - `prompt=none` is always answered with `login_required`.
 - There are no refresh tokens. The ID token proves a sign-in that just

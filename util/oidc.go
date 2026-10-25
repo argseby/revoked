@@ -30,7 +30,7 @@ const (
 var OIDCOptionalScopes = []string{OIDCScopeProfile, OIDCScopeEmail, OIDCScopeIdentity}
 
 const (
-	// OIDCRequestTTL is how long the consent page may stay open.
+	// OIDCRequestTTL is how long the consent screen in the app may stay open.
 	OIDCRequestTTL = 10 * time.Minute
 	// OIDCCodeTTL is how long an authorization code may wait to be redeemed:
 	// a redirect and one request.
@@ -41,9 +41,13 @@ const (
 	// OIDCAccessTokenTTL bounds the token for the userinfo endpoint.
 	OIDCAccessTokenTTL = time.Hour
 
-	// OIDCPagePath is the authorization endpoint, which is also the page the
-	// passkey ceremony and the consent screen run on.
+	// OIDCPagePath is the authorization endpoint: a page that hands the
+	// request to the Revoked app, where the person decides.
 	OIDCPagePath = "/oidc/authorize"
+
+	// OIDCAppScheme is the link the authorization page opens the app with,
+	// followed by the request's parameters.
+	OIDCAppScheme = "revoked://signin"
 )
 
 // OIDCIssuer is the issuer identifier for a domain: https, except on the

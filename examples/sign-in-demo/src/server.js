@@ -2,14 +2,13 @@
 //
 //   GET  /          the sign-in page, or the account once signed in
 //   POST /login/app starts a sign-in through the person's Revoked app
-//   POST /login     starts a sign-in at the server the person named
-//   GET  /callback  where the Revoked server sends the browser back
+//   GET  /callback  where the Revoked app sends the browser back
 //   POST /logout    ends the session here (there is none at the provider)
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { config } from './config.js';
-import { beginAppSignIn, beginSignIn, completeSignIn, SignInError } from './auth.js';
+import { beginAppSignIn, completeSignIn } from './auth.js';
 import { readGrants, GrantError } from './grants.js';
 import { session, endSession } from './sessions.js';
 import { signInPage, accountPage, errorPage } from './views.js';
@@ -20,9 +19,8 @@ function send(res, status, html) {
   res.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
-    // form-action covers where a form's answer redirects to: the person's
-    // server, or the Revoked app.
-    'Content-Security-Policy': "default-src 'none'; style-src 'self'; form-action 'self' http: https: revoked:; base-uri 'none'; frame-ancestors 'none'",
+    // form-action covers where a form's answer redirects to: the Revoked app.
+    'Content-Security-Policy': "default-src 'none'; style-src 'self'; form-action 'self' revoked:; base-uri 'none'; frame-ancestors 'none'",
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
   });
@@ -34,19 +32,10 @@ function redirect(res, location) {
   res.end();
 }
 
-async function formBody(req) {
-  let raw = '';
-  for await (const chunk of req) {
-    raw += chunk;
-    if (raw.length > 4096) throw new SignInError('The form was too large.');
-  }
-  return new URLSearchParams(raw);
-}
-
 async function home(req, res) {
   const s = session(req, res);
   if (!s.user) {
-    return send(res, 200, signInPage({ defaultServer: config.defaultServer, requestedKeys: config.requestedKeys }));
+    return send(res, 200, signInPage({ requestedKeys: config.requestedKeys }));
   }
   let grants = [];
   let grantError = null;
@@ -59,31 +48,14 @@ async function home(req, res) {
   send(res, 200, accountPage({ user: s.user, grants, grantError }));
 }
 
-// Hands the sign-in to the Revoked app. If the app is not installed, the
-// browser has nowhere to go and stays on the sign-in page, whose other form
-// is the way on.
+// Hands the sign-in to the Revoked app, where the person approves it. If the
+// app is not installed, the browser has nowhere to go and stays on the
+// sign-in page: signing in needs the app.
 async function loginWithApp(req, res) {
   const s = session(req, res);
   const { url, pending } = await beginAppSignIn();
   s.pending = pending;
   redirect(res, url);
-}
-
-async function login(req, res) {
-  const s = session(req, res);
-  const form = await formBody(req);
-  try {
-    const { url, pending } = await beginSignIn(form.get('server'));
-    s.pending = pending;
-    redirect(res, url);
-  } catch (err) {
-    if (!(err instanceof SignInError)) throw err;
-    send(res, 400, signInPage({
-      defaultServer: form.get('server') ?? '',
-      requestedKeys: config.requestedKeys,
-      error: err.message,
-    }));
-  }
 }
 
 async function callback(req, res, url) {
@@ -118,7 +90,6 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && url.pathname === '/') return await home(req, res);
     if (req.method === 'POST' && url.pathname === '/login/app') return await loginWithApp(req, res);
-    if (req.method === 'POST' && url.pathname === '/login') return await login(req, res);
     if (req.method === 'GET' && url.pathname === '/callback') return await callback(req, res, url);
     if (req.method === 'POST' && url.pathname === '/logout') {
       endSession(req, res);

@@ -88,7 +88,9 @@ tags:
       service sees its own subject for a person, so services cannot match
       their users across each other. Vault entries a service asks for are
       given as grants it reads with a token, never as copies. Every sign-in
-      is confirmed with a passkey; there is no session at the provider.
+      is approved in the Revoked app, signed with a key that stays on the
+      device; there is no sign-in in the browser and no session at the
+      provider.
   - name: Attestations
     description: |
       Statements one domain signs about an identity, usually one issued by
@@ -1842,11 +1844,12 @@ paths:
       tags: [OpenID Connect]
       summary: Authorization endpoint
       description: |
-        The page a service sends the browser to. It shows what the service
-        asks for, has the person confirm with their passkey, and lets them
-        choose what to give: each optional scope can be declined, and each
-        requested vault key can be answered with one of their entries or
-        left out.
+        The page a service sends the browser to. It decides nothing: it
+        checks the request and opens the Revoked app with it, as a
+        `revoked://signin?…` link carrying the same parameters. The person
+        approves in the app (`/oidc/authorize/app`, then
+        `/oidc/authorize/consent`); there is no passkey prompt or consent
+        screen in the browser.
 
         `client_id` is the service's origin (`https://game.example`), and
         `redirect_uri` must lie on that origin. Until both check out, nothing
@@ -1855,7 +1858,7 @@ paths:
         `iss`.
 
         `prompt=none` always answers `login_required`, since every sign-in
-        needs the passkey.
+        needs the person's approval in the app.
       security: []
       parameters:
         - { name: client_id, in: query, required: true, schema: { type: string }, description: The service's origin. }
@@ -1879,7 +1882,7 @@ paths:
             asks for vault entries by key, at most 20.
       responses:
         "200":
-          description: The sign-in and consent page.
+          description: The page that opens the Revoked app with the request.
           content:
             text/html:
               schema: { type: string }
@@ -1888,49 +1891,67 @@ paths:
         "400":
           description: The service's origin or redirect address did not check out.
 
-  /oidc/authorize/session:
+  /oidc/authorize/app:
     post:
       tags: [OpenID Connect]
-      summary: Join a passkey sign-in to a request (the page)
+      summary: Open a request in the app
       description: |
-        Called by the authorization page once the passkey sign-in finished
-        (`/api/passkeys/login/finish`, with a PKCE challenge the page made).
-        Spends the request and the code, and returns what the consent screen
-        shows: the account, what each scope would reveal, and the person's
-        entries for each key asked for.
-      security: []
+        Called by the Revoked app for a `revoked://signin` link, with its
+        session. Checks the authorization request as the authorization
+        endpoint does and returns what the consent screen shows: the
+        account, what each scope would reveal, the person's entries for each
+        key asked for, and a ticket for the decision.
+
+        A request that names its service correctly but cannot go on is
+        answered with `redirect` alone: the refusal, in the standard form,
+        for the app to send the browser to.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [request, code, verifier]
+              required: [params]
               properties:
-                request: { type: string, description: The id the page was rendered with. }
-                code: { type: string }
-                verifier: { type: string }
+                params:
+                  type: object
+                  description: The authorization request's parameters, as the link carried them.
+                  additionalProperties: { type: string }
       responses:
         "200":
-          description: The consent data and a ticket for the decision.
+          description: The consent data and a ticket, or a refusal to send back.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                properties:
+                  ticket: { type: string }
+                  client: { type: string }
+                  account: { type: object }
+                  scopes: { type: array, items: { type: object } }
+                  links: { type: array, items: { type: object } }
+                  redirect: { type: string }
         "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /oidc/authorize/consent:
     post:
       tags: [OpenID Connect]
-      summary: Record the decision (the page)
+      summary: Record the decision (the app)
       description: |
-        Spends the ticket. With `approve: true`, grants `openid` plus the
-        listed scopes that were asked for, and gives the service a grant over
-        the chosen entries — one link per person and service, updated on
-        every sign-in that shares something, with a fresh token each time.
-        The answer is the address to send the browser to: with a `code`, or
-        with `error=access_denied`.
-      security: []
+        Spends the ticket; only the session that opened it can answer it.
+        An approval is signed with one of the person's active identities:
+        `signature` is the identity key's signature over
+        `revoked-oidc-consent:` followed by the ticket. The key never leaves
+        the device, so a session token alone approves nothing.
+
+        With `approve: true`, grants `openid` plus the listed scopes that
+        were asked for, and gives the service a grant over the chosen
+        entries — one link per person and service, updated on every sign-in
+        that shares something, with a fresh token each time. The answer is
+        the address to send the browser to: with a `code`, or with
+        `error=access_denied`.
       requestBody:
         required: true
         content:
@@ -1941,6 +1962,8 @@ paths:
               properties:
                 ticket: { type: string }
                 approve: { type: boolean }
+                identityId: { type: string, description: "Required with `approve: true`." }
+                signature: { type: string, description: "Base64. Required with `approve: true`." }
                 scopes:
                   type: array
                   items: { type: string }
@@ -1959,6 +1982,16 @@ paths:
                   redirect: { type: string }
         "400":
           description: "`oidc_request_invalid`, or `oidc_link_record_invalid` for an entry that is not the person's."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401":
+          description: "`not_authenticated`, `identity_required`, or `signature_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: "`identity_not_owned` or `identity_revoked`."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }

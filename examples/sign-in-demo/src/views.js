@@ -23,7 +23,7 @@ function layout(title, body) {
 </html>`;
 }
 
-export function signInPage({ defaultServer, requestedKeys, error }) {
+export function signInPage({ requestedKeys }) {
   const asks = requestedKeys.length
     ? `<p class="muted">At checkout the shop asks for ${requestedKeys
         .map((k) => `<code>${escape(k)}</code>`)
@@ -34,20 +34,11 @@ export function signInPage({ defaultServer, requestedKeys, error }) {
     `<section class="card">
   <h1>Sign in</h1>
   <p>The shop keeps no passwords. Sign in with your Revoked account.</p>
-  ${error ? `<p class="error" role="alert">${escape(error)}</p>` : ''}
   <form method="post" action="/login/app">
     <button type="submit">Sign in with Revoked</button>
   </form>
-  <p class="muted small">Opens the Revoked app, which continues on your own server.</p>
+  <p class="muted small">Opens the Revoked app, where you approve the sign-in. The app is needed on this device.</p>
   ${asks}
-  <details${error ? ' open' : ''}>
-    <summary>No Revoked app on this device?</summary>
-    <form method="post" action="/login">
-      <label for="server">Your Revoked server</label>
-      <input id="server" name="server" value="${escape(defaultServer)}" placeholder="revoked.example" autocomplete="url" required>
-      <button class="quiet" type="submit">Continue in the browser</button>
-    </form>
-  </details>
 </section>`,
   );
 }

@@ -38,9 +38,9 @@ func newOIDCService(t *testing.T, baseURL, origin string) *oidcService {
 	}
 }
 
-// authorize opens the authorization endpoint the way a browser sent there by
-// the service does, overlaying extra on the standard parameters.
-func (s *oidcService) authorize(extra map[string]string) *http.Response {
+// params builds an authorization request with a fresh PKCE pair, overlaying
+// extra on the standard parameters; an empty value removes one.
+func (s *oidcService) params(extra map[string]string) url.Values {
 	s.t.Helper()
 	verifier, challenge := testutils.PKCEPair()
 	s.verifier = verifier
@@ -61,28 +61,43 @@ func (s *oidcService) authorize(extra map[string]string) *http.Response {
 			q.Set(k, v)
 		}
 	}
-	resp, err := s.http.Get(s.baseURL + util.OIDCPagePath + "?" + q.Encode())
+	return q
+}
+
+// authorize opens the authorization endpoint the way a browser sent there by
+// the service does.
+func (s *oidcService) authorize(extra map[string]string) *http.Response {
+	s.t.Helper()
+	resp, err := s.http.Get(s.baseURL + util.OIDCPagePath + "?" + s.params(extra).Encode())
 	if err != nil {
 		s.t.Fatal(err)
 	}
 	return resp
 }
 
-var pageRequestID = regexp.MustCompile(`request: "([A-Za-z0-9]+)"`)
+var pageAppLink = regexp.MustCompile(`appLink: "([^"]+)"`)
 
-// requestID reads the stored request's id off the rendered page.
-func requestID(t *testing.T, resp *http.Response) string {
+// appLink reads the revoked://signin link off the rendered page.
+func appLink(t *testing.T, resp *http.Response) *url.URL {
 	t.Helper()
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("authorize page: %d %s", resp.StatusCode, raw)
 	}
-	m := pageRequestID.FindSubmatch(raw)
+	m := pageAppLink.FindSubmatch(raw)
 	if m == nil {
-		t.Fatalf("no request id on the page")
+		t.Fatalf("no app link on the page")
 	}
-	return string(m[1])
+	var link string
+	if err := json.Unmarshal([]byte(`"`+string(m[1])+`"`), &link); err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u
 }
 
 // redirectParams reads the query the provider sent the browser back with.
@@ -95,31 +110,71 @@ func redirectParams(t *testing.T, location string) url.Values {
 	return u.Query()
 }
 
-// signInAndConsent runs the page's part: a passkey sign-in joined to the
-// request, then the decision. It returns the consent data and the redirect.
-func signInAndConsent(t *testing.T, device *testutils.PasskeyDevice, request string, decision map[string]any) (map[string]any, string) {
+// oidcPerson is someone signed in to the Revoked app on their device: a
+// session, and an identity whose private key only the device holds.
+type oidcPerson struct {
+	baseURL, userID, token, identityID string
+	key                                *testutils.IdentityKeyPair
+}
+
+func newOIDCPerson(t *testing.T, baseURL string) *oidcPerson {
 	t.Helper()
-	verifier, challenge := testutils.PKCEPair()
-	code, err := device.SignInCode(challenge)
+	userID, token, err := testutils.CreateRandomUser(baseURL)
 	if err != nil {
-		t.Fatalf("passkey sign-in: %v", err)
+		t.Fatal(err)
 	}
-	var consent map[string]any
-	if err := device.Post("/oidc/authorize/session",
-		map[string]any{"request": request, "code": code, "verifier": verifier}, &consent); err != nil {
-		t.Fatalf("session: %v", err)
+	api := testutils.NewPBClient(t, baseURL)
+	identityID, key := newIdentity(t, baseURL, token, "app", userID, activeWorkspaceOf(t, api, userID, token))
+	return &oidcPerson{baseURL: baseURL, userID: userID, token: token, identityID: identityID, key: key}
+}
+
+// post sends a JSON body with the app's session and decodes the answer.
+func (p *oidcPerson) post(t *testing.T, path string, body any) (int, map[string]any) {
+	t.Helper()
+	resp := postJSON(t, p.baseURL+path, p.token, body)
+	defer resp.Body.Close()
+	var out map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	return resp.StatusCode, out
+}
+
+// open opens a request in the app, as a revoked://signin link does.
+func (p *oidcPerson) open(t *testing.T, q url.Values) (int, map[string]any) {
+	t.Helper()
+	params := map[string]string{}
+	for k := range q {
+		params[k] = q.Get(k)
 	}
-	body := map[string]any{"ticket": consent["ticket"]}
+	return p.post(t, "/oidc/authorize/app", map[string]any{"params": params})
+}
+
+// decide answers an opened request, signing an approval with the device key.
+func (p *oidcPerson) decide(t *testing.T, ticket string, decision map[string]any) (int, map[string]any) {
+	t.Helper()
+	body := map[string]any{"ticket": ticket}
+	if decision["approve"] == true {
+		body["identityId"] = p.identityID
+		body["signature"] = p.key.SignChallenge(t, "revoked-oidc-consent:"+ticket)
+	}
 	for k, v := range decision {
 		body[k] = v
 	}
-	var out struct {
-		Redirect string `json:"redirect"`
+	return p.post(t, "/oidc/authorize/consent", body)
+}
+
+// approve runs the app's part: it opens the request and records the
+// decision. It returns the consent data and the redirect.
+func (p *oidcPerson) approve(t *testing.T, q url.Values, decision map[string]any) (map[string]any, string) {
+	t.Helper()
+	status, consent := p.open(t, q)
+	if status != http.StatusOK || consent["ticket"] == nil {
+		t.Fatalf("open: %d %v", status, consent)
 	}
-	if err := device.Post("/oidc/authorize/consent", body, &out); err != nil {
-		t.Fatalf("consent: %v", err)
+	status, out := p.decide(t, consent["ticket"].(string), decision)
+	if status != http.StatusOK {
+		t.Fatalf("consent: %d %v", status, out)
 	}
-	return consent, out.Redirect
+	return consent, out["redirect"].(string)
 }
 
 func (s *oidcService) redeem(code string) (*http.Response, map[string]any) {
@@ -252,10 +307,8 @@ func userinfo(t *testing.T, baseURL, token string) (int, map[string]any) {
 func TestSignInWithRevoked(t *testing.T) {
 	baseURL, _ := testutils.SetupTestApp(t)
 	api := testutils.NewPBClient(t, baseURL)
-	userID, token, device, err := testutils.CreateRandomUserWithDevice(baseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	person := newOIDCPerson(t, baseURL)
+	userID, token := person.userID, person.token
 	wsID := activeWorkspaceOf(t, api, userID, token)
 	recordID := extractID(t, baseURL, util.Coll.Records, token, map[string]any{
 		util.Fields.Record.Key:       "shipping_address",
@@ -268,10 +321,9 @@ func TestSignInWithRevoked(t *testing.T) {
 	})
 
 	game := newOIDCService(t, baseURL, "https://game.example")
-	request := requestID(t, game.authorize(map[string]string{
+	consent, location := person.approve(t, game.params(map[string]string{
 		"claims": `{"userinfo":{"revoked_links":{"values":["shipping_address"]}}}`,
-	}))
-	consent, location := signInAndConsent(t, device, request, map[string]any{
+	}), map[string]any{
 		"approve": true,
 		// The person keeps their identity to themselves.
 		"scopes": []string{util.OIDCScopeProfile, util.OIDCScopeEmail},
@@ -365,14 +417,14 @@ func TestSignInWithRevoked(t *testing.T) {
 
 	t.Run("the same person is the same subject at the same service, and another at another", func(t *testing.T) {
 		again := newOIDCService(t, baseURL, game.clientID)
-		_, loc := signInAndConsent(t, device, requestID(t, again.authorize(nil)), map[string]any{"approve": true})
+		_, loc := person.approve(t, again.params(nil), map[string]any{"approve": true})
 		_, tk := again.redeem(redirectParams(t, loc).Get("code"))
 		if verifyIDToken(t, baseURL, tk["id_token"].(string))["sub"] != sub {
 			t.Fatal("subject changed between sign-ins at one service")
 		}
 
 		other := newOIDCService(t, baseURL, "https://shop.example")
-		_, loc = signInAndConsent(t, device, requestID(t, other.authorize(nil)), map[string]any{"approve": true})
+		_, loc = person.approve(t, other.params(nil), map[string]any{"approve": true})
 		_, tk = other.redeem(redirectParams(t, loc).Get("code"))
 		if verifyIDToken(t, baseURL, tk["id_token"].(string))["sub"] == sub {
 			t.Fatal("two services see the same subject for one person")
@@ -381,7 +433,7 @@ func TestSignInWithRevoked(t *testing.T) {
 
 	t.Run("declining sends the person back with access_denied", func(t *testing.T) {
 		svc := newOIDCService(t, baseURL, game.clientID)
-		_, loc := signInAndConsent(t, device, requestID(t, svc.authorize(nil)), map[string]any{"approve": false})
+		_, loc := person.approve(t, svc.params(nil), map[string]any{"approve": false})
 		p := redirectParams(t, loc)
 		if p.Get("error") != "access_denied" || p.Get("code") != "" || p.Get("state") != "st-123" {
 			t.Fatalf("redirect = %s", loc)
@@ -403,25 +455,14 @@ func TestSignInWithRevoked(t *testing.T) {
 			util.Fields.Record.Workspace: activeWorkspaceOf(t, api, otherID, otherToken),
 		})
 		svc := newOIDCService(t, baseURL, game.clientID)
-		request := requestID(t, svc.authorize(map[string]string{
+		_, consent := person.open(t, svc.params(map[string]string{
 			"claims": `{"userinfo":{"revoked_links":{"values":["shipping_address"]}}}`,
 		}))
-		verifier, challenge := testutils.PKCEPair()
-		code, err := device.SignInCode(challenge)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var consent map[string]any
-		if err := device.Post("/oidc/authorize/session",
-			map[string]any{"request": request, "code": code, "verifier": verifier}, &consent); err != nil {
-			t.Fatal(err)
-		}
-		err = device.Post("/oidc/authorize/consent", map[string]any{
-			"ticket": consent["ticket"], "approve": true,
-			"links": map[string]string{"shipping_address": foreign},
-		}, nil)
-		if perr, ok := err.(*testutils.PasskeyError); !ok || perr.Code != util.Errors.OIDCLinkRecordInvalid.ErrorCode {
-			t.Fatalf("err = %v", err)
+		status, out := person.decide(t, consent["ticket"].(string), map[string]any{
+			"approve": true, "links": map[string]string{"shipping_address": foreign},
+		})
+		if status != http.StatusBadRequest || out["code"] != util.Errors.OIDCLinkRecordInvalid.ErrorCode {
+			t.Fatalf("consent: %d %v", status, out)
 		}
 	})
 }
@@ -464,11 +505,7 @@ func TestOIDCRefusesBadRequests(t *testing.T) {
 	}
 
 	t.Run("a wrong verifier does not redeem the code", func(t *testing.T) {
-		_, _, device, err := testutils.CreateRandomUserWithDevice(baseURL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, loc := signInAndConsent(t, device, requestID(t, svc.authorize(nil)), map[string]any{"approve": true})
+		_, loc := newOIDCPerson(t, baseURL).approve(t, svc.params(nil), map[string]any{"approve": true})
 		svc.verifier = strings.Repeat("x", 43)
 		resp, out := svc.redeem(redirectParams(t, loc).Get("code"))
 		if resp.StatusCode != http.StatusBadRequest || out["error"] != "invalid_grant" {
@@ -483,20 +520,162 @@ func TestOIDCRefusesBadRequests(t *testing.T) {
 	})
 
 	t.Run("a sign-in request is used once", func(t *testing.T) {
-		_, _, device, err := testutils.CreateRandomUserWithDevice(baseURL)
+		person := newOIDCPerson(t, baseURL)
+		_, consent := person.open(t, svc.params(nil))
+		ticket := consent["ticket"].(string)
+		if status, out := person.decide(t, ticket, map[string]any{"approve": true}); status != http.StatusOK {
+			t.Fatalf("first answer: %d %v", status, out)
+		}
+		status, out := person.decide(t, ticket, map[string]any{"approve": true})
+		if status != http.StatusBadRequest || out["code"] != util.Errors.OIDCRequestInvalid.ErrorCode {
+			t.Fatalf("second answer: %d %v", status, out)
+		}
+	})
+}
+
+// A sign-in is approved in the Revoked app, and the browser can only pass the
+// request on to it.
+func TestSignInIsApprovedOnlyInTheApp(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	svc := newOIDCService(t, baseURL, "https://game.example")
+	person := newOIDCPerson(t, baseURL)
+
+	t.Run("the page hands the request to the app, which signs the person in", func(t *testing.T) {
+		resp := svc.authorize(map[string]string{"claims": `{"userinfo":{"revoked_links":{"values":["phone"]}}}`})
+		link := appLink(t, resp)
+		if link.Scheme != "revoked" || link.Host != "signin" {
+			t.Fatalf("app link = %s", link)
+		}
+		q := link.Query()
+		if q.Get("client_id") != svc.clientID || q.Get("state") != "st-123" || q.Get("claims") == "" {
+			t.Fatalf("app link query = %v", q)
+		}
+		_, loc := person.approve(t, q, map[string]any{"approve": true})
+		p := redirectParams(t, loc)
+		if p.Get("state") != "st-123" || p.Get("code") == "" {
+			t.Fatalf("redirect = %s", loc)
+		}
+		if resp, out := svc.redeem(p.Get("code")); resp.StatusCode != http.StatusOK {
+			t.Fatalf("token: %d %v", resp.StatusCode, out)
+		}
+	})
+
+	t.Run("the page asks for no passkey and decides nothing", func(t *testing.T) {
+		resp := svc.authorize(nil)
+		defer resp.Body.Close()
+		raw, _ := io.ReadAll(resp.Body)
+		for _, s := range []string{"/api/passkeys", "/oidc/authorize/consent", "navigator.credentials"} {
+			if strings.Contains(string(raw), s) {
+				t.Fatalf("the page still reaches for %s", s)
+			}
+		}
+		r, err := http.Post(baseURL+"/oidc/authorize/session", "application/json", strings.NewReader(`{}`))
 		if err != nil {
 			t.Fatal(err)
 		}
-		request := requestID(t, svc.authorize(nil))
-		signInAndConsent(t, device, request, map[string]any{"approve": true})
-		verifier, challenge := testutils.PKCEPair()
-		code, err := device.SignInCode(challenge)
-		if err != nil {
-			t.Fatal(err)
+		_ = r.Body.Close()
+		if r.StatusCode != http.StatusNotFound {
+			t.Fatalf("the browser's session route answers %d", r.StatusCode)
 		}
-		err = device.Post("/oidc/authorize/session", map[string]any{"request": request, "code": code, "verifier": verifier}, nil)
-		if perr, ok := err.(*testutils.PasskeyError); !ok || perr.Code != util.Errors.OIDCRequestInvalid.ErrorCode {
-			t.Fatalf("err = %v", err)
+	})
+
+	t.Run("a request is not opened without the app's session", func(t *testing.T) {
+		resp := postJSON(t, baseURL+"/oidc/authorize/app", "", map[string]any{"params": map[string]string{}})
+		if out := decode(t, resp); resp.StatusCode != http.StatusUnauthorized ||
+			out["code"] != util.Errors.NotAuthenticated.ErrorCode {
+			t.Fatalf("open: %d %v", resp.StatusCode, out)
+		}
+	})
+
+	t.Run("a refusal reaches the service through the app", func(t *testing.T) {
+		status, out := person.open(t, svc.params(map[string]string{"prompt": "none"}))
+		if status != http.StatusOK || out["ticket"] != nil {
+			t.Fatalf("open: %d %v", status, out)
+		}
+		if p := redirectParams(t, out["redirect"].(string)); p.Get("error") != "login_required" || p.Get("state") != "st-123" {
+			t.Fatalf("redirect = %v", out["redirect"])
+		}
+	})
+
+	t.Run("a service that did not identify itself is not answered", func(t *testing.T) {
+		status, out := person.open(t, svc.params(map[string]string{"redirect_uri": "https://evil.example/callback"}))
+		if status != http.StatusBadRequest || out["redirect"] != nil || out["code"] != util.Errors.OIDCRequestInvalid.ErrorCode {
+			t.Fatalf("open: %d %v", status, out)
+		}
+	})
+
+	// refused opens a request and answers it with body, which must be refused
+	// with code; the ticket is spent either way.
+	refused := func(t *testing.T, opener, answerer *oidcPerson, body map[string]any, wantStatus int, wantCode string) {
+		t.Helper()
+		_, consent := opener.open(t, svc.params(nil))
+		ticket := consent["ticket"].(string)
+		body["ticket"] = ticket
+		status, out := answerer.post(t, "/oidc/authorize/consent", body)
+		if status != wantStatus || out["code"] != wantCode {
+			t.Fatalf("consent: %d %v", status, out)
+		}
+		if status, _ := opener.decide(t, ticket, map[string]any{"approve": true}); status != http.StatusBadRequest {
+			t.Fatalf("the ticket survived a refused answer: %d", status)
+		}
+	}
+
+	t.Run("a session alone cannot approve", func(t *testing.T) {
+		refused(t, person, person, map[string]any{"approve": true},
+			http.StatusUnauthorized, util.Errors.IdentityRequired.ErrorCode)
+	})
+
+	t.Run("a key the identity does not hold cannot approve", func(t *testing.T) {
+		stranger := testutils.NewTestIdentity(t, "stranger")
+		_, consent := person.open(t, svc.params(nil))
+		ticket := consent["ticket"].(string)
+		status, out := person.post(t, "/oidc/authorize/consent", map[string]any{
+			"ticket": ticket, "approve": true, "identityId": person.identityID,
+			"signature": stranger.SignChallenge(t, "revoked-oidc-consent:"+ticket),
+		})
+		if status != http.StatusUnauthorized || out["code"] != util.Errors.SignatureInvalid.ErrorCode {
+			t.Fatalf("consent: %d %v", status, out)
+		}
+	})
+
+	t.Run("a signature made for a challenge does not approve", func(t *testing.T) {
+		_, consent := person.open(t, svc.params(nil))
+		ticket := consent["ticket"].(string)
+		status, out := person.post(t, "/oidc/authorize/consent", map[string]any{
+			"ticket": ticket, "approve": true, "identityId": person.identityID,
+			"signature": person.key.SignChallenge(t, ticket),
+		})
+		if status != http.StatusUnauthorized || out["code"] != util.Errors.SignatureInvalid.ErrorCode {
+			t.Fatalf("consent: %d %v", status, out)
+		}
+	})
+
+	other := newOIDCPerson(t, baseURL)
+
+	t.Run("another person's identity cannot approve", func(t *testing.T) {
+		_, consent := person.open(t, svc.params(nil))
+		ticket := consent["ticket"].(string)
+		status, out := person.post(t, "/oidc/authorize/consent", map[string]any{
+			"ticket": ticket, "approve": true, "identityId": other.identityID,
+			"signature": other.key.SignChallenge(t, "revoked-oidc-consent:"+ticket),
+		})
+		if status != http.StatusForbidden || out["code"] != util.Errors.IdentityNotOwned.ErrorCode {
+			t.Fatalf("consent: %d %v", status, out)
+		}
+	})
+
+	t.Run("another person's app cannot answer", func(t *testing.T) {
+		refused(t, person, other, map[string]any{"approve": false},
+			http.StatusBadRequest, util.Errors.OIDCRequestInvalid.ErrorCode)
+	})
+
+	t.Run("a revoked identity cannot approve", func(t *testing.T) {
+		gone := newOIDCPerson(t, baseURL)
+		revokeIdentity(t, testutils.NewPBClient(t, baseURL), gone.identityID, gone.token, util.RevocationKeyCompromise)
+		_, consent := gone.open(t, svc.params(nil))
+		status, out := gone.decide(t, consent["ticket"].(string), map[string]any{"approve": true})
+		if status != http.StatusForbidden || out["code"] != util.Errors.IdentityRevoked.ErrorCode {
+			t.Fatalf("consent: %d %v", status, out)
 		}
 	})
 }

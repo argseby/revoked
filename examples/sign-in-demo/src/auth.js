@@ -4,10 +4,9 @@
 // depends on the person (every server is self-hosted), and vault entries are
 // asked for with the `revoked_links` claim.
 //
-// The server is found one of two ways. Usually the person's Revoked app knows
-// it: the sign-in starts without one, the app opens its own server, and the
-// answer names that server in `iss` (RFC 9207). Without the app on the
-// device, the person names their server instead.
+// The person's Revoked app knows their server: the sign-in starts without
+// one, the person approves it in the app, and the answer names that server
+// in `iss` (RFC 9207).
 
 import * as oidc from 'openid-client';
 import { config } from './config.js';
@@ -16,13 +15,13 @@ const HOST_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-
 
 export class SignInError extends Error {}
 
-// A server as people type it — "revoked.example", or a pasted address — to
-// its issuer URL. Plain http is used only for a server on this machine.
+// A server address to its issuer URL. Plain http is used only for a server
+// on this machine.
 export function issuerFor(input) {
   let host = String(input ?? '').trim().toLowerCase();
   host = host.replace(/^https?:\/\//, '').replace(/\/+$/, '');
   if (!HOST_PATTERN.test(host)) {
-    throw new SignInError('Enter the domain of your Revoked server, for example revoked.example.');
+    throw new SignInError(`${input} is not the address of a Revoked server.`);
   }
   if (config.allowedServers.length && !config.allowedServers.includes(host)) {
     throw new SignInError(`This service does not work with ${host}.`);
@@ -51,12 +50,11 @@ async function providerFor(issuer) {
   return providers.get(issuer);
 }
 
-// The authorization request, apart from the server it goes to. Nothing in it
-// depends on that server, which is what lets the app choose it.
-async function authorizationRequest(issuer) {
+// The authorization request. Nothing in it depends on the person's server,
+// which is what lets the app choose it.
+async function authorizationRequest() {
   const verifier = oidc.randomPKCECodeVerifier();
   const pending = {
-    issuer,
     verifier,
     state: oidc.randomState(),
     nonce: oidc.randomNonce(),
@@ -83,21 +81,13 @@ async function authorizationRequest(issuer) {
 // server: returns the revoked://signin link, and what to remember until the
 // browser comes back. The server is not known until then.
 export async function beginAppSignIn() {
-  const { params, pending } = await authorizationRequest(null);
+  const { params, pending } = await authorizationRequest();
   return { url: `revoked://signin?${new URLSearchParams(params)}`, pending };
 }
 
-// Starts a sign-in at a server the person named.
-export async function beginSignIn(server) {
-  const issuer = issuerFor(server);
-  const provider = await providerFor(issuer);
-  const { params, pending } = await authorizationRequest(issuer);
-  return { url: oidc.buildAuthorizationUrl(provider, params).href, pending };
-}
-
-// The server a sign-in through the app ended at, read from the answer's
-// `iss`. It is checked like a server the person typed — same allow-list, no
-// plain http beyond this machine — and must be exactly an issuer URL; the
+// The server a sign-in ended at, read from the answer's `iss`. It is checked
+// against the allow-list, with no plain http beyond this machine, and must be
+// exactly an issuer URL; the
 // library then confirms that the server's own metadata names the same issuer.
 function issuerFromAnswer(callbackUrl) {
   const iss = callbackUrl.searchParams.get('iss');
@@ -109,7 +99,7 @@ function issuerFromAnswer(callbackUrl) {
 // Finishes a sign-in: checks the answer against what was remembered, redeems
 // the code, verifies the ID token, and reads userinfo.
 export async function completeSignIn(pending, callbackUrl) {
-  const issuer = pending.issuer ?? issuerFromAnswer(callbackUrl);
+  const issuer = issuerFromAnswer(callbackUrl);
   const provider = await providerFor(issuer);
   const tokens = await oidc.authorizationCodeGrant(provider, callbackUrl, {
     pkceCodeVerifier: pending.verifier,
