@@ -14,7 +14,6 @@ import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
-import 'package:revoked_app/core/widgets/window_chrome.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
@@ -149,8 +148,7 @@ class _AppShellState extends State<AppShell> {
             onTap: () => openLinkSearchSheet(context),
           ),
           const _NotificationBell(),
-          // The window's own buttons land here, drawn by the shared overlay.
-          const WindowControlsGap(),
+          AppSpacing.gapXs,
         ],
       ),
       body: widget.child,
@@ -241,7 +239,7 @@ class _AppShellState extends State<AppShell> {
                         onTap: () => _openNew(destination),
                       ),
                     ),
-                  const WindowControlsGap(),
+                  AppSpacing.gapXs,
                 ],
               ),
               body: widget.child,

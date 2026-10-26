@@ -15,7 +15,6 @@ import 'package:revoked_app/core/utils/paste_link_shortcut.dart';
 import 'package:revoked_app/core/utils/shell_shortcuts.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/display_scope.dart';
-import 'package:revoked_app/core/widgets/window_chrome.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 import 'package:revoked_app/features/shell/view/new_picker.dart';
@@ -43,7 +42,6 @@ class _RevokedAppState extends State<RevokedApp> {
   void initState() {
     super.initState();
     _router = AppRouter.create(Stores.auth);
-    WindowTitleBar.attach();
 
     // Subscribed after the first frame so the router is mounted. The stream
     // also carries the launch link, exactly once: asking for the initial link

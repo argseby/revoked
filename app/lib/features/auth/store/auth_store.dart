@@ -12,6 +12,7 @@ import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/services/secure_storage.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/utils/form_factor.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 
@@ -43,6 +44,15 @@ Future<bool> openSignInPage(
   );
 }
 
+/// What the login screen says before the browser opens for a new account.
+enum SignupIntro {
+  /// On a computer: the phone is the better place, with a code to get there.
+  usePhone,
+
+  /// That the browser opens, and that it comes back.
+  aboutBrowser,
+}
+
 // ignore: library_private_types_in_public_api
 class AuthStore = _AuthStore with _$AuthStore;
 
@@ -71,6 +81,9 @@ abstract class _AuthStore with Store {
   /// person gives up: the login screen says where to look.
   @observable
   bool isAwaitingBrowser = false;
+
+  @observable
+  SignupIntro? signupIntro;
 
   @observable
   User? currentUser;
@@ -157,10 +170,27 @@ abstract class _AuthStore with Store {
     return opened;
   }
 
+  /// "Create account" explains the browser before opening it; on a computer
+  /// it first offers the phone.
+  @action
+  void startSignup() {
+    errorMessage = null;
+    signupIntro = isMobileDevice
+        ? SignupIntro.aboutBrowser
+        : SignupIntro.usePhone;
+  }
+
+  @action
+  void continueSignupHere() => signupIntro = SignupIntro.aboutBrowser;
+
+  @action
+  void leaveSignupIntro() => signupIntro = null;
+
   /// Gives up on a sign-in the browser has not answered.
   @action
   Future<void> cancelSignIn() async {
     isAwaitingBrowser = false;
+    signupIntro = null;
     await _writePending(null);
   }
 
@@ -200,6 +230,7 @@ abstract class _AuthStore with Store {
       final record = data['record'] as Map<String, dynamic>;
       await _api.saveAuthState(token, record);
       createdAccount = pending['signup'] == true;
+      signupIntro = null;
       currentUser = User.fromJson(record);
       return true;
     } catch (e) {
@@ -270,7 +301,7 @@ abstract class _AuthStore with Store {
   bool startedSignup = false;
 
   /// Whether the last sign-in made a new account. The first-run screen then
-  /// counts itself as the last step of sign-up, as the page announced.
+  /// shows itself as the end of the trip through the browser.
   bool createdAccount = false;
 
   /// The name being typed in the name sheet. Owned here, not by the sheet:

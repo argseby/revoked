@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_logo.dart';
-import 'package:revoked_app/features/auth/signup_steps.dart';
+import 'package:revoked_app/core/widgets/app_qr_code.dart';
+import 'package:revoked_app/features/auth/signup_policy.dart';
+import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/features/auth/view/round_trip.dart';
 import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
 
-/// The way in. New here, it says what Revoked is and lays out every step of
-/// making an account, with the time it takes, before anything opens; signing
-/// in again is the second choice, and one step.
-///
-/// The passkey belongs to the server's address, so the buttons open the
-/// server's own page in the browser, which talks to the device's
-/// authenticator and sends the person back signed in. While it is open this
-/// screen says which steps happen there, and carries on by itself.
+/// The way in. The passkey belongs to the server's address, so making an
+/// account or signing in runs on the server's own page in the browser, which
+/// sends the person back signed in. Before it opens for a new account this
+/// screen says so, and on a computer first offers the phone.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -31,13 +30,13 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    SignupSteps.load();
+    SignupPolicy.load();
   }
 
   Future<void> _changeServer() async {
     await openServerSettingsSheet(context);
-    // Another server may count other steps, or take no new accounts.
-    await SignupSteps.load();
+    // Another server may take no new accounts.
+    await SignupPolicy.load();
   }
 
   @override
@@ -45,48 +44,64 @@ class _LoginScreenState extends State<LoginScreen> {
     final authStore = Stores.auth;
 
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xxl,
-            vertical: AppSpacing.huge,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Observer(
-              builder: (_) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: AppLogo(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.xxl),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: Observer(
+                      builder: (_) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ..._notices(authStore.errorMessage),
+                          switch ((
+                            authStore.isAwaitingBrowser,
+                            authStore.signupIntro,
+                          )) {
+                            (true, _) => _waiting(
+                              authStore.isLoading,
+                              authStore.startedSignup,
+                            ),
+                            (_, SignupIntro.usePhone) => _usePhone(),
+                            (_, SignupIntro.aboutBrowser) => _aboutBrowser(
+                              authStore.isLoading,
+                            ),
+                            _ => _welcome(authStore.isLoading),
+                          },
+                        ],
+                      ),
+                    ),
                   ),
-                  AppSpacing.gapXl,
-                  ..._notices(authStore.errorMessage),
-                  if (authStore.isAwaitingBrowser)
-                    _waiting(authStore.isLoading, authStore.startedSignup)
-                  else
-                    _welcome(authStore.isLoading),
-                  AppSpacing.gapXxl,
-                  Center(
-                    child: AppButton(
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Observer(
+                    builder: (_) => AppButton(
                       icon: AppIcons.server,
-                      label: 'Server: ${Stores.serverSettings.savedLabel}',
+                      label: Stores.serverSettings.savedLabel,
+                      tooltip: 'Change server',
                       style: AppButtonStyle.ghost,
                       size: AppButtonSize.small,
                       onTap: _changeServer,
                     ),
                   ),
-                  AppSpacing.gapXs,
-                  Center(
-                    child: const Text(
-                      'This is an experimental app. Use with caution.',
-                    ).muted.small,
-                  ),
+                  const AppText(
+                    'Experimental app. Use with care.',
+                    textAlign: TextAlign.center,
+                  ).small.muted,
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -102,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
           title: const Text('Sign in or create an account first'),
           content: Text(next),
         ),
-        AppSpacing.gapLg,
+        AppSpacing.gapXl,
       ],
       if (error != null) ...[
         AppAlert(
@@ -111,58 +126,61 @@ class _LoginScreenState extends State<LoginScreen> {
           title: const Text('That did not work'),
           content: Text(error),
         ),
-        AppSpacing.gapLg,
+        AppSpacing.gapXl,
       ],
     ];
   }
 
-  Widget _welcome(bool busy) {
-    final policy = SignupSteps.policy;
+  /// Every state is laid out the same: a picture, a centered title and line,
+  /// then full-width buttons, the main one first.
+  Widget _screen({
+    required Widget top,
+    required String title,
+    String? body,
+    List<Widget> extra = const [],
+    required List<Widget> actions,
+    bool live = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Center(child: top),
+        AppSpacing.gapXl,
         Semantics(
           header: true,
-          child: const AppText('Share your data without handing it over').title,
+          liveRegion: live,
+          child: AppText(title, textAlign: TextAlign.center).title,
         ),
-        AppSpacing.gapSm,
-        const Text(
-          'People get a link, never a copy, and you can stop it at any time.',
-        ).muted,
-        AppSpacing.gapXl,
-        if (policy.open) ...[
-          _JourneyCard(
-            title: 'Creating an account · ${SignupSteps.duration}',
-            steps: SignupSteps.names,
-            footer:
-                'Steps 1 to ${SignupSteps.count - 1} run on your server’s '
-                'own page in your browser, and you come straight back here. '
-                'There is no password.',
-          ),
-          AppSpacing.gapXl,
-          AppButton(
-            icon: AppIcons.personPlus,
-            label: 'Create account',
-            busy: busy,
-            onTap: () => Stores.auth.beginSignIn(signup: true),
-          ),
+        if (body != null) ...[
           AppSpacing.gapSm,
-          AppButton(
-            icon: AppIcons.key,
-            label: 'I already have an account',
-            style: AppButtonStyle.accent,
-            onTap: busy ? null : () => Stores.auth.beginSignIn(),
-          ),
-        ] else ...[
-          const AppAlert(
+          AppText(body, textAlign: TextAlign.center).muted,
+        ],
+        for (final widget in extra) ...[AppSpacing.gapLg, widget],
+        AppSpacing.gapXxl,
+        for (var i = 0; i < actions.length; i++) ...[
+          if (i > 0) AppSpacing.gapSm,
+          actions[i],
+        ],
+      ],
+    );
+  }
+
+  Widget _welcome(bool busy) {
+    if (!SignupPolicy.open) {
+      return _screen(
+        top: const AppLogo(),
+        title: 'Revoked',
+        extra: const [
+          AppAlert(
             leading: Icon(AppIcons.info),
             title: Text('This server takes no new accounts'),
             content: Text(
-              'Ask whoever runs it for an invite link, or sign in if you '
-              'already have an account.',
+              'Ask the person who runs it for an invite. Or sign in if you '
+              'have an account.',
             ),
           ),
-          AppSpacing.gapXl,
+        ],
+        actions: [
           AppButton(
             icon: AppIcons.key,
             label: 'Sign in',
@@ -170,125 +188,118 @@ class _LoginScreenState extends State<LoginScreen> {
             onTap: () => Stores.auth.beginSignIn(),
           ),
         ],
+      );
+    }
+    return _screen(
+      top: const AppLogo(),
+      title: 'Revoked',
+      actions: [
+        AppButton(
+          icon: AppIcons.personPlus,
+          label: 'Create account',
+          onTap: busy ? null : Stores.auth.startSignup,
+        ),
+        AppButton(
+          icon: AppIcons.key,
+          label: 'I have an account',
+          style: AppButtonStyle.accent,
+          busy: busy,
+          onTap: () => Stores.auth.beginSignIn(),
+        ),
       ],
     );
   }
 
-  /// The browser has the next steps; this screen says which, and carries on
-  /// by itself when they are done.
-  Widget _waiting(bool busy, bool signup) {
-    final last = SignupSteps.count;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          header: true,
-          liveRegion: true,
-          child: AppText(
-            signup ? 'Continue in your browser' : 'Sign in in your browser',
-          ).title,
+  /// Only on a computer: a passkey stays with the device it is made on, and
+  /// the phone is the device people have with them.
+  Widget _usePhone() {
+    return _screen(
+      top: AppQrCode(data: '${Stores.api.baseUrl}/app'),
+      title: 'Better on your phone',
+      body:
+          'Scan the code with your phone camera. Your passkey then lives on '
+          'your phone, which is always with you.',
+      actions: [
+        AppButton(
+          icon: AppIcons.computer,
+          label: 'Continue on this computer',
+          style: AppButtonStyle.accent,
+          onTap: Stores.auth.continueSignupHere,
         ),
-        AppSpacing.gapSm,
-        Text(
-          signup
-              ? 'Steps 1 to ${last - 1} are on the page that just opened. '
-                    'When they are done you come back here for the last one.'
-              : 'Confirm with your passkey on the page that just opened. It '
-                    'takes about 10 seconds, and this screen moves on by '
-                    'itself.',
-        ).muted,
-        if (signup) ...[
-          AppSpacing.gapXl,
-          _JourneyCard(
-            title: 'Creating an account · ${SignupSteps.duration}',
-            steps: SignupSteps.names,
-            inBrowser: last - 1,
-          ),
-        ],
-        AppSpacing.gapXl,
+        _back(),
+      ],
+    );
+  }
+
+  /// Said before anything opens, because a browser appearing unannounced is
+  /// where people gave up.
+  Widget _aboutBrowser(bool busy) {
+    return _screen(
+      top: const RoundTrip(at: 0),
+      title: 'Next: your browser',
+      body:
+          'Your browser opens. You set up your account there. Then you come '
+          'back here.',
+      extra: const [
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            AppBadge(label: 'About 1 minute', icon: AppIcons.clock),
+            AppBadge(label: 'No password', icon: AppIcons.lock),
+          ],
+        ),
+      ],
+      actions: [
         AppButton(
           icon: AppIcons.boxArrowUpRight,
-          label: 'Open the page again',
+          label: 'Open browser',
+          busy: busy,
+          onTap: () => Stores.auth.beginSignIn(signup: true),
+        ),
+        _back(),
+      ],
+    );
+  }
+
+  /// The browser is open; this screen carries on by itself when it answers.
+  Widget _waiting(bool busy, bool signup) {
+    return _screen(
+      top: const RoundTrip(at: 1),
+      title: 'Go on in your browser',
+      body: signup
+          ? 'When you are done there, you come back here.'
+          : 'Use your passkey there. Then you come back here.',
+      live: true,
+      actions: [
+        AppButton(
+          icon: AppIcons.boxArrowUpRight,
+          label: 'Open browser again',
+          style: AppButtonStyle.accent,
           busy: busy,
           onTap: () => Stores.auth.beginSignIn(signup: signup),
         ),
-        AppSpacing.gapSm,
-        AppButton(
-          icon: AppIcons.arrowLeft,
-          label: 'Start over',
-          style: AppButtonStyle.accent,
-          onTap: busy ? null : () => Stores.auth.cancelSignIn(),
+        Center(
+          child: AppButton(
+            icon: AppIcons.x,
+            label: 'Cancel',
+            style: AppButtonStyle.ghost,
+            size: AppButtonSize.small,
+            onTap: busy ? null : () => Stores.auth.cancelSignIn(),
+          ),
         ),
       ],
     );
   }
-}
 
-/// The steps of making an account, numbered. [inBrowser] marks how many of
-/// the first ones happen on the server's page.
-class _JourneyCard extends StatelessWidget {
-  final String title;
-  final List<String> steps;
-  final String? footer;
-  final int inBrowser;
-
-  const _JourneyCard({
-    required this.title,
-    required this.steps,
-    this.footer,
-    this.inBrowser = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        borderRadius: AppRadius.allLg,
-        border: Border.all(color: scheme.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AppText(title).bold,
-          AppSpacing.gapMd,
-          for (var i = 0; i < steps.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 24,
-                    height: 24,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: scheme.surfaceContainerHighest,
-                    ),
-                    child: AppText('${i + 1}').small.bold,
-                  ),
-                  AppSpacing.gapMd,
-                  Expanded(child: Text(steps[i])),
-                  if (inBrowser > 0)
-                    AppText(i < inBrowser ? 'Browser' : 'Here').small.muted,
-                ],
-              ),
-            ),
-          if (footer != null) ...[
-            Divider(color: scheme.outlineVariant, height: AppSpacing.lg),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(AppIcons.lock, size: 16, color: scheme.onSurfaceVariant),
-                AppSpacing.gapSm,
-                Expanded(child: Text(footer!).small.muted),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget _back() => Center(
+    child: AppButton(
+      icon: AppIcons.arrowLeft,
+      label: 'Back',
+      style: AppButtonStyle.ghost,
+      size: AppButtonSize.small,
+      onTap: Stores.auth.leaveSignupIntro,
+    ),
+  );
 }

@@ -8,10 +8,10 @@ import (
 	"revoked/util"
 )
 
-// The app tells someone how many steps creating an account takes before it
-// opens the passkey page, so the public server info carries the same two
-// facts the page is rendered with: whether sign-ups are open, and whether a
-// new account confirms its address with a mailed code.
+// The public server info carries the two facts the passkey page is rendered
+// with: whether sign-ups are open, which the app reads before offering to
+// create an account, and whether a new account confirms its address with a
+// mailed code.
 func TestServerInfoSaysHowSignupWorks(t *testing.T) {
 	baseURL, _ := testutils.SetupTestApp(t)
 	api := testutils.NewPBClient(t, baseURL)

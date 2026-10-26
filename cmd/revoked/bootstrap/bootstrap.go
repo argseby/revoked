@@ -59,6 +59,7 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.DeleteAccountRoute(app)
 	routes.ConnectionsRoute(app, root)
 	routes.PasskeysRoute(app, root)
+	routes.AppPageRoute(app, root)
 	routes.OIDCRoute(app, root)
 	routes.AttestationsRoute(app, root)
 	routes.SignupEmailRoute(app, root)

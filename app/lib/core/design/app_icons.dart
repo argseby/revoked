@@ -31,8 +31,8 @@ abstract class AppIcons {
   static const IconData clock = Icons.schedule;
   static const IconData code = Icons.code;
   static const IconData collection = Icons.collections_bookmark_outlined;
+  static const IconData computer = Icons.computer_outlined;
   static const IconData copy = Icons.content_copy;
-  static const IconData dash = Icons.remove;
   static const IconData dashboard = Icons.space_dashboard_outlined;
   static const IconData duplicate = Icons.library_add_outlined;
   static const IconData qrCode = Icons.qr_code_2;
@@ -93,8 +93,6 @@ abstract class AppIcons {
   static const IconData toggleOn = Icons.toggle_on_outlined;
   static const IconData trash = Icons.delete_outline;
   static const IconData watermark = Icons.branding_watermark_outlined;
-  static const IconData window = Icons.crop_square;
-  static const IconData windowStack = Icons.filter_none;
   static const IconData x = Icons.close;
   static const IconData xCircle = Icons.cancel_outlined;
 

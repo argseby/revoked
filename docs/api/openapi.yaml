@@ -1433,6 +1433,22 @@ paths:
           content:
             text/html: {}
 
+  /app:
+    get:
+      tags: [Sign-in]
+      summary: Continue on the phone
+      description: |
+        Where the QR code the app shows on a computer leads. It opens the app
+        (`revoked://open`) and, when the operator set `APP_STORE_URL` or
+        `PLAY_STORE_URL`, links to the store for the phone it is opened on.
+        It names the server, so the app on the phone can be pointed at it.
+      security: []
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html: {}
+
   /api/passkeys/login/begin:
     post:
       tags: [Sign-in]

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,13 +13,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
+import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/features/auth/view/login_screen.dart';
+import 'package:revoked_app/features/auth/view/round_trip.dart';
 import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen.dart';
 
-/// People wanting to start said sign-up was unclear: they did not know how
-/// long it takes, and after pressing "Create account" were asked again
-/// whether to create or sign in. The welcome screen now lays out every step
-/// before anything opens, counting what this server actually asks.
+/// People gave up when "Create account" opened a browser they did not
+/// expect. The app now says the browser opens, and comes back, before it
+/// opens; on a computer it first offers to move to the phone.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -55,6 +57,7 @@ void main() {
   setUp(() async {
     launched.clear();
     await Stores.auth.cancelSignIn();
+    Stores.auth.createdAccount = false;
   });
 
   Future<void> show(WidgetTester tester, Widget screen) async {
@@ -67,37 +70,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('every step and the time are said before anything opens', (
-    tester,
-  ) async {
+  testWidgets('the welcome screen is the name and two buttons', (tester) async {
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
-    expect(find.text('Creating an account · about 2 minutes'), findsOneWidget);
-    for (final step in [
-      'Your email',
-      'The code we email you',
-      'A passkey: your fingerprint, face or device PIN',
-      'Your name',
-    ]) {
-      expect(find.text(step), findsOneWidget, reason: step);
-    }
+    expect(find.text('Revoked'), findsOneWidget);
     expect(find.text('Create account'), findsOneWidget);
-    expect(find.text('I already have an account'), findsOneWidget);
-  });
-
-  testWidgets('a server that mails no code has one step fewer', (tester) async {
-    signups = {'open': true, 'verifyEmail': false};
-    await show(tester, const LoginScreen());
-    expect(find.text('The code we email you'), findsNothing);
-    expect(find.text('Creating an account · about a minute'), findsOneWidget);
-  });
-
-  testWidgets('a server without the policy is counted the long way', (
-    tester,
-  ) async {
-    signups = null;
-    await show(tester, const LoginScreen());
-    expect(find.text('The code we email you'), findsOneWidget);
+    expect(find.text('I have an account'), findsOneWidget);
   });
 
   testWidgets('a closed server offers only signing in', (tester) async {
@@ -108,25 +86,54 @@ void main() {
     expect(find.text('Sign in'), findsOneWidget);
   });
 
-  testWidgets('creating opens the page on creating, and reopens it there', (
+  testWidgets('on a phone, the browser is announced before it opens', (
     tester,
   ) async {
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
+    expect(launched, isEmpty);
+    expect(find.text('Next: your browser'), findsOneWidget);
+    expect(find.byType(RoundTrip), findsOneWidget);
+
+    await tester.tap(find.text('Open browser'));
+    await tester.pumpAndSettle();
     expect(launched.single.queryParameters['mode'], 'signup');
-    expect(find.text('Continue in your browser'), findsOneWidget);
+    expect(find.text('Go on in your browser'), findsOneWidget);
 
     // It used to reopen the page on signing in.
-    await tester.tap(find.text('Open the page again'));
+    await tester.tap(find.text('Open browser again'));
     await tester.pumpAndSettle();
     expect(launched.last.queryParameters['mode'], 'signup');
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Create account'), findsOneWidget);
   });
 
-  testWidgets('right after sign-up, the name is the last counted step', (
-    tester,
-  ) async {
+  testWidgets('on a computer, the phone is offered first', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    signups = {'open': true, 'verifyEmail': true};
+    await show(tester, const LoginScreen());
+    await tester.tap(find.text('Create account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Better on your phone'), findsOneWidget);
+    final qr = tester.widget<AppQrCode>(find.byType(AppQrCode));
+    expect(qr.data, endsWith('/app'));
+
+    await tester.tap(find.text('Continue on this computer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Next: your browser'), findsOneWidget);
+    expect(launched, isEmpty);
+
+    await tester.tap(find.text('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Create account'), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('right after sign-up, the name ends the trip', (tester) async {
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
     Stores.auth.createdAccount = true;
@@ -137,8 +144,8 @@ void main() {
       }),
     );
     await show(tester, const WorkspaceOnboardingScreen());
-    expect(find.text('Step 4 of 4 · last step'), findsOneWidget);
-    expect(find.text('What should people see?'), findsOneWidget);
+    expect(find.byType(RoundTrip), findsOneWidget);
+    expect(find.text('Your name'), findsOneWidget);
     // The workspace is named, not asked for.
     expect(find.text('Personal'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Personal'), findsNothing);

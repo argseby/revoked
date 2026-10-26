@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -13,6 +12,7 @@ import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:share_plus/share_plus.dart';
@@ -121,32 +121,10 @@ class _ShareSheet extends StatelessWidget {
               shrinkWrap: true,
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
               children: [
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: AppRadius.allMd,
-                    ),
-                    // The QR carries the web link: a phone camera opens it
-                    // without the app installed, which is the whole point of
-                    // pointing someone at a page.
-                    child: QrImageView(
-                      data: primaryUrl,
-                      version: QrVersions.auto,
-                      size: 180,
-                      backgroundColor: Colors.white,
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: Colors.black,
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
+                // The QR carries the web link: a phone camera opens it
+                // without the app installed, which is the whole point of
+                // pointing someone at a page.
+                Center(child: AppQrCode(data: primaryUrl, size: 180)),
                 const SizedBox(height: AppSpacing.lg),
 
                 if (webUrl != null) ...[

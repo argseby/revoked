@@ -5,7 +5,6 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/window_chrome.dart';
 
 /// The frame of every full-screen page outside the tabs — a link someone sent,
 /// a tool asking to connect, a proposed share:
@@ -88,7 +87,7 @@ class AppFlowScaffold extends StatelessWidget {
         ),
         actions: [
           for (final a in actions) ...[a, AppSpacing.gapSm],
-          const WindowControlsGap(),
+          AppSpacing.gapXs,
           SizedBox(width: AppSpacing.screenH(context) - AppSpacing.sm),
         ],
       ),

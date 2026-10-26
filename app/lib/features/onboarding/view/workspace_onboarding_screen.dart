@@ -17,9 +17,8 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/state/local.dart';
-import 'package:revoked_app/features/auth/signup_steps.dart';
+import 'package:revoked_app/features/auth/view/round_trip.dart';
 
 /// First run: an account has no workspace until it either creates one or joins
 /// one. Creating comes first and asks one thing, the name others see; the
@@ -140,7 +139,6 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   Widget _build(BuildContext context) {
     final next = ResumeLocation.describe();
     final creating = _store.choice == OnboardingChoice.create;
-    final total = SignupSteps.count;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -152,24 +150,24 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (Stores.auth.createdAccount && creating) ...[
-                    _StepBar(step: total, total: total),
-                    AppSpacing.gapXs,
-                    AppText('Step $total of $total · last step').small.muted,
-                    AppSpacing.gapLg,
+                    const RoundTrip(at: 2),
+                    AppSpacing.gapXl,
                   ],
                   Semantics(
                     header: true,
                     child: AppText(
-                      creating ? 'What should people see?' : 'Join a workspace',
+                      creating ? 'Your name' : 'Join a workspace',
+                      textAlign: TextAlign.center,
                     ).title,
                   ),
                   AppSpacing.gapSm,
-                  Text(
+                  AppText(
                     creating
-                        ? 'Your name goes with what you share and request, so '
-                              'others know it is you.'
-                        : 'Paste the invite key you were given. You see what '
-                              'it grants, and who sent it, before you join.',
+                        ? 'Others see this name when you share or ask for '
+                              'data.'
+                        : 'Paste the invite key you got. Before you join, you '
+                              'see what it gives you and who sent it.',
+                    textAlign: TextAlign.center,
                   ).muted,
                   AppSpacing.gapXl,
                   if (next != null) ...[
@@ -202,14 +200,12 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   List<Widget> _createForm() => [
     AppTextField(
       controller: _store.identityNameController,
-      label: 'Your name',
+      label: 'Name',
       hint: 'e.g. Ada Lovelace',
       autofocus: true,
     ),
     AppSpacing.gapXxs,
-    const Text(
-      'Suggested from your email. You can change it later in Settings.',
-    ).muted.small,
+    const Text('Taken from your email. You can change it later.').muted.small,
     AppSpacing.gapLg,
     if (_renaming.value)
       AppTextField(
@@ -340,36 +336,4 @@ String _slugify(String value) {
       .replaceAll(RegExp(r'^-+|-+$'), '');
   final suffix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
   return base.isEmpty ? 'workspace-$suffix' : '$base-$suffix';
-}
-
-/// The sign-up counter, as the passkey page draws it: one segment per step,
-/// filled up to [step].
-class _StepBar extends StatelessWidget {
-  final int step;
-  final int total;
-
-  const _StepBar({required this.step, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ExcludeSemantics(
-      child: Row(
-        children: [
-          for (var i = 1; i <= total; i++) ...[
-            if (i > 1) AppSpacing.gapXxs,
-            Expanded(
-              child: Container(
-                height: 4,
-                decoration: BoxDecoration(
-                  color: i <= step ? scheme.primary : scheme.outlineVariant,
-                  borderRadius: AppRadius.allXs,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 }

@@ -25,6 +25,8 @@ file needed there.
 |---|---|---|
 | `ALLOW_SIGNUPS` | `false` | Whether anyone may create their own account over HTTP. Off by default: a fresh server should be one only its operator can add people to. See [Accounts](accounts.md) for how to create users while it is off. |
 | `SIGNUP_VERIFY_EMAIL` | `false` | Whether a new account must first confirm its address with a 6-digit code mailed to it. Without it, anyone can register any address. Needs the [mail server](#mail) below — the server refuses to boot with this on and no `SMTP_HOST`/`SMTP_SENDER_ADDRESS`. Accounts made by the operator are not affected. |
+| `APP_STORE_URL` | — | The app's App Store page (https). The `/app` page a computer's QR code leads to offers it to iPhones; unset, it only offers to open the app. |
+| `PLAY_STORE_URL` | — | The same for Google Play, offered to Android phones. |
 
 ## Attestations
 

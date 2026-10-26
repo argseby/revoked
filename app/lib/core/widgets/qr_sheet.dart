@@ -3,12 +3,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:share_plus/share_plus.dart';
@@ -43,30 +42,7 @@ Future<void> showQrSheet({
             'Scan it with the Revoked app on another device.',
           ).muted.small,
           const SizedBox(height: AppSpacing.lg),
-          Center(
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              decoration: const BoxDecoration(
-                // A QR module must be dark-on-light for cameras, whatever the
-                // app theme says — the one place a fixed color is the point.
-                color: Color(0xFFFFFFFF),
-                borderRadius: AppRadius.allMd,
-              ),
-              child: QrImageView(
-                data: link,
-                version: QrVersions.auto,
-                size: 220,
-                dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.square,
-                  color: Color(0xFF000000),
-                ),
-                eyeStyle: const QrEyeStyle(
-                  eyeShape: QrEyeShape.square,
-                  color: Color(0xFF000000),
-                ),
-              ),
-            ),
-          ),
+          Center(child: AppQrCode(data: link, size: 220)),
           const SizedBox(height: AppSpacing.md),
           Center(child: Text(link).mono.small.muted),
           const SizedBox(height: AppSpacing.lg),
