@@ -8,10 +8,8 @@ class DeepLinkService {
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _sub;
 
-  /// The link the app was launched with, if any (cold start).
-  Future<Uri?> initialLink() => _appLinks.getInitialLink();
-
-  /// Subscribe to links delivered while the app is already running.
+  /// Subscribe to incoming links. The launch link arrives first, once; there
+  /// is deliberately no `getInitialLink`, which never forgets it.
   void onLink(void Function(Uri uri) handler) {
     _sub ??= _appLinks.uriLinkStream.listen(handler);
   }

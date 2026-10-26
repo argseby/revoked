@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.new_version }}
+      app_changed: ${{ steps.app.outputs.changed }}
 
     steps:
       - name: Checkout
@@ -59,6 +60,21 @@ jobs:
           fi
           echo "bump=$BUMP" >> $GITHUB_OUTPUT
           echo "Bump level: $BUMP"
+
+      # The build workflow counts as app code: a change to how the apps are
+      # built has to run before it is trusted with a release.
+      - name: Detect app changes
+        id: app
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          LATEST=${{ steps.latest_tag.outputs.tag }}
+          CHANGED=true
+          if git rev-parse "$LATEST" >/dev/null 2>&1 \
+            && git diff --quiet "$LATEST" HEAD -- app/ .github/workflows/desktop.yml; then
+            CHANGED=false
+          fi
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          echo "App changed: $CHANGED"
 
       - name: Calculate new version
         id: version
@@ -125,7 +141,12 @@ jobs:
             grep -iE "^- fix" all_commits.txt >> NEW_ENTRY.md
             echo "" >> NEW_ENTRY.md
           fi
-          
+
+          if [ "${{ steps.app.outputs.changed }}" = "false" ]; then
+            echo "> [!NOTE]" >> NEW_ENTRY.md
+            echo "> The apps did not change in this release. Download them from the previous release." >> NEW_ENTRY.md
+          fi
+
 
       - name: Tag release
         if: steps.bump.outputs.bump != 'none'
@@ -135,23 +156,25 @@ jobs:
           git tag ${{ steps.version.outputs.new_version }} -m "Release ${{ steps.version.outputs.new_version }}"
           git push origin ${{ steps.version.outputs.new_version }}
 
-      # Draft, not published: the repo uses immutable releases, which
-      # freeze assets the moment a release is published. The desktop
-      # workflow uploads the binaries to this draft and publishes it as
-      # its last step - so a visible release always carries its builds.
-      - name: Create draft release
+      # A draft when the apps are rebuilt: the repo uses immutable releases,
+      # which freeze assets the moment a release is published, so the
+      # desktop workflow uploads the binaries to this draft and publishes it
+      # as its last step. With no app change there is nothing to attach, and
+      # the release is published straight away.
+      - name: Create release
         if: steps.bump.outputs.bump != 'none'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.new_version }}
           generate_release_notes: true
           body_path: NEW_ENTRY.md
-          draft: true
+          draft: ${{ steps.app.outputs.changed == 'true' }}
+          make_latest: true
 
   apps:
     name: App builds
     needs: release
-    if: needs.release.outputs.version != ''
+    if: needs.release.outputs.version != '' && needs.release.outputs.app_changed == 'true'
     permissions:
       contents: write
     uses: ./.github/workflows/desktop.yml

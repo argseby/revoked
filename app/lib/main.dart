@@ -45,14 +45,12 @@ class _RevokedAppState extends State<RevokedApp> {
     _router = AppRouter.create(Stores.auth);
     WindowTitleBar.attach();
 
-    // Links delivered while the app is already running.
-    _deepLinks.onLink(_handleDeepLink);
-    // The link the app was cold-started with (handled after first frame so the
-    // router is mounted).
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final initial = await _deepLinks.initialLink();
-      if (initial != null) _handleDeepLink(initial);
-    });
+    // Subscribed after the first frame so the router is mounted. The stream
+    // also carries the launch link, exactly once: asking for the initial link
+    // instead replays it on every restart, re-opening a link already used.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _deepLinks.onLink(_handleDeepLink),
+    );
   }
 
   void _handleDeepLink(Uri uri) {

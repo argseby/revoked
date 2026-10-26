@@ -104,6 +104,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - uses: subosito/flutter-action@v2
         with:
@@ -169,9 +170,13 @@ jobs:
   release:
     name: Attach to the release
     needs: [linux, windows, android]
+    # Runs even when a platform failed: the tag already exists, so holding
+    # the release back would strand it as a draft and every later version
+    # would be cut on top of a release nobody can see. The builds that did
+    # succeed ship; the missing ones are named in the notes.
     # Skipped on a manual run, which has no tag to attach to; the artifacts
     # are still on the run summary.
-    if: inputs.tag != '' || startsWith(github.ref, 'refs/tags/v')
+    if: ${{ !cancelled() && (inputs.tag != '' || startsWith(github.ref, 'refs/tags/v')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -187,6 +192,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag || github.ref_name }}
+          LINUX: ${{ needs.linux.result }}
+          WINDOWS: ${{ needs.windows.result }}
+          ANDROID: ${{ needs.android.result }}
         run: |
           if ! IS_DRAFT=$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null); then
             # A hand-pushed tag arrives with no release at all.
@@ -197,5 +205,19 @@ jobs:
             echo "::error::$TAG is already published and immutable - assets can no longer be attached. Cut a new release."
             exit 1
           fi
-          gh release upload "$TAG" dist/* --clobber
+          MISSING=""
+          [ "$LINUX" = "success" ] || MISSING="$MISSING Linux"
+          [ "$WINDOWS" = "success" ] || MISSING="$MISSING Windows"
+          [ "$ANDROID" = "success" ] || MISSING="$MISSING Android"
+          if [ -n "$MISSING" ]; then
+            echo "::warning::Publishing $TAG without:$MISSING"
+            {
+              gh release view "$TAG" --json body -q .body
+              printf '\n\n> [!NOTE]\n> No build for:%s in this release. Use the previous release for those platforms.\n' "$MISSING"
+            } > notes.md
+            gh release edit "$TAG" --notes-file notes.md
+          fi
+          if compgen -G "dist/*" > /dev/null; then
+            gh release upload "$TAG" dist/* --clobber
+          fi
           gh release edit "$TAG" --draft=false --latest
