@@ -13,6 +13,7 @@ import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/services/secure_storage.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'auth_store.g.dart';
 
@@ -140,9 +141,11 @@ abstract class _AuthStore with Store {
     );
     // Kept across a restart: a phone may drop the app while the browser is
     // in front, and the link that brings it back must still be answerable.
+    startedSignup = signup;
     await _writePending({
       'state': state,
       'verifier': verifier,
+      'signup': signup,
       'server': _api.baseUrl,
       'at': DateTime.now().millisecondsSinceEpoch,
     });
@@ -196,6 +199,7 @@ abstract class _AuthStore with Store {
       final token = data['token'] as String;
       final record = data['record'] as Map<String, dynamic>;
       await _api.saveAuthState(token, record);
+      createdAccount = pending['signup'] == true;
       currentUser = User.fromJson(record);
       return true;
     } catch (e) {
@@ -259,6 +263,42 @@ abstract class _AuthStore with Store {
     if (email.isEmpty) return 'My identity';
     final local = email.split('@').first.trim();
     return local.isEmpty ? 'My identity' : local;
+  }
+
+  /// Whether the page now open in the browser was asked to create an account
+  /// rather than sign in, so "Open the page again" reopens the same one.
+  bool startedSignup = false;
+
+  /// Whether the last sign-in made a new account. The first-run screen then
+  /// counts itself as the last step of sign-up, as the page announced.
+  bool createdAccount = false;
+
+  /// The name being typed in the name sheet. Owned here, not by the sheet:
+  /// the sheet still draws it while it slides away.
+  final ObservableTextController nameDraft = ObservableTextController();
+
+  /// Saves the account's own name, which services receive under the
+  /// `profile` scope when someone signs in there with Revoked. An empty
+  /// name clears it, and services then get the main identity's name.
+  ///
+  /// Not an `@action`: the store's generated half stays as it is, and the
+  /// one observable write is wrapped instead.
+  Future<bool> updateName(String name) async {
+    final user = currentUser;
+    if (user == null) return false;
+    try {
+      final record = await _api.patch(
+        '/api/collections/${AppConfig.usersCollection}/records/${user.id}',
+        body: {'name': name.trim()},
+      );
+      runInAction(
+        () => currentUser = User.fromJson(record as Map<String, dynamic>),
+      );
+      return true;
+    } catch (e) {
+      runInAction(() => errorMessage = _parseError(e));
+      return false;
+    }
   }
 
   @action

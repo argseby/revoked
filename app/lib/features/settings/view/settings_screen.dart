@@ -3,8 +3,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
@@ -13,11 +12,10 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
-import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:revoked_app/features/settings/account_name.dart';
 
 /// The Settings tab — one list, built like the vault: grouped rows, each
 /// opening its topic's own page. What is hard to undo — signing out, deleting
@@ -84,6 +82,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Account',
           trailing: const SizedBox.shrink(),
           children: [
+            AppListRow(
+              icon: AppIcons.person,
+              title: 'Name',
+              subtitle: (auth.currentUser?.name ?? '').isEmpty
+                  ? 'Not set · used when you sign in to services with Revoked'
+                  : auth.currentUser!.name,
+              onTap: () => openAccountNameSheet(context),
+            ),
             _AppearanceRow(),
             _page(
               SettingsPage.passkeys,
@@ -254,7 +260,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: AppIcons.boxArrowLeft,
               label: 'Log out',
               style: AppButtonStyle.accent,
-              onTap: _confirmLogout,
+              onTap: () => confirmLogout(context),
             ),
             AppButton(
               icon: AppIcons.trash,
@@ -273,19 +279,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final base = Stores.api.baseUrl;
     final host = Uri.tryParse(base)?.host ?? '';
     return host.isEmpty ? base : host;
-  }
-
-  Future<void> _confirmLogout() async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Log out?',
-      message:
-          'Your session on this device ends. Everything stays on the server '
-          '- log back in any time.',
-      confirmLabel: 'Log out',
-      confirmIcon: AppIcons.boxArrowLeft,
-    );
-    if (confirmed) await Stores.auth.logout();
   }
 
   Future<void> _confirmDeleteAccount() async {
@@ -312,65 +305,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-/// System, light or dark — picked in a sheet, like any other one-of-three.
+/// Asks before ending the session on this device. Settings and the account
+/// menu both log out through here.
+Future<void> confirmLogout(BuildContext context) async {
+  final confirmed = await showAppDialog(
+    context: context,
+    title: 'Log out?',
+    message:
+        'Your session on this device ends. Everything stays on the server '
+        '- log back in any time.',
+    confirmLabel: 'Log out',
+    confirmIcon: AppIcons.boxArrowLeft,
+  );
+  if (confirmed) await Stores.auth.logout();
+}
+
+/// Theme, detail, text size and motion, summed up in the row that opens them.
 class _AppearanceRow extends StatelessWidget {
-  static const _modes = [
-    (ThemeMode.system, AppIcons.brightnessAuto, 'System'),
-    (ThemeMode.light, AppIcons.brightnessLight, 'Light'),
-    (ThemeMode.dark, AppIcons.brightnessDark, 'Dark'),
-  ];
+  static const _themes = {
+    ThemeMode.system: 'System theme',
+    ThemeMode.light: 'Light',
+    ThemeMode.dark: 'Dark',
+  };
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Stores.theme;
-    final current = _modes.firstWhere((m) => m.$1 == theme.mode);
+  Widget build(BuildContext context) => Observer(builder: _build);
+
+  Widget _build(BuildContext context) {
+    final detail = DisplayPreferences.detailLevel == DetailLevel.full
+        ? 'Full detail'
+        : 'Essentials';
+    final size = '${(DisplayPreferences.textScale * 100).round()}% text';
     return AppListRow(
-      icon: current.$2,
-      title: 'Appearance',
-      subtitle: current.$3,
-      onTap: () => showAppSheet(
-        context: context,
-        builder: (sheetCtx) => Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                AppSpacing.sm,
-              ),
-              child: const Text('Appearance').header,
-            ),
-            for (final (mode, icon, label) in _modes)
-              AppTile(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xl,
-                  vertical: AppSpacing.md,
-                ),
-                leading: Icon(icon),
-                title: Text(label),
-                trailing: mode == theme.mode
-                    ? Icon(
-                        AppIcons.check,
-                        color: Theme.of(sheetCtx).colorScheme.primary,
-                      )
-                    : null,
-                onTap: () {
-                  theme.setMode(mode);
-                  Navigator.of(sheetCtx).pop();
-                },
-              ),
-            AppSpacing.gapSm,
-          ],
-        ),
-      ),
+      icon: AppIcons.brightnessAuto,
+      title: SettingsPage.appearance.title,
+      subtitle: '${_themes[Stores.theme.mode]} · $detail · $size',
+      onTap: () => context.go(SettingsPage.appearance.route),
     );
   }
 }
 
-/// A project link: opens in the browser.
 class _UrlRow extends StatelessWidget {
   final IconData icon;
   final String title;

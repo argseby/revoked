@@ -1,14 +1,29 @@
 import 'package:flutter/material.dart';
 
-/// The app's entire text vocabulary: three sizes, two modifiers.
+/// The type scale, in logical pixels. Four sizes, so a screen's hierarchy is
+/// readable at a glance and nothing is set smaller than 13.
+abstract final class AppTextSize {
+  static const double small = 13;
+  static const double body = 16;
+  static const double header = 20;
+  static const double title = 28;
+
+  /// Line height of body text, for paragraphs that wrap.
+  static const double bodyHeight = 1.45;
+  static const double smallHeight = 1.35;
+  static const double headingHeight = 1.25;
+}
+
+/// The app's entire text vocabulary: four sizes, a few modifiers.
 ///
-/// `Text('x')` is body (14). `.header` (18, bold) and `.small` (12) are the
-/// only other sizes; `.muted` (secondary color), `.mono` (fingerprints,
-/// keys, code) and `.italic` (someone else's words, quoted) the only
-/// modifiers. Nothing else exists — no inline fontSize or
-/// fontWeight anywhere in a view.
+/// `Text('x')` is body (16). `.title` (28, one per screen), `.header` (20,
+/// bold) and `.small` (13) are the only other sizes; `.muted` (secondary
+/// color), `.mono` (fingerprints, keys, code) and `.italic` (someone else's
+/// words, quoted) the only modifiers. Nothing else exists — no inline
+/// fontSize or fontWeight anywhere in a view.
 class AppText extends StatelessWidget {
   final String data;
+  final bool _title;
   final bool _header;
   final bool _small;
   final bool _bold;
@@ -23,6 +38,7 @@ class AppText extends StatelessWidget {
   const AppText(
     this.data, {
     super.key,
+    bool title = false,
     bool header = false,
     bool small = false,
     bool muted = false,
@@ -33,7 +49,8 @@ class AppText extends StatelessWidget {
     this.textAlign,
     this.maxLines,
     this.overflow,
-  }) : _header = header,
+  }) : _title = title,
+       _header = header,
        _small = small,
        _muted = muted,
        _bold = bold,
@@ -42,6 +59,7 @@ class AppText extends StatelessWidget {
        _selectable = selectable;
 
   AppText _copy({
+    bool? title,
     bool? header,
     bool? small,
     bool? muted,
@@ -53,6 +71,7 @@ class AppText extends StatelessWidget {
     return AppText(
       data,
       key: key,
+      title: title ?? _title,
       header: header ?? _header,
       small: small ?? _small,
       muted: muted ?? _muted,
@@ -66,8 +85,10 @@ class AppText extends StatelessWidget {
     );
   }
 
-  AppText get header => _copy(header: true, small: false);
-  AppText get small => _copy(small: true, header: false);
+  /// The screen's own name, once per screen.
+  AppText get title => _copy(title: true, header: false, small: false);
+  AppText get header => _copy(header: true, title: false, small: false);
+  AppText get small => _copy(small: true, title: false, header: false);
   AppText get muted => _copy(muted: true);
   AppText get mono => _copy(mono: true);
   AppText get italic => _copy(italic: true);
@@ -79,9 +100,21 @@ class AppText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final heading = _title || _header;
     final style = TextStyle(
-      fontSize: _header ? 18 : (_small ? 12 : 14),
-      fontWeight: _header
+      fontSize: _title
+          ? AppTextSize.title
+          : _header
+          ? AppTextSize.header
+          : _small
+          ? AppTextSize.small
+          : AppTextSize.body,
+      height: heading
+          ? AppTextSize.headingHeight
+          : _small
+          ? AppTextSize.smallHeight
+          : AppTextSize.bodyHeight,
+      fontWeight: heading
           ? FontWeight.w700
           : _bold
           ? FontWeight.w600
@@ -119,6 +152,7 @@ extension AppTextSugar on Text {
     overflow: overflow,
   );
 
+  AppText get title => _wrap().title;
   AppText get header => _wrap().header;
   AppText get selectable => _wrap().selectable;
   AppText get small => _wrap().small;

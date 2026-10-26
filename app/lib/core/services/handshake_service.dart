@@ -30,6 +30,8 @@ class HandshakeService {
   /// Accepting an attestation offer; the slug is the offer's token.
   static const String scopeAttestation = 'attestation';
 
+  static final _tokenPattern = RegExp(r'^[A-Za-z0-9_-]{16,256}$');
+
   final ApiClient _apiClient;
   final CryptoService _cryptoService;
 
@@ -57,6 +59,12 @@ class HandshakeService {
     );
 
     final nonce = response['nonce'] as String;
+    // A nonce is a token, never a message: anything else could be something
+    // signed in another context — a sign-in approval — dressed as a nonce by
+    // a server that chose it.
+    if (!_tokenPattern.hasMatch(nonce)) {
+      throw const FormatException('The server sent a malformed challenge.');
+    }
 
     final signature = await _cryptoService.signMessage(
       identityId: identityId,

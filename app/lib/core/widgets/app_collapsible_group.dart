@@ -43,7 +43,7 @@ class _AppCollapsibleGroupState extends State<AppCollapsibleGroup> {
     final expanded = _expanded.value;
 
     return AnimatedSize(
-      duration: AppMotion.duration,
+      duration: AppMotion.of(context),
       curve: AppMotion.curve,
       alignment: Alignment.topCenter,
       child: Column(

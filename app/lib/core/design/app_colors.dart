@@ -1,64 +1,111 @@
 import 'package:flutter/material.dart';
 
-/// Color roles Material 3 does not define, derived from the active scheme so
-/// they flip with brightness like every built-in role does.
+/// Every colour the app draws with, per brightness.
+///
+/// The values are chosen, not derived from a seed, so the contrast they were
+/// checked for is the contrast that ships: `test/contrast_test.dart` holds
+/// each pair to WCAG AA (4.5:1 for text, 3:1 for borders, focus rings and
+/// state indicators). Change a value here and that test says whether it still
+/// passes.
+///
+/// The look is ink on paper: near-black ink for text, primary buttons and
+/// rules on a warm paper tone, flipped to paper on ink in dark mode. Colour is
+/// kept for status — active, paused, danger — so it stands out.
+abstract final class AppPalette {
+  // Light.
+  static const lightPaper = Color(0xFFF6F5F1);
+  static const lightWhite = Color(0xFFFFFFFF);
+  static const lightCard = Color(0xFFEFEDE7);
+  static const lightCardHigh = Color(0xFFE9E7E0);
+  static const lightCardHighest = Color(0xFFE3E0D8);
+  static const lightInk = Color(0xFF14171C);
+  static const lightSecondaryText = Color(0xFF5A5F68);
+  static const lightControlBorder = Color(0xFF7F7B73);
+  static const lightDivider = Color(0xFFDAD7CF);
+  static const lightAccent = Color(0xFF2F4156);
+  static const lightSuccess = Color(0xFF216A4D);
+  static const lightSuccessContainer = Color(0xFFDDF0E6);
+  static const lightWarning = Color(0xFF7A5900);
+  static const lightWarningContainer = Color(0xFFFFE9B8);
+  static const lightDanger = Color(0xFFB42318);
+  static const lightDangerContainer = Color(0xFFFCE4E1);
+  static const lightDangerFill = Color(0xFFC62828);
+
+  // Dark.
+  static const darkPage = Color(0xFF0F1114);
+  static const darkSurface = Color(0xFF171A1F);
+  static const darkCard = Color(0xFF1F232A);
+  static const darkCardHigh = Color(0xFF23272E);
+  static const darkCardHighest = Color(0xFF272B32);
+  static const darkInk = Color(0xFFF2F1EC);
+  static const darkOnInk = Color(0xFF14171C);
+  static const darkSecondaryText = Color(0xFFA3A8B0);
+  static const darkControlBorder = Color(0xFF727883);
+  static const darkDivider = Color(0xFF2E333B);
+  static const darkAccent = Color(0xFFA9C3E0);
+  static const darkSuccess = Color(0xFF8ED5B1);
+  static const darkSuccessContainer = Color(0xFF12352A);
+  static const darkWarning = Color(0xFFF2C24B);
+  static const darkWarningContainer = Color(0xFF3D2E05);
+  static const darkDanger = Color(0xFFFF6259);
+  static const darkDangerContainer = Color(0xFF3F1512);
+  static const darkDangerFill = Color(0xFFD32F2F);
+
+  /// White on either theme's [dangerFill].
+  static const onDangerFill = Color(0xFFFFFFFF);
+}
+
+/// Colour roles Material 3 does not define, flipping with brightness like
+/// every built-in role does.
 ///
 /// Nothing in the app names a raw `Colors.*` swatch: a fixed swatch is tuned
 /// for one background and goes illegible on the other.
 extension AppColorRoles on ColorScheme {
-  /// Good — an active link, a completed request. A status list reads as a
-  /// traffic light (green active, amber paused, red revoked), which no longer
-  /// falls out of the seed now that the chrome is slate rather than green.
+  bool get _light => brightness == Brightness.light;
+
+  /// Good — an active link, a completed request, a verified sender. A status
+  /// list reads as a traffic light: green active, amber paused, red danger.
   Color get success =>
-      brightness == Brightness.light ? _successLight : _successDark;
+      _light ? AppPalette.lightSuccess : AppPalette.darkSuccess;
 
-  /// Caution — paused links, unverified identities. Not a failure, so it must
-  /// not reuse [error], and not a success, so it must not reuse [success].
+  /// [success] as a fill behind [success]-coloured text.
+  Color get successContainer => _light
+      ? AppPalette.lightSuccessContainer
+      : AppPalette.darkSuccessContainer;
+
+  /// Caution — paused links, links ending soon. Not a failure, so it must not
+  /// reuse [error], and not a success, so it must not reuse [success].
   Color get warning =>
-      brightness == Brightness.light ? _warningLight : _warningDark;
+      _light ? AppPalette.lightWarning : AppPalette.darkWarning;
 
-  /// [warning] as a fill behind [warning]-colored text.
-  Color get warningContainer => brightness == Brightness.light
-      ? _warningContainerLight
-      : _warningContainerDark;
+  /// [warning] as a fill behind [warning]-coloured text.
+  Color get warningContainer => _light
+      ? AppPalette.lightWarningContainer
+      : AppPalette.darkWarningContainer;
 
-  /// Security alarm — an unverified or spoofed domain.
-  ///
-  /// Deliberately not [error]: the seeded error tone is `#FFB4AB` on a dark
-  /// surface, which reads as salmon rather than red. A phishing warning has to
-  /// look like a stop sign, so this is a saturated red picked per brightness
-  /// for legibility rather than derived from the seed.
-  Color get danger =>
-      brightness == Brightness.light ? _dangerLight : _dangerDark;
+  /// Security alarm — an unverified or spoofed domain. A phishing warning has
+  /// to look like a stop sign. The same value as [error], named for intent.
+  Color get danger => _light ? AppPalette.lightDanger : AppPalette.darkDanger;
 
-  /// [danger] as a filled bar. Fixed across brightness — it is paired with
-  /// [onDangerFill] rather than sitting on the page background, so it stays
-  /// legible either way.
-  Color get dangerFill => _dangerFill;
+  /// [danger] as a fill behind [danger]-coloured text.
+  Color get dangerContainer =>
+      _light ? AppPalette.lightDangerContainer : AppPalette.darkDangerContainer;
+
+  /// [danger] as a solid button — revoke, delete — under [onDangerFill]. A
+  /// shade of its own because the text tone of dark mode is too light to
+  /// carry white.
+  Color get dangerFill =>
+      _light ? AppPalette.lightDangerFill : AppPalette.darkDangerFill;
 
   /// Text and icons drawn on [dangerFill].
-  Color get onDangerFill => _onDangerFill;
+  Color get onDangerFill => AppPalette.onDangerFill;
+
+  /// Links and the keyboard focus ring. Inline links are also underlined:
+  /// the accent is too close to body text to mark a link by colour alone.
+  Color get accent => tertiary;
 
   /// The error role legible against [inverseSurface]. A surface painted in the
   /// opposite brightness needs the opposite scheme's error, not this one's.
   Color get inverseError =>
-      brightness == Brightness.light ? _errorDark : _errorLight;
+      _light ? AppPalette.darkDanger : AppPalette.lightDanger;
 }
-
-const Color _successLight = Color(0xFF216A4D);
-const Color _successDark = Color(0xFF8ED5B1);
-
-const Color _warningLight = Color(0xFF7A5900);
-const Color _warningDark = Color(0xFFF2C24B);
-const Color _warningContainerLight = Color(0xFFFFDF9E);
-const Color _warningContainerDark = Color(0xFF5C4200);
-
-const Color _dangerLight = Color(0xFFC62828);
-const Color _dangerDark = Color(0xFFFF6259);
-const Color _dangerFill = Color(0xFFD32F2F);
-const Color _onDangerFill = Color(0xFFFFFFFF);
-
-// Material 3's own baseline error tones, kept as constants so [inverseError]
-// does not have to build a second ColorScheme on every toast.
-const Color _errorLight = Color(0xFFB3261E);
-const Color _errorDark = Color(0xFFFFB4AB);

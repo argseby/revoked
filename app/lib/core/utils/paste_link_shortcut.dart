@@ -42,18 +42,23 @@ class _PasteLinkAction extends Action<_PasteLinkIntent> {
 
   final Future<void> Function() onTrigger;
 
+  // An editable owns its paste. Disabled (not "handled and ignored") is
+  // what lets the event keep bubbling to the field's own shortcut.
   @override
-  bool get isActionEnabled {
-    final focused = FocusManager.instance.primaryFocus?.context;
-    if (focused == null) return true;
-    // An editable owns its paste. Disabled (not "handled and ignored") is
-    // what lets the event keep bubbling to the field's own shortcut.
-    return focused.findAncestorStateOfType<EditableTextState>() == null;
-  }
+  bool get isActionEnabled => !textFieldHasFocus();
 
   @override
   Object? invoke(_PasteLinkIntent intent) {
     onTrigger();
     return null;
   }
+}
+
+/// Whether a text field has keyboard focus. App-wide shortcuts check this
+/// first and stand aside, so typing a letter or pasting into a field always
+/// reaches the field.
+bool textFieldHasFocus() {
+  final focused = FocusManager.instance.primaryFocus?.context;
+  if (focused == null) return false;
+  return focused.findAncestorStateOfType<EditableTextState>() != null;
 }

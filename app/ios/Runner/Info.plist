@@ -42,6 +42,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID confirms that it is you before Revoked approves a sign-in at a service.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Revoked uses the camera to scan Revoked QR codes.</string>
 	<key>NSLocalNetworkUsageDescription</key>

@@ -19,11 +19,11 @@ import 'package:revoked_app/features/shell/view/splash_screen.dart';
 import 'package:revoked_app/features/vault/view/record_detail_screen.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
 import 'package:revoked_app/features/shares/view/share_detail_screen.dart';
-import 'package:revoked_app/features/shares/view/shares_screen.dart';
+import 'package:revoked_app/features/shares/view/shared_split.dart';
 import 'package:revoked_app/features/shares/view/public_share_screen.dart';
 import 'package:revoked_app/features/shares/view/share_proposal_screen.dart';
 import 'package:revoked_app/features/connections/view/connect_screen.dart';
-import 'package:revoked_app/features/connections/view/sign_in_handoff_screen.dart';
+import 'package:revoked_app/features/connections/view/sign_in_approval_screen.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/requests/view/inbox_screen.dart';
 import 'package:revoked_app/features/requests/view/request_detail_screen.dart';
@@ -33,9 +33,14 @@ import 'package:revoked_app/features/requests/view/request_sheet_screen.dart';
 import 'package:revoked_app/features/invites/view/invite_accept_screen.dart';
 import 'package:revoked_app/features/onboarding/view/tour_screen.dart';
 import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen.dart';
+import 'package:revoked_app/features/overview/view/overview_screen.dart';
 
 abstract class AppRoutes {
   static const login = '/login';
+
+  /// What needs the person's attention, and who can read their data. Where
+  /// the app lands after sign-in.
+  static const overview = '/overview';
   static const vault = '/vault';
 
   /// One record's detail page, opened from the Vault list.
@@ -43,24 +48,34 @@ abstract class AppRoutes {
 
   /// The one-minute walk through records, links and revoking.
   static const tour = '$vault/tour';
-  static const inbox = '/inbox';
+
+  /// Blueprints for records and requests. They used to be a settings topic.
+  static const templates = '$vault/templates';
+
+  /// The links the person gave out.
+  static const shared = '/shared';
+
+  /// One link's detail page, opened from the Shared list.
+  static String shareDetailFor(String id) => '$shared/$id';
+
+  /// The person's requests, and what came back.
+  static const requests = '/requests';
+
+  /// Links other people gave the person, under Requests.
+  static const requestsReceived = '$requests?tab=received';
 
   /// One request's detail page, opened from the Requests list.
-  static String requestDetailFor(String id) => '$inbox/$id';
-  static const data = '/data';
-  static const requestData = '/request-data';
-  static const requestSheet = '/request-sheet';
-  static const shares = '/shares';
+  static String requestDetailFor(String id) => '$requests/$id';
 
-  /// One link's detail page, opened from the Links list.
-  static String shareDetailFor(String id) => '$shares/$id';
+  /// What one request collected, as a list or as a spreadsheet.
+  static String requestDataFor(String id) => '$requests/$id/data';
+  static String requestSheetFor(String id) => '$requests/$id/sheet';
   static const settings = '/settings';
 
   /// Each settings topic is a page of its own under Settings.
   static String settingsPage(String slug) => '$settings/$slug';
   static const settingsWorkspace = '/settings/workspaces';
   static const apiKeys = '/settings/api-keys';
-  static const templates = '/settings/templates';
   static const connectedTools = '/settings/connected-tools';
   static String connectedToolFor(String id) => '$connectedTools/$id';
   static const share = '/share/:slug';
@@ -87,9 +102,28 @@ abstract class AppRoutes {
   static const splash = '/splash';
 
   // Legacy aliases — kept so any deep-links or bookmarks still resolve
-  static const requests = '/requests';
+  static const inbox = '/inbox';
+  static const data = '/data';
+  static const shares = '/shares';
+  static const requestData = '/request-data';
+  static const requestSheet = '/request-sheet';
+  static const settingsTemplates = '/settings/templates';
   static const connections = '/connections';
   static const receivedVault = '/received-vault';
+
+  /// The four places the shell's navigation leads to, in order.
+  static const destinations = [overview, vault, shared, requests];
+
+  /// Which of [destinations] a location belongs to, or null outside them
+  /// (Settings, and every screen without the shell).
+  static int? destinationOf(String location) {
+    final path = Uri.tryParse(location)?.path ?? location;
+    for (var i = 0; i < destinations.length; i++) {
+      final root = destinations[i];
+      if (path == root || path.startsWith('$root/')) return i;
+    }
+    return null;
+  }
 }
 
 class AppRouter {
@@ -107,7 +141,7 @@ class AppRouter {
   static GoRouter create(AuthStore authStore) {
     return GoRouter(
       navigatorKey: rootNavigatorKey,
-      initialLocation: AppRoutes.vault,
+      initialLocation: AppRoutes.overview,
       refreshListenable: _AuthRefreshNotifier(authStore),
       redirect: (context, state) {
         bool isPublic(String s) =>
@@ -139,7 +173,9 @@ class AppRouter {
           final pending = _pendingLocation;
           _pendingLocation = null;
           if (pending != null && pending != AppRoutes.splash) return pending;
-          return authStore.isAuthenticated ? AppRoutes.vault : AppRoutes.login;
+          return authStore.isAuthenticated
+              ? AppRoutes.overview
+              : AppRoutes.login;
         }
 
         final isLoggedIn = authStore.isAuthenticated;
@@ -156,7 +192,7 @@ class AppRouter {
         // Ahead of the workspace check, so an invite that waited for the
         // sign-in is shown before onboarding offers to create a workspace.
         if (isLoggedIn && isAuthRoute) {
-          return ResumeLocation.take() ?? AppRoutes.vault;
+          return ResumeLocation.take() ?? AppRoutes.overview;
         }
 
         // An account has no workspace until it creates or joins one, and every
@@ -172,7 +208,7 @@ class AppRouter {
           // Onboarding finishes setting up (the signing identity) after the
           // workspace exists, and moves on by itself once that is done.
           if (Stores.onboarding.isBusy) return null;
-          return ResumeLocation.take() ?? AppRoutes.vault;
+          return ResumeLocation.take() ?? AppRoutes.overview;
         }
         return null;
       },
@@ -244,7 +280,7 @@ class AppRouter {
         // Not public: the server to continue on is the one signed into.
         GoRoute(
           path: AppRoutes.signIn,
-          builder: (context, state) => SignInHandoffScreen(
+          builder: (context, state) => SignInApprovalScreen(
             request: SignInRequest.fromQuery(state.uri.queryParameters),
           ),
         ),
@@ -266,25 +302,75 @@ class AppRouter {
         // Fallbacks for public URLs missing slugs
         GoRoute(
           path: '/request',
-          redirect: (context, state) => AppRoutes.inbox,
+          redirect: (context, state) => AppRoutes.requests,
         ),
-        GoRoute(path: '/share', redirect: (context, state) => AppRoutes.shares),
-        // Legacy route redirects
+        GoRoute(path: '/share', redirect: (context, state) => AppRoutes.shared),
+        // Legacy route redirects. Each keeps what the old path carried, so a
+        // bookmark or an old notification still lands on the same thing.
+        // Siblings rather than children: a parent's redirect runs first and
+        // would send every /inbox/... to the list.
         GoRoute(
-          path: AppRoutes.requests,
-          redirect: (context, state) => AppRoutes.inbox,
+          path: AppRoutes.inbox,
+          redirect: (context, state) => AppRoutes.requests,
+        ),
+        GoRoute(
+          path: '${AppRoutes.inbox}/:id',
+          redirect: (context, state) {
+            final id = state.pathParameters['id']!;
+            return id == 'create'
+                ? AppRoutes.requests
+                : AppRoutes.requestDetailFor(id);
+          },
+        ),
+        GoRoute(
+          path: AppRoutes.data,
+          redirect: (context, state) => _keepQuery(AppRoutes.shared, state),
+        ),
+        GoRoute(
+          path: AppRoutes.shares,
+          redirect: (context, state) => _keepQuery(AppRoutes.shared, state),
+        ),
+        GoRoute(
+          path: '${AppRoutes.shares}/:id',
+          redirect: (context, state) =>
+              AppRoutes.shareDetailFor(state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: AppRoutes.requestData,
+          redirect: (context, state) =>
+              switch (state.uri.queryParameters['requestId']) {
+                final String id when id.isNotEmpty => AppRoutes.requestDataFor(
+                  id,
+                ),
+                _ => AppRoutes.requests,
+              },
+        ),
+        GoRoute(
+          path: AppRoutes.requestSheet,
+          redirect: (context, state) =>
+              switch (state.uri.queryParameters['requestId']) {
+                final String id when id.isNotEmpty => AppRoutes.requestSheetFor(
+                  id,
+                ),
+                _ => AppRoutes.requests,
+              },
         ),
         GoRoute(
           path: AppRoutes.connections,
-          redirect: (context, state) => AppRoutes.inbox,
+          redirect: (context, state) => AppRoutes.requestsReceived,
         ),
         GoRoute(
           path: AppRoutes.receivedVault,
-          redirect: (context, state) => AppRoutes.inbox,
+          redirect: (context, state) => AppRoutes.requestsReceived,
         ),
         ShellRoute(
           builder: (context, state, child) => AppShell(child: child),
           routes: [
+            GoRoute(
+              path: AppRoutes.overview,
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: OverviewScreen()),
+            ),
             GoRoute(
               path: AppRoutes.vault,
               pageBuilder: (context, state) {
@@ -305,6 +391,15 @@ class AppRouter {
                       const NoTransitionPage(child: TourScreen()),
                 ),
                 GoRoute(
+                  path: 'templates',
+                  pageBuilder: (context, state) => const NoTransitionPage(
+                    child: SettingsPageScreen(
+                      key: ValueKey(SettingsPage.templates),
+                      page: SettingsPage.templates,
+                    ),
+                  ),
+                ),
+                GoRoute(
                   path: 'records/:id',
                   pageBuilder: (context, state) => NoTransitionPage(
                     child: RecordDetailScreen(
@@ -315,14 +410,60 @@ class AppRouter {
                 ),
               ],
             ),
-            // Legacy /inbox/create — ahead of /inbox/:id, which would take
-            // "create" for a request id. — old full-screen flow replaced by a
-            // multi-step bottom sheet opened from the Inbox header.
-            GoRoute(path: '/inbox/create', redirect: (_, _) => AppRoutes.inbox),
+            // The links list and the chosen link. A shell of its own, so the
+            // list outlives each link opened beside it on a wide window.
+            ShellRoute(
+              builder: (context, state, child) => SharedSplit(
+                selectedId: state.pathParameters['id'],
+                filterSlug: state.uri.queryParameters['filterSlug'],
+                child: child,
+              ),
+              routes: [
+                GoRoute(
+                  path: AppRoutes.shared,
+                  pageBuilder: (context, state) =>
+                      const NoTransitionPage(child: SharedPlaceholder()),
+                ),
+                GoRoute(
+                  path: '${AppRoutes.shared}/:id',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: ShareDetailScreen(
+                      key: ValueKey(state.pathParameters['id']),
+                      shareId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // One request's data and sheet stand on their own, ahead of
+            // /requests/:id, so the detail page is not built beneath them.
             GoRoute(
-              path: AppRoutes.inbox,
-              pageBuilder: (context, state) =>
-                  const NoTransitionPage(child: InboxScreen()),
+              path: '${AppRoutes.requests}/:id/data',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: DataScreen(
+                  key: ValueKey(state.pathParameters['id']),
+                  requestId: state.pathParameters['id'],
+                ),
+              ),
+            ),
+            GoRoute(
+              path: '${AppRoutes.requests}/:id/sheet',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: RequestSheetScreen(
+                  key: ValueKey(state.pathParameters['id']),
+                  requestId: state.pathParameters['id']!,
+                ),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.requests,
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: InboxScreen(
+                  initialTab: state.uri.queryParameters['tab'] == 'received'
+                      ? 1
+                      : 0,
+                ),
+              ),
               routes: [
                 GoRoute(
                   path: ':id',
@@ -330,54 +471,6 @@ class AppRouter {
                     child: RequestDetailScreen(
                       key: ValueKey(state.pathParameters['id']),
                       requestId: state.pathParameters['id']!,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            // Share — your outbound links (manual + request-born). /shares is
-            // kept below as a legacy alias.
-            GoRoute(
-              path: AppRoutes.data,
-              pageBuilder: (context, state) =>
-                  const NoTransitionPage(child: SharesScreen()),
-            ),
-            // Per-request shipped data, opened from the Inbox "View data" button.
-            GoRoute(
-              path: AppRoutes.requestData,
-              pageBuilder: (context, state) {
-                final requestId = state.uri.queryParameters['requestId'];
-                return NoTransitionPage(
-                  child: DataScreen(requestId: requestId),
-                );
-              },
-            ),
-            // Spreadsheet view of one request's responses (one row per
-            // responder), opened from the Inbox.
-            GoRoute(
-              path: AppRoutes.requestSheet,
-              pageBuilder: (context, state) {
-                final requestId = state.uri.queryParameters['requestId'] ?? '';
-                return NoTransitionPage(
-                  child: RequestSheetScreen(requestId: requestId),
-                );
-              },
-            ),
-            GoRoute(
-              path: AppRoutes.shares,
-              pageBuilder: (context, state) {
-                final filterSlug = state.uri.queryParameters['filterSlug'];
-                return NoTransitionPage(
-                  child: SharesScreen(filterSlug: filterSlug),
-                );
-              },
-              routes: [
-                GoRoute(
-                  path: ':id',
-                  pageBuilder: (context, state) => NoTransitionPage(
-                    child: ShareDetailScreen(
-                      key: ValueKey(state.pathParameters['id']),
-                      shareId: state.pathParameters['id']!,
                     ),
                   ),
                 ),
@@ -401,11 +494,14 @@ class AppRouter {
                   path: ':page',
                   // An unknown topic — or an old ?tab= link — lands on the
                   // list rather than on an empty page.
-                  redirect: (context, state) =>
-                      SettingsPage.fromSlug(state.pathParameters['page']) ==
-                          null
-                      ? AppRoutes.settings
-                      : null,
+                  // Templates moved to the vault.
+                  redirect: (context, state) => switch (SettingsPage.fromSlug(
+                    state.pathParameters['page'],
+                  )) {
+                    null => AppRoutes.settings,
+                    SettingsPage.templates => AppRoutes.templates,
+                    _ => null,
+                  },
                   pageBuilder: (context, state) {
                     final page = SettingsPage.fromSlug(
                       state.pathParameters['page'],
@@ -426,6 +522,10 @@ class AppRouter {
     );
   }
 }
+
+/// [path] with the query the old location carried.
+String _keepQuery(String path, GoRouterState state) =>
+    state.uri.hasQuery ? '$path?${state.uri.query}' : path;
 
 /// Re-runs the router's [GoRouter.redirect] whenever auth state flips, without
 /// recreating the router — so a single stable router instance can also drive

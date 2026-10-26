@@ -279,6 +279,10 @@ transition: transform .12s var(--ease), filter .15s, background .15s;
 .big-logo { width: 24px; height: 24px; }
 
 .fine { text-align: center; color: var(--fg-muted); font-size: 12px; line-height: 1.45; }
+/* The way to the other mode, while creating an account: a quiet text link
+   for a wrong tap, not a second choice beside the step being taken. */
+.quiet.link { min-height: 44px; border: 0; font-size: 13px; font-weight: 500; color: var(--fg-muted); text-decoration: underline; text-underline-offset: 3px; }
+.quiet.link:hover { background: transparent; color: var(--fg); }
 .fine:empty { display: none; }
 [hidden] { display: none !important; }
 
@@ -323,7 +327,7 @@ transition: transform .12s var(--ease), filter .15s, background .15s;
 <div class="card" id="card">
 <div id="error" class="callout" role="alert" hidden><i data-i="alert" data-s="20"></i><span id="error-t"></span></div>
 <label class="field" id="emailRow" hidden><span data-t="field.email">Email</span>
-<input id="email" type="email" autocomplete="username webauthn" placeholder="name@example.com">
+<input id="email" type="email" autocomplete="email" placeholder="name@example.com">
 </label>
 <label class="field" id="codeRow" hidden><span data-t="field.code">Confirmation code</span>
 <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
@@ -360,14 +364,17 @@ var STRINGS = {
     'field.email': 'Email', 'field.code': 'Confirmation code', 'open': 'Open Revoked',
     'step': function (n, total, label) { return 'Step ' + n + ' of ' + total + ' · ' + label; },
     'step.email': 'Your email', 'step.code': 'Confirm email', 'step.passkey': 'Save passkey',
-    'signin.title': 'Sign in', 'signin.lead': 'Use the passkey saved on this device.',
+    'step.name': 'Your name, in the app',
+    'left.2m': 'about 2 minutes left', 'left.1m': 'about a minute left',
+    'left.lt1m': 'less than a minute left', 'left.last': 'last step',
+    'signin.title': 'Sign in', 'signin.lead': 'Use the passkey saved on this device. It takes about 10 seconds.',
     'signin.fromApp': 'Start from the Revoked app: it opens this page and takes you back signed in.',
     'signin.go': 'Sign in with a passkey', 'signin.other': 'Create an account',
     'signin.noPasskey': 'No passkey yet? Ask whoever runs this server for a link to add one.',
     'signup.title': 'Create an account',
-    'signup.leadCode': 'No password: a passkey saved on this device is how you sign in. It takes about 2 minutes.',
-    'signup.lead': 'No password: a passkey saved on this device is how you sign in. It takes about a minute.',
-    'signup.sendCode': 'Send code', 'signup.create': 'Create account', 'signup.other': 'I already have an account',
+    'signup.leadCode': 'Your email first: we send a 6-digit code to check it is yours. There is no password.',
+    'signup.lead': 'Your email first. There is no password: a passkey on this device signs you in.',
+    'signup.sendCode': 'Send code', 'signup.create': 'Continue', 'signup.other': 'Tapped the wrong button? Sign in instead',
     'code.title': 'Confirm your email',
     'code.lead': function (email) { return 'Enter the 6-digit code we sent to ' + email + '.'; },
     'code.go': 'Continue',
@@ -375,7 +382,7 @@ var STRINGS = {
     'code.resendIn': function (s) { return 'Send a new code in ' + s + ' s'; },
     'code.resend': 'Send a new code',
     'passkey.title': 'Save your passkey',
-    'passkey.lead': 'Your device asks for your fingerprint, face or PIN. That is how you sign in from now on.',
+    'passkey.lead': function (host) { return 'Your device will ask to save a passkey for ' + host + '. From now on your fingerprint, face or device PIN signs you in, and there is nothing to remember.'; },
     'passkey.go': 'Create passkey',
     'enroll.title': 'Add a passkey',
     'enroll.lead': function (email) { return 'For ' + email + '. It is saved on this device and is how you sign in from now on.'; },
@@ -383,7 +390,7 @@ var STRINGS = {
     'enroll.deadLead': 'It is unknown, already used, or has expired. Ask for a new one.',
     'done.signedIn': 'Signed in', 'done.created': 'Account created',
     'done.returning': 'Returning to Revoked…',
-    'done.next': 'Returning to Revoked… There you name your workspace, and you are set.',
+    'done.next': 'Returning to Revoked for the last step: the name others see.',
     'done.close': 'You can close this page once the app has opened.',
     'done.saved': 'Passkey saved', 'done.savedLead': 'Open Revoked on this device and sign in with it.',
     'done.closeNow': 'You can close this page.',
@@ -400,14 +407,17 @@ var STRINGS = {
     'field.email': 'E-Mail', 'field.code': 'Bestätigungscode', 'open': 'Revoked öffnen',
     'step': function (n, total, label) { return 'Schritt ' + n + ' von ' + total + ' · ' + label; },
     'step.email': 'Deine E-Mail', 'step.code': 'E-Mail bestätigen', 'step.passkey': 'Passkey speichern',
-    'signin.title': 'Anmelden', 'signin.lead': 'Mit dem Passkey, der auf diesem Gerät gespeichert ist.',
+    'step.name': 'Dein Name, in der App',
+    'left.2m': 'noch etwa 2 Minuten', 'left.1m': 'noch etwa eine Minute',
+    'left.lt1m': 'noch weniger als eine Minute', 'left.last': 'letzter Schritt',
+    'signin.title': 'Anmelden', 'signin.lead': 'Mit dem Passkey, der auf diesem Gerät gespeichert ist. Dauert etwa 10 Sekunden.',
     'signin.fromApp': 'Starte in der Revoked-App: Sie öffnet diese Seite und bringt dich angemeldet zurück.',
     'signin.go': 'Mit Passkey anmelden', 'signin.other': 'Konto erstellen',
     'signin.noPasskey': 'Noch kein Passkey? Bitte die Person, die diesen Server betreibt, um einen Link dafür.',
     'signup.title': 'Konto erstellen',
-    'signup.leadCode': 'Kein Passwort: Du meldest dich mit einem Passkey auf diesem Gerät an. Dauert etwa 2 Minuten.',
-    'signup.lead': 'Kein Passwort: Du meldest dich mit einem Passkey auf diesem Gerät an. Dauert etwa eine Minute.',
-    'signup.sendCode': 'Code senden', 'signup.create': 'Konto erstellen', 'signup.other': 'Ich habe schon ein Konto',
+    'signup.leadCode': 'Zuerst deine E-Mail: Wir schicken einen 6-stelligen Code, um zu prüfen, dass sie dir gehört. Es gibt kein Passwort.',
+    'signup.lead': 'Zuerst deine E-Mail. Es gibt kein Passwort: Ein Passkey auf diesem Gerät meldet dich an.',
+    'signup.sendCode': 'Code senden', 'signup.create': 'Weiter', 'signup.other': 'Falschen Knopf erwischt? Stattdessen anmelden',
     'code.title': 'E-Mail bestätigen',
     'code.lead': function (email) { return 'Gib den 6-stelligen Code ein, den wir an ' + email + ' geschickt haben.'; },
     'code.go': 'Weiter',
@@ -415,7 +425,7 @@ var STRINGS = {
     'code.resendIn': function (s) { return 'Neuen Code senden in ' + s + ' s'; },
     'code.resend': 'Neuen Code senden',
     'passkey.title': 'Passkey speichern',
-    'passkey.lead': 'Dein Gerät fragt nach Fingerabdruck, Gesicht oder PIN. Damit meldest du dich ab jetzt an.',
+    'passkey.lead': function (host) { return 'Dein Gerät fragt, ob es einen Passkey für ' + host + ' speichern soll. Ab jetzt meldet dich dein Fingerabdruck, dein Gesicht oder die Geräte-PIN an, und du musst dir nichts merken.'; },
     'passkey.go': 'Passkey erstellen',
     'enroll.title': 'Passkey hinzufügen',
     'enroll.lead': function (email) { return 'Für ' + email + '. Er wird auf diesem Gerät gespeichert; damit meldest du dich ab jetzt an.'; },
@@ -423,7 +433,7 @@ var STRINGS = {
     'enroll.deadLead': 'Er ist unbekannt, schon benutzt oder abgelaufen. Bitte um einen neuen.',
     'done.signedIn': 'Angemeldet', 'done.created': 'Konto erstellt',
     'done.returning': 'Zurück zu Revoked …',
-    'done.next': 'Zurück zu Revoked … Dort benennst du noch deinen Workspace, dann bist du startklar.',
+    'done.next': 'Zurück zu Revoked für den letzten Schritt: den Namen, den andere sehen.',
     'done.close': 'Du kannst diese Seite schließen, sobald sich die App geöffnet hat.',
     'done.saved': 'Passkey gespeichert', 'done.savedLead': 'Öffne Revoked auf diesem Gerät und melde dich damit an.',
     'done.closeNow': 'Du kannst diese Seite schließen.',
@@ -560,10 +570,18 @@ function action(label, icon) {
   $('go-ic').textContent = '';
   $('go-ic').appendChild(svg(icon, 20));
 }
-// Where a new account is in its setup: a numbered step with a bar, so it is
-// clear how much is left. A step past the last marks them all done.
+// Where a new account is in its setup: a numbered step with a bar and the
+// time left, so it is clear how much is to come. The count includes the last
+// step, the name, which the app asks once this page sends the person back:
+// the app's welcome screen announced the same steps before opening this page.
+var STEP_NAMES = server.verifyEmail
+  ? ['step.email', 'step.code', 'step.passkey', 'step.name']
+  : ['step.email', 'step.passkey', 'step.name'];
+var STEP_LEFT = server.verifyEmail
+  ? ['left.2m', 'left.1m', 'left.lt1m', 'left.last']
+  : ['left.1m', 'left.lt1m', 'left.last'];
 function steps(at) {
-  var names = server.verifyEmail ? ['step.email', 'step.code', 'step.passkey'] : ['step.email', 'step.passkey'];
+  var names = STEP_NAMES;
   if (!at) { show($('steps'), false); return; }
   var bar = $('steps-bar');
   bar.textContent = '';
@@ -573,7 +591,8 @@ function steps(at) {
     else if (i + 1 === at) li.className = 'now';
     bar.appendChild(li);
   });
-  $('steps-t').textContent = at > names.length ? '' : t('step', at, names.length, t(names[at - 1]));
+  $('steps-t').textContent = at > names.length ? '' :
+    t('step', at, names.length, t(names[at - 1])) + ' · ' + t(STEP_LEFT[at - 1]);
   show($('steps-t'), at <= names.length);
   show($('steps'), true);
 }
@@ -679,62 +698,8 @@ async function register() {
   return call('/api/passkeys/register/finish', { session: begin.session, credential: credentialJSON(credential) });
 }
 
-// ---- Passkeys offered in the email field -------------------------------
-// Someone who already has an account and pressed "Create" anyway: the browser
-// offers their passkey as they tap the email field, and picking it signs them
-// in. Only where the app started this page (it holds the PKCE verifier the
-// answer is redeemed with) and the browser can do it.
-var suggesting = null, suggestTimer = null, done = false;
-// Ends the offer; true when one was open. A browser allows one passkey
-// request at a time, so this comes before any other.
-function stopSuggesting() {
-  clearTimeout(suggestTimer);
-  suggestTimer = null;
-  if (!suggesting) return false;
-  suggesting.abort();
-  suggesting = null;
-  return true;
-}
-async function suggestPasskeys() {
-  stopSuggesting();
-  if (done || !pkce || mode !== 'signup' || confirming() || saving()) return;
-  var mine = new AbortController();
-  suggesting = mine;
-  try {
-    if (!PublicKeyCredential.isConditionalMediationAvailable ||
-        !(await PublicKeyCredential.isConditionalMediationAvailable())) return;
-    if (mine.signal.aborted) return;
-    // The server forgets an unanswered sign-in after five minutes: offer a
-    // fresh one before then, so a passkey picked late still works.
-    suggestTimer = setTimeout(suggestPasskeys, 4 * 60 * 1000);
-    var begin = await call('/api/passkeys/login/begin', { challenge: pkce });
-    if (mine.signal.aborted) return;
-    var options = begin.options.publicKey;
-    options.challenge = decode(options.challenge);
-    (options.allowCredentials || []).forEach(function (c) { c.id = decode(c.id); });
-    var credential = await navigator.credentials.get({ publicKey: options, mediation: 'conditional', signal: mine.signal });
-    if (mine.signal.aborted || !credential) return;
-    stopSuggesting();
-    busy = true;
-    $('go').disabled = true;
-    $('go').classList.add('loading');
-    try {
-      var result = await call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
-      mode = 'signin';
-      finished(result);
-    } catch (e) {
-      fail((e && e.message) || t('err.generic'));
-      suggestPasskeys();
-    } finally {
-      busy = false;
-      $('go').disabled = false;
-      $('go').classList.remove('loading');
-    }
-  } catch (e) {
-    // Withdrawn for another request, or not possible here: the form works
-    // as it is.
-  }
-}
+// Set once the page has its answer, so nothing redraws over the result.
+var done = false;
 
 // ---- Confirming a new account's address --------------------------------
 // The address the last code went to, and the proof the right code bought. The
@@ -768,14 +733,13 @@ function saving() { return mode === 'signup' && server.verifyEmail && proof !== 
 
 function finished(result) {
   done = true;
-  stopSuggesting();
   var created = mode === 'signup';
   if (result.code) {
     // The code is useless without the verifier only the app that asked holds.
     var back = 'revoked://auth?code=' + encodeURIComponent(result.code) + '&state=' + encodeURIComponent(state);
     redraw = function () {
       show($('emailRow'), false); show($('codeRow'), false); show($('go'), false); show($('other'), false); show($('resend'), false);
-      steps(created ? 99 : 0);
+      steps(created ? STEP_NAMES.length : 0);
       heading(t(created ? 'done.created' : 'done.signedIn'), t(created ? 'done.next' : 'done.returning'), 'check', 'ok');
       $('open').href = back;
       show($('open'), true);
@@ -787,7 +751,7 @@ function finished(result) {
   }
   redraw = function () {
     show($('emailRow'), false); show($('codeRow'), false); show($('go'), false); show($('other'), false); show($('resend'), false);
-    steps(created ? 99 : 0);
+    steps(created ? STEP_NAMES.length : 0);
     heading(t('done.saved'), t('done.savedLead'), 'check', 'ok');
     $('note').textContent = t('done.closeNow');
   };
@@ -816,17 +780,10 @@ function render() {
     action(t('passkey.go'), 'key');
     return;
   }
-  // Passkeys are offered only on the first step of a new account, where
-  // someone who has one may have landed by mistake.
-  if (mode === 'signup' && !confirming() && !saving()) {
-    if (!suggesting) suggestPasskeys();
-  } else {
-    stopSuggesting();
-  }
   if (mode === 'signup') {
     if (saving()) {
       steps(3);
-      heading(t('passkey.title'), t('passkey.lead'), 'key');
+      heading(t('passkey.title'), t('passkey.lead', location.hostname), 'key');
       action(t('passkey.go'), 'key');
       return;
     }
@@ -847,6 +804,7 @@ function render() {
       action(t('signup.create'), 'user-plus');
     }
     $('other').textContent = t('signup.other');
+    $('other').classList.add('link');
     show($('other'), true);
     return;
   }
@@ -858,6 +816,7 @@ function render() {
   heading(t('signin.title'), t('signin.lead'), 'key');
   action(t('signin.go'), 'key');
   if (server.signups) {
+    $('other').classList.remove('link');
     $('other').textContent = t('signin.other');
     show($('other'), true);
   } else {
@@ -878,9 +837,6 @@ $('go').addEventListener('click', async function () {
   $('go').disabled = true;
   $('go').classList.add('loading');
   try {
-    // The offer in the email field yields to this request; browsers need a
-    // moment to let go of it.
-    if (stopSuggesting()) await new Promise(function (r) { setTimeout(r, 50); });
     if (mode === 'signin') {
       finished(await signIn());
     } else if (mode === 'signup' && server.verifyEmail && !proof) {
@@ -912,8 +868,6 @@ $('go').addEventListener('click', async function () {
     busy = false;
     $('go').disabled = false;
     $('go').classList.remove('loading');
-    // Still on the first step: offer the passkeys again.
-    if (!done && mode === 'signup' && !confirming() && !saving()) suggestPasskeys();
   }
 });
 $('email').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });

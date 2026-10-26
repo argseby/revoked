@@ -20,13 +20,14 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
-import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/features/shares/view/access_overview.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
+import 'package:revoked_app/features/shares/utils/recipients.dart';
+import 'package:revoked_app/features/shares/view/recipient_row.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 
 /// Which links the chips above the list let through.
 enum _LinkFilter { all, active, paused, closed }
@@ -34,7 +35,19 @@ enum _LinkFilter { all, active, paused, closed }
 class SharesScreen extends StatefulWidget {
   final String? filterSlug;
 
-  const SharesScreen({super.key, this.filterSlug});
+  /// The link open beside the list, marked in it. Only in a split.
+  final String? selectedId;
+
+  /// The list pane of a split: it keeps its search inside the pane and
+  /// leaves the top bar to the link beside it.
+  final bool embedded;
+
+  const SharesScreen({
+    super.key,
+    this.filterSlug,
+    this.selectedId,
+    this.embedded = false,
+  });
 
   @override
   State<SharesScreen> createState() => _SharesScreenState();
@@ -62,14 +75,37 @@ class _SharesScreenState extends State<SharesScreen> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ShellSlots.title.claim(_title);
-      }
+      _syncTitle();
       Stores.shares.loadShares();
       Stores.bookmarks.load();
       Stores.vault.loadRecords();
       Stores.identities.loadIdentities();
     });
+  }
+
+  @override
+  void didUpdateWidget(SharesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The list outlives navigation in a split, so a new filter ("By person"
+    // opening one recipient's links) arrives here rather than in initState.
+    final slug = widget.filterSlug;
+    if (slug != null && slug != oldWidget.filterSlug) {
+      _table.searchQuery = slug;
+    }
+    if (widget.embedded != oldWidget.embedded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncTitle());
+    }
+  }
+
+  /// Alone, the list's search is the top bar's title; embedded in a split
+  /// it sits in the pane, and the bar belongs to the link beside it.
+  void _syncTitle() {
+    if (!mounted) return;
+    if (widget.embedded) {
+      ShellSlots.title.release(_title);
+    } else {
+      ShellSlots.title.claimFrom(context, _title);
+    }
   }
 
   @override
@@ -90,9 +126,27 @@ class _SharesScreenState extends State<SharesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppTabs(
-      labels: const ['My links', 'Access', 'Bookmarks'],
-      views: [_myLinks(context), const AccessOverview(), const BookmarksTab()],
+    // Access by record moved to the record pages and the Overview, and
+    // links others gave you to Requests › Received.
+    final tabs = AppTabs(
+      labels: const ['Links', 'By person'],
+      views: [_myLinks(context), const _ByPerson()],
+    );
+    if (!widget.embedded) return tabs;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.xs,
+          ),
+          child: Observer(builder: _title),
+        ),
+        Expanded(child: tabs),
+      ],
     );
   }
 
@@ -201,6 +255,7 @@ class _SharesScreenState extends State<SharesScreen> {
               for (final l in links)
                 _LinkRow(
                   share: l,
+                  selected: l.id == widget.selectedId,
                   attention: linkAttention(l, now),
                   onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
                 ),
@@ -260,6 +315,7 @@ class _SharesScreenState extends State<SharesScreen> {
 /// Its flags, slug and actions live on its detail page.
 class _LinkRow extends StatelessWidget {
   final Link share;
+  final bool selected;
   final LinkAttention? attention;
   final VoidCallback onTap;
 
@@ -267,6 +323,7 @@ class _LinkRow extends StatelessWidget {
     required this.share,
     required this.attention,
     required this.onTap,
+    this.selected = false,
   });
 
   @override
@@ -281,10 +338,11 @@ class _LinkRow extends StatelessWidget {
           ? AppIcons.inboxFill
           : AppIcons.link,
       title: share.label,
+      selected: selected,
       subtitle: attention?.reason ?? _summary(),
       trailing: attention != null
           ? AppBadge(label: attention.short, accent: theme.colorScheme.warning)
-          : AppStatusBadge(share.status),
+          : StatusLabel(share.status),
       onTap: onTap,
     );
   }
@@ -315,5 +373,53 @@ class _LinkRow extends StatelessWidget {
       share.viewCount == 0 ? 'not viewed yet' : 'viewed ${share.viewCount}×',
     );
     return parts.join(' · ');
+  }
+}
+
+/// The same links, one row per recipient: who can see the person's data, and
+/// who no longer can.
+class _ByPerson extends StatelessWidget {
+  const _ByPerson();
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (context) {
+        final groups = groupByRecipient(Stores.shares.shares);
+        if (groups.isEmpty) {
+          return const AppEmptyState(
+            icon: AppIcons.lock,
+            title: 'Nobody can see your data',
+            subtitle:
+                'A link gives one person or service the current value of the '
+                'records you choose, until you revoke it. Each recipient '
+                'appears here once.',
+          );
+        }
+        final current = groups.where(recipientHasAccess).toList();
+        final former = groups.where((g) => !recipientHasAccess(g)).toList();
+        return AppListPage(
+          groups: [
+            if (current.isNotEmpty)
+              AppListGroup(
+                title: 'Can see your data',
+                noun: 'recipients',
+                footer: const Text(
+                  'Grouped by link name. A paused link counts until it is '
+                  'revoked.',
+                ),
+                children: [for (final links in current) RecipientRow(links)],
+              ),
+            if (former.isNotEmpty)
+              AppListGroup(
+                title: 'No longer can',
+                noun: 'recipients',
+                collapsed: true,
+                children: [for (final links in former) RecipientRow(links)],
+              ),
+          ],
+        );
+      },
+    );
   }
 }

@@ -2,20 +2,45 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/identity_controls.dart';
+import 'package:revoked_app/core/widgets/app_focus_ring.dart';
+import 'package:revoked_app/core/widgets/app_key_hint.dart';
 import 'package:revoked_app/core/widgets/window_chrome.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
-import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
-import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
+import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
-import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
+import 'package:revoked_app/features/shell/view/new_picker.dart';
 
+/// One of the shell's four places, in the order of `AppRoutes.destinations`.
+class _Destination {
+  final IconData icon;
+  final String label;
+
+  const _Destination(this.icon, this.label);
+}
+
+const _destinations = [
+  _Destination(AppIcons.dashboard, 'Overview'),
+  _Destination(AppIcons.safe, 'Vault'),
+  _Destination(AppIcons.share, 'Shared'),
+  _Destination(AppIcons.inboxFill, 'Requests'),
+];
+
+/// The frame around every signed-in screen.
+///
+/// The same four destinations at every width: a bottom bar on a phone, a
+/// rail on a mid-sized window and a sidebar on a wide one. One "New" button
+/// opens the picker for everything that can be created; search and the
+/// account menu are reachable from every layout.
 class AppShell extends StatefulWidget {
   final Widget child;
 
@@ -26,14 +51,14 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  static const int _settingsIndex = 3;
-
-  int _selectedIndex = 0;
+  /// The destination last shown, so the bottom bar still has one to sit on
+  /// while Settings is open.
+  int _lastDestination = 0;
 
   @override
   void initState() {
     super.initState();
-    // Notifications power the top-bar bell, which is visible on every screen.
+    // Notifications power the bell, which is visible on every screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Stores.notifications.load();
       Stores.notifications.startPolling();
@@ -46,63 +71,10 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith(AppRoutes.vault)) {
-      _selectedIndex = 0;
-    } else if (location.startsWith(AppRoutes.requestData) ||
-        location.startsWith(AppRoutes.requestSheet)) {
-      _selectedIndex = 2; // per-request data/sheet opened from Inbox
-    } else if (location.startsWith(AppRoutes.data) ||
-        location.startsWith(AppRoutes.shares)) {
-      _selectedIndex = 1; // Connections (shares folded in)
-    } else if (location.startsWith(AppRoutes.inbox)) {
-      _selectedIndex = 2;
-    } else if (location.startsWith(AppRoutes.settings)) {
-      _selectedIndex = 3;
-    }
-  }
+  void _go(int index) => context.go(AppRoutes.destinations[index]);
 
-  void _onSelected(int index) {
-    switch (index) {
-      case 0:
-        context.go(AppRoutes.vault);
-      case 1:
-        context.go(AppRoutes.data);
-      case 2:
-        context.go(AppRoutes.inbox);
-      case 3:
-        context.go(AppRoutes.settings);
-    }
-  }
-
-  Widget? _createButton(BuildContext context) {
-    return switch (_selectedIndex) {
-      0 => FloatingActionButton(
-        tooltip: 'Add to your vault',
-        onPressed: () => openVaultCreateSheet(context),
-        child: const Icon(AppIcons.plus),
-      ),
-      1 => FloatingActionButton(
-        tooltip: 'New share link',
-        onPressed: () => openShareCreateSheet(context: context),
-        child: const Icon(AppIcons.plus),
-      ),
-      2 => FloatingActionButton(
-        tooltip: 'New request',
-        onPressed: () => openRequestCreateSheet(
-          context: context,
-          store: Stores.requests,
-          authStore: Stores.auth,
-        ),
-        child: const Icon(AppIcons.plus),
-      ),
-      // Account: nothing to create.
-      _ => null,
-    };
-  }
+  void _openNew(int? destination) =>
+      openNewPicker(context, destination: destination);
 
   /// A control the active screen registered, with the gap that belongs to it —
   /// an unclaimed slot takes no space at all.
@@ -119,66 +91,161 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  /// The screen's own title, or the destination's name while it has none.
+  Widget _title(int? destination) {
+    final fallback = destination == null
+        ? 'Settings'
+        : _destinations[destination].label;
+    return Observer(
+      builder: (context) =>
+          ShellSlots.title.builder?.call(context) ??
+          AppBarTitle(title: fallback),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final destination = AppRoutes.destinationOf(
+      GoRouterState.of(context).uri.path,
+    );
+    if (destination != null) _lastDestination = destination;
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < AppSpacing.narrowWidth) return _narrow(destination);
+    return _wide(destination, sidebar: width >= AppSpacing.wideWidth);
+  }
+
+  Widget _narrow(int? destination) {
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
-      // One create button for the whole shell, dispatching on the active
-      // tab, with the open-a-link button riding above it. Both yield while
-      // any sheet is up, so they never overlap a sheet's actions.
+      // Yields while any sheet is up, so it never overlaps a sheet's actions.
       floatingActionButton: Observer(
         builder: (_) {
-          if (SheetTracker.anyOpen) return const SizedBox.shrink();
-          final create = _createButton(context);
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (create != null) ...[create, AppSpacing.gapMd],
-              FloatingActionButton(
-                heroTag: 'shell-open-link',
-                tooltip: 'Open a link',
-                onPressed: () => openLinkSearchSheet(context),
-                child: const Icon(AppIcons.link),
-              ),
-            ],
+          if (SheetTracker.anyOpen || destination == null) {
+            return const SizedBox.shrink();
+          }
+          return FloatingActionButton.extended(
+            heroTag: 'shell-new',
+            tooltip: 'Create something new',
+            onPressed: () => _openNew(destination),
+            icon: const Icon(AppIcons.plus),
+            label: const Text('New'),
           );
         },
       ),
       appBar: AppBar(
-        titleSpacing: AppSpacing.lg,
-        // The bar carries the screen's own title, which used to cost a row of
-        // the body. The switcher only earns its space on the Settings list,
-        // the one tab that acts on the active workspace; a settings page
-        // claims the slot for its own title and back arrow.
-        title: Observer(
-          builder: (context) =>
-              ShellSlots.title.builder?.call(context) ??
-              (_selectedIndex == _settingsIndex
-                  ? const Row(children: [WorkspaceChip()])
-                  : const SizedBox.shrink()),
+        leadingWidth: AppSpacing.lg + AppButton.normalExtent + AppSpacing.xs,
+        leading: const Padding(
+          padding: EdgeInsets.only(left: AppSpacing.lg, right: AppSpacing.xs),
+          child: Center(child: AccountMenu()),
         ),
+        titleSpacing: AppSpacing.xs,
+        title: _title(destination),
         actions: [
           _slot(ShellSlots.action),
+          AppButton(
+            icon: AppIcons.search,
+            style: AppButtonStyle.accent,
+            tooltip: 'Search or paste a link',
+            onTap: () => openLinkSearchSheet(context),
+          ),
           const _NotificationBell(),
           // The window's own buttons land here, drawn by the shared overlay.
           const WindowControlsGap(),
         ],
       ),
       body: widget.child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onSelected,
-        destinations: const [
-          NavigationDestination(icon: Icon(AppIcons.safe), label: 'Vault'),
-          NavigationDestination(icon: Icon(AppIcons.share), label: 'Links'),
-          NavigationDestination(
-            icon: Icon(AppIcons.inboxFill),
-            label: 'Requests',
+      bottomNavigationBar: _bottomBar(destination),
+    );
+  }
+
+  Widget _bottomBar(int? destination) {
+    final bar = NavigationBar(
+      selectedIndex: destination ?? _lastDestination,
+      onDestinationSelected: _go,
+      destinations: [
+        for (final d in _destinations)
+          NavigationDestination(icon: Icon(d.icon), label: d.label),
+      ],
+    );
+    if (destination != null) return bar;
+    // On Settings none of the four is current, so none looks it.
+    final scheme = Theme.of(context).colorScheme;
+    final theme = NavigationBarTheme.of(context);
+    return NavigationBarTheme(
+      data: theme.copyWith(
+        indicatorColor: Colors.transparent,
+        iconTheme: WidgetStatePropertyAll(
+          IconThemeData(size: 24, color: scheme.onSurfaceVariant),
+        ),
+        labelTextStyle: WidgetStatePropertyAll(
+          TextStyle(
+            fontSize: AppTextSize.small,
+            fontWeight: FontWeight.w500,
+            color: scheme.onSurfaceVariant,
           ),
-          NavigationDestination(
-            icon: Icon(AppIcons.personGear),
-            label: 'Settings',
+        ),
+      ),
+      child: bar,
+    );
+  }
+
+  Widget _wide(int? destination, {required bool sidebar}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (sidebar)
+            _Sidebar(destination: destination, onSelect: _go)
+          else
+            NavigationRail(
+              selectedIndex: destination,
+              onDestinationSelected: _go,
+              labelType: NavigationRailLabelType.all,
+              leading: const Padding(
+                padding: EdgeInsets.only(bottom: AppSpacing.md),
+                child: AccountMenu(),
+              ),
+              destinations: [
+                for (final d in _destinations)
+                  NavigationRailDestination(
+                    icon: Icon(d.icon),
+                    label: Text(d.label),
+                  ),
+              ],
+            ),
+          VerticalDivider(width: 1, thickness: 1, color: scheme.outlineVariant),
+          Expanded(
+            child: Scaffold(
+              appBar: AppBar(
+                titleSpacing: AppSpacing.lg,
+                title: _title(destination),
+                actions: [
+                  _slot(ShellSlots.action),
+                  if (!sidebar)
+                    AppButton(
+                      icon: AppIcons.search,
+                      style: AppButtonStyle.accent,
+                      tooltip: 'Search or paste a link',
+                      onTap: () => openLinkSearchSheet(context),
+                    ),
+                  if (!sidebar) const _NotificationBell(),
+                  // The one primary action, rightmost on every wide layout.
+                  if (destination != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      child: AppButton(
+                        icon: AppIcons.plus,
+                        label: 'New',
+                        tooltip: 'Create something new (N)',
+                        onTap: () => _openNew(destination),
+                      ),
+                    ),
+                  const WindowControlsGap(),
+                ],
+              ),
+              body: widget.child,
+            ),
           ),
         ],
       ),
@@ -186,8 +253,205 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// Top-bar notifications bell with an unread dot. Lives in the global header so
-/// every screen (not just Request) can reach notifications.
+/// The wide layout's navigation: the workspace and account on top, search,
+/// the four destinations, and notifications and settings at the bottom.
+class _Sidebar extends StatelessWidget {
+  final int? destination;
+  final ValueChanged<int> onSelect;
+
+  const _Sidebar({required this.destination, required this.onSelect});
+
+  static const double width = 256;
+
+  @override
+  Widget build(BuildContext context) {
+    final onSettings = GoRouterState.of(
+      context,
+    ).uri.path.startsWith(AppRoutes.settings);
+    return SizedBox(
+      width: width,
+      child: SafeArea(
+        right: false,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const AccountMenu(expanded: true),
+              AppSpacing.gapSm,
+              const _SearchField(),
+              AppSpacing.gapMd,
+              Semantics(
+                container: true,
+                explicitChildNodes: true,
+                label: 'Main navigation',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < _destinations.length; i++)
+                      _SidebarItem(
+                        icon: _destinations[i].icon,
+                        label: _destinations[i].label,
+                        selected: destination == i,
+                        onTap: () => onSelect(i),
+                      ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Observer(
+                builder: (context) {
+                  final unread = Stores.notifications.unreadCount;
+                  return _SidebarItem(
+                    icon: AppIcons.bell,
+                    label: 'Notifications',
+                    semanticsLabel: unread > 0
+                        ? 'Notifications, $unread unread'
+                        : 'Notifications',
+                    trailing: unread > 0
+                        ? AppBadge(
+                            label: '$unread',
+                            variant: AppBadgeVariant.primary,
+                          )
+                        : null,
+                    onTap: () => openNotificationsSheet(context),
+                  );
+                },
+              ),
+              _SidebarItem(
+                icon: AppIcons.personGear,
+                label: 'Settings',
+                selected: onSettings,
+                onTap: () => context.go(AppRoutes.settings),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Looks like a field, opens the search and link drawer. `/` opens it too.
+class _SearchField extends StatelessWidget {
+  const _SearchField();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      label: 'Search or paste a link',
+      excludeSemantics: true,
+      child: AppFocusRing(
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: () => openLinkSearchSheet(context),
+            borderRadius: AppRadius.allMd,
+            child: Container(
+              height: AppSpacing.minTarget,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              // Looks like a field, so it has a field's edge.
+              decoration: BoxDecoration(
+                borderRadius: AppRadius.allMd,
+                border: Border.all(color: scheme.outline),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    AppIcons.search,
+                    size: 18,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  AppSpacing.gapSm,
+                  const Expanded(
+                    child: AppText(
+                      'Search or paste a link',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const AppKeyHint('/'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? semanticsLabel;
+  final bool selected;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  const _SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.semanticsLabel,
+    this.selected = false,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = selected ? scheme.onSurface : scheme.onSurfaceVariant;
+    final text = AppText(label, maxLines: 1, overflow: TextOverflow.ellipsis);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xxs),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        label: semanticsLabel ?? label,
+        excludeSemantics: true,
+        child: AppFocusRing(
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: AppRadius.allMd,
+              child: Container(
+                height: AppSpacing.minTarget,
+                padding: const EdgeInsets.only(right: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: selected ? scheme.secondaryContainer : null,
+                  borderRadius: AppRadius.allMd,
+                ),
+                child: Row(
+                  children: [
+                    // The current place is marked by more than a tint: an
+                    // ink bar, the bold label and the darker icon.
+                    Container(
+                      width: 3,
+                      height: AppSpacing.xl,
+                      color: selected ? scheme.primary : Colors.transparent,
+                    ),
+                    const SizedBox(width: AppSpacing.md - 3),
+                    Icon(icon, size: 20, color: foreground),
+                    AppSpacing.gapMd,
+                    Expanded(child: selected ? text.bold : text),
+                    ?trailing,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Top-bar notifications bell with an unread dot, on layouts without the
+/// sidebar.
 class _NotificationBell extends StatelessWidget {
   const _NotificationBell();
 
@@ -203,7 +467,9 @@ class _NotificationBell extends StatelessWidget {
             AppButton(
               icon: AppIcons.bell,
               style: AppButtonStyle.accent,
-              tooltip: 'Notifications',
+              tooltip: unread > 0
+                  ? 'Notifications, $unread unread'
+                  : 'Notifications',
               onTap: () => openNotificationsSheet(context),
             ),
             if (unread > 0)

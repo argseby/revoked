@@ -75,7 +75,7 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
     return AppBarTitle(
       title: _requestLabel(),
       badgeLabel: '$count ${count == 1 ? 'responder' : 'responders'}',
-      onBack: () => context.go(AppRoutes.inbox),
+      onBack: () => context.go(AppRoutes.requests),
     );
   }
 
@@ -106,8 +106,8 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
         if (v == current) return;
         context.go(
           v == 0
-              ? '${AppRoutes.requestData}?requestId=$requestId'
-              : '${AppRoutes.requestSheet}?requestId=$requestId',
+              ? AppRoutes.requestDataFor(requestId)
+              : AppRoutes.requestSheetFor(requestId),
         );
       },
     );

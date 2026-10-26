@@ -3,6 +3,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
 
 /// How much weight a button carries. A control that is neither the screen's
 /// main action nor destructive is [accent]. [ghost] has no fill of its own and
@@ -40,8 +41,11 @@ class AppButton extends StatelessWidget {
   /// Height of a button at each size. Exposed so surfaces that sit a button
   /// next to plain text can reserve the same height whether or not a button is
   /// actually there, instead of collapsing to the text's own height.
-  static const double normalExtent = 40;
-  static const double smallExtent = 32;
+  ///
+  /// 44 and 36 so a button is easy to hit; a small one sits inline in a row
+  /// where the row itself carries the full 48.
+  static const double normalExtent = 44;
+  static const double smallExtent = 36;
 
   const AppButton({
     super.key,
@@ -74,7 +78,7 @@ class AppButton extends StatelessWidget {
         scheme.secondaryContainer,
         scheme.onSecondaryContainer,
       ),
-      AppButtonStyle.destructive => (scheme.error, scheme.onError),
+      AppButtonStyle.destructive => (scheme.dangerFill, scheme.onDangerFill),
       AppButtonStyle.ghost => (Colors.transparent, scheme.onSurfaceVariant),
     };
 
@@ -105,22 +109,39 @@ class AppButton extends StatelessWidget {
     final button = FilledButton(
       onPressed: busy ? null : onTap,
       onLongPress: busy ? null : onLongPress,
-      style: FilledButton.styleFrom(
-        backgroundColor: background,
-        foregroundColor: foreground,
-        disabledBackgroundColor: scheme.onSurface.withValues(alpha: 0.12),
-        disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.38),
-        elevation: 0,
-        minimumSize: Size(iconOnly ? extent : 0, extent),
-        padding: iconOnly
-            ? EdgeInsets.zero
-            : EdgeInsets.symmetric(
-                horizontal: small ? AppSpacing.md : AppSpacing.lg,
-              ),
-        shape: const RoundedRectangleBorder(borderRadius: AppRadius.allMd),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.standard,
-      ),
+      style:
+          FilledButton.styleFrom(
+            backgroundColor: background,
+            foregroundColor: foreground,
+            disabledBackgroundColor: scheme.onSurface.withValues(alpha: 0.12),
+            disabledForegroundColor: scheme.onSurface.withValues(alpha: 0.38),
+            elevation: 0,
+            minimumSize: Size(iconOnly ? extent : 0, extent),
+            padding: iconOnly
+                ? EdgeInsets.zero
+                : EdgeInsets.symmetric(
+                    horizontal: small ? AppSpacing.md : AppSpacing.lg,
+                  ),
+            shape: const RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.standard,
+          ).copyWith(
+            // Keyboard focus: a 2 px accent ring just outside the fill, the same
+            // ring `AppFocusRing` draws around rows.
+            // A tonal button sits close to the page in dark mode, so it keeps
+            // a hairline edge as well.
+            side: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.focused)
+                  ? BorderSide(
+                      color: scheme.accent,
+                      width: 2,
+                      strokeAlign: BorderSide.strokeAlignOutside,
+                    )
+                  : style == AppButtonStyle.accent
+                  ? BorderSide(color: scheme.outlineVariant)
+                  : null,
+            ),
+          ),
       child: content,
     );
 

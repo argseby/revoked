@@ -92,7 +92,7 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
 
   void _leave() {
     Stores.credentials.clearOffer();
-    context.go(AppRoutes.vault);
+    context.go(AppRoutes.overview);
   }
 
   @override

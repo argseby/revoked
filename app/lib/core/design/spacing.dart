@@ -25,9 +25,15 @@ abstract class AppSpacing {
   static const SizedBox gapXl = SizedBox(height: xl, width: xl);
   static const SizedBox gapXxl = SizedBox(height: xxl, width: xxl);
 
-  /// The one breakpoint in the app: below this a layout is a phone layout and
-  /// stacks what a wider window puts side by side.
+  /// Below this a layout is a phone layout and stacks what a wider window
+  /// puts side by side; the shell shows a bottom bar.
   static const double narrowWidth = 600;
+
+  /// The smallest a control may be to touch, in both directions.
+  static const double minTarget = 48;
+
+  /// From this width the shell shows the full sidebar instead of a rail.
+  static const double wideWidth = 1024;
 
   static bool isNarrow(BuildContext context) =>
       MediaQuery.sizeOf(context).width < narrowWidth;

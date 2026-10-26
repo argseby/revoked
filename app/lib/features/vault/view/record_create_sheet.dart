@@ -51,20 +51,26 @@ const _pickerRowPadding = EdgeInsets.symmetric(
 
 /// The record form on its own, for the vault's combined create drawer: the
 /// same form, minus the title the drawer already carries.
-Widget recordCreateForm({required BuildContext parentContext}) =>
-    _RecordCreateDrawer(
-      parentContext: parentContext,
-      store: Stores.vault,
-      authStore: Stores.auth,
-      initialRecord: null,
-      embedded: true,
-    );
+Widget recordCreateForm({
+  required BuildContext parentContext,
+  String? initialType,
+}) => _RecordCreateDrawer(
+  parentContext: parentContext,
+  store: Stores.vault,
+  authStore: Stores.auth,
+  initialRecord: null,
+  initialType: initialType,
+  embedded: true,
+);
 
 class _RecordCreateDrawer extends StatefulWidget {
   final BuildContext parentContext;
   final VaultStore store;
   final AuthStore authStore;
   final models.Record? initialRecord;
+
+  /// The type a new record starts as; the form's own default when null.
+  final String? initialType;
 
   /// Rendered inside a drawer that already has a title and its own tabs.
   final bool embedded;
@@ -74,6 +80,7 @@ class _RecordCreateDrawer extends StatefulWidget {
     required this.store,
     required this.authStore,
     required this.initialRecord,
+    this.initialType,
     this.embedded = false,
   });
 
@@ -98,6 +105,9 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       }
     }
     _store.startRecordDraft(from: r, sectionId: sectionId);
+    if (r == null && widget.initialType != null) {
+      _store.setRecordType(widget.initialType!);
+    }
     if (r != null) {
       // Defer key validation until after first build so the warning shows.
       WidgetsBinding.instance.addPostFrameCallback((_) {

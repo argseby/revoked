@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 
 /// Flexible leading/title/subtitle/trailing row. Replaces shadcn's `Basic`
 /// layout widget. Unlike Material's [ListTile] it imposes no fixed height or
@@ -70,6 +71,8 @@ class AppTile extends StatelessWidget {
     );
 
     if (onTap == null) return row;
-    return InkWell(onTap: onTap, borderRadius: AppRadius.allMd, child: row);
+    return AppFocusRing(
+      child: InkWell(onTap: onTap, borderRadius: AppRadius.allMd, child: row),
+    );
   }
 }

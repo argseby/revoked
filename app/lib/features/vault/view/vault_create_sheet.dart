@@ -15,10 +15,12 @@ enum VaultCreateTab { record, section, template }
 /// floating button opens the form itself rather than a menu asking which form
 /// to open — the same two forms the duplicate actions open on their own.
 /// [initialTab] lets a caller that already knows (the empty vault's "From
-/// template") open on the right form.
+/// template") open on the right form. [recordType] preselects the record
+/// form's type, such as `file` for the New picker's "File".
 void openVaultCreateSheet(
   BuildContext context, {
   VaultCreateTab initialTab = VaultCreateTab.record,
+  String? recordType,
 }) {
   showAppSheet(
     context: context,
@@ -54,7 +56,10 @@ void openVaultCreateSheet(
               labels: const ['Record', 'Section', 'From template'],
               initialIndex: initialTab.index,
               views: [
-                recordCreateForm(parentContext: context),
+                recordCreateForm(
+                  parentContext: context,
+                  initialType: recordType,
+                ),
                 sectionCreateForm(parentContext: context),
                 templateFillForm(parentContext: context),
               ],

@@ -2,6 +2,8 @@
     <!-- Declared here, not only in the debug/profile manifests: without it a
          release build installs and renders but every request fails. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Fingerprint or face before approving a sign-in at a service. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
 
     <application
         android:label="Revoked"

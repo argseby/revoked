@@ -175,15 +175,61 @@ class AppDetailPage extends StatelessWidget {
   final AppDetailHeader header;
   final List<Widget> sections;
 
+  /// What supports the main sections — details, deletion. On a wide window
+  /// it stands in a column of its own on the right; otherwise it follows the
+  /// main sections.
+  final List<Widget> aside;
+
   const AppDetailPage({
     super.key,
     required this.header,
     required this.sections,
+    this.aside = const [],
   });
+
+  /// The width a page needs before its [aside] gets a column of its own. By
+  /// the room the page has, not the window: beside a list in a split, a wide
+  /// window still leaves a narrow page.
+  static const double twoColumnWidth = 760;
 
   @override
   Widget build(BuildContext context) {
-    return AppPageBody(children: [header, ...sections]);
+    if (aside.isEmpty) {
+      return AppPageBody(children: [header, ...sections]);
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth >= twoColumnWidth
+          ? _twoColumns()
+          : AppPageBody(children: [header, ...sections, ...aside]),
+    );
+  }
+
+  Widget _twoColumns() {
+    return AppPageBody(
+      children: [
+        header,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: sections,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xxl),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: aside,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 
@@ -192,7 +238,10 @@ class AppDetailPage extends StatelessWidget {
 class AppDetailManage extends StatelessWidget {
   final List<Widget> actions;
 
-  const AppDetailManage({super.key, required this.actions});
+  /// What ending or removing it also ends, said before anyone presses it.
+  final String? note;
+
+  const AppDetailManage({super.key, required this.actions, this.note});
 
   @override
   Widget build(BuildContext context) {
@@ -200,6 +249,7 @@ class AppDetailManage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const AppListHeader(title: 'Manage'),
+        if (note != null) ...[Text(note!).small.muted, AppSpacing.gapSm],
         Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,

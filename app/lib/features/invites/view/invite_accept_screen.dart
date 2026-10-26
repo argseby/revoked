@@ -64,7 +64,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
         context,
         'You joined ${Stores.invites.acceptPreview?.workspaceName ?? 'the workspace'}.',
       );
-      context.go(AppRoutes.vault);
+      context.go(AppRoutes.overview);
     } catch (e) {
       if (!mounted) return;
       final err = AppErrorMessage.fromException(e);
@@ -141,7 +141,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                 AppButton(
                   icon: AppIcons.arrowLeft,
                   label: 'Back',
-                  onTap: () => context.go(AppRoutes.vault),
+                  onTap: () => context.go(AppRoutes.overview),
                 ),
               ],
             ),
@@ -260,7 +260,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
         AppSpacing.gapSm,
         AppButton(
           label: 'Not now',
-          onTap: () => context.go(AppRoutes.vault),
+          onTap: () => context.go(AppRoutes.overview),
           style: AppButtonStyle.accent,
         ),
       ],

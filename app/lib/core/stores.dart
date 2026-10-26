@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
+import 'package:revoked_app/core/services/device_unlock.dart';
 import 'package:revoked_app/core/services/domain_verification_service.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
 import 'package:revoked_app/core/services/workspace_context.dart';
@@ -16,6 +17,7 @@ import 'package:revoked_app/features/attestations/store/credentials_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/store/server_settings_store.dart';
 import 'package:revoked_app/features/bookmarks/store/bookmarks_store.dart';
+import 'package:revoked_app/features/connections/sign_in_approval.dart';
 import 'package:revoked_app/features/connections/store/connections_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
@@ -39,6 +41,8 @@ abstract final class Stores {
   static late final CryptoService crypto;
   static late final HandshakeService handshake;
   static late final DomainVerificationService domainVerification;
+  static late final DeviceUnlock deviceUnlock;
+  static late final SignInApproval signInApproval;
   static const WorkspaceContext workspaceContext = WorkspaceContext();
 
   static late final ThemeStore theme;
@@ -63,8 +67,12 @@ abstract final class Stores {
   static late final LinkSearchStore linkSearch;
   static late final OnboardingStore onboarding;
 
-  /// [httpClient] replaces the network, for tests that play a server.
-  static Future<void> init({http.Client? httpClient}) async {
+  /// [httpClient] replaces the network, for tests that play a server, and
+  /// [unlock] the system's fingerprint, face or PIN prompt.
+  static Future<void> init({
+    http.Client? httpClient,
+    DeviceUnlock? unlock,
+  }) async {
     api = ApiClient(httpClient: httpClient);
     await api.loadServerConfig();
 
@@ -103,6 +111,8 @@ abstract final class Stores {
     templates = TemplatesStore(api);
     apiKeys = ApiKeysStore(api);
     identities = IdentitiesStore(api, crypto);
+    deviceUnlock = unlock ?? SystemDeviceUnlock();
+    signInApproval = SignInApproval(api, crypto, identities, deviceUnlock);
     credentials = CredentialsStore(api, crypto, handshake, domainVerification);
     attestations = AttestationsStore(api);
     notifications = NotificationsStore(api);

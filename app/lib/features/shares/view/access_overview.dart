@@ -17,8 +17,25 @@ import 'package:revoked_app/features/shares/utils/record_access.dart';
 /// Who has which of the owner's data: every vault record someone else can
 /// read right now, with how many open links, request answers and tools
 /// reach it. A record opens its own page, which lists them and revokes them.
-class AccessOverview extends StatelessWidget {
+///
+/// Loads what it is built from when nothing is loaded yet, so it can stand on
+/// the Overview as well as under Shared.
+class AccessOverview extends StatefulWidget {
   const AccessOverview({super.key});
+
+  @override
+  State<AccessOverview> createState() => _AccessOverviewState();
+}
+
+class _AccessOverviewState extends State<AccessOverview> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Stores.shares.shares.isEmpty) Stores.shares.loadShares();
+      if (Stores.vault.records.isEmpty) Stores.vault.loadRecords();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

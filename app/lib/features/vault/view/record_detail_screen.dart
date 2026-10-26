@@ -33,6 +33,8 @@ import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/record_edit_sheet.dart';
+import 'package:revoked_app/core/widgets/redacted_value.dart';
+import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 
 /// One vault record, opened from the Vault list: its value, which links hand
 /// it out, where it is filed, and the actions on it.
@@ -113,14 +115,30 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           );
         }
 
+        final openAccess = accessForRecord(
+          record.id,
+          links: Stores.shares.shares,
+          sections: Stores.vault.sections,
+          records: Stores.vault.records,
+        ).where((a) => a.isOpen).length;
         return AppDetailPage(
           header: _header(context, record),
           sections: [
             _valueSection(record),
             _sharedIn(context, record),
             _reminders(context, record),
+          ],
+          aside: [
             _details(record),
             AppDetailManage(
+              note: openAccess == 0
+                  ? null
+                  : '$openAccess open '
+                        '${openAccess == 1 ? 'link shows' : 'links show'} '
+                        'this record. Deleting it takes it out of '
+                        '${openAccess == 1 ? 'that link' : 'them'}; the '
+                        '${openAccess == 1 ? 'link stays' : 'links stay'} '
+                        'open.',
               actions: [
                 AppButton(
                   icon: AppIcons.trash,
@@ -219,7 +237,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       rows = [
         _ValueRow(
           icon: AppIcons.fileEarmark,
-          text: hidden ? '••••••••••••' : r.displayName,
+          text: r.displayName,
           masked: r.isHidden ? hidden : null,
           onToggle: toggle,
         ),
@@ -232,7 +250,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       rows = [
         _ValueRow(
           icon: RecordTypeUtils.icon(r.type),
-          text: hidden ? '••••••••••••••••' : (value.isEmpty ? '—' : value),
+          text: value.isEmpty ? '—' : value,
           masked: r.isHidden ? hidden : null,
           onToggle: toggle,
         ),
@@ -269,6 +287,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     );
     final open = access.where((a) => a.isOpen).toList();
     final closed = access.length - open.length;
+    final rowActions = !AppSpacing.isNarrow(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -277,7 +296,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           title: 'Who can see this',
           noun: 'links',
           previewCount: 5,
-          trailing: open.isEmpty
+          // Wide, each row has its own button, so the header only offers to
+          // revoke several at once. On a phone the rows have no room for one.
+          trailing: open.isEmpty || (rowActions && open.length == 1)
               ? const SizedBox.shrink()
               : AppButton(
                   icon: AppIcons.xCircle,
@@ -318,7 +339,24 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       },
                       title: a.link.label,
                       subtitle: '${a.audience} · ${a.route}',
-                      trailing: AppStatusBadge(a.link.status),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          StatusLabel(a.link.status),
+                          if (a.isOpen && rowActions) ...[
+                            AppSpacing.gapXs,
+                            AppButton(
+                              icon: AppIcons.shieldSlash,
+                              label: a.kind == AccessKind.requestAnswer
+                                  ? 'Withdraw'
+                                  : 'Revoke',
+                              style: AppButtonStyle.ghost,
+                              size: AppButtonSize.small,
+                              onTap: () => _confirmRevokeAll(context, r, [a]),
+                            ),
+                          ],
+                        ],
+                      ),
                       onTap: () =>
                           context.go(AppRoutes.shareDetailFor(a.link.id)),
                     ),
@@ -561,7 +599,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       context: context,
       title: 'Delete record',
       message:
-          'This action cannot be undone. This will permanently delete the record.',
+          'This cannot be undone. Links that show this record no longer '
+          'show it; the links themselves stay open.',
       content: ApiPreview(
         spec: VaultStore.deleteRecordSpec(r.id),
         title: 'API request · delete',
@@ -607,7 +646,16 @@ class _ValueRow extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: scheme.onSurfaceVariant),
           AppSpacing.gapMd,
-          Expanded(child: AppText(text, maxLines: 6).mono),
+          Expanded(
+            child: masked ?? false
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: RedactionBar(
+                      width: (text.length * 9.0).clamp(48.0, 240.0),
+                    ),
+                  )
+                : AppText(text, maxLines: 6).mono,
+          ),
           if (masked != null) ...[
             AppSpacing.gapSm,
             Tooltip(
@@ -624,10 +672,17 @@ class _ValueRow extends StatelessWidget {
     );
     if (onToggle == null) return row;
     // Square like every row in a card; the card's clip rounds the ends.
-    return InkWell(
-      onTap: onToggle,
-      borderRadius: BorderRadius.zero,
-      child: row,
+    return Semantics(
+      button: true,
+      label: masked! ? 'Hidden value. Show' : 'Hide value',
+      child: AppFocusRing(
+        borderRadius: BorderRadius.zero,
+        child: InkWell(
+          onTap: onToggle,
+          borderRadius: BorderRadius.zero,
+          child: row,
+        ),
+      ),
     );
   }
 }

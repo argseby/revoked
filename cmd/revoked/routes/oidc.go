@@ -177,9 +177,11 @@ func oidcIssuer(re *core.RequestEvent, root *server.RootKey) string {
 
 // oidcForwarded are the authorization request parameters the page passes on
 // to the app. Anything else is dropped, as the app drops it too.
+// revoked_return=background is for the app alone: the service waits for the
+// answer on the page that asked, so the app hands it over without a browser.
 var oidcForwarded = []string{
 	"client_id", "redirect_uri", "response_type", "scope", "state", "nonce",
-	"code_challenge", "code_challenge_method", "claims", "prompt",
+	"code_challenge", "code_challenge_method", "claims", "prompt", "revoked_return",
 }
 
 // errOIDCClient means a request whose service or redirect address did not

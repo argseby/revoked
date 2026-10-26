@@ -734,7 +734,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         if (context.canPop()) {
           context.pop();
         } else {
-          context.go(AppRoutes.vault);
+          context.go(AppRoutes.overview);
         }
       },
       // Which account and workspace the answer is given as, with a switcher.
@@ -867,7 +867,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           icon: AppIcons.check,
           label: 'Done',
           style: AppButtonStyle.accent,
-          onTap: () => context.go(AppRoutes.vault),
+          onTap: () => context.go(AppRoutes.overview),
         ),
       ],
     );

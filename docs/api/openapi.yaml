@@ -1880,6 +1880,13 @@ paths:
           description: |
             JSON. `{"userinfo": {"revoked_links": {"values": ["shipping_address"]}}}`
             asks for vault entries by key, at most 20.
+        - name: revoked_return
+          in: query
+          schema: { type: string, enum: [background] }
+          description: |
+            For the app alone. `background`: the service's page waits for the
+            result, so the app hands the answer over itself, without a
+            browser, and shows the check code derived from `code_challenge`.
       responses:
         "200":
           description: The page that opens the Revoked app with the request.

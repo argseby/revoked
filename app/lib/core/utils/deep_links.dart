@@ -35,7 +35,8 @@ import 'package:revoked_app/core/models/tool_client.dart';
 ///   `revoked://connect?client=…&redirect=…&state=…&challenge=…` -> `/connect?…`
 ///
 /// A service signing its user in with Revoked, without knowing their server:
-/// the app opens the authorization page of the server it is signed into.
+/// the app opens the request on the server it is signed into, and the person
+/// approves it here.
 ///
 ///   `revoked://signin?client_id=…&redirect_uri=…&code_challenge=…` -> `/signin?…`
 ///

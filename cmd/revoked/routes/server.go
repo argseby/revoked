@@ -42,6 +42,14 @@ func ServerInfoRoute(app core.App, root *server.RootKey) {
 				"attestations": map[string]any{
 					"issuing": util.AttestationsAllowed(),
 				},
+				// Operator policy too: whether anyone may make an account here,
+				// and whether a new one confirms its address with a mailed code.
+				// The app tells someone how many steps sign-up takes before
+				// sending them to the passkey page, which knows the same.
+				"signups": map[string]any{
+					"open":        util.SignupsAllowed(),
+					"verifyEmail": util.SignupEmailVerification(),
+				},
 			})
 		})
 		return e.Next()

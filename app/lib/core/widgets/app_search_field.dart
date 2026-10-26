@@ -8,6 +8,7 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 
 /// The search box in the top bar of a list tab, bound to the list's
 /// [TableStore]. A compact pill rather than a form field: it sits where the
@@ -75,7 +76,7 @@ class _AppSearchFieldState<T> extends State<AppSearchField<T>> {
         child: TextField(
           controller: _text,
           textAlignVertical: TextAlignVertical.center,
-          style: const TextStyle(fontSize: 14),
+          style: const TextStyle(fontSize: AppTextSize.body),
           decoration: InputDecoration(
             hintText: widget.hint,
             isDense: true,

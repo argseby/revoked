@@ -479,7 +479,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         status: 'declined',
       );
     }
-    if (context.mounted) context.go(AppRoutes.vault);
+    if (context.mounted) context.go(AppRoutes.overview);
   }
 
   @override
@@ -602,7 +602,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             label: 'Done',
             icon: AppIcons.check,
             style: AppButtonStyle.accent,
-            onTap: () => context.go(AppRoutes.data),
+            onTap: () => context.go(AppRoutes.shared),
           ),
       ],
     );

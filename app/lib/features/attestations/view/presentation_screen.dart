@@ -117,7 +117,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
     ).catchError((Object _) => false);
   }
 
-  void _leave() => context.go(AppRoutes.vault);
+  void _leave() => context.go(AppRoutes.overview);
 
   @override
   Widget build(BuildContext context) {

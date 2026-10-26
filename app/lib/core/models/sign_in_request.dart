@@ -6,8 +6,8 @@ import 'package:revoked_app/core/models/tool_client.dart';
 ///
 /// The parameters are those of an OpenID Connect authorization request, none
 /// of which depend on the server. The app knows the server — the one it is
-/// signed into — and opens that server's authorization page with them, in the
-/// browser. The server's answer names itself (`iss`), which is how the
+/// signed into — and opens the request there itself; the person decides in
+/// the app. The server's answer names itself (`iss`), which is how the
 /// service learns where the person signed in.
 ///
 /// Everything here arrives in a link anyone could have built. It is checked
@@ -20,17 +20,25 @@ class SignInRequest {
   /// Where the answer goes; on [clientId]'s origin.
   final String redirectUri;
 
-  /// Every parameter that travels on to the authorization page.
+  /// Every parameter that travels on to the server.
   final Map<String, String> params;
+
+  /// Whether the service waits for the answer on the page that asked
+  /// (`revoked_return=background`). The app then hands the answer over
+  /// itself, with no browser in between, and the person compares the
+  /// [checkCode] that page shows: the page may be on another device, or in
+  /// a browser other than the default one.
+  final bool background;
 
   const SignInRequest._({
     required this.clientId,
     required this.redirectUri,
     required this.params,
+    required this.background,
   });
 
   /// The authorization request parameters a link may carry. Anything else is
-  /// dropped, so the page never receives a parameter nothing here looked at.
+  /// dropped, so the server never receives a parameter nothing here looked at.
   static const forwarded = [
     'client_id',
     'redirect_uri',
@@ -42,7 +50,11 @@ class SignInRequest {
     'code_challenge_method',
     'claims',
     'prompt',
+    returnParam,
   ];
+
+  /// Says how the answer goes back; only the app reads it.
+  static const returnParam = 'revoked_return';
 
   /// Reads a request from a link's query, or null when it is not one the
   /// server could accept: the service must be an origin, the answer must go
@@ -72,18 +84,15 @@ class SignInRequest {
       clientId: client,
       redirectUri: redirect,
       params: params,
+      background: params[returnParam] == 'background',
     );
   }
 
   Map<String, String> toQuery() => Map.of(params);
 
-  /// The authorization page on [serverBase], the server the app is signed
-  /// into, with this request's parameters.
-  Uri authorizeUri(String serverBase) {
-    final base = Uri.parse(serverBase);
-    return base.replace(path: '/oidc/authorize', queryParameters: params);
-  }
-
   /// The service's host, for showing who is asking.
   String get clientHost => Uri.parse(clientId).host;
+
+  /// The PKCE challenge, which the check code is derived from.
+  String get challenge => params['code_challenge'] ?? '';
 }

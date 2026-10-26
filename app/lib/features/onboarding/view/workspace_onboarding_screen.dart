@@ -17,11 +17,18 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
+import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/features/auth/signup_steps.dart';
 
 /// First run: an account has no workspace until it either creates one or joins
-/// one. Creating comes first, with both names already suggested, so someone
-/// arriving from a tool is one tap away from where they were going; joining
-/// with an invite key is a link below it.
+/// one. Creating comes first and asks one thing, the name others see; the
+/// workspace is called "Personal" unless renamed here, so someone arriving
+/// from a tool is one tap away from where they were going. Joining with an
+/// invite key is a link below it.
+///
+/// Right after creating an account this is the last of its steps, and says
+/// so with the same counter the passkey page showed.
 class WorkspaceOnboardingScreen extends StatefulWidget {
   const WorkspaceOnboardingScreen({super.key});
 
@@ -32,6 +39,9 @@ class WorkspaceOnboardingScreen extends StatefulWidget {
 
 class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   OnboardingStore get _store => Stores.onboarding;
+
+  /// Whether the workspace name is open for editing; it starts as a line.
+  final Local<bool> _renaming = Local(false);
 
   String get _token => DeepLinks.inviteTokenFrom(_store.keyController.text);
 
@@ -117,7 +127,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     if (mounted) {
       final next = ResumeLocation.take();
       if (next == null) AppToast.success(context, 'You are all set.');
-      context.go(next ?? AppRoutes.vault);
+      context.go(next ?? AppRoutes.overview);
     }
     _store.finish();
   }
@@ -129,39 +139,61 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
 
   Widget _build(BuildContext context) {
     final next = ResumeLocation.describe();
+    final creating = _store.choice == OnboardingChoice.create;
+    final total = SignupSteps.count;
     return Scaffold(
-      appBar: AppBar(
-        title: const AppText('Set up your workspace', header: true),
-        automaticallyImplyLeading: false,
-      ),
       body: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.all(AppSpacing.screenH(context)),
-          children: [
-            Text(
-              'A workspace holds your vault, shares and requests. '
-              'We suggested names below - keep them or change them.',
-            ).muted.small,
-            AppSpacing.gapLg,
-            if (next != null) ...[
-              AppAlert(
-                leading: const Icon(AppIcons.info),
-                title: const Text('One step left'),
-                content: Text(next).small,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(AppSpacing.screenH(context)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (Stores.auth.createdAccount && creating) ...[
+                    _StepBar(step: total, total: total),
+                    AppSpacing.gapXs,
+                    AppText('Step $total of $total · last step').small.muted,
+                    AppSpacing.gapLg,
+                  ],
+                  Semantics(
+                    header: true,
+                    child: AppText(
+                      creating ? 'What should people see?' : 'Join a workspace',
+                    ).title,
+                  ),
+                  AppSpacing.gapSm,
+                  Text(
+                    creating
+                        ? 'Your name goes with what you share and request, so '
+                              'others know it is you.'
+                        : 'Paste the invite key you were given. You see what '
+                              'it grants, and who sent it, before you join.',
+                  ).muted,
+                  AppSpacing.gapXl,
+                  if (next != null) ...[
+                    AppAlert(
+                      leading: const Icon(AppIcons.info),
+                      title: const Text('One step left'),
+                      content: Text(next).small,
+                    ),
+                    AppSpacing.gapMd,
+                  ],
+                  if (_store.error != null) ...[
+                    AppAlert(
+                      destructive: true,
+                      title: const Text('That did not work'),
+                      content: Text(_store.error!).small,
+                    ),
+                    AppSpacing.gapMd,
+                  ],
+                  if (creating) ..._createForm(),
+                  if (_store.choice == OnboardingChoice.join) ..._joinForm(),
+                ],
               ),
-              AppSpacing.gapMd,
-            ],
-            if (_store.error != null) ...[
-              AppAlert(
-                destructive: true,
-                title: const Text('That did not work'),
-                content: Text(_store.error!).small,
-              ),
-              AppSpacing.gapMd,
-            ],
-            if (_store.choice == OnboardingChoice.create) ..._createForm(),
-            if (_store.choice == OnboardingChoice.join) ..._joinForm(),
-          ],
+            ),
+          ),
         ),
       ),
     );
@@ -169,25 +201,49 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
 
   List<Widget> _createForm() => [
     AppTextField(
-      controller: _store.nameController,
-      label: 'Workspace name',
-      hint: 'e.g. Personal, Family or Acme',
-    ),
-    AppSpacing.gapMd,
-    AppTextField(
       controller: _store.identityNameController,
       label: 'Your name',
       hint: 'e.g. Ada Lovelace',
+      autofocus: true,
     ),
     AppSpacing.gapXxs,
     const Text(
-      'This is the name on your signing identity — everyone you share with or '
-      'request from sees it.',
+      'Suggested from your email. You can change it later in Settings.',
     ).muted.small,
     AppSpacing.gapLg,
+    if (_renaming.value)
+      AppTextField(
+        controller: _store.nameController,
+        label: 'Workspace name',
+        hint: 'e.g. Personal, Family or Acme',
+      )
+    else
+      Row(
+        children: [
+          const Text('Workspace').muted,
+          AppSpacing.gapSm,
+          Expanded(
+            child: AppText(
+              _store.nameController.text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ).bold,
+          ),
+          AppButton(
+            icon: AppIcons.pencil,
+            label: 'Rename',
+            style: AppButtonStyle.ghost,
+            size: AppButtonSize.small,
+            onTap: _store.isBusy ? null : () => _renaming.value = true,
+          ),
+        ],
+      ),
+    AppSpacing.gapXxs,
+    const Text('Holds your vault, your links and your requests.').muted.small,
+    AppSpacing.gapXl,
     AppButton(
-      icon: AppIcons.plus,
-      label: _store.isBusy ? 'Creating…' : 'Create workspace',
+      icon: AppIcons.check,
+      label: _store.isBusy ? 'Setting up…' : 'Finish',
       onTap:
           _store.isBusy ||
               _store.nameController.text.trim().isEmpty ||
@@ -195,7 +251,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
           ? null
           : _createWorkspace,
     ),
-    AppSpacing.gapXl,
+    AppSpacing.gapLg,
     Center(
       child: AppButton(
         icon: AppIcons.key,
@@ -284,4 +340,36 @@ String _slugify(String value) {
       .replaceAll(RegExp(r'^-+|-+$'), '');
   final suffix = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
   return base.isEmpty ? 'workspace-$suffix' : '$base-$suffix';
+}
+
+/// The sign-up counter, as the passkey page draws it: one segment per step,
+/// filled up to [step].
+class _StepBar extends StatelessWidget {
+  final int step;
+  final int total;
+
+  const _StepBar({required this.step, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ExcludeSemantics(
+      child: Row(
+        children: [
+          for (var i = 1; i <= total; i++) ...[
+            if (i > 1) AppSpacing.gapXxs,
+            Expanded(
+              child: Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  color: i <= step ? scheme.primary : scheme.outlineVariant,
+                  borderRadius: AppRadius.allXs,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

@@ -50,7 +50,9 @@ void main() {
   });
 
   testWidgets('a wide card keeps the whole header on one line', (tester) async {
-    await pumpAt(tester, 1200);
+    // The test font draws every glyph a full em wide, about twice real text;
+    // at the 13 px tag size the four chips need more than 1200 of it.
+    await pumpAt(tester, 1440);
 
     expect(
       tester.getCenter(find.text('Active')).dy,

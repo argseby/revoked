@@ -30,6 +30,9 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
+import 'package:revoked_app/core/widgets/redacted_value.dart';
+import 'package:revoked_app/core/widgets/app_focus_ring.dart';
+import 'package:revoked_app/core/state/display_preferences.dart';
 
 /// One link, opened from the Links list: what it shares, who can open it, where
 /// it came from, and the actions that end it.
@@ -71,10 +74,16 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     return null;
   }
 
-  void _back() => context.go(AppRoutes.data);
+  void _back() => context.go(AppRoutes.shared);
 
+  /// Beside the list in a split there is nothing to go back to: the list
+  /// is on screen, and picking another link there is the way on.
   Widget _title(BuildContext context) {
-    return AppBarTitle(title: _share?.label ?? 'Link', onBack: _back);
+    final split = mounted && ShellSplitPane.contains(this.context);
+    return AppBarTitle(
+      title: _share?.label ?? 'Link',
+      onBack: split ? null : _back,
+    );
   }
 
   @override
@@ -102,11 +111,11 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         return AppDetailPage(
           header: _header(context, share),
           sections: [
+            _summary(share),
             _contents(context, share),
-            _access(share),
-            _origin(share),
             _manage(context, share),
           ],
+          aside: [_access(share), _origin(share)],
         );
       },
     );
@@ -145,9 +154,10 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       ),
     };
 
+    final full = DisplayPreferences.detailLevel == DetailLevel.full;
     return AppDetailHeader(
       badges: [
-        AppStatusBadge(status),
+        StatusLabel(status),
         if (attention != null)
           AppBadge(
             icon: AppIcons.clock,
@@ -156,7 +166,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
           ),
       ],
       title: share.label,
-      subtitle: share.slug,
+      // The slug is for whoever scripts against it; the label names it.
+      subtitle: full ? share.slug : null,
       subtitleMono: true,
       primaryAction: primary,
       secondaryActions: [
@@ -268,10 +279,38 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     return value.isEmpty ? '—' : value;
   }
 
+  /// The link in one plain sentence: what it gives, and that it can be
+  /// stopped. Said first, for anyone who reads no further.
+  Widget _summary(Link share) {
+    final n = share.records.length + share.sections.length;
+    final what = n == 0
+        ? 'nothing yet'
+        : share.sections.isEmpty
+        ? '${share.records.length} '
+              '${share.records.length == 1 ? 'record' : 'records'}'
+        : 'the records listed below';
+    final sentence = switch (share.status) {
+      'active' =>
+        'Whoever holds this link can see $what, always the current '
+            'values. You can pause or revoke it at any time.',
+      'paused' =>
+        'This link is paused: nobody can open it until you activate it '
+            'again.',
+      'expired' => 'This link has expired and no longer opens.',
+      _ =>
+        'This link is revoked and can never open again. You can make a '
+            'new one from it.',
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Text(sentence),
+    );
+  }
+
   Widget _access(Link share) {
     final expires = AppEntityCard.formatDate(share.expiresAt);
     return AppListGroup(
-      title: 'Access',
+      title: 'Protection',
       trailing: const SizedBox.shrink(),
       children: [
         AppDetailRow(
@@ -307,7 +346,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
               ? share.watermarkText.trim()
               : share.label,
         ),
-        if (share.watermark)
+        if (share.watermark &&
+            DisplayPreferences.detailLevel == DetailLevel.full)
           AppDetailRow(
             icon: AppIcons.hash,
             label: 'Stamp reference',
@@ -372,24 +412,21 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
             icon: AppIcons.pause,
             label: 'Pause',
             style: AppButtonStyle.accent,
-            size: AppButtonSize.small,
             busy: busy == 'paused',
             onTap: locked ? null : () => _setStatus(share, 'paused'),
           ),
         if (status != 'revoked')
           AppButton(
-            icon: AppIcons.xCircle,
-            label: 'Revoke',
+            icon: AppIcons.shieldSlash,
+            label: 'Revoke access now',
             style: AppButtonStyle.destructive,
-            size: AppButtonSize.small,
             busy: busy == 'revoked',
             onTap: locked ? null : () => _confirmRevoke(context, share),
           ),
         AppButton(
           icon: AppIcons.trash,
           label: 'Delete',
-          style: AppButtonStyle.destructive,
-          size: AppButtonSize.small,
+          style: AppButtonStyle.ghost,
           busy: busy == 'delete',
           onTap: locked ? null : () => _confirmDelete(context, share),
         ),
@@ -409,17 +446,17 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   Future<void> _confirmRevoke(BuildContext context, Link share) async {
     final confirmed = await showAppDialog(
       context: context,
-      title: 'Revoke share link',
+      title: 'Revoke this link?',
       message:
-          'Once a public share link is revoked, it can NEVER be '
-          'activated or shared again. Are you sure?',
+          'Nobody can open it again, starting with the next read. A revoked '
+          'link cannot be reopened; you can make a new one from it.',
       content: ApiPreview(
         spec: Stores.shares.updateShareSpec(share.id, const {
           'status': 'revoked',
         }),
         title: 'API request · revoke',
       ),
-      confirmLabel: 'Revoke permanently',
+      confirmLabel: 'Revoke access now',
       confirmIcon: AppIcons.xCircle,
       destructive: true,
     );
@@ -428,7 +465,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     final ok = await Stores.shares.updateShare(share.id, {'status': 'revoked'});
     _busy.value = null;
     if (ok && context.mounted) {
-      AppToast.success(context, 'Share link permanently revoked');
+      AppToast.success(context, 'Link revoked');
     }
   }
 
@@ -552,68 +589,79 @@ class _SharedRecordRow extends StatelessWidget {
     final masked = r.isHidden && !Stores.vault.isRevealed(r.id);
 
     // Square like every row in a card; the card's clip rounds the ends.
-    return InkWell(
-      onTap: onTap,
+    return AppFocusRing(
       borderRadius: BorderRadius.zero,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          nested ? AppSpacing.md + AppSpacing.xl : AppSpacing.md,
-          AppSpacing.sm,
-          AppSpacing.sm,
-          AppSpacing.sm,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              RecordTypeUtils.icon(r.type),
-              size: 18,
-              color: scheme.onSurfaceVariant,
-            ),
-            AppSpacing.gapMd,
-            Expanded(
-              flex: 4,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppText(
-                    r.label.isEmpty ? r.key : r.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  AppText(
-                    r.key,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ).small.muted.mono,
-                ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.zero,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            nested ? AppSpacing.md + AppSpacing.xl : AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.sm,
+            AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                RecordTypeUtils.icon(r.type),
+                size: 18,
+                color: scheme.onSurfaceVariant,
               ),
-            ),
-            AppSpacing.gapMd,
-            Expanded(
-              flex: 5,
-              child: AppText(
-                masked ? '••••••••••••' : value,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
-              ).small,
-            ),
-            if (r.isHidden)
-              AppButton(
-                icon: masked ? AppIcons.eye : AppIcons.eyeSlash,
-                tooltip: masked ? 'Show value' : 'Hide value',
-                style: AppButtonStyle.accent,
-                size: AppButtonSize.small,
-                onTap: () => Stores.vault.toggleRevealed(r.id),
-              )
-            else
-              const SizedBox(width: AppSpacing.xs),
-            Icon(
-              AppIcons.chevronRight,
-              size: 18,
-              color: scheme.onSurfaceVariant,
-            ),
-          ],
+              AppSpacing.gapMd,
+              Expanded(
+                flex: 4,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppText(
+                      r.label.isEmpty ? r.key : r.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    AppText(
+                      r.key,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ).small.muted.mono,
+                  ],
+                ),
+              ),
+              AppSpacing.gapMd,
+              Expanded(
+                flex: 5,
+                child: masked
+                    ? Align(
+                        alignment: Alignment.centerRight,
+                        child: RedactionBar(
+                          width: (value.length * 7.0).clamp(40.0, 160.0),
+                          small: true,
+                        ),
+                      )
+                    : AppText(
+                        value,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                      ).small,
+              ),
+              if (r.isHidden)
+                AppButton(
+                  icon: masked ? AppIcons.eye : AppIcons.eyeSlash,
+                  tooltip: masked ? 'Show value' : 'Hide value',
+                  style: AppButtonStyle.accent,
+                  size: AppButtonSize.small,
+                  onTap: () => Stores.vault.toggleRevealed(r.id),
+                )
+              else
+                const SizedBox(width: AppSpacing.xs),
+              Icon(
+                AppIcons.chevronRight,
+                size: 18,
+                color: scheme.onSurfaceVariant,
+              ),
+            ],
+          ),
         ),
       ),
     );

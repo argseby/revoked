@@ -141,7 +141,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
         status: 'declined',
       );
     }
-    if (context.mounted) context.go(AppRoutes.vault);
+    if (context.mounted) context.go(AppRoutes.overview);
   }
 
   @override
@@ -166,7 +166,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
           : 'Connection request from ${Uri.parse(r.client).host}',
       closeLabel: consenting ? 'Decline and go back' : 'Back to the app',
       onClose: () =>
-          consenting ? _decline(context) : context.go(AppRoutes.vault),
+          consenting ? _decline(context) : context.go(AppRoutes.overview),
       bottomBar: consenting ? _decision(context) : null,
       body: r == null
           ? _invalid(context)
@@ -191,7 +191,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
           label: 'Back to the app',
           icon: AppIcons.arrowLeft,
           style: AppButtonStyle.accent,
-          onTap: () => context.go(AppRoutes.vault),
+          onTap: () => context.go(AppRoutes.overview),
         ),
       ],
     );
@@ -226,7 +226,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
           label: 'Done',
           icon: AppIcons.check,
           style: AppButtonStyle.accent,
-          onTap: () => context.go(AppRoutes.vault),
+          onTap: () => context.go(AppRoutes.overview),
         ),
       ],
     );

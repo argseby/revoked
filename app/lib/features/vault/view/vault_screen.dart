@@ -28,6 +28,7 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/redacted_value.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
@@ -73,7 +74,7 @@ class _VaultScreenState extends State<VaultScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ShellSlots.title.claim(_title);
+        ShellSlots.title.claimFrom(context, _title);
         ShellSlots.action.claim(_primaryAction);
       }
       store.loadRecords();
@@ -466,15 +467,31 @@ class _VaultScreenState extends State<VaultScreen> {
           : null,
       title: r.label.isEmpty ? r.key : r.label,
       subtitle: _preview(r),
-      // Quiet text, not a badge: most records are shared somewhere, and a
-      // badge on every row is the noise this list is meant to be rid of.
-      trailing: links > 0
-          ? AppText('$links ${links == 1 ? 'link' : 'links'}').small.muted
-          : null,
+      subtitleWidget: _hiddenPreview(r),
+      // Text, not a badge: most records are shared somewhere, and a badge on
+      // every row is the noise this list is meant to be rid of. But who can
+      // read a record is the vault's one question, so it is not muted.
+      trailing: links > 0 ? _LinkCount(links) : null,
       showChevron: !picking,
       onTap: picking
           ? () => onToggle(!selected)
           : () => context.go(AppRoutes.recordDetailFor(r.id)),
+    );
+  }
+
+  /// A hidden record's line: the redaction bar, and a file's size beside it.
+  /// Null for a record whose value is on show.
+  Widget? _hiddenPreview(models.Record r) {
+    if (!r.isHidden || Stores.vault.isRevealed(r.id)) return null;
+    final length = r.isFile ? r.displayName.length : r.value.length;
+    return Row(
+      children: [
+        RedactionBar(width: (length * 7.0).clamp(40.0, 160.0), small: true),
+        if (r.isFile) ...[
+          AppSpacing.gapXs,
+          AppText(formatBytes(r.size)).small.muted,
+        ],
+      ],
     );
   }
 
@@ -800,3 +817,27 @@ class _WholeSectionToggle extends StatelessWidget {
 }
 
 /// The tinted square behind each choice in the "Create New" sheet.
+
+/// How many links reach a record: the row's answer to "who can read this".
+class _LinkCount extends StatelessWidget {
+  final int count;
+
+  const _LinkCount(this.count);
+
+  @override
+  Widget build(BuildContext context) {
+    final label = '$count ${count == 1 ? 'link' : 'links'}';
+    return Semantics(
+      label: 'Shared through $label',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(AppIcons.link, size: 16),
+          AppSpacing.gapXxs,
+          AppText(label).small,
+        ],
+      ),
+    );
+  }
+}

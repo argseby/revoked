@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 
 /// A named block of rows — the one shape every list and every detail page is
 /// built from:
@@ -123,7 +124,7 @@ class _AppListGroupState extends State<AppListGroup> {
               ),
               child: DefaultTextStyle.merge(
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: AppTextSize.small,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 child: w.footer!,
@@ -136,7 +137,9 @@ class _AppListGroupState extends State<AppListGroup> {
 }
 
 /// The label above a group of rows, with an optional count or action on the
-/// right.
+/// right, under a heavy rule — the ledger line that gives a long screen its
+/// structure. Announced as a heading, so a screen reader can jump between
+/// groups.
 class AppListHeader extends StatelessWidget {
   final String title;
   final Widget? trailing;
@@ -145,20 +148,25 @@ class AppListHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xxs,
-        0,
-        AppSpacing.xxs,
-        AppSpacing.xs,
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: scheme.onSurface, width: 2)),
       ),
       child: ConstrainedBox(
         // Room for a small button, so a header with an action lines up with
         // one without.
-        constraints: const BoxConstraints(minHeight: 32),
+        constraints: const BoxConstraints(minHeight: AppButton.smallExtent),
         child: Row(
           children: [
-            Expanded(child: AppText(title).small.muted),
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: AppText(title).small.bold.muted,
+              ),
+            ),
             ?trailing,
           ],
         ),

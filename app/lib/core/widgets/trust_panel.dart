@@ -201,7 +201,7 @@ class _TrustPanelState extends State<TrustPanel> {
                               DefaultTextStyle.merge(
                                 style: TextStyle(
                                   color: problem ? accent : null,
-                                  fontSize: 16,
+                                  fontSize: AppTextSize.body,
                                   fontWeight: FontWeight.w600,
                                 ),
                                 child: Text(headline),
@@ -225,7 +225,7 @@ class _TrustPanelState extends State<TrustPanel> {
                 ),
               ),
               AnimatedSize(
-                duration: AppMotion.duration,
+                duration: AppMotion.of(context),
                 curve: AppMotion.curve,
                 alignment: Alignment.topCenter,
                 child: open

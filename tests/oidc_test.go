@@ -541,13 +541,17 @@ func TestSignInIsApprovedOnlyInTheApp(t *testing.T) {
 	person := newOIDCPerson(t, baseURL)
 
 	t.Run("the page hands the request to the app, which signs the person in", func(t *testing.T) {
-		resp := svc.authorize(map[string]string{"claims": `{"userinfo":{"revoked_links":{"values":["phone"]}}}`})
+		resp := svc.authorize(map[string]string{
+			"claims":         `{"userinfo":{"revoked_links":{"values":["phone"]}}}`,
+			"revoked_return": "background",
+		})
 		link := appLink(t, resp)
 		if link.Scheme != "revoked" || link.Host != "signin" {
 			t.Fatalf("app link = %s", link)
 		}
 		q := link.Query()
-		if q.Get("client_id") != svc.clientID || q.Get("state") != "st-123" || q.Get("claims") == "" {
+		if q.Get("client_id") != svc.clientID || q.Get("state") != "st-123" || q.Get("claims") == "" ||
+			q.Get("revoked_return") != "background" {
 			t.Fatalf("app link query = %v", q)
 		}
 		_, loc := person.approve(t, q, map[string]any{"approve": true})

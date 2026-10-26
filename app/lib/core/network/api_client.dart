@@ -355,6 +355,17 @@ class ApiClient {
     return _handleResponse(response, foreign: true);
   }
 
+  /// GET a service's own address without following where it points next,
+  /// and never with the session token. It hands a service an answer it is
+  /// waiting for: what counts is that the service took it, not what it shows.
+  Future<bool> getFromService(Uri uri) async {
+    final request = http.Request('GET', uri)..followRedirects = false;
+    final response = await _send(
+      _httpClient.send(request).then(http.Response.fromStream),
+    );
+    return response.statusCode < 400;
+  }
+
   Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
     final uri = Uri.parse(
       '$baseUrl$path',

@@ -176,7 +176,10 @@ class AppValueRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 SelectableText(
                   text,
-                  style: const TextStyle(fontSize: 15, height: 1.35),
+                  style: const TextStyle(
+                    fontSize: AppTextSize.body,
+                    height: AppTextSize.smallHeight,
+                  ),
                 ),
               ],
             ),

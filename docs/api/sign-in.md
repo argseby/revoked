@@ -79,6 +79,30 @@ other than the person's own cannot sign anyone in as one of that server's
 users: the code, the ID token and the subject all belong to the server that
 issued them.
 
+### A service that waits: another browser or another device
+
+The answer normally travels through the default browser, so it only finds
+the service's `state` cookie when the sign-in started there. A service whose
+page waits for the result itself adds `revoked_return=background` to the
+link. The app then hands the answer over without a browser: it requests the
+redirect address itself — without following any redirect and without
+cookies — and the service ties the result to the page that started. That
+page can be in any browser, or on another device: the link fits in a QR
+code, and scanning it with a phone opens the app there.
+
+Such a page shows a check code, and the app shows the same one next to the
+request. It is the first three bytes of SHA-256 over the `code_challenge`,
+as upper-case hex in two groups: `0D2-99B`. The person approves only when
+both match.
+
+A service that waits accepts the answer at its redirect address without its
+own cookies, but hands the session only to the browser that holds the
+pending sign-in, which asks for it, and only once. A sign-in can then be
+approved on a device other than the one that ends up signed in — as with any
+QR sign-in, someone could show a person their own code and ask them to
+approve it. The app names the service and the code, and asks the person to
+approve only what they just started themselves.
+
 ### Through the authorization endpoint
 
 A client library that sends the browser to a known server's

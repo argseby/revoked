@@ -44,6 +44,11 @@ abstract class _NotificationsStore with Store {
         (n) => !n.read && n.type == _requestResponse && n.refId == requestId,
       );
 
+  /// Every response the owner has not looked at yet, across requests — the
+  /// Overview's "new answers". Read inside an Observer, it follows the list.
+  int get unreadResponseCount =>
+      notifications.where((n) => !n.read && n.type == _requestResponse).length;
+
   /// Responses to [requestId] the owner has not looked at yet — the "3 new"
   /// on the Requests list. Read inside an Observer, it follows the list.
   int unreadResponses(String requestId) => _unreadResponses(requestId).length;

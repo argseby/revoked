@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 
 /// One choice in an [AppFilterChips] row.
 class AppFilterOption<T> {
@@ -86,7 +87,7 @@ class _Pill extends StatelessWidget {
               label,
               style: TextStyle(
                 color: fg,
-                fontSize: 12,
+                fontSize: AppTextSize.small,
                 fontWeight: FontWeight.w500,
               ),
             ),

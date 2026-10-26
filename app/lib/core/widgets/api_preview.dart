@@ -14,6 +14,7 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/detail_gate.dart';
 
 /// An expandable panel showing the exact API request equivalent to the action
 /// being performed. The app is API-first, so create/update flows expose how to
@@ -36,7 +37,9 @@ class _ApiPreviewState extends State<ApiPreview> {
 
   @override
   Widget build(BuildContext context) {
-    return Observer(builder: (_) => _build(context));
+    // The raw request is for people who script against the API; at
+    // Essentials it would only be noise beside the question being asked.
+    return DetailGate(child: Observer(builder: (_) => _build(context)));
   }
 
   Widget _build(BuildContext context) {
@@ -77,7 +80,7 @@ class _ApiPreviewState extends State<ApiPreview> {
                   ),
                   AnimatedRotation(
                     turns: _expanded.value ? 0.5 : 0,
-                    duration: AppMotion.duration,
+                    duration: AppMotion.of(context),
                     curve: AppMotion.curve,
                     child: Icon(
                       AppIcons.chevronDown,

@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
+import 'package:revoked_app/core/utils/pkce.dart';
 
 /// A service that does not know which server its user is on sends them to
-/// the app with `revoked://signin`, and the app continues on its own server.
+/// the app with `revoked://signin`, and the app opens the request on its own
+/// server.
 /// The link is built by whoever wants, so the app passes on only an
 /// authorization request the server could accept, and only its parameters.
 void main() {
@@ -21,19 +23,14 @@ void main() {
     ...overlay,
   };
 
-  test('a valid request continues on the signed-in server', () {
+  test('a valid request carries its parameters on to the server', () {
     final r = SignInRequest.fromQuery(query({'claims': '{"userinfo":{}}'}))!;
-    final uri = r.authorizeUri('https://revoked.firma.de');
-    expect(uri.origin, 'https://revoked.firma.de');
-    expect(uri.path, '/oidc/authorize');
-    expect(uri.queryParameters['client_id'], 'https://game.example');
-    expect(
-      uri.queryParameters['redirect_uri'],
-      'https://game.example/callback',
-    );
-    expect(uri.queryParameters['code_challenge'], challenge);
-    expect(uri.queryParameters['state'], 'st-1');
-    expect(uri.queryParameters['claims'], '{"userinfo":{}}');
+    final params = r.toQuery();
+    expect(params['client_id'], 'https://game.example');
+    expect(params['redirect_uri'], 'https://game.example/callback');
+    expect(params['code_challenge'], challenge);
+    expect(params['state'], 'st-1');
+    expect(params['claims'], '{"userinfo":{}}');
     expect(r.clientHost, 'game.example');
   });
 
@@ -41,9 +38,35 @@ void main() {
     final r = SignInRequest.fromQuery(
       query({'evil': 'x', 'response_mode': 'fragment'}),
     )!;
-    final params = r.authorizeUri('https://revoked.firma.de').queryParameters;
+    final params = r.toQuery();
     expect(params.containsKey('evil'), isFalse);
     expect(params.containsKey('response_mode'), isFalse);
+  });
+
+  test('a service that waits for the answer says so in the link', () {
+    expect(SignInRequest.fromQuery(query())!.background, isFalse);
+    final waits = SignInRequest.fromQuery(
+      query({'revoked_return': 'background'}),
+    )!;
+    expect(waits.background, isTrue);
+    expect(waits.challenge, challenge);
+    // It survives the trip through the router.
+    final routed = Uri.parse(
+      DeepLinks.locationFor(
+        Uri(
+          scheme: 'revoked',
+          host: 'signin',
+          queryParameters: query({'revoked_return': 'background'}),
+        ),
+      )!,
+    );
+    expect(SignInRequest.fromQuery(routed.queryParameters)!.background, isTrue);
+  });
+
+  // A service shows the same code from the same challenge; Overlap's Go test
+  // pins the same value.
+  test('the check code is the one a waiting service shows', () {
+    expect(Pkce.checkCode(challenge), '0D2-99B');
   });
 
   test('requests the server would refuse are refused here', () {

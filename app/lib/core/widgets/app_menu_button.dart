@@ -55,6 +55,11 @@ class AppMenuButton extends StatelessWidget {
   /// it opens a menu and drops it.
   final bool chevron;
 
+  /// Set instead of every other trigger to draw one of the caller's own,
+  /// such as the sidebar's workspace header. It is handed the toggle.
+  final Widget Function(BuildContext context, VoidCallback toggle)?
+  triggerBuilder;
+
   const AppMenuButton({
     super.key,
     required this.tooltip,
@@ -67,6 +72,7 @@ class AppMenuButton extends StatelessWidget {
     this.onOpen,
     this.chevron = true,
   }) : avatarSource = null,
+       triggerBuilder = null,
        assert(icon != null || label != null, 'a trigger needs a label or icon');
 
   const AppMenuButton.avatar({
@@ -79,6 +85,22 @@ class AppMenuButton extends StatelessWidget {
   }) : icon = null,
        label = null,
        chevron = true,
+       triggerBuilder = null,
+       style = AppButtonStyle.accent,
+       size = AppButtonSize.normal;
+
+  const AppMenuButton.custom({
+    super.key,
+    required Widget Function(BuildContext context, VoidCallback toggle)
+    this.triggerBuilder,
+    required this.tooltip,
+    required this.items,
+    this.header,
+    this.onOpen,
+  }) : icon = null,
+       label = null,
+       avatarSource = null,
+       chevron = false,
        style = AppButtonStyle.accent,
        size = AppButtonSize.normal;
 
@@ -130,6 +152,10 @@ class AppMenuButton extends StatelessWidget {
             onOpen?.call();
             controller.open();
           }
+        }
+
+        if (triggerBuilder case final build?) {
+          return Tooltip(message: tooltip, child: build(context, toggle));
         }
 
         if (avatarSource != null) {

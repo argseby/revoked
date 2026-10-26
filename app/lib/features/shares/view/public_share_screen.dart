@@ -412,7 +412,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         if (context.canPop()) {
           context.pop();
         } else {
-          context.go(AppRoutes.vault);
+          context.go(AppRoutes.overview);
         }
       },
       actions: [
@@ -459,6 +459,24 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
 
     if (_store.shareTerminalError != null) {
       final msg = _store.shareTerminalError!;
+      // Revoked or expired is the owner's decision, not a fault: said calmly,
+      // with what to do next, and no retry that can never succeed.
+      final ended =
+          msg.code == AppErrorCode.linkRevoked ||
+          msg.code == AppErrorCode.linkExpired;
+      if (ended) {
+        return AppStatusMessage(
+          icon: msg.code == AppErrorCode.linkRevoked
+              ? AppIcons.shieldSlash
+              : AppIcons.clock,
+          accent: theme.colorScheme.onSurfaceVariant,
+          title: 'This link no longer works',
+          message:
+              '${msg.description} A link only ever shows the data while it '
+              'is open, so there is nothing to see here any more. If you '
+              'still need it, ask the person who gave you the link.',
+        );
+      }
       return AppStatusMessage(
         icon: AppIcons.exclamationOctagon,
         accent: theme.colorScheme.error,
@@ -675,7 +693,7 @@ class _StampPainter extends CustomPainter {
         text: line,
         style: TextStyle(
           color: color,
-          fontSize: 13,
+          fontSize: AppTextSize.small,
           fontWeight: FontWeight.w600,
         ),
       ),

@@ -2,6 +2,11 @@
 class User {
   final String id;
   final String email;
+
+  /// The account's own name: what a service gets under the `profile` scope
+  /// when someone signs in there with Revoked. Empty until it is set; the
+  /// server then falls back to the main identity's name.
+  final String name;
   final bool verified;
   final String? avatar;
   final String? activeWorkspace;
@@ -12,6 +17,7 @@ class User {
   User({
     required this.id,
     required this.email,
+    this.name = '',
     this.verified = false,
     this.avatar,
     this.activeWorkspace,
@@ -24,6 +30,7 @@ class User {
     return User(
       id: json['id'] as String,
       email: json['email'] as String? ?? '',
+      name: json['name'] as String? ?? '',
       verified: json['verified'] as bool? ?? false,
       avatar: json['avatar'] as String?,
       activeWorkspace: json['activeWorkspace'] as String?,

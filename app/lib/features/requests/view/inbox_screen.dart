@@ -22,12 +22,17 @@ import 'package:revoked_app/features/requests/view/request_groups.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
+import 'package:revoked_app/core/widgets/app_tabs.dart';
+import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 
 /// Which requests the chips above the list let through.
 enum _RequestFilter { all, open, closed }
 
 class InboxScreen extends StatefulWidget {
-  const InboxScreen({super.key});
+  /// 1 opens on Received, the links other people gave you.
+  final int initialTab;
+
+  const InboxScreen({super.key, this.initialTab = 0});
 
   @override
   State<InboxScreen> createState() => _InboxScreenState();
@@ -52,7 +57,7 @@ class _InboxScreenState extends State<InboxScreen> {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ShellSlots.title.claim(_title);
+        ShellSlots.title.claimFrom(context, _title);
       }
       Stores.requests.loadRequests();
     });
@@ -75,6 +80,16 @@ class _InboxScreenState extends State<InboxScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Your requests, and what others gave you (saved links). Answers to a
+    // request are on that request's page.
+    return AppTabs(
+      labels: const ['Your requests', 'Received'],
+      initialIndex: widget.initialTab,
+      views: [_yourRequests(context), const BookmarksTab()],
+    );
+  }
+
+  Widget _yourRequests(BuildContext context) {
     final reqStore = Stores.requests;
 
     return Observer(
@@ -248,7 +263,7 @@ class _RequestRow extends StatelessWidget {
               label: '$unread new',
               accent: Theme.of(context).colorScheme.primary,
             )
-          : AppStatusBadge(request.status),
+          : StatusLabel(request.status),
       onTap: onTap,
     );
   }

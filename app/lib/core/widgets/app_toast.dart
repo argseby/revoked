@@ -97,13 +97,27 @@ class _ToastWidgetState extends State<_ToastWidget>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   Timer? _timer;
+  bool _shown = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: AppMotion.duration)
-      ..forward();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotion.duration,
+    );
     _timer = Timer(const Duration(seconds: 3), _dismiss);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion is read from the context, which initState cannot.
+    _controller.duration = AppMotion.of(context);
+    if (!_shown) {
+      _shown = true;
+      _controller.forward();
+    }
   }
 
   void _dismiss() {

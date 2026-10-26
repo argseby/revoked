@@ -7,8 +7,23 @@ import 'package:revoked_app/core/design/app_icons.dart';
 /// Keep the mapping in one place so every screen renders "active" the
 /// same green, "paused" the same amber, etc.
 abstract class StatusColors {
+  /// The tint behind [foreground] text. A role of its own per status rather
+  /// than a fade of the foreground, so the pair is one the contrast test
+  /// checks.
   static Color background(ThemeData theme, String status) {
-    return _color(theme, status).withValues(alpha: 0.1);
+    final scheme = theme.colorScheme;
+    switch (status) {
+      case 'active':
+      case 'completed':
+        return scheme.successContainer;
+      case 'paused':
+        return scheme.warningContainer;
+      case 'revoked':
+      case 'expired':
+        return scheme.errorContainer;
+      default:
+        return scheme.surfaceContainer;
+    }
   }
 
   static Color border(ThemeData theme, String status) {

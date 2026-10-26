@@ -16,20 +16,29 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
+import 'package:revoked_app/features/shell/utils/quick_search.dart';
 import 'package:revoked_app/features/shell/view/qr_scan_sheet.dart';
 
-/// Opens the link search drawer: paste a `revoked://` share/request link, then
-/// either open it or verify it (DNS + link security) first.
+/// Opens the search drawer: find a record or link by name, or paste a
+/// `revoked://` share/request link and either open it or verify it (DNS +
+/// link security) first.
 Future<void> openLinkSearchSheet(BuildContext context) async {
   final store = Stores.linkSearch;
   if (store.isDrawerOpen) return;
   store.isDrawerOpen = true;
+  // The names it searches. Signed out (a link pasted on the login screen)
+  // there is nothing to search.
+  if (Stores.auth.isAuthenticated) {
+    if (Stores.vault.records.isEmpty) Stores.vault.loadRecords();
+    if (Stores.shares.shares.isEmpty) Stores.shares.loadShares();
+  }
   // Read the clipboard exactly here - opening this drawer is the one
   // moment a revoked:// link on it is almost certainly why we were opened.
   final adoption = await store.adoptClipboardLink();
@@ -50,10 +59,11 @@ Future<void> openLinkSearchSheet(BuildContext context) async {
   }
 }
 
-/// The body of the link search drawer.
+/// The body of the search drawer.
 ///
-/// Holds just the link path (the `revoked://` scheme is rendered as a fixed
-/// prefix), so a pasted full link auto-strips the scheme. Two actions:
+/// Whatever is typed that is not a link searches record and link names. A
+/// link is held as just its path, so a pasted full link auto-strips the
+/// scheme. Two actions for a link:
 ///   * **Open**   — navigates to the link's in-app viewer.
 ///   * **Verify** — probes the link and walks the DNS trust chain, rendering
 ///     the resulting [TrustVerdict] inline so the user can judge the sender
@@ -87,6 +97,17 @@ class LinkSearchSheet extends StatelessWidget {
       slug: link.slug,
       origin: link.origin,
     );
+  }
+
+  /// Enter opens a link, or the first search result.
+  void _submit(BuildContext context) {
+    final query = _controller.text.trim();
+    if (query.isNotEmpty && _resolve() == null) {
+      final hits = _hits(query);
+      if (hits.isNotEmpty) _go(context, hits.first.location);
+      return;
+    }
+    _open(context);
   }
 
   void _open(BuildContext context) {
@@ -185,6 +206,8 @@ class LinkSearchSheet extends StatelessWidget {
 
   Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final query = _controller.text.trim();
+    final searching = query.isNotEmpty && _resolve() == null;
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
@@ -197,11 +220,14 @@ class LinkSearchSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Open a link').header,
+            const Text('Search or open a link').header,
             const SizedBox(height: AppSpacing.xxs),
             const Text(
-              'Paste a Revoked share or request link. Use CTRL + V to open this Dialog from anywhere in this app. Verify checks the '
-              'sender\'s DNS and the link\'s security before you open it. ',
+              'Type the name of a record or link, or paste a revoked share '
+              'or request link. Hidden values are never searched. Verify '
+              'checks the sender\'s DNS and the link\'s security before you '
+              'open it. Press / to search, or Ctrl + V to paste a link, '
+              'from anywhere in the app.',
             ).muted.small,
             const SizedBox(height: AppSpacing.lg),
             _buildField(context, scheme),
@@ -261,28 +287,33 @@ class LinkSearchSheet extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               _ErrorBanner(message: _store.verifyError!),
             ],
-            const SizedBox(height: AppSpacing.xl),
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    icon: AppIcons.shieldCheck,
-                    label: 'Verify',
-                    style: AppButtonStyle.accent,
-                    busy: _store.isVerifying,
-                    onTap: () => _verify(context),
+            if (searching) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _SearchResults(query: query),
+            ] else ...[
+              const SizedBox(height: AppSpacing.xl),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      icon: AppIcons.shieldCheck,
+                      label: 'Verify',
+                      style: AppButtonStyle.accent,
+                      busy: _store.isVerifying,
+                      onTap: () => _verify(context),
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppButton(
-                    icon: AppIcons.arrowRight,
-                    label: 'Open',
-                    onTap: _store.isVerifying ? null : () => _open(context),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: AppButton(
+                      icon: AppIcons.arrowRight,
+                      label: 'Open',
+                      onTap: _store.isVerifying ? null : () => _open(context),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -329,8 +360,8 @@ class LinkSearchSheet extends StatelessWidget {
     return AppTextField(
       controller: _controller,
       autofocus: true,
-      onSubmitted: (_) => _open(context),
-      hint: 's/<slug> or r/<slug>',
+      onSubmitted: (_) => _submit(context),
+      hint: 'A record or link name, or s/<slug>',
       trailing: Padding(
         padding: const EdgeInsets.all(AppSpacing.sm),
         child: Row(
@@ -360,17 +391,74 @@ class LinkSearchSheet extends StatelessWidget {
         ),
       ),
 
+      // The scheme prefix only while the text is a link; a search shows a
+      // magnifier instead.
       leading: Padding(
         padding: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.xs, 0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(AppIcons.link, size: 16, color: scheme.onSurfaceVariant),
-            AppSpacing.gapXs,
-            Text('${DeepLinks.scheme}://').mono.muted,
-          ],
-        ),
+        child: _resolve() == null
+            ? Icon(AppIcons.search, size: 16, color: scheme.onSurfaceVariant)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(AppIcons.link, size: 16, color: scheme.onSurfaceVariant),
+                  AppSpacing.gapXs,
+                  Text('${DeepLinks.scheme}://').mono.muted,
+                ],
+              ),
       ),
+    );
+  }
+}
+
+List<QuickSearchHit> _hits(String query) => quickSearch(
+  query,
+  records: Stores.vault.records,
+  links: Stores.shares.shares,
+);
+
+void _go(BuildContext context, String location) {
+  // Capture the router before popping — the sheet's context is gone after.
+  final router = GoRouter.of(context);
+  Navigator.of(context).pop();
+  router.go(location);
+}
+
+/// What a search found, each row opening its page.
+class _SearchResults extends StatelessWidget {
+  final String query;
+
+  const _SearchResults({required this.query});
+
+  @override
+  Widget build(BuildContext context) {
+    final hits = _hits(query);
+    if (hits.isEmpty) {
+      return Semantics(
+        liveRegion: true,
+        child: Text(
+          'No record or link is called "$query". Only names are searched, '
+          'not values.',
+        ).muted.small,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            '${hits.length} ${hits.length == 1 ? 'match' : 'matches'}',
+          ).muted.small,
+        ),
+        AppSpacing.gapXs,
+        for (final hit in hits)
+          AppListRow(
+            icon: hit.icon,
+            title: hit.title,
+            subtitle: hit.kind,
+            onTap: () => _go(context, hit.location),
+          ),
+      ],
     );
   }
 }

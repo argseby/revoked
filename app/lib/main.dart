@@ -9,16 +9,22 @@ import 'package:revoked_app/core/services/deep_link_service.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
+import 'package:revoked_app/core/state/display_preferences.dart';
+import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/utils/paste_link_shortcut.dart';
+import 'package:revoked_app/core/utils/shell_shortcuts.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/display_scope.dart';
 import 'package:revoked_app/core/widgets/window_chrome.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
+import 'package:revoked_app/features/shell/view/new_picker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   unawaited(purgeOpenedFiles());
   await Stores.init();
+  await DisplayPreferences.load();
   runApp(const RevokedApp());
 }
 
@@ -74,6 +80,31 @@ class _RevokedAppState extends State<RevokedApp> {
     await openLinkSearchSheet(ctx);
   }
 
+  String get _path => _router.routerDelegate.currentConfiguration.uri.path;
+
+  /// The shell's keys only act on the shell itself, signed in, with nothing
+  /// open over it: no sheet, and no dialog on the root navigator.
+  bool _shellIsFront() {
+    if (!Stores.auth.isAuthenticated || SheetTracker.anyOpen) return false;
+    if (AppRouter.rootNavigatorKey.currentState?.canPop() ?? true) {
+      return false;
+    }
+    final path = _path;
+    return AppRoutes.destinationOf(path) != null ||
+        path.startsWith(AppRoutes.settings);
+  }
+
+  void _openSearch() {
+    final ctx = AppRouter.rootNavigatorKey.currentContext;
+    if (ctx != null) openLinkSearchSheet(ctx);
+  }
+
+  void _openNew() {
+    final ctx = AppRouter.rootNavigatorKey.currentContext;
+    if (ctx == null) return;
+    openNewPicker(ctx, destination: AppRoutes.destinationOf(_path));
+  }
+
   @override
   void dispose() {
     _deepLinks.dispose();
@@ -95,9 +126,17 @@ class _RevokedAppState extends State<RevokedApp> {
         scrollBehavior: const MaterialScrollBehavior().copyWith(
           scrollbars: false,
         ),
-        builder: (context, child) => PasteLinkShortcut(
-          onTrigger: _handleGlobalPaste,
-          child: child ?? const SizedBox.shrink(),
+        builder: (context, child) => DisplayScope(
+          child: PasteLinkShortcut(
+            onTrigger: _handleGlobalPaste,
+            child: ShellShortcuts(
+              enabled: _shellIsFront,
+              onSearch: _openSearch,
+              onNew: _openNew,
+              onDestination: (i) => _router.go(AppRoutes.destinations[i]),
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
         ),
       ),
     );

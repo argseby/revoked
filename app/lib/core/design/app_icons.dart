@@ -33,6 +33,7 @@ abstract class AppIcons {
   static const IconData collection = Icons.collections_bookmark_outlined;
   static const IconData copy = Icons.content_copy;
   static const IconData dash = Icons.remove;
+  static const IconData dashboard = Icons.space_dashboard_outlined;
   static const IconData duplicate = Icons.library_add_outlined;
   static const IconData qrCode = Icons.qr_code_2;
   static const IconData qrScan = Icons.qr_code_scanner;

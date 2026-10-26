@@ -139,7 +139,7 @@ class _AppEntityCardState extends State<AppEntityCard> {
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       onTap: _cardTap,
       child: AnimatedSize(
-        duration: AppMotion.duration,
+        duration: AppMotion.of(context),
         curve: AppMotion.curve,
         alignment: Alignment.topCenter,
         child: Column(

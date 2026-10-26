@@ -39,10 +39,12 @@ import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
 import 'package:revoked_app/features/passkeys/view/passkeys_section.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
+import 'package:revoked_app/features/settings/view/appearance_page.dart';
 
 /// The settings topics, each a page of its own under Settings — opened from
 /// the settings list the way a record is opened from the vault.
 enum SettingsPage {
+  appearance('appearance', 'Appearance and accessibility'),
   passkeys('passkeys', 'Passkeys'),
   workspaces('workspaces', 'Workspaces'),
   members('members', 'Members'),
@@ -59,7 +61,9 @@ enum SettingsPage {
   final String slug;
   final String title;
 
-  String get route => AppRoutes.settingsPage(slug);
+  /// Templates live in the vault now; every other topic under Settings.
+  String get route =>
+      this == templates ? AppRoutes.templates : AppRoutes.settingsPage(slug);
 
   static SettingsPage? fromSlug(String? slug) {
     for (final p in values) {
@@ -98,7 +102,11 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
 
   Widget _title(BuildContext context) => AppBarTitle(
     title: widget.page.title,
-    onBack: () => context.go(AppRoutes.settings),
+    onBack: () => context.go(
+      widget.page == SettingsPage.templates
+          ? AppRoutes.vault
+          : AppRoutes.settings,
+    ),
   );
 
   void _load() {
@@ -106,6 +114,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
     if (!auth.isAuthenticated) return;
     final ws = auth.activeWorkspace ?? '';
     switch (widget.page) {
+      case SettingsPage.appearance:
       case SettingsPage.passkeys:
       case SettingsPage.domain:
         // Load themselves.
@@ -142,6 +151,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
     return AppPageBody(
       children: [
         switch (widget.page) {
+          SettingsPage.appearance => const AppearancePage(),
           SettingsPage.passkeys => const PasskeysSection(),
           SettingsPage.workspaces => const _WorkspacesPage(),
           SettingsPage.members => const _MembersPage(),

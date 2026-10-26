@@ -4,6 +4,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 
 /// One compact line in an [AppListGroup]: what the thing is, one sentence on
 /// where it stands, and at most one badge.
@@ -25,8 +26,16 @@ class AppListRow extends StatelessWidget {
   /// One sentence the reader acts on: "Expires in 2 days", "3 new responses".
   final String? subtitle;
 
+  /// Stands in for [subtitle] when the line is not plain text, such as a
+  /// hidden value's redaction bar.
+  final Widget? subtitleWidget;
+
   /// A single badge, typically the status.
   final Widget? trailing;
+
+  /// The row whose page is open beside the list, in a split. Marked by a
+  /// tint and an ink bar, and announced as selected.
+  final bool selected;
 
   /// Opens the detail page. A row that opens something shows a chevron.
   final VoidCallback? onTap;
@@ -37,7 +46,9 @@ class AppListRow extends StatelessWidget {
     this.leading,
     required this.title,
     this.subtitle,
+    this.subtitleWidget,
     this.trailing,
+    this.selected = false,
     this.onTap,
     this.showChevron = true,
   }) : assert(icon != null || leading != null, 'a row needs an icon');
@@ -77,7 +88,9 @@ class AppListRow extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 AppText(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (hasSubtitle)
+                if (subtitleWidget != null)
+                  subtitleWidget!
+                else if (hasSubtitle)
                   AppText(
                     subtitle!,
                     maxLines: 1,
@@ -99,9 +112,28 @@ class AppListRow extends StatelessWidget {
       ),
     );
 
-    if (onTap == null) return row;
+    final marked = selected
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              color: scheme.secondaryContainer,
+              border: Border(left: BorderSide(color: scheme.primary, width: 3)),
+            ),
+            child: row,
+          )
+        : row;
+    if (onTap == null) return marked;
     // Square on purpose: the row spans its card, whose rounded clip trims the
     // highlight on the first and last row.
-    return InkWell(onTap: onTap, borderRadius: BorderRadius.zero, child: row);
+    return Semantics(
+      selected: selected,
+      child: AppFocusRing(
+        borderRadius: BorderRadius.zero,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.zero,
+          child: marked,
+        ),
+      ),
+    );
   }
 }

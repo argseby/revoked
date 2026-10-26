@@ -134,7 +134,7 @@ class _DataScreenState extends State<DataScreen> {
       title: widget.requestId != null ? _activeRequestLabel() : 'Connections',
       badgeLabel: '$count ${count == 1 ? 'item' : 'items'}',
       onBack: widget.requestId != null
-          ? () => context.go(AppRoutes.inbox)
+          ? () => context.go(AppRoutes.requests)
           : null,
     );
   }
@@ -265,8 +265,8 @@ class _DataScreenState extends State<DataScreen> {
         if (v == current) return;
         context.go(
           v == 0
-              ? '${AppRoutes.requestData}?requestId=$requestId'
-              : '${AppRoutes.requestSheet}?requestId=$requestId',
+              ? AppRoutes.requestDataFor(requestId)
+              : AppRoutes.requestSheetFor(requestId),
         );
       },
     );
@@ -514,7 +514,7 @@ class _DataScreenState extends State<DataScreen> {
                   style: AppButtonStyle.accent,
                   onTap: () {
                     Navigator.of(sheetCtx).pop();
-                    context.go(AppRoutes.inbox);
+                    context.go(AppRoutes.requests);
                   },
                 ),
                 const SizedBox(height: AppSpacing.sm),

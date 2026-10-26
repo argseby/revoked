@@ -69,7 +69,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     return null;
   }
 
-  void _back() => context.go(AppRoutes.inbox);
+  void _back() => context.go(AppRoutes.requests);
 
   Widget _title(BuildContext context) {
     return AppBarTitle(title: _request?.label ?? 'Request', onBack: _back);
@@ -137,7 +137,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         label: 'View responses · ${request.responseCount}',
         onTap: () {
           Stores.notifications.markResponsesRead(request.id);
-          context.go('${AppRoutes.requestData}?requestId=${request.id}');
+          context.go(AppRoutes.requestDataFor(request.id));
         },
       ),
       secondaryActions: [
@@ -147,7 +147,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           style: AppButtonStyle.accent,
           onTap: () {
             Stores.notifications.markResponsesRead(request.id);
-            context.go('${AppRoutes.requestSheet}?requestId=${request.id}');
+            context.go(AppRoutes.requestSheetFor(request.id));
           },
         ),
         if (!isRequestClosed(request))

@@ -192,7 +192,7 @@ class _AppFormAdvancedState extends State<AppFormAdvanced> {
     final scheme = Theme.of(context).colorScheme;
     final open = _open.value;
     return AnimatedSize(
-      duration: AppMotion.duration,
+      duration: AppMotion.of(context),
       curve: AppMotion.curve,
       alignment: Alignment.topCenter,
       child: Column(
