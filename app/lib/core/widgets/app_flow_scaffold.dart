@@ -61,6 +61,7 @@ class AppFlowScaffold extends StatelessWidget {
               icon: AppIcons.arrowLeft,
               tooltip: closeLabel,
               style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
               onTap: onClose,
             ),
             AppSpacing.gapMd,

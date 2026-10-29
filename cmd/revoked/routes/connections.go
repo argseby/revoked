@@ -20,7 +20,7 @@ import (
 // single-use, but guessing at the endpoint should still get nowhere fast. It
 // leaves room for a page or two waiting for the owner's answer, asking every
 // few seconds.
-var connectLimiter = util.NewRateLimiter(limitFromEnv("RATELIMIT_CONNECT_REQUESTS", 60), time.Minute)
+var connectLimiter = util.NewRateLimiter(util.LimitFromEnv("RATELIMIT_CONNECT_REQUESTS", 60), time.Minute)
 
 // ConnectionsRoute exposes connected tools.
 //

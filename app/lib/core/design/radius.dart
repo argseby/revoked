@@ -10,13 +10,13 @@ abstract final class AppRadius {
   static const double xs = 4;
 
   /// Inputs, small controls, table cells.
-  static const double sm = 6;
+  static const double sm = 8;
 
   /// The default: cards, alerts, dialogs, menus, toasts, buttons and tags.
-  static const double md = 8;
+  static const double md = 12;
 
   /// Large surfaces — sheets, hero containers.
-  static const double lg = 12;
+  static const double lg = 16;
 
   /// Fully rounded ends. Avatars, progress tracks, round affordances.
   static const double pill = 999;

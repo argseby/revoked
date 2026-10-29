@@ -1,6 +1,7 @@
 package util
 
 import (
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -20,10 +21,20 @@ const (
 	SMTPSenderAddressEnv = "SMTP_SENDER_ADDRESS"
 	SMTPSenderNameEnv    = "SMTP_SENDER_NAME"
 
+	// OutboundMailPerHourEnv caps how many messages the server sends in an
+	// hour, to anyone, for any reason; 0 lifts the cap.
+	OutboundMailPerHourEnv = "RATELIMIT_OUTBOUND_EMAILS"
+
 	// SignupVerifyEmailEnv makes a new account confirm its address with a
 	// code sent there before its passkey is registered.
 	SignupVerifyEmailEnv = "SIGNUP_VERIFY_EMAIL"
 )
+
+// DefaultOutboundMailPerHour is the cap when OutboundMailPerHourEnv is unset.
+const DefaultOutboundMailPerHour = 200
+
+// ErrMailBudgetSpent is returned by a send refused by the hourly cap.
+var ErrMailBudgetSpent = errors.New("outbound mail budget for this hour is spent")
 
 const (
 	// EmailCodeLength is how many digits a confirmation code has.

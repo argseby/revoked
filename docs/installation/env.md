@@ -34,6 +34,12 @@ file needed there.
 |---|---|---|
 | `ALLOW_ATTESTATIONS` | `false` | Whether this server issues [attestations](../guide/attestations.md): statements about other people's identities, signed in the name of `DOMAIN`. Off by default, for the reason signups are: whoever trusts the domain trusts everything issued under it, and on a server several people share that is the operator's decision. With it on, a workspace member still needs the *Issue attestations* permission. Holding and verifying credentials work either way. |
 
+## Blocked domains
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `BLOCKED_DOMAINS_FILE` | — | Path to a file of domains impersonating your server, in the format of the repository's [`blocked-domains.txt`](https://github.com/argseby/revoked/blob/main/blocked-domains.txt). Served at `GET /api/blocked-domains`. The app refuses to switch to a server that this file or the project's own list names. Your file adds entries; it cannot lift one from the project's list, and `revoked.link` can never be blocked. Read on every request, so an edit applies without a restart. In Docker, mount the file into the container and give its path there. |
+
 ## Mail
 
 The outbound mail server, used for signup confirmation codes. These override

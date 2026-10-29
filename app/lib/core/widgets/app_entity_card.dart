@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/app_animated_size.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/motion.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -138,10 +138,7 @@ class _AppEntityCardState extends State<AppEntityCard> {
       ),
       margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       onTap: _cardTap,
-      child: AnimatedSize(
-        duration: AppMotion.of(context),
-        curve: AppMotion.curve,
-        alignment: Alignment.topCenter,
+      child: AppAnimatedSize(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -32,6 +32,10 @@ abstract class AppSpacing {
   /// The smallest a control may be to touch, in both directions.
   static const double minTarget = 48;
 
+  /// Width of the side panel a sheet becomes on a wider window: room for a
+  /// form, narrow enough that the list it was opened from stays in view.
+  static const double panelWidth = 440;
+
   /// From this width the shell shows the full sidebar instead of a rail.
   static const double wideWidth = 1024;
 

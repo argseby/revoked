@@ -62,6 +62,8 @@ func TestPublicPageRendersWithoutClaimingAView(t *testing.T) {
 		page.Header("Content-Type").Contains("text/html")
 		// The shell carries no values — only what it takes to ask for them.
 		page.Body().NotContains("page-canary-value-7f31")
+		// Only the server configured as util.OfficialDomain claims to be it.
+		page.Body().NotContains("data-official hidden>")
 	}
 
 	api.Get(util.Coll.Links, linkID, token).Expect().Status(http.StatusOK).

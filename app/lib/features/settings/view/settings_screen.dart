@@ -13,6 +13,8 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/version_summary.dart';
+import 'package:revoked_app/core/widgets/official_server_badge.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:revoked_app/features/settings/account_name.dart';
@@ -42,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Stores.passkeys.load();
       Stores.connections.load();
       Stores.credentials.load();
+      Stores.serverSettings.loadServerVersion();
       if (ws.isNotEmpty) {
         Stores.invites.load(ws);
         Stores.invites.loadMembers(ws);
@@ -251,7 +254,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: AppIcons.server,
               label: 'Server',
               value: _host(),
+              badge: AppConfig.isOfficialServer(Stores.api.baseUrl)
+                  ? const OfficialServerBadge()
+                  : null,
             ),
+            const _VersionRow(),
           ],
         ),
         AppDetailManage(
@@ -341,6 +348,26 @@ class _AppearanceRow extends StatelessWidget {
       title: SettingsPage.appearance.title,
       subtitle: '${_themes[Stores.theme.mode]} · $detail · $size',
       onTap: () => context.go(SettingsPage.appearance.route),
+    );
+  }
+}
+
+/// Both releases and whether they match, beside the server they belong to.
+class _VersionRow extends StatelessWidget {
+  const _VersionRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (_) {
+        final store = Stores.serverSettings;
+        return AppDetailRow(
+          icon: AppIcons.device,
+          label: 'Version',
+          value: describeVersions(store.serverVersion),
+          badge: versionStandingBadge(context, store.versionStanding),
+        );
+      },
     );
   }
 }

@@ -5,7 +5,6 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
-import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -56,21 +55,12 @@ class _InboxScreenState extends State<InboxScreen> {
       defaultSort: 'created_desc',
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ShellSlots.title.claimFrom(context, _title);
-      }
       Stores.requests.loadRequests();
     });
   }
 
-  @override
-  void dispose() {
-    ShellSlots.title.release(_title);
-    super.dispose();
-  }
-
-  /// The top bar carries the search; its hint carries the count.
-  Widget _title(BuildContext context) {
+  /// The hint carries the count.
+  Widget _search(BuildContext context) {
     final count = Stores.requests.requests.length;
     return AppSearchField<DataRequest>(
       controller: _table,
@@ -82,10 +72,18 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     // Your requests, and what others gave you (saved links). Answers to a
     // request are on that request's page.
-    return AppTabs(
-      labels: const ['Your requests', 'Received'],
-      initialIndex: widget.initialTab,
-      views: [_yourRequests(context), const BookmarksTab()],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppListSearch(child: Observer(builder: _search)),
+        Expanded(
+          child: AppTabs(
+            labels: const ['Your requests', 'Received'],
+            initialIndex: widget.initialTab,
+            views: [_yourRequests(context), const BookmarksTab()],
+          ),
+        ),
+      ],
     );
   }
 

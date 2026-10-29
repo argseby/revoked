@@ -209,22 +209,13 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                 _buildNameRow(),
                 _buildKeyRow(),
 
-                const AppFormSectionHeader('Developer'),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.xl,
-                    0,
-                    AppSpacing.xl,
-                    AppSpacing.sm,
-                  ),
-                  child: ApiPreview(
-                    spec: VaultStore.createSectionSpec(
-                      key: _store.sectionKey.text.trim(),
-                      name: _store.sectionName.text.trim(),
-                      records: widget.initialSection?.records ?? const [],
-                      user: widget.authStore.userId,
-                      workspace: widget.authStore.activeWorkspace ?? '',
-                    ),
+                ApiPreviewSection(
+                  spec: VaultStore.createSectionSpec(
+                    key: _store.sectionKey.text.trim(),
+                    name: _store.sectionName.text.trim(),
+                    records: widget.initialSection?.records ?? const [],
+                    user: widget.authStore.userId,
+                    workspace: widget.authStore.activeWorkspace ?? '',
                   ),
                 ),
               ],
@@ -234,7 +225,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
 
           _SheetFooter(
             busy: _store.isSubmittingSection,
-            confirmLabel: isDup ? 'Duplicate Section' : 'Create Section',
+            confirmLabel: isDup ? 'Duplicate section' : 'Create section',
             confirmIcon: isDup ? AppIcons.copy : AppIcons.plus,
             onConfirm: _canSubmit() ? _submit : null,
           ),
@@ -427,19 +418,10 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
                   ),
                 ),
 
-                const AppFormSectionHeader('Developer'),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.xl,
-                    0,
-                    AppSpacing.xl,
-                    AppSpacing.sm,
-                  ),
-                  child: ApiPreview(
-                    spec: VaultStore.updateSectionSpec(widget.section.id, {
-                      'name': name,
-                    }),
-                  ),
+                ApiPreviewSection(
+                  spec: VaultStore.updateSectionSpec(widget.section.id, {
+                    'name': name,
+                  }),
                 ),
               ],
             ),

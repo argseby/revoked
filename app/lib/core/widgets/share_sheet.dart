@@ -40,6 +40,7 @@ Future<void> showShareSheet({
 
   return showAppSheet(
     context: context,
+    dismissible: true,
     builder: (sheetContext) => _ShareSheet(
       title: title,
       webUrl: webUrl,

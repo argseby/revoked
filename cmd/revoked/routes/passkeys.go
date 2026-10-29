@@ -25,7 +25,7 @@ import (
 
 // passkeyLimiter bounds the unauthenticated passkey surface per IP: every
 // ceremony costs a lookup and a signature check, and a begin costs memory.
-var passkeyLimiter = util.NewRateLimiter(limitFromEnv("RATELIMIT_PASSKEY_REQUESTS", 60), time.Minute)
+var passkeyLimiter = util.NewRateLimiter(util.LimitFromEnv("RATELIMIT_PASSKEY_REQUESTS", 60), time.Minute)
 
 // PasskeysRoute is how a person signs in: with a passkey, and nothing else.
 //

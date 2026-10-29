@@ -25,6 +25,7 @@ Future<void> showQrSheet({
 }) {
   return showAppSheet(
     context: context,
+    dismissible: true,
     builder: (sheetContext) => Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xl,

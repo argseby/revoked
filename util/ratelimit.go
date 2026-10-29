@@ -1,6 +1,9 @@
 package util
 
 import (
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -85,4 +88,18 @@ func (r *RateLimiter) gcLocked(now time.Time) {
 			delete(r.hits, key)
 		}
 	}
+}
+
+// LimitFromEnv reads a non-negative integer limit from the environment,
+// falling back to def when unset or malformed.
+func LimitFromEnv(name string, def int) int {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return def
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < 0 {
+		return def
+	}
+	return v
 }

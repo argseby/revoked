@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
-/// The start of a section: a heavy rule, a short label and, on the right, a
-/// count or one action. The rule is what gives a long screen its structure,
-/// like the lines of a ledger.
+/// The start of a section: a short label and, on the right, a count or one
+/// action, set apart from the section above by space.
 class LedgerHeader extends StatelessWidget {
   final String title;
 
@@ -17,12 +16,10 @@ class LedgerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.sm),
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: scheme.onSurface, width: 2)),
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: AppSpacing.xxl,
+        bottom: AppSpacing.sm,
       ),
       child: Row(
         children: [

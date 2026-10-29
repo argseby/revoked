@@ -13,8 +13,60 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/detail_gate.dart';
+
+/// The Developer part of a create or edit form: its heading, the request and
+/// what it takes to send it. Gated as a whole, so at Essentials the heading
+/// never stands alone over nothing.
+class ApiPreviewSection extends StatelessWidget {
+  final ApiRequestSpec spec;
+  final String title;
+
+  const ApiPreviewSection({
+    super.key,
+    required this.spec,
+    this.title = 'API request',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DetailGate(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppFormSectionHeader('Developer'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              0,
+              AppSpacing.xl,
+              AppSpacing.sm,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ApiPreview(spec: spec, title: title),
+                Observer(
+                  builder: (_) => Stores.apiKeys.apiKeys.isNotEmpty
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.sm),
+                          child: const Text(
+                            'Sending this yourself takes an API key. Create '
+                            'one under Settings → API keys.',
+                          ).muted.small,
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// An expandable panel showing the exact API request equivalent to the action
 /// being performed. The app is API-first, so create/update flows expose how to

@@ -12,6 +12,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
@@ -216,7 +217,7 @@ class _AppShellState extends State<AppShell> {
           Expanded(
             child: Scaffold(
               appBar: AppBar(
-                titleSpacing: AppSpacing.lg,
+                titleSpacing: AppSpacing.screenH(context),
                 title: _title(destination),
                 actions: [
                   _slot(ShellSlots.action),
@@ -239,7 +240,7 @@ class _AppShellState extends State<AppShell> {
                         onTap: () => _openNew(destination),
                       ),
                     ),
-                  AppSpacing.gapXs,
+                  SizedBox(width: AppSpacing.screenH(context)),
                 ],
               ),
               body: widget.child,
@@ -330,53 +331,16 @@ class _Sidebar extends StatelessWidget {
   }
 }
 
-/// Looks like a field, opens the search and link drawer. `/` opens it too.
+/// Opens the search and link drawer. `/` opens it too.
 class _SearchField extends StatelessWidget {
   const _SearchField();
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      label: 'Search or paste a link',
-      excludeSemantics: true,
-      child: AppFocusRing(
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: () => openLinkSearchSheet(context),
-            borderRadius: AppRadius.allMd,
-            child: Container(
-              height: AppSpacing.minTarget,
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              // Looks like a field, so it has a field's edge.
-              decoration: BoxDecoration(
-                borderRadius: AppRadius.allMd,
-                border: Border.all(color: scheme.outline),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    AppIcons.search,
-                    size: 18,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  AppSpacing.gapSm,
-                  const Expanded(
-                    child: AppText(
-                      'Search or paste a link',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const AppKeyHint('/'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AppSearchTrigger(
+      hint: 'Search or paste link',
+      onTap: () => openLinkSearchSheet(context),
+      trailing: const AppKeyHint('/'),
     );
   }
 }

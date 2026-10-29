@@ -25,8 +25,13 @@ void openVaultCreateSheet(
   showAppSheet(
     context: context,
     builder: (sheetContext) => ConstrainedBox(
+      // A bottom sheet leaves a strip of the page in view; a side panel is
+      // already beside the page, so it runs the full height and its buttons
+      // sit at the bottom edge.
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(sheetContext).size.height * 0.9,
+        maxHeight: AppSpacing.isNarrow(sheetContext)
+            ? MediaQuery.of(sheetContext).size.height * 0.9
+            : double.infinity,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -53,6 +58,7 @@ void openVaultCreateSheet(
           ),
           Expanded(
             child: AppTabs(
+              inset: AppSpacing.xl,
               labels: const ['Record', 'Section', 'From template'],
               initialIndex: initialTab.index,
               views: [

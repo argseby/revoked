@@ -202,7 +202,7 @@ void main() {
     await signedIn(tester, size: const Size(1200, 800));
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
-    expect(find.text('Search or paste a link'), findsOneWidget);
+    expect(find.text('Search or paste link'), findsOneWidget);
     for (final label in ['Overview', 'Vault', 'Shared', 'Requests']) {
       expect(find.text(label), findsWidgets, reason: label);
     }

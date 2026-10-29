@@ -231,13 +231,18 @@ class ApiClient {
   }
 
   /// Normalizes a user-entered server address into a base URL: prepends a
-  /// scheme when missing (http:// for a bare host/IP) and strips a trailing
-  /// slash. Empty input falls back to the compiled default.
+  /// scheme when missing and strips a trailing slash. Empty input falls back
+  /// to the compiled default.
+  ///
+  /// A bare address gets https unless it is on this machine or network, where
+  /// a dev server has no certificate. Defaulting a public host to http would
+  /// send the session token in the clear.
   static String normalizeServerUrl(String raw) {
     var s = raw.trim();
     if (s.isEmpty) return AppConfig.baseUrl;
     if (!s.startsWith('http://') && !s.startsWith('https://')) {
-      s = 'http://$s';
+      final host = Uri.tryParse('http://$s')?.host ?? '';
+      s = '${_isLocalNetworkHost(host) ? 'http' : 'https'}://$s';
     }
     while (s.endsWith('/')) {
       s = s.substring(0, s.length - 1);
@@ -264,6 +269,32 @@ class ApiClient {
 
   static bool _isLoopbackHost(String host) =>
       host == 'localhost' || host == '127.0.0.1' || host == '::1';
+
+  /// Loopback, private and link-local addresses, `.local`/`.localhost` names
+  /// and single-label hosts such as `devbox`.
+  static bool _isLocalNetworkHost(String host) {
+    final h = host.toLowerCase();
+    if (h.isEmpty) return false;
+    if (h == 'localhost' || h.endsWith('.localhost') || h.endsWith('.local')) {
+      return true;
+    }
+    if (h.contains(':')) {
+      return h == '::1' ||
+          h.startsWith('fc') ||
+          h.startsWith('fd') ||
+          h.startsWith('fe80:');
+    }
+    final octets = h.split('.').map(int.tryParse).toList();
+    if (octets.length == 4 && octets.every((o) => o != null && o <= 255)) {
+      final a = octets[0]!, b = octets[1]!;
+      return a == 127 ||
+          a == 10 ||
+          (a == 172 && b >= 16 && b <= 31) ||
+          (a == 192 && b == 168) ||
+          (a == 169 && b == 254);
+    }
+    return !h.contains('.');
+  }
 
   /// Resolves a link-embedded origin (host[:port], no scheme) to a base URL.
   /// https is forced for anything that is not loopback: the origin arrived

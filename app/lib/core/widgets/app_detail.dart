@@ -97,6 +97,9 @@ class AppDetailRow extends StatelessWidget {
 
   final VoidCallback? onTap;
 
+  /// A tag in front of [value], such as the official server's.
+  final Widget? badge;
+
   const AppDetailRow({
     super.key,
     this.icon,
@@ -104,6 +107,7 @@ class AppDetailRow extends StatelessWidget {
     this.value = '',
     this.valueMono = false,
     this.onTap,
+    this.badge,
   });
 
   @override
@@ -152,7 +156,16 @@ class AppDetailRow extends StatelessWidget {
                     flex: 3,
                     child: Align(
                       alignment: AlignmentDirectional.centerEnd,
-                      child: valueText,
+                      child: badge == null
+                          ? valueText
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                badge!,
+                                AppSpacing.gapSm,
+                                Flexible(child: valueText),
+                              ],
+                            ),
                     ),
                   ),
                 ],

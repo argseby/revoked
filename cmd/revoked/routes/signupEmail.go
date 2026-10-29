@@ -2,6 +2,7 @@ package routes
 
 import (
 	"crypto/subtle"
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
@@ -79,6 +80,9 @@ func bindSignupEmailRoutes(app core.App, e *core.ServeEvent, root *server.RootKe
 		}
 		if err := services.SendSignupCode(app, email, code, pageOrigin(re, root), body.Locale); err != nil {
 			signupCodes.forget(email)
+			if errors.Is(err, util.ErrMailBudgetSpent) {
+				return rateLimitedResponse(re)
+			}
 			app.Logger().Error("Failed to send a confirmation code", "error", err, "ip", re.RealIP())
 			return appErrorResponse(re, http.StatusBadGateway, &util.Errors.EmailSendFailed)
 		}

@@ -10,6 +10,7 @@ abstract class AppIcons {
   static const IconData arrowLeft = Icons.arrow_back;
   static const IconData arrowRight = Icons.arrow_forward;
   static const IconData bell = Icons.notifications_outlined;
+  static const IconData device = Icons.smartphone_outlined;
   static const IconData bellSlash = Icons.notifications_off_outlined;
   static const IconData bookmark = Icons.bookmark_border;
   static const IconData bookmarkFill = Icons.bookmark;

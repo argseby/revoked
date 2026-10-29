@@ -50,7 +50,49 @@ void main() {
       );
     });
 
+    test('a bare public host gets https', () {
+      for (final raw in [
+        'api.revoked.link',
+        'API.revoked.link/',
+        'example.com:8443',
+        '8.8.8.8:3000',
+        '172.32.0.1',
+      ]) {
+        expect(
+          ApiClient.normalizeServerUrl(raw),
+          startsWith('https://'),
+          reason: raw,
+        );
+      }
+    });
+
+    test('a bare local or private host keeps http', () {
+      for (final raw in [
+        'localhost:3000',
+        'app.localhost:3000',
+        '127.0.0.1:3000',
+        '10.0.0.2',
+        '172.16.4.1:3000',
+        '192.168.178.74:3000',
+        '169.254.1.1',
+        '[::1]:3000',
+        '[fd00::1]:3000',
+        'devbox:3000',
+        'nas.local',
+      ]) {
+        expect(
+          ApiClient.normalizeServerUrl(raw),
+          startsWith('http://'),
+          reason: raw,
+        );
+      }
+    });
+
     test('leaves an explicit scheme alone', () {
+      expect(
+        ApiClient.normalizeServerUrl('http://api.example.com'),
+        'http://api.example.com',
+      );
       expect(
         ApiClient.normalizeServerUrl('https://api.example.com'),
         'https://api.example.com',

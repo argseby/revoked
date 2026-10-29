@@ -33,6 +33,7 @@ type pageData struct {
 	Slug             string
 	Label            string
 	Domain           string
+	Official         bool
 	Origin           string
 	RootFingerprint  string
 	SharerName       string
@@ -110,6 +111,7 @@ func servePublicPage(app core.App, re *core.RequestEvent, root *server.RootKey, 
 		Slug:             slug,
 		Label:            link.GetString(util.Fields.Link.Label),
 		Domain:           root.Domain(),
+		Official:         strings.EqualFold(root.Domain(), util.OfficialDomain),
 		Origin:           origin,
 		RootFingerprint:  root.Fingerprint(),
 		Status:           link.GetString(util.Fields.Link.Status),
@@ -355,6 +357,7 @@ background: var(--surface-subtle); color: var(--fg-muted);
 }
 .pill.ok { background: var(--ok-subtle); color: var(--ok); }
 .pill.bad { background: var(--bad-subtle); color: var(--bad); }
+.pill[hidden] { display: none; }
 .strip { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* The trust gate: the one decision on the page before anything loads. */
@@ -551,7 +554,7 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <div class="facts">
 <div class="fact" id="fact-server">
 <span class="fact-k"><i data-i="server"></i>Server</span>
-<span class="fact-v"><span class="fact-name">{{.Domain}}</span><span class="pill" data-dns>Checking…</span></span>
+<span class="fact-v"><span class="fact-name">{{.Domain}}</span>{{if .Official}}<span class="pill ok" data-official hidden>Official</span>{{end}}<span class="pill" data-dns>Checking…</span></span>
 </div>
 <div class="fact{{if .SharerRevoked}} is-bad{{else if not .SharerName}} is-warn{{end}}" id="fact-sender">
 <span class="fact-k"><i data-i="user"></i>Sender</span>
@@ -787,6 +790,10 @@ if (server === 'ok') n.appendChild(svg('check', 13));
 n.appendChild(document.createTextNode(pill[1]));
 if (title) n.title = title;
 });
+// Only once DNS confirms the key: a dev server configured with the official
+// domain is not the official server.
+var official = document.querySelector('[data-official]');
+if (official) official.hidden = server !== 'ok';
 
 var fact = document.getElementById('fact-server');
 var bad = server === 'spoofed' || server === 'unverified';

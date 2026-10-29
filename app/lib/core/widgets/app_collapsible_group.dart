@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/widgets/app_animated_size.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/motion.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
@@ -42,10 +42,7 @@ class _AppCollapsibleGroupState extends State<AppCollapsibleGroup> {
     final scheme = Theme.of(context).colorScheme;
     final expanded = _expanded.value;
 
-    return AnimatedSize(
-      duration: AppMotion.of(context),
-      curve: AppMotion.curve,
-      alignment: Alignment.topCenter,
+    return AppAnimatedSize(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

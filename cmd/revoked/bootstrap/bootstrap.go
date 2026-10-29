@@ -19,6 +19,7 @@ import (
 // records only what committed.
 func Bind(app core.App, root *server.RootKey) {
 	hooks.BindMailSettings(app)
+	hooks.BindOutboundMailLimit(app)
 	hooks.BindUsersHooks(app)
 	hooks.BindWorkspacesHooks(app)
 	hooks.BindWorkspaceMembersHooks(app)

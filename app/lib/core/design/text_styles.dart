@@ -12,6 +12,12 @@ abstract final class AppTextSize {
   static const double bodyHeight = 1.45;
   static const double smallHeight = 1.35;
   static const double headingHeight = 1.25;
+  static const double titleHeight = 1.15;
+
+  /// Large type set at the default tracking looks loose and formal; pulling
+  /// it in is what makes a title read as a headline.
+  static const double titleTracking = -0.6;
+  static const double headerTracking = -0.2;
 }
 
 /// The app's entire text vocabulary: four sizes, a few modifiers.
@@ -109,7 +115,9 @@ class AppText extends StatelessWidget {
           : _small
           ? AppTextSize.small
           : AppTextSize.body,
-      height: heading
+      height: _title
+          ? AppTextSize.titleHeight
+          : _header
           ? AppTextSize.headingHeight
           : _small
           ? AppTextSize.smallHeight
@@ -119,6 +127,11 @@ class AppText extends StatelessWidget {
           : _bold
           ? FontWeight.w600
           : FontWeight.w400,
+      letterSpacing: _title
+          ? AppTextSize.titleTracking
+          : _header
+          ? AppTextSize.headerTracking
+          : null,
       // Non-muted text inherits, so buttons and alerts keep their own color.
       color: _muted ? scheme.onSurfaceVariant : null,
       fontFamily: _mono ? 'monospace' : null,

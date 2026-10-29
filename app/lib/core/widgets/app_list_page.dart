@@ -11,9 +11,9 @@ import 'package:revoked_app/core/design/text_styles.dart';
 ///   Group ─────────────────────
 ///   Group ─────────────────────
 ///
-/// The search lives in the top bar (an `AppSearchField` in the title slot),
-/// so the chips are the first thing on the page. They scroll away with the
-/// list, so a phone spends its height on rows.
+/// The search sits above it in an [AppListSearch], so the top bar keeps the
+/// screen's name. The chips scroll away with the list, so a phone spends its
+/// height on rows.
 class AppListPage extends StatelessWidget {
   /// The filter chips, first on the page.
   final Widget? filters;
@@ -127,6 +127,24 @@ class AppListBanner extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A list's search, pinned above its tabs and chips and aligned with the
+/// content under it. Every list tab places its search here and none in the
+/// top bar, so the bar always names the screen.
+class AppListSearch extends StatelessWidget {
+  final Widget child;
+
+  const AppListSearch({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final h = AppSpacing.screenH(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(h, AppSpacing.md, h, AppSpacing.xs),
+      child: child,
     );
   }
 }

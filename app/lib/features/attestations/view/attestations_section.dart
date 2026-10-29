@@ -82,6 +82,7 @@ class _HeldGroup extends StatelessWidget {
                 trailing: _verdictBadge(store.verdicts[c.id]),
                 onTap: () => showAppSheet(
                   context: context,
+                  dismissible: true,
                   builder: (_) => _CredentialSheet(
                     credential: c,
                     identityName: _identityName(c),

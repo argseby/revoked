@@ -26,8 +26,35 @@ permissions:
   contents: write
 
 jobs:
+  # The version every build carries, from the tag rather than pubspec.yaml, so
+  # the app reports the release it shipped in without anyone bumping a file.
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      name: ${{ steps.v.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="$INPUT_TAG"
+          if [ -z "$TAG" ] && [ "$REF_TYPE" = tag ]; then TAG="$REF_NAME"; fi
+          # A manual build-only run: the nearest tag and how far past it.
+          [ -n "$TAG" ] || TAG=$(git describe --tags --always)
+          NAME=$(echo "$TAG" | sed -nE 's/^v?([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME:-0.0.0}" >> "$GITHUB_OUTPUT"
+
   linux:
     name: Linux (x64)
+    needs: version
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,7 +75,7 @@ jobs:
 
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - run: flutter build linux --release
+      - run: flutter build linux --release --build-name=${{ needs.version.outputs.name }} --dart-define=APP_VERSION=${{ needs.version.outputs.tag }}
 
       - name: Package
         run: |
@@ -63,6 +90,7 @@ jobs:
 
   windows:
     name: Windows (x64)
+    needs: version
     runs-on: windows-latest
     defaults:
       run:
@@ -77,7 +105,7 @@ jobs:
 
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - run: flutter build windows --release
+      - run: flutter build windows --release --build-name=${{ needs.version.outputs.name }} --dart-define=APP_VERSION=${{ needs.version.outputs.tag }}
 
       - name: Package
         shell: pwsh
@@ -93,6 +121,7 @@ jobs:
 
   android:
     name: Android (APK)
+    needs: version
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -144,7 +173,7 @@ jobs:
 
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - run: flutter build apk --release
+      - run: flutter build apk --release --build-name=${{ needs.version.outputs.name }} --dart-define=APP_VERSION=${{ needs.version.outputs.tag }}
 
       - name: Name the artifact
         id: name

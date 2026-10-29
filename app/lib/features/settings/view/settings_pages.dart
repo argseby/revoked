@@ -1073,11 +1073,27 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
-          AppButton(
-            icon: AppIcons.plus,
-            label: 'Create workspace',
-            busy: Stores.settings.isSubmittingDrawer,
-            onTap: _submit,
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: Stores.settings.isSubmittingDrawer
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppButton(
+                  icon: AppIcons.plus,
+                  label: 'Create workspace',
+                  busy: Stores.settings.isSubmittingDrawer,
+                  onTap: _submit,
+                ),
+              ),
+            ],
           ),
         ],
       ),

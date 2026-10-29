@@ -56,6 +56,7 @@ Future<void> showApiAccessSheet(
 }) {
   return showAppSheet(
     context: context,
+    dismissible: true,
     builder: (_) => _ApiAccessSheet(target: target),
   );
 }

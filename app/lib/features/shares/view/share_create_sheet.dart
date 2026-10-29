@@ -358,19 +358,10 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                         _buildWatermarkRow(),
                         const AppFormSectionHeader('Verification'),
                         _buildVerificationSection(),
-                        const AppFormSectionHeader('Developer'),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.xl,
-                            0,
-                            AppSpacing.xl,
-                            AppSpacing.sm,
-                          ),
-                          child: ApiPreview(
-                            spec: _buildSpec(),
-                            title:
-                                'API request · ${isEdit ? 'update' : 'create'}',
-                          ),
+                        ApiPreviewSection(
+                          spec: _buildSpec(),
+                          title:
+                              'API request · ${isEdit ? 'update' : 'create'}',
                         ),
                       ],
                     ),

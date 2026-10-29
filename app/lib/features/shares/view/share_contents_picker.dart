@@ -143,7 +143,7 @@ class _GroupLabel extends StatelessWidget {
         top: AppSpacing.lg,
         bottom: AppSpacing.xxs,
       ),
-      child: Text(text.toUpperCase()).muted.small,
+      child: Text(text).small.bold.muted,
     );
   }
 }

@@ -10,6 +10,16 @@ const (
 	RoleAdmin                = "admin"
 	RoleMember               = "member"
 
+	// OfficialDomain is the server the project itself runs.
+	OfficialDomain = "api.revoked.link"
+
+	// BlockedDomainsFileEnv names a file of domains this server's users are
+	// warned off, in the format of blocked-domains.txt.
+	BlockedDomainsFileEnv = "BLOCKED_DOMAINS_FILE"
+
+	// MaxBlockedDomainsBytes bounds that file.
+	MaxBlockedDomainsBytes = 1 << 20
+
 	// MaxRecordValueLength mirrors the records.value column limit set by
 	// migration 000019; keep the two in step.
 	MaxRecordValueLength = 1000

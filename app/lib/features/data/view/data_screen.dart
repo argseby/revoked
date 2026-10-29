@@ -421,6 +421,7 @@ class _DataScreenState extends State<DataScreen> {
   Future<void> _showDetail(BuildContext context, DataItem item) async {
     await showAppSheet(
       context: context,
+      dismissible: true,
       builder: (sheetCtx) {
         final scheme = Theme.of(sheetCtx).colorScheme;
         final pullSlug = item.isVault || item.linkSlug.isEmpty

@@ -10,6 +10,7 @@ import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_logo.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
+import 'package:revoked_app/core/widgets/version_summary.dart';
 import 'package:revoked_app/features/auth/signup_policy.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/round_trip.dart';
@@ -31,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     SignupPolicy.load();
+    Stores.serverSettings.loadServerVersion();
   }
 
   Future<void> _changeServer() async {
@@ -94,6 +96,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       onTap: _changeServer,
                     ),
                   ),
+                  Observer(
+                    builder: (_) => VersionSummary(
+                      serverVersion: Stores.serverSettings.serverVersion,
+                      alignment: WrapAlignment.center,
+                    ),
+                  ),
+                  AppSpacing.gapXxs,
                   const AppText(
                     'Experimental app. Use with care.',
                     textAlign: TextAlign.center,

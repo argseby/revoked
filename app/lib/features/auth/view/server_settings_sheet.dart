@@ -10,6 +10,8 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/official_server_badge.dart';
+import 'package:revoked_app/core/widgets/version_summary.dart';
 
 /// Opens the server-settings drawer used from the login / register screens so
 /// the user can point the app at a different backend (IP + port or a domain).
@@ -25,7 +27,7 @@ class ServerSettingsSheet extends StatelessWidget {
 
   Future<void> _save(BuildContext context) async {
     final saved = await Stores.serverSettings.save();
-    if (!context.mounted) return;
+    if (saved == null || !context.mounted) return;
     Navigator.of(context).pop();
     AppToast.success(context, 'Server set to $saved');
   }
@@ -59,7 +61,19 @@ class ServerSettingsSheet extends StatelessWidget {
             '192.168.1.5:3000 or https://your-domain.com.',
           ).muted.small,
           const SizedBox(height: AppSpacing.lg),
-          const Text('Server address').small,
+          Row(
+            children: [
+              const Text('Server address').small,
+              Observer(
+                builder: (_) => store.isOfficial
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: AppSpacing.sm),
+                        child: const OfficialServerBadge(),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.xs),
           AppTextField(
             controller: store.controller,
@@ -82,7 +96,18 @@ class ServerSettingsSheet extends StatelessWidget {
                       color: ok ? scheme.success : scheme.error,
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    Expanded(child: Text(message).small),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(message).small,
+                          if (ok) ...[
+                            AppSpacing.gapXxs,
+                            VersionSummary(serverVersion: store.testedVersion),
+                          ],
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -91,6 +116,14 @@ class ServerSettingsSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           Row(
             children: [
+              Expanded(
+                child: AppButton(
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Observer(
                   builder: (_) => AppButton(
@@ -108,6 +141,7 @@ class ServerSettingsSheet extends StatelessWidget {
                   builder: (_) => AppButton(
                     icon: AppIcons.checkCircle,
                     label: 'Save',
+                    busy: store.isSaving,
                     onTap: store.canSave ? () => _save(context) : null,
                   ),
                 ),

@@ -2,9 +2,12 @@
 package routes
 
 import (
+	"io"
 	"net/http"
+	"os"
 	"revoked/cmd/revoked/server"
 	"revoked/util"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -23,6 +26,7 @@ func ServerInfoRoute(app core.App, root *server.RootKey) {
 			}
 			return re.JSON(http.StatusOK, map[string]any{
 				"domain":      root.Domain(),
+				"version":     util.Version(),
 				"fingerprint": root.Fingerprint(),
 				"publicKey":   root.PublicKeyPEM(),
 				"assertion":   assertion,
@@ -52,6 +56,40 @@ func ServerInfoRoute(app core.App, root *server.RootKey) {
 				},
 			})
 		})
+
+		e.Router.GET("/api/blocked-domains", func(re *core.RequestEvent) error {
+			if !allowRequest(re, probeLimiter, "") {
+				return rateLimitedResponse(re)
+			}
+			return serveBlockedDomains(app, re)
+		})
 		return e.Next()
 	})
+}
+
+// serveBlockedDomains publishes the operator's own list of impersonating
+// domains. The app applies it on top of the project's list, never instead of
+// it, so a server can add warnings but cannot lift one.
+//
+// Read on every request so an edit applies without a restart. An unreadable
+// file is a 500 rather than an empty list: the app then keeps the copy it
+// fetched last instead of forgetting every entry.
+func serveBlockedDomains(app core.App, re *core.RequestEvent) error {
+	re.Response.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	path := strings.TrimSpace(os.Getenv(util.BlockedDomainsFileEnv))
+	if path == "" {
+		return re.String(http.StatusOK, "")
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		app.Logger().Error("Blocked domains file unreadable", "env", util.BlockedDomainsFileEnv, "error", err)
+		return re.String(http.StatusInternalServerError, "")
+	}
+	defer f.Close()
+	body, err := io.ReadAll(io.LimitReader(f, util.MaxBlockedDomainsBytes+1))
+	if err != nil || len(body) > util.MaxBlockedDomainsBytes {
+		app.Logger().Error("Blocked domains file unreadable or too large", "env", util.BlockedDomainsFileEnv, "error", err)
+		return re.String(http.StatusInternalServerError, "")
+	}
+	return re.String(http.StatusOK, string(body))
 }

@@ -6,7 +6,6 @@ import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
-import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -27,7 +26,6 @@ import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
 import 'package:revoked_app/features/shares/view/recipient_row.dart';
-import 'package:revoked_app/core/design/spacing.dart';
 
 /// Which links the chips above the list let through.
 enum _LinkFilter { all, active, paused, closed }
@@ -38,16 +36,7 @@ class SharesScreen extends StatefulWidget {
   /// The link open beside the list, marked in it. Only in a split.
   final String? selectedId;
 
-  /// The list pane of a split: it keeps its search inside the pane and
-  /// leaves the top bar to the link beside it.
-  final bool embedded;
-
-  const SharesScreen({
-    super.key,
-    this.filterSlug,
-    this.selectedId,
-    this.embedded = false,
-  });
+  const SharesScreen({super.key, this.filterSlug, this.selectedId});
 
   @override
   State<SharesScreen> createState() => _SharesScreenState();
@@ -75,7 +64,6 @@ class _SharesScreenState extends State<SharesScreen> {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncTitle();
       Stores.shares.loadShares();
       Stores.bookmarks.load();
       Stores.vault.loadRecords();
@@ -92,31 +80,16 @@ class _SharesScreenState extends State<SharesScreen> {
     if (slug != null && slug != oldWidget.filterSlug) {
       _table.searchQuery = slug;
     }
-    if (widget.embedded != oldWidget.embedded) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _syncTitle());
-    }
-  }
-
-  /// Alone, the list's search is the top bar's title; embedded in a split
-  /// it sits in the pane, and the bar belongs to the link beside it.
-  void _syncTitle() {
-    if (!mounted) return;
-    if (widget.embedded) {
-      ShellSlots.title.release(_title);
-    } else {
-      ShellSlots.title.claimFrom(context, _title);
-    }
   }
 
   @override
   void dispose() {
-    ShellSlots.title.release(_title);
     _table.dispose();
     super.dispose();
   }
 
-  /// The top bar carries the search; its hint carries the count.
-  Widget _title(BuildContext context) {
+  /// The hint carries the count.
+  Widget _search(BuildContext context) {
     final count = Stores.shares.shares.length;
     return AppSearchField<Link>(
       controller: _table,
@@ -132,19 +105,10 @@ class _SharesScreenState extends State<SharesScreen> {
       labels: const ['Links', 'By person'],
       views: [_myLinks(context), const _ByPerson()],
     );
-    if (!widget.embedded) return tabs;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.md,
-            AppSpacing.lg,
-            AppSpacing.xs,
-          ),
-          child: Observer(builder: _title),
-        ),
+        AppListSearch(child: Observer(builder: _search)),
         Expanded(child: tabs),
       ],
     );

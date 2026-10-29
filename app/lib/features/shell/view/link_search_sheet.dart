@@ -52,6 +52,7 @@ Future<void> openLinkSearchSheet(BuildContext context) async {
   try {
     await showAppSheet(
       context: context,
+      dismissible: true,
       builder: (_) => const LinkSearchSheet(),
     );
   } finally {

@@ -42,4 +42,35 @@ class AppConfig {
   static const String docsUrl = 'https://docs.revoked.link';
   static const String issuesUrl =
       'https://github.com/argseby/revoked/issues/new';
+
+  /// The release this build shipped in. The release workflow sets it from the
+  /// tag (`--dart-define=APP_VERSION=v0.22.0`); a local build is `dev`.
+  static const String appVersion = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: 'dev',
+  );
+
+  /// The server the project itself runs.
+  static const String officialServerHost = 'api.revoked.link';
+  static const String officialDomain = 'revoked.link';
+
+  /// The list of domains impersonating Revoked, read from the repository so
+  /// a new one reaches every installed app without a release.
+  static const String blockedDomainsUrl =
+      'https://raw.githubusercontent.com/argseby/revoked/main/blocked-domains.txt';
+
+  static bool isOfficialDomain(String host) {
+    final h = host.toLowerCase();
+    return h == officialDomain || h.endsWith('.$officialDomain');
+  }
+
+  /// Whether [url] is the official server. Only over https: on plain http
+  /// anyone on the network path can answer in its name.
+  static bool isOfficialServer(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null &&
+        uri.scheme == 'https' &&
+        uri.host == officialServerHost &&
+        uri.port == 443;
+  }
 }

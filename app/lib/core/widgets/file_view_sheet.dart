@@ -110,6 +110,7 @@ Future<void> showFileViewSheet(
   final kind = _kindOf(mime, filename, bytes.length);
   return showAppSheet(
     context: context,
+    dismissible: true,
     builder: (sheetCtx) => ConstrainedBox(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(sheetCtx).size.height * 0.9,

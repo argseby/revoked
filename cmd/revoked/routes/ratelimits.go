@@ -2,10 +2,7 @@ package routes
 
 import (
 	"net/http"
-	"os"
 	"revoked/util"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -28,35 +25,35 @@ const (
 var (
 	// gatePasswordLimiter covers password/identifier attempts, keyed by IP+slug so
 	// hammering one link cannot lock out the others.
-	gatePasswordLimiter = util.NewRateLimiter(limitFromEnv(envLimitGate, 10), 5*time.Minute)
+	gatePasswordLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitGate, 10), 5*time.Minute)
 
 	// probeLimiter covers metadata probes and short-link reads, keyed by IP only —
 	// the enumeration budget across all slugs.
-	probeLimiter = util.NewRateLimiter(limitFromEnv(envLimitProbe, 120), time.Minute)
+	probeLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitProbe, 120), time.Minute)
 
 	// challengeLimiter covers nonce issuance, keyed by IP.
-	challengeLimiter = util.NewRateLimiter(limitFromEnv(envLimitChallenge, 60), time.Minute)
+	challengeLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitChallenge, 60), time.Minute)
 
 	// callbackTestLimiter covers the callback test button, keyed by the signed-in
 	// caller. Not part of ConfigureRateLimits: that switches off the public
 	// surface for the test harness, and a per-user budget this size is no
 	// obstacle to a suite that fires a handful of tests.
-	callbackTestLimiter = util.NewRateLimiter(limitFromEnv(envLimitCallback, 20), time.Minute)
+	callbackTestLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitCallback, 20), time.Minute)
 
 	// stampLimiter covers the owner's stamp previews and archives, keyed by the
 	// signed-in caller alone: stamping is CPU work, and switching addresses
 	// must not buy more of it.
-	stampLimiter = util.NewRateLimiter(limitFromEnv(envLimitStamp, 30), time.Minute)
+	stampLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitStamp, 30), time.Minute)
 
 	// signupMailLimiter covers confirmation codes sent to new addresses, keyed
 	// by IP, per hour: each one is an email this server sends to whatever
 	// address it is given. Each address has its own fixed budget on top.
-	signupMailLimiter = util.NewRateLimiter(limitFromEnv(envLimitSignupMail, 10), time.Hour)
+	signupMailLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitSignupMail, 10), time.Hour)
 
 	// grantPeerLimiter covers what other servers call: bulk grant reads,
 	// grant events and relayed answers, keyed by IP. Each call carries up to
 	// a batch of grants, so the budget is per call, not per grant.
-	grantPeerLimiter = util.NewRateLimiter(limitFromEnv(envLimitGrantPeer, 300), time.Minute)
+	grantPeerLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitGrantPeer, 300), time.Minute)
 )
 
 // ConfigureRateLimits replaces the public-surface limiters (0 disables one). For the
@@ -85,20 +82,6 @@ func ConfigureSignupMailRateLimit(perHour int) {
 // it). For the test harness only, whose two "servers" share one address.
 func ConfigureGrantRateLimit(requests int) {
 	grantPeerLimiter = util.NewRateLimiter(requests, time.Minute)
-}
-
-// limitFromEnv reads a non-negative integer limit from the environment,
-// falling back to def when unset or malformed.
-func limitFromEnv(name string, def int) int {
-	raw := strings.TrimSpace(os.Getenv(name))
-	if raw == "" {
-		return def
-	}
-	v, err := strconv.Atoi(raw)
-	if err != nil || v < 0 {
-		return def
-	}
-	return v
 }
 
 // rateLimitKey keys the limiter by client IP plus optional scope. RealIP is the

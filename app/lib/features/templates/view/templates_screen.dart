@@ -10,6 +10,7 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/detail_gate.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
@@ -362,12 +363,19 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
                 else
                   _buildJsonEditor(),
 
-                const SizedBox(height: AppSpacing.xl),
-                const Text('Developer').small,
-                const SizedBox(height: AppSpacing.sm),
-                ApiPreview(
-                  spec: _buildSpec(),
-                  title: 'API request · ${_isEdit ? 'update' : 'create'}',
+                DetailGate(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: AppSpacing.xl),
+                      const Text('Developer').small,
+                      const SizedBox(height: AppSpacing.sm),
+                      ApiPreview(
+                        spec: _buildSpec(),
+                        title: 'API request · ${_isEdit ? 'update' : 'create'}',
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

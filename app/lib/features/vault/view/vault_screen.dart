@@ -73,10 +73,7 @@ class _VaultScreenState extends State<VaultScreen> {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ShellSlots.title.claimFrom(context, _title);
-        ShellSlots.action.claim(_primaryAction);
-      }
+      if (mounted) ShellSlots.action.claim(_primaryAction);
       store.loadRecords();
       if (widget.editingShareId != null || widget.shareFilterId != null) {
         Stores.shares.loadShares();
@@ -86,14 +83,13 @@ class _VaultScreenState extends State<VaultScreen> {
 
   @override
   void dispose() {
-    ShellSlots.title.release(_title);
     ShellSlots.action.release(_primaryAction);
     _tableController.dispose();
     super.dispose();
   }
 
-  /// The top bar carries the search; its hint carries the count.
-  Widget _title(BuildContext context) {
+  /// The hint carries the count.
+  Widget _search(BuildContext context) {
     final count = Stores.vault.recordCount;
     return AppSearchField<models.Record>(
       controller: _tableController,
@@ -127,6 +123,16 @@ class _VaultScreenState extends State<VaultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppListSearch(child: Observer(builder: _search)),
+        Expanded(child: _body(context)),
+      ],
+    );
+  }
+
+  Widget _body(BuildContext context) {
     final store = Stores.vault;
 
     return Observer(

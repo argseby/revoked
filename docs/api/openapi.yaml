@@ -148,6 +148,14 @@ paths:
                 type: object
                 properties:
                   domain: { type: string, description: The domain this server claims. }
+                  version:
+                    type: string
+                    description: |
+                      The release this server was built from, stamped from the
+                      git checkout: `v0.22.0` on a tagged commit, a
+                      pseudo-version past one otherwise, `dev` when run with
+                      `go run`.
+                    examples: ["v0.22.0"]
                   fingerprint: { type: string, description: SHA-256 fingerprint of the root public key. }
                   publicKey: { type: string, description: Root public key, PEM encoded. }
                   assertion: { type: object, description: A freshly signed statement of the above. }
@@ -174,6 +182,26 @@ paths:
                           Whether this server issues attestations in its
                           domain's name (`ALLOW_ATTESTATIONS`). Holding and
                           verifying credentials do not depend on it.
+
+  /api/blocked-domains:
+    get:
+      tags: [Discovery]
+      summary: The operator's list of impersonating domains
+      description: |
+        The file `BLOCKED_DOMAINS_FILE` names, in the format of the
+        repository's `blocked-domains.txt`. The app refuses to switch to a
+        server listed here or in the project's own list; this list adds to
+        that one and cannot lift an entry from it. Empty when the variable is
+        unset.
+      security: []
+      responses:
+        "200":
+          description: The list, possibly empty.
+          content:
+            text/plain:
+              schema: { type: string, examples: ["# ours\nrevoked-login.example\n"] }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "500": { description: The configured file could not be read. }
 
   /api/permissions:
     get:

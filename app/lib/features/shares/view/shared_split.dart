@@ -45,7 +45,6 @@ class _SharedSplitState extends State<SharedSplit> {
       key: _listKey,
       filterSlug: widget.filterSlug,
       selectedId: wide ? widget.selectedId : null,
-      embedded: wide,
     );
 
     if (wide) {

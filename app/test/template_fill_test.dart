@@ -120,7 +120,7 @@ void main() {
 
     await tester.tap(find.text('Supplier onboarding'));
     await tester.pumpAndSettle();
-    expect(find.text('CONTACT'), findsOneWidget);
+    expect(find.text('Contact'), findsOneWidget);
 
     // The filled field is done; an unanswered one opens the input drawer,
     // carrying the template's own reason for asking.
@@ -129,7 +129,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Needed for invoicing.'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10));
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
     // An answered field reopens on what is stored, not on a blank box.
@@ -140,9 +140,9 @@ void main() {
       'Acme',
     );
 
-    // Dismiss it rather than saving: the save is a write, and this test has
-    // no server behind it.
-    await tester.tapAt(const Offset(10, 10));
+    // Cancel rather than save: the save is a write, and this test has no
+    // server behind it.
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
     // A date is picked, not typed: the picker opens on the template's value.

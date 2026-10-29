@@ -123,4 +123,22 @@ func BindUsersHooks(app core.App) {
 		return e.Next()
 	})
 
+	// PocketBase's own mail endpoints are unused by every client, and each
+	// would let a stranger (verification) or any account (email change) make
+	// this server mail an address of their choosing. A superuser's dashboard
+	// may still send a verification mail.
+	//
+	// This hook only runs once the address belongs to an unverified account,
+	// so it answers with the 204 PocketBase gives every other address: a
+	// refusal here would tell a stranger which addresses have accounts.
+	app.OnRecordRequestVerificationRequest(util.Coll.Users).BindFunc(func(e *core.RecordRequestVerificationRequestEvent) error {
+		if e.HasSuperuserAuth() {
+			return e.Next()
+		}
+		return e.NoContent(http.StatusNoContent)
+	})
+
+	app.OnRecordRequestEmailChangeRequest(util.Coll.Users).BindFunc(func(e *core.RecordRequestEmailChangeRequestEvent) error {
+		return apis.NewForbiddenError("Email changes are not available.", nil)
+	})
 }

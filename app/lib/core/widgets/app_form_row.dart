@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/widgets/app_animated_size.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/motion.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -152,7 +152,7 @@ class AppFormSectionHeader extends StatelessWidget {
         AppSpacing.xl,
         AppSpacing.xxs,
       ),
-      child: Text(text.toUpperCase()).muted.small,
+      child: Text(text).small.bold.muted,
     );
   }
 }
@@ -191,10 +191,7 @@ class _AppFormAdvancedState extends State<AppFormAdvanced> {
   Widget _build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final open = _open.value;
-    return AnimatedSize(
-      duration: AppMotion.of(context),
-      curve: AppMotion.curve,
-      alignment: Alignment.topCenter,
+    return AppAnimatedSize(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

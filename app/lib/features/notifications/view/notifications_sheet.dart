@@ -18,6 +18,7 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 void openNotificationsSheet(BuildContext context) {
   showAppSheet(
     context: context,
+    dismissible: true,
     builder: (context) => const NotificationsSheet(),
   );
 }

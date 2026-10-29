@@ -17,18 +17,18 @@ class AppTheme {
 
   static const _light = ColorScheme(
     brightness: Brightness.light,
-    primary: AppPalette.lightInk,
+    primary: AppPalette.lightBrand,
     onPrimary: AppPalette.lightWhite,
-    primaryContainer: AppPalette.lightCardHighest,
-    onPrimaryContainer: AppPalette.lightInk,
+    primaryContainer: AppPalette.lightBrandContainer,
+    onPrimaryContainer: AppPalette.lightOnBrandContainer,
     secondary: AppPalette.lightSecondaryText,
     onSecondary: AppPalette.lightWhite,
     secondaryContainer: AppPalette.lightCard,
     onSecondaryContainer: AppPalette.lightInk,
-    tertiary: AppPalette.lightAccent,
+    tertiary: AppPalette.lightBrand,
     onTertiary: AppPalette.lightWhite,
-    tertiaryContainer: AppPalette.lightCard,
-    onTertiaryContainer: AppPalette.lightAccent,
+    tertiaryContainer: AppPalette.lightBrandContainer,
+    onTertiaryContainer: AppPalette.lightOnBrandContainer,
     error: AppPalette.lightDanger,
     onError: AppPalette.lightWhite,
     errorContainer: AppPalette.lightDangerContainer,
@@ -47,24 +47,24 @@ class AppTheme {
     scrim: Colors.black,
     inverseSurface: AppPalette.lightInk,
     onInverseSurface: AppPalette.lightPaper,
-    inversePrimary: AppPalette.darkAccent,
+    inversePrimary: AppPalette.darkBrand,
     surfaceTint: Colors.transparent,
   );
 
   static const _dark = ColorScheme(
     brightness: Brightness.dark,
-    primary: AppPalette.darkInk,
-    onPrimary: AppPalette.darkOnInk,
-    primaryContainer: AppPalette.darkCardHighest,
-    onPrimaryContainer: AppPalette.darkInk,
+    primary: AppPalette.darkBrand,
+    onPrimary: AppPalette.darkOnBrand,
+    primaryContainer: AppPalette.darkBrandContainer,
+    onPrimaryContainer: AppPalette.darkOnBrandContainer,
     secondary: AppPalette.darkSecondaryText,
     onSecondary: AppPalette.darkOnInk,
     secondaryContainer: AppPalette.darkCard,
     onSecondaryContainer: AppPalette.darkInk,
-    tertiary: AppPalette.darkAccent,
-    onTertiary: AppPalette.darkOnInk,
-    tertiaryContainer: AppPalette.darkCard,
-    onTertiaryContainer: AppPalette.darkAccent,
+    tertiary: AppPalette.darkBrand,
+    onTertiary: AppPalette.darkOnBrand,
+    tertiaryContainer: AppPalette.darkBrandContainer,
+    onTertiaryContainer: AppPalette.darkOnBrandContainer,
     error: AppPalette.darkDanger,
     onError: AppPalette.darkOnInk,
     errorContainer: AppPalette.darkDangerContainer,
@@ -83,7 +83,7 @@ class AppTheme {
     scrim: Colors.black,
     inverseSurface: AppPalette.darkInk,
     onInverseSurface: AppPalette.darkOnInk,
-    inversePrimary: AppPalette.lightAccent,
+    inversePrimary: AppPalette.lightBrand,
     surfaceTint: Colors.transparent,
   );
 
@@ -217,7 +217,7 @@ class AppTheme {
         errorBorder: field(scheme.error),
         focusedErrorBorder: field(scheme.error, width: 2),
       ),
-      // The one New button: ink, flat, like the primary buttons.
+      // The one New button: brand-coloured and flat, like the primary buttons.
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
@@ -237,7 +237,7 @@ class AppTheme {
         toolbarHeight: 56,
         shape: Border(bottom: outline),
       ),
-      // The current destination is an ink pill behind a light icon: a state
+      // The current destination is a brand pill behind a light icon: a state
       // marker strong enough to meet 3:1 against the bar, not a faint tint.
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,

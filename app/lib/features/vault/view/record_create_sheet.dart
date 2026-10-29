@@ -583,6 +583,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   Future<void> _pickType() async {
     final picked = await showAppSheet<String>(
       context: context,
+      dismissible: true,
       builder: (sheetCtx) {
         return Column(
           mainAxisSize: MainAxisSize.min,

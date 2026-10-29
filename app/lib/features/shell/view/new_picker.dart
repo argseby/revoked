@@ -9,33 +9,18 @@ import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 
 /// The shell's one create action: a grouped list of everything that can be
-/// made, each with a sentence on what it is. A dialog on a wide window, a
-/// sheet on a phone. Picking a row opens the form that already exists for it.
+/// made, each with a sentence on what it is. Picking a row opens the form
+/// that already exists for it, in the same sheet or panel the list sat in.
 Future<void> openNewPicker(BuildContext context, {int? destination}) async {
   final first = NewKind.firstFor(destination);
-  final NewKind? picked;
-  if (AppSpacing.isNarrow(context)) {
-    picked = await showAppSheet<NewKind>(
-      context: context,
-      builder: (sheetCtx) => NewPickerList(
-        first: first,
-        onPick: (kind) => Navigator.of(sheetCtx).pop(kind),
-      ),
-    );
-  } else {
-    picked = await showDialog<NewKind>(
-      context: context,
-      builder: (dialogCtx) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: NewPickerList(
-            first: first,
-            onPick: (kind) => Navigator.of(dialogCtx).pop(kind),
-          ),
-        ),
-      ),
-    );
-  }
+  final picked = await showAppSheet<NewKind>(
+    context: context,
+    dismissible: true,
+    builder: (sheetCtx) => NewPickerList(
+      first: first,
+      onPick: (kind) => Navigator.of(sheetCtx).pop(kind),
+    ),
+  );
   if (picked == null || !context.mounted) return;
   await startNew(context, picked);
 }

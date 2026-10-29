@@ -137,9 +137,9 @@ class _AppListGroupState extends State<AppListGroup> {
 }
 
 /// The label above a group of rows, with an optional count or action on the
-/// right, under a heavy rule — the ledger line that gives a long screen its
-/// structure. Announced as a heading, so a screen reader can jump between
-/// groups.
+/// right. Groups are set apart by space rather than a rule, which doubled up
+/// with the top bar's edge on every page whose first item is a group.
+/// Announced as a heading, so a screen reader can jump between groups.
 class AppListHeader extends StatelessWidget {
   final String title;
   final Widget? trailing;
@@ -148,13 +148,8 @@ class AppListHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      padding: const EdgeInsets.only(top: AppSpacing.xs),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: scheme.onSurface, width: 2)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.sm),
       child: ConstrainedBox(
         // Room for a small button, so a header with an action lines up with
         // one without.

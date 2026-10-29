@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"revoked/util"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -43,5 +44,30 @@ func BindMailSettings(app core.App) {
 		}
 		apply(e.App)
 		return nil
+	})
+}
+
+// outboundMailLimiter is one budget for everything the server mails. The
+// per-IP and per-address limits each leave a sender with enough addresses
+// free to spend the operator's mail quota and sending reputation.
+var outboundMailLimiter = util.NewRateLimiter(
+	util.LimitFromEnv(util.OutboundMailPerHourEnv, util.DefaultOutboundMailPerHour), time.Hour)
+
+// ConfigureOutboundMailLimit replaces the hourly mail cap (0 lifts it). For
+// the test harness only.
+func ConfigureOutboundMailLimit(perHour int) {
+	outboundMailLimiter = util.NewRateLimiter(perHour, time.Hour)
+}
+
+// BindOutboundMailLimit refuses every send past the hourly cap, PocketBase's
+// own mails included, with util.ErrMailBudgetSpent.
+func BindOutboundMailLimit(app core.App) {
+	app.OnMailerSend().BindFunc(func(e *core.MailerEvent) error {
+		if !outboundMailLimiter.Allow("") {
+			e.App.Logger().Warn("Outbound mail cap reached; message not sent",
+				"env", util.OutboundMailPerHourEnv)
+			return util.ErrMailBudgetSpent
+		}
+		return e.Next()
 	})
 }

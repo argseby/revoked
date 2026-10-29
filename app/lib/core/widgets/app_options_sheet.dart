@@ -39,6 +39,7 @@ Future<void> showAppOptionsSheet({
 }) {
   return showAppSheet(
     context: context,
+    dismissible: true,
     builder: (sheetCtx) {
       final scheme = Theme.of(sheetCtx).colorScheme;
       return Container(

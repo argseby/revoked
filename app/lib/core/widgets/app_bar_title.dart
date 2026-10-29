@@ -36,6 +36,7 @@ class AppBarTitle extends StatelessWidget {
             icon: AppIcons.arrowLeft,
             style: AppButtonStyle.accent,
             tooltip: 'Back',
+            size: AppButtonSize.small,
             onTap: onBack,
           ),
           AppSpacing.gapXs,

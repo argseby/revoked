@@ -1,0 +1,27 @@
+# Domains that impersonate Revoked.
+#
+# The app reads this file from GitHub and refuses to save a server whose
+# address matches a line here. The official server is api.revoked.link;
+# revoked.link and its subdomains are never blocked, whatever this file says.
+# A self-hosted server can add its own list with BLOCKED_DOMAINS_FILE; that
+# adds to this one and cannot lift an entry from it.
+#
+# One rule per line. `*` stands for any part of a single label, so
+# `revoked.*` matches revoked.app but not revoked.example.com. A rule also
+# covers every subdomain of what it matches: `revoked.*` blocks
+# api.revoked.app too. Lines starting with `#` are comments.
+
+# The name under another top-level domain.
+revoked.*
+revoked.co.*
+revoked.com.*
+
+# Lookalikes of the name.
+revokd.*
+rev0ked.*
+revoked-link.*
+revokedlink.*
+revoked-app.*
+revokedapp.*
+
+# Known impersonations, one domain per line.

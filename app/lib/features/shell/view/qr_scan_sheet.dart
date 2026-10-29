@@ -17,6 +17,7 @@ Future<void> openQrScanSheet(
 }) {
   return showAppSheet(
     context: context,
+    dismissible: true,
     builder: (sheetContext) =>
         _QrScanSheet(sheetContext: sheetContext, onCode: onCode),
   );

@@ -10,6 +10,10 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
 
+# git lets the toolchain stamp the release from .git (see util.Version), so a
+# server reports what it was built from without anyone passing a version.
+RUN apk add --no-cache git
+
 # CGO off: the SQLite driver is modernc's pure-Go one, so the result is a static
 # binary and the runtime image needs nothing but CA certificates.
 RUN --mount=type=cache,target=/go/pkg/mod \

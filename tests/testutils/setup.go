@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"revoked/cmd/revoked/bootstrap"
+	"revoked/cmd/revoked/hooks"
 	"revoked/cmd/revoked/routes"
 	"revoked/cmd/revoked/server"
 	_ "revoked/migrations"
@@ -83,6 +84,7 @@ func SetupTestApp(t testing.TB) (string, *pocketbase.PocketBase) {
 		routes.ConfigurePasskeyRateLimit(0)
 		routes.ConfigureSignupMailRateLimit(0)
 		routes.ConfigureGrantRateLimit(0)
+		hooks.ConfigureOutboundMailLimit(0)
 
 		bootstrap.Bind(testApp, root)
 

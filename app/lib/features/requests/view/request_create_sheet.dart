@@ -360,19 +360,10 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                         _buildCallbackRow(),
                         _buildCallbackTestRow(),
 
-                        const AppFormSectionHeader('Developer'),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            AppSpacing.xl,
-                            0,
-                            AppSpacing.xl,
-                            AppSpacing.sm,
-                          ),
-                          child: ApiPreview(
-                            spec: _buildSpec(),
-                            title:
-                                'API request · ${widget.editRequest != null ? 'update' : 'create'}',
-                          ),
+                        ApiPreviewSection(
+                          spec: _buildSpec(),
+                          title:
+                              'API request · ${widget.editRequest != null ? 'update' : 'create'}',
                         ),
                       ],
                     ),
@@ -972,6 +963,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     // Empty string sentinel = "None"; null = dismissed without choosing.
     final picked = await showAppSheet<String>(
       context: context,
+      dismissible: true,
       builder: (sheetCtx) {
         return Observer(
           builder: (_) {

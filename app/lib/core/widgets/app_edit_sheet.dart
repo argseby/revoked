@@ -59,10 +59,24 @@ Future<bool> showAppEditSheet({
                 : null,
           ),
           AppSpacing.gapLg,
-          AppButton(
-            icon: AppIcons.check,
-            label: doneLabel,
-            onTap: () => Navigator.of(sheetCtx).pop(true),
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: () => Navigator.of(sheetCtx).pop(false),
+                ),
+              ),
+              AppSpacing.gapMd,
+              Expanded(
+                child: AppButton(
+                  icon: AppIcons.check,
+                  label: doneLabel,
+                  onTap: () => Navigator.of(sheetCtx).pop(true),
+                ),
+              ),
+            ],
           ),
         ],
       ),
