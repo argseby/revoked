@@ -82,31 +82,35 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                0,
+                AppSpacing.lg,
+                AppSpacing.lg,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Observer(
-                    builder: (_) => AppButton(
-                      icon: AppIcons.server,
-                      label: Stores.serverSettings.savedLabel,
-                      tooltip: 'Change server',
-                      style: AppButtonStyle.ghost,
-                      size: AppButtonSize.small,
+                    builder: (_) => ServerPill(
+                      host: Stores.serverSettings.savedLabel,
+                      serverVersion: Stores.serverSettings.serverVersion,
                       onTap: _changeServer,
                     ),
                   ),
-                  Observer(
-                    builder: (_) => VersionSummary(
-                      serverVersion: Stores.serverSettings.serverVersion,
-                      alignment: WrapAlignment.center,
-                    ),
+                  AppSpacing.gapSm,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        AppIcons.flask,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      AppSpacing.gapXxs,
+                      const Text('Experimental').small.muted,
+                    ],
                   ),
-                  AppSpacing.gapXxs,
-                  const AppText(
-                    'Experimental app. Use with care.',
-                    textAlign: TextAlign.center,
-                  ).small.muted,
                 ],
               ),
             ),
