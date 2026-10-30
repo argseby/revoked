@@ -166,9 +166,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                 accent: Theme.of(context).colorScheme.success,
                 title: 'You’re signed in to ${r.clientHost}',
                 message:
-                    '${r.background ? 'Go back to the ${r.clientHost} page you started on; it carries on by itself.' : '${r.clientHost} carries on in your browser.'} '
-                    'Entries you shared stay in your vault; you can revoke '
-                    'them there at any time.',
+                    '${r.background ? 'Go back to the ${r.clientHost} page you started on. It carries on from there.' : '${r.clientHost} carries on in your browser.'} '
+                    'What you shared stays in your vault. Revoke it there any '
+                    'time.',
               ),
               _Stage.declined => _finished(
                 context,
@@ -184,7 +184,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                 title: 'This sign-in can’t continue',
                 message:
                     '${r.clientHost} asked for something Revoked doesn’t '
-                    'allow. It was told so; nothing was shared.',
+                    'allow. Nothing was shared.',
               ),
               _Stage.failed => _finished(
                 context,
@@ -205,8 +205,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
       accent: Theme.of(context).colorScheme.error,
       title: 'This link doesn’t work',
       message:
-          'It doesn’t describe a sign-in that Revoked can continue. Start '
-          'signing in again on the service.',
+          'Revoked can’t continue this sign-in. Start again on the '
+          'service.',
       actions: [
         AppButton(
           label: 'Back to the app',
@@ -336,8 +336,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
           title: 'Who is asking',
           trailing: quiet,
           footer: const Text(
-            'The address is what identifies a service. Only continue if you '
-            'recognise it and just started signing in there.',
+            'Check the address. Only continue if you recognise it and just '
+            'started signing in there.',
           ),
           children: [
             AppDetailRow(icon: AppIcons.globe, label: 'Address', value: host),
@@ -355,7 +355,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
             pad(
               AppCheckRow(
                 label: 'That it is you',
-                subtitle: 'Under an identifier only $host uses.',
+                subtitle: 'Through an ID made just for $host.',
                 value: true,
                 onChanged: null,
               ),

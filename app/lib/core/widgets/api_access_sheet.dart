@@ -192,8 +192,8 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
               _Note(
                 icon: AppIcons.shieldLock,
                 text:
-                    'This link requires a verified identity, so these web URLs '
-                    "won't resolve — use the in-app share instead.",
+                    'This link needs a verified identity, so these web '
+                    "addresses won't work. Share it in the app instead.",
               ),
             ],
 
@@ -293,19 +293,20 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
 
   String _footnote() {
     final parts = <String>[
-      'Pull live data from anywhere — no app, no token. Revoking the link cuts '
-          'off every URL instantly.',
+      'Get the latest data anywhere, without the app or a token. Revoke the '
+          'link and every address stops working at once.',
     ];
     if (widget.target.gated) {
       parts.add(
-        'The password becomes part of the URL, so it lands in server logs and '
-        'browser history — prefer it for low-sensitivity convenience pulls.',
+        'The password becomes part of the address, so it ends up in server '
+        'logs and browser history. Use this only for data that isn\'t '
+        'sensitive.',
       );
     }
     if (_format == _Format.contacts && !widget.target.gated) {
       parts.add(
-        'For CardDAV, add a contacts account using that URL as the '
-        'server (any username/password).',
+        'For CardDAV, add a contacts account with that address as the '
+        'server. Any username and password work.',
       );
     }
     return parts.join(' ');

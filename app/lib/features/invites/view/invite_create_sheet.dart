@@ -56,7 +56,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
   Future<void> _submit() async {
     final store = Stores.invites;
     if (_store.draftPermissions.isEmpty) {
-      AppToast.error(context, 'Choose at least one permission to grant.');
+      AppToast.error(context, 'Choose at least one permission.');
       return;
     }
 
@@ -77,14 +77,17 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
       final err = store.error;
       AppToast.error(
         context,
-        err?.description ?? 'Could not create the invite.',
+        err?.description ?? 'Couldn’t create the invite. Try again.',
       );
       return;
     }
 
     final token = store.lastCreatedToken;
     if (token == null) {
-      AppToast.error(context, 'The invite was created but no key came back.');
+      AppToast.error(
+        context,
+        'The invite was made, but its key didn’t arrive. Withdraw it and make a new one.',
+      );
       return;
     }
     Navigator.of(context).pop();
@@ -122,7 +125,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                 const Text('Invite someone').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'They will see exactly what you grant before they accept.',
+                  'They see exactly what they can do before they accept.',
                 ).muted.small,
               ],
             ),
@@ -164,7 +167,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                       0,
                     ),
                     child: Text(
-                      'Locking to an email means a forwarded key cannot be used by anyone else.',
+                      'Then a forwarded key won’t work for anyone else.',
                     ).muted.small,
                   ),
 
@@ -176,7 +179,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                     onChanged: _store.setDraftSingleUse,
                   ),
 
-                  const AppFormSectionHeader('What they may do'),
+                  const AppFormSectionHeader('What they can do'),
                   Observer(
                     builder: (_) {
                       if (store.catalogue.isEmpty) {
@@ -221,9 +224,11 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                       ),
                       child: AppAlert(
                         destructive: true,
-                        title: const Text('This invite hands over control'),
+                        title: const Text(
+                          'This invite gives control over access',
+                        ),
                         content: Text(
-                          'At least one permission lets the holder change who else can get in.',
+                          'Whoever joins with it can change who else gets in.',
                         ).small,
                       ),
                     ),
@@ -278,7 +283,8 @@ Future<void> _showTokenDialog(BuildContext context, String token) async {
   final copy = await showAppDialog(
     context: context,
     title: 'Share this key',
-    message: 'This is shown once. Copy it now — it cannot be retrieved later.',
+    message:
+        'You see this only once. Copy it now — you can’t get it back later.',
     content: SelectableText(link),
     confirmLabel: 'Copy key',
     confirmIcon: AppIcons.copy,

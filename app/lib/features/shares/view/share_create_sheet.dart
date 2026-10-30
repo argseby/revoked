@@ -135,7 +135,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     if (!mounted) return;
     if (taken &&
         (widget.editShare == null || widget.editShare!.slug != input)) {
-      _store.setDraftSlugWarning('This slug is already taken.');
+      _store.setDraftSlugWarning(
+        'This address is already taken. Try another one.',
+      );
     } else {
       _store.setDraftSlugWarning(null);
     }
@@ -224,12 +226,12 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       if (!ok) {
         AppToast.error(
           context,
-          'Could not update share',
+          "Couldn't update the link",
           subtitle: Stores.shares.errorMessage,
         );
         return false;
       }
-      AppToast.success(context, 'Share updated');
+      AppToast.success(context, 'Link updated');
       return true;
     }
 
@@ -254,14 +256,14 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     if (!ok) {
       AppToast.error(
         context,
-        'Could not create share',
+        "Couldn't create the link",
         subtitle: Stores.shares.errorMessage,
       );
       return false;
     }
     AppToast.success(
       context,
-      widget.initialShare != null ? 'Share duplicated' : 'Share created',
+      widget.initialShare != null ? 'Link duplicated' : 'Link created',
     );
     return true;
   }
@@ -298,8 +300,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     final isEdit = widget.editShare != null;
     final isDup = widget.initialShare != null;
     final title = isEdit
-        ? 'Edit share'
-        : (isDup ? 'Duplicate share' : 'New share link');
+        ? 'Edit link'
+        : (isDup ? 'Duplicate link' : 'New link');
     final completeLabel = isEdit
         ? 'Save changes'
         : (isDup ? 'Duplicate link' : 'Create link');
@@ -327,8 +329,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                 Text(title).header,
                 AppSpacing.gapXxs,
                 const Text(
-                  'The recipient gets a link, never a copy. It shows the '
-                  'current values until it expires or is revoked.',
+                  'Send a link instead of a copy. They see the latest '
+                  'version until it expires or you revoke it.',
                 ).muted.small,
               ],
             ),
@@ -423,8 +425,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           context: context,
           title: 'Label',
           description:
-              'Shown to the recipient as the link\'s title. Left empty, it '
-              'is named after what it shares.',
+              'The title the recipient sees. Leave it empty to name it '
+              'after what it shares.',
           controller: _store.draftLabel,
           hint: 'Vendor Onboarding',
         );
@@ -436,7 +438,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     final slug = _store.draftSlug.text.trim();
     return AppFormRow(
       icon: AppIcons.link,
-      label: 'URL slug',
+      label: 'Link address',
       valueText: slug.isEmpty ? 'Required' : (_store.draftSlugWarning ?? slug),
       isPlaceholder: slug.isEmpty,
       isError: slug.isEmpty || _store.draftSlugWarning != null,
@@ -458,9 +460,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           context: context,
           title: 'Watermark',
           description:
-              'Every image and PDF is stamped with this text, the date and '
-              'the share tag${tag == null ? '' : ' (#$tag)'}. Other file '
-              'types are not served. Leave blank for no watermark.',
+              'Every image and PDF gets this text, the date and the link '
+              'tag${tag == null ? '' : ' (#$tag)'}. Other file types can\'t '
+              'be opened. Leave it empty for no watermark.',
           controller: _store.draftWatermarkText,
           hint: 'e.g. Nur für Wohnungsbewerbung Musterstr. 5',
         );
@@ -480,7 +482,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         await showAppEditSheet(
           context: context,
           title: 'Maximum views',
-          description: 'Auto-expire the link after this many views.',
+          description: 'The link stops working after this many views.',
           controller: _store.draftMaxViews,
           hint: 'e.g. 5 — leave blank for unlimited',
           keyboardType: TextInputType.number,
@@ -511,7 +513,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     if (typed) {
       valueText = stored ? '•••••••• · replaces the current one' : '••••••••';
     } else if (removing) {
-      valueText = 'Will be removed on save';
+      valueText = 'Removed when you save';
     } else if (stored) {
       valueText = 'Set · leave blank to keep it';
     } else {
@@ -536,8 +538,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           title: 'Password',
           description: stored
               ? 'Type a new password to replace the current one, or leave '
-                    'blank to keep it.'
-              : 'Recipients must enter this before viewing the share.',
+                    'it empty to keep it.'
+              : 'People need this password to open the link.',
           controller: _store.draftPassword,
           hint: stored
               ? 'Leave blank to keep the current one'
@@ -566,8 +568,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Sign this share with one of your identities so recipients can '
-            'cryptographically verify who shared it.',
+            'Sign with one of your identities. Recipients can then check '
+            'that the link really comes from you.',
           ).muted.small,
           AppSpacing.gapMd,
           IdentityPicker(
@@ -579,8 +581,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           AppFormToggleRow(
             label: 'Require a verified viewer',
             subtitle:
-                'Viewers must prove control of a cryptographic identity '
-                '(handshake) before the data is revealed.',
+                'Viewers must prove who they are with a verified identity '
+                'before they see anything.',
             value: _store.draftRequireHandshake,
             onChanged: _store.setDraftHandshake,
             inset: false,
@@ -612,10 +614,10 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('URL slug').header,
+                  Text('Link address').header,
                   AppSpacing.gapXxs,
                   const Text(
-                    'The public URL path for this share link.',
+                    'The last part of your link\'s web address.',
                   ).muted.small,
                   AppSpacing.gapLg,
                   Row(
@@ -636,7 +638,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                       AppButton(
                         icon: AppIcons.arrowRepeat,
                         style: AppButtonStyle.accent,
-                        tooltip: 'Generate a random slug',
+                        tooltip: 'Make a random address',
                         onTap: () async {
                           final s = _generateRandomSlug();
                           _store.draftSlug.text = s;

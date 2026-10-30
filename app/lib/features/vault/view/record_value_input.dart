@@ -37,11 +37,10 @@ class RecordHiddenToggle extends StatelessWidget {
       icon: inset ? AppIcons.eyeSlash : null,
       label: isFile ? 'Hide file name' : 'Hide value',
       subtitle: isFile
-          ? 'The name is masked on screen until it is revealed. A file '
-                'name can give its content away.'
-          : 'The value is masked on screen until it is revealed. Suited to '
-                'passwords, tokens and anything not meant to be read over a '
-                'shoulder.',
+          ? 'Keep the name hidden until you reveal it. A file name can give '
+                'away what is inside.'
+          : 'Keep it hidden until you reveal it. Good for passwords and '
+                'anything nobody should read over your shoulder.',
       value: hidden,
       onChanged: onChanged,
       inset: inset,

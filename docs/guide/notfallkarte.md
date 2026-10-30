@@ -1,25 +1,24 @@
 # Example: Notfallkarte
 
-*Notfallkarte* (German for emergency card) is a small web page on which a
-bank-card-sized card for the wallet is made. The card carries a name and a QR
-code. Whoever scans it in an emergency sees the emergency contact, allergies,
-medication and doctor **as the vault holds them today**, not as they were
-when the card was printed. A change in the vault shows on the card straight
-away, and once the link is revoked, the card leads nowhere.
+*Notfallkarte* (German for emergency card) is a small web page that makes a
+wallet-sized card with your name and a QR code. In an emergency, whoever
+scans it sees your emergency contact, allergies, medication and doctor
+**as your vault holds them today**, not as they were when you printed the
+card. Change something in your vault, and the card shows it straight away.
+Revoke the link, and the card leads nowhere.
 
-It is a complete [link proposal](tools.md) tool and serves as the reference
-for building others: a static page without an account, without a backend and
-without access to the vault. Its source lives in its own `notfallkarte`
-repository.
+It's a complete [link proposal](tools.md) tool, and the model for building
+your own. It's a static page: no account, no backend, no access to your
+vault. Its source lives in its own `notfallkarte` repository.
 
-## The flow, step by step
+## Make a card, step by step
 
-1. **On the card page**, the name for the card is entered and the groups a
-   helper should see are ticked. Insurance and organ donation start unticked,
-   since anyone holding the card can read what it leads to.
-2. **Continue in revoked** opens a proposal link in the installed app. It
-   names the card and a list of record keys, never a value (wrapped here for
-   reading):
+1. **On the card page**, enter the name for the card and tick the groups a
+   helper should see. Insurance and organ donation start unticked, because
+   anyone holding the card can read what it leads to.
+2. **Continue in revoked** opens a proposal link in the app. It names the
+   card and a list of record keys, never a value (wrapped here so it's
+   easier to read):
 
     ```text
     revoked://p?label=Notfallkarte%20Max%20Mustermann
@@ -28,47 +27,44 @@ repository.
       &template=Medical%20emergency%20card
     ```
 
-   Without the app installed, the link opens nothing. The page notices that
-   nothing took over and says so, with a link to get revoked. After
-   installing, **Open Revoked** is pressed once more: the card is still in
-   the list, and the app carries the proposal through sign-up and workspace
-   setup and opens it once they are done.
+   No app yet? Then the link opens nothing. The page notices and tells you,
+   with a link to get Revoked. Once it's installed, press **Open Revoked**
+   again. Your card is still in the list. The app keeps the proposal while
+   you sign up and set up, and opens it when you're done.
 
-3. **In the app**, the share it would create is shown. The keys belong to the
-   built-in *Medical emergency card* template, so anything the vault does not
-   hold yet is asked for once, with the right label. The proposal sets no
-   expiry, since a card has to work on the day it is needed.
-4. **After confirmation**, the share is created on the owner's own server, by
-   the app.
-5. **The link returns to the card page** — either automatically, when the page
-   is connected and allowed to receive links, or by being copied in the app
-   and pasted into the page. The QR code is drawn from it, and the card is
-   offered as a PNG (300 dpi) or as an A4 print sheet at true size.
+3. **In the app**, you see the share it would create. The keys belong to the
+   built-in *Medical emergency card* template, so anything your vault
+   doesn't have yet is asked for once, with the right label. The link
+   doesn't expire, because the card has to work on the day you need it.
+4. **Press Continue**, and the app creates the share on your own server.
+5. **The link comes back to the card page**: on its own if the page is
+   connected and allowed to receive links, or you copy it in the app and
+   paste it into the page. The page draws the QR code from it and offers
+   the card as a PNG (300 dpi) or as an A4 sheet to print at true size.
 
-Once connected, the page also shows the status of each card — active, opened
-N×, paused, revoked — and, where that was allowed, the link is revoked when a
-card is removed. Cards are found again in another browser through the link's
-label and the page's own reference (`<card id>.<groups>`), which was set on
-the proposal. Nothing is kept on the server for the page, and its own storage
-holds no more than names and ticked groups.
+Once connected, the page also shows each card's status: active, opened
+N×, paused, revoked. If you allowed it, removing a card revokes its link.
+In another browser, the page finds your cards again by their label and a
+reference it added to the proposal. Nothing is stored on the server for the
+page, and the page's own storage keeps only names and ticked groups.
 
-## Who knows what
+## Who can see what
 
-| | Knows |
+| | Sees |
 |---|---|
-| The card page | The name entered, the ticked groups, and the link if it was handed over. Never a value. |
-| The owner's server | Everything, as always — it belongs to the owner. |
-| Whoever scans the card | What the share resolves to at that moment, for as long as it is active. |
+| The card page | The name you entered, the groups you ticked, and the link if you handed it over. Never a value. |
+| Your server | Everything, as always. It's yours. |
+| Whoever scans the card | What the link shows at that moment, for as long as it's active. |
 
-The card itself is the credential: the link opens the data, which is the
-whole point of an emergency card. The groups are best chosen with that in
-mind. A lost card is dealt with by revoking its link; a new card with a new
-link takes about a minute.
+The card itself is the key: the link opens the data. That's the whole
+point of an emergency card, so choose the groups with that in mind. Lost
+your card? Revoke its link. A new card with a new link takes about a
+minute.
 
-## Self-hosting
+## Host it yourself
 
-The page consists of static files and only talks to the server the app names
-on the way back, so a single deployment works with every revoked server:
+The page is just static files. It only talks to the server the app names
+on the way back, so one copy works with every Revoked server:
 
 ```bash
 cd notfallkarte
@@ -76,14 +72,14 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Like the revoked stack, the compose file publishes no port and joins the
-reverse proxy's network (`proxy-network` by default). The proxy points at
-`notfallkarte:8080` under a host name of its own, for example
-`notfallkarte.example.com`. A revoked server running with a restricted
-`--origins` list needs the card page's origin added to it, since the page
-calls the server from the browser once connected. `REVOKED_DOWNLOAD_URL` in
-`.env` sets where **Get Revoked** leads (https only; empty means revoked's
+Like the Revoked stack, the compose file publishes no port and joins the
+reverse proxy's network (`proxy-network` by default). Point the proxy at
+`notfallkarte:8080` under a host name of its own, such as
+`notfallkarte.example.com`. If your Revoked server runs with a restricted
+`--origins` list, add the card page's address to it: once connected, the
+page talks to the server from the browser. `REVOKED_DOWNLOAD_URL` in `.env`
+sets where **Get Revoked** leads (https only; leave it empty for Revoked's
 latest release).
 
-How a tool like this is put together, including a minimal working page, is
-described in [Building a tool](../api/tools.md).
+To build a tool like this, including a minimal working page, see
+[Building a tool](../api/tools.md).

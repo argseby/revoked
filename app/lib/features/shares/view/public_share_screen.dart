@@ -95,13 +95,13 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     if (ok) {
       AppToast.success(
         context,
-        'Saved to Share → Bookmarks',
+        'Saved to Requests → Received',
         subtitle: 'Tap Bookmarked to add it to a group.',
       );
     } else {
       AppToast.error(
         context,
-        'Could not bookmark this share',
+        "Couldn't save this link",
         subtitle: bookmarks.error?.description,
       );
     }
@@ -142,18 +142,18 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       if (requiresPassword)
         RequirementItem(
           icon: AppIcons.lock,
-          title: 'Password Required',
+          title: 'Password',
           status: _store.sharePassword.text.isNotEmpty
               ? RequirementStatus.ready
               : RequirementStatus.pending,
           description: _store.sharePassword.text.isNotEmpty
               ? 'Password entered.'
-              : 'Enter the password provided by the sender.',
+              : 'Enter the password the sender gave you.',
         ),
       if (_requiresHandshake)
         RequirementItem(
           icon: AppIcons.personBoundingBox,
-          title: 'Identity Verification',
+          title: 'Verified identity',
           status: _isForeign
               ? RequirementStatus.blocked
               : _store.shareIdentityId != null
@@ -162,12 +162,12 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               ? RequirementStatus.pending
               : RequirementStatus.blocked,
           description: _isForeign
-              ? 'Cross-server identity verification is not supported yet.'
+              ? "You can't verify your identity with another server yet."
               : _store.shareIdentityId != null
               ? 'Identity selected.'
               : hasIdentities
-              ? 'Select an identity to verify ownership.'
-              : 'No identity found on this server.',
+              ? 'Pick one of your identities to prove who you are.'
+              : 'You have no identity on this server yet.',
         ),
     ];
   }
@@ -183,7 +183,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           label: 'Sender identity',
           value: 'Unsigned',
           state: TrustCheckState.failed,
-          detail: 'No identity is attached to verify the creator.',
+          detail:
+              "The sender didn't sign this link, so you can't check who made it.",
         ),
       ];
     }
@@ -210,7 +211,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     return [
       TrustCheck(
         label: 'Server domain',
-        value: domain.isEmpty ? 'No domain declared' : domain,
+        value: domain.isEmpty ? 'No domain given' : domain,
         state: state,
         detail: checking ? null : verdict?.reason,
       ),
@@ -219,7 +220,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         value: name.isEmpty ? shortFp : '$name · $shortFp',
         state: state,
         detail: state == TrustCheckState.verified
-            ? 'Signed by the key published in DNS.'
+            ? 'Signed with the key this domain publishes.'
             : null,
       ),
       if (widget.origin != null)
@@ -233,8 +234,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               : TrustCheckState.failed,
           detail: Uri.tryParse('https://${widget.origin!}')?.host == domain
               ? null
-              : 'The link points at a different server than the sender '
-                    'claims to be.',
+              : 'This link points to a different server than the sender '
+                    'claims to be. Be careful.',
         ),
     ];
   }
@@ -271,7 +272,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       _store.finishShareTrust(
         TrustVerdict.unverified(
           domain: domain,
-          reason: 'Domain verification could not complete.',
+          reason: "We couldn't check the domain.",
         ),
       );
     }
@@ -472,9 +473,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           accent: theme.colorScheme.onSurfaceVariant,
           title: 'This link no longer works',
           message:
-              '${msg.description} A link only ever shows the data while it '
-              'is open, so there is nothing to see here any more. If you '
-              'still need it, ask the person who gave you the link.',
+              '${msg.description} If you still need it, ask the person who '
+              'gave you the link.',
         );
       }
       return AppStatusMessage(
@@ -553,8 +553,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           const AppAlert(
             destructive: true,
             content: Text(
-              'This link lives on another server. Verifying your identity '
-              'across servers isn’t supported yet.',
+              'This link is on another server. You can’t verify your '
+              'identity there yet.',
             ),
           )
         else if (_requiresHandshake)
@@ -625,9 +625,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.gigantic),
             child: Center(
-              child: const Text(
-                'This link doesn’t contain any information yet.',
-              ).muted,
+              child: const Text('There’s nothing in this link yet.').muted,
             ),
           ),
       ],
@@ -775,7 +773,7 @@ class _SharedRecordRow extends StatelessWidget {
       AppToast.error(
         context,
         'File unavailable',
-        subtitle: 'Open the link again to request a new download.',
+        subtitle: 'Open the link again to get a new download.',
       );
       return null;
     }
@@ -795,7 +793,8 @@ class _SharedRecordRow extends StatelessWidget {
         failure?.title ?? 'Couldn’t load the file',
         subtitle:
             failure?.description ??
-            'The download may have expired or already been used.',
+            'The download expired or was used already. Open the link '
+                'again to try once more.',
       );
     }
     return bytes;

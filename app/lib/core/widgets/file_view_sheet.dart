@@ -81,7 +81,7 @@ Future<void> viewFile(
       AppToast.error(
         context,
         'No app could open this file',
-        subtitle: 'Download it instead and open it from there.',
+        subtitle: 'Download it and open it from there.',
       );
     }
   }
@@ -209,7 +209,9 @@ class _Unreadable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
-      child: const Text('This file could not be displayed.').muted.small,
+      child: const Text(
+        'Can\'t show this file here. Download it instead.',
+      ).muted.small,
     );
   }
 }

@@ -265,7 +265,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             icon: AppIcons.shieldLock,
             label: 'Accepted identities',
             value: request.identityScope == 'from_root'
-                ? 'From this root'
+                ? 'This server only'
                 : 'Any',
           ),
         if (request.identifier.isNotEmpty)
@@ -295,8 +295,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     final id = request.identifier.isNotEmpty;
     if (hs && id) return 'Locked to one recipient';
     if (hs) return 'Verified identities';
-    if (id) return 'Identifier holders';
-    return 'Open to anyone';
+    if (id) return 'People with the identifier';
+    return 'Anyone signed in';
   }
 
   Widget _details(DataRequest request) {
@@ -357,9 +357,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       context: context,
       title: 'Revoke request?',
       message:
-          'The link stops working immediately and collects '
-          'no further responses. Data already collected is '
-          'kept.',
+          'The link stops working right away and takes no new responses. '
+          'You keep the responses you already have.',
       content: ApiPreview(
         spec: RequestsStore.updateRequestSpec(req.id, const {
           'status': 'revoked',
@@ -378,7 +377,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     if (ok) {
       AppToast.success(context, 'Request revoked');
     } else {
-      AppToast.error(context, 'Failed to revoke', subtitle: store.errorMessage);
+      AppToast.error(
+        context,
+        "Couldn't revoke the request",
+        subtitle: store.errorMessage,
+      );
     }
   }
 
@@ -388,8 +391,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       context: context,
       title: 'Delete request?',
       message:
-          'This permanently deletes the request and its '
-          'collected responses. This cannot be undone.',
+          'The request and its responses are deleted for good. You can\'t '
+          'undo this.',
       content: ApiPreview(
         spec: RequestsStore.deleteRequestSpec(req.id),
         title: 'API request · delete',
@@ -406,7 +409,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       AppToast.success(context, 'Request deleted');
       _back();
     } else {
-      AppToast.error(context, 'Failed to delete', subtitle: store.errorMessage);
+      AppToast.error(
+        context,
+        "Couldn't delete the request",
+        subtitle: store.errorMessage,
+      );
     }
   }
 }

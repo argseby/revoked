@@ -36,17 +36,17 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Wi-Fi password'), findsOneWidget);
       for (final title in [
-        'Something to share',
-        'A link to it',
-        'Opened by the recipient',
-        'The value changes',
-        'The link is revoked',
+        'Add something to share',
+        'Make a link',
+        'See what they see',
+        'Change the value',
+        'Take it back',
       ]) {
         expect(find.text(title), findsOneWidget);
       }
       final save = tester.widget<AppButton>(
         find.ancestor(
-          of: find.text('Save to the vault'),
+          of: find.text('Save to vault'),
           matching: find.byType(AppButton),
         ),
       );

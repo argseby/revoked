@@ -58,10 +58,10 @@ class InviteTrustSummary extends StatelessWidget {
               AppAlert(
                 destructive: true,
                 leading: const Icon(AppIcons.shieldSlash, size: 18),
-                title: const Text('The inviter lost this authority'),
+                title: const Text('The inviter can\'t invite anymore'),
                 content: const Text(
-                  'Whoever created this invite can no longer invite people to '
-                  'this workspace, so the server will refuse it.',
+                  'Whoever made this invite can no longer add people to this '
+                  'workspace, so it won\'t work.',
                 ).small,
               ),
             ],
@@ -72,8 +72,8 @@ class InviteTrustSummary extends StatelessWidget {
                 leading: const Icon(AppIcons.shieldSlash, size: 18),
                 title: const Text('The inviter\'s identity was revoked'),
                 content: const Text(
-                  'The server that issued it has withdrawn it, so it no longer '
-                  'speaks for this domain.',
+                  'The server withdrew it. It no longer speaks for this '
+                  'domain.',
                 ).small,
               ),
             ],
@@ -98,20 +98,20 @@ class _InviterLine extends StatelessWidget {
     final domain = inviter.serverDomain;
 
     if (!_domainProven) {
-      return 'Nothing has verified that this server really is $domain, so '
-          'this address is only what the server says it is. Anyone can run '
-          'a server and claim any address on it.';
+      return 'Nobody has confirmed that this server really is $domain, so '
+          'this address is only its own claim. Anyone can run a server and '
+          'claim any address.';
     }
     if (inviter.emailMatchesServer) {
-      return 'This address is on $domain, and $domain is DNS-verified — '
-          'whoever controls that domain controls its mail.';
+      return 'This address is on $domain, and $domain is verified. Whoever '
+          'owns that domain owns its email.';
     }
     if (inviter.emailDomain.isEmpty) {
-      return '$domain is DNS-verified, but it cannot vouch for this address.';
+      return '$domain is verified, but it can\'t vouch for this address.';
     }
     return 'This address is at ${inviter.emailDomain}, not $domain. The '
-        'server is DNS-verified, but it does not control '
-        '${inviter.emailDomain} and cannot vouch for the address.';
+        'server is verified, but it doesn\'t own ${inviter.emailDomain}, so '
+        'it can\'t vouch for the address.';
   }
 
   @override

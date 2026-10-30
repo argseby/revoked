@@ -72,7 +72,7 @@ class VaultFileRow extends StatelessWidget {
                   (file != null
                       ? '${file.name} · ${formatBytes(file.size)}'
                       : (vaultCanDropFiles
-                            ? 'Required — browse, or drop a file anywhere here'
+                            ? 'Required — browse or drop a file here'
                             : 'Required — tap to pick a file')),
               isPlaceholder: file == null,
               isError: file == null || refusal != null,

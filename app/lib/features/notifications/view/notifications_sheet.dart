@@ -87,7 +87,7 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                   return AppEmptyState(
                     icon: AppIcons.bellSlash,
                     title: 'No notifications',
-                    subtitle: 'You are all caught up.',
+                    subtitle: 'You\'re all caught up.',
                   );
                 }
 
@@ -103,6 +103,8 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                       onMarkRead: () => store.markRead(notif.id, read: true),
                       onOpen: _opensRecord(notif)
                           ? () => _openRecord(context, notif)
+                          : _opensCheck(notif)
+                          ? () => _openChecks(context, notif)
                           : null,
                     );
                   },
@@ -120,6 +122,18 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
 bool _opensRecord(AppNotification n) =>
     n.refCollection == AppConfig.recordsCollection &&
     (n.refId ?? '').isNotEmpty;
+
+/// Someone showed an attestation this person asked for; tapping it opens
+/// the checks.
+bool _opensCheck(AppNotification n) =>
+    n.refCollection == AppConfig.attestationChecksCollection;
+
+void _openChecks(BuildContext context, AppNotification n) {
+  if (!n.read) Stores.notifications.markRead(n.id);
+  final router = GoRouter.of(context);
+  Navigator.of(context).pop();
+  router.go(AppRoutes.attestationsChecked);
+}
 
 void _openRecord(BuildContext context, AppNotification n) {
   if (!n.read) Stores.notifications.markRead(n.id);

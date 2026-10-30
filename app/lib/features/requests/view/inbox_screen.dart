@@ -98,7 +98,7 @@ class _InboxScreenState extends State<InboxScreen> {
 
         if (reqStore.errorMessage != null) {
           return AppLoadError(
-            title: 'Failed to load inbox',
+            title: "Couldn't load your requests",
             message: reqStore.errorMessage!,
             onRetry: reqStore.loadRequests,
           );
@@ -107,11 +107,11 @@ class _InboxScreenState extends State<InboxScreen> {
         if (reqStore.requests.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.inboxFill,
-            title: 'Requests collect data from other people',
+            title: 'Send your first request',
             subtitle:
-                'A request is a public form. An answer linked from someone\'s '
-                'own vault remains theirs, stays current, and can be '
-                'withdrawn by them.',
+                'Ask people for their details. Send a form, and their answers '
+                'stay up to date. They keep control and can withdraw them '
+                'whenever they want.',
             example: const AppEmptyExample(
               title: 'Tenant details',
               detail: '4 fields',
@@ -119,15 +119,15 @@ class _InboxScreenState extends State<InboxScreen> {
             ),
             steps: const [
               AppEmptyStep(
-                'A template defines the fields',
-                'Such as a name, an address or a file',
+                'Choose what to ask for',
+                'With a template: a name, an address or a file',
               ),
               AppEmptyStep(
-                'The form is shared as a link',
-                'Optionally limited to verified identities',
+                'Send the form as a link',
+                'Only to verified identities, if you like',
               ),
               AppEmptyStep(
-                'Responses are collected per request',
+                'See every response in one place',
                 'As a list or a spreadsheet',
               ),
             ],

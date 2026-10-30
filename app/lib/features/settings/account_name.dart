@@ -22,9 +22,8 @@ Future<String?> openAccountNameSheet(
     context: context,
     title: current.isEmpty ? 'Add your name' : 'Change your name',
     description:
-        'Services you sign in to with Revoked receive this name when you '
-        'allow it. It does not change the name on your identity, which '
-        'others see when you share or request data.',
+        'Services you sign in to with Revoked see this name if you allow '
+        'it. People you share with still see your identity\'s name.',
     hint: 'Ada Lovelace',
     controller: controller,
     doneLabel: 'Save',
@@ -41,7 +40,7 @@ Future<String?> openAccountNameSheet(
   }
   AppToast.error(
     context,
-    'Could not save your name',
+    'Couldn’t save your name',
     subtitle: auth.errorMessage,
   );
   return null;

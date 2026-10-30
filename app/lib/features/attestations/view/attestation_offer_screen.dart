@@ -109,10 +109,10 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
     final deciding = offer != null && accepted == null;
 
     return AppFlowScaffold(
-      title: offer == null ? 'Attestation offer' : offer.title,
+      title: offer == null ? 'An attestation for you' : offer.title,
       subtitle: offer == null || offer.serverDomain.isEmpty
           ? null
-          : 'Attestation offered by ${offer.serverDomain}',
+          : 'Offered by ${offer.serverDomain}',
       closeLabel: deciding ? 'Decline and go back' : 'Back to the app',
       onClose: _leave,
       bottomBar: deciding ? _decision(context, offer) : null,
@@ -148,15 +148,14 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
     return AppStatusMessage(
       icon: AppIcons.checkCircle,
       accent: Theme.of(context).colorScheme.success,
-      title: 'The attestation is yours',
+      title: 'It’s yours now',
       message:
-          '${credential.issuer} attested “${credential.type}” to your '
-          'identity. It is kept on your server and listed under '
-          'Attestations. When a service asks for it, you choose which of its '
-          'claims are shown.',
+          '${credential.issuer} confirmed “${credential.type}” for you. '
+          'Find it under Attestations. When someone asks to see it, you '
+          'choose which details they get.',
       actions: [
         AppButton(
-          label: 'Show my attestations',
+          label: 'See attestations',
           icon: AppIcons.shieldCheck,
           onTap: () {
             Stores.credentials.clearOffer();
@@ -182,7 +181,7 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
       children: [
         AppSpinner(),
         SizedBox(width: AppSpacing.sm),
-        Text('Checking this server\'s domain…'),
+        Text('Checking who sent this…'),
       ],
     );
   }
@@ -198,15 +197,14 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
       children: [
         _trust(),
         AppListGroup(
-          title: 'Who attests',
+          title: 'Who confirms it',
           trailing: const SizedBox.shrink(),
           footer: Text(
             proven
-                ? 'The domain is what a service will see as the attester, and '
-                      'what it decides to believe or not.'
-                : 'Nothing has verified that this server really is '
-                      '${offer.serverDomain}. A credential from a domain that '
-                      'does not verify is refused by whoever checks it.',
+                ? 'This domain is who others see as vouching for you.'
+                : 'We couldn’t confirm this server really is '
+                      '${offer.serverDomain}. Anyone who checks this '
+                      'attestation will reject it.',
           ),
           children: [
             AppDetailRow(
@@ -223,17 +221,16 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
           ],
         ),
         AppListGroup(
-          title: 'What it states',
+          title: 'What it confirms',
           trailing: const SizedBox.shrink(),
           footer: Text(
             offer.wasAccepted
-                ? 'This offer was accepted before. The identity that '
-                      'accepted it can fetch the credential again.'
-                : 'Each claim is shown or withheld by you, one by one, every '
-                      'time the attestation is presented.',
+                ? 'You accepted this before. The same identity can fetch it '
+                      'again.'
+                : 'Every time you show it, you pick which details to share.',
           ),
           children: [
-            AppDetailRow(icon: AppIcons.tag, label: 'Type', value: offer.type),
+            AppDetailRow(icon: AppIcons.tag, label: 'Kind', value: offer.type),
             for (final entry in offer.claims.entries)
               AppDetailRow(label: entry.key, value: claimText(entry.value)),
             if (offer.expiresAt != null)
@@ -245,14 +242,14 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
           ],
         ),
         AppListGroup(
-          title: 'Which identity it is issued to',
+          title: 'Which identity gets it',
           trailing: const SizedBox.shrink(),
           footer: Text(
             offer.subjectFingerprint.isEmpty
-                ? 'The credential is bound to this identity\'s key, which '
-                      'stays on this device. Only that key can present it.'
-                : 'This offer was made for one particular identity; it can be '
-                      'accepted with that one only.',
+                ? 'It belongs to this identity. Its key stays on this '
+                      'device, and only it can show the attestation.'
+                : 'This offer is for one identity only. Accept it with that '
+                      'one.',
           ),
           children: [
             Padding(
@@ -286,10 +283,10 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
     return AppActionBar(
       note: Text(
         blocked
-            ? 'This server does not match its domain\'s DNS record, so '
-                  'nothing is accepted from it.'
-            : 'Accepting proves to ${offer.serverDomain} that the chosen '
-                  'identity is yours. Nothing else is sent.',
+            ? 'This server doesn’t match its domain’s DNS record. You can’t '
+                  'accept anything from it.'
+            : 'Accepting shows ${offer.serverDomain} that this identity is '
+                  'yours. Nothing else is sent.',
       ).muted.small,
       children: [
         AppButton(

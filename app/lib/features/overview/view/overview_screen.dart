@@ -114,7 +114,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
           icon: AppIcons.pauseCircle,
           label: 'Paused',
           value: '$paused ${paused == 1 ? 'link' : 'links'}',
-          detail: 'Nobody can open them until you activate them',
+          detail: 'Nobody can open them until you turn them back on',
           onTap: () => context.go(AppRoutes.shared),
         ),
     ];
@@ -163,14 +163,14 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   AppListRow(
                     icon: AppIcons.lock,
                     title: 'Nobody',
-                    subtitle: 'No open link carries anything from your vault.',
+                    subtitle: 'You aren\'t sharing anything right now.',
                   ),
                 ]
               : [for (final r in recipients) RecipientRow(r)],
         ),
         if (readable.isNotEmpty)
           AppListGroup(
-            title: 'Records others can read',
+            title: 'What others can see',
             noun: 'records',
             previewCount: 5,
             children: [
@@ -256,11 +256,12 @@ class _FirstSteps extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return AppPageBody(
       children: [
-        const AppText('You are all set').header,
+        const AppText('Welcome').header,
         AppSpacing.gapXxs,
         const Text(
-          'Two more steps make your first link. They take about a minute, '
-          'and every one can be undone.',
+          'You\'re in. Get started with a short tour of the two things that '
+          'matter most: adding something to your vault and sharing it. It '
+          'takes a minute, and you can undo all of it.',
         ).muted,
         AppSpacing.gapLg,
         AppListGroup(
@@ -276,14 +277,14 @@ class _FirstSteps extends StatelessWidget {
             ),
             AppListRow(
               icon: AppIcons.key,
-              title: 'Add a first record',
+              title: 'Add your first record',
               subtitle: 'A name, an address or an IBAN',
               onTap: () => openVaultCreateSheet(context),
             ),
             AppListRow(
               icon: AppIcons.link,
-              title: 'Share it, then revoke it',
-              subtitle: 'The one-minute tour does both with real data',
+              title: 'Share it, then take it back',
+              subtitle: 'Try it with your own data in a one-minute tour',
               onTap: () => context.go(AppRoutes.tour),
             ),
           ],

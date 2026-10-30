@@ -2415,6 +2415,113 @@ paths:
         "400": { $ref: "#/components/responses/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /api/attestation-checks:
+    post:
+      tags: [Attestations]
+      summary: Ask someone to show an attestation
+      description: |
+        Makes a check: this server stands in for the service that would
+        otherwise ask. The answer is a `present` query for an ordinary
+        `revoked://present` link, whose audience is this server's origin,
+        whose nonce is the check's own and whose state is the check's id.
+        The other person answers it like any request to see an attestation;
+        the answer lands at `POST /api/public/attestation-checks/answer`.
+
+        A check can be answered once, for ten minutes. `identityId` names
+        the asker as the other person sees them; it must be one of the
+        caller's own active identities. Requires a `users` session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type: { type: string, description: The kind of attestation asked for. Empty asks for any. }
+                issuers: { type: array, items: { type: string }, description: Attester domains accepted. }
+                claims: { type: array, items: { type: string }, description: Claims asked for. }
+                identityId: { type: string, description: The asker's identity, shown to the other person. }
+      responses:
+        "200":
+          description: The check, and the query of the link that answers it.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  present:
+                    type: object
+                    additionalProperties: { type: string }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/public/attestation-checks/{id}:
+    get:
+      tags: [Attestations]
+      summary: Who asks to see an attestation
+      description: |
+        Read by the answering app before anything is shown: the asker's
+        identity, stated as a request's requester is, and this server's
+        domain, so the app checks the asker along the same trust chain.
+        Answers only while the check is open.
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The asker.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  asker: { type: object }
+                  expiresAt: { type: string, format: date-time }
+                  server: { type: object }
+        "404": { $ref: "#/components/responses/AppError" }
+        "410": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/public/attestation-checks/answer:
+    post:
+      tags: [Attestations]
+      summary: Answer a check with a presentation
+      description: |
+        The `response_uri` of a check's present link. The presentation is
+        verified against the check's audience and nonce on arrival, and the
+        verdict is kept for the asker; the credential is not. Something that
+        is not a presentation, or one made for another verifier, is refused
+        without using the check up. The first answer that verifies as a
+        presentation closes it: a second gets `410`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [presentation, state]
+              properties:
+                presentation: { type: string }
+                state: { type: string, description: The check's id. }
+      responses:
+        "200":
+          description: Kept. `state` is the verdict's state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state: { type: string }
+        "400": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/AppError" }
+        "410": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /api/credentials/claim:
     post:
       tags: [Attestations]

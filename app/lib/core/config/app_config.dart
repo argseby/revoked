@@ -35,6 +35,7 @@ class AppConfig {
   static const String remindersCollection = 'reminders';
   static const String attestationsCollection = 'attestations';
   static const String credentialsCollection = 'credentials';
+  static const String attestationChecksCollection = 'attestationChecks';
 
   /// Where the project lives, shown in Settings → About. Not the API: these
   /// are the same for every deployment, whoever hosts the server.

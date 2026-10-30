@@ -1,104 +1,127 @@
 # Attestations
 
-An attestation is something another party confirms about one of your
-identities: a club its membership, a verification service an age, an
-employer a position. It is signed by that party's domain and held by you. A
-service that asks for it is shown only the claims you tick, and can check
-them without calling the party that attested.
+An attestation is something someone else confirms about you. A club
+confirms your membership, an age check confirms your age, an employer
+confirms your job. You keep it, and you decide what to show. A service that
+asks sees only the details you tick. It can check them without contacting
+whoever confirmed them.
 
-| | Vault entry | Attestation |
+| | Vault record | Attestation |
 |---|---|---|
 | Written by | You | Someone else, about you |
 | Proves | That you wrote it | That a domain stands behind it |
-| Reaches a service as | A share or a grant | A presentation, made on your device |
-| Ended by | You, by revoking the share | Its issuer, by revoking the attestation |
+| Reaches a service as | A share | Proof made on your device |
+| Ended by | You, by revoking the share | Whoever confirmed it, by revoking it |
 
-Everything about attestations is under **Settings → Attestations**.
+Open **Attestations** in the sidebar. **Held** is what others confirmed
+about you, **Issued** is what you confirmed about others, and **Checked**
+is what others showed you.
 
-## Receiving one
+## Accept an attestation
 
-An attestation arrives as an offer link, `revoked://a/…`, which opens the
-app. Before anything is decided the offer shows:
+An attestation arrives as an offer link (`revoked://a/…`) that opens the
+app. Before you decide, it shows:
 
-- **Who attests** — the domain, with the same verdict a share or request
-  gets. A credential from a domain that does not verify is refused by
-  whoever checks it later, so the verdict matters here.
-- **What it states** — the type and every claim with its value.
-- **Which identity it is issued to** — one of yours. The credential is bound
-  to that identity's key, which stays on the device it was created on.
+- **Who confirms it**: the domain, with the same check a share or request
+  gets. Whoever checks your attestation later will refuse one from a domain
+  that doesn't verify, so pay attention here.
+- **What it confirms**: the kind, and every detail with its value.
+- **Which identity gets it**: one of yours. The attestation is tied to that
+  identity's key, which stays on the device where you created it.
 
-**Accept** proves to the attester that the chosen identity is yours, by
-signing its challenge with the identity key. Nothing else is sent. The
-credential that comes back is checked by your own server and kept there; it
-then appears under **Held**.
+**Accept** proves to the other side that the identity is yours, by signing
+with its key. Nothing else is sent. Your own server checks the attestation
+that comes back and keeps it. You'll find it under **Held**.
 
-An offer works for one identity. Opened again with the same identity before
-its date, it returns the credential again, for example after the credential
-was removed by mistake. The identity's key is needed each time, so an
-attestation bound to an identity whose key was lost with its device is
-issued anew, to a new identity.
+An offer works for one identity. Open it again with the same identity
+before it runs out, and **Fetch again** gets you the attestation once
+more, for example after you removed it by mistake. That needs the
+identity's key each time. If the key was lost with a device, ask for a new
+attestation for a new identity.
 
-## What is held
+## Ask someone to confirm something
 
-Each held attestation shows its type, the domain that attested it, the
-identity holding it, and its standing:
+Choose **New → Attestation about you**. Say what kind it is, and what they
+should confirm if you like, then pick your identity. **Create link** gives
+you a link to send to whoever confirms it. It opens their form already
+filled in, and they send you back an offer.
 
-| Standing | Meaning |
+## What you hold
+
+Each attestation under **Held** shows its kind, who confirmed it, which
+identity holds it, and its status:
+
+| Status | What it means |
 |---|---|
-| **Verified** | The attester's key verifies, and the attestation and your identity both stand. |
-| **Unverified** | Something could not be checked, such as an attester that is unreachable or has no DNS record. |
-| **Revoked** | The attester withdrew it, or the identity it is bound to was revoked. |
-| **Expired** | It is past its own validity. |
+| **Verified** | Its signer's key checks out, and both the attestation and your identity still stand. |
+| **Issuer unverified** | The confirming domain has no DNS record, so it can't be checked. |
+| **Unverified** | Something couldn't be checked, for example because the confirming server can't be reached. |
+| **Revoked** | Whoever confirmed it withdrew it, or the identity it belongs to was revoked. |
+| **Expired** | It's past its end date. |
+| **Not genuine** | Its signature doesn't match the domain it names. |
+| **Unreadable** | The app couldn't read it. |
 
-Opening one lists its claims. **Remove** deletes the credential from your
-server. That does not revoke it: the attester still stands behind what it
-attested.
+Open one to see its details. **Remove attestation** deletes it from your
+server. That doesn't revoke it: whoever confirmed it still stands behind
+it.
 
-Revoking the identity an attestation is bound to ends the attestation's use
-as well, since nobody accepts a credential whose holder's identity was
-withdrawn.
+Revoke the identity it belongs to, and the attestation stops working too.
+Nobody accepts one whose holder's identity was withdrawn.
 
-## Showing one
+## Show an attestation
 
-A service asks with a `revoked://present` link. The app then shows who is
-asking — its web address, which is what identifies it — and what it asks
-for: a type, the attesters it accepts, the claims it needs.
+A service asks to see one with a `revoked://present` link. The app shows
+who is asking by their web address, because that's what identifies them.
+It also shows what they want: the kind, whose confirmation they accept,
+and the details they need.
 
-The held attestations that fit are listed, and under the chosen one every
-claim has a tick. The claims the service asked for start ticked; any of them
-can be withheld, and others added. Who attested, the type and the identity
-are always shown.
+Pick from the attestations that fit. Each detail has a tick box. The ones
+the service asked for start ticked. You can untick any of them, or tick
+more. Who confirmed it, its kind and your identity are always shown.
 
-**Show it** makes the presentation on the device and sends it to the
-service. It is signed with the identity key and made for this one request,
-so the service cannot pass it on and nobody who copies it can use it.
-**Decline** sends nothing.
+**Show it** makes the proof on your device and sends it. It's signed with
+your identity's key and made for this one request. The service can't pass
+it on, and nobody who copies it can use it. **Decline** sends nothing.
 
-## Issuing
+## Check someone else's attestation
 
-A workspace can attest things about other people, in the name of the
-server's domain. Two things have to be in place:
+Want to see an attestation someone else holds, such as a membership?
+Choose **New → See someone's attestation**. Say what kind you want, whose
+confirmation you accept, and which details you need. All three are
+optional. **Create check** gives you a code for them to scan with Revoked,
+and a link you can send instead. It works once, for ten minutes.
 
-- the server's operator has switched attestations on
+When they answer, you see what they showed and how it stood the moment it
+arrived. Details they chose not to show are marked **Withheld**. Your
+checks stay listed under **Checked**.
+
+## Confirm something about someone
+
+Your workspace can confirm things about other people, in the name of your
+server's domain. You need two things:
+
+- whoever runs the server has switched attestations on
   ([`ALLOW_ATTESTATIONS`](../installation/env.md#attestations)), and
-- the member holds the **Issue attestations** permission. Workspace
-  administrators hold it and can grant it.
+- you have the **Issue attestations** permission. Workspace admins have it
+  and can give it to others.
 
-**New** under **Issued** asks for:
+Choose **New → Attestation** and fill in:
 
-- a **type**, written without spaces, such as `membership`,
-- the **claims**, each a name with a text, a yes/no or a number,
-- optionally one **identity** the offer is for, by fingerprint, and
-- optionally a **validity** in days.
+- the **Kind**, one word without spaces, such as `membership`,
+- the details, each a name with a text, a yes/no or a number
+  (**Add detail**),
+- optionally, **Only for this identity**, by its fingerprint, and
+- optionally, how many days it's **Valid for**.
 
-Creating it signs nothing yet. It produces an offer link that is shown once
-and sent to the person the attestation is about. The attestation reads
-*Offered* until they accept it, then *Issued*, together with the identity
-that accepted it.
+**Create offer** doesn't sign anything yet. It gives you an offer link to
+send to the person it's about. The link is shown only once, so pass it on
+right away. The attestation reads **Offered** until they accept, then
+**Issued**, together with the identity that accepted it.
 
-What an attestation states is fixed once it exists. **Revoke** withdraws it:
-anyone who verifies the credential is told so within minutes, and it cannot
-be undone. Deleting an issued attestation revokes it too.
+What an attestation confirms can't be changed once it exists. **Revoke**
+withdraws it: anyone who checks it is told within minutes, and it can't be
+undone. Deleting an issued attestation revokes it too.
 
-A domain is believed by those who choose to believe it. An attestation is
-worth what the attesting domain's word is worth to the service that reads it.
+A domain is trusted by whoever chooses to trust it. An attestation is
+worth what the confirming domain's word is worth to the service that
+reads it.

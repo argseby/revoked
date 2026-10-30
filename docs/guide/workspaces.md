@@ -1,48 +1,50 @@
 # Workspaces & members
 
-A workspace is the unit everything lives in: vault, shares, requests,
-templates, identities and members are all scoped to one. You create or join
-your first at onboarding, can belong to up to ten, and switch the active one
-under **Settings**.
+A workspace keeps your things together: vault, shares, requests,
+templates, identities and members. You create or join your first one when
+you sign up. You can belong to up to ten, and switch between them under
+**Settings → Workspaces**.
 
-## Permissions
+## Choose what each member can do
 
-Access is granted per **permission**, not per role. The catalogue pairs a
-read grant with a manage grant for each area — vault, collected data, shares,
-requests, templates, identities, members — plus *Manage workspace* for
-renaming and deletion. When you invite someone or edit a member, you tick
-exactly what they may do.
+You decide exactly what each person may do. When you invite someone or
+edit a member, tick the permissions they need. Most areas have one to view
+and one to manage: vault, collected data, shares, requests, templates and
+identities. Attestations can be viewed and issued, and members can be
+viewed, invited and removed. **Manage workspace** covers renaming and
+deleting it.
 
-Three grants are marked destructive because they extend or end other people's
-access: managing identities, inviting members, and removing members. Anyone
-holding the invite grant is an **admin** — the label is derived from what
-they can do, never assigned separately — and a workspace always keeps at
-least one member who can both invite and remove, so access can never be
-orphaned.
+Some permissions are marked as sensitive, because they can hand out access
+or lock others out: **Manage identities**, **Issue attestations**,
+**Invite members**, **Remove members** and **Manage workspace**.
 
-## Invites
+Anyone who can invite is an **admin**. You don't assign that separately.
+A workspace always keeps at least one member who can both invite and
+remove, so nobody can lock it for good.
 
-An invite is a key you create and hand over on any channel. It carries the
-permissions you chose, and can be narrowed further:
+## Invite someone
 
-- **Pinned to an email** — only that account can accept it.
-- **Single-use** — spent on first acceptance; otherwise it stays active until
-  you revoke it or it expires.
+Create an invite under **Settings → Invites** and send the key any way you
+like. It carries the permissions you picked. You can narrow it further:
 
-Joining is pasting the key. Before accepting, the app shows what the server
-can actually prove about the inviter — the same
-[verification](identities.md#reading-a-verdict) shares get. You are notified
-when an invite you issued is accepted.
+- **Lock to an email**: only that account can accept it.
+- **Single use**: the key stops working once someone joins. Otherwise it
+  works until you withdraw it or it expires.
 
-## Leaving, removing, deleting
+To join, paste the key. Before you accept, the app shows what it can
+actually prove about who invited you, with the same
+[check](identities.md#check-who-sent-something) you get for shares. You're
+notified when someone accepts an invite you sent.
 
-Removing a member (or leaving) revokes the identities that person used in the
-workspace, in the same transaction — their existing shares and responses stop
-verifying as this workspace immediately.
+## Leave, remove or delete
 
-Deleting a workspace destroys its contents and revokes its identities.
-Revoked identities leave tombstones, so anyone verifying an old share still
-gets a definitive "revoked" rather than silence. Deleting your account does
-the same for everything you own. Neither is undoable.
+When a member leaves or is removed, the identities they used in this
+workspace are revoked at the same moment. Their shares and answers stop
+showing as verified for this workspace right away.
+
+Deleting a workspace deletes everything in it and revokes its identities.
+Anyone who checks an old share afterwards still gets a clear "revoked",
+not silence. Deleting your account does the same for everything you own.
+Neither can be undone.
 
 A workspace holds at most 50 members.

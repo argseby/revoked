@@ -56,9 +56,8 @@ Future<void> showShareSheet({
 /// the app, so the message says what it is and what to do first.
 String requestInvitation(String title, String appUrl) =>
     '$title\n\n'
-    'This request is answered in the Revoked app (https://revoked.link). '
-    'Answers taken from your own vault stay yours: they can be updated or '
-    'withdrawn at any time.\n\n'
+    'Answer this request in the Revoked app (https://revoked.link). Your '
+    'answers stay yours: you can update or withdraw them at any time.\n\n'
     '1. Install the Revoked app and sign in.\n'
     '2. Open this link on the same device:\n'
     '$appUrl';
@@ -107,9 +106,9 @@ class _ShareSheet extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
                   invitation != null
-                      ? 'Whoever opens this link in the revoked app can '
+                      ? 'Anyone who opens this in the Revoked app can '
                             'answer, until you close the request.'
-                      : 'Anyone with the link can read what it grants, until '
+                      : 'Anyone with the link can see what you shared, until '
                             'you pause or revoke it.',
                 ).muted.small,
               ],
@@ -132,7 +131,7 @@ class _ShareSheet extends StatelessWidget {
                   _LinkRow(
                     icon: AppIcons.globe,
                     label: 'Web link',
-                    hint: 'Opens in any browser — no app needed.',
+                    hint: 'Opens in any browser. No app needed.',
                     url: webUrl!,
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -141,9 +140,9 @@ class _ShareSheet extends StatelessWidget {
                   icon: AppIcons.shieldCheck,
                   label: 'App link',
                   hint: webUrl == null
-                      ? 'A request is only answered in the app, where the '
-                            'server is verified before anything is typed.'
-                      : 'Opens in revoked, which verifies the server first.',
+                      ? 'People answer requests in the app. It checks the '
+                            'server before they type anything.'
+                      : 'Opens in Revoked, which checks the server first.',
                   url: appUrl,
                 ),
 
@@ -317,8 +316,7 @@ class _InvitationBox extends StatelessWidget {
           const Text('Message sent with it'),
           const SizedBox(height: AppSpacing.xxs),
           const Text(
-            'Someone new to revoked needs the app before the link opens, so '
-            'the message says so.',
+            'It tells people new to Revoked to get the app first.',
           ).muted.small,
           const SizedBox(height: AppSpacing.sm),
           Container(

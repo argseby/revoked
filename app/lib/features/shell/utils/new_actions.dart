@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dart';
+import 'package:revoked_app/features/attestations/view/attestation_check_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
@@ -26,35 +27,35 @@ enum NewKind {
     NewGroup.vault,
     AppIcons.key,
     'Record',
-    'One piece of information, such as a name or an IBAN.',
+    'A single detail, like a name or an IBAN.',
     'r',
   ),
   file(
     NewGroup.vault,
     AppIcons.fileEarmark,
     'File',
-    'A document such as an ID card or a payslip.',
+    'A document, like an ID card or a payslip.',
     'f',
   ),
   template(
     NewGroup.vault,
     AppIcons.cardList,
     'From a template',
-    'Several records at once, ready to fill in.',
+    'Fill in several records at once.',
     't',
   ),
   section(
     NewGroup.vault,
     AppIcons.folder,
     'Section',
-    'Records that belong together and are shared as one.',
+    'Group records you always share together.',
     's',
   ),
   link(
     NewGroup.give,
     AppIcons.link,
     'Share link',
-    'The current value of chosen records, until you revoke it.',
+    'Let someone see your records until you revoke it.',
     'l',
   ),
   attestation(
@@ -68,7 +69,7 @@ enum NewKind {
     NewGroup.ask,
     AppIcons.inboxFill,
     'Request',
-    'A form that asks someone for their data.',
+    'Ask someone to fill in their details.',
     'q',
   ),
   askAttestation(
@@ -78,12 +79,18 @@ enum NewKind {
     'Ask a club or an employer to confirm something about you.',
     'k',
   ),
+  checkAttestation(
+    NewGroup.ask,
+    AppIcons.shieldCheck,
+    'See someone\'s attestation',
+    'Ask to see one, like a membership, and check it.',
+    'c',
+  ),
   openLink(
     NewGroup.received,
     AppIcons.qrCode,
     'Open or scan a link',
-    'A share, a request, or a service asking to see an attestation. The '
-        'sender is checked first.',
+    'Paste or scan what someone sent you. We check the sender first.',
     'o',
   );
 
@@ -131,6 +138,8 @@ Future<void> startNew(BuildContext context, NewKind kind) async {
       await showAttestationCreateSheet(context);
     case NewKind.askAttestation:
       await openAskAttestationSheet(context);
+    case NewKind.checkAttestation:
+      await openAttestationCheckSheet(context);
     case NewKind.openLink:
       await openLinkSearchSheet(context);
   }

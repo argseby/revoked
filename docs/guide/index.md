@@ -1,56 +1,60 @@
 # Using the app
 
-One Flutter client for desktop and Android —
-[installation covered here](../installation/app.md). It talks to
-`http://127.0.0.1:3000` by default — a server on the same machine. To use
-any other server, open **server settings** on the login screen and enter its
-address — it is tested and persisted before anything else happens.
+Revoked runs on desktop and Android. If you haven't installed it yet,
+[start here](../installation/app.md).
 
-## First start
+The app looks for a server on your own computer first. To use another one,
+tap the server on the login screen and enter its address. **Test** checks
+that it answers, and **Save** keeps it.
 
-Sign in, and if your account has no workspace yet, onboarding sets one up:
+## Get started {#first-start}
 
-- **Create a workspace** is where it starts, already filled in: the workspace
-  is called *Personal*, and your name is read from your email address
-  (`max.mustermann@…` becomes *Max Mustermann*). Change either before you
-  confirm — your name is what recipients of your shares and requests will
-  see, on your signing identity.
-- **Join one instead** by pasting an invite key someone sent you.
+Sign in. If you don't have a workspace yet, the app helps you set one up:
 
-If you came from a link — a tool's [link proposal](tools.md), a request to
-connect a tool, or a workspace invite — the app holds on to it while you sign
-up and set up, and opens it afterwards. You do not have to go back and click
-it again.
+- **Create your own.** It's already filled in for you. The workspace is
+  called *Personal*, and your name comes from your email address
+  (`max.mustermann@…` becomes *Max Mustermann*). Change either one before
+  you confirm. People who get your shares and requests will see this name.
+- **Join someone else's.** Choose **Use an invite key** and paste the key
+  they sent you.
 
-Everything you do lives in a workspace: the vault, shares, requests,
-templates and identities are all scoped to it. See
-[Workspaces & members](workspaces.md).
+Did you arrive through a link? It might be a tool's
+[link proposal](tools.md), a request to connect a tool, or a workspace
+invite. The app keeps it while you sign up, and opens it when you're done.
+You don't have to click it again.
 
-## Around the app
+Your vault, shares, requests, templates and identities all live in a
+workspace. See [Workspaces & members](workspaces.md).
 
-| Area | What it holds | Details |
+## Find your way around
+
+**New** starts anything: a record, a file, a share link, a request, an
+attestation. The sidebar takes you to the rest.
+
+| Where | What you do there | Learn more |
 |---|---|---|
-| **Vault** | Your records and sections — the data everything else points at | [Vault](vault.md) |
-| **Shares** | Links you issued, with their gates and view counts | [Sharing](sharing.md) |
-| **Requests** | Forms you published to collect data from others | [Requests](requests.md) |
-| **Data** | What people submitted, as a list or a spreadsheet | [Requests](requests.md#reading-what-came-back) |
-| **Templates** | Blueprints for requests and for whole vault setups | [Templates](templates.md) |
-| **Connected tools** | Tools that proposed links, and what each of them may do | [Tools & link proposals](tools.md) |
-| **Attestations** | What others confirmed about your identities, and what your workspace confirmed about others | [Attestations](attestations.md) |
-| **Settings** | Identities, workspace members, API keys, domain verification | [Identities & trust](identities.md) |
+| **Vault** | Keep your records, files and sections | [Vault](vault.md) |
+| **Shares** | Send links to your records, and see how often they were opened | [Sharing](sharing.md) |
+| **Requests** | Ask people for information and read their answers. Shares you saved from others wait under **Received**. | [Requests](requests.md), [Read the answers](requests.md#reading-what-came-back) |
+| **Attestations** | Keep what others confirm about you, confirm things about others, and check what others show you | [Attestations](attestations.md) |
+| **Settings** | Workspaces, members, invites, identities, connected tools, API keys, templates and your domain check | [Workspaces & members](workspaces.md), [Identities & trust](identities.md), [Tools & link proposals](tools.md), [Templates](templates.md) |
 
-## Opening links
+## Open a link someone sent you
 
-Shares and requests travel as `revoked://` deep links — deliberately, so
-there is no web page for a phisher to imitate. With the scheme registered,
-clicking one opens the app directly on that share or request. Inside the app,
-**Ctrl+V** with a link on the clipboard opens it too, and the *Open a link*
-dialog can verify the sender against DNS before you open anything.
+Shares and requests arrive as `revoked://` links. Click one, and the app
+opens right on it. That's on purpose: an app link leaves a scammer no web
+page to imitate.
 
-Two further links open the app: `revoked://a/…` offers an
-[attestation](attestations.md), and `revoked://present` is a service asking
-to be shown one.
+You can also press **Ctrl+V** in the app with a link on your clipboard, or
+choose **New → Open or scan a link**. The app checks the sender before it
+opens anything.
 
-A notification bell in the shell collects what happened while you were away:
-responses arriving, links expiring or hitting their view cap, invites being
-accepted, callbacks failing.
+Two more kinds of link open the app: an offer of an
+[attestation](attestations.md) (`revoked://a/…`), and a service asking to
+see one (`revoked://present`).
+
+## Catch up on what happened
+
+The bell collects what happened while you were away: new answers, links
+that expired or reached their view limit, accepted invites, failed
+callbacks, and your [reminders](vault.md#get-reminded).

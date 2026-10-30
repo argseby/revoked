@@ -17,14 +17,14 @@ nav = [
   { "Installation" = [
     { "Server" = [
       "installation/index.md",
-      { "DNS" = "installation/dns.md" },
+      { "Publish your DNS record" = "installation/dns.md" },
       { ".env reference" = "installation/env.md" },
-      { "Reverse proxy" = "installation/reverse-proxy.md" },
-      { "Accounts" = "installation/accounts.md" },
-      { "Backups" = "installation/backups.md" },
-      { "Operating notes" = "installation/operations.md" },
+      { "Put a reverse proxy in front" = "installation/reverse-proxy.md" },
+      { "Add people" = "installation/accounts.md" },
+      { "Back up your server" = "installation/backups.md" },
+      { "Day-to-day running" = "installation/operations.md" },
     ] },
-    { "Installing the app" = "installation/app.md" },
+    { "Install the app" = "installation/app.md" },
   ] },
   { "Guide" = [
     "guide/index.md",

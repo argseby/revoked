@@ -68,7 +68,8 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     );
     if (!ok) {
       _store.stopBusy(
-        Stores.settings.errorMessage ?? 'Could not create the workspace.',
+        Stores.settings.errorMessage ??
+            'Couldn\'t create your workspace. Try again.',
       );
       return;
     }
@@ -125,7 +126,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     await Stores.workspaceContext.reload();
     if (mounted) {
       final next = ResumeLocation.take();
-      if (next == null) AppToast.success(context, 'You are all set.');
+      if (next == null) AppToast.success(context, 'You\'re in.');
       context.go(next ?? AppRoutes.overview);
     }
     _store.finish();
@@ -163,10 +164,10 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                   AppSpacing.gapSm,
                   AppText(
                     creating
-                        ? 'Others see this name when you share or ask for '
-                              'data.'
-                        : 'Paste the invite key you got. Before you join, you '
-                              'see what it gives you and who sent it.',
+                        ? 'People see this name when you share with them or '
+                              'ask them for something.'
+                        : 'Paste your invite key. You\'ll see who sent it and '
+                              'what it lets you do before you join.',
                     textAlign: TextAlign.center,
                   ).muted,
                   AppSpacing.gapXl,
@@ -181,7 +182,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                   if (_store.error != null) ...[
                     AppAlert(
                       destructive: true,
-                      title: const Text('That did not work'),
+                      title: const Text('That didn\'t work'),
                       content: Text(_store.error!).small,
                     ),
                     AppSpacing.gapMd,
@@ -235,7 +236,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
         ],
       ),
     AppSpacing.gapXxs,
-    const Text('Holds your vault, your links and your requests.').muted.small,
+    const Text('Your vault, links and requests live here.').muted.small,
     AppSpacing.gapXl,
     AppButton(
       icon: AppIcons.check,
@@ -251,7 +252,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     Center(
       child: AppButton(
         icon: AppIcons.key,
-        label: 'Join with an invite key instead',
+        label: 'Use an invite key',
         style: AppButtonStyle.ghost,
         size: AppButtonSize.small,
         onTap: _store.isBusy
@@ -269,7 +270,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     ),
     AppSpacing.gapSm,
     AppButton(
-      label: _store.isPreviewing ? 'Checking…' : 'Check this invite',
+      label: _store.isPreviewing ? 'Checking…' : 'Check invite',
       onTap: _store.isPreviewing || _store.keyController.text.isEmpty
           ? null
           : _peekInvite,

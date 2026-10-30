@@ -1,130 +1,134 @@
 # Sharing
 
-A share turns records into a link — `/s/{slug}` — that resolves their
-**current** values every time it is read. Nothing is copied: rotate a secret
-and every share of it updates; revoke the share and the next read is refused.
+A share is a link to records in your vault. Whoever opens it sees today's
+values, until you revoke it. Change a password, and everyone with the link
+sees the new one. Revoke the link, and it stops working the next time
+someone opens it.
 
-## Creating a share
+## Share your first record
 
-The create sheet starts with **What is shared**: records, or whole
-[sections](vault.md#sections), picked from the vault. *Share* on a record opens
-the sheet with that record already picked. Left empty, the label is taken from
-what is shared, and a new share expires after 30 days unless another date is
-set or the expiry is cleared. Once created, the link is shown at once, ready to
-copy or send.
+Press **Share** on a record, or choose **New → Share link**. Pick what to
+share: single records, or whole [sections](vault.md#group-records-into-sections).
 
-Everything beyond label, expiry and password sits under **Advanced**: the URL
-slug, the view cap, the watermark, the signing identity and the API preview.
+You can leave the rest as it is. The label comes from what you share, and
+the link expires after 30 days. Pick another date, or clear it for a link
+that doesn't expire. Create it, and your link is ready to copy or send.
 
-**Access** — the gates, freely combinable:
+## Decide who gets in
 
-| Gate | Effect |
+Use any of these, in any combination:
+
+| Option | What it does |
 |---|---|
-| Password | The viewer must enter it before anything resolves. |
-| Max views | The share revokes itself after that many reveals. Counting is atomic — concurrent readers cannot slip past the cap together. |
-| Expiry | The share flips to `expired` at that moment. |
+| **Password** | The viewer has to enter it before they see anything. |
+| **Maximum views** | The link revokes itself after that many views. Even people opening it at the same moment can't get past the limit. |
+| **Expiration date** | The link stops working at that moment. |
 
-**Verification** — who is involved:
+**Maximum views** sits under **Advanced**, together with the link's
+address, the watermark, your signature and the API preview.
 
-- **Attach your identity**, so recipients can verify against your domain's
-  DNS that the share really came from you. See
+## Prove it came from you
+
+Under **Advanced → Verification**:
+
+- **Sign with one of your identities.** Recipients can then check against
+  your domain that the link really came from you. See
   [Identities & trust](identities.md).
-- **Require a verified viewer** — the viewer must prove possession of their
-  own cryptographic identity in a challenge handshake before the data
-  resolves.
+- **Require a verified viewer.** The viewer has to prove who they are with
+  their own identity before they see anything.
 
-Every create sheet also shows, under Advanced, a ready-to-run **API preview** of the exact
-request it is about to make — the fastest way to learn the
-[HTTP API](../api/index.md).
+The API preview under **Advanced** shows the exact request the app is about
+to send. It's the quickest way to learn the [HTTP API](../api/index.md).
 
-## The share's life
+## Pause, revoke or duplicate
 
-| Status | Meaning |
+| Status | What it means |
 |---|---|
-| `active` | Resolves normally. |
-| `paused` | Temporarily refuses — flip back to active any time. |
-| `revoked` | Permanently stopped, by you or by hitting the view cap. |
-| `expired` | The expiry date passed. |
+| Active | The link works. |
+| Paused | The link is on hold. Press **Activate** to turn it back on. |
+| Revoked | The link is gone for good. You revoked it, or it reached its view limit. |
+| Expired | Its expiration date has passed. |
 
-Pausing is the reversible "hold on"; revoking is final. A share can also be
-duplicated — same records, fresh slug, fresh counters.
+**Pause** when you need a moment. **Revoke** when you're done: it can't be
+undone. **Duplicate** makes a new link to the same records, with a fresh
+address and the view count back at zero.
 
-The badges on a share card tell you at a glance what shape it has: a
-password, a handshake requirement, or that it came out of a
-[request](requests.md) rather than being authored by hand.
+Badges on each share tell you what kind it is at a glance: it has a
+password, it needs a verified viewer, or it answers a
+[request](requests.md).
 
-## What the recipient sees
+## What your recipient sees
 
-A share travels as a `revoked://` deep link (and as a QR code carrying the
-web URL, so a phone camera works without the app installed).
+You send a `revoked://` link, or a QR code. The QR code holds a web
+address, so a phone camera works even without the app.
 
-- **In the app**: the link opens directly on the share, with the sender's
-  verification verdict shown before anything else.
-- **In a browser**: `/s/{slug}` serves a self-contained page — no CDN, no
-  analytics. Nothing is fetched until the viewer presses **Load & Show**, so
-  merely opening the page never spends a view. The page carries its own trust
-  panel that checks the sender's DNS record from the browser, and a hand-off
-  button to open the share in the app.
+- **In the app**, the link opens right on the share. Before anything else,
+  it shows whether the sender checks out.
+- **In a browser**, they get a plain page with no trackers and nothing
+  loaded from elsewhere. Nothing is shown until they press the button on
+  the page, so just opening it never uses up a view. The page checks the
+  sender's domain by itself, and offers **Open in app**.
 
-## Watermarking files
+## Watermark your files
 
-Turn on **Watermark files** when creating or editing a share, and every
-image and PDF it serves is stamped on the way out with who it was sent
-to: your watermark text (or the share's label), the date, and a short
-tag such as `#a3f9c1` that appears on the share's card. A leaked copy or
-screenshot therefore names the share it came through. The stamp is tiled
-across the whole page, so it cannot be cropped away, and your stored
-file is never changed. Files that cannot be stamped (text, archives,
+Add a **Watermark** text when you create or edit a share. Every image and
+PDF the link serves is then stamped with your text, the date, and a short
+tag such as `#a3f9c1`. The same tag shows on the share. So a leaked copy or
+screenshot tells you which link it came through.
+
+The stamp covers the whole page, so it can't be cropped away. Your own file
+stays unchanged. Files that can't be stamped (text files, archives,
 documents other than PDF) are not served on a watermarked share. Values
-shown as text get a visible overlay on the share page, which deters but
-cannot stop copying.
+shown as text get a visible overlay on the page. That discourages copying,
+but can't stop it.
 
-## Application links
+## Rental applications
 
-A share created with `purpose: application` is a rental application. It
-must be watermarked — the server refuses one that is not
-(`application_needs_watermark`), including switching the watermark off
-later. Its page groups the applicant's details and documents into their own
-cards, and the first time the landlord opens it you get a *Your application
-was opened* notification; later opens do not repeat it.
+A share can be set up as a rental application. It then always carries a
+watermark: the server won't create one without, and won't let you switch
+it off later. The page shows the applicant's details and documents in
+cards of their own. The first time the landlord opens it, you get a *Your
+application was opened* notification. Later opens don't notify you again.
 
-Once the landlord has opened it, **Download all (.zip)** saves every document
-in one archive, each stamped exactly like a single download; a file that
-cannot be stamped is left out rather than included unmarked. The button works
-once per opening — reloading the page issues a fresh one. As the owner you can
-download the same archive yourself (`GET /api/links/{id}/archive`, which
-spends no view), and preview a stamp on any of your files before sharing it
-(`POST /api/stamp-preview`); a preview's stamp ends in `#preview`, so it can
-never be mistaken for a copy someone actually received.
+Once the landlord has opened it, **Download all** saves every document in
+one archive. Each file is stamped exactly like a single download. A file
+that can't be stamped is left out, never included unmarked. The button
+works once per visit; reloading the page gives a new one.
 
-## Bookmarking a share you received
+You can download the same archive yourself, without using up a view. You
+can also preview the stamp on any of your files before you share it. A
+preview's tag ends in `#preview`, so it can never pass for a copy someone
+really received. Both are available through the [HTTP API](../api/index.md).
 
-Signed in, **Bookmark** on an open share saves it to the *Bookmarks* tab under
-Share, so you can reopen it later without keeping the original message around.
+## Keep a share someone sent you {#bookmarking-a-share-you-received}
 
-A bookmark is only a pointer: it stores where the link lives and its slug,
-never the data. Opening one is the same as opening the link — its password,
-identity check and view limit still apply, and a share its owner has paused
-or revoked stays closed. Bookmarks belong to your account alone: other members
-of your workspaces and API keys cannot see them.
+Signed in, press **Bookmark** on a share you opened. It's saved under
+**Requests → Received**, so you can open it again without digging for the
+original message.
 
-Groups sort bookmarks the way playlists sort videos. Tap **Bookmarked** on an
-open share, or **Groups** on a bookmark, to tick the groups it belongs in or
-name a new one; a bookmark can sit in several groups at once. Deleting a group
-keeps its bookmarks.
+A bookmark only remembers where the link is. It never stores the data.
+Opening it works like opening the link: the password, identity check and
+view limit still apply. If the owner paused or revoked the share, it stays
+closed. Only you see your bookmarks: not other members of your
+workspaces, and not API keys.
 
-## Feeding other tools
+Sort bookmarks into groups, the way you'd sort videos into playlists. Press
+**Bookmarked** on an open share, or **Groups** on a bookmark, to pick its
+groups or make a new one. A bookmark can sit in several groups. Deleting a
+group keeps its bookmarks.
 
-*Web & API access* on a share offers its data in formats existing tools
-consume directly, resolving live on every fetch:
+## Use a share in other apps
 
-| Format | Use |
+Press **Share link** on a share, then **Web & API**. You get its data in
+formats other apps read directly, always with the current values:
+
+| Format | Use it for |
 |---|---|
-| CSV | Spreadsheets — including a ready `=IMPORTDATA(…)` formula for Google Sheets. |
-| vCard (`.vcf`) | One-off contact import. |
-| CardDAV | A live-syncing contacts account: the address book follows the vault. Offered only on shares without a password — CardDAV cannot carry one. |
-| iCalendar (`.ics`) / `webcal://` | Calendar import or a live subscription. |
-| cURL | A copy-paste command for scripts. |
+| CSV | Spreadsheets. Includes a ready-made `=IMPORTDATA(…)` formula for Google Sheets. |
+| vCard (`.vcf`) | Importing a contact once. |
+| CardDAV | A contacts account that stays in sync with your vault. Only on shares without a password, because CardDAV can't send one. |
+| iCalendar (`.ics`) / `webcal://` | Importing into a calendar, or subscribing so it stays up to date. |
+| cURL | A command to paste into your scripts. |
 
-Responses carry ETags, so a polling consumer sees `304 Not Modified` until a
-value actually changes.
+Apps that check often only download again when a value has actually
+changed.

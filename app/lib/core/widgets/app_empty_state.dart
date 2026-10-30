@@ -103,73 +103,73 @@ class AppEmptyState extends StatelessWidget {
 
   Widget _explainer(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.screenH(context),
-          AppSpacing.xxl,
-          AppSpacing.screenH(context),
-          // Clears the shell's floating buttons, like a list page does.
-          AppSpacing.gigantic * 3,
-        ),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: (constraints.maxHeight - AppSpacing.gigantic * 4).clamp(
-              0,
-              double.infinity,
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 440),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: scheme.secondaryContainer,
+              borderRadius: AppRadius.allPill,
             ),
+            child: Icon(icon, size: 24, color: scheme.onSecondaryContainer),
           ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: scheme.secondaryContainer,
-                      borderRadius: AppRadius.allPill,
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 24,
-                      color: scheme.onSecondaryContainer,
-                    ),
-                  ),
-                  AppSpacing.gapLg,
-                  Text(title).header,
-                  AppSpacing.gapXs,
-                  Text(subtitle).muted,
-                  if (example != null) ...[AppSpacing.gapXl, example!],
-                  if (steps.isNotEmpty) AppSpacing.gapXl,
-                  for (final (i, step) in steps.indexed) ...[
-                    if (i > 0) AppSpacing.gapMd,
-                    _StepRow(number: i + 1, step: step),
-                  ],
-                  if (notice != null) ...[
-                    AppSpacing.gapXl,
-                    AppAlert(
-                      leading: const Icon(AppIcons.info),
-                      content: Text(notice!).small,
-                    ),
-                  ],
-                  if (action != null || secondaryAction != null) ...[
-                    AppSpacing.gapXl,
-                    _actions(alignment: WrapAlignment.start),
-                  ],
-                  if (learnMoreUrl != null) ...[
-                    AppSpacing.gapSm,
-                    _learnMore(context),
-                  ],
-                ],
-              ),
+          AppSpacing.gapLg,
+          Text(title).header,
+          AppSpacing.gapXs,
+          Text(subtitle).muted,
+          if (example != null) ...[AppSpacing.gapXl, example!],
+          if (steps.isNotEmpty) AppSpacing.gapXl,
+          for (final (i, step) in steps.indexed) ...[
+            if (i > 0) AppSpacing.gapMd,
+            _StepRow(number: i + 1, step: step),
+          ],
+          if (notice != null) ...[
+            AppSpacing.gapXl,
+            AppAlert(
+              leading: const Icon(AppIcons.info),
+              content: Text(notice!).small,
             ),
-          ),
-        ),
+          ],
+          if (action != null || secondaryAction != null) ...[
+            AppSpacing.gapXl,
+            _actions(alignment: WrapAlignment.start),
+          ],
+          if (learnMoreUrl != null) ...[AppSpacing.gapSm, _learnMore(context)],
+        ],
       ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Inside a page that already scrolls, such as a settings page, it is
+        // one more block on that page rather than a scroll view of its own.
+        if (!constraints.hasBoundedHeight) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+            child: Center(child: content),
+          );
+        }
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.screenH(context),
+            AppSpacing.xxl,
+            AppSpacing.screenH(context),
+            // Clears the shell's floating buttons, like a list page does.
+            AppSpacing.gigantic * 3,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - AppSpacing.gigantic * 4)
+                  .clamp(0, double.infinity),
+            ),
+            child: Center(child: content),
+          ),
+        );
+      },
     );
   }
 
@@ -194,7 +194,7 @@ class AppEmptyState extends StatelessWidget {
           mode: LaunchMode.externalApplication,
         );
         if (!ok && context.mounted) {
-          AppToast.error(context, 'Could not open $learnMoreUrl');
+          AppToast.error(context, 'Couldn\'t open $learnMoreUrl');
         }
       },
     );

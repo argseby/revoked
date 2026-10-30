@@ -175,7 +175,7 @@ abstract class _InvitesStore with Store {
       _finishInviteTrust(
         TrustVerdict.unverified(
           domain: domain,
-          reason: 'The domain check could not be completed: $e',
+          reason: 'We couldn’t check this domain: $e',
         ),
       );
     }

@@ -156,6 +156,9 @@ var Errors = struct {
 	AttestationIssueFailed        AppError
 	CredentialInvalid             AppError
 	PresentationInvalid           AppError
+	AttestationCheckInvalid       AppError
+	AttestationCheckNotFound      AppError
+	AttestationCheckClosed        AppError
 }{
 	DuplicateWorkspaceMember: AppError{
 		ErrorCode: "duplicate_workspace_member",
@@ -708,6 +711,18 @@ var Errors = struct {
 	PresentationInvalid: AppError{
 		ErrorCode: "presentation_invalid",
 		ErrorText: "This is not a credential presentation that can be read.",
+	},
+	AttestationCheckInvalid: AppError{
+		ErrorCode: "attestation_check_invalid",
+		ErrorText: "A check names a type without spaces, attesters as domains, and claims as names of letters, digits and underscores.",
+	},
+	AttestationCheckNotFound: AppError{
+		ErrorCode: "attestation_check_not_found",
+		ErrorText: "This check does not exist. Check that the link was copied in full.",
+	},
+	AttestationCheckClosed: AppError{
+		ErrorCode: "attestation_check_closed",
+		ErrorText: "This check was already answered or has run out. Ask for a new one.",
 	},
 }
 

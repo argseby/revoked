@@ -54,12 +54,29 @@ class _AccessOverviewState extends State<AccessOverview> {
           records: vault.records,
         );
         if (rows.isEmpty) {
-          return const AppEmptyState(
+          return AppEmptyState(
             icon: AppIcons.lock,
-            title: 'Nobody else can read your data',
-            subtitle:
-                'No open link, request answer or connected tool carries a '
-                'vault record right now.',
+            title: 'Only you can see your data',
+            subtitle: 'When you share a record, you see here who can read it.',
+            example: const AppEmptyExample(
+              title: 'IBAN',
+              detail: 'Landlord · Employer',
+              badge: '2 links',
+            ),
+            steps: const [
+              AppEmptyStep(
+                'See each shared record once',
+                'With every link that shares it',
+              ),
+              AppEmptyStep(
+                'Open a record to see who has it',
+                'Links, request answers and tools',
+              ),
+              AppEmptyStep(
+                'Revoke access in one place',
+                'No need to go through each link',
+              ),
+            ],
           );
         }
 
@@ -70,12 +87,12 @@ class _AccessOverviewState extends State<AccessOverview> {
         return AppListPage(
           groups: [
             AppListGroup(
-              title: 'Readable by others',
+              title: 'Shared with others',
               footer: Text(
-                '${rows.length} ${rows.length == 1 ? 'record is' : 'records are'} '
-                'readable through ${linkIds.length} open '
-                '${linkIds.length == 1 ? 'link' : 'links'}. A record opens '
-                'the list of who reads it, where it can be revoked.',
+                'Others can read ${rows.length} '
+                '${rows.length == 1 ? 'record' : 'records'} through '
+                '${linkIds.length} open ${linkIds.length == 1 ? 'link' : 'links'}. '
+                'Open a record to see who has it and take it back.',
               ).muted.small,
               children: [
                 for (final (record, access) in rows)

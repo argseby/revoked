@@ -80,7 +80,7 @@ class ToolPermissions extends StatelessWidget {
             row(AppIcons.check, 'Propose links for you to confirm'),
             row(
               AppIcons.check,
-              'See the status, opens and expiry of links it proposed',
+              'See the status, views and expiry of links it proposed',
             ),
           ],
         ),
@@ -101,8 +101,8 @@ class ToolPermissions extends StatelessWidget {
               AppCheckRow(
                 label: 'Receive the links it proposed',
                 subtitle:
-                    'Except links that contain documents or hidden values; '
-                    'only you can send those.',
+                    'Except links with documents or hidden values. Only you '
+                    'can send those.',
                 note: _reason(reasons.links),
                 value: allowHandOver,
                 onChanged: onAllowHandOver,

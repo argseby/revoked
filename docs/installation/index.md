@@ -2,22 +2,23 @@
 title: Server
 ---
 
-# Setting up a server
+# Set up a server
 
-Revoked is one Go binary around an embedded database. A production setup is
-the binary in a container, a reverse proxy terminating TLS in front of it, and
-one DNS record that anchors the trust chain.
+You run one Go binary with a built-in database. In production you put it in a
+container, with a reverse proxy in front for TLS and one DNS record that people
+check your server against.
 
 **You need:**
 
-- A domain (or subdomain) pointing at your machine — say `api.example.com`.
-  This becomes `DOMAIN`, and it is load-bearing: identities are signed for it
-  and peers verify them against DNS published under it.
+- A domain or subdomain that points at your machine — say `api.example.com`.
+  This becomes `DOMAIN`. Choose it carefully: every identity your server
+  issues is signed for it, and other servers check those identities against
+  DNS records under it.
 - Docker with Compose.
-- A reverse proxy that terminates TLS — your existing one (Nginx Proxy
+- A reverse proxy that handles TLS. Use the one you already run (Nginx Proxy
   Manager, Caddy, Traefik…) or the bundled nginx profile.
 
-**The whole install:**
+**Install it:**
 
 ```bash
 git clone https://github.com/argseby/revoked && cd revoked
@@ -27,21 +28,22 @@ docker compose up -d --build
 docker compose logs api               # prints the DNS record to publish
 ```
 
-Nothing is published to the host: the proxy reaches the container by name
-over the shared network, so the API cannot be hit by raw IP and nobody can
-skip your TLS. Details in [Reverse proxy](reverse-proxy.md).
+The container opens no ports on the host. Your proxy reaches it by name over
+the shared network. So nobody can reach the API by raw IP and skip your TLS.
+More in [Put a reverse proxy in front](reverse-proxy.md).
 
-**Then, in order:**
+**Then, in this order:**
 
-1. [Publish the `_revoked` TXT record](dns.md) the logs printed — the root of
-   the trust chain.
+1. [Publish the `_revoked` TXT record](dns.md) the logs printed. It is what
+   makes your server's identities checkable.
 2. [Point your reverse proxy at the container](reverse-proxy.md) and set the
-   trusted-proxy header so rate limits see real client IPs.
-3. [Create accounts](accounts.md) — self-registration is off by default.
-4. [Back up `pb_data`](backups.md) — it holds the one file that can never be
-   regenerated.
+   trusted-proxy header, so rate limits see real client IPs.
+3. [Create accounts](accounts.md). People can't sign themselves up unless you
+   allow it.
+4. [Back up `pb_data`](backups.md). It holds the one file you can never
+   recreate.
 
-Every knob along the way is in the [.env reference](env.md).
+Every setting is in the [.env reference](env.md).
 
-With the server running, hand out [the app](app.md) — or point your users at
-the desktop and Android downloads directly.
+Once the server runs, give people [the app](app.md), or send them straight to
+the desktop and Android downloads.

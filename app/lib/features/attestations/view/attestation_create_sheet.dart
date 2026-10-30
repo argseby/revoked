@@ -67,7 +67,10 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
 
     final token = _store.lastCreatedToken;
     if (token == null || token.isEmpty) {
-      AppToast.error(context, 'The offer was created but no link came back.');
+      AppToast.error(
+        context,
+        'Your offer was made, but its link didn’t arrive. Withdraw it and make a new one.',
+      );
       return;
     }
     final navigator = Navigator.of(context);
@@ -102,22 +105,20 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Attest something').header,
+                const Text('Confirm something about someone').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'A statement about someone\'s identity, signed in the name '
-                  'of this server\'s domain. Its subject sees every claim '
-                  'before accepting it.',
+                  'Vouch for someone in your domain\'s name. They see every '
+                  'detail before they accept.',
                 ).muted.small,
                 if (_store.draftAsk != null) ...[
                   AppSpacing.gapSm,
                   const AppAlert(
                     leading: Icon(AppIcons.askFor),
-                    title: Text('Filled in from an ask'),
+                    title: Text('Filled in from a request'),
                     content: Text(
-                      'Someone sent you a link asking for this. Check who '
-                      'sent it, and give each claim the value you stand '
-                      'behind: the link only names them.',
+                      'Someone asked you for this. Check who sent it. Then '
+                      'fill in only values you stand behind.',
                     ),
                   ),
                 ],
@@ -131,7 +132,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppFormSectionHeader('What kind of statement'),
+                  const AppFormSectionHeader('What kind'),
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenH(context),
@@ -140,7 +141,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                       children: [
                         AppTextField(
                           controller: _store.typeController,
-                          label: 'Type',
+                          label: 'Kind',
                           hint: 'e.g. membership',
                           mono: true,
                         ),
@@ -153,7 +154,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                       ],
                     ),
                   ),
-                  const AppFormSectionHeader('What it states'),
+                  const AppFormSectionHeader('What you confirm'),
                   for (final claim in _store.draftClaims)
                     _ClaimRow(
                       key: ObjectKey(claim),
@@ -168,14 +169,14 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                       alignment: Alignment.centerLeft,
                       child: AppButton(
                         icon: AppIcons.plus,
-                        label: 'Another claim',
+                        label: 'Add detail',
                         style: AppButtonStyle.ghost,
                         size: AppButtonSize.small,
                         onTap: _store.addClaim,
                       ),
                     ),
                   ),
-                  const AppFormSectionHeader('For whom, and how long'),
+                  const AppFormSectionHeader('Who gets it, and for how long'),
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenH(context),
@@ -186,21 +187,21 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                         AppTextField(
                           controller: _store.subjectController,
                           label: 'Only for this identity (optional)',
-                          hint: 'Fingerprint, 64 hexadecimal characters',
+                          hint: 'Their fingerprint, 64 characters',
                           mono: true,
                         ),
                         AppSpacing.gapXs,
                         const Text(
-                          'Left empty, whoever opens the link first accepts '
-                          'it with an identity of theirs. With a fingerprint '
-                          '— from a request someone answered with a proven '
-                          'identity — only that identity can.',
+                          'Leave it empty and whoever opens the link first can '
+                          'accept it. Add a fingerprint and only that identity '
+                          'can.',
                         ).muted.small,
                         AppSpacing.gapSm,
                         AppTextField(
                           controller: _store.validDaysController,
                           label: 'Valid for, in days (optional)',
-                          hint: 'Left empty, it is valid until revoked',
+                          hint:
+                              'Leave empty to keep it valid until you revoke it',
                           keyboardType: TextInputType.number,
                         ),
                       ],
@@ -287,7 +288,7 @@ class _ClaimRow extends StatelessWidget {
                 Expanded(
                   child: AppTextField(
                     controller: claim.name,
-                    label: 'Claim',
+                    label: 'Detail',
                     hint: 'e.g. age_over_18',
                     mono: true,
                   ),
@@ -295,7 +296,7 @@ class _ClaimRow extends StatelessWidget {
                 AppSpacing.gapSm,
                 AppButton(
                   icon: AppIcons.x,
-                  tooltip: 'Remove this claim',
+                  tooltip: 'Remove detail',
                   style: AppButtonStyle.ghost,
                   size: AppButtonSize.small,
                   onTap: onRemove,
@@ -330,7 +331,7 @@ class _ClaimRow extends StatelessWidget {
                           controller: claim.value,
                           hint: claim.kind == ClaimKind.number
                               ? 'A number'
-                              : 'The value',
+                              : 'Value',
                           keyboardType: claim.kind == ClaimKind.number
                               ? const TextInputType.numberWithOptions(
                                   decimal: true,
@@ -354,11 +355,11 @@ class _ClaimRow extends StatelessWidget {
 Future<void> _showLinkDialog(BuildContext context, String token) {
   return showQrSheet(
     context: context,
-    title: 'Offer ready',
+    title: 'Your offer is ready',
     link: DeepLinks.attestation(token, origin: Stores.api.originAuthority),
     message:
-        'Let its subject scan this with their phone, or send them the link. '
-        'It is shown only until you close this: copy it before you do.',
+        'Let them scan this, or send them the link. You see it only once, so '
+        'copy it before you close this.',
     dismissible: false,
   );
 }

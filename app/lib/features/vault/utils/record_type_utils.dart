@@ -66,18 +66,18 @@ class RecordTypeUtils {
     switch (type) {
       case 'number':
         if (num.tryParse(value) == null) {
-          return 'Value must be a valid number';
+          return 'Enter a number';
         }
         break;
       case 'boolean':
         final lower = value.toLowerCase().trim();
         if (lower != 'true' && lower != 'false') {
-          return 'Value must be true or false';
+          return 'Enter true or false';
         }
         break;
       case 'datetime':
         if (DateTime.tryParse(value.trim()) == null) {
-          return 'Value must be a valid date/time';
+          return 'Enter a valid date and time';
         }
         break;
       case 'url':
@@ -85,7 +85,7 @@ class RecordTypeUtils {
         if (uri == null ||
             !uri.isAbsolute ||
             (uri.scheme != 'http' && uri.scheme != 'https')) {
-          return 'Value must be a valid HTTP/HTTPS URL';
+          return 'Enter a web address starting with http:// or https://';
         }
         break;
       case 'text':

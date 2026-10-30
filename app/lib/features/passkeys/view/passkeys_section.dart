@@ -54,7 +54,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
       if (!mounted) return;
       AppToast.error(
         context,
-        'Could not open the page',
+        'Couldn’t open the page',
         subtitle: Stores.passkeys.errorMessage,
       );
     }
@@ -66,7 +66,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
     if (link == null) {
       AppToast.error(
         context,
-        'Could not make a link',
+        'Couldn’t make a link',
         subtitle: Stores.passkeys.errorMessage,
       );
       return;
@@ -85,8 +85,8 @@ class _PasskeysSectionState extends State<PasskeysSection>
       context: context,
       title: 'Remove ${passkey.title}?',
       message:
-          'It stops signing in to this account at once. The passkey itself '
-          'stays on that device until you delete it there.',
+          'You can’t sign in with it any more. It stays on that device until '
+          'you delete it there.',
       confirmLabel: 'Remove',
       confirmIcon: AppIcons.trash,
       cancelLabel: 'Keep',
@@ -96,7 +96,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
     if (!await Stores.passkeys.remove(passkey.id) && mounted) {
       AppToast.error(
         context,
-        'Could not remove it',
+        'Couldn’t remove it',
         subtitle: Stores.passkeys.errorMessage,
       );
     }
@@ -112,8 +112,8 @@ class _PasskeysSectionState extends State<PasskeysSection>
           AppListGroup(
             title: 'Passkeys',
             footer: const Text(
-              'How you sign in — there is no password. Add one on every '
-              'device you use, so losing a device does not lock you out.',
+              'Sign in without a password. Add a passkey on every device you '
+              'use, so losing one never locks you out.',
             ),
             children: [
               if (store.isLoading && store.passkeys.isEmpty)

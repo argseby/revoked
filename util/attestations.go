@@ -31,6 +31,11 @@ const (
 	// issuer sets no date.
 	AttestationOfferTTL = 14 * 24 * time.Hour
 
+	// AttestationCheckTTL is how long a request to see an attestation can be
+	// answered. Short, because it is shown as a QR code to someone present: a
+	// photo of it taken later must be useless.
+	AttestationCheckTTL = 10 * time.Minute
+
 	// MaxAttestationClaims bounds how many claims one attestation states.
 	MaxAttestationClaims = 50
 

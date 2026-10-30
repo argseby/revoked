@@ -81,7 +81,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
     if (!ok) {
       AppToast.error(
         context,
-        store.error?.description ?? 'Could not update permissions.',
+        store.error?.description ?? 'Couldn’t update permissions. Try again.',
       );
       return;
     }
@@ -120,7 +120,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
               children: [
                 Text(widget.member.email).header,
                 const SizedBox(height: AppSpacing.xxs),
-                const Text('Choose what they may do here.').muted.small,
+                const Text('Choose what they can do here.').muted.small,
               ],
             ),
           ),
@@ -144,7 +144,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                         destructive: true,
                         title: const Text('Someone must be able to invite'),
                         content: Text(
-                          'This is the only member who can invite others. Give someone else that permission first.',
+                          'They’re the only one who can invite others. Let someone else invite first.',
                         ).small,
                       ),
                     ),
@@ -166,7 +166,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                     ),
 
                   if (_beyondCaller.isNotEmpty) ...[
-                    const AppFormSectionHeader('Granted by someone else'),
+                    const AppFormSectionHeader('Given by someone else'),
                     for (final permission in _beyondCaller)
                       AppTile(
                         padding: const EdgeInsets.symmetric(
@@ -175,7 +175,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                         ),
                         title: Text(permission.label),
                         subtitle: Text(
-                          'You cannot change this, because you do not hold it yourself.',
+                          'You can’t change this because you don’t have it yourself.',
                         ).muted.small,
                       ),
                   ],

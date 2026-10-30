@@ -107,8 +107,8 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
                 const Text('Join a workspace').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Paste the key you were given. Nothing is spent until you '
-                  'have seen what it grants.',
+                  'Paste the key you were given. You see what it lets you do '
+                  'before you join.',
                 ).muted.small,
               ],
             ),
@@ -138,7 +138,7 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
                   AppSpacing.gapSm,
                   AppButton(
                     icon: AppIcons.key,
-                    label: store.isPreviewing ? 'Checking…' : 'Check this key',
+                    label: store.isPreviewing ? 'Checking…' : 'Check key',
                     style: AppButtonStyle.accent,
                     busy: store.isPreviewing,
                     onTap: store.joinToken.isEmpty || store.isPreviewing

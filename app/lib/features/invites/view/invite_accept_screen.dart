@@ -103,9 +103,9 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                 const Text('This invite belongs to another server').header,
                 AppSpacing.gapSm,
                 Text(
-                  'It was created on ${widget.origin}, but you are signed '
-                  'into ${Stores.api.originAuthority}. Switch servers on '
-                  'the login screen and open the invite again.',
+                  'It’s from ${widget.origin}, but you’re signed in to '
+                  '${Stores.api.originAuthority}. Switch servers on the '
+                  'sign-in screen, then open the invite again.',
                   textAlign: TextAlign.center,
                 ).muted.small,
               ],
@@ -232,9 +232,9 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
           AppSpacing.gapMd,
           AppAlert(
             destructive: true,
-            title: const Text('This invite includes control over access'),
+            title: const Text('This invite lets you control access'),
             content: Text(
-              'You would be able to change who else can reach this workspace.',
+              'You could change who else gets into this workspace.',
             ).small,
           ),
         ],
@@ -243,9 +243,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
         if (!signedIn)
           AppAlert(
             title: const Text('Sign in to accept'),
-            content: Text(
-              'An invite is tied to an account, so the workspace knows who joined.',
-            ).small,
+            content: Text('The workspace needs to know who joined.').small,
           ),
         AppSpacing.gapMd,
         AppButton(

@@ -138,9 +138,7 @@ abstract class _IdentitiesStore with Store {
           user.isEmpty ||
           workspace == null ||
           workspace.isEmpty) {
-        throw StateError(
-          'Cannot create identity: missing authenticated user or active workspace.',
-        );
+        throw StateError('Sign in and open a workspace first.');
       }
 
       final generated = _crypto.generateIdentity(commonName: name);

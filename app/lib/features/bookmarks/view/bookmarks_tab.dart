@@ -47,7 +47,7 @@ class BookmarksTab extends StatelessWidget {
     if (!ok && store.error != null && context.mounted) {
       AppToast.error(
         context,
-        'Could not create the group',
+        "Couldn't create the group",
         subtitle: store.error?.description,
       );
     }
@@ -71,15 +71,15 @@ class BookmarksTab extends StatelessWidget {
         if (store.bookmarks.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.bookmark,
-            title: 'Bookmarks keep links others sent',
+            title: 'Keep links others send you',
             subtitle:
-                'A bookmark is only a pointer to someone else\'s share, never '
-                'the data. Its password and identity checks still apply, and '
-                'a share its owner has revoked stays closed.',
+                'Save a link and find it here again. A bookmark is a '
+                'shortcut, not a copy. Passwords and identity checks still '
+                'apply, and a revoked link stays closed.',
             steps: const [
-              AppEmptyStep('A share is opened', 'From a link someone sent'),
-              AppEmptyStep('Bookmark is pressed', 'On the open share'),
-              AppEmptyStep('It is listed here', 'Sorted into groups if wanted'),
+              AppEmptyStep('Open a link', 'One someone sent you'),
+              AppEmptyStep('Tap Bookmark', 'On the open link'),
+              AppEmptyStep('Find it here', 'In groups, if you like'),
             ],
             action: AppButton(
               icon: AppIcons.link,
@@ -143,7 +143,7 @@ class _GroupCard extends StatelessWidget {
     if (!ok && store.error != null && context.mounted) {
       AppToast.error(
         context,
-        'Could not rename the group',
+        "Couldn't rename the group",
         subtitle: store.error?.description,
       );
     }
@@ -153,9 +153,7 @@ class _GroupCard extends StatelessWidget {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Delete "${group.name}"?',
-      message:
-          'Only the group goes. Its bookmarks stay, in any other groups '
-          'they are in or ungrouped.',
+      message: 'Only the group is deleted. Its bookmarks stay.',
       confirmLabel: 'Delete group',
       destructive: true,
     );
@@ -165,7 +163,7 @@ class _GroupCard extends StatelessWidget {
     if (!ok && context.mounted) {
       AppToast.error(
         context,
-        'Could not delete the group',
+        "Couldn't delete the group",
         subtitle: store.error?.description,
       );
     }
@@ -236,7 +234,7 @@ class _BookmarkRow extends StatelessWidget {
     if (!ok && context.mounted) {
       AppToast.error(
         context,
-        'Could not rename the bookmark',
+        "Couldn't rename the bookmark",
         subtitle: store.error?.description,
       );
     }
@@ -246,9 +244,7 @@ class _BookmarkRow extends StatelessWidget {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Remove bookmark?',
-      message:
-          'Only your bookmark is removed. The share itself is not affected, '
-          'and the original link keeps working.',
+      message: 'Only your bookmark goes. The link itself keeps working.',
       confirmLabel: 'Remove',
       destructive: true,
     );
@@ -261,7 +257,7 @@ class _BookmarkRow extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Could not remove the bookmark',
+        "Couldn't remove the bookmark",
         subtitle: store.error?.description,
       );
     }

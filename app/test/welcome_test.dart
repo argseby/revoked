@@ -81,7 +81,7 @@ void main() {
   testWidgets('a closed server offers only signing in', (tester) async {
     signups = {'open': false, 'verifyEmail': false};
     await show(tester, const LoginScreen());
-    expect(find.text('This server takes no new accounts'), findsOneWidget);
+    expect(find.text('This server isn\'t taking new accounts'), findsOneWidget);
     expect(find.text('Create account'), findsNothing);
     expect(find.text('Sign in'), findsOneWidget);
   });
@@ -100,7 +100,7 @@ void main() {
     await tester.tap(find.text('Open browser'));
     await tester.pumpAndSettle();
     expect(launched.single.queryParameters['mode'], 'signup');
-    expect(find.text('Go on in your browser'), findsOneWidget);
+    expect(find.text('Continue in your browser'), findsOneWidget);
 
     // It used to reopen the page on signing in.
     await tester.tap(find.text('Open browser again'));

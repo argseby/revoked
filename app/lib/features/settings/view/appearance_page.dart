@@ -51,7 +51,7 @@ class AppearancePage extends StatelessWidget {
           ),
           AppSpacing.gapXs,
           const Text(
-            'System follows your device, and changes with it.',
+            'System matches your device and changes with it.',
           ).small.muted,
 
           const LedgerHeader('Detail'),
@@ -68,10 +68,9 @@ class AppearancePage extends StatelessWidget {
           ),
           AppSpacing.gapXs,
           const Text(
-            'Essentials says in one sentence who can see what. Full detail '
-            'adds link addresses, fingerprints, verification reasons and '
-            'read counts. Nothing you need to decide or act is hidden in '
-            'Essentials.',
+            'Essentials tells you who can see what, in one sentence. Full '
+            'detail adds link addresses, fingerprints, check results and view '
+            'counts. Essentials never hides anything you need to act on.',
           ).small.muted,
           AppSpacing.gapMd,
           const _DetailPreview(),
@@ -88,8 +87,8 @@ class AppearancePage extends StatelessWidget {
                   children: [
                     const Text('Reduce motion'),
                     const Text(
-                      'Turns off fades and slides. Always on when your device '
-                      'asks for reduced motion.',
+                      'Turns off fades and slides. Always on if your device '
+                      'asks for less motion.',
                     ).small.muted,
                   ],
                 ),
@@ -193,8 +192,8 @@ class _TextSize extends StatelessWidget {
           onChanged: (v) => DisplayPreferences.setTextScale(scales[v.round()]),
         ),
         const Text(
-          'On top of your device\'s own text size. At 100% the app follows '
-          'the device alone.',
+          'Adds to your device\'s text size. At 100%, the app matches your '
+          'device.',
         ).small.muted,
       ],
     );

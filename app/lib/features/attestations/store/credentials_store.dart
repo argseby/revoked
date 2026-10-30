@@ -177,7 +177,7 @@ abstract class _CredentialsStore with Store {
       // A failed check is an unverified server, not the absence of an opinion.
       verdict = TrustVerdict.unverified(
         domain: domain,
-        reason: 'The domain check could not be completed: $e',
+        reason: 'We couldn’t check this domain: $e',
       );
     }
     runInAction(() {
@@ -206,7 +206,7 @@ abstract class _CredentialsStore with Store {
       if (foreign && base == null) {
         throw ApiException(
           0,
-          'The link names an invalid server.',
+          'This link points to an invalid server. Ask for a new one.',
           code: 'invalid_origin',
         );
       }
@@ -237,7 +237,7 @@ abstract class _CredentialsStore with Store {
     } on StateError catch (e) {
       // The identity's key is not on this device.
       offerError = AppErrorMessage(
-        title: 'This identity cannot sign here',
+        title: 'This identity lives on another device',
         description: e.message,
         code: '',
       );
@@ -317,13 +317,67 @@ abstract class _CredentialsStore with Store {
       presentError = e.message;
       return const PresentationOutcome(delivered: false);
     } on FormatException catch (e) {
-      presentError = 'This credential cannot be presented: ${e.message}.';
+      presentError = 'This attestation can’t be shown: ${e.message}.';
       return const PresentationOutcome(delivered: false);
     } catch (e) {
       presentError = AppErrorMessage.fromException(e).description;
       return const PresentationOutcome(delivered: false);
     } finally {
       isPresenting = false;
+    }
+  }
+
+  // Who asks, when the request is a person's check rather than a service's.
+
+  /// The asker's identity name, once their server named it.
+  @observable
+  String? askerName;
+
+  /// Whether the asker's identity was issued by the domain they ask from.
+  @observable
+  TrustVerdict? askerTrust;
+
+  /// Why the asker's server could not say who asks, such as a check that
+  /// was already answered.
+  @observable
+  AppErrorMessage? askerError;
+
+  static const _checkAnswerPath = '/api/public/attestation-checks/answer';
+
+  /// Reads who asks when [request] is someone's check: its answer goes to a
+  /// Revoked server, which names the asker's identity the way a request
+  /// names its requester, and that identity is checked along the same chain.
+  /// A service's request names nobody beyond its address, and is left alone.
+  @action
+  Future<void> probeAsker(PresentationRequest request) async {
+    askerName = null;
+    askerTrust = null;
+    askerError = null;
+    if (request.state.isEmpty ||
+        request.responseUri != '${request.clientId}$_checkAnswerPath') {
+      return;
+    }
+    final origin = Uri.parse(request.clientId).authority;
+    try {
+      final data = await _api.getFromOrigin(
+        origin,
+        '/api/public/attestation-checks/${Uri.encodeComponent(request.state)}',
+      );
+      final probe = data as Map<String, dynamic>;
+      final asker = probe['asker'];
+      final server = probe['server'];
+      String field(Object? block, String key) =>
+          block is Map ? block[key] as String? ?? '' : '';
+      final name = field(asker, 'name');
+      runInAction(() => askerName = name.isEmpty ? 'Someone' : name);
+      final verdict = await _domainVerification.verify(
+        claimedDomain: field(server, 'domain'),
+        identityFingerprint: field(asker, 'fingerprint'),
+        parentSignatureHex: field(asker, 'parentSignature'),
+      );
+      runInAction(() => askerTrust = verdict);
+    } catch (e) {
+      runInAction(() => askerError = AppErrorMessage.fromException(e));
     }
   }
 
@@ -356,18 +410,18 @@ abstract class _CredentialsStore with Store {
   String? get askProblem {
     final type = askTypeController.text.trim();
     if (type.isEmpty) {
-      return 'Say what kind of attestation, for example membership.';
+      return 'Say what kind, for example membership.';
     }
     if (!_askType.hasMatch(type)) {
-      return 'A type is written without spaces, for example membership.';
+      return 'Use one word for the kind, for example membership.';
     }
     for (final claim in AttestationAsk.splitClaims(askClaimsController.text)) {
       if (!_askClaim.hasMatch(claim)) {
-        return '“$claim” cannot be a claim name: letters, digits and '
-            'underscores, starting with a letter.';
+        return '“$claim” won’t work as a name. Use letters, digits and '
+            'underscores, and start with a letter.';
       }
     }
-    if (askIdentityId == null) return 'Choose the identity it is for.';
+    if (askIdentityId == null) return 'Choose which identity it’s for.';
     return null;
   }
 

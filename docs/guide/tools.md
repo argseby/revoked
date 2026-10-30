@@ -1,84 +1,81 @@
 # Tools & link proposals
 
-A [request](requests.md) is one way of getting data from someone: a form is
-published, and the other side answers it. A **link proposal** works the other
-way round. A tool — a web page, a script, someone else's service — names the
-records it would like to see shared, and the share is created by the person
-who holds them, on their own server. Only record keys are part of a proposal,
-never values, and the vault itself stays out of the tool's reach.
+Some tools need your data: an emergency-card maker, an application form,
+someone else's service. With a **link proposal**, the tool asks for the
+records it needs, and you create the share yourself, on your own server.
+The tool only ever names keys, never values, and it never gets into your
+vault.
+
+A [request](requests.md) works the other way round: the person who wants
+the data sends you a form, and you fill it in.
 
 | | Request | Link proposal |
 |---|---|---|
-| Started by | The person who wants the data | A tool, on behalf of the person who holds it |
-| Travels as | `revoked://r/…` → a form at `/r/{slug}` | `revoked://p?label=…&keys=…` |
-| Where the data ends up | In the requester's **Data** tab | In a share of the vault's owner, under **Links** |
-| Held by the other side | The answers (typed, or a revocable grant) | At most the link, and only once it was handed over |
+| Who starts it | The person who wants the data | A tool, for the person who has the data |
+| Where the data ends up | In the requester's workspace, with that request's answers | In a share in the owner's workspace, under **Shares** |
+| What the other side keeps | The answers: typed, or linked to your vault so you can take them back | At most the link, and only once you hand it over |
 
-[Notfallkarte](notfallkarte.md) is a complete example: a web page on which a
-proposal becomes an emergency card for the wallet.
+[Notfallkarte](notfallkarte.md) is a complete example: a web page that
+turns a proposal into an emergency card for your wallet.
 
-## Reviewing a proposal
+## Review what a tool asks for
 
-A proposal opens the app on **Link proposal from …**. The name after *from*
-is the one the tool gives itself, and it is shown as a claim. Next to it
-stands the tool's web address, which is what actually identifies it.
+A proposal opens the app on **Link proposal from …**. The name after
+*from* is what the tool calls itself, so treat it as a claim. Next to it is
+the tool's web address. That's what really identifies it.
 
-Every record the share would include is listed, read from the vault by the
-keys the tool named. Keys the vault does not hold yet can be filled in right
-there: a proposal may name a [template](templates.md) describing its keys,
-which gives the app a label and an input for each of them. Values entered
-this way are saved to the vault like any other record.
+You see every record the share would include, found in your vault by the
+keys the tool named. Missing some? Fill them in right there. A proposal can
+name a [template](templates.md) for its keys, which gives each one a label
+and an input. What you enter is saved to your vault like any other record.
 
-Nothing is created before **Continue** is pressed. **Decline** returns to the
-tool without anything having been shared.
+Nothing is created until you press **Continue**. **Decline** takes you back
+to the tool without sharing anything.
 
-A proposal may also carry share settings — an expiry in days, a watermark
-stamp, a purpose such as `application` — and the share is created with
-exactly those. A proposal that is malformed in any part is refused as a whole
-(*This link doesn't work*) rather than repaired into something the tool did
-not mean.
+A proposal can also set the share's options: an expiry in days, a
+watermark text, or that it's a rental application. The share is created
+with exactly those. If any part of a proposal is broken, the whole thing is
+refused (*This link doesn't work*). The app never guesses what the tool
+meant.
 
-## Connected tools
+## Connect a tool
 
-Once a proposal has been confirmed, a tool learns nothing further on its own.
-For that it needs to be **connected**, either as part of a proposal (a
-*Connect …* step before the review) or separately, for example from the
-tool's settings. A connected tool can see what became of the links it
-proposed: whether they are active, paused, revoked or expired, and how often
-they were opened. Their contents are never part of that, and neither is
-anything else in the vault.
+Once you confirm a proposal, the tool learns nothing more on its own. For
+that, you **Connect** it: as a step before the review, or separately, for
+example from the tool's settings. A connected tool can see what became of
+the links it proposed: active, paused, revoked or expired, and how often
+they were opened. It never sees what they contain, or anything else in
+your vault.
 
-Two further permissions are granted or refused per tool, each shown together
-with the reason the tool gave for asking:
+Two more permissions are your choice, per tool. Each one shows the reason
+the tool gave for asking:
 
-| Permission | Meaning |
+| Permission | What it allows |
 |---|---|
-| **May revoke its links** | A link that came from the tool's own proposal can be ended by it — for example when the printed card it belongs to is deleted. Shares can be ended this way, but never started or read. The revocation is notified like any other. |
-| **May receive links** | The finished link is handed to the tool, so it doesn't have to be copied over by hand. Shares containing a **hidden** record or a file are never handed over; those are copied manually. |
+| **Revoke links it proposed** | The tool can end a link that came from its own proposal, for example when you delete the printed card it belongs to. It can end shares this way, but never create or read them. You're notified like for any other revocation. |
+| **Receive the links it proposed** | The finished link goes straight to the tool, so you don't have to copy it over. Links with a hidden record or a file are never handed over: copy those yourself. |
 
-### Other browsers and phones
+### Confirm on another device
 
-The app answers a tool by opening the tool's page again, in whichever browser
-the system uses for links — not necessarily the one the process started in.
-A tool that already knows the server can avoid that by collecting the answer
-itself. In that case a short code such as `83C-047` is shown on the page, and
-the same code appears in the app before anything is connected. When both
-match, the original tab continues, even if the confirmation happened on a
-phone.
+To answer a tool, the app opens the tool's page again in your default
+browser. That may not be the browser you started in. A tool that already
+knows your server can avoid this by picking up the answer itself. It then
+shows a short code such as `83C-047` on its page, and the app shows the
+same code before anything is connected. Continue only if both match. The
+original tab then carries on, even if you confirmed on your phone.
 
-A tool already connected in one browser can be admitted to another one
-(**Let this browser in**). No new permissions come with that; the other
-browser receives the same ones as before.
+Already connected in one browser? **Let this browser in** admits another
+one. It gets the same permissions as before, nothing more.
 
-## Managing connections
+## Manage your connected tools
 
-**Settings → Workspace → Connected tools** lists every tool, together with
-when it was connected and last used, when the connection ends, and the links
-it proposed. Its two permissions can be changed there, each of its links can
-be opened or revoked, and the tool can be disconnected. Disconnecting ends
-every token it holds at once; the links themselves remain and keep working.
+**Settings → Connected tools** lists every tool: when you connected it,
+when it was last used, when the connection ends, and the links it
+proposed. There you can change its two permissions, open or revoke each of
+its links, or **Disconnect** it. Disconnecting cuts the tool off at once.
+The links themselves stay and keep working.
 
-A connection lasts **90 days** from the last time it was confirmed in the
-app, and it is only renewed by confirming it there again — a tool has no way
-of keeping itself alive. Everything a tool does (connecting, reading,
-revoking, disconnecting) is recorded in the audit log under its web address.
+A connection lasts **90 days** from the last time you confirmed it in the
+app. Only confirming it there again renews it; a tool can't keep itself
+alive. Everything a tool does (connecting, reading, revoking,
+disconnecting) is recorded in the audit log under its web address.

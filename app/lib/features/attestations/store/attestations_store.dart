@@ -43,15 +43,15 @@ class ClaimDraft {
   String? get problem {
     if (isBlank) return null;
     if (!_name.hasMatch(trimmedName)) {
-      return 'A claim name is letters, digits and underscores, starting '
+      return 'Name each detail with letters, digits and underscores. Start '
           'with a letter.';
     }
     switch (kind) {
       case ClaimKind.text:
-        if (value.text.trim().isEmpty) return 'A claim needs a value.';
+        if (value.text.trim().isEmpty) return 'Give each detail a value.';
       case ClaimKind.number:
         if (num.tryParse(value.text.trim()) == null) {
-          return '“${value.text.trim()}” is not a number.';
+          return '“${value.text.trim()}” isn’t a number.';
         }
       case ClaimKind.yesNo:
         break;
@@ -201,9 +201,9 @@ abstract class _AttestationsStore with Store {
   @computed
   String? get draftProblem {
     final type = typeController.text.trim();
-    if (type.isEmpty) return 'Give the attestation a type.';
+    if (type.isEmpty) return 'Say what kind it is, for example membership.';
     if (!_type.hasMatch(type)) {
-      return 'A type is written without spaces, for example membership.';
+      return 'Use one word for the kind, for example membership.';
     }
     final names = <String>{};
     for (final claim in draftClaims) {
@@ -211,17 +211,16 @@ abstract class _AttestationsStore with Store {
       if (problem != null) return problem;
       if (claim.isBlank) continue;
       if (!names.add(claim.trimmedName)) {
-        return 'The claim “${claim.trimmedName}” is stated twice.';
+        return 'You added “${claim.trimmedName}” twice. Remove one.';
       }
     }
     final subject = subjectController.text.trim().toLowerCase();
     if (subject.isNotEmpty && !_fingerprint.hasMatch(subject)) {
-      return 'An identity is named by its fingerprint: 64 hexadecimal '
-          'characters.';
+      return 'Paste the full fingerprint: 64 characters, 0–9 and a–f.';
     }
     final days = validDaysController.text.trim();
     if (days.isNotEmpty && (int.tryParse(days) ?? 0) < 1) {
-      return 'The validity is a number of days, or left empty.';
+      return 'Enter a number of days, or leave it empty.';
     }
     return null;
   }
@@ -240,10 +239,7 @@ abstract class _AttestationsStore with Store {
           user.isEmpty ||
           workspace == null ||
           workspace.isEmpty) {
-        throw StateError(
-          'Cannot issue an attestation: no signed-in user or active '
-          'workspace.',
-        );
+        throw StateError('Sign in and open a workspace first.');
       }
       final days = int.tryParse(validDaysController.text.trim());
       final subject = subjectController.text.trim().toLowerCase();

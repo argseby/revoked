@@ -1,73 +1,72 @@
 # Requests
 
-A request is sharing in reverse: a public form at `/r/{slug}` that asks other
-people for data. What comes back lands in **Data**, structured the way you
-asked for it — and when a responder answers from their own vault, what you
-receive is a living grant they can revoke, not a copy they lost control of.
+A request asks other people for information. You send a link, they fill it
+in, and the answers arrive sorted the way you asked. When someone answers
+from their own vault, you get a link to their data, not a copy. They keep
+it up to date, and they can take it back.
 
-The opposite direction — a tool asking for records someone already holds —
-is covered by [link proposals](tools.md). A request brings answers into the
-requester's workspace; a proposal creates a share in the owner's own.
+Want it the other way round, with a tool asking for records someone already
+has? That's a [link proposal](tools.md). A request brings answers into
+your workspace. A proposal creates a share in the owner's workspace.
 
-## Creating a request
+## Ask for what you need
 
-A request is shaped by a [template](templates.md): the template's fields are
-what responders are asked to fill in. Without a template, **Allow extra fields**
-has to be on, so responders add fields of their own; a request that asks for
-nothing at all cannot be created. Left empty, the title is the template's name.
-Once created, the request's link is shown together with a message to send along
-with it, which explains that the request is answered in the Revoked app.
+Choose **New → Request** and pick a [template](templates.md). Its fields
+are what people are asked to fill in. No template? Then switch on **Allow
+extra fields**, so people add fields of their own. A request has to ask for
+something. Leave the title empty, and it takes the template's name.
 
-The options below sit under **Advanced** in the create sheet:
+Once it's created, you get the link and a short message to send with it.
+The message tells people they answer in the Revoked app.
+
+These options sit under **Advanced**:
 
 **Who can respond**
 
-- **Require a verified identity** — responders must be signed in and prove a
-  cryptographic identity before submitting. With it on, you can accept any
-  identity or only those issued by your own server.
-- **Identifier** — a value you communicate out-of-band (a customer number, a
-  case id) that the responder must enter. It ties an anonymous submission to
-  someone you already know.
-- **Password** — the bluntest gate, shared out-of-band.
+- **Require a verified identity.** People have to prove who they are with
+  an identity before they answer. Accept **Any** identity, or only those
+  **From this root**, your own server.
+- **Identifier.** Something you tell the person yourself, such as a
+  customer number or a case number. They have to enter it, so you know whose
+  answer it is.
+- **Password.** The simplest lock. Tell it to them yourself, too.
 
-**Limits & callback**
+**Limits and callback**
 
-- **Max responses** and **expiry** close the request automatically.
-- **Allow extra fields** lets responders add ad-hoc fields beyond the
-  template.
-- A **callback URL** POSTs every submission to your own system — see
-  [Callbacks](../api/callbacks.md).
+- **Max responses** and **Expires at** close the request on their own.
+- A **Callback URL** sends every answer to your own system as it arrives.
+  See [Callbacks](../api/callbacks.md).
 
-## Responding
+## Answer a request
 
-A signed-in responder can answer each field either by **linking a record from
-their own vault** or by typing a literal value. A linked answer is the
-important one: it stays theirs. It resolves their current value at read time,
-and they can withdraw it later — the same revocable grant a
-[share](sharing.md) is, pointing the other way.
+You need a Revoked account to answer. Your answer is kept in your own
+workspace, so you can change it or take it back later.
 
-Before anything is submitted, the app verifies the requester's domain. A
-spoofed request — one whose cryptographic claim contradicts DNS — is a hard
-block; an unverified one needs an explicit confirmation. Submitting again
-later updates the same response rather than creating a second one.
+For each field, choose **Use a vault entry** or type a value. A vault entry
+is the better choice: the answer stays yours. The person who asked always
+sees its current value, and you can withdraw it any time, just like a
+[share](sharing.md). **Revoke my response** takes your answer back.
 
-A request published on another Revoked server is answered the same way,
-from the responder's own account. The answer is kept in their vault on their
-own server, and the requester's server reads it from there each time it is
-needed; revoking it at home revokes it for the requester too.
+Before you send anything, the app checks who is asking. If the request's
+claim contradicts its domain, it's blocked: it's a fake. If the sender
+can't be confirmed, you have to say you want to go ahead. Answering again
+later updates your answer instead of adding a second one.
 
-## Reading what came back
+Requests from other Revoked servers work the same way. You answer from
+your own account, and your answer stays on your own server. The other
+server fetches it from there each time it's needed. Revoke it at home, and
+it's revoked for them too.
 
-The **Data** tab collects responses across all requests; each request also
-has its own view, as a list or pivoted into a **sheet** — responders as rows,
-requested fields as columns.
+## Read the answers {#reading-what-came-back}
 
-Each answer shows whether it is a typed value or a living grant, and whether
-that grant is still resolving or has been revoked by the responder. An answer
-kept on the responder's own server is read from there; while that server
-cannot be reached, the answer shows no values rather than an old copy. Answers
-you want to keep can be opened into your vault. Revoking the request itself
-stops further submissions.
+Open a request and press **View responses**. Switch between **List** and
+**Sheet**: the sheet shows one row per person and one column per field.
 
-You are notified when a response arrives, when the request completes (max
-responses reached) or expires, and when a callback delivery fails.
+Each answer shows whether it was typed or links to the person's vault. A
+linked answer also shows whether it still works or was revoked. If an
+answer lives on another server and that server can't be reached, you see
+no values, never an old copy. To keep an answer, press **Open in Vault**.
+Revoking the request stops new answers.
+
+You get a notification when an answer arrives, when the request is full or
+expires, and when a callback fails.

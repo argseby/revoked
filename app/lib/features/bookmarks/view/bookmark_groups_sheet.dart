@@ -48,7 +48,7 @@ class _BookmarkGroupsSheet extends StatelessWidget {
     if (!ok && parentContext.mounted) {
       AppToast.error(
         parentContext,
-        'Could not update the group',
+        "Couldn't update the group",
         subtitle: store.error?.description,
       );
     }
@@ -63,7 +63,7 @@ class _BookmarkGroupsSheet extends StatelessWidget {
     if (!ok && store.error != null && parentContext.mounted) {
       AppToast.error(
         parentContext,
-        'Could not create the group',
+        "Couldn't create the group",
         subtitle: store.error?.description,
       );
     }
@@ -79,7 +79,7 @@ class _BookmarkGroupsSheet extends StatelessWidget {
     } else {
       AppToast.error(
         parentContext,
-        'Could not remove the bookmark',
+        "Couldn't remove the bookmark",
         subtitle: store.error?.description,
       );
     }

@@ -62,6 +62,9 @@ type collectionSchema struct {
 	// Credentials are attestations a person holds about one of their own
 	// identities, issued by this server or any other.
 	Credentials string
+	// AttestationChecks are one person asking another to show an attestation:
+	// the request, and once answered, the verdict on what was shown.
+	AttestationChecks string
 }
 
 type inviteFields struct {
@@ -204,6 +207,11 @@ type credentialFields struct {
 	IssuedAt, ExpiresAt, Created, Updated string
 }
 
+type attestationCheckFields struct {
+	User, Identity, Type, Issuers, Claims, Nonce, Audience, Status,
+	ExpiresAt, Result, AnsweredAt, Created, Updated string
+}
+
 // Coll holds the collection (table) names used across the backend.
 var Coll = collectionSchema{
 	Workspaces:       "workspaces",
@@ -237,6 +245,7 @@ var Coll = collectionSchema{
 	Attestations:        "attestations",
 	AttestationStatus:   "attestationStatus",
 	Credentials:         "credentials",
+	AttestationChecks:   "attestationChecks",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -270,6 +279,7 @@ var Fields = struct {
 	Attestation        attestationFields
 	AttestationStatus  attestationStatusFields
 	Credential         credentialFields
+	AttestationCheck   attestationCheckFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -610,6 +620,21 @@ var Fields = struct {
 		Claims:     "claims",
 		IssuedAt:   "issuedAt",
 		ExpiresAt:  "expiresAt",
+		Created:    "created",
+		Updated:    "updated",
+	},
+	AttestationCheck: attestationCheckFields{
+		User:       "user",
+		Identity:   "identity",
+		Type:       "type",
+		Issuers:    "issuers",
+		Claims:     "claims",
+		Nonce:      "nonce",
+		Audience:   "audience",
+		Status:     "status",
+		ExpiresAt:  "expiresAt",
+		Result:     "result",
+		AnsweredAt: "answeredAt",
 		Created:    "created",
 		Updated:    "updated",
 	},

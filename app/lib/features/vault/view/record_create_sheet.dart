@@ -123,7 +123,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     }
     final exists = widget.store.records.any((r) => r.key == input);
     _store.setRecordKeyCheck(
-      warning: exists ? 'This key is already taken.' : null,
+      warning: exists ? 'This key is taken. Pick another.' : null,
       suggestion: exists ? _generateAlternativeKey(input) : null,
     );
   }
@@ -198,7 +198,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       if (widget.parentContext.mounted) {
         AppToast.error(
           widget.parentContext,
-          'Could not create record',
+          'Couldn\'t create the record',
           subtitle: widget.store.errorMessage,
         );
       }
@@ -264,8 +264,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   const SizedBox(height: AppSpacing.xxs),
                   Text(
                     isDup
-                        ? 'Duplicate this record with a new unique key. The value can stay the same.'
-                        : 'Store a new piece of information in your vault.',
+                        ? 'Copy this record under a new key. The value can stay the same.'
+                        : 'Add a detail to your vault.',
                   ).muted.small,
                 ],
               ),
@@ -346,9 +346,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         await showAppEditSheet(
           context: context,
           title: 'Label',
-          description:
-              'What this is, in your own words. A key for scripts and '
-              'templates is made from it.',
+          description: 'What this is, in your own words.',
           controller: _store.recordLabel,
           hint: 'IBAN',
         );
@@ -492,7 +490,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     await showAppEditSheet(
       context: context,
       title: 'Value',
-      description: 'The actual sensitive data or configuration value.',
+      description: 'The detail itself, like a password or an IBAN.',
       controller: _store.recordValue,
       hint: switch (_store.recordType) {
         'number' => '42',
@@ -536,8 +534,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   Text('Key').header,
                   const SizedBox(height: AppSpacing.xxs),
                   const Text(
-                    'A stable identifier used by templates, requests and '
-                    'scripts. Left empty, one is made from the label.',
+                    'A short ID for templates, requests and scripts. Leave '
+                    'it empty to use the label.',
                   ).muted.small,
                   const SizedBox(height: AppSpacing.lg),
                   AppTextField(

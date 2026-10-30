@@ -85,7 +85,7 @@ void openRecordEditSheet(
                         const Text('Edit record').header,
                         const SizedBox(height: AppSpacing.xxs),
                         const Text(
-                          'Modify record parameters in your workspace.',
+                          'Change the name, key or value.',
                         ).muted.small,
                       ],
                     ),
@@ -102,8 +102,7 @@ void openRecordEditSheet(
                             ctx,
                             'Label',
                             isRequired: true,
-                            explanation:
-                                'A friendly display name for this record.',
+                            explanation: 'The name you see for this record.',
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           AppTextField(
@@ -116,8 +115,7 @@ void openRecordEditSheet(
                             ctx,
                             'Key',
                             isRequired: true,
-                            explanation:
-                                'A stable identifier for sharing and templates.',
+                            explanation: 'A short ID for links and templates.',
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Container(
@@ -141,9 +139,9 @@ void openRecordEditSheet(
                             ctx,
                             'Type',
                             explanation: isFile
-                                ? 'A file record stays a file. To store '
-                                      'something else, make a new record.'
-                                : 'How this data should be interpreted.',
+                                ? 'A file stays a file. To store something '
+                                      'else, add a new record.'
+                                : 'What kind of value this is.',
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           if (isFile)
@@ -187,8 +185,8 @@ void openRecordEditSheet(
                               'File name',
                               isRequired: true,
                               explanation:
-                                  'What a recipient downloads this file as. '
-                                  'Renaming never touches the file itself.',
+                                  'The name people see when they download '
+                                  'it. The file itself doesn\'t change.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             AppTextField(
@@ -207,8 +205,8 @@ void openRecordEditSheet(
                               ctx,
                               'File',
                               explanation:
-                                  'Replacing it updates every active share '
-                                  'on its next read.',
+                                  'Replace it and everyone with an open link '
+                                  'gets the new file.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Row(
@@ -256,8 +254,8 @@ void openRecordEditSheet(
                               'Value',
                               isRequired: true,
                               explanation:
-                                  'The actual sensitive data or configuration '
-                                  'value.',
+                                  'The detail itself, like a password or an '
+                                  'IBAN.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             RecordValueField(
@@ -387,7 +385,7 @@ void openRecordEditSheet(
                                       Navigator.of(sheetContext).pop();
                                       AppToast.success(
                                         context,
-                                        'Record updated successfully',
+                                        'Record updated',
                                       );
                                     } else {
                                       store.setSubmittingEditRecord(false);

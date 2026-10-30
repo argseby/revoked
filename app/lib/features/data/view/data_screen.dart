@@ -196,16 +196,16 @@ class _DataScreenState extends State<DataScreen> {
           final String why;
           if (status == GrantStatus.revoked) {
             why =
-                'The answers were withdrawn or the request was closed, so no '
-                'values can be read any more.';
+                'The answers were withdrawn or the request was closed. You '
+                'can\'t see them anymore.';
           } else if (r['unreachable'] == true) {
             why =
-                'The responder\'s server could not be reached, so its '
-                'values cannot be shown right now.';
+                'We couldn\'t reach the responder\'s server. Try again '
+                'later.';
           } else if (req.templateId.isEmpty && !req.allowExtraFields) {
             why =
-                'Sent without any fields. This request asks for none: it has '
-                'no template and allows no extra fields.';
+                'Sent without any fields. This request asks for none. Pick a '
+                'template or allow extra fields to ask for something.';
           } else {
             why = 'Sent without any fields.';
           }
@@ -345,22 +345,22 @@ class _DataScreenState extends State<DataScreen> {
                 if (widget.requestId != null) {
                   return const AppEmptyState(
                     icon: AppIcons.cardList,
-                    title: 'Responses are listed here',
+                    title: 'No responses yet',
                     subtitle:
-                        'Each answer to this request appears here, grouped '
-                        'by who sent it. Nothing has arrived so far.',
+                        'Share the request, and each answer shows up here, '
+                        'grouped by who sent it.',
                     steps: [
                       AppEmptyStep(
-                        'The request link is passed on',
+                        'Share the request link',
                         'From the request page, as a link or QR code',
                       ),
                       AppEmptyStep(
-                        'Someone fills in the form',
-                        'Typed in, or linked from their own vault',
+                        'They fill in the form',
+                        'Typed in, or from their own vault',
                       ),
                       AppEmptyStep(
-                        'Linked answers stay current',
-                        'And can be withdrawn by the sender',
+                        'Their answers stay up to date',
+                        'And they can withdraw them any time',
                       ),
                     ],
                     learnMoreLabel: 'Reading what came back',
@@ -373,7 +373,7 @@ class _DataScreenState extends State<DataScreen> {
                   icon: AppIcons.cardList,
                   title: 'No connections yet',
                   subtitle:
-                      'Data shared with you and your own vault records will show up here.',
+                      'Data shared with you and your vault records show up here.',
                 );
               }
               // Per-request view: group every response by who sent it —
@@ -467,7 +467,7 @@ class _DataScreenState extends State<DataScreen> {
                   !item.verified
                       ? 'Unsigned'
                       : item.identityName.isEmpty
-                      ? 'Signed — cryptographic identity'
+                      ? 'Signed with an identity'
                       : item.identityDomain.isEmpty
                       ? 'Signed by ${item.identityName}'
                       : 'Signed by ${item.identityName} (${item.identityDomain})',
@@ -488,8 +488,8 @@ class _DataScreenState extends State<DataScreen> {
                         slug: pullSlug,
                         title: item.name,
                         intro:
-                            'Reuse this value (or the whole response) — pick a '
-                            'format and copy a ready-to-use endpoint.',
+                            'Use this value, or the whole response, anywhere. '
+                            'Pick a format and copy the address.',
                         keys: [item.name],
                         presetKey: item.name,
                       ),
@@ -511,7 +511,7 @@ class _DataScreenState extends State<DataScreen> {
               else ...[
                 AppButton(
                   icon: AppIcons.inboxFill,
-                  label: 'Open source request',
+                  label: 'Open request',
                   style: AppButtonStyle.accent,
                   onTap: () {
                     Navigator.of(sheetCtx).pop();
@@ -522,7 +522,7 @@ class _DataScreenState extends State<DataScreen> {
                 if (item.status == GrantStatus.live)
                   AppButton(
                     icon: AppIcons.xCircle,
-                    label: 'Revoke source request',
+                    label: 'Revoke request',
                     style: AppButtonStyle.destructive,
                     onTap: () => _revokeSource(sheetCtx, item),
                   ),
@@ -530,7 +530,7 @@ class _DataScreenState extends State<DataScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: const Text(
-                      'Stops this request collecting any new data.',
+                      'The request stops taking new responses.',
                     ).muted.small,
                   ),
               ],
@@ -546,8 +546,8 @@ class _DataScreenState extends State<DataScreen> {
       context: sheetCtx,
       title: 'Revoke request?',
       message:
-          'The link stops working immediately and collects no further '
-          'responses. Data already collected is kept.',
+          'The link stops working right away and takes no new responses. '
+          'You keep the responses you already have.',
       content: ApiPreview(
         spec: RequestsStore.updateRequestSpec(item.requestId, const {
           'status': 'revoked',
@@ -565,11 +565,11 @@ class _DataScreenState extends State<DataScreen> {
     if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
     if (!mounted) return;
     if (ok) {
-      AppToast.success(context, 'Source request revoked');
+      AppToast.success(context, 'Request revoked');
     } else {
       AppToast.error(
         context,
-        'Could not revoke',
+        "Couldn't revoke the request",
         subtitle: Stores.requests.errorMessage,
       );
     }
@@ -799,8 +799,9 @@ class _ResponderGroup extends StatelessWidget {
         slug: head.linkSlug,
         title: head.sender.isEmpty ? 'Responder' : head.sender,
         intro:
-            'Reuse the data this responder shared — pick a format and copy a '
-            'ready-to-use endpoint. It stays live until the grant is revoked.',
+            'Use what this person shared anywhere, always up to date. Pick a '
+            'format and copy the address. It works until the answer is '
+            'revoked.',
         keys: [for (final it in items) it.name],
       ),
     );

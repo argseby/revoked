@@ -291,15 +291,13 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         : 'the records listed below';
     final sentence = switch (share.status) {
       'active' =>
-        'Whoever holds this link can see $what, always the current '
-            'values. You can pause or revoke it at any time.',
+        'Anyone with this link can see $what, always the latest '
+            'version. You can pause or revoke it any time.',
       'paused' =>
-        'This link is paused: nobody can open it until you activate it '
+        'This link is paused. Nobody can open it until you activate it '
             'again.',
-      'expired' => 'This link has expired and no longer opens.',
-      _ =>
-        'This link is revoked and can never open again. You can make a '
-            'new one from it.',
+      'expired' => 'This link has expired. Nobody can open it anymore.',
+      _ => 'This link is revoked for good. You can make a new one from it.',
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -332,7 +330,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         ),
         AppDetailRow(
           icon: AppIcons.shieldCheck,
-          label: 'Handshake',
+          label: 'Verified viewer',
           value: share.requireHandshake ? 'Required' : 'Off',
         ),
         // The text the owner typed is what every stamped copy carries; left
@@ -350,7 +348,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
             DisplayPreferences.detailLevel == DetailLevel.full)
           AppDetailRow(
             icon: AppIcons.hash,
-            label: 'Stamp reference',
+            label: 'Watermark tag',
             value: '#${share.watermarkTag}',
             valueMono: true,
           ),
@@ -382,7 +380,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         if (share.isFromTool)
           AppDetailRow(
             icon: AppIcons.send,
-            label: 'Link handed to the tool',
+            label: 'Sent to the tool',
             value: share.handedOver ? 'Yes' : 'No',
           ),
         AppDetailRow(
@@ -418,7 +416,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         if (status != 'revoked')
           AppButton(
             icon: AppIcons.shieldSlash,
-            label: 'Revoke access now',
+            label: 'Revoke',
             style: AppButtonStyle.destructive,
             busy: busy == 'revoked',
             onTap: locked ? null : () => _confirmRevoke(context, share),
@@ -448,15 +446,15 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       context: context,
       title: 'Revoke this link?',
       message:
-          'Nobody can open it again, starting with the next read. A revoked '
-          'link cannot be reopened; you can make a new one from it.',
+          "Nobody can open it again. You can't undo this, but you can make "
+          'a new link from it.',
       content: ApiPreview(
         spec: Stores.shares.updateShareSpec(share.id, const {
           'status': 'revoked',
         }),
         title: 'API request · revoke',
       ),
-      confirmLabel: 'Revoke access now',
+      confirmLabel: 'Revoke',
       confirmIcon: AppIcons.xCircle,
       destructive: true,
     );
@@ -472,10 +470,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   Future<void> _confirmDelete(BuildContext context, Link share) async {
     final confirmed = await showAppDialog(
       context: context,
-      title: 'Delete share link',
-      message:
-          'This public link will stop working immediately. '
-          'This action cannot be undone.',
+      title: 'Delete this link?',
+      message: "The link stops working right away. You can't undo this.",
       content: ApiPreview(
         spec: Stores.shares.deleteShareSpec(share.id),
         title: 'API request · delete',
@@ -488,7 +484,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     final ok = await Stores.shares.deleteShare(share.id);
     _busy.value = null;
     if (ok && context.mounted) {
-      AppToast.success(context, 'Share link deleted successfully');
+      AppToast.success(context, 'Link deleted');
       _back();
     }
   }
@@ -500,8 +496,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     slug: share.slug,
     title: share.label,
     intro:
-        'Use this share\'s live data anywhere — pick a format and copy a '
-        'ready-to-use endpoint.',
+        'Use this link\'s data anywhere, always up to date. Pick a format '
+        'and copy the address.',
     gated: share.hasPassword,
     requireHandshake: share.requireHandshake,
     keys: _sharedKeys(share),

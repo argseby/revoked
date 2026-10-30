@@ -136,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AppAlert(
           destructive: true,
           leading: const Icon(AppIcons.exclamation),
-          title: const Text('That did not work'),
+          title: const Text('That didn\'t work'),
           content: Text(error),
         ),
         AppSpacing.gapXl,
@@ -186,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
         extra: const [
           AppAlert(
             leading: Icon(AppIcons.info),
-            title: Text('This server takes no new accounts'),
+            title: Text('This server isn\'t taking new accounts'),
             content: Text(
               'Ask the person who runs it for an invite. Or sign in if you '
               'have an account.',
@@ -230,8 +230,8 @@ class _LoginScreenState extends State<LoginScreen> {
       top: AppQrCode(data: '${Stores.api.baseUrl}/app'),
       title: 'Better on your phone',
       body:
-          'Scan the code with your phone camera. Your passkey then lives on '
-          'your phone, which is always with you.',
+          'Scan the code with your phone. Your passkey then lives on the '
+          'phone you always have with you.',
       actions: [
         AppButton(
           icon: AppIcons.computer,
@@ -250,9 +250,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return _screen(
       top: const RoundTrip(at: 0),
       title: 'Next: your browser',
-      body:
-          'Your browser opens. You set up your account there. Then you come '
-          'back here.',
+      body: 'Set up your account in your browser, then come back here.',
       extra: const [
         Wrap(
           alignment: WrapAlignment.center,
@@ -280,10 +278,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _waiting(bool busy, bool signup) {
     return _screen(
       top: const RoundTrip(at: 1),
-      title: 'Go on in your browser',
+      title: 'Continue in your browser',
       body: signup
-          ? 'When you are done there, you come back here.'
-          : 'Use your passkey there. Then you come back here.',
+          ? 'Come back here when you\'re done.'
+          : 'Use your passkey there, then come back here.',
       live: true,
       actions: [
         AppButton(

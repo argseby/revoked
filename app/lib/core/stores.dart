@@ -12,6 +12,7 @@ import 'package:revoked_app/core/services/workspace_context.dart';
 import 'package:revoked_app/core/theme/theme_store.dart';
 import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/attestations/store/attestations_store.dart';
+import 'package:revoked_app/features/attestations/store/attestation_checks_store.dart';
 import 'package:revoked_app/features/attestations/store/credentials_store.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/store/server_settings_store.dart';
@@ -57,6 +58,7 @@ abstract final class Stores {
   static late final IdentitiesStore identities;
   static late final CredentialsStore credentials;
   static late final AttestationsStore attestations;
+  static late final AttestationChecksStore attestationChecks;
   static late final NotificationsStore notifications;
   static late final RemindersStore reminders;
   static late final SettingsStore settings;
@@ -111,6 +113,7 @@ abstract final class Stores {
     signInApproval = SignInApproval(api, crypto, identities, deviceUnlock);
     credentials = CredentialsStore(api, crypto, handshake, domainVerification);
     attestations = AttestationsStore(api);
+    attestationChecks = AttestationChecksStore(api);
     notifications = NotificationsStore(api);
     reminders = RemindersStore(api);
     settings = SettingsStore(api);

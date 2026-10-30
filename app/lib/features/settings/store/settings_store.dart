@@ -87,7 +87,8 @@ abstract class _SettingsStore with Store {
           : '';
       if (domain.isEmpty) {
         store.finishDomainCheck(
-          error: 'This server does not advertise a domain to verify.',
+          error:
+              'This server has no domain to check. Ask whoever runs it to set one.',
         );
         return;
       }

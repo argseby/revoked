@@ -75,6 +75,9 @@ abstract class AppRoutes {
 
   /// What others attested about the person, and what they attested.
   static const attestations = '/attestations';
+
+  /// The people the person asked to show an attestation.
+  static const attestationsChecked = '$attestations?tab=checked';
   static const settings = '/settings';
 
   /// Each settings topic is a page of its own under Settings.
@@ -486,6 +489,11 @@ class AppRouter {
               pageBuilder: (context, state) => NoTransitionPage(
                 child: AttestationsScreen(
                   ask: AttestationAsk.fromQuery(state.uri.queryParameters),
+                  initialTab: switch (state.uri.queryParameters['tab']) {
+                    'issued' => 1,
+                    'checked' => 2,
+                    _ => 0,
+                  },
                 ),
               ),
             ),

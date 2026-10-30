@@ -1,29 +1,34 @@
-# Operating notes
+# Day-to-day running
 
-What a running server records, enforces and — for now — cannot do.
+What your server records, what it limits, and what it can't do yet.
 
-## The audit log
+## Read the audit log
 
-Every request-driven create, update and delete is recorded: who (account or
-API key), what changed (before/after snapshots), from where (IP and user
-agent). Secret material is redacted before the snapshot is stored — vault
-values, submitted gate passwords, collected data, credential tokens — so the
-log can answer "what happened" without becoming a second copy of the secrets.
+Every create, update and delete made through a request is logged: who did it
+(account or API key), what changed (before and after), and from where (IP and
+user agent). Secrets are blanked out before anything is stored — vault values,
+submitted gate passwords, collected data, credential tokens. So the log tells
+you what happened without becoming a second copy of your secrets.
 
-What a connected tool does is recorded under the `connections` collection, by
-the tool's origin: `tool_authorized` (the owner connected or renewed it),
-`tool_browser_added` (the app let another of the owner's browsers into a
-connection that was already live, without asking again and without renewing
-it), `tool_connected` (a browser exchanged its code for a token), `tool_read` (it
-read where its links stand — one entry per ten minutes of use, not one per
-request) `tool_revoked_link` (it revoked one of its links, named in the row),
-`tool_permission_changed` (the owner allowed or stopped that) and
-`tool_disconnected` (it disconnected itself). The owner
-disconnecting a tool is an ordinary `delete`.
+What a connected tool does is logged under the `connections` collection, by
+the tool's origin:
 
-The log is superuser-only, readable through the `/_/` dashboard. Server-side
-writes the system makes on its own behalf (notifications, grant
-materialisation) are not request-driven and do not appear.
+- `tool_authorized` — the owner connected or renewed it.
+- `tool_browser_added` — the app let another of the owner's browsers into a
+  connection that was already live, without asking again and without
+  renewing it.
+- `tool_connected` — a browser exchanged its code for a token.
+- `tool_read` — it read where its links stand. One entry per ten minutes of
+  use, not one per request.
+- `tool_revoked_link` — it revoked one of its links, named in the row.
+- `tool_permission_changed` — the owner allowed or stopped that.
+- `tool_disconnected` — it disconnected itself.
+
+When the owner disconnects a tool, that's an ordinary `delete`.
+
+Only the superuser can read the log, in the `/_/` dashboard. Writes the server
+makes on its own (notifications, grant materialisation) don't come from a
+request, so they don't appear.
 
 ## Built-in limits
 
@@ -36,24 +41,23 @@ materialisation) are not request-driven and do not appear.
 
 ## The template catalogue
 
-The server ships with a set of
-[built-in templates](../guide/templates.md#built-in-templates) and seeds them
-on every boot. To change what your instance offers, drop JSON files into a
+Your server comes with a set of
+[built-in templates](../guide/templates.md#built-in-templates) and loads them
+on every boot. To change what your server offers, drop JSON files into a
 `templates/` folder next to `pb_data` (or wherever
 [`TEMPLATES_DIR`](env.md#storage) points) and restart:
 
-- **One file per template, the filename is its id** — `wifi_guest.json`
-  becomes the `wifi_guest` template. A file holding an *array* of templates
-  works too; each entry then needs its own `"id"`.
-- **A restart syncs the folder.** Changed files update the template in
-  place, new files add one, and a removed file deletes it — unless a request
-  still references it, in which case the template is kept and a warning is
-  logged.
-- **Reusing a shipped id overrides that built-in.** Ship your own
-  `wifi_access.json` and it replaces the bundled one; delete your file and
-  the bundled version returns on the next restart.
-- **A malformed file never blocks startup** — it is logged and skipped, and
-  the rest of the catalogue loads normally.
+- **One file per template; the filename is its id.** `wifi_guest.json`
+  becomes the `wifi_guest` template. A file can also hold an *array* of
+  templates; then each entry needs its own `"id"`.
+- **A restart syncs the folder.** A changed file updates its template, a new
+  file adds one, and a removed file deletes it. If a request still uses that
+  template, it's kept and a warning is logged.
+- **Use a shipped id to replace that built-in.** Add your own
+  `wifi_access.json` and it replaces the bundled one. Delete your file and the
+  bundled one comes back on the next restart.
+- **A broken file never stops startup.** It's logged and skipped, and the
+  rest of the catalogue loads as usual.
 
 A file looks like this:
 
@@ -71,22 +75,23 @@ A file looks like this:
 }
 ```
 
-`schema` is the same shape the in-app editor's JSON view shows: `records` and
-`sections`, each field with a `key`, `label`,
-[`type`](../guide/vault.md#records), and optional `format` (`hidden`),
-`required`, `reason` and default `value`.
+`schema` has the same shape the in-app editor's JSON view shows: `records` and
+`sections`. Each field has a `key`, a `label`, a
+[`type`](../guide/vault.md#records), and optionally `format` (`hidden`),
+`required`, `reason` and a default `value`.
 
-Built-ins belong to no workspace: every workspace sees them, none can edit
-them, and workspace templates are never touched by the sync.
+Built-ins belong to no workspace. Every workspace sees them, none can edit
+them, and the sync never touches workspace templates.
 
-## One instance, for now
+## Run only one instance
 
 The challenge/nonce registry, the rate limiters and the file download-token
-registry are all in-process. Run exactly one instance of the server; a second
-one behind the same proxy would hand out nonces the first cannot honour.
+registry all live in the server's memory. Run exactly one instance. A second
+one behind the same proxy would hand out nonces the first can't honour.
 
-## Callback delivery
+## Callbacks are sent once
 
-Deliveries to [callback URLs](../api/callbacks.md) are at-most-once with no
-retry. A failure notifies the request's owner in-app and is otherwise final —
-budget for that when wiring anything critical to a callback.
+Each delivery to a [callback URL](../api/callbacks.md) is tried at most once,
+with no retry. If it fails, the request's owner gets an in-app notification,
+and that's it. Keep this in mind before you hang anything critical on a
+callback.

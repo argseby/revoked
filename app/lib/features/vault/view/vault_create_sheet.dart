@@ -50,8 +50,8 @@ void openVaultCreateSheet(
                 const Text('Add to vault').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Store a piece of information, group records under a '
-                  'section, or answer what a template asks for.',
+                  'Add a detail, group records in a section, or fill in a '
+                  'template.',
                 ).muted.small,
               ],
             ),

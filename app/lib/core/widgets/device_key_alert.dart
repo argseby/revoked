@@ -25,7 +25,7 @@ class DeviceKeyAlert extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Could not create the identity',
+        'Couldn\'t create the identity',
         subtitle: store.errorMessage,
       );
     }
@@ -46,9 +46,9 @@ class DeviceKeyAlert extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Your identities\' keys stay on the devices that made '
-                  'them, so they cannot sign here. Create one for this '
-                  'device to sign, accept attestations and show them.',
+                  'Your keys never leave the device that made them, so they '
+                  'can\'t sign here. Create an identity for this device to '
+                  'sign, and to accept or show attestations.',
                 ).small,
                 AppSpacing.gapSm,
                 AppButton(

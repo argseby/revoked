@@ -160,11 +160,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('By person'));
       await tester.pumpAndSettle();
-      expect(find.text('Nobody can see your data'), findsOneWidget);
+      expect(find.text('Only you can see your data'), findsOneWidget);
 
       router.go(AppRoutes.shareDetailFor('l1'));
       await tester.pumpAndSettle();
-      expect(find.text('Nobody can see your data'), findsOneWidget);
+      expect(find.text('Only you can see your data'), findsOneWidget);
     });
 
     testWidgets('phone: the link alone, with a way back', (tester) async {

@@ -63,7 +63,7 @@ class _WorkspaceChipState extends State<WorkspaceChip> {
         return AppMenuButton(
           icon: AppIcons.personWorkspace,
           label: _name(activeId),
-          tooltip: 'Switch organization',
+          tooltip: 'Switch workspace',
           size: AppButtonSize.small,
           onOpen: _ensureLoaded,
           items: [

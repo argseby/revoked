@@ -59,7 +59,7 @@ class IdentitySummaryCard extends StatelessWidget {
                 ],
                 const SizedBox(height: AppSpacing.xs),
                 if (domain.isEmpty)
-                  const Text('No domain declared').muted.small
+                  const Text('No domain given').muted.small
                 else
                   TrustClaimText(domain: domain, state: domainState),
               ],

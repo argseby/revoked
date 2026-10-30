@@ -60,8 +60,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
         final ids = Stores.identities.identities;
         if (ids.isEmpty) {
           return const Text(
-            'No cryptographic identities yet — create one in Account to sign '
-            'and verify.',
+            'No identity yet. Create one in Account to sign what you share.',
           ).muted.small;
         }
         return Column(
@@ -82,7 +81,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 disabledReason: id.isRevoked
                     ? 'Revoked - it can no longer sign'
                     : !Stores.identities.hasLocalKey(id.id)
-                    ? '$keyElsewhereLabel - it cannot sign here'
+                    ? '$keyElsewhereLabel - it can\'t sign here'
                     : widget.requireDomain != null &&
                           id.domainAtIssue != widget.requireDomain
                     ? 'Issued by another server - not accepted here'
@@ -103,7 +102,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 selected: widget.selectedId == null,
                 enabled: true,
                 title: 'No signing identity',
-                subtitle: 'Share without a verifiable origin',
+                subtitle: 'People can\'t check who sent it',
                 claim: null,
                 onTap: () => widget.onChanged(null),
               ),

@@ -71,7 +71,7 @@ void main() {
   ) async {
     await show(tester, request: request(), responses: [response()]);
 
-    expect(find.text('Responses are listed here'), findsNothing);
+    expect(find.text('No responses yet'), findsNothing);
     expect(find.text('Anonymous'), findsOneWidget);
     expect(find.text('0 fields'), findsOneWidget);
     expect(find.textContaining('This request asks for none'), findsOneWidget);

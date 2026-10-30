@@ -60,6 +60,12 @@ const (
 	NotificationReminder        = "reminder"
 	// The attester hears that an offer was accepted and a credential issued.
 	NotificationAttestationAccepted = "attestation_accepted"
+	// Whoever asked to see an attestation hears that it was shown.
+	NotificationAttestationChecked = "attestation_checked"
+
+	// A check waits open until it is answered once, or its time runs out.
+	CheckStatusOpen     = "open"
+	CheckStatusAnswered = "answered"
 
 	// A reminder fires at a point in time, or the first time the entry it
 	// watches changes.
@@ -148,7 +154,11 @@ var NotificationTypes = []string{
 	NotificationLinkOpened,
 	NotificationReminder,
 	NotificationAttestationAccepted,
+	NotificationAttestationChecked,
 }
+
+// CheckStatuses lists the valid attestation check statuses.
+var CheckStatuses = []string{CheckStatusOpen, CheckStatusAnswered}
 
 // AttestationStatuses lists the valid attestation statuses. An attestation is
 // offered until its subject accepts it, active once the credential was

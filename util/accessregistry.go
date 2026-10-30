@@ -112,6 +112,11 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 	Coll.Credentials: {
 		ActionDelete: {Kind: AccessUserSelf},
 	},
+	// Personal: what someone chose to show the asker. Written by the check
+	// routes alone; its owner may read and remove it.
+	Coll.AttestationChecks: {
+		ActionDelete: {Kind: AccessUserSelf},
+	},
 }
 
 // AccessSpecFor returns the requirement for a collection action, if declared.

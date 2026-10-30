@@ -16,6 +16,7 @@ import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
@@ -210,11 +211,9 @@ class _WorkspacesPage extends StatelessWidget {
       context: context,
       title: 'Delete ${workspace.name}?',
       message:
-          'Everything in this workspace goes with it — records, files, '
-          'templates, members and API keys. Every share and request link it '
-          'created stops working, and the identities it issued are revoked, so '
-          'anyone still holding one loses access immediately. This cannot be '
-          'undone.',
+          'This deletes its records, files, templates, members and API keys. '
+          'Every share and request link from it stops working right away, '
+          'and its identities are revoked. You can’t undo this.',
       confirmLabel: 'Delete workspace',
       cancelLabel: 'Keep it',
       destructive: true,
@@ -226,7 +225,7 @@ class _WorkspacesPage extends StatelessWidget {
       if (context.mounted) {
         AppToast.error(
           context,
-          'Could not delete the workspace',
+          'Couldn’t delete the workspace',
           subtitle: settings.errorMessage,
         );
       }
@@ -252,7 +251,7 @@ class _WorkspacesPage extends StatelessWidget {
         if (!active)
           AppSheetAction(
             icon: AppIcons.arrowRight,
-            label: 'Switch to this workspace',
+            label: 'Switch to it',
             onTap: () => Stores.workspaceContext.switchTo(
               userId: auth.userId,
               workspaceId: ws.id,
@@ -260,10 +259,10 @@ class _WorkspacesPage extends StatelessWidget {
           ),
         AppSheetAction(
           icon: AppIcons.copy,
-          label: 'Copy id',
+          label: 'Copy ID',
           onTap: () {
             Clipboard.setData(ClipboardData(text: ws.id));
-            AppToast.success(context, 'Workspace id copied');
+            AppToast.success(context, 'Workspace ID copied');
           },
         ),
         if (Stores.settings.canManageWorkspace(ws.id, Stores.invites.catalogue))
@@ -285,7 +284,7 @@ class _WorkspacesPage extends StatelessWidget {
         final activeId = Stores.auth.activeWorkspace ?? '';
         return AppListGroup(
           title: 'Workspaces',
-          footer: const Text('Separate your data and sharing per context.'),
+          footer: const Text('Keep work, home and clients apart.'),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -313,7 +312,7 @@ class _WorkspacesPage extends StatelessWidget {
             else if (settings.workspaces.isEmpty)
               const AppDetailRow(
                 icon: AppIcons.info,
-                label: 'No workspaces yet. Create one to separate your data.',
+                label: 'No workspaces yet. Create one to keep your data apart.',
               )
             else
               for (final ws in settings.workspaces)
@@ -357,8 +356,8 @@ class _MembersPage extends StatelessWidget {
       context: context,
       title: member.isSelf ? 'Leave workspace?' : 'Remove member?',
       message: member.isSelf
-          ? 'You will lose access to this workspace.'
-          : '${member.email} will lose access to this workspace.',
+          ? 'You lose access to this workspace.'
+          : '${member.email} loses access to this workspace.',
       confirmLabel: member.isSelf ? 'Leave' : 'Remove',
       confirmIcon: member.isSelf ? AppIcons.boxArrowLeft : AppIcons.trash,
       destructive: true,
@@ -377,7 +376,7 @@ class _MembersPage extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        store.error?.description ?? 'Could not remove the member.',
+        store.error?.description ?? 'Couldn’t remove the member. Try again.',
       );
     }
   }
@@ -398,16 +397,14 @@ class _MembersPage extends StatelessWidget {
         final total = store.catalogue.length;
         return AppListGroup(
           title: 'Members',
-          footer: const Text('Who has access, and what they may do.'),
+          footer: const Text('Who has access, and what they can do.'),
           children: [
             if (store.isLoadingMembers && store.members.isEmpty)
               const _LoadingRow()
             else if (store.members.isEmpty)
               const AppDetailRow(
                 icon: AppIcons.info,
-                label:
-                    'No members yet. Invite someone to share this '
-                    'workspace.',
+                label: 'No members yet. Invite someone to work with you here.',
               )
             else
               for (final member in store.members)
@@ -487,9 +484,7 @@ class _InvitesPage extends StatelessWidget {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Withdraw invite?',
-      message:
-          'The key for $label will stop working. Anyone still holding it will '
-          'not be able to join.',
+      message: 'The key for $label stops working. Nobody can join with it.',
       confirmLabel: 'Withdraw',
       confirmIcon: AppIcons.xCircle,
       cancelLabel: 'Keep it',
@@ -505,7 +500,7 @@ class _InvitesPage extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        store.error?.description ?? 'Could not withdraw the invite.',
+        store.error?.description ?? 'Couldn’t withdraw the invite. Try again.',
       );
     }
   }
@@ -517,9 +512,39 @@ class _InvitesPage extends StatelessWidget {
       builder: (_) {
         final open = store.invites.where((i) => i.isActive).toList();
         final total = store.catalogue.length;
+        if (open.isEmpty && !store.isLoading) {
+          return AppEmptyState(
+            icon: AppIcons.personPlus,
+            title: 'Work together in this workspace',
+            subtitle:
+                'Send someone an invite key. They join with the permissions '
+                'you choose, and nothing more.',
+            example: const AppEmptyExample(
+              title: 'Accountant',
+              detail: '3 of 16 permissions · valid 7 days',
+              badge: 'open',
+            ),
+            steps: const [
+              AppEmptyStep(
+                'Choose what they can do',
+                'Read records, answer requests, and so on',
+              ),
+              AppEmptyStep('Hand them the key', 'As a link or a QR code'),
+              AppEmptyStep(
+                'Withdraw it if unused',
+                'You can take it back until someone uses it',
+              ),
+            ],
+            action: AppButton(
+              icon: AppIcons.plus,
+              label: 'New invite',
+              onTap: () => _create(context),
+            ),
+          );
+        }
         return AppListGroup(
           title: 'Pending invites',
-          footer: const Text('Keys handed out but not yet used.'),
+          footer: const Text('Keys you sent that nobody has used yet.'),
           trailing: _HeaderButton(
             icon: AppIcons.plus,
             label: 'New',
@@ -528,11 +553,6 @@ class _InvitesPage extends StatelessWidget {
           children: [
             if (store.isLoading && open.isEmpty)
               const _LoadingRow()
-            else if (open.isEmpty)
-              const AppDetailRow(
-                icon: AppIcons.info,
-                label: 'No open invites. Create one to give someone access.',
-              )
             else
               for (final invite in open)
                 AppListRow(
@@ -581,11 +601,11 @@ class _IdentitiesPage extends StatelessWidget {
       context: context,
       title: 'Revoke ${identity.name}?',
       message:
-          'This server stops vouching for the identity, and anyone verifying '
-          'it — here or on another server — is told so within the hour. Links '
-          'and requests it signed keep working but no longer show as verified, '
-          'and the private key is erased from this device.\n\n'
-          'Revoking cannot be undone. Create a new identity to sign again.',
+          'Nobody can trust it any more. Anyone who checks it, here or on '
+          'another server, learns this within the hour. Links and requests '
+          'it signed keep working, but no longer show as verified. Its key is '
+          'erased from this device.\n\n'
+          'You can’t undo this. Create a new identity to sign again.',
       confirmLabel: 'Revoke',
       confirmIcon: AppIcons.xCircle,
       cancelLabel: 'Keep it',
@@ -600,7 +620,7 @@ class _IdentitiesPage extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Could not revoke the identity',
+        'Couldn’t revoke the identity',
         subtitle: store.errorMessage,
       );
     }
@@ -615,7 +635,7 @@ class _IdentitiesPage extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Could not set primary identity',
+        'Couldn’t set primary identity',
         subtitle: store.errorMessage,
       );
     }
@@ -678,58 +698,84 @@ class _IdentitiesPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const DeviceKeyAlert(),
-          AppListGroup(
-            title: 'Identities',
-            footer: const Text('Cryptographic profiles for verified sharing.'),
-            trailing: _HeaderButton(
-              icon: AppIcons.plus,
-              label: 'New',
-              onTap: () => showAppSheet(
-                context: context,
-                builder: (_) => const _CreateIdentitySheet(),
+          if (store.identities.isEmpty && !store.isLoading)
+            AppEmptyState(
+              icon: AppIcons.personBoundingBox,
+              title: 'Prove it’s really you',
+              subtitle:
+                  'Your identity lets people check that a link or answer '
+                  'came from you. Its key stays on this device.',
+              example: const AppEmptyExample(
+                title: 'Laptop',
+                detail: 'Primary · 3fa2c1…',
+                badge: 'verified',
               ),
+              steps: const [
+                AppEmptyStep('Create one on this device', 'It takes a second'),
+                AppEmptyStep(
+                  'Sign what you share and answer',
+                  'People see it really came from you',
+                ),
+                AppEmptyStep(
+                  'Revoke it if a device is lost',
+                  'Anyone who checks it learns this',
+                ),
+              ],
+              action: AppButton(
+                icon: AppIcons.plus,
+                label: 'New identity',
+                onTap: () => showAppSheet(
+                  context: context,
+                  builder: (_) => const _CreateIdentitySheet(),
+                ),
+              ),
+            )
+          else
+            AppListGroup(
+              title: 'Identities',
+              footer: const Text('Prove that what you send comes from you.'),
+              trailing: _HeaderButton(
+                icon: AppIcons.plus,
+                label: 'New',
+                onTap: () => showAppSheet(
+                  context: context,
+                  builder: (_) => const _CreateIdentitySheet(),
+                ),
+              ),
+              children: [
+                if (store.isLoading && store.identities.isEmpty)
+                  const _LoadingRow()
+                else
+                  for (final id in store.identities)
+                    AppListRow(
+                      icon: AppIcons.personBoundingBox,
+                      title: id.name,
+                      subtitle: id.isPrimary
+                          ? 'Primary · ${id.shortFingerprint}'
+                          : id.shortFingerprint,
+                      // A revoked identity proves nothing, so its domain claim is
+                      // moot; otherwise the claim is stated the one way it may be.
+                      trailing: id.isRevoked
+                          ? const AppBadge(
+                              icon: AppIcons.shieldSlash,
+                              label: 'Revoked',
+                            )
+                          : store.keysChecked && !store.hasLocalKey(id.id)
+                          ? const AppBadge(
+                              icon: AppIcons.keyOff,
+                              label: keyElsewhereLabel,
+                              variant: AppBadgeVariant.outline,
+                            )
+                          : id.domainAtIssue.isNotEmpty
+                          ? TrustClaimBadge(
+                              domain: id.domainAtIssue,
+                              state: _claimState(id.domainAtIssue),
+                            )
+                          : null,
+                      onTap: () => _options(context, id),
+                    ),
+              ],
             ),
-            children: [
-              if (store.isLoading && store.identities.isEmpty)
-                const _LoadingRow()
-              else if (store.identities.isEmpty)
-                const AppDetailRow(
-                  icon: AppIcons.info,
-                  label:
-                      'No identities yet. Generate one to sign and verify '
-                      'what you share.',
-                )
-              else
-                for (final id in store.identities)
-                  AppListRow(
-                    icon: AppIcons.personBoundingBox,
-                    title: id.name,
-                    subtitle: id.isPrimary
-                        ? 'Primary · ${id.shortFingerprint}'
-                        : id.shortFingerprint,
-                    // A revoked identity proves nothing, so its domain claim is
-                    // moot; otherwise the claim is stated the one way it may be.
-                    trailing: id.isRevoked
-                        ? const AppBadge(
-                            icon: AppIcons.shieldSlash,
-                            label: 'Revoked',
-                          )
-                        : store.keysChecked && !store.hasLocalKey(id.id)
-                        ? const AppBadge(
-                            icon: AppIcons.keyOff,
-                            label: keyElsewhereLabel,
-                            variant: AppBadgeVariant.outline,
-                          )
-                        : id.domainAtIssue.isNotEmpty
-                        ? TrustClaimBadge(
-                            domain: id.domainAtIssue,
-                            state: _claimState(id.domainAtIssue),
-                          )
-                        : null,
-                    onTap: () => _options(context, id),
-                  ),
-            ],
-          ),
         ],
       ),
     );
@@ -748,16 +794,43 @@ class _ApiKeysPage extends StatelessWidget {
       builder: (_) {
         if (store.errorMessage != null && store.apiKeys.isEmpty) {
           return AppLoadError(
-            title: 'Failed to load API keys',
+            title: 'Couldn’t load API keys',
             message: store.errorMessage!,
             onRetry: store.loadApiKeys,
+          );
+        }
+        if (store.apiKeys.isEmpty && !store.isLoading) {
+          return AppEmptyState(
+            icon: AppIcons.key,
+            title: 'Connect your own scripts',
+            subtitle:
+                'Give your scripts and integrations a key to this '
+                'workspace. It does only what you allow, and never opens the '
+                'vault.',
+            example: const AppEmptyExample(
+              title: 'Import script',
+              detail: 'links:read, requests:create · expires in 90 days',
+              badge: 'active',
+            ),
+            steps: const [
+              AppEmptyStep(
+                'Name it and choose what it can do',
+                'Only what it needs',
+              ),
+              AppEmptyStep('Copy the key', 'You see it only once'),
+              AppEmptyStep('Revoke it any time', 'It stops working right away'),
+            ],
+            action: AppButton(
+              icon: AppIcons.plus,
+              label: 'New API key',
+              onTap: () => openApiKeyCreateSheet(context),
+            ),
           );
         }
         return AppListGroup(
           title: 'API keys',
           footer: const Text(
-            'Credentials for programmatic access. A key never opens the '
-            'vault.',
+            'Keys for your scripts. A key never opens the vault.',
           ),
           trailing: _HeaderButton(
             icon: AppIcons.plus,
@@ -767,13 +840,6 @@ class _ApiKeysPage extends StatelessWidget {
           children: [
             if (store.isLoading && store.apiKeys.isEmpty)
               const _LoadingRow()
-            else if (store.apiKeys.isEmpty)
-              const AppDetailRow(
-                icon: AppIcons.info,
-                label:
-                    'No API keys yet. Create one to reach this workspace '
-                    'programmatically.',
-              )
             else
               for (final key in store.apiKeys) ApiKeyRow(apiKey: key),
           ],
@@ -842,7 +908,7 @@ class _TemplatesPage extends StatelessWidget {
             AppListGroup(
               title: 'Your templates',
               footer: const Text(
-                'Reusable blueprints: what a request asks for, defined once.',
+                'Set up what a request asks for once, then reuse it.',
               ),
               trailing: _HeaderButton(
                 icon: AppIcons.plus,
@@ -896,9 +962,8 @@ class _DomainPage extends StatelessWidget {
             title: 'DNS check',
             trailing: const SizedBox.shrink(),
             footer: const Text(
-              'Checks the _revoked DNS record for this server is published '
-              'and pins its root key. Run it after setting up DNS to confirm '
-              'recipients can verify you.',
+              'Run this after you add the _revoked DNS record. It confirms '
+              'people can check that what you send comes from your domain.',
             ),
             children: [
               if (store.domainVerdict != null)
@@ -922,7 +987,7 @@ class _DomainPage extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: AppButton(
               icon: AppIcons.shieldCheck,
-              label: 'Verify DNS setup',
+              label: 'Check DNS',
               style: AppButtonStyle.accent,
               busy: store.isCheckingDomain,
               onTap: store.checkDomain,
@@ -978,7 +1043,7 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
       AppToast.success(context, 'Workspace created');
     } else {
       settings.setSubmitting(false);
-      AppToast.error(context, 'Could not create workspace');
+      AppToast.error(context, 'Couldn’t create workspace');
     }
   }
 
@@ -1001,9 +1066,7 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
         children: [
           const Text('New workspace').header,
           const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'Keep separate contexts — personal, a team, a client — apart.',
-          ).muted.small,
+          const Text('Keep personal, team and client data apart.').muted.small,
           const SizedBox(height: AppSpacing.lg),
           const Text('Name').small,
           const SizedBox(height: AppSpacing.xs),
@@ -1074,10 +1137,10 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
     if (!mounted) return;
     if (ok) {
       Navigator.of(context).pop();
-      AppToast.success(context, 'Identity generated');
+      AppToast.success(context, 'Identity created');
     } else {
       Stores.settings.setSubmitting(false);
-      AppToast.error(context, 'Could not generate identity');
+      AppToast.error(context, 'Couldn’t create identity');
     }
   }
 
@@ -1101,8 +1164,8 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
           const Text('New identity').header,
           const SizedBox(height: AppSpacing.xs),
           const Text(
-            'A cryptographic profile that signs what you share, so recipients '
-            'can verify it came from you.',
+            'Let people check that what you share came from you. Its key stays '
+            'on this device.',
           ).muted.small,
           const SizedBox(height: AppSpacing.lg),
           const Text('Profile name').small,
@@ -1113,8 +1176,8 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
           ),
           const SizedBox(height: AppSpacing.sm),
           AppFormToggleRow(
-            label: 'Set as primary identity',
-            subtitle: 'Used by default when signing shares or requests.',
+            label: 'Make it your primary identity',
+            subtitle: 'Used by default when you sign shares or requests.',
             value: Stores.settings.identityIsPrimary,
             onChanged: Stores.settings.setIdentityPrimary,
             inset: false,
@@ -1135,7 +1198,7 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
               Expanded(
                 child: AppButton(
                   icon: AppIcons.shieldCheck,
-                  label: 'Generate keys',
+                  label: 'Create identity',
                   busy: Stores.settings.isSubmittingDrawer,
                   onTap: _submit,
                 ),

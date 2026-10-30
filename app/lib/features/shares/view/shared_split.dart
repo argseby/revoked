@@ -87,8 +87,7 @@ class SharedPlaceholder extends StatelessWidget {
             const AppText('Choose a link', textAlign: TextAlign.center).header,
             AppSpacing.gapXs,
             const Text(
-              'What it shares, how it is protected and who has opened it '
-              'appear here.',
+              'See what it shares, how it is protected and who opened it.',
               textAlign: TextAlign.center,
             ).muted,
           ],

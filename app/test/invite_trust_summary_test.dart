@@ -65,12 +65,9 @@ void main() {
     await show(tester, previewWith());
 
     expect(find.textContaining('alice@bmw.example'), findsOneWidget);
-    expect(
-      find.textContaining('only what the server says it is'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('only its own claim'), findsOneWidget);
     // The reassuring wording belongs to a proven domain and must not appear.
-    expect(find.textContaining('is DNS-verified'), findsNothing);
+    expect(find.textContaining('is verified. Whoever owns'), findsNothing);
   });
 
   testWidgets('a verified domain backs an address inside it', (tester) async {
@@ -83,11 +80,8 @@ void main() {
     );
     await show(tester, previewWith());
 
-    expect(find.textContaining('is DNS-verified'), findsOneWidget);
-    expect(
-      find.textContaining('only what the server says it is'),
-      findsNothing,
-    );
+    expect(find.textContaining('is verified. Whoever owns'), findsOneWidget);
+    expect(find.textContaining('only its own claim'), findsNothing);
   });
 
   testWidgets('a verified domain still does not vouch for an outside address', (
@@ -102,7 +96,7 @@ void main() {
     );
     await show(tester, previewWith(emailDomain: 'gmail.com', matches: false));
 
-    expect(find.textContaining('cannot vouch for the address'), findsOneWidget);
+    expect(find.textContaining('can\'t vouch for the address'), findsOneWidget);
   });
 
   testWidgets('an inviter who lost the authority is called out', (
@@ -117,6 +111,6 @@ void main() {
     );
     await show(tester, previewWith(canStillInvite: false));
 
-    expect(find.text('The inviter lost this authority'), findsOneWidget);
+    expect(find.text('The inviter can\'t invite anymore'), findsOneWidget);
   });
 }

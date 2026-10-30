@@ -37,6 +37,8 @@ var AuditSecretFields = map[string][]string{
 	// trail's; the row records that an attestation was issued, not its content.
 	Coll.Attestations: {Fields.Attestation.Claims, Fields.Attestation.OfferTokenHash},
 	Coll.Credentials:  {Fields.Credential.Credential, Fields.Credential.Claims},
+	// What was shown is the shower's data, and the nonce answers the check.
+	Coll.AttestationChecks: {Fields.AttestationCheck.Result, Fields.AttestationCheck.Nonce},
 }
 
 // RedactAuditData returns data with the collection's secret fields replaced by

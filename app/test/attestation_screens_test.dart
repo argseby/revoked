@@ -134,6 +134,17 @@ void main() {
         'status': 'valid',
       });
     }
+    if (request.url.host == 'ben.test' &&
+        path == '/api/public/attestation-checks/chk1') {
+      return json({
+        'asker': {
+          'name': 'Ben',
+          'fingerprint': 'ef' * 32,
+          'parentSignature': '00',
+        },
+        'server': {'domain': 'ben.test'},
+      });
+    }
     if (path == '/api/server') {
       return json({
         'domain': 'home.test',
@@ -219,7 +230,7 @@ void main() {
       isTrue,
     );
 
-    expect(find.text('The attestation is yours'), findsOneWidget);
+    expect(find.text('It’s yours now'), findsOneWidget);
     expect(Stores.credentials.credentials.single.id, 'c1');
   });
 
@@ -230,7 +241,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Made for another identity'), findsOneWidget);
-    expect(find.text('The attestation is yours'), findsNothing);
+    expect(find.text('It’s yours now'), findsNothing);
     expect(find.text('Accept'), findsOneWidget);
   });
 
@@ -272,7 +283,7 @@ void main() {
     expect(find.text('shop.test asks for an attestation'), findsOneWidget);
     expect(find.text('Asked for'), findsOneWidget);
     // What the service asked for starts ticked; the rest does not.
-    expect(find.textContaining('learns 1 claim'), findsOneWidget);
+    expect(find.textContaining('sees 1 detail'), findsOneWidget);
 
     await tester.tap(find.text('Show it'));
     await tester.pumpAndSettle();
@@ -325,7 +336,7 @@ void main() {
     await open(tester, PresentationScreen(request: request()));
     await tester.tap(find.text('age_over_18'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('none of its claims'), findsOneWidget);
+    expect(find.textContaining('none of its details'), findsOneWidget);
 
     await tester.tap(find.text('Show it'));
     await tester.pumpAndSettle();
@@ -374,33 +385,57 @@ void main() {
     await Stores.attestations.load();
     await open(
       tester,
-      const Scaffold(
-        body: SingleChildScrollView(
-          child: Column(children: [HeldAttestations(), IssuedAttestations()]),
-        ),
-      ),
+      const Scaffold(body: SizedBox(height: 1200, child: IssuedAttestations())),
     );
+    // This server's operator did not switch issuing on, and the tab says so
+    // in place of a list, with nothing to start.
+    expect(find.textContaining('doesn’t issue attestations'), findsOneWidget);
+    expect(find.text('Confirm something'), findsNothing);
 
+    await open(
+      tester,
+      const Scaffold(body: SizedBox(height: 1200, child: HeldAttestations())),
+    );
     expect(find.text('membership'), findsOneWidget);
     expect(find.text('From fixture.test · held by Ada'), findsOneWidget);
     // What it states is on the row, before it is opened.
     expect(find.textContaining('member_no: 42'), findsOneWidget);
     expect(find.text('Verified'), findsOneWidget);
-    // This server's operator did not switch issuing on.
-    expect(find.textContaining('does not issue attestations'), findsOneWidget);
-    expect(find.text('New'), findsNothing);
 
     await tester.tap(find.text('membership'));
     await tester.pumpAndSettle();
-    expect(find.text('Attested by fixture.test'), findsOneWidget);
+    expect(find.text('Confirmed by fixture.test'), findsOneWidget);
+    // The standing is a pill in the sheet, not only on the row behind it.
+    expect(find.text('Verified'), findsNWidgets(2));
     expect(find.text('Ada Lovelace'), findsOneWidget);
     expect(find.text('42'), findsOneWidget);
 
-    await tester.tap(find.text('Remove from my attestations'));
+    await tester.tap(find.text('Remove attestation'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove'));
     await tester.pumpAndSettle();
     expect(deleted, ['c1']);
     expect(Stores.credentials.credentials, isEmpty);
+  });
+
+  testWidgets('someone\'s check names who asks, before anything is shown', (
+    tester,
+  ) async {
+    final check = PresentationRequest.fromQuery({
+      'client_id': 'https://ben.test',
+      'response_uri': 'https://ben.test/api/public/attestation-checks/answer',
+      'nonce': 'check-nonce-0001',
+      'state': 'chk1',
+      'type': 'membership',
+    })!;
+    await open(tester, PresentationScreen(request: check));
+    expect(find.text('Asked by'), findsOneWidget);
+    expect(find.text('Ben'), findsOneWidget);
+    expect(presented, isEmpty);
+  });
+
+  testWidgets('a service\'s request names nobody', (tester) async {
+    await open(tester, PresentationScreen(request: request()));
+    expect(find.text('Asked by'), findsNothing);
   });
 }

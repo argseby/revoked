@@ -114,7 +114,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       return;
     }
     _store.setSectionKeyCheck(
-      warning: 'This key is already taken.',
+      warning: 'This key is taken. Pick another.',
       suggestion: _generateAlternativeKey(input),
     );
   }
@@ -155,7 +155,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       if (widget.parentContext.mounted) {
         AppToast.error(
           widget.parentContext,
-          'Could not create section',
+          'Couldn\'t create the section',
           subtitle: _store.errorMessage,
         );
       }
@@ -193,8 +193,8 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
             _SheetHeader(
               title: isDup ? 'Duplicate section' : 'New section',
               description: isDup
-                  ? 'Duplicate this section with a new unique key.'
-                  : 'Group records together within a section.',
+                  ? 'Copy this section under a new key.'
+                  : 'Keep records that belong together in one place.',
             ),
             const AppDivider(),
           ],
@@ -245,7 +245,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       onTap: () => showAppEditSheet(
         context: context,
         title: 'Name',
-        description: 'A friendly display name for this section.',
+        description: 'The name you see for this section.',
         controller: _store.sectionName,
         hint: 'My Section',
       ),
@@ -287,9 +287,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
               children: [
                 const Text('Key').header,
                 const SizedBox(height: AppSpacing.xxs),
-                const Text(
-                  'A stable identifier used for sharing and templates.',
-                ).muted.small,
+                const Text('A short ID for links and templates.').muted.small,
                 const SizedBox(height: AppSpacing.lg),
                 AppTextField(
                   controller: _store.sectionKey,
@@ -362,7 +360,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
       if (widget.parentContext.mounted) {
         AppToast.error(
           widget.parentContext,
-          'Could not rename section',
+          'Couldn\'t rename the section',
           subtitle: _store.errorMessage,
         );
       }
@@ -393,7 +391,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
         children: [
           const _SheetHeader(
             title: 'Rename section',
-            description: 'Change the display name of this section.',
+            description: 'Give this section a new name.',
           ),
           const AppDivider(),
 
@@ -412,7 +410,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
                   onTap: () => showAppEditSheet(
                     context: context,
                     title: 'Name',
-                    description: 'A friendly display name for this section.',
+                    description: 'The name you see for this section.',
                     controller: _store.renameSectionName,
                     hint: 'My Section',
                   ),

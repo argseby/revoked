@@ -50,8 +50,8 @@ Future<void> confirmDeleteTemplate(BuildContext context, String id) async {
     context: context,
     title: 'Delete template',
     message:
-        'Are you sure you want to permanently delete this template? '
-        'Requests already created from it keep working.',
+        'Delete this template for good? Requests you already made from it '
+        'keep working.',
     confirmLabel: 'Delete',
     destructive: true,
   );
@@ -196,15 +196,15 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         _store.setJsonError('Schema must be a JSON object ({ ... }).');
         AppToast.error(
           context,
-          'Invalid schema',
-          subtitle: 'Expected an object',
+          'That schema isn\'t valid',
+          subtitle: 'It must be a JSON object',
         );
         return null;
       }
       return decoded;
     } catch (e) {
       _store.setJsonError(e.toString());
-      AppToast.error(context, 'Invalid JSON structure', subtitle: e.toString());
+      AppToast.error(context, 'That JSON isn\'t valid', subtitle: e.toString());
       return null;
     }
   }
@@ -212,7 +212,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   Future<void> _save() async {
     final name = _store.editorName.text.trim();
     if (name.isEmpty) {
-      AppToast.error(context, 'Name cannot be empty');
+      AppToast.error(context, 'Give the template a name');
       return;
     }
 
@@ -255,7 +255,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
       _store.setTemplateSubmitting(false);
       AppToast.error(
         context,
-        _isEdit ? 'Could not update template' : 'Could not create template',
+        _isEdit
+            ? 'Couldn\'t save the template'
+            : 'Couldn\'t create the template',
         subtitle: widget.templatesStore.errorMessage,
       );
     }
@@ -326,8 +328,8 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
                 Text(_isEdit ? 'Edit template' : 'New template').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Define the fields a responder must fill. Build it visually '
-                  'or edit the raw JSON.',
+                  'Choose what people fill in when they answer. Build it here '
+                  'or edit the JSON.',
                 ).muted.small,
               ],
             ),
@@ -449,9 +451,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
           ],
         ),
         const SizedBox(height: AppSpacing.xxs),
-        const Text(
-          'Each field is a value the responder must provide.',
-        ).muted.small,
+        const Text('Each field is one thing you ask for.').muted.small,
         const SizedBox(height: AppSpacing.sm),
 
         if (_store.rootFields.isEmpty)
@@ -489,7 +489,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         ),
         const SizedBox(height: AppSpacing.xxs),
         const Text(
-          'A named group of fields (e.g. "Database credentials").',
+          'Group fields under a name, like "Database credentials".',
         ).muted.small,
         const SizedBox(height: AppSpacing.sm),
 
@@ -549,7 +549,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        const Text('Switching back to Visual parses this JSON.').muted.small,
+        const Text(
+          'Your changes carry over when you switch back to Visual.',
+        ).muted.small,
         const SizedBox(height: AppSpacing.sm),
         AppTextField(
           controller: _store.editorJson,

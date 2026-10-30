@@ -125,7 +125,7 @@ class _SharesScreenState extends State<SharesScreen> {
 
         if (store.errorMessage != null) {
           return AppLoadError(
-            title: 'Failed to load shares',
+            title: "Couldn't load your links",
             message: store.errorMessage!,
             onRetry: store.loadShares,
           );
@@ -147,30 +147,29 @@ class _SharesScreenState extends State<SharesScreen> {
           );
           return AppEmptyState(
             icon: AppIcons.share,
-            title: 'Links share data without handing it over',
+            title: 'Share your first record',
             subtitle:
-                'The recipient holds a link, not a copy. Each read resolves '
-                'the current value, and a paused or revoked link stops '
-                'working on the next read.',
+                'Share without giving it away. Send a link instead of a copy. '
+                'They always see the latest version, and you can take it back '
+                'any time.',
             example: const AppEmptyExample(
               title: 'Onboarding pack',
               detail: '3 records',
               badge: 'active',
             ),
             steps: const [
-              AppEmptyStep('Records or a section are chosen', 'From the vault'),
+              AppEmptyStep('Pick records or a section', 'From your vault'),
               AppEmptyStep(
-                'Access is gated',
-                'By a password, an identifier or a verified identity',
+                'Choose who can open it',
+                'With a password, an identifier or a verified identity',
               ),
               AppEmptyStep(
-                'The link stays revocable',
-                'Paused, expired or revoked at any time',
+                'Take it back any time',
+                'Pause it, let it expire or revoke it',
               ),
             ],
             notice: vaultEmpty
-                ? 'The vault has no records yet, so there is nothing to '
-                      'link to.'
+                ? 'Your vault is empty. Add a record first, then share it.'
                 : null,
             action: vaultEmpty
                 ? AppButton(
@@ -351,13 +350,36 @@ class _ByPerson extends StatelessWidget {
       builder: (context) {
         final groups = groupByRecipient(Stores.shares.shares);
         if (groups.isEmpty) {
-          return const AppEmptyState(
+          return AppEmptyState(
             icon: AppIcons.lock,
-            title: 'Nobody can see your data',
+            title: 'Only you can see your data',
             subtitle:
-                'A link gives one person or service the current value of the '
-                'records you choose, until you revoke it. Each recipient '
-                'appears here once.',
+                'Share a record, and you see here who has it. Each person '
+                'shows up once, with everything they can see.',
+            example: const AppEmptyExample(
+              title: 'Landlord',
+              detail: '2 links · 5 records',
+              badge: 'can see',
+            ),
+            steps: const [
+              AppEmptyStep(
+                'Name who the link is for',
+                'A person, a company or a service',
+              ),
+              AppEmptyStep(
+                'See their links together',
+                'One row per person, however many links',
+              ),
+              AppEmptyStep(
+                'Revoke to end their access',
+                'A revoked link stops working right away',
+              ),
+            ],
+            action: AppButton(
+              icon: AppIcons.plus,
+              label: 'New link',
+              onTap: () => openShareCreateSheet(context: context),
+            ),
           );
         }
         final current = groups.where(recipientHasAccess).toList();
@@ -369,8 +391,8 @@ class _ByPerson extends StatelessWidget {
                 title: 'Can see your data',
                 noun: 'recipients',
                 footer: const Text(
-                  'Grouped by link name. A paused link counts until it is '
-                  'revoked.',
+                  'Grouped by link name. Paused links count until you '
+                  'revoke them.',
                 ),
                 children: [for (final links in current) RecipientRow(links)],
               ),

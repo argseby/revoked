@@ -135,7 +135,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
     if (!ok) {
       AppToast.error(
         context,
-        store.error?.title ?? 'Could not add the reminder',
+        store.error?.title ?? 'Couldn\'t add the reminder',
         subtitle: store.error?.description,
       );
       return;
@@ -168,8 +168,8 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                   const Text('New reminder').header,
                   const SizedBox(height: AppSpacing.xxs),
                   Text(
-                    'For ${_name(widget.record)}. It arrives in your '
-                    'notifications, and only you see it.',
+                    'For ${_name(widget.record)}. Only you see it, in your '
+                    'notifications.',
                   ).muted.small,
                 ],
               ),
@@ -322,8 +322,8 @@ class _ReminderSheetState extends State<_ReminderSheet> {
           0,
         ),
         child: const Text(
-          'The first time its value changes — whoever changes it — you get '
-          'one notification. The value itself is never in it.',
+          'You get one notification the first time anyone changes it. It '
+          'never shows the value.',
         ).muted.small,
       ),
     ];

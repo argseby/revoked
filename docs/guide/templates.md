@@ -1,38 +1,39 @@
 # Templates
 
-A template is a blueprint: sections and fields, each with a key, label, type
-and format. One template serves both directions of the product —
+A template saves you building the same thing twice. It lists sections and
+fields, each with a label and a type. You can use it two ways:
 
-- a [request](requests.md) uses it to say what responders should fill in,
-- the vault's *From template* uses it to
-  [materialise the same structure](vault.md#starting-from-a-template) as real
-  sections and records in one step.
+- in a [request](requests.md), to say what people should fill in,
+- in your vault, to [create the same sections and records](vault.md#start-from-a-template)
+  in one go.
 
-## Authoring
+## Build your own
 
-The editor has two faces of the same template: a **visual builder** (add
-section, add field, reorder) and a **raw JSON view**, and edits round-trip
-between them — build visually, fine-tune as JSON, or paste a template someone
-sent you.
+Find your templates under **Settings → Developer → Templates**, or press
+**Templates** on the Requests page.
 
-Per field you choose the [type](vault.md#records), and two flags:
+The editor shows the same template two ways: **Visual** (add sections and
+fields, reorder them) and **JSON (advanced)**. Changes carry over between
+the two. Build it visually, fine-tune the JSON, or paste in a template
+someone sent you.
 
-- **Required** — a request built on this template refuses submission without
-  it.
-- **Hidden** — values land as masked records, for fields that collect
-  secrets.
+For each field, pick its [type](vault.md#records) and whether it's
+**Required**: a request using this template can't be sent without it.
+
+Collecting secrets? Set a field's `format` to `hidden` in the JSON, and its
+answer is saved as a hidden record.
 
 ## Built-in templates
 
-Every server ships with a catalogue of ready-made templates — Wi-Fi access,
-API credentials, personal information, employee onboarding and more — so the
-template list is never empty on a fresh install. They appear in every
-workspace, marked **Built-in**, and work everywhere a template does: pick one
-when [creating a request](requests.md) or under the vault's
-[*From template*](vault.md#starting-from-a-template).
+Every server comes with ready-made templates: Wi-Fi access, API
+credentials, personal information, employee onboarding and more. So you
+have something to start from on day one. They show up in every workspace,
+marked **Built-in**, and work wherever a template does: when you
+[create a request](requests.md), or with **New → From a template** in your
+[vault](vault.md#start-from-a-template).
 
-Built-ins are read-only — no one can edit or delete them, not even a
-workspace admin. For a variant, create a workspace template of your own with
-the fields you want. If you run the server yourself, you can also
-[change the catalogue](../installation/operations.md#the-template-catalogue)
-for the whole instance.
+Nobody can change or delete a built-in, not even a workspace admin. Want a
+variation? Create your own template with the fields you need. If you run
+the server, you can also
+[change the built-in list](../installation/operations.md#the-template-catalogue)
+for everyone on it.

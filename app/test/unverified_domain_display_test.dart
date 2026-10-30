@@ -68,7 +68,7 @@ void main() {
     ]) {
       expect(
         source,
-        contains('The link points at a different server'),
+        contains('This link points to a different server'),
         reason:
             'the $name screen dropped the origin-vs-domain check: a link that '
             'routes to one server while claiming another is the cross-server '

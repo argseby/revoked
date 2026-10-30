@@ -140,9 +140,11 @@ class AppDetailRow extends StatelessWidget {
             Icon(icon, size: 18, color: scheme.onSurfaceVariant),
             AppSpacing.gapMd,
           ],
-          if (value.isEmpty)
-            Expanded(child: labelText)
-          else
+          if (value.isEmpty) ...[
+            Expanded(child: labelText),
+            // A row whose value is the badge itself, such as a standing.
+            if (badge != null) ...[AppSpacing.gapLg, Flexible(child: badge!)],
+          ] else
             // The label keeps to its words within two fifths; whatever it
             // leaves unused goes between it and the value, so the value always
             // ends flush with the row's right edge.

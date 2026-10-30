@@ -1,51 +1,50 @@
-# Installing the app
+# Install the app
 
-Every [release](https://github.com/argseby/revoked/releases/latest) ships
-native bundles for **Linux**, **Windows** and **Android**, built by CI from
-the tagged commit.
+Download the app from the [latest release](https://github.com/argseby/revoked/releases/latest).
+Every release has native builds for **Linux**, **Windows** and **Android**,
+built by CI from the tagged commit.
 
-One manual step matters on the desktop platforms: registering the
-`revoked://` URL scheme. Shares and requests travel as `revoked://` deep
-links precisely so there is no web page for a phisher to imitate — but an
-unregistered scheme means every such link silently does nothing.
+On the desktop, you have one manual step: register the `revoked://` link
+scheme. Shares and requests travel as `revoked://` links, so there's no web
+page for a phisher to copy. But until the scheme is registered, clicking such
+a link does nothing at all.
 
 ## Linux
 
-Extract the tarball and run, from inside the extracted directory:
+Extract the tarball. From inside the extracted folder, run:
 
 ```bash
 ./packaging/install.sh
 ```
 
-It installs to `~/.local`, writes the desktop entry, and registers the
+It installs to `~/.local`, adds the desktop entry, and registers the
 `revoked://` scheme.
 
-Runtime requirement: **libsecret** (present with GNOME Keyring or KWallet).
-Without it the app runs but cannot store an identity's private key in the
-system keychain, so signing and handshakes are unavailable.
+You need **libsecret** (it comes with GNOME Keyring or KWallet). Without it
+the app runs, but it can't keep an identity's private key in the system
+keychain, so you can't sign or do handshakes.
 
 ## Windows
 
-Extract the zip, then either run the installer, or edit the two paths in
-`packaging/register-scheme.reg` to your extraction directory and double-click
-it.
+Extract the zip. Then either run the installer, or edit the two paths in
+`packaging/register-scheme.reg` to point at your extracted folder and
+double-click it.
 
-Builds are currently unsigned, so SmartScreen warns on first run —
+Builds aren't signed yet, so SmartScreen warns you on first run. Click
 *More info → Run anyway*.
 
 ## Android
 
-Install the signed APK from the same release page. Installing outside a
-store needs the usual "allow from this source" confirmation; the
-`revoked://` scheme registers itself through the app's manifest — no manual
-step.
+Install the signed APK from the same release page. Your phone asks you to
+allow installs from that source. The `revoked://` scheme registers itself —
+nothing else to do.
 
-Avoid the artifact named `-testing-only`: it is signed with a throwaway
-debug key, so it cannot update a previous install, and the forced reinstall
-wipes the identity private keys — which never left the device and cannot be
-regenerated.
+Don't install the file named `-testing-only`. It's signed with a throwaway
+debug key, so it can't update an earlier install. You'd have to reinstall, and
+that wipes your identities' private keys. They never left the device, so
+nothing can bring them back.
 
-## After installing
+## Next
 
-Connecting to a server and opening your first link are covered in
+To connect to a server and open your first link, see
 [the guide](../guide/index.md#first-start).

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/link.dart';
@@ -38,34 +39,56 @@ class ConnectionsList extends StatelessWidget {
             children: [_Loading()],
           );
         }
+        if (store.connections.isEmpty) {
+          return AppEmptyState(
+            icon: AppIcons.plug,
+            title: 'Let tools help, without opening your vault',
+            subtitle:
+                'A tool, like an application form, asks to connect when you '
+                'use it. It proposes links for you to confirm. It never sees '
+                'the records themselves.',
+            example: const AppEmptyExample(
+              title: 'Flat application',
+              detail: '2 links · last used today',
+              badge: 'connected',
+            ),
+            steps: const [
+              AppEmptyStep(
+                'A tool asks to connect',
+                'You approve it in the app',
+              ),
+              AppEmptyStep(
+                'It proposes links',
+                'Nothing is shared until you confirm',
+              ),
+              AppEmptyStep(
+                'Disconnect it any time',
+                'Revoke its links too, if you like',
+              ),
+            ],
+            learnMoreLabel: 'How tools connect',
+            learnMoreUrl: '${AppConfig.docsUrl}/guide/tools/',
+          );
+        }
         return AppListGroup(
           title: 'Connected tools',
           footer: const Text(
-            'A tool asks to connect when you use it. It can then see the '
-            'status of links it proposes, but never read your vault.',
+            'Tools you connect can propose links and follow their status. '
+            'They never read your vault.',
           ),
-          children: store.connections.isEmpty
-              ? const [
-                  AppDetailRow(
-                    icon: AppIcons.info,
-                    label: 'No tools connected',
-                  ),
-                ]
-              : [
-                  for (final c in store.connections)
-                    AppListRow(
-                      icon: AppIcons.plug,
-                      title: c.name,
-                      subtitle: _summary(
-                        c,
-                        store.linksByConnection[c.id] ?? const [],
-                      ),
-                      trailing: c.isExpired
-                          ? const AppBadge(label: 'Expired')
-                          : null,
-                      onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
-                    ),
-                ],
+          children: [
+            for (final c in store.connections)
+              AppListRow(
+                icon: AppIcons.plug,
+                title: c.name,
+                subtitle: _summary(
+                  c,
+                  store.linksByConnection[c.id] ?? const [],
+                ),
+                trailing: c.isExpired ? const AppBadge(label: 'Expired') : null,
+                onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+              ),
+          ],
         );
       },
     );
@@ -132,9 +155,8 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       context: context,
       title: 'Disconnect ${connection.name}?',
       message:
-          'It will no longer see the status of its links. The links stay '
-          'yours and keep working until you revoke them, including any you '
-          'shared with it.',
+          'It stops seeing its links. The links stay yours and keep working '
+          'until you revoke them, even ones you sent to it.',
       confirmLabel: 'Disconnect',
       confirmIcon: AppIcons.linkSlash,
       cancelLabel: 'Keep',
@@ -146,7 +168,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     } else if (mounted) {
       AppToast.error(
         context,
-        'Could not disconnect',
+        'Couldn’t disconnect',
         subtitle: Stores.connections.errorMessage,
       );
     }
@@ -157,8 +179,8 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       context: context,
       title: 'Revoke ${link.label}?',
       message: link.handedOver
-          ? 'The tool has this link. Revoking it is the only way to take '
-                'it back. Nobody will be able to open it.'
+          ? 'The tool has this link. Revoke it to take it back. Nobody will '
+                'be able to open it.'
           : 'Nobody will be able to open this link.',
       confirmLabel: 'Revoke',
       confirmIcon: AppIcons.linkSlash,
@@ -187,7 +209,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         subtitle: 'It may have been disconnected.',
         action: AppButton(
           icon: AppIcons.arrowLeft,
-          label: 'Back to connected tools',
+          label: 'Back to tools',
           style: AppButtonStyle.accent,
           onTap: _back,
         ),
@@ -208,8 +230,8 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
           trailing: const SizedBox.shrink(),
           footer: connection.isExpired
               ? const Text(
-                  'This connection has expired. Connect again from the tool '
-                  'to renew it.',
+                  'This connection expired. Connect again from the tool to '
+                  'renew it.',
                 )
               : null,
           children: [

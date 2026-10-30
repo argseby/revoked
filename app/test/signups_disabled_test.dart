@@ -38,7 +38,7 @@ void main() {
     expect(e.code, AppErrorCode.signupsDisabled);
 
     final mapped = AppErrorMessage.fromException(e);
-    expect(mapped.title, 'This server is invite-only');
+    expect(mapped.title, 'Signups are closed');
     expect(mapped.isTerminal, isTrue);
   });
 

@@ -641,7 +641,7 @@ abstract class _RequestsStore with Store {
     if (base == null) {
       throw ApiException(
         0,
-        'The link names an invalid server.',
+        'This link has an invalid server address. Check the link and try again.',
         code: 'invalid_origin',
       );
     }

@@ -291,10 +291,10 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     final r = item.record!;
     final confirmed = await showAppDialog(
       context: context,
-      title: 'Delete ${item.title}',
+      title: 'Delete ${item.title}?',
       message:
-          'This removes it from your vault and from every link that shares '
-          'it. This action cannot be undone.',
+          'It’s removed from your vault and from every link that shares it. '
+          'You can’t undo this.',
       confirmLabel: 'Delete',
       destructive: true,
     );
@@ -304,7 +304,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     if (!ok) {
       AppToast.error(
         context,
-        'Could not delete ${item.title}',
+        'Couldn’t delete ${item.title}',
         subtitle: Stores.vault.errorMessage,
       );
       return;
@@ -411,7 +411,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       if (grant == null) {
         _submitting.value = false;
         _submitError.value =
-            Stores.connections.errorMessage ?? 'Could not connect ${p.from}';
+            Stores.connections.errorMessage ?? 'Couldn’t connect ${p.from}';
         return;
       }
       // A page that collects its answer itself is handed no code.
@@ -454,7 +454,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       if (handOver && p.redirect.isNotEmpty && !_polls) await _backToTool();
     } else {
       _submitError.value =
-          Stores.shares.errorMessage ?? 'Could not create the link';
+          Stores.shares.errorMessage ?? 'Couldn’t create the link';
     }
   }
 
@@ -542,8 +542,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         accent: Theme.of(context).colorScheme.error,
         title: 'This link doesn’t work',
         message:
-            'It doesn’t describe a link that Revoked can create. Ask the tool '
-            'that made it for a new one.',
+            'Revoked can’t create a link from it. Ask the tool that made it '
+            'for a new one.',
         actions: [
           AppButton(
             label: 'Back to the app',
@@ -575,10 +575,10 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 'for you. '
                 '${_polls ? 'You can return to your browser; it carries on '
                           'by itself. ' : ''}'
-                'You can see when it’s opened, or revoke it, under Links.'
+                'You can see when it’s opened, or revoke it, under Shares.'
           : 'Send it to the recipient of ${p.label}. Only you have the link; '
                 '$_toolName doesn’t. You can see when it’s opened, or revoke '
-                'it, under Links.',
+                'it, under Shares.',
       actions: [
         AppButton(
           label: 'Send link',
@@ -626,8 +626,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           title: 'Who is asking',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'A tool chooses its own name, so the address is what identifies '
-            'it. Only continue if you recognise it.',
+            'Any tool can pick its own name. Check the address, and only '
+            'continue if you recognise it.',
           ),
           children: [
             AppDetailRow(
@@ -665,7 +665,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                   label: 'Let this browser in',
                   subtitle:
                       'It isn’t connected in the browser you came from yet. '
-                      'It gets the same permissions you granted before.',
+                      'It gets the same permissions you gave it before.',
                   value: connecting,
                   onChanged: (v) => _connectNow.value = v,
                 ),
@@ -788,7 +788,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           footer: missing > 0
               ? const Text(
                   'Add what’s missing right here. It’s saved to your vault '
-                  'once and ready for the next link.',
+                  'for next time.',
                 )
               : null,
           children: [
@@ -808,8 +808,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             title: 'Watermark',
             trailing: const SizedBox.shrink(),
             footer: const Text(
-              'Every file in the link is stamped with this text, so a copy '
-              'can be traced back to it.',
+              'Every file in the link carries this text, so you can trace '
+              'any copy back to it.',
             ),
             children: [
               AppDetailRow(

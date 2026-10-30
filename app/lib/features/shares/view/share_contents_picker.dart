@@ -57,12 +57,11 @@ Future<void> openShareContentsPicker(BuildContext context) {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('What is shared').header,
+                    const Text('What to share').header,
                     AppSpacing.gapXxs,
                     const Text(
-                      'The link shows the current value of each item. A '
-                      'section is shared as a whole, including records added '
-                      'to it later.',
+                      'They always see the latest version. Share a section, '
+                      'and records you add to it later are shared too.',
                     ).muted.small,
                   ],
                 ),
@@ -81,8 +80,8 @@ Future<void> openShareContentsPicker(BuildContext context) {
                           vertical: AppSpacing.lg,
                         ),
                         child: const Text(
-                          'The vault has no records yet, so there is nothing '
-                          'to share.',
+                          'Your vault is empty. Add a record first, then '
+                          'share it.',
                         ).muted,
                       ),
                     if (vault.sections.isNotEmpty) ...[
@@ -159,9 +158,9 @@ class ShareContentsRow extends StatelessWidget {
         final summary = shareContentsSummary();
         return AppFormRow(
           icon: AppIcons.safe,
-          label: 'What is shared',
+          label: 'What to share',
           valueText: summary.isEmpty
-              ? 'Required — pick from the vault'
+              ? 'Required — pick from your vault'
               : summary,
           isPlaceholder: summary.isEmpty,
           isError: summary.isEmpty,

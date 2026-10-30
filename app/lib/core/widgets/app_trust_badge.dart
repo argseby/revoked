@@ -122,12 +122,12 @@ class AppTrustBadge extends StatelessWidget {
       case TrustState.verified:
         return 'Verified ${v.domain}';
       case TrustState.spoofed:
-        return 'SPOOF DETECTED';
+        return 'Spoofed';
       case TrustState.revoked:
-        return 'REVOKED';
+        return 'Revoked';
       case TrustState.dnsMissing:
       case TrustState.unverified:
-        return 'Unverified';
+        return 'Not verified';
     }
   }
 
@@ -136,13 +136,13 @@ class AppTrustBadge extends StatelessWidget {
       case TrustState.verified:
         return 'Verified — ${v.domain}';
       case TrustState.spoofed:
-        return 'Domain spoof detected';
+        return 'Spoofed domain';
       case TrustState.revoked:
         return 'Revoked by ${v.domain}';
       case TrustState.dnsMissing:
-        return 'DNS verification missing';
+        return 'Domain not verified';
       case TrustState.unverified:
-        return 'Identity not domain-verified';
+        return 'Identity not verified';
     }
   }
 

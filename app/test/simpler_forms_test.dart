@@ -87,7 +87,7 @@ void main() {
       (context) => openShareCreateSheet(context: context, records: ['r1']),
     );
 
-    expect(find.text('What is shared'), findsOneWidget);
+    expect(find.text('What to share'), findsOneWidget);
     expect(find.text('Company name'), findsOneWidget);
     expect(find.text('From the selection: Company name'), findsOneWidget);
     // A new link lapses by itself unless told otherwise.
@@ -99,7 +99,7 @@ void main() {
   testWidgets('a link sharing nothing cannot be created', (tester) async {
     await open(tester, (context) => openShareCreateSheet(context: context));
 
-    expect(find.text('Required — pick from the vault'), findsOneWidget);
+    expect(find.text('Required — pick from your vault'), findsOneWidget);
     expect(button(tester, 'Create link').onTap, isNull);
   });
 

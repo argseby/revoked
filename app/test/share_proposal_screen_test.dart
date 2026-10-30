@@ -430,7 +430,7 @@ void main() {
       expect(authorized.single['poll'], true);
       expect(authorized.single.containsKey('reuse'), isFalse);
       expect(launched, isEmpty);
-      expect(find.textContaining('carries on by itself'), findsOneWidget);
+      expect(find.textContaining('carries on from there'), findsOneWidget);
       expect(find.text('Back to Mietunterlagen'), findsNothing);
     },
   );

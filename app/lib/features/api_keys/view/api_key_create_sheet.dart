@@ -52,9 +52,9 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                   const Text('New API key').header,
                   const SizedBox(height: AppSpacing.xxs),
                   const Text(
-                    'A key can do only what you grant it here, and never '
-                    'read your vault. Do not give it to another service: '
-                    'tools connect instead, and companies send requests.',
+                    'A key does only what you allow here. It never opens '
+                    'your vault. Keep it to yourself: other services connect '
+                    'as tools or send requests instead.',
                   ).muted.small,
                 ],
               ),
@@ -96,7 +96,7 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                       ),
                     ),
 
-                    const AppFormSectionHeader('What this key may do'),
+                    const AppFormSectionHeader('What this key can do'),
                     Observer(
                       builder: (_) {
                         final catalogue = _keyPermissions(
@@ -184,7 +184,10 @@ Future<void> _create(BuildContext sheetCtx, BuildContext parent) async {
   );
   if (!sheetCtx.mounted) return;
   if (!ok) {
-    AppToast.error(sheetCtx, store.errorMessage ?? 'Could not create the key.');
+    AppToast.error(
+      sheetCtx,
+      store.errorMessage ?? 'Couldn’t create the key. Try again.',
+    );
     return;
   }
   Navigator.of(sheetCtx).pop();
@@ -201,7 +204,7 @@ Future<void> _showTokenDialog(BuildContext context, String token) async {
   final copy = await showAppDialog(
     context: context,
     title: 'Copy this key now',
-    message: 'It is shown once and cannot be retrieved later.',
+    message: 'You see it only once. You can’t get it back later.',
     content: SelectableText(token),
     confirmLabel: 'Copy',
     confirmIcon: AppIcons.copy,
@@ -215,10 +218,8 @@ Future<void> _showTokenDialog(BuildContext context, String token) async {
 Future<void> confirmRevokeApiKey(BuildContext context, String id) async {
   final confirmed = await showAppDialog(
     context: context,
-    title: 'Revoke API key',
-    message:
-        'This key will stop working immediately. '
-        'This action cannot be undone.',
+    title: 'Revoke this API key?',
+    message: 'It stops working right away. You can’t undo this.',
     confirmLabel: 'Revoke',
     confirmIcon: AppIcons.xCircle,
     destructive: true,

@@ -42,12 +42,11 @@ class _AskSheet extends StatelessWidget {
     if (!root.mounted) return;
     await showQrSheet(
       context: root,
-      title: 'Send this to whoever should attest',
+      title: 'Send this to whoever confirms it',
       link: ask.link,
       message:
-          'Opened in their Revoked app, it fills in their Attest form. They '
-          'decide every value, and send you back an offer link: open it to '
-          'accept the attestation with ${identity!.name}.',
+          'They open it in Revoked and fill in what they confirm. They send '
+          'you a link back. Open it to accept with ${identity!.name}.',
     );
   }
 
@@ -76,8 +75,7 @@ class _AskSheet extends StatelessWidget {
                 AppSpacing.gapXxs,
                 const Text(
                   'Ask a club, an employer or anyone else to confirm '
-                  'something about you. Nothing is sent from here: you get a '
-                  'link to pass on.',
+                  'something about you. You get a link to pass on yourself.',
                 ).muted.small,
                 AppSpacing.gapLg,
                 AppTextField(
@@ -89,12 +87,12 @@ class _AskSheet extends StatelessWidget {
                 AppSpacing.gapSm,
                 AppTextField(
                   controller: store.askClaimsController,
-                  label: 'Claims you want stated (optional)',
+                  label: 'What they should confirm (optional)',
                   hint: 'e.g. member_since, board',
                   mono: true,
                 ),
                 AppSpacing.gapLg,
-                const Text('Issued to').small.bold.muted,
+                const Text('For your identity').small.bold.muted,
                 AppSpacing.gapSm,
                 IdentityPicker(
                   selectedId: store.askIdentityId,
@@ -119,7 +117,7 @@ class _AskSheet extends StatelessWidget {
                     Expanded(
                       child: AppButton(
                         icon: AppIcons.qrCode,
-                        label: 'Create ask link',
+                        label: 'Create link',
                         onTap: problem == null ? () => _create(context) : null,
                       ),
                     ),

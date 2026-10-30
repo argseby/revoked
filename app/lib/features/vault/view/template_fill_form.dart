@@ -122,7 +122,7 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
       return const AppEmptyState(
         icon: AppIcons.cardList,
         title: 'No templates yet',
-        subtitle: 'Templates are created in Settings, under Developer.',
+        subtitle: 'Create one in Settings, under Developer.',
       );
     }
 
@@ -209,9 +209,7 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
         if (fields.isEmpty)
           Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
-            child: const Text(
-              'This template asks for nothing yet.',
-            ).muted.small,
+            child: const Text('This template has no fields yet.').muted.small,
           ),
         for (final entry in groups.entries) ...[
           if (entry.key.isNotEmpty) AppFormSectionHeader(entry.key),

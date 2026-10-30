@@ -80,7 +80,7 @@ void main() {
 
     expect(find.text('No identity on this device yet'), findsOneWidget);
     expect(
-      find.text('Key on another device - it cannot sign here'),
+      find.text('Key on another device - it can\'t sign here'),
       findsOneWidget,
     );
 

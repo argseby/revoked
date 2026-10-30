@@ -108,7 +108,8 @@ abstract class _ServerSettingsStore with Store {
       if (resp.statusCode != 200) {
         _finish(
           reachable: false,
-          message: 'Reached $target but got HTTP ${resp.statusCode}',
+          message:
+              '$target answered with HTTP ${resp.statusCode}. Check the address.',
         );
         return;
       }
@@ -118,7 +119,10 @@ abstract class _ServerSettingsStore with Store {
         version: await _versionAt(target),
       );
     } catch (_) {
-      _finish(reachable: false, message: 'Could not reach $target');
+      _finish(
+        reachable: false,
+        message: 'Couldn\'t reach $target. Check the address.',
+      );
     }
   }
 
@@ -211,7 +215,7 @@ abstract class _ServerSettingsStore with Store {
   void _refuseBlocked(String target) => _finish(
     reachable: false,
     message:
-        '${Uri.tryParse(target)?.host ?? target} is listed as impersonating '
+        '${Uri.tryParse(target)?.host ?? target} is a known fake of '
         'Revoked. The official server is ${AppConfig.officialServerHost}.',
   );
 

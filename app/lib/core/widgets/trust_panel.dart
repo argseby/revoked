@@ -27,14 +27,13 @@ abstract final class TrustCopy {
   static const allGoodDetail = 'Every check passed. Safe to continue.';
   static const problem = 'Not verified';
   static const problemDetail =
-      'At least one check failed. Only continue if you already trust '
+      'Something didn\'t check out. Only continue if you already trust '
       'whoever sent you this link.';
   static const spoofedDetail =
-      'The claimed domain does not match the signing key. Do not send '
-      'anything.';
+      'It claims a domain it doesn\'t belong to. Do not send anything.';
   static const revokedDetail =
-      'Every signature checks out, and the domain has withdrawn this '
-      'identity. Whoever holds the key no longer speaks for it.';
+      'The domain has withdrawn this identity. Whoever holds it no longer '
+      'speaks for that domain.';
 }
 
 /// Outcome of one verification step.
@@ -122,7 +121,7 @@ class _TrustPanelState extends State<TrustPanel> {
           accent = scheme.onSurfaceVariant;
           icon = AppIcons.shieldCheck;
           headline = TrustCopy.checking;
-          detail = 'Verifying against public DNS…';
+          detail = 'Checking the domain…';
         } else if (_allVerified) {
           accent = scheme.success;
           icon = AppIcons.shieldCheck;

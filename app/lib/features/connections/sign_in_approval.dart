@@ -77,7 +77,7 @@ class SignInApproval {
       }
       if (!confirmed) {
         throw const SignInApprovalException(
-          'Signing in needs your confirmation on this device.',
+          'Confirm on this device to sign in.',
         );
       }
       body['scopes'] = scopes.toList();
@@ -118,9 +118,8 @@ class SignInApproval {
       if (key != null && key.isNotEmpty) return identity;
     }
     throw const SignInApprovalException(
-      'This device holds no identity key, so it cannot confirm a sign-in. '
-      'Approve it on the device you set up Revoked on, or create an identity '
-      'here first.',
+      'This device has no identity yet. Approve the sign-in on the device '
+      'where you set up Revoked, or create an identity here first.',
     );
   }
 }

@@ -194,7 +194,7 @@ Future<bool> _fillFile(
   } else if (store.errorMessage != null) {
     AppToast.error(
       toastContext,
-      'Could not save ${field.title}',
+      'Couldn\'t save ${field.title}',
       subtitle: store.errorMessage,
     );
   }
@@ -310,7 +310,7 @@ Future<bool> _save(
   } else {
     AppToast.error(
       toastContext,
-      'Could not save ${field.title}',
+      'Couldn\'t save ${field.title}',
       subtitle: store.errorMessage,
     );
   }

@@ -165,7 +165,7 @@ abstract class _AuthStore with Store {
     final opened = await _openBrowser(page).catchError((Object _) => false);
     runInAction(() {
       isAwaitingBrowser = opened;
-      if (!opened) errorMessage = 'Could not open your browser.';
+      if (!opened) errorMessage = 'Couldn\'t open your browser. Try again.';
     });
     return opened;
   }
@@ -351,8 +351,8 @@ abstract class _AuthStore with Store {
       return true;
     } on ApiException catch (e) {
       errorMessage = e.code == AppErrorCode.lastAdminProtected
-          ? 'You are the only person left who can manage a workspace you '
-                'share. Hand that over, or remove the other members, first.'
+          ? 'You\'re the last person who can manage a shared workspace. '
+                'Hand it over or remove the other members first.'
           : e.message;
       return false;
     } finally {
@@ -372,7 +372,7 @@ abstract class _AuthStore with Store {
     if (mapped.code.isNotEmpty) return mapped.description;
 
     if (e.toString().contains('validation_')) {
-      return 'Please check your input and try again';
+      return 'Check what you entered and try again.';
     }
     return e
         .toString()

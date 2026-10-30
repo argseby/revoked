@@ -564,8 +564,8 @@ abstract class _VaultStore with Store {
     }
     final max = _maxFileSize!;
     if (max < 0 || file.size <= max) return null;
-    return 'This server accepts files up to ${formatBytes(max)}. '
-        '${file.name} is ${formatBytes(file.size)}.';
+    return '${file.name} is ${formatBytes(file.size)}. This server takes '
+        'files up to ${formatBytes(max)}.';
   }
 
   /// Bytes accepted so far for the upload in flight and the total it is working

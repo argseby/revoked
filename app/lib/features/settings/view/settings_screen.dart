@@ -90,7 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: AppIcons.person,
               title: 'Name',
               subtitle: (auth.currentUser?.name ?? '').isEmpty
-                  ? 'Not set · used when you sign in to services with Revoked'
+                  ? 'Not set · shown when you sign in with Revoked'
                   : auth.currentUser!.name,
               onTap: () => openAccountNameSheet(context),
             ),
@@ -118,7 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Stores.settings.workspaces.length,
                 'workspace',
                 'workspaces',
-                'Separate your data and sharing',
+                'Keep your data in separate spaces',
               ),
             ),
             _page(
@@ -148,7 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Stores.identities.identities.length,
                 'identity',
                 'identities',
-                'Sign and verify what you share',
+                'Prove it’s really you',
               ),
             ),
             _page(
@@ -174,7 +174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Stores.apiKeys.apiKeys.length,
                 'key',
                 'keys',
-                'Programmatic access',
+                'Let your scripts use Revoked',
               ),
             ),
             _page(
@@ -184,15 +184,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ownTemplates,
                 'template of your own',
                 'templates of your own',
-                'Reusable blueprints for requests',
+                'Reuse requests you send often',
               ),
             ),
             _page(
               SettingsPage.domain,
               AppIcons.server,
-              verdict == null
-                  ? 'Prove this server controls its domain'
-                  : verdict.domain,
+              verdict == null ? 'Prove this domain is yours' : verdict.domain,
             ),
           ],
         ),
@@ -200,8 +198,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'About',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'An issue is public: never paste a record value, a share or '
-            'request link, or a private key into one.',
+            'Bug reports are public. Never paste a record value, a link or a '
+            'private key into one.',
           ),
           children: [
             AppListRow(
@@ -231,9 +229,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Session',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'Signing out leaves everything on the server — sign back in any '
-            'time to pick up where you left off. To use another server, sign '
-            'out.',
+            'Your data stays on the server when you log out. Log back in any '
+            'time to pick up where you left off. To switch servers, log out '
+            'first.',
           ),
           children: [
             AppDetailRow(
@@ -284,9 +282,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       title: 'Delete your account?',
       message:
-          'Your workspaces, records and identities are deleted, and every '
-          'share and request link you created stops working — anyone still '
-          'holding one loses access immediately. This cannot be undone.',
+          'This deletes your workspaces, records and identities. Every share '
+          'and request link you made stops working right away. You can’t '
+          'undo this.',
       confirmLabel: 'Delete account',
       cancelLabel: 'Keep it',
       destructive: true,
@@ -296,7 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!await Stores.auth.deleteAccount() && mounted) {
       AppToast.error(
         context,
-        'Could not delete the account',
+        'Couldn’t delete your account',
         subtitle: Stores.auth.errorMessage,
       );
     }
@@ -309,9 +307,7 @@ Future<void> confirmLogout(BuildContext context) async {
   final confirmed = await showAppDialog(
     context: context,
     title: 'Log out?',
-    message:
-        'Your session on this device ends. Everything stays on the server '
-        '- log back in any time.',
+    message: 'Everything stays on the server. Log back in any time.',
     confirmLabel: 'Log out',
     confirmIcon: AppIcons.boxArrowLeft,
   );
@@ -382,7 +378,7 @@ class _UrlRow extends StatelessWidget {
           mode: LaunchMode.externalApplication,
         );
         if (!ok && context.mounted) {
-          AppToast.error(context, 'Could not open $url');
+          AppToast.error(context, 'Couldn’t open $url');
         }
       },
     );

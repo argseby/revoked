@@ -201,10 +201,7 @@ class LinkSearchSheet extends StatelessWidget {
         );
         verdict = TrustVerdict.unverified(
           domain: '',
-          reason:
-              'This is a share link. Shares are passed app-to-app and carry '
-              'no server domain to DNS-verify — but this link is live and '
-              'reachable.',
+          reason: 'Share links have no domain to check. This one is active.',
         );
       }
       _store.finishVerifying(verdict);
@@ -240,12 +237,10 @@ class LinkSearchSheet extends StatelessWidget {
             const Text('Search or open a link').header,
             const SizedBox(height: AppSpacing.xxs),
             const Text(
-              'Type the name of a record or link, or paste a revoked link: a '
-              'share, a request, or a service asking to see one of your '
-              'attestations. Hidden values are never searched. Verify '
-              'checks the sender\'s DNS and the link\'s security before you '
-              'open it. Press / to search, or Ctrl + V to paste a link, '
-              'from anywhere in the app.',
+              'Find a record or link by name, or paste a link someone sent '
+              'you. Hidden values are never searched. Use Verify to check '
+              'the sender before you open it. Press / to search or Ctrl + V '
+              'to paste, from anywhere in the app.',
             ).muted.small,
             const SizedBox(height: AppSpacing.lg),
             _buildField(context, scheme),
@@ -293,7 +288,7 @@ class LinkSearchSheet extends StatelessWidget {
                 children: [
                   const AppSpinner(),
                   const SizedBox(width: AppSpacing.sm),
-                  const Text('Checking DNS and link security…').muted.small,
+                  const Text('Checking the sender and the link…').muted.small,
                 ],
               ),
             ],
@@ -353,7 +348,7 @@ class LinkSearchSheet extends StatelessWidget {
     return [
       TrustCheck(
         label: 'Server domain',
-        value: verdict.domain.isEmpty ? 'no domain declared' : verdict.domain,
+        value: verdict.domain.isEmpty ? 'No domain given' : verdict.domain,
         state: state,
         detail: verdict.reason,
       ),
@@ -370,8 +365,8 @@ class LinkSearchSheet extends StatelessWidget {
               Uri.tryParse('https://${resolved.origin!}')?.host ==
                   verdict.domain
               ? null
-              : 'The link points at a different server than the sender '
-                    'claims to be.',
+              : 'This link points to a different server than the sender '
+                    'claims to be. Be careful.',
         ),
     ];
   }
@@ -456,8 +451,7 @@ class _SearchResults extends StatelessWidget {
       return Semantics(
         liveRegion: true,
         child: Text(
-          'No record or link is called "$query". Only names are searched, '
-          'not values.',
+          'Nothing called "$query". Search looks at names, not values.',
         ).muted.small,
       );
     }

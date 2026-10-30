@@ -251,8 +251,8 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
                 slug: slug,
                 title: key,
                 intro:
-                    'Reuse this value (or the whole response) — pick a format '
-                    'and copy a ready-to-use endpoint.',
+                    'Use this value, or the whole response, anywhere. Pick a '
+                    'format and copy the address.',
                 keys: [key],
                 presetKey: key,
               ),
@@ -291,7 +291,7 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
                   icon: AppIcons.cardList,
                   title: 'No responses yet',
                   subtitle:
-                      'When people respond to this request, each one shows up here as a row.',
+                      'Share the request. Each response shows up here as a row.',
                 );
               }
               return Padding(

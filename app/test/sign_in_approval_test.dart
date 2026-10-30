@@ -257,7 +257,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(delivered, [approved]);
     expect(launched, isEmpty, reason: 'no browser in between');
-    expect(find.textContaining('carries on by itself'), findsOneWidget);
+    expect(find.textContaining('carries on from there'), findsOneWidget);
   });
 
   testWidgets('a waiting service declined hears it from the app too', (

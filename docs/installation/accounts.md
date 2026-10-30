@@ -1,92 +1,95 @@
-# Accounts
+# Add people
 
-People sign in with a **passkey** — a key their device keeps and unlocks with a
-fingerprint, face or PIN. There are no passwords: nothing to reuse, leak or
-phish. A passkey is bound to the address it was made at, so signing in happens
-on this server's own page, `/passkey`, which the app opens in the browser and
-which sends the person back signed in. On Android it opens inside the app, in a
-browser tab (a Custom Tab) that closes itself once they are signed in; without
+People sign in with a **passkey**: a key their device keeps and unlocks with a
+fingerprint, face or PIN. There are no passwords, so there's nothing to reuse,
+leak or phish.
+
+A passkey only works at the address it was made for. So people sign in on
+your server's own page, `/passkey`. The app opens it in the browser, and the
+page sends them back signed in. On Android it opens inside the app, in a
+browser tab (a Custom Tab) that closes itself once they're signed in. Without
 a browser that offers one, and on the desktop, it opens in the browser.
 
-That page has to be reached at the server's real address over HTTPS (your
-`DOMAIN`). On a development machine it is `http://localhost:<port>` — not
+People must reach that page at your server's real address over HTTPS (your
+`DOMAIN`). On a development machine, use `http://localhost:<port>` — not
 `127.0.0.1`, which no passkey can be bound to.
 
-Self-service registration is **off by default**. A server nobody configured
-should be one only its operator can add people to — with `ALLOW_SIGNUPS=false`
-the sign-in page reports that the server is invite-only, and the registration
-endpoint refuses.
+People can't sign themselves up: registration is **off by default**, so only
+you can add people to a fresh server. With `ALLOW_SIGNUPS=false`, the sign-in
+page says the server is invite-only, and the registration endpoint refuses.
 
-## Creating users
+## Create an account
 
-The operator creates accounts from the machine:
+Run this on the server:
 
 ```bash
 docker compose exec api /pb/revoked user upsert someone@example.com
 ```
 
 It creates the account if needed and prints a **one-time link**, good for 24
-hours. Send it to the person: they open it on the device they will use, save a
-passkey, and sign in from the app. It writes directly through the application
-layer, so it is not subject to the signup refusal.
+hours. Send it to the person. They open it on the device they'll use, save a
+passkey, and sign in from the app. The command writes straight to the
+application, so it works even with signups off.
 
-Two other paths:
+You can also:
 
-- the `USER_EMAIL` [seed](env.md#seed-accounts): the account is created on
-  boot, and as long as it has no passkey every start logs a fresh link;
-- the superuser dashboard at `/_/` (users collection) — followed by
-  `user upsert` for the link, since an account made there has no way in yet.
+- set the `USER_EMAIL` [seed](env.md#seed-accounts). The account is created
+  on boot, and until it has a passkey every start logs a fresh link;
+- add the user in the superuser dashboard at `/_/` (users collection). Then
+  run `user upsert` to get a link — an account made there has no way in yet.
 
-## Lost devices
+## Someone lost their devices
 
-Someone who lost every device holding a passkey cannot sign in, and nothing
-they know can let them back in — that is the point. Run `user upsert` for
-their address again and send them the new link. Their old passkeys keep
-working until removed under **Settings → Account → Passkeys**.
+If someone loses every device with their passkey on it, they can't sign in.
+Nothing they know can get them back in — that's the point. Run `user upsert`
+for their address again and send them the new link. Their old passkeys keep
+working until they remove them under **Settings → Account → Passkeys**.
 
-The way to never need this: a passkey on more than one device. **Settings →
-Account → Passkeys** adds one on the device at hand, or copies a fifteen-minute
-link to open on another. Many password managers and platforms also sync a
-passkey across a person's devices on their own.
+To avoid this, tell people to keep a passkey on more than one device.
+**Settings → Account → Passkeys** adds one on the device in hand, or copies a
+fifteen-minute link to open on another. Many password managers and platforms
+also sync passkeys across a person's devices by themselves.
 
-## Upgrading from passwords
+## Moving from passwords
 
-Accounts made before passkeys keep everything they own, but their password no
-longer signs in. Run `user upsert` once per address and send out the links.
+Accounts made before passkeys keep everything they own, but their password
+no longer signs them in. Run `user upsert` once per address and send out the
+links.
 
 ## The superuser
 
 The `/_/` dashboard account is separate from app accounts and still signs in
-with a password. Create it on first visit to `/_/`, via the printed install
-link in the logs, or with the `ADMIN_EMAIL`/`ADMIN_PASSWORD` seed pair. It
-manages collections and settings — it is not a login for the app itself.
+with a password. Create it on your first visit to `/_/`, through the install
+link printed in the logs, or with the `ADMIN_EMAIL`/`ADMIN_PASSWORD` seed
+pair. It manages collections and settings. It can't sign in to the app.
 
-## Opening registration
+## Let people sign themselves up
 
-Set `ALLOW_SIGNUPS=true` and restart. Anyone who can reach the server can then
-create an account with an email address and a passkey.
+Set `ALLOW_SIGNUPS=true` and restart. Anyone who can reach your server can
+then create an account with an email address and a passkey.
 
-That address is whatever the person typed. To make sure it is theirs, also set
-`SIGNUP_VERIFY_EMAIL=true` and configure the [mail server](env.md#mail): the
-sign-in page then mails a 6-digit code, and only the right code lets the
-passkey be saved. The code works for ten minutes and five guesses; an address
-gets at most one a minute and five an hour. Accounts confirmed this way are
+That address is whatever they typed. To make sure it's theirs, also set
+`SIGNUP_VERIFY_EMAIL=true` and set up the [mail server](env.md#mail). The
+sign-in page then mails a 6-digit code, and only the right code lets them save
+a passkey. A code lasts ten minutes and allows five guesses. An address gets
+at most one code a minute and five an hour. Accounts confirmed this way are
 marked verified.
 
-The sign-in page shows a new account's steps as it goes (*Step 2 of 3 ·
-Confirm email*: email, code, passkey; two steps without confirmation). It is
-in English and German, picked from the browser and switchable at the top, and
-the code is mailed in the language the page was showing. Someone who already
-has an account but chose *Create an account* is offered their passkey as they
-tap the email field, where the browser can do that, and is signed in with it. Inviting members into an
-*existing* workspace is a separate, in-app flow (workspace invites) and works
-regardless of this flag.
+The sign-in page shows new people where they are (*Step 2 of 3 · Confirm
+email*: email, code, passkey; two steps without confirmation). It's in English
+and German, picked from the browser and switchable at the top. The code is
+mailed in the language the page was showing. If someone with an account picks
+*Create an account* anyway, the browser offers their passkey when they tap the
+email field (where the browser supports it) and signs them in with it.
 
-## First login
+Inviting members into an *existing* workspace is separate. It happens in the
+app (workspace invites) and works whatever this setting says.
 
-On first login a user lands in onboarding: create a workspace (named
-*Personal* unless they change it, and naming themselves for their signing
-identity — suggested from their email address, and what recipients of their
-shares and requests see) or join one by pasting an invite key. A link that
-brought them to the app — a link proposal, a connect request, an invite — is
-opened once they are through.
+## What people see first
+
+On first login, people land in onboarding. They either create a workspace or
+join one by pasting an invite key. A new workspace is called *Personal* unless
+they rename it. They also name themselves for their signing identity — the
+app suggests a name from their email address, and it's what recipients of
+their shares and requests see. If a link brought them to the app — a link
+proposal, a connect request, an invite — it opens once they're through.

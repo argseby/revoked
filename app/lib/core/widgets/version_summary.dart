@@ -20,17 +20,17 @@ AppBadge? versionStandingBadge(BuildContext context, VersionStanding standing) {
   final scheme = Theme.of(context).colorScheme;
   return switch (standing) {
     VersionStanding.inStep => AppBadge(
-      label: 'In step',
+      label: 'Up to date',
       icon: AppIcons.checkCircle,
       accent: scheme.success,
     ),
     VersionStanding.appBehind => AppBadge(
-      label: 'App behind',
+      label: 'App out of date',
       icon: AppIcons.exclamationTriangle,
       accent: scheme.warning,
     ),
     VersionStanding.serverBehind => AppBadge(
-      label: 'Server behind',
+      label: 'Server out of date',
       icon: AppIcons.exclamationTriangle,
       accent: scheme.warning,
     ),
@@ -104,8 +104,8 @@ class ServerPill extends StatelessWidget {
       VersionStanding.unknown => null,
     };
     final label = switch (standing) {
-      VersionStanding.appBehind => 'App behind',
-      VersionStanding.serverBehind => 'Server behind',
+      VersionStanding.appBehind => 'App out of date',
+      VersionStanding.serverBehind => 'Server out of date',
       _ => null,
     };
 

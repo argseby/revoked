@@ -149,7 +149,7 @@ class _VaultScreenState extends State<VaultScreen> {
               horizontal: AppSpacing.screenH(context),
             ),
             child: AppLoadError(
-              title: 'Failed to load data',
+              title: 'Couldn\'t load your vault',
               message: store.errorMessage!,
               onRetry: store.loadRecords,
             ),
@@ -159,22 +159,22 @@ class _VaultScreenState extends State<VaultScreen> {
         if (store.records.isEmpty && store.sections.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.safe,
-            title: 'Records live in the vault',
+            title: 'Keep what you share in one place',
             subtitle:
-                'A record is one piece of data, such as an IBAN or a '
-                'password. Links and requests point at it instead of copying '
-                'it, so an edit here is seen everywhere at once.',
+                'Add a detail once, like an IBAN or a password, and share it '
+                'as often as you like. Change it here and everyone you shared '
+                'it with sees the update.',
             example: const AppEmptyExample(
               title: 'IBAN',
               detail: 'DE89 •••• •••• 3000',
               badge: 'hidden',
             ),
             steps: const [
-              AppEmptyStep('Record', 'A key and a value, optionally masked'),
-              AppEmptyStep('Section', 'Records grouped and shared as one'),
+              AppEmptyStep('Record', 'One detail, hidden if you like'),
+              AppEmptyStep('Section', 'Records you share together'),
               AppEmptyStep(
                 'Link',
-                'Reads the current value and can be revoked',
+                'Shows the latest value until you revoke it',
               ),
             ],
             // New here, the tour shows the whole loop with real data; the
@@ -282,8 +282,8 @@ class _VaultScreenState extends State<VaultScreen> {
               AppListBanner(
                 icon: AppIcons.plusSlashMinus,
                 message:
-                    'Editing section "${_sectionName(section)}". Tick the '
-                    'records it should hold.',
+                    'Editing "${_sectionName(section)}". Tick the records '
+                    'that belong in it.',
               ),
             ],
             filters: chips,
@@ -429,12 +429,12 @@ class _VaultScreenState extends State<VaultScreen> {
               AppListBanner(
                 icon: AppIcons.plusSlashMinus,
                 message:
-                    'Choosing what "${shareEdit.label}" shares. Tick whole '
+                    'Choose what "${shareEdit.label}" shares. Tick whole '
                     'sections or single records.',
               ),
           ],
           filters: chips,
-          emptyMessage: groups.isEmpty ? 'No items match your filters.' : null,
+          emptyMessage: groups.isEmpty ? 'Nothing matches your filters.' : null,
           groups: groups,
         );
       },
@@ -621,8 +621,8 @@ class _VaultScreenState extends State<VaultScreen> {
       AppToast.success(
         context,
         selected
-            ? 'Added record to public share'
-            : 'Removed record from public share',
+            ? 'Added record to the share'
+            : 'Removed record from the share',
       );
     }
   }
@@ -661,9 +661,7 @@ class _VaultScreenState extends State<VaultScreen> {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Delete section',
-      message:
-          'This action cannot be undone. This will permanently delete '
-          'the section.',
+      message: 'You can\'t undo this. The records in it stay in your vault.',
       content: ApiPreview(
         spec: VaultStore.deleteSectionSpec(id),
         title: 'API request · delete',
@@ -674,7 +672,7 @@ class _VaultScreenState extends State<VaultScreen> {
     if (!confirmed || !context.mounted) return;
     final ok = await store.deleteSection(id);
     if (ok && context.mounted) {
-      AppToast.success(context, 'Section deleted successfully');
+      AppToast.success(context, 'Section deleted');
     }
   }
 }
@@ -705,7 +703,7 @@ void _showVaultAccessSheet(
           const SizedBox(height: AppSpacing.xxs),
           Text(
             '${links.length} active link${links.length == 1 ? '' : 's'} '
-            'expose "$title".',
+            'show "$title".',
           ).muted.small,
           const SizedBox(height: AppSpacing.md),
           for (final l in links)
@@ -737,7 +735,7 @@ class _VaultAccessRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final label = link.label.isEmpty ? link.slug : link.label;
-    final kind = link.request.isEmpty ? 'Manual share' : 'From a request';
+    final kind = link.request.isEmpty ? 'Shared by you' : 'From a request';
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: InkWell(

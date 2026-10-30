@@ -117,7 +117,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
     _busy.value = false;
     if (grant == null) {
       _error.value =
-          Stores.connections.errorMessage ?? 'Could not connect ${r.name}';
+          Stores.connections.errorMessage ?? 'Couldn’t connect ${r.name}';
       return;
     }
     _reused.value = _joining.value;
@@ -162,8 +162,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
       subtitle: !consenting
           ? null
           : joining
-          ? 'Another browser is asking to use this connection'
-          : 'Connection request from ${Uri.parse(r.client).host}',
+          ? 'Another browser wants to use this connection'
+          : 'Request from ${Uri.parse(r.client).host}',
       closeLabel: consenting ? 'Decline and go back' : 'Back to the app',
       onClose: () =>
           consenting ? _decline(context) : context.go(AppRoutes.overview),
@@ -183,9 +183,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       icon: AppIcons.exclamationTriangle,
       accent: Theme.of(context).colorScheme.error,
       title: 'This link doesn’t work',
-      message:
-          'It doesn’t describe a tool that Revoked can connect. Ask the tool '
-          'for a new link.',
+      message: 'Revoked can’t connect this tool. Ask the tool for a new link.',
       actions: [
         AppButton(
           label: 'Back to the app',
@@ -205,12 +203,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
           ? '${r.name} was already connected'
           : '${r.name} is connected',
       message:
-          '${_reused.value ? 'This browser can now use it too, with the same '
+          '${_reused.value ? 'This browser can use it too, with the same '
                     'permissions as before. ' : ''}'
-          '${_polls ? 'You can return to your browser; ${r.name} carries on by '
-                    'itself. ' : ''}'
-          'You can review or disconnect it at any time under Settings → '
-          'Workspace → Connected tools.',
+          '${_polls ? 'Go back to your browser. ${r.name} carries on from '
+                    'there. ' : ''}'
+          'Review or disconnect it any time in Settings → Workspace → '
+          'Connected tools.',
       actions: [
         if (!_polls)
           AppButton(
@@ -240,8 +238,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
       title: 'Who is asking',
       trailing: const SizedBox.shrink(),
       footer: const Text(
-        'A tool chooses its own name, so the address is what identifies it. '
-        'Only continue if you recognise it.',
+        'Any tool can pick its own name. Check the address, and only '
+        'continue if you recognise it.',
       ),
       children: [
         AppDetailRow(icon: AppIcons.globe, label: 'Address', value: host),
@@ -277,9 +275,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
     return AppActionBar(
       note: Text(
         _joining.value
-            ? 'This browser gets the same permissions you granted before.'
-            : 'Nothing is shared until you approve it, and you can disconnect '
-                  'at any time.',
+            ? 'This browser gets the same permissions you gave before.'
+            : 'Nothing is shared until you approve it. You can disconnect '
+                  'any time.',
       ).muted.small,
       children: [
         AppButton(
