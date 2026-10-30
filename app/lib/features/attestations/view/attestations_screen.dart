@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/design/spacing.dart';
@@ -53,15 +54,23 @@ class _AttestationsScreenState extends State<AttestationsScreen> {
           child: const DeviceKeyAlert(),
         ),
         Expanded(
-          child: AppTabs(
-            labels: const ['Held', 'Issued'],
-            views: const [
-              AppPageBody(children: [HeldAttestations()]),
-              AppPageBody(children: [IssuedAttestations()]),
-            ],
+          child: Observer(
+            builder: (_) => AppTabs(
+              labels: [
+                _counted('Held', Stores.credentials.credentials.length),
+                _counted('Issued', Stores.attestations.attestations.length),
+              ],
+              views: const [
+                AppPageBody(children: [HeldAttestations()]),
+                AppPageBody(children: [IssuedAttestations()]),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
 }
+
+String _counted(String label, int count) =>
+    count == 0 ? label : '$label · $count';

@@ -40,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final ws = auth.activeWorkspace ?? '';
       Stores.settings.loadWorkspaces(auth.userId);
       Stores.identities.loadIdentities();
+      Stores.settings.ensureDomainChecked();
       Stores.apiKeys.loadApiKeys();
       Stores.passkeys.load();
       Stores.connections.load();

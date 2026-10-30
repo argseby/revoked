@@ -1,6 +1,7 @@
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/widgets/trust_panel.dart' show TrustCheckState;
 
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/invite.dart';
@@ -44,6 +45,78 @@ abstract class _SettingsStore with Store {
     isCheckingDomain = false;
     domainVerdict = verdict;
     domainError = error;
+  }
+
+  /// Runs [checkDomain] unless it already ran or is running. Every screen
+  /// that states an identity's domain claim calls this: without an answer
+  /// the claim reads as unverified, which is wrong rather than unknown.
+  void ensureDomainChecked() {
+    if (domainVerdict != null || domainError != null || isCheckingDomain) {
+      return;
+    }
+    checkDomain();
+  }
+
+  /// Whether this server's own DNS check vouches for [domain], the domain an
+  /// identity was issued under.
+  TrustCheckState claimStateFor(String domain) {
+    final verdict = domainVerdict;
+    if (verdict == null) {
+      return isCheckingDomain || domainError == null
+          ? TrustCheckState.checking
+          : TrustCheckState.failed;
+    }
+    final same =
+        verdict.domain.toLowerCase().replaceAll(RegExp(r'\.$'), '') ==
+        domain.toLowerCase().replaceAll(RegExp(r'\.$'), '');
+    return verdict.state == TrustState.verified && same
+        ? TrustCheckState.verified
+        : TrustCheckState.failed;
+  }
+
+  /// Runs the server-side DNS trust check (`/api/verify-peer` against this
+  /// server's own advertised domain): whether its `_revoked` TXT record is
+  /// published and pins its root key.
+  Future<void> checkDomain() async {
+    final store = this;
+    store.startDomainCheck();
+    try {
+      final server = await _api.get('/api/server');
+      final domain = (server is Map && server['domain'] is String)
+          ? server['domain'] as String
+          : '';
+      if (domain.isEmpty) {
+        store.finishDomainCheck(
+          error: 'This server does not advertise a domain to verify.',
+        );
+        return;
+      }
+      final res = await _api.post('/api/verify-peer', body: {'domain': domain});
+      store.finishDomainCheck(
+        verdict: _verdictFrom(res as Map<String, dynamic>),
+      );
+    } catch (e) {
+      store.finishDomainCheck(error: e.toString());
+    }
+  }
+
+  TrustVerdict _verdictFrom(Map<String, dynamic> r) {
+    final domain = r['domain'] as String? ?? '';
+    final reason = r['reason'] as String? ?? '';
+    switch (r['state'] as String? ?? 'unverified') {
+      case 'verified':
+        return TrustVerdict.verified(
+          domain: domain,
+          rootFingerprint: r['rootFingerprint'] as String? ?? '',
+          identityFingerprint: r['identityFingerprint'] as String? ?? '',
+        );
+      case 'spoofed':
+        return TrustVerdict.spoofed(domain: domain, reason: reason);
+      case 'dnsMissing':
+        return TrustVerdict.dnsMissing(domain: domain, reason: reason);
+      default:
+        return TrustVerdict.unverified(domain: domain, reason: reason);
+    }
   }
 
   final ObservableTextController workspaceName = ObservableTextController();

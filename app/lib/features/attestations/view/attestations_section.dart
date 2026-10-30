@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -100,7 +101,7 @@ class HeldAttestations extends StatelessWidget {
                       ).small,
                   ],
                 ),
-                trailing: _verdictBadge(store.verdicts[c.id]),
+                trailing: _verdictBadge(context, store.verdicts[c.id]),
                 onTap: () => showAppSheet(
                   context: context,
                   dismissible: true,
@@ -116,17 +117,30 @@ class HeldAttestations extends StatelessWidget {
   }
 }
 
-Widget? _verdictBadge(CredentialVerdict? verdict) {
+/// A credential's standing as a pill in the colour of its verdict: green
+/// when it verifies, amber when something could not be checked, red when it
+/// can no longer be used.
+Widget? _verdictBadge(BuildContext context, CredentialVerdict? verdict) {
   if (verdict == null) return null;
+  final scheme = Theme.of(context).colorScheme;
   if (verdict.isVerified) {
-    return AppBadge(icon: AppIcons.shieldCheck, label: verdict.label);
+    return AppBadge(
+      icon: AppIcons.shieldCheck,
+      label: verdict.label,
+      accent: scheme.success,
+    );
+  }
+  if (verdict.isUnusable) {
+    return AppBadge(
+      icon: AppIcons.shieldSlash,
+      label: verdict.label,
+      variant: AppBadgeVariant.destructive,
+    );
   }
   return AppBadge(
-    icon: verdict.isUnusable ? AppIcons.shieldSlash : AppIcons.exclamation,
+    icon: AppIcons.exclamation,
     label: verdict.label,
-    variant: verdict.isUnusable
-        ? AppBadgeVariant.destructive
-        : AppBadgeVariant.outline,
+    accent: scheme.warning,
   );
 }
 
@@ -198,7 +212,8 @@ class _CredentialSheet extends StatelessWidget {
                     AppDetailRow(
                       icon: AppIcons.shieldCheck,
                       label: 'Standing',
-                      value: verdict?.label ?? 'Checking…',
+                      value: verdict == null ? 'Checking…' : '',
+                      badge: _verdictBadge(context, verdict),
                     ),
                     AppDetailRow(
                       icon: AppIcons.personBoundingBox,

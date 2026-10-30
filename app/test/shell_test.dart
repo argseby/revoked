@@ -203,7 +203,13 @@ void main() {
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.text('Search or paste link'), findsOneWidget);
-    for (final label in ['Overview', 'Vault', 'Shared', 'Requests']) {
+    for (final label in [
+      'Overview',
+      'Vault',
+      'Shares',
+      'Requests',
+      'Attestations',
+    ]) {
       expect(find.text(label), findsWidgets, reason: label);
     }
 

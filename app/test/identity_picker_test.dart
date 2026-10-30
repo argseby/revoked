@@ -30,6 +30,10 @@ void main() {
     Stores.identities.identities
       ..clear()
       ..addAll([id('alpha'), id('beta', domain: 'other.example')]);
+    // Both keys are on this device, as after creating the identities here.
+    Stores.identities.localKeyIds
+      ..clear()
+      ..addAll(['alpha', 'beta']);
   });
 
   testWidgets('tapping a row reports the chosen identity', (tester) async {

@@ -25,14 +25,18 @@ class _Destination {
   final IconData icon;
   final String label;
 
-  const _Destination(this.icon, this.label);
+  /// Built on the vault: shares give its records out, requests fill it. The
+  /// sidebar hangs these under it; the narrower bars stay flat.
+  final bool underVault;
+
+  const _Destination(this.icon, this.label, {this.underVault = false});
 }
 
 const _destinations = [
   _Destination(AppIcons.dashboard, 'Overview'),
   _Destination(AppIcons.safe, 'Vault'),
-  _Destination(AppIcons.share, 'Shared'),
-  _Destination(AppIcons.inboxFill, 'Requests'),
+  _Destination(AppIcons.share, 'Shares', underVault: true),
+  _Destination(AppIcons.inboxFill, 'Requests', underVault: true),
   _Destination(AppIcons.attestation, 'Attestations'),
 ];
 
@@ -261,6 +265,56 @@ class _Sidebar extends StatelessWidget {
 
   const _Sidebar({required this.destination, required this.onSelect});
 
+  /// The places as a tree: what is built on the vault hangs under it on a
+  /// hairline, and what is not (attestations belong to identities, not
+  /// records) stands apart after a gap.
+  List<Widget> _navigation(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget item(int i) => _SidebarItem(
+      icon: _destinations[i].icon,
+      label: _destinations[i].label,
+      selected: destination == i,
+      onTap: () => onSelect(i),
+    );
+    final children = <Widget>[];
+    for (var i = 0; i < _destinations.length; i++) {
+      if (_destinations[i].underVault) continue;
+      if (i > 0 && _destinations[i - 1].underVault) {
+        children.add(AppSpacing.gapMd);
+      }
+      children.add(item(i));
+      final nested = <int>[];
+      for (
+        var j = i + 1;
+        j < _destinations.length && _destinations[j].underVault;
+        j++
+      ) {
+        nested.add(j);
+      }
+      if (nested.isEmpty) continue;
+      children.add(
+        Padding(
+          padding: const EdgeInsetsDirectional.only(start: AppSpacing.xl),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: BorderDirectional(
+                start: BorderSide(color: scheme.outlineVariant),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(start: AppSpacing.xs),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [for (final j in nested) item(j)],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return children;
+  }
+
   static const double width = 256;
 
   @override
@@ -287,15 +341,7 @@ class _Sidebar extends StatelessWidget {
                 label: 'Main navigation',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < _destinations.length; i++)
-                      _SidebarItem(
-                        icon: _destinations[i].icon,
-                        label: _destinations[i].label,
-                        selected: destination == i,
-                        onTap: () => onSelect(i),
-                      ),
-                  ],
+                  children: _navigation(context),
                 ),
               ),
               const Spacer(),

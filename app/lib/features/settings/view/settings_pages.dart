@@ -8,7 +8,6 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/template.dart';
-import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/models/workspace.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
@@ -130,6 +129,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.invites.loadCatalogue();
       case SettingsPage.identities:
         Stores.identities.loadIdentities();
+        Stores.settings.ensureDomainChecked();
       case SettingsPage.connectedTools:
         Stores.connections.load();
       case SettingsPage.apiKeys:
@@ -623,13 +623,8 @@ class _IdentitiesPage extends StatelessWidget {
 
   /// Whether this server's own domain check vouches for the domain the
   /// identity was issued under.
-  TrustCheckState _claimState(String domain) {
-    final verdict = Stores.settings.domainVerdict;
-    if (verdict?.state == TrustState.verified && verdict?.domain == domain) {
-      return TrustCheckState.verified;
-    }
-    return TrustCheckState.failed;
-  }
+  TrustCheckState _claimState(String domain) =>
+      Stores.settings.claimStateFor(domain);
 
   void _options(BuildContext context, Identity id) {
     final store = Stores.identities;
@@ -890,51 +885,6 @@ class _TemplatesPage extends StatelessWidget {
 class _DomainPage extends StatelessWidget {
   const _DomainPage();
 
-  Future<void> _verify() async {
-    final store = Stores.settings;
-    store.startDomainCheck();
-    try {
-      final server = await Stores.api.get('/api/server');
-      final domain = (server is Map && server['domain'] is String)
-          ? server['domain'] as String
-          : '';
-      if (domain.isEmpty) {
-        store.finishDomainCheck(
-          error: 'This server does not advertise a domain to verify.',
-        );
-        return;
-      }
-      final res = await Stores.api.post(
-        '/api/verify-peer',
-        body: {'domain': domain},
-      );
-      store.finishDomainCheck(
-        verdict: _verdictFrom(res as Map<String, dynamic>),
-      );
-    } catch (e) {
-      store.finishDomainCheck(error: e.toString());
-    }
-  }
-
-  TrustVerdict _verdictFrom(Map<String, dynamic> r) {
-    final domain = r['domain'] as String? ?? '';
-    final reason = r['reason'] as String? ?? '';
-    switch (r['state'] as String? ?? 'unverified') {
-      case 'verified':
-        return TrustVerdict.verified(
-          domain: domain,
-          rootFingerprint: r['rootFingerprint'] as String? ?? '',
-          identityFingerprint: r['identityFingerprint'] as String? ?? '',
-        );
-      case 'spoofed':
-        return TrustVerdict.spoofed(domain: domain, reason: reason);
-      case 'dnsMissing':
-        return TrustVerdict.dnsMissing(domain: domain, reason: reason);
-      default:
-        return TrustVerdict.unverified(domain: domain, reason: reason);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = Stores.settings;
@@ -975,7 +925,7 @@ class _DomainPage extends StatelessWidget {
               label: 'Verify DNS setup',
               style: AppButtonStyle.accent,
               busy: store.isCheckingDomain,
-              onTap: _verify,
+              onTap: store.checkDomain,
             ),
           ),
         ],
