@@ -25,7 +25,11 @@
 
 services:
   api:
-    build: .
+    build:
+      context: .
+      args:
+        # Only read when the build context has no .git, as under Portainer.
+        REVOKED_VERSION: ${REVOKED_VERSION:-}
     container_name: ${CONTAINER_NAME:-revoked-api}
     restart: unless-stopped
     environment:
@@ -63,6 +67,7 @@ services:
       RATELIMIT_CHALLENGE_REQUESTS: ${RATELIMIT_CHALLENGE_REQUESTS:-60}
       RATELIMIT_PASSKEY_REQUESTS: ${RATELIMIT_PASSKEY_REQUESTS:-60}
       RATELIMIT_SIGNUP_EMAILS: ${RATELIMIT_SIGNUP_EMAILS:-10}
+      RATELIMIT_SUBMISSIONS: ${RATELIMIT_SUBMISSIONS:-60}
     command:
       - serve
       - --http=0.0.0.0:${API_PORT:-3000}

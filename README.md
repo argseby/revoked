@@ -118,6 +118,10 @@ Use a **git-backed** stack, not the web editor — `build: .` needs the
 repository as its build context. Compose path `docker-compose.yml`, and put the
 `.env` values in Portainer's *Environment variables* section.
 
+Portainer's checkout has no `.git`, so the server cannot read its own release
+from it and reports `dev`. Pin the stack's repository reference to a release
+tag (`refs/tags/v0.22.0`) and set `REVOKED_VERSION` to the same tag.
+
 ## Downloads
 
 A release builds Linux, Windows and Android artifacts and attaches them to

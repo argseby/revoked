@@ -16,9 +16,14 @@ RUN apk add --no-cache git
 
 # CGO off: the SQLite driver is modernc's pure-Go one, so the result is a static
 # binary and the runtime image needs nothing but CA certificates.
+# Without .git (a Portainer stack's checkout has none) the toolchain stamps
+# nothing, so the release can be passed in instead.
+ARG REVOKED_VERSION=""
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/revoked ./cmd/revoked
+    CGO_ENABLED=0 go build -trimpath \
+      -ldflags="-s -w -X revoked/util.releaseVersion=${REVOKED_VERSION}" \
+      -o /out/revoked ./cmd/revoked
 
 # ---- runtime ----------------------------------------------------------------
 FROM alpine:3.22
