@@ -20,6 +20,7 @@ const (
 	envLimitStamp      = "RATELIMIT_STAMP_REQUESTS"
 	envLimitSignupMail = "RATELIMIT_SIGNUP_EMAILS"
 	envLimitGrantPeer  = "RATELIMIT_GRANT_REQUESTS"
+	envLimitSubmission = "RATELIMIT_SUBMISSIONS"
 )
 
 var (
@@ -54,6 +55,11 @@ var (
 	// grant events and relayed answers, keyed by IP. Each call carries up to
 	// a batch of grants, so the budget is per call, not per grant.
 	grantPeerLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitGrantPeer, 300), time.Minute)
+
+	// submissionLimiter covers answers to requests, keyed by the signed-in
+	// account alone: each answer notifies the request's owner and may fire
+	// their callback, so one account must not be able to flood either.
+	submissionLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitSubmission, 60), time.Hour)
 )
 
 // ConfigureRateLimits replaces the public-surface limiters (0 disables one). For the
@@ -82,6 +88,12 @@ func ConfigureSignupMailRateLimit(perHour int) {
 // it). For the test harness only, whose two "servers" share one address.
 func ConfigureGrantRateLimit(requests int) {
 	grantPeerLimiter = util.NewRateLimiter(requests, time.Minute)
+}
+
+// ConfigureSubmissionRateLimit replaces the per-account answer limiter (0
+// disables it). For the test harness only, whose accounts answer many requests.
+func ConfigureSubmissionRateLimit(perHour int) {
+	submissionLimiter = util.NewRateLimiter(perHour, time.Hour)
 }
 
 // rateLimitKey keys the limiter by client IP plus optional scope. RealIP is the

@@ -22,6 +22,9 @@ func CertificateRoute(app core.App) {
 		})
 
 		e.Router.GET("/api/certificate/{id}", func(e *core.RequestEvent) error {
+			if !allowRequest(e, probeLimiter, "certificate") {
+				return rateLimitedResponse(e)
+			}
 			identity, err := app.FindRecordById(util.Coll.Identities, e.Request.PathValue("id"))
 			if err != nil || identity == nil {
 				return e.NotFoundError("Identity not found", err)

@@ -70,7 +70,9 @@ class CryptoService {
     final pem = await loadPrivateKey(identityId);
     if (pem == null || pem.isEmpty) {
       throw StateError(
-        'No private key stored for identity $identityId — cannot sign.',
+        'This identity\'s key is on another device. A key stays on the '
+        'device that created it; create an identity here to sign from '
+        'this one.',
       );
     }
     return signWithPrivateKey(privateKeyPem: pem, message: message);

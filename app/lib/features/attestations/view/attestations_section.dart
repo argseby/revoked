@@ -18,21 +18,6 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/attestations/claim_text.dart';
-import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
-
-/// The Attestations settings page: what other parties attested about this
-/// person's identities, and what this workspace attested about others.
-class AttestationsSection extends StatelessWidget {
-  const AttestationsSection({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [_HeldGroup(), _IssuedGroup()],
-    );
-  }
-}
 
 class _Loading extends StatelessWidget {
   const _Loading();
@@ -46,9 +31,30 @@ class _Loading extends StatelessWidget {
   }
 }
 
-/// The credentials this person holds.
-class _HeldGroup extends StatelessWidget {
-  const _HeldGroup();
+/// A tab's list: one line on what it holds, then its rows. The tab names it,
+/// so it carries no heading of its own.
+class _TabList extends StatelessWidget {
+  final String intro;
+  final List<Widget> children;
+
+  const _TabList({required this.intro, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(intro).muted.small,
+        AppSpacing.gapMd,
+        AppListCard(children: children),
+      ],
+    );
+  }
+}
+
+/// The credentials this person holds, each with what it states.
+class HeldAttestations extends StatelessWidget {
+  const HeldAttestations({super.key});
 
   String _identityName(Credential c) =>
       Stores.identities.byId(c.identity)?.name ?? 'an identity';
@@ -57,28 +63,43 @@ class _HeldGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = Stores.credentials;
     return Observer(
-      builder: (_) => AppListGroup(
-        title: 'Held',
-        trailing: const SizedBox.shrink(),
-        footer: const Text(
-          'Statements other parties signed about your identities. They '
-          'arrive as offer links, are kept on your server, and are shown to '
-          'a service only when you agree, claim by claim.',
-        ),
+      builder: (_) => _TabList(
+        intro:
+            'Statements others signed about you. They are kept on your '
+            'server and shown to a service only when you agree, claim by '
+            'claim.',
         children: [
           if (store.isLoading && store.credentials.isEmpty)
             const _Loading()
           else if (store.credentials.isEmpty)
             AppDetailRow(
               icon: AppIcons.info,
-              label: store.errorMessage ?? 'No attestations held yet.',
+              label:
+                  store.errorMessage ??
+                  'None yet. Ask for one with New → Attestation about you.',
             )
           else
             for (final c in store.credentials)
               AppListRow(
                 icon: AppIcons.shieldCheck,
                 title: c.type,
-                subtitle: 'From ${c.issuer} · held by ${_identityName(c)}',
+                subtitleWidget: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'From ${c.issuer} · held by ${_identityName(c)}',
+                    ).muted.small,
+                    if (c.disclosures.isNotEmpty)
+                      Text(
+                        [
+                          for (final d in c.disclosures)
+                            '${d.name}: ${claimText(d.value)}',
+                        ].join(' · '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ).small,
+                  ],
+                ),
                 trailing: _verdictBadge(store.verdicts[c.id]),
                 onTap: () => showAppSheet(
                   context: context,
@@ -234,8 +255,8 @@ class _CredentialSheet extends StatelessWidget {
 }
 
 /// The attestations this workspace issued.
-class _IssuedGroup extends StatelessWidget {
-  const _IssuedGroup();
+class IssuedAttestations extends StatelessWidget {
+  const IssuedAttestations({super.key});
 
   String _subtitle(Attestation a) {
     if (a.isRevoked) {
@@ -352,22 +373,10 @@ class _IssuedGroup extends StatelessWidget {
       builder: (_) {
         final off = store.issuingAllowed == false;
         final error = store.error;
-        return AppListGroup(
-          title: 'Issued',
-          trailing: off
-              ? const SizedBox.shrink()
-              : AppButton(
-                  icon: AppIcons.plus,
-                  label: 'New',
-                  style: AppButtonStyle.ghost,
-                  size: AppButtonSize.small,
-                  onTap: () => showAttestationCreateSheet(context),
-                ),
-          footer: const Text(
-            'Statements this workspace signed about other people\'s '
-            'identities, in the name of this server\'s domain. Whoever '
-            'trusts the domain trusts what is issued here.',
-          ),
+        return _TabList(
+          intro:
+              'Statements this workspace signed about others, in the name of '
+              'this server\'s domain. Whoever trusts the domain trusts them.',
           children: [
             if (off)
               const AppDetailRow(
@@ -383,7 +392,8 @@ class _IssuedGroup extends StatelessWidget {
             else if (store.attestations.isEmpty)
               const AppDetailRow(
                 icon: AppIcons.info,
-                label: 'Nothing attested yet.',
+                label:
+                    'Nothing attested yet. Start one with New → Attestation.',
               )
             else
               for (final a in store.attestations)

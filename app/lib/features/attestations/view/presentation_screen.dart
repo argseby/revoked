@@ -22,6 +22,7 @@ import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/device_key_alert.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/features/attestations/claim_text.dart';
 
@@ -236,6 +237,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
     return AppPageBody(
       bottomPadding: AppSpacing.xxl,
       children: [
+        const DeviceKeyAlert(),
         AppListGroup(
           title: 'Who is asking',
           trailing: const SizedBox.shrink(),
@@ -269,7 +271,10 @@ class _PresentationScreenState extends State<PresentationScreen> {
               AppListRow(
                 icon: AppIcons.shieldCheck,
                 title: c.type,
-                subtitle: 'From ${c.issuer} · held by ${_identityName(c)}',
+                subtitle: Stores.identities.hasLocalKey(c.identity)
+                    ? 'From ${c.issuer} · held by ${_identityName(c)}'
+                    : 'From ${c.issuer} · ${_identityName(c)}\'s key is on '
+                          'another device',
                 showChevron: false,
                 trailing: c.id == _selected.value
                     ? Icon(AppIcons.checkCircle, color: scheme.primary)

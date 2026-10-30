@@ -139,6 +139,9 @@ func OIDCRoute(app core.App, root *server.RootKey) {
 
 		// util.OIDCPagePath, spelled out so the route list reads as one.
 		e.Router.GET("/oidc/authorize", func(re *core.RequestEvent) error {
+			if !allowRequest(re, probeLimiter, "oidc") {
+				return rateLimitedResponse(re)
+			}
 			return serveOIDCAuthorize(re, root)
 		})
 

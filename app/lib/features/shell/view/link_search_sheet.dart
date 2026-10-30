@@ -81,6 +81,7 @@ class LinkSearchSheet extends StatelessWidget {
     String location,
     bool isRequest,
     bool isOffer,
+    bool canVerify,
     String slug,
     String? origin,
   })?
@@ -90,11 +91,26 @@ class LinkSearchSheet extends StatelessWidget {
     final uri = Uri.tryParse('${DeepLinks.scheme}://$path');
     if (uri == null) return null;
     final link = DeepLinks.parse(uri);
-    if (link == null) return null;
+    if (link == null) {
+      // A link that asks for something, such as a service asking to see an
+      // attestation: its own screen shows who asks before anything happens,
+      // and there is no slug to probe here.
+      final location = DeepLinks.locationFor(uri);
+      if (location == null) return null;
+      return (
+        location: location,
+        isRequest: false,
+        isOffer: false,
+        canVerify: false,
+        slug: '',
+        origin: null,
+      );
+    }
     return (
       location: DeepLinks.locationFor(uri)!,
       isRequest: link.kind == 'r',
       isOffer: link.kind == 'a',
+      canVerify: true,
       slug: link.slug,
       origin: link.origin,
     );
@@ -224,8 +240,9 @@ class LinkSearchSheet extends StatelessWidget {
             const Text('Search or open a link').header,
             const SizedBox(height: AppSpacing.xxs),
             const Text(
-              'Type the name of a record or link, or paste a revoked share '
-              'or request link. Hidden values are never searched. Verify '
+              'Type the name of a record or link, or paste a revoked link: a '
+              'share, a request, or a service asking to see one of your '
+              'attestations. Hidden values are never searched. Verify '
               'checks the sender\'s DNS and the link\'s security before you '
               'open it. Press / to search, or Ctrl + V to paste a link, '
               'from anywhere in the app.',
@@ -295,16 +312,18 @@ class LinkSearchSheet extends StatelessWidget {
               const SizedBox(height: AppSpacing.xl),
               Row(
                 children: [
-                  Expanded(
-                    child: AppButton(
-                      icon: AppIcons.shieldCheck,
-                      label: 'Verify',
-                      style: AppButtonStyle.accent,
-                      busy: _store.isVerifying,
-                      onTap: () => _verify(context),
+                  if (_resolve()?.canVerify ?? true) ...[
+                    Expanded(
+                      child: AppButton(
+                        icon: AppIcons.shieldCheck,
+                        label: 'Verify',
+                        style: AppButtonStyle.accent,
+                        busy: _store.isVerifying,
+                        onTap: () => _verify(context),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
+                    const SizedBox(width: AppSpacing.md),
+                  ],
                   Expanded(
                     child: AppButton(
                       icon: AppIcons.arrowRight,

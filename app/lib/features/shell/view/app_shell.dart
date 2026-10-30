@@ -20,7 +20,7 @@ import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 import 'package:revoked_app/features/shell/view/new_picker.dart';
 
-/// One of the shell's four places, in the order of `AppRoutes.destinations`.
+/// One of the shell's places, in the order of `AppRoutes.destinations`.
 class _Destination {
   final IconData icon;
   final String label;
@@ -33,11 +33,12 @@ const _destinations = [
   _Destination(AppIcons.safe, 'Vault'),
   _Destination(AppIcons.share, 'Shared'),
   _Destination(AppIcons.inboxFill, 'Requests'),
+  _Destination(AppIcons.attestation, 'Attestations'),
 ];
 
 /// The frame around every signed-in screen.
 ///
-/// The same four destinations at every width: a bottom bar on a phone, a
+/// The same destinations at every width: a bottom bar on a phone, a
 /// rail on a mid-sized window and a sidebar on a wide one. One "New" button
 /// opens the picker for everything that can be created; search and the
 /// account menu are reachable from every layout.

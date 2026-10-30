@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/identity.dart';
@@ -5,6 +8,17 @@ import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 
 part 'identities_store.g.dart';
+
+/// A name for an identity made on this device, so the list tells apart the
+/// phone's from the laptop's.
+String get thisDeviceName {
+  if (kIsWeb) return 'This browser';
+  if (Platform.isAndroid) return 'Android phone';
+  if (Platform.isIOS) return 'iPhone';
+  if (Platform.isMacOS) return 'Mac';
+  if (Platform.isWindows) return 'Windows computer';
+  return 'Linux computer';
+}
 
 // ignore: library_private_types_in_public_api
 class IdentitiesStore = _IdentitiesStore with _$IdentitiesStore;
@@ -25,6 +39,27 @@ abstract class _IdentitiesStore with Store {
 
   @observable
   String? errorMessage;
+
+  /// The identities whose private key is on this device. A key never leaves
+  /// the device that made it, so on a second device the account's identities
+  /// are listed but cannot sign.
+  final ObservableSet<String> localKeyIds = ObservableSet<String>();
+
+  /// Whether this device's key check has run since the identities loaded.
+  @observable
+  bool keysChecked = false;
+
+  bool hasLocalKey(String id) => localKeyIds.contains(id);
+
+  /// Whether any identity that still stands can sign on this device.
+  @computed
+  bool get canSignHere =>
+      identities.any((i) => !i.isRevoked && localKeyIds.contains(i.id));
+
+  /// The account has identities, but none of them can sign here.
+  @computed
+  bool get keysElsewhere =>
+      keysChecked && identities.any((i) => !i.isRevoked) && !canSignHere;
 
   @computed
   Identity? get primaryIdentity {
@@ -55,11 +90,26 @@ abstract class _IdentitiesStore with Store {
         ..addAll(
           items.map((e) => Identity.fromJson(e as Map<String, dynamic>)),
         );
+      await _checkLocalKeys();
     } catch (e) {
       errorMessage = e.toString();
     } finally {
       isLoading = false;
     }
+  }
+
+  Future<void> _checkLocalKeys() async {
+    final present = <String>{};
+    for (final identity in identities) {
+      final key = await _crypto.loadPrivateKey(identity.id);
+      if (key != null && key.isNotEmpty) present.add(identity.id);
+    }
+    runInAction(() {
+      localKeyIds
+        ..clear()
+        ..addAll(present);
+      keysChecked = true;
+    });
   }
 
   /// Fetches an identity's public certificate + fingerprint from the dedicated
@@ -105,6 +155,7 @@ abstract class _IdentitiesStore with Store {
       );
       final identity = Identity.fromJson(data as Map<String, dynamic>);
       await _crypto.storePrivateKey(identity.id, generated.privateKeyPem);
+      localKeyIds.add(identity.id);
 
       // copyWith preserves server-set fields (domainAtIssue, created, …)
       // that a hand-rebuilt Identity would silently drop.
@@ -179,6 +230,7 @@ abstract class _IdentitiesStore with Store {
     try {
       await _api.delete('$_basePath/$id');
       await _crypto.deletePrivateKey(id);
+      localKeyIds.remove(id);
       identities.removeWhere((i) => i.id == id);
     } catch (e) {
       errorMessage = e.toString();

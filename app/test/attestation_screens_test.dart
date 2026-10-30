@@ -366,7 +366,7 @@ void main() {
     expect(presented, isEmpty);
   });
 
-  testWidgets('the settings page lists what is held, with its standing', (
+  testWidgets('the tab lists what is held, with its claims and standing', (
     tester,
   ) async {
     await Stores.identities.loadIdentities();
@@ -374,11 +374,17 @@ void main() {
     await Stores.attestations.load();
     await open(
       tester,
-      const Scaffold(body: SingleChildScrollView(child: AttestationsSection())),
+      const Scaffold(
+        body: SingleChildScrollView(
+          child: Column(children: [HeldAttestations(), IssuedAttestations()]),
+        ),
+      ),
     );
 
     expect(find.text('membership'), findsOneWidget);
     expect(find.text('From fixture.test · held by Ada'), findsOneWidget);
+    // What it states is on the row, before it is opened.
+    expect(find.textContaining('member_no: 42'), findsOneWidget);
     expect(find.text('Verified'), findsOneWidget);
     // This server's operator did not switch issuing on.
     expect(find.textContaining('does not issue attestations'), findsOneWidget);

@@ -18,14 +18,20 @@ bool get _hasShareSheet => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
 /// Shows [link] as a QR code for another device to scan off the screen,
 /// with copy — and, on mobile, the platform share action.
+///
+/// A link that cannot be shown again (an offer whose token the server keeps
+/// only as a hash) passes `dismissible: false`: the sheet then closes only
+/// through its Done button, never through a stray click beside it.
 Future<void> showQrSheet({
   required BuildContext context,
   required String title,
   required String link,
+  String message = 'Scan it with the Revoked app on another device.',
+  bool dismissible = true,
 }) {
   return showAppSheet(
     context: context,
-    dismissible: true,
+    dismissible: dismissible,
     builder: (sheetContext) => Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.xl,
@@ -39,9 +45,7 @@ Future<void> showQrSheet({
         children: [
           Text(title).header,
           const SizedBox(height: AppSpacing.xxs),
-          const Text(
-            'Scan it with the Revoked app on another device.',
-          ).muted.small,
+          Text(message).muted.small,
           const SizedBox(height: AppSpacing.lg),
           Center(child: AppQrCode(data: link, size: 220)),
           const SizedBox(height: AppSpacing.md),
@@ -73,6 +77,14 @@ Future<void> showQrSheet({
               ],
             ],
           ),
+          if (!dismissible) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppButton(
+              icon: AppIcons.check,
+              label: 'Done',
+              onTap: () => Navigator.of(sheetContext).pop(),
+            ),
+          ],
         ],
       ),
     ),

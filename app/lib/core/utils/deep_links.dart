@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/models/share_proposal.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
@@ -45,6 +46,12 @@ import 'package:revoked_app/core/models/tool_client.dart';
 /// is made on this device, with the identity key:
 ///
 ///   `revoked://present?client_id=…&response_uri=…&nonce=…&type=…` -> `/present?…`
+///
+/// Someone asking to be attested something, which fills in the attester's
+/// form; nothing is issued until the attester creates the offer:
+///
+///   `revoked://attest?type=…&claims=…&for=<fingerprint>&name=…`
+///   ->  `/attestations?…`
 ///
 /// And the server's sign-in page sending the person back with a one-time
 /// code, which is an answer rather than a destination:
@@ -140,6 +147,14 @@ class DeepLinks {
       return Uri(
         path: '/present',
         queryParameters: request.toQuery(),
+      ).toString();
+    }
+    if (uri.scheme == scheme && uri.host == 'attest') {
+      final ask = AttestationAsk.fromQuery(uri.queryParameters);
+      if (ask == null) return null;
+      return Uri(
+        path: '/attestations',
+        queryParameters: ask.toQuery(),
       ).toString();
     }
     if (uri.scheme == scheme && (uri.host == 'p' || uri.host == 'propose')) {

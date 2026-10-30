@@ -18,6 +18,7 @@ file needed there.
 | `CONTAINER_NAME` | `revoked-api` | The container's name, which is also the hostname your reverse proxy forwards to. |
 | `PROXY_NETWORK` | `proxy-network` | External Docker network shared with your reverse proxy. Create it once: `docker network create proxy-network`. |
 | `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | Only used by the bundled nginx (`--profile proxy`) — the one thing that publishes host ports. |
+| `REVOKED_VERSION` | — | The release being built, such as `v0.22.0`, for a build without `.git` — a Portainer stack's checkout has none, and the server then reports `dev`. Ignored when the build can read the version from git. Keep it equal to the release you deploy: the app compares it with its own. |
 
 ## Registration
 
@@ -102,11 +103,18 @@ Public-surface budgets, read once at startup — a change needs a restart.
 | Variable | Default | Budget |
 |---|---|---|
 | `RATELIMIT_GATE_ATTEMPTS` | `10` | Password/identifier attempts on a share gate, per IP + slug, per 5 minutes. |
-| `RATELIMIT_PROBE_REQUESTS` | `120` | Metadata probes and short-link reads, per IP, per minute — the enumeration budget across every slug. |
+| `RATELIMIT_PROBE_REQUESTS` | `120` | Metadata probes, short-link and CardDAV reads and link unlocks, per IP, per minute — the enumeration budget across every slug. `/api/server`, `/api/certificate/{id}` and the OpenID Connect sign-in page each get a budget this size of their own. |
 | `RATELIMIT_CHALLENGE_REQUESTS` | `60` | Handshake nonce issuance, per IP, per minute. |
 | `RATELIMIT_PASSKEY_REQUESTS` | `60` | Passkey sign-in and registration steps, per IP, per minute. A sign-in is three. |
 | `RATELIMIT_SIGNUP_EMAILS` | `10` | Signup confirmation codes mailed, per IP, per hour. Each address is also limited to one code a minute and five an hour, whoever asks. |
 | `RATELIMIT_GRANT_REQUESTS` | `300` | Calls between servers — grant reads, grant events and accepted answers — and calls to the OpenID Connect token and userinfo endpoints, per IP, per minute; and answers to requests on other servers, per account. A read carries up to 100 grants. |
+| `RATELIMIT_SUBMISSIONS` | `60` | Answers to requests, per account, per hour. Each one notifies the request's owner and may call their callback URL. |
+
+PocketBase's own sign-in endpoints are limited too, through its built-in rate
+limiter, which a migration switches on: five superuser sign-ins per IP per
+five minutes, two per three seconds for other accounts, and two password-reset
+or one-time-code mails per ten minutes. Change them in the dashboard under
+*Settings → Application → Rate limiting*.
 
 These budgets are per-IP, which is why the
 [trusted-proxy header](reverse-proxy.md#let-rate-limits-see-real-ips) matters:

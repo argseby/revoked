@@ -94,7 +94,8 @@ abstract class _LinkSearchStore with Store {
   ClipboardAdoption _adoptIfLink(String text, {bool markClipboard = true}) {
     if (text.isEmpty) return ClipboardAdoption.none;
     final uri = Uri.tryParse(text);
-    if (uri == null || DeepLinks.parse(uri) == null) {
+    if (uri == null ||
+        (DeepLinks.parse(uri) == null && DeepLinks.locationFor(uri) == null)) {
       return ClipboardAdoption.none;
     }
     final normalized = stripScheme(text);

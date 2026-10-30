@@ -42,6 +42,8 @@ func TestComposePassesEveryDocumentedVariable(t *testing.T) {
 		"HTTP_PORT":      true,
 		"HTTPS_PORT":     true,
 		"PROXY_NETWORK":  true,
+		// A build argument, not a runtime variable.
+		"REVOKED_VERSION": true,
 	}
 
 	var missing []string

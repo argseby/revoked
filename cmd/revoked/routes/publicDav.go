@@ -49,6 +49,9 @@ const (
 )
 
 func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
+	if !allowRequest(re, probeLimiter, "") {
+		return rateLimitedResponse(re)
+	}
 	link, err := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:slug}", map[string]any{"slug": slug})
 	if err != nil || link == nil {
 		return re.NotFoundError("Address book not found.", nil)

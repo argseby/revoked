@@ -23,6 +23,7 @@ import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/device_key_alert.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
@@ -32,7 +33,6 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
-import 'package:revoked_app/features/attestations/view/attestations_section.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
@@ -50,7 +50,6 @@ enum SettingsPage {
   members('members', 'Members'),
   invites('invites', 'Invites'),
   identities('identities', 'Identities'),
-  attestations('attestations', 'Attestations'),
   connectedTools('connected-tools', 'Connected tools'),
   apiKeys('api-keys', 'API keys'),
   templates('templates', 'Templates'),
@@ -131,11 +130,6 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.invites.loadCatalogue();
       case SettingsPage.identities:
         Stores.identities.loadIdentities();
-      case SettingsPage.attestations:
-        // The identities name whom each credential is held by.
-        Stores.identities.loadIdentities();
-        Stores.credentials.load();
-        Stores.attestations.load();
       case SettingsPage.connectedTools:
         Stores.connections.load();
       case SettingsPage.apiKeys:
@@ -157,7 +151,6 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
           SettingsPage.members => const _MembersPage(),
           SettingsPage.invites => const _InvitesPage(),
           SettingsPage.identities => const _IdentitiesPage(),
-          SettingsPage.attestations => const AttestationsSection(),
           SettingsPage.connectedTools => const ConnectionsList(),
           SettingsPage.apiKeys => const _ApiKeysPage(),
           SettingsPage.templates => const _TemplatesPage(),
@@ -686,50 +679,62 @@ class _IdentitiesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = Stores.identities;
     return Observer(
-      builder: (_) => AppListGroup(
-        title: 'Identities',
-        footer: const Text('Cryptographic profiles for verified sharing.'),
-        trailing: _HeaderButton(
-          icon: AppIcons.plus,
-          label: 'New',
-          onTap: () => showAppSheet(
-            context: context,
-            builder: (_) => const _CreateIdentitySheet(),
-          ),
-        ),
+      builder: (_) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (store.isLoading && store.identities.isEmpty)
-            const _LoadingRow()
-          else if (store.identities.isEmpty)
-            const AppDetailRow(
-              icon: AppIcons.info,
-              label:
-                  'No identities yet. Generate one to sign and verify '
-                  'what you share.',
-            )
-          else
-            for (final id in store.identities)
-              AppListRow(
-                icon: AppIcons.personBoundingBox,
-                title: id.name,
-                subtitle: id.isPrimary
-                    ? 'Primary · ${id.shortFingerprint}'
-                    : id.shortFingerprint,
-                // A revoked identity proves nothing, so its domain claim is
-                // moot; otherwise the claim is stated the one way it may be.
-                trailing: id.isRevoked
-                    ? const AppBadge(
-                        icon: AppIcons.shieldSlash,
-                        label: 'Revoked',
-                      )
-                    : id.domainAtIssue.isNotEmpty
-                    ? TrustClaimBadge(
-                        domain: id.domainAtIssue,
-                        state: _claimState(id.domainAtIssue),
-                      )
-                    : null,
-                onTap: () => _options(context, id),
+          const DeviceKeyAlert(),
+          AppListGroup(
+            title: 'Identities',
+            footer: const Text('Cryptographic profiles for verified sharing.'),
+            trailing: _HeaderButton(
+              icon: AppIcons.plus,
+              label: 'New',
+              onTap: () => showAppSheet(
+                context: context,
+                builder: (_) => const _CreateIdentitySheet(),
               ),
+            ),
+            children: [
+              if (store.isLoading && store.identities.isEmpty)
+                const _LoadingRow()
+              else if (store.identities.isEmpty)
+                const AppDetailRow(
+                  icon: AppIcons.info,
+                  label:
+                      'No identities yet. Generate one to sign and verify '
+                      'what you share.',
+                )
+              else
+                for (final id in store.identities)
+                  AppListRow(
+                    icon: AppIcons.personBoundingBox,
+                    title: id.name,
+                    subtitle: id.isPrimary
+                        ? 'Primary · ${id.shortFingerprint}'
+                        : id.shortFingerprint,
+                    // A revoked identity proves nothing, so its domain claim is
+                    // moot; otherwise the claim is stated the one way it may be.
+                    trailing: id.isRevoked
+                        ? const AppBadge(
+                            icon: AppIcons.shieldSlash,
+                            label: 'Revoked',
+                          )
+                        : store.keysChecked && !store.hasLocalKey(id.id)
+                        ? const AppBadge(
+                            icon: AppIcons.keyOff,
+                            label: keyElsewhereLabel,
+                            variant: AppBadgeVariant.outline,
+                          )
+                        : id.domainAtIssue.isNotEmpty
+                        ? TrustClaimBadge(
+                            domain: id.domainAtIssue,
+                            state: _claimState(id.domainAtIssue),
+                          )
+                        : null,
+                    onTap: () => _options(context, id),
+                  ),
+            ],
+          ),
         ],
       ),
     );

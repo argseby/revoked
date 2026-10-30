@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
@@ -17,6 +16,7 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/qr_sheet.dart';
 import 'package:revoked_app/features/attestations/store/attestations_store.dart';
 
 /// Writes a new attestation: what kind of statement it is, what it states,
@@ -25,15 +25,22 @@ import 'package:revoked_app/features/attestations/store/attestations_store.dart'
 /// Creating it signs nothing yet. It makes an offer with a one-time link; the
 /// credential is issued when its subject accepts the offer and proves the
 /// identity it is issued to.
-Future<void> showAttestationCreateSheet(BuildContext context) {
+///
+/// Opened from someone's ask, it starts filled in from that ask.
+Future<void> showAttestationCreateSheet(
+  BuildContext context, {
+  AttestationAsk? ask,
+}) {
   return showAppSheet(
     context: context,
-    builder: (_) => const _AttestationCreateSheet(),
+    builder: (_) => _AttestationCreateSheet(ask: ask),
   );
 }
 
 class _AttestationCreateSheet extends StatefulWidget {
-  const _AttestationCreateSheet();
+  final AttestationAsk? ask;
+
+  const _AttestationCreateSheet({this.ask});
 
   @override
   State<_AttestationCreateSheet> createState() =>
@@ -46,7 +53,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
   @override
   void initState() {
     super.initState();
-    _store.resetDraft();
+    _store.resetDraft(ask: widget.ask);
   }
 
   Future<void> _submit() async {
@@ -102,6 +109,18 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                   'of this server\'s domain. Its subject sees every claim '
                   'before accepting it.',
                 ).muted.small,
+                if (_store.draftAsk != null) ...[
+                  AppSpacing.gapSm,
+                  const AppAlert(
+                    leading: Icon(AppIcons.askFor),
+                    title: Text('Filled in from an ask'),
+                    content: Text(
+                      'Someone sent you a link asking for this. Check who '
+                      'sent it, and give each claim the value you stand '
+                      'behind: the link only names them.',
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -330,21 +349,16 @@ class _ClaimRow extends StatelessWidget {
 }
 
 /// The offer's link is shown once. The server keeps only a hash of its token,
-/// so a link that is not copied here cannot be recovered — the offer is
+/// so a link that is not passed on here cannot be recovered — the offer is
 /// withdrawn and made again instead.
-Future<void> _showLinkDialog(BuildContext context, String token) async {
-  final link = DeepLinks.attestation(token, origin: Stores.api.originAuthority);
-  final copy = await showAppDialog(
+Future<void> _showLinkDialog(BuildContext context, String token) {
+  return showQrSheet(
     context: context,
-    title: 'Send this link to its subject',
+    title: 'Offer ready',
+    link: DeepLinks.attestation(token, origin: Stores.api.originAuthority),
     message:
-        'It is shown once and cannot be retrieved later. Whoever opens it '
-        'sees what would be attested and accepts it with an identity of '
-        'their own.',
-    content: SelectableText(link),
-    confirmLabel: 'Copy link',
-    confirmIcon: AppIcons.copy,
-    cancelLabel: 'Done',
+        'Let its subject scan this with their phone, or send them the link. '
+        'It is shown only until you close this: copy it before you do.',
+    dismissible: false,
   );
-  if (copy) await Clipboard.setData(ClipboardData(text: link));
 }

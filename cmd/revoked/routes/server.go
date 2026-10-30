@@ -20,6 +20,10 @@ import (
 func ServerInfoRoute(app core.App, root *server.RootKey) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.GET("/api/server", func(re *core.RequestEvent) error {
+			// Every hit is a fresh root-key signature.
+			if !allowRequest(re, probeLimiter, "server") {
+				return rateLimitedResponse(re)
+			}
 			assertion, err := root.IssueAssertion(time.Now())
 			if err != nil {
 				return re.InternalServerError("failed to issue assertion", err)

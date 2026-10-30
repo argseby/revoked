@@ -151,16 +151,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             _page(
-              SettingsPage.attestations,
-              AppIcons.shieldCheck,
-              _count(
-                Stores.credentials.credentials.length,
-                'attestation held',
-                'attestations held',
-                'What others confirmed about you',
-              ),
-            ),
-            _page(
               SettingsPage.connectedTools,
               AppIcons.plug,
               _count(

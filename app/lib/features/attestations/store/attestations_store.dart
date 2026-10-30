@@ -2,6 +2,7 @@ import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/attestation.dart';
+import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
@@ -159,15 +160,26 @@ abstract class _AttestationsStore with Store {
   @observable
   String? lastCreatedToken;
 
+  /// The ask the draft was filled in from, if it was.
+  @observable
+  AttestationAsk? draftAsk;
+
+  /// Starts a new draft, filled in from [ask] when someone asked for it:
+  /// the type, the claims named without their values, and the identity.
   @action
-  void resetDraft() {
-    typeController.clear();
-    labelController.clear();
-    subjectController.clear();
+  void resetDraft({AttestationAsk? ask}) {
+    typeController.text = ask?.type ?? '';
+    labelController.text = ask == null || ask.name.isEmpty
+        ? ''
+        : '${ask.type} — ${ask.name}';
+    subjectController.text = ask?.fingerprint ?? '';
     validDaysController.clear();
-    draftClaims
-      ..clear()
-      ..add(ClaimDraft());
+    draftClaims.clear();
+    for (final name in ask?.claims ?? const <String>[]) {
+      draftClaims.add(ClaimDraft()..name.text = name);
+    }
+    if (draftClaims.isEmpty) draftClaims.add(ClaimDraft());
+    draftAsk = ask;
     isCreating = false;
     createError = null;
     lastCreatedToken = null;

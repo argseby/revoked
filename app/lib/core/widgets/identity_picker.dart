@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
+import 'package:revoked_app/core/widgets/device_key_alert.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 
 /// Radio-style picker over the signed-in user's cryptographic identities.
@@ -66,18 +67,22 @@ class _IdentityPickerState extends State<IdentityPicker> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const DeviceKeyAlert(),
             for (final id in ids)
               _tile(
                 scheme,
                 selected: id.id == widget.selectedId,
                 enabled:
                     !id.isRevoked &&
+                    Stores.identities.hasLocalKey(id.id) &&
                     (widget.requireDomain == null ||
                         id.domainAtIssue == widget.requireDomain),
                 // A dimmed row that ignores taps looks broken; say which
                 // rule refused it.
                 disabledReason: id.isRevoked
                     ? 'Revoked - it can no longer sign'
+                    : !Stores.identities.hasLocalKey(id.id)
+                    ? '$keyElsewhereLabel - it cannot sign here'
                     : widget.requireDomain != null &&
                           id.domainAtIssue != widget.requireDomain
                     ? 'Issued by another server - not accepted here'

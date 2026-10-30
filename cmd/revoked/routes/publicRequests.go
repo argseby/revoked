@@ -122,6 +122,9 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
 				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.RequestAccountRequired)
 			}
+			if !submissionLimiter.Allow(re.Auth.Id) {
+				return rateLimitedResponse(re)
+			}
 
 			if !enforceRequestSecrets(re, req, slug, body.Password, body.Identifier) {
 				return nil

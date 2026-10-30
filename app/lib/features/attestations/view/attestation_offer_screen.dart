@@ -22,7 +22,6 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/features/attestations/claim_text.dart';
-import 'package:revoked_app/features/settings/view/settings_pages.dart';
 
 /// Screen for a `revoked://a/<host>/<token>` link: someone offers to attest
 /// something about one of this person's identities.
@@ -68,13 +67,16 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
   /// The identity an offer made for one identity names, when it is among
   /// this person's; otherwise their primary one.
   String? _suggested() {
-    final usable = Stores.identities.identities.where((i) => !i.isRevoked);
+    final store = Stores.identities;
+    final usable = store.identities.where(
+      (i) => !i.isRevoked && store.hasLocalKey(i.id),
+    );
     final bound = Stores.credentials.offer?.subjectFingerprint ?? '';
     for (final i in usable) {
       if (bound.isNotEmpty && i.fingerprint == bound) return i.id;
     }
-    final primary = Stores.identities.primaryIdentity;
-    if (primary != null && !primary.isRevoked) return primary.id;
+    final primary = store.primaryIdentity;
+    if (primary != null && usable.contains(primary)) return primary.id;
     return usable.isEmpty ? null : usable.first.id;
   }
 
@@ -149,7 +151,7 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
       title: 'The attestation is yours',
       message:
           '${credential.issuer} attested “${credential.type}” to your '
-          'identity. It is kept on your server and listed under Settings → '
+          'identity. It is kept on your server and listed under '
           'Attestations. When a service asks for it, you choose which of its '
           'claims are shown.',
       actions: [
@@ -158,7 +160,7 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
           icon: AppIcons.shieldCheck,
           onTap: () {
             Stores.credentials.clearOffer();
-            context.go(SettingsPage.attestations.route);
+            context.go(AppRoutes.attestations);
           },
         ),
         AppButton(

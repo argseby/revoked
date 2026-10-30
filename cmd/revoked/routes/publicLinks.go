@@ -67,6 +67,9 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 
 		// POST so the password and handshake token travel in the body, not the URL.
 		e.Router.POST("/api/public/links/{slug}", func(re *core.RequestEvent) error {
+			if !allowRequest(re, probeLimiter, "") {
+				return rateLimitedResponse(re)
+			}
 			slug := re.Request.PathValue("slug")
 
 			var body struct {

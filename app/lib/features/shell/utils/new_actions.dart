@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dart';
+import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
@@ -55,6 +57,13 @@ enum NewKind {
     'The current value of chosen records, until you revoke it.',
     'l',
   ),
+  attestation(
+    NewGroup.give,
+    AppIcons.attestation,
+    'Attestation',
+    'Confirm something about someone, in this server\'s name.',
+    'a',
+  ),
   request(
     NewGroup.ask,
     AppIcons.inboxFill,
@@ -62,11 +71,19 @@ enum NewKind {
     'A form that asks someone for their data.',
     'q',
   ),
+  askAttestation(
+    NewGroup.ask,
+    AppIcons.askFor,
+    'Attestation about you',
+    'Ask a club or an employer to confirm something about you.',
+    'k',
+  ),
   openLink(
     NewGroup.received,
     AppIcons.qrCode,
     'Open or scan a link',
-    'A link or QR code someone gave you. The sender is checked first.',
+    'A share, a request, or a service asking to see an attestation. The '
+        'sender is checked first.',
     'o',
   );
 
@@ -86,6 +103,7 @@ enum NewKind {
   static NewKind firstFor(int? destination) => switch (destination) {
     2 => NewKind.link,
     3 => NewKind.request,
+    4 => NewKind.attestation,
     _ => NewKind.record,
   };
 }
@@ -109,6 +127,10 @@ Future<void> startNew(BuildContext context, NewKind kind) async {
         store: Stores.requests,
         authStore: Stores.auth,
       );
+    case NewKind.attestation:
+      await showAttestationCreateSheet(context);
+    case NewKind.askAttestation:
+      await openAskAttestationSheet(context);
     case NewKind.openLink:
       await openLinkSearchSheet(context);
   }

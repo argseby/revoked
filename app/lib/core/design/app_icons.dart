@@ -59,6 +59,9 @@ abstract class AppIcons {
   static const IconData inboxFill = Icons.inbox;
   static const IconData info = Icons.info_outline;
   static const IconData key = Icons.key_outlined;
+  static const IconData keyOff = Icons.key_off_outlined;
+  static const IconData attestation = Icons.verified_outlined;
+  static const IconData askFor = Icons.forward_to_inbox_outlined;
   static const IconData lightbulb = Icons.lightbulb_outline;
   static const IconData link = Icons.link;
   static const IconData linkSlash = Icons.link_off;

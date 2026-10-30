@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 
+import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/models/share_proposal.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
@@ -10,6 +11,7 @@ import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/attestations/view/attestation_offer_screen.dart';
+import 'package:revoked_app/features/attestations/view/attestations_screen.dart';
 import 'package:revoked_app/features/attestations/view/presentation_screen.dart';
 import 'package:revoked_app/features/auth/view/login_screen.dart';
 import 'package:revoked_app/features/shell/view/app_shell.dart';
@@ -70,6 +72,9 @@ abstract class AppRoutes {
   /// What one request collected, as a list or as a spreadsheet.
   static String requestDataFor(String id) => '$requests/$id/data';
   static String requestSheetFor(String id) => '$requests/$id/sheet';
+
+  /// What others attested about the person, and what they attested.
+  static const attestations = '/attestations';
   static const settings = '/settings';
 
   /// Each settings topic is a page of its own under Settings.
@@ -111,8 +116,8 @@ abstract class AppRoutes {
   static const connections = '/connections';
   static const receivedVault = '/received-vault';
 
-  /// The four places the shell's navigation leads to, in order.
-  static const destinations = [overview, vault, shared, requests];
+  /// The places the shell's navigation leads to, in order.
+  static const destinations = [overview, vault, shared, requests, attestations];
 
   /// Which of [destinations] a location belongs to, or null outside them
   /// (Settings, and every screen without the shell).
@@ -477,6 +482,14 @@ class AppRouter {
               ],
             ),
             GoRoute(
+              path: AppRoutes.attestations,
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: AttestationsScreen(
+                  ask: AttestationAsk.fromQuery(state.uri.queryParameters),
+                ),
+              ),
+            ),
+            GoRoute(
               path: AppRoutes.settings,
               pageBuilder: (context, state) =>
                   const NoTransitionPage(child: SettingsScreen()),
@@ -498,6 +511,9 @@ class AppRouter {
                   redirect: (context, state) => switch (SettingsPage.fromSlug(
                     state.pathParameters['page'],
                   )) {
+                    // Attestations became a place of their own.
+                    null when state.pathParameters['page'] == 'attestations' =>
+                      AppRoutes.attestations,
                     null => AppRoutes.settings,
                     SettingsPage.templates => AppRoutes.templates,
                     _ => null,

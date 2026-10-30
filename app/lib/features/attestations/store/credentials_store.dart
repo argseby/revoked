@@ -4,7 +4,9 @@ import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/attestation.dart';
+import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/models/credential.dart';
+import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
@@ -13,6 +15,7 @@ import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/services/domain_verification_service.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'credentials_store.g.dart';
 
@@ -322,6 +325,62 @@ abstract class _CredentialsStore with Store {
     } finally {
       isPresenting = false;
     }
+  }
+
+  // Asking someone for an attestation about one of this person's
+  // identities.
+
+  final ObservableTextController askTypeController = ObservableTextController();
+  final ObservableTextController askClaimsController =
+      ObservableTextController();
+
+  /// Which identity the attestation should be bound to.
+  @observable
+  String? askIdentityId;
+
+  @action
+  void resetAsk({String? identityId}) {
+    askTypeController.clear();
+    askClaimsController.clear();
+    askIdentityId = identityId;
+  }
+
+  @action
+  void setAskIdentity(String? id) => askIdentityId = id;
+
+  static final _askType = RegExp(r'^[\x21-\x7e]{1,255}$');
+  static final _askClaim = RegExp(r'^[A-Za-z][A-Za-z0-9_]{0,63}$');
+
+  /// What stops the ask from being made, or null when nothing does.
+  @computed
+  String? get askProblem {
+    final type = askTypeController.text.trim();
+    if (type.isEmpty) {
+      return 'Say what kind of attestation, for example membership.';
+    }
+    if (!_askType.hasMatch(type)) {
+      return 'A type is written without spaces, for example membership.';
+    }
+    for (final claim in AttestationAsk.splitClaims(askClaimsController.text)) {
+      if (!_askClaim.hasMatch(claim)) {
+        return '“$claim” cannot be a claim name: letters, digits and '
+            'underscores, starting with a letter.';
+      }
+    }
+    if (askIdentityId == null) return 'Choose the identity it is for.';
+    return null;
+  }
+
+  /// The ask as a link, for the identity chosen; null while [askProblem]
+  /// names something.
+  AttestationAsk? ask(Identity identity) {
+    if (askProblem != null) return null;
+    return AttestationAsk(
+      type: askTypeController.text.trim(),
+      claims: AttestationAsk.splitClaims(askClaimsController.text),
+      fingerprint: identity.fingerprint.toLowerCase(),
+      name: identity.name,
+    );
   }
 }
 
