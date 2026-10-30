@@ -6,7 +6,6 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/widgets/device_key_alert.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 
@@ -49,6 +48,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final store = Stores.identities;
       if (store.identities.isEmpty) store.loadIdentities();
+      Stores.settings.ensureDomainChecked();
     });
   }
 
@@ -114,14 +114,9 @@ class _IdentityPickerState extends State<IdentityPicker> {
   }
 
   /// An identity's issuing-domain claim is proven only when this server's own
-  /// DNS check verified that exact domain; anything else renders unverified.
-  TrustCheckState _claimState(String domain) {
-    final verdict = Stores.settings.domainVerdict;
-    if (verdict?.state == TrustState.verified && verdict?.domain == domain) {
-      return TrustCheckState.verified;
-    }
-    return TrustCheckState.failed;
-  }
+  /// DNS check verified that exact domain; until it answers, it is checking.
+  TrustCheckState _claimState(String domain) =>
+      Stores.settings.claimStateFor(domain);
 
   Widget _tile(
     ColorScheme scheme, {
