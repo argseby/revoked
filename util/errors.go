@@ -144,6 +144,7 @@ var Errors = struct {
 	PeerKeyUnavailable            AppError
 	OIDCRequestInvalid            AppError
 	OIDCLinkRecordInvalid         AppError
+	OIDCNameInvalid               AppError
 	AttestationsDisabled          AppError
 	AttestationTypeInvalid        AppError
 	AttestationClaimsInvalid      AppError
@@ -674,6 +675,10 @@ var Errors = struct {
 	OIDCLinkRecordInvalid: AppError{
 		ErrorCode: "oidc_link_record_invalid",
 		ErrorText: "An entry chosen to share is not one of yours.",
+	},
+	OIDCNameInvalid: AppError{
+		ErrorCode: "oidc_name_invalid",
+		ErrorText: "That name can't be used. Choose another one.",
 	},
 	AttestationsDisabled: AppError{
 		ErrorCode: "attestations_disabled",

@@ -22,8 +22,6 @@ function cookie(value, maxAgeSeconds) {
     `${COOKIE}=${value}`,
     'Path=/',
     'HttpOnly',
-    // Lax, not Strict: the browser comes back from the Revoked server with a
-    // top-level navigation, and the pending sign-in has to be found then.
     'SameSite=Lax',
     `Max-Age=${maxAgeSeconds}`,
     config.secureCookies ? 'Secure' : '',

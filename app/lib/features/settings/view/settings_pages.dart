@@ -137,6 +137,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.settings.ensureDomainChecked();
       case SettingsPage.connectedTools:
         Stores.connections.load();
+        Stores.signIns.loadIfDue();
       case SettingsPage.apiKeys:
         Stores.apiKeys.loadApiKeys();
         Stores.invites.loadCatalogue();

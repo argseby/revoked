@@ -20,10 +20,10 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/features/connections/sign_in_approval.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:revoked_app/features/settings/account_name.dart';
 
 /// Screen for a `revoked://signin?…` link: a service asks to sign its user in.
 /// The request is opened on the server the app is signed into, and the person
@@ -53,9 +53,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   final _scopes = Local<Set<String>>({});
   final _links = Local<Map<String, String>>({});
 
-  /// The account name as saved from this screen, over the one the request
-  /// opened with. Null until it is added or changed here.
-  final _name = Local<String?>(null);
+  /// The name picked for this service: an option's token, [_newName], or
+  /// empty for none.
+  final _nameChoice = Local<String>('');
 
   @override
   void initState() {
@@ -80,11 +80,11 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         if (opened.refusal != null) await _answerService(opened.refusal!);
         return;
       }
-      // An empty name starts unticked: there is nothing to send until one is
-      // added.
+      // The name has its own select, and starts where the person left it.
+      _nameChoice.value = consent.nameSelected;
       _scopes.value = {
         for (final s in consent.scopes)
-          if (s.scope != _profile || s.value.isNotEmpty) s.scope,
+          if (s.scope != _profile) s.scope,
       };
       _links.value = {for (final l in consent.links) l.key: l.match?.id ?? ''};
       _consent.value = consent;
@@ -104,8 +104,13 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
       final redirect = await Stores.signInApproval.decide(
         consent,
         approve: approve,
-        scopes: _scopes.value,
+        scopes: {
+          ..._scopes.value,
+          if (_typingName || _pickedName != null) _profile,
+        },
         links: _links.value,
+        name: _pickedName,
+        newName: _typingName ? Stores.signInApproval.nameDraft.text.trim() : '',
       );
       if (!mounted) return;
       _stage.value = approve ? _Stage.approved : _Stage.declined;
@@ -167,8 +172,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                 title: 'You’re signed in to ${r.clientHost}',
                 message:
                     '${r.background ? 'Go back to the ${r.clientHost} page you started on. It carries on from there.' : '${r.clientHost} carries on in your browser.'} '
-                    'What you shared stays in your vault. Revoke it there any '
-                    'time.',
+                    '${_nameIsEntry || _links.value.values.any((id) => id.isNotEmpty) ? 'What you shared stays in your vault. To stop sharing, go to Settings → Connected tools.' : 'You’ll find this sign-in under Settings → Connected tools.'}',
               ),
               _Stage.declined => _finished(
                 context,
@@ -243,77 +247,66 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
 
   static const _profile = 'profile';
 
-  /// "Your name", with the name itself and a way to change it — or, while
-  /// the account has none, a way to add one rather than a checkbox that
-  /// would send nothing.
-  Widget _nameRow(SignInScope s) {
-    final name = _name.value ?? s.value;
+  /// In the name select: type a new one instead of picking one.
+  static const _newName = 'new';
+
+  SignInNameOption? get _pickedName {
+    for (final o in _consent.value?.nameOptions ?? const <SignInNameOption>[]) {
+      if (o.token == _nameChoice.value) return o;
+    }
+    return null;
+  }
+
+  bool get _typingName => _nameChoice.value == _newName;
+
+  /// Whether what the name comes from stays readable in the vault.
+  bool get _nameIsEntry =>
+      _typingName || _pickedName?.kind == SignInNameOption.fromRecord;
+
+  String _nameLabel(SignInNameOption o) => o.kind == SignInNameOption.fromRecord
+      ? '${o.label.isEmpty ? o.key : o.label} — ${o.value}'
+      : '${o.value} — Your identity';
+
+  /// "Your name": a service gets the name picked for it here, and nothing
+  /// until one is picked.
+  Widget _nameRow(SignInConsent c) {
     final busy = _busy.value;
-    if (name.isEmpty) {
-      return Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Your name'),
-                const Text(
-                  'No name yet. Add one to share it with this service.',
-                ).small.muted,
-              ],
-            ),
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('Your name'),
+        AppSpacing.gapSm,
+        AppSelect<String>(
+          value: _nameChoice.value,
+          onChanged: busy ? null : (v) => _nameChoice.value = v ?? '',
+          items: [
+            const AppSelectItem('', Text('Don’t share')),
+            for (final o in c.nameOptions)
+              AppSelectItem(
+                o.token,
+                Text(_nameLabel(o), overflow: TextOverflow.ellipsis),
+              ),
+            const AppSelectItem(_newName, Text('Type a new name')),
+          ],
+        ),
+        if (_typingName) ...[
           AppSpacing.gapSm,
-          AppButton(
-            icon: AppIcons.plus,
-            label: 'Add',
-            style: AppButtonStyle.accent,
-            size: AppButtonSize.small,
-            onTap: busy ? null : _editName,
+          AppTextField(
+            controller: Stores.signInApproval.nameDraft,
+            hint: 'Your name on ${c.clientHost}',
+            enabled: !busy,
           ),
         ],
-      );
-    }
-    return Row(
-      children: [
-        Expanded(
-          child: AppCheckRow(
-            label: 'Your name',
-            subtitle: name,
-            value: _scopes.value.contains(_profile),
-            onChanged: busy
-                ? null
-                : (on) => _scopes.value = on
-                      ? {..._scopes.value, _profile}
-                      : ({..._scopes.value}..remove(_profile)),
-          ),
-        ),
-        AppSpacing.gapSm,
-        AppButton(
-          icon: AppIcons.pencil,
-          label: 'Change',
-          style: AppButtonStyle.ghost,
-          size: AppButtonSize.small,
-          onTap: busy ? null : _editName,
-        ),
+        if (_nameIsEntry) ...[
+          AppSpacing.gapSm,
+          Text(
+            'Saved in your vault. Change it there, and ${c.clientHost} can '
+            'pick up the new name.',
+          ).small.muted,
+        ],
       ],
     );
   }
-
-  /// Saves the account's name, then shows it here, ticked: whoever added or
-  /// changed it here meant to share it.
-  Future<void> _editName() async {
-    final saved = await openAccountNameSheet(context, allowEmpty: false);
-    if (saved == null || !mounted) return;
-    _name.value = saved;
-    _scopes.value = {..._scopes.value, _profile};
-  }
-
-  static const _scopeLabels = {
-    'profile': 'Your name',
-    'email': 'Your email address',
-    'revoked_identity': 'Your Revoked identity',
-  };
 
   Widget _consentBody(SignInConsent c) {
     final host = c.clientHost;
@@ -362,11 +355,14 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
             ),
             for (final s in c.scopes)
               if (s.scope == _profile)
-                pad(_nameRow(s))
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: _nameRow(c),
+                )
               else
                 pad(
                   AppCheckRow(
-                    label: _scopeLabels[s.scope] ?? s.scope,
+                    label: signInScopeLabels[s.scope] ?? s.scope,
                     subtitle: s.value.isEmpty ? null : s.value,
                     value: _scopes.value.contains(s.scope),
                     onChanged: _busy.value
@@ -431,6 +427,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
 
   Widget _decision() {
     final busy = _busy.value;
+    final unnamed =
+        _typingName && Stores.signInApproval.nameDraft.text.trim().isEmpty;
     return AppActionBar(
       note: const Text(
         'You confirm on this device. Nothing is shared until you do.',
@@ -446,7 +444,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
           label: 'Sign in',
           icon: AppIcons.check,
           busy: busy,
-          onTap: busy ? null : () => _decide(true),
+          onTap: busy || unnamed ? null : () => _decide(true),
         ),
       ],
     );

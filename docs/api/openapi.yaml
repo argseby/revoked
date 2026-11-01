@@ -2305,6 +2305,13 @@ paths:
                   account: { type: object }
                   scopes: { type: array, items: { type: object } }
                   links: { type: array, items: { type: object } }
+                  nameOptions:
+                    type: array
+                    description: With the `profile` scope, the names the person could give this service.
+                    items: { type: object }
+                  nameSelected:
+                    type: object
+                    description: The option to start from, when there is one.
                   redirect: { type: string }
         "400": { $ref: "#/components/responses/AppError" }
         "401": { $ref: "#/components/responses/AppError" }
@@ -2327,6 +2334,11 @@ paths:
         that shares something, with a fresh token each time. The answer is
         the address to send the browser to: with a `code`, or with
         `error=access_denied`.
+
+        `profile` is granted only with a `name`: one of the person's identities
+        or vault entries, checked to be their own. A vault entry is also shared
+        under the key `name`, so the service can follow it. Leaving `name` out
+        when the service asked for `profile` withdraws any name it had.
       requestBody:
         required: true
         content:
@@ -2346,6 +2358,13 @@ paths:
                   type: object
                   description: Requested key → the person's entry id.
                   additionalProperties: { type: string }
+                name:
+                  type: object
+                  description: The name this service gets.
+                  required: [kind, id]
+                  properties:
+                    kind: { type: string, enum: [identity, record] }
+                    id: { type: string }
       responses:
         "200":
           description: Where to send the browser.
@@ -2386,6 +2405,8 @@ paths:
         `exp`, `auth_time`, `nonce`, and the claims of the granted scopes:
         `name`, `email` and `email_verified`, and `revoked_identity` (the
         fingerprint of the person's primary identity).
+        `name` is the name the person chose for this service, as it stands
+        when the token is issued.
       security: []
       requestBody:
         required: true

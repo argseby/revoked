@@ -55,6 +55,10 @@ class Link {
   /// recorded it. It outlasts the connection; empty for a link made in the app.
   final String proposedBy;
 
+  /// The origin of the service this link was shared with at sign-in; empty
+  /// for any other link.
+  final String signInClient;
+
   Link({
     required this.id,
     required this.slug,
@@ -79,6 +83,7 @@ class Link {
     this.ref = '',
     this.handedOver = false,
     this.proposedBy = '',
+    this.signInClient = '',
   });
 
   /// Legacy alias used by older UI code. Prefer [viewCount].
@@ -149,6 +154,7 @@ class Link {
       ref: json['ref'] as String? ?? '',
       handedOver: json['handedOver'] as bool? ?? false,
       proposedBy: json['proposedBy'] as String? ?? '',
+      signInClient: json['signInClient'] as String? ?? '',
     );
   }
 
@@ -176,6 +182,7 @@ class Link {
     String? ref,
     bool? handedOver,
     String? proposedBy,
+    String? signInClient,
   }) {
     return Link(
       id: id ?? this.id,
@@ -201,6 +208,7 @@ class Link {
       ref: ref ?? this.ref,
       handedOver: handedOver ?? this.handedOver,
       proposedBy: proposedBy ?? this.proposedBy,
+      signInClient: signInClient ?? this.signInClient,
     );
   }
 }

@@ -21,6 +21,7 @@ import 'package:revoked_app/features/auth/store/server_settings_store.dart';
 import 'package:revoked_app/features/bookmarks/store/bookmarks_store.dart';
 import 'package:revoked_app/features/connections/sign_in_approval.dart';
 import 'package:revoked_app/features/connections/store/connections_store.dart';
+import 'package:revoked_app/features/connections/store/sign_ins_store.dart';
 import 'package:revoked_app/features/contacts/store/contacts_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
@@ -56,6 +57,7 @@ abstract final class Stores {
   static late SharesStore shares;
   static late BookmarksStore bookmarks;
   static late ConnectionsStore connections;
+  static late SignInsStore signIns;
   static late ContactsStore contacts;
   static late PasskeysStore passkeys;
   static late RequestsStore requests;
@@ -127,6 +129,7 @@ abstract final class Stores {
     shares = SharesStore(api);
     bookmarks = BookmarksStore(api);
     connections = ConnectionsStore(api);
+    signIns = SignInsStore(api);
     contacts = ContactsStore(api);
     passkeys = PasskeysStore(api);
     requests = RequestsStore(api);
@@ -162,6 +165,7 @@ abstract final class Stores {
     credentials.loadState,
     attestations.loadState,
     attestationChecks.loadState,
+    signIns.loadState,
   ];
 
   /// Makes every cached list fetch again the next time a screen asks for it.
@@ -192,6 +196,8 @@ abstract final class Stores {
       credentials.verdicts.clear();
       attestations.attestations.clear();
       attestationChecks.checks.clear();
+      signIns.services.clear();
+      signIns.links.clear();
       templates.templates.clear();
       invites.invites.clear();
       invites.members.clear();

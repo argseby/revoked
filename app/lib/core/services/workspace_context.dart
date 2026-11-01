@@ -43,6 +43,7 @@ class WorkspaceContext {
       Stores.credentials.load(),
       Stores.attestations.load(),
       Stores.attestationChecks.load(),
+      Stores.signIns.load(),
       if (workspaceId.isNotEmpty) Stores.templates.loadTemplates(workspaceId),
       if (workspaceId.isNotEmpty) Stores.invites.load(workspaceId),
       if (workspaceId.isNotEmpty) Stores.invites.loadMembers(workspaceId),

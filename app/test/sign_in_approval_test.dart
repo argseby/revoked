@@ -81,6 +81,10 @@ void main() {
             {'scope': 'profile', 'value': 'Ada Lovelace'},
             {'scope': 'email', 'value': 'ada@home.test'},
           ],
+          'nameOptions': [
+            {'kind': 'identity', 'id': 'id1', 'value': 'Ada Lovelace'},
+          ],
+          'nameSelected': {'kind': 'identity', 'id': 'id1'},
           'links': [
             {
               'key': 'phone',
@@ -186,7 +190,7 @@ void main() {
     expect(launched, isEmpty, reason: 'deciding happens here, not there');
     expect(find.text('Sign in to game.example'), findsOneWidget);
     expect(find.text('Your name'), findsOneWidget);
-    expect(find.text('Ada Lovelace'), findsOneWidget);
+    expect(find.text('Ada Lovelace — Your identity'), findsOneWidget);
     expect(find.text('Your email address'), findsOneWidget);
     expect(find.text('Phone — +49'), findsOneWidget);
     expect(decisions, isEmpty);
@@ -205,6 +209,7 @@ void main() {
     expect(sent['ticket'], ticket);
     expect(sent['approve'], isTrue);
     expect(sent['scopes'], ['profile']);
+    expect(sent['name'], {'kind': 'identity', 'id': 'id1'});
     expect(sent['links'], {'phone': 'r1'});
     expect(sent['identityId'], 'id1');
     expect(
@@ -218,6 +223,31 @@ void main() {
     expect(prompt.asked, ['Sign in to game.example']);
     expect(launched, [approved]);
     expect(find.text('You’re signed in to game.example'), findsOneWidget);
+    expect(
+      find.textContaining('To stop sharing, go to Settings → Connected tools.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('an approval that shares nothing has nothing to revoke', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.tap(find.text('Phone — +49'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Don’t share').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+
+    expect(decisions.single['links'], isEmpty);
+    expect(
+      find.textContaining(
+        'You’ll find this sign-in under Settings → Connected tools.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('To stop sharing'), findsNothing);
   });
 
   testWidgets('declining signs nothing and tells the service', (tester) async {

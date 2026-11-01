@@ -8,6 +8,7 @@
 // one, the person approves it in the app, and the answer names that server
 // in `iss` (RFC 9207).
 
+import { createHash } from 'node:crypto';
 import * as oidc from 'openid-client';
 import { config } from './config.js';
 
@@ -78,11 +79,26 @@ async function authorizationRequest() {
 }
 
 // Starts a sign-in through the person's Revoked app, which knows their
-// server: returns the revoked://signin link, and what to remember until the
-// browser comes back. The server is not known until then.
+// server: returns the revoked://signin link, its check code, and what to
+// remember until the answer comes. The server is not known until then.
+//
+// revoked_return=background has the app hand the answer to /callback itself,
+// because the page waiting for it may be on another device.
 export async function beginAppSignIn() {
   const { params, pending } = await authorizationRequest();
-  return { url: `revoked://signin?${new URLSearchParams(params)}`, pending };
+  const link = new URLSearchParams({ ...params, revoked_return: 'background' });
+  return {
+    url: `revoked://signin?${link}`,
+    checkCode: checkCode(params.code_challenge),
+    pending,
+  };
+}
+
+// The code the page and the app both show: the first three bytes of SHA-256
+// over the challenge, as upper-case hex in two groups.
+function checkCode(challenge) {
+  const hex = createHash('sha256').update(challenge).digest('hex').slice(0, 6).toUpperCase();
+  return `${hex.slice(0, 3)}-${hex.slice(3)}`;
 }
 
 // The server a sign-in ended at, read from the answer's `iss`. It is checked

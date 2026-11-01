@@ -19,27 +19,32 @@ import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/connections/view/day_label.dart';
+import 'package:revoked_app/features/connections/view/sign_ins_section.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 
 /// The tools connected to this workspace, one row each; a row opens the
 /// tool's own page, which answers "what can this tool do, and what has it
-/// done?".
+/// done?". The services this account signed in to follow them.
 class ConnectionsList extends StatelessWidget {
   const ConnectionsList({super.key});
 
   @override
   Widget build(BuildContext context) {
     final store = Stores.connections;
+    final signIns = Stores.signIns;
     return Observer(
       builder: (_) {
-        if (store.isLoading && store.connections.isEmpty) {
+        final noTools = store.connections.isEmpty;
+        final nothingYet = noTools && signIns.services.isEmpty;
+        if (nothingYet && (store.isLoading || signIns.loadState.isFirstLoad)) {
           return const AppListGroup(
             title: 'Connected tools',
             trailing: SizedBox.shrink(),
             children: [_Loading()],
           );
         }
-        if (store.connections.isEmpty) {
+        if (nothingYet && signIns.loadState.error == null) {
           return AppEmptyState(
             icon: AppIcons.plug,
             title: 'Let tools help, without opening your vault',
@@ -70,24 +75,38 @@ class ConnectionsList extends StatelessWidget {
             learnMoreUrl: '${AppConfig.docsUrl}/guide/tools/',
           );
         }
-        return AppListGroup(
-          title: 'Connected tools',
-          footer: const Text(
-            'Tools you connect can propose links and follow their status. '
-            'They never read your vault.',
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final c in store.connections)
-              AppListRow(
-                icon: AppIcons.plug,
-                title: c.name,
-                subtitle: _summary(
-                  c,
-                  store.linksByConnection[c.id] ?? const [],
-                ),
-                trailing: c.isExpired ? const AppBadge(label: 'Expired') : null,
-                onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+            AppListGroup(
+              title: 'Connected tools',
+              trailing: noTools ? const SizedBox.shrink() : null,
+              footer: const Text(
+                'Tools you connect can propose links and follow their status. '
+                'They never read your vault.',
               ),
+              children: [
+                if (noTools)
+                  const AppDetailRow(
+                    icon: AppIcons.plug,
+                    label: 'No tools connected',
+                  ),
+                for (final c in store.connections)
+                  AppListRow(
+                    icon: AppIcons.plug,
+                    title: c.name,
+                    subtitle: _summary(
+                      c,
+                      store.linksByConnection[c.id] ?? const [],
+                    ),
+                    trailing: c.isExpired
+                        ? const AppBadge(label: 'Expired')
+                        : null,
+                    onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+                  ),
+              ],
+            ),
+            const SignInServicesGroup(),
           ],
         );
       },
@@ -98,16 +117,8 @@ class ConnectionsList extends StatelessWidget {
     final count = links.isEmpty
         ? 'No links yet'
         : '${links.length} ${links.length == 1 ? 'link' : 'links'}';
-    return '$count · last used ${_day(c.lastUsedAt)}';
+    return '$count · last used ${dayLabel(c.lastUsedAt)}';
   }
-}
-
-String _day(String? iso) {
-  if (iso == null) return '—';
-  final d = DateTime.tryParse(iso.replaceFirst(' ', 'T'))?.toLocal();
-  if (d == null) return '—';
-  return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
 }
 
 /// One connected tool: when it was connected, what it may do, the links it
@@ -238,17 +249,17 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
             AppDetailRow(
               icon: AppIcons.calendar,
               label: 'Connected',
-              value: _day(connection.created),
+              value: dayLabel(connection.created),
             ),
             AppDetailRow(
               icon: AppIcons.clock,
               label: 'Last used',
-              value: _day(connection.lastUsedAt),
+              value: dayLabel(connection.lastUsedAt),
             ),
             AppDetailRow(
               icon: AppIcons.hourglass,
               label: connection.isExpired ? 'Expired' : 'Expires',
-              value: _day(connection.expiresAt),
+              value: dayLabel(connection.expiresAt),
             ),
           ],
         ),

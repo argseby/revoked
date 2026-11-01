@@ -477,11 +477,6 @@ const (
 // the tool by origin, so it still reads after the connection is gone; extra
 // adds what the action was about. A failure is logged and never blocks the action it describes.
 func auditConnection(app core.App, re *core.RequestEvent, conn *core.Record, action string, extra map[string]any) {
-	coll, err := app.FindCollectionByNameOrId(util.Coll.AuditLogs)
-	if err != nil {
-		app.Logger().Error("Audit log collection missing", "error", err)
-		return
-	}
 	fields := map[string]any{
 		util.Fields.Connection.ClientId:      conn.GetString(util.Fields.Connection.ClientId),
 		util.Fields.Connection.ClientName:    conn.GetString(util.Fields.Connection.ClientName),
@@ -492,13 +487,36 @@ func auditConnection(app core.App, re *core.RequestEvent, conn *core.Record, act
 	for k, v := range extra {
 		fields[k] = v
 	}
-	data, _ := json.Marshal(fields)
+	saveAuditRow(app, re, auditRow{
+		user:       conn.GetString(util.Fields.Connection.User),
+		workspace:  conn.GetString(util.Fields.Connection.Workspace),
+		action:     action,
+		collection: util.Coll.Connections,
+		recordID:   conn.Id,
+		fields:     fields,
+	})
+}
+
+// auditRow is an audit entry for something a route did directly, which the
+// audit hook does not see.
+type auditRow struct {
+	user, workspace, action, collection, recordID string
+	fields                                        map[string]any
+}
+
+func saveAuditRow(app core.App, re *core.RequestEvent, entry auditRow) {
+	coll, err := app.FindCollectionByNameOrId(util.Coll.AuditLogs)
+	if err != nil {
+		app.Logger().Error("Audit log collection missing", "error", err)
+		return
+	}
+	data, _ := json.Marshal(entry.fields)
 	row := core.NewRecord(coll)
-	row.Set(util.Fields.AuditLog.User, conn.GetString(util.Fields.Connection.User))
-	row.Set(util.Fields.AuditLog.Workspace, conn.GetString(util.Fields.Connection.Workspace))
-	row.Set(util.Fields.AuditLog.Action, action)
-	row.Set(util.Fields.AuditLog.Collection, util.Coll.Connections)
-	row.Set(util.Fields.AuditLog.RecordId, conn.Id)
+	row.Set(util.Fields.AuditLog.User, entry.user)
+	row.Set(util.Fields.AuditLog.Workspace, entry.workspace)
+	row.Set(util.Fields.AuditLog.Action, entry.action)
+	row.Set(util.Fields.AuditLog.Collection, entry.collection)
+	row.Set(util.Fields.AuditLog.RecordId, entry.recordID)
 	row.Set(util.Fields.AuditLog.NewData, string(data))
 	row.Set(util.Fields.AuditLog.Ip, re.Request.RemoteAddr)
 	row.Set(util.Fields.AuditLog.UserAgent, re.Request.UserAgent())

@@ -209,8 +209,9 @@ That question belongs to the trust chain as a whole rather than to this step.
 | Tokens | `/oidc/token` (authorization code with PKCE, public clients, no secret) returns an ID token valid for 10 minutes and an access token valid for an hour. `/oidc/userinfo` answers with the granted claims. |
 | Subjects | Pairwise: an HMAC of the person and the client origin under `oidc_subject.key`. |
 | Shared entries | One link per person and service (`links.signInClient`), read through `POST /api/grants/resolve` with the token from userinfo, and revoked from the app like any link. |
+| Finding a sign-in again | One row per person and service (`signIns`), written with the approval: the origin, the scopes learned, the link and the last sign-in. The app lists them under Connected tools. |
 | State | Requests, consent tickets, codes and access tokens are held in memory, like the passkey ceremonies: a restart costs a sign-in in progress. |
-| Finding the server | A service starts a sign-in through the app with `revoked://signin` and the server-independent authorization parameters. The app opens the authorization page of the server it is signed into; the answer names that server in `iss` (RFC 9207), and the service discovers and verifies it from there. Without the app, the person names their server. |
+| Finding the server | A service starts a sign-in through the app with `revoked://signin` and the server-independent authorization parameters. The app opens the authorization page of the server it is signed into; the answer names that server in `iss` (RFC 9207), and the service discovers and verifies it from there. A service shows the link as a QR code too, so the app need not be on the device the person is browsing with; the app delivers the answer and the page collects it. |
 
 ## Step 3: Attestations by other domains
 

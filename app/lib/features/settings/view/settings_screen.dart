@@ -17,7 +17,6 @@ import 'package:revoked_app/core/widgets/version_summary.dart';
 import 'package:revoked_app/core/widgets/official_server_badge.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:revoked_app/features/settings/account_name.dart';
 
 /// The Settings tab — one list, built like the vault: grouped rows, each
 /// opening its topic's own page. What is hard to undo — signing out, deleting
@@ -45,6 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Stores.passkeys.load();
       Stores.keys.ensureLoaded();
       Stores.connections.load();
+      Stores.signIns.loadIfDue();
       Stores.credentials.load();
       Stores.serverSettings.loadServerVersion();
       if (ws.isNotEmpty) {
@@ -58,6 +58,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// "3 members", or the topic's description while nothing is loaded.
   String _count(int n, String one, String many, String otherwise) =>
       n == 0 ? otherwise : '$n ${n == 1 ? one : many}';
+
+  /// "1 tool connected · 2 sign-ins", leaving out whichever there are none of.
+  String _toolsSummary() {
+    final tools = Stores.connections.connections.length;
+    final signIns = Stores.signIns.services.length;
+    return [
+      if (tools > 0 || signIns == 0)
+        _count(
+          tools,
+          'tool connected',
+          'tools connected',
+          'No tools connected',
+        ),
+      if (signIns > 0) _count(signIns, 'sign-in', 'sign-ins', ''),
+    ].join(' · ');
+  }
 
   Widget _page(SettingsPage page, IconData icon, String subtitle) {
     return AppListRow(
@@ -87,14 +103,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Account',
           trailing: const SizedBox.shrink(),
           children: [
-            AppListRow(
-              icon: AppIcons.person,
-              title: 'Name',
-              subtitle: (auth.currentUser?.name ?? '').isEmpty
-                  ? 'Not set · shown when you sign in with Revoked'
-                  : auth.currentUser!.name,
-              onTap: () => openAccountNameSheet(context),
-            ),
             _AppearanceRow(),
             _page(
               SettingsPage.passkeys,
@@ -158,16 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Prove it’s really you',
               ),
             ),
-            _page(
-              SettingsPage.connectedTools,
-              AppIcons.plug,
-              _count(
-                Stores.connections.connections.length,
-                'tool connected',
-                'tools connected',
-                'No tools connected',
-              ),
-            ),
+            _page(SettingsPage.connectedTools, AppIcons.plug, _toolsSummary()),
           ],
         ),
         AppListGroup(

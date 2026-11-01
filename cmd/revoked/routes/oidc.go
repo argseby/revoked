@@ -76,6 +76,10 @@ var (
 // challenge — even one a foreign server chose — never approves a sign-in.
 const oidcConsentPrefix = "revoked-oidc-consent:"
 
+// auditSignInApproved is an approved sign-in in the audit log. It names the
+// scopes and vault keys given, never their values.
+const auditSignInApproved = "sign_in_approved"
+
 // OIDCRoute makes this server an OpenID Connect provider, so a service signs
 // people in with their Revoked account using an ordinary OIDC client library:
 //
@@ -398,13 +402,67 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 		scopes = append(scopes, item)
 	}
 
-	return re.JSON(http.StatusOK, map[string]any{
+	answer := map[string]any{
 		"ticket":  ticket,
 		"client":  req.clientID,
 		"account": map[string]any{"email": user.Email()},
 		"scopes":  scopes,
 		"links":   linkOptions(app, user, req.linkKeys),
-	})
+	}
+	if slices.Contains(req.scopes, util.OIDCScopeProfile) {
+		options, selected := nameOptions(app, user, req.clientID)
+		answer["nameOptions"] = options
+		if selected != nil {
+			answer["nameSelected"] = selected
+		}
+	}
+	return re.JSON(http.StatusOK, answer)
+}
+
+// nameOptions lists the names a person could give a service: their identities'
+// names, then the entries of their active workspace that read as a name. The
+// one selected is what they gave this service last time, otherwise an entry
+// under the plain key "name" if they have one, otherwise none: a name is shared
+// only once someone picks it.
+func nameOptions(app core.App, user *core.Record, clientID string) ([]map[string]any, *services.SignInNameChoice) {
+	options := []map[string]any{}
+	i := util.Fields.Identity
+	identities, _ := app.FindRecordsByFilter(util.Coll.Identities,
+		i.User+" = {:u} && "+i.Status+" = {:active}", "-"+i.IsPrimary+","+i.Name, maxLinkOptions, 0,
+		dbx.Params{"u": user.Id, "active": util.StatusActive})
+	for _, id := range identities {
+		options = append(options, map[string]any{
+			"kind": services.NameFromIdentity, "id": id.Id, "value": id.GetString(i.Name),
+		})
+	}
+
+	f := util.Fields.Record
+	records, _ := app.FindRecordsByFilter(util.Coll.Records,
+		f.User+" = {:u} && "+f.Workspace+" = {:w}", f.Key, maxLinkOptions, 0,
+		dbx.Params{"u": user.Id, "w": user.GetString(util.Fields.User.ActiveWorkspace)})
+	var plain *services.SignInNameChoice
+	for _, rec := range records {
+		value, ok := services.RecordNameValue(app, rec)
+		if !ok {
+			continue
+		}
+		options = append(options, map[string]any{
+			"kind": services.NameFromRecord, "id": rec.Id, "value": value,
+			"key": rec.GetString(f.Key), "label": rec.GetString(f.Label),
+		})
+		if rec.GetString(f.Key) == services.SignInNameKey {
+			plain = &services.SignInNameChoice{Kind: services.NameFromRecord, ID: rec.Id}
+		}
+	}
+
+	if last := services.RememberedSignInName(app, user.Id, clientID); last != nil {
+		for _, o := range options {
+			if o["kind"] == last.Kind && o["id"] == last.ID {
+				return options, last
+			}
+		}
+	}
+	return options, plain
 }
 
 // linkOptions lists, for each key a service asked for, the entries of the
@@ -470,6 +528,8 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		Links      map[string]string `json:"links"`
 		IdentityID string            `json:"identityId"`
 		Signature  string            `json:"signature"`
+
+		Name *services.SignInNameChoice `json:"name"`
 	}
 	if err := re.BindBody(&body); err != nil {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
@@ -504,31 +564,74 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		}
 	}
 
+	// A name is its own decision: no name picked means no name scope, whatever
+	// the scopes say.
+	nameAsked := slices.Contains(req.scopes, util.OIDCScopeProfile)
+	var name *services.SignInNameChoice
+	if nameAsked && slices.Contains(granted, util.OIDCScopeProfile) && body.Name != nil {
+		if err := services.CheckSignInName(app, t.user, *body.Name); err != nil {
+			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCNameInvalid)
+		}
+		name = body.Name
+	}
+	if name == nil {
+		granted = slices.DeleteFunc(granted, func(s string) bool { return s == util.OIDCScopeProfile })
+	} else if _, explicit := choices[services.SignInNameKey]; !explicit && name.Kind == services.NameFromRecord {
+		choices[services.SignInNameKey] = name.ID
+	}
+
+	keys := make([]string, 0, len(choices))
+	for _, k := range req.linkKeys {
+		if _, ok := choices[k]; ok {
+			keys = append(keys, k)
+		}
+	}
+	if _, ok := choices[services.SignInNameKey]; ok && !slices.Contains(keys, services.SignInNameKey) {
+		keys = append(keys, services.SignInNameKey)
+	}
+
+	// Together, so no service is signed in to, or handed entries, without the
+	// row that lets the person find it afterwards.
 	var grant *services.SignInGrant
-	if len(choices) > 0 {
-		user, err := app.FindRecordById(util.Coll.Users, t.user)
-		if err != nil || user == nil {
-			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
-		}
-		token, err := util.GenerateToken(32)
-		if err != nil {
-			return re.InternalServerError("Failed to share the entries", err)
-		}
-		link, err := services.SaveSignInGrant(app, user, req.clientID, choices, token)
-		if errors.Is(err, services.ErrSignInRecord) {
-			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCLinkRecordInvalid)
-		}
-		if err != nil {
-			return re.InternalServerError("Failed to share the entries", err)
-		}
-		keys := make([]string, 0, len(choices))
-		for _, k := range req.linkKeys {
-			if _, ok := choices[k]; ok {
-				keys = append(keys, k)
+	var signIn *core.Record
+	err := app.RunInTransaction(func(tx core.App) error {
+		linkID := ""
+		if len(choices) > 0 {
+			token, err := util.GenerateToken(32)
+			if err != nil {
+				return err
+			}
+			link, err := services.SaveSignInGrant(tx, re.Auth, req.clientID, choices, token)
+			if err != nil {
+				return err
+			}
+			grant = &services.SignInGrant{ID: link.Id, Token: token, Keys: keys}
+			linkID = link.Id
+		} else if nameAsked {
+			if err := services.DropSignInNameGrant(tx, t.user, req.clientID); err != nil {
+				return err
 			}
 		}
-		grant = &services.SignInGrant{ID: link.Id, Token: token, Keys: keys}
+		var err error
+		signIn, err = services.RecordSignIn(tx, t.user, req.clientID, services.SignInApproval{
+			Scopes: granted, LinkID: linkID, NameAsked: nameAsked, Name: name,
+		})
+		return err
+	})
+	if errors.Is(err, services.ErrSignInRecord) {
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCLinkRecordInvalid)
 	}
+	if err != nil {
+		return re.InternalServerError("Failed to record the sign-in", err)
+	}
+	saveAuditRow(app, re, auditRow{
+		user:       t.user,
+		workspace:  re.Auth.GetString(util.Fields.User.ActiveWorkspace),
+		action:     auditSignInApproved,
+		collection: util.Coll.SignIns,
+		recordID:   signIn.Id,
+		fields:     map[string]any{"clientId": req.clientID, "scopes": granted, "keys": keys},
+	})
 
 	code := oidcCodes.put(&oidcCode{
 		req:      req,

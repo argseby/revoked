@@ -10,6 +10,10 @@ user agent). Secrets are blanked out before anything is stored — vault values,
 submitted gate passwords, collected data, credential tokens. So the log tells
 you what happened without becoming a second copy of your secrets.
 
+An approved [Sign in with Revoked](../api/sign-in.md) is logged under the
+`signIns` collection as `sign_in_approved`, with the service's origin and the
+names of the scopes and vault keys it was given, never their values.
+
 What a connected tool does is logged under the `connections` collection, by
 the tool's origin:
 

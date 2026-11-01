@@ -36,6 +36,7 @@ class AppConfig {
   static const String bookmarksCollection = 'bookmarks';
   static const String bookmarkGroupsCollection = 'bookmarkGroups';
   static const String connectionsCollection = 'connections';
+  static const String signInsCollection = 'signIns';
   static const String passkeysCollection = 'passkeys';
   static const String remindersCollection = 'reminders';
   static const String attestationsCollection = 'attestations';

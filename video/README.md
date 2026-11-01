@@ -13,6 +13,14 @@ the video is re-rendered from source, never edited by hand.
 - `src/components/` — the shared pieces: people, cards, the vault, arrows
 - `src/theme.ts` — colours (the app's light palette), fonts, easing
 
+## The short film
+
+`src/short/` is a separate, roughly 50-second black-and-white film for the
+website, rendered as `ShortWide` (1920×1080) and `ShortTall` (1080×1350, for
+phones). `npm run render:short` writes both to `out/`. Its scenes are in
+[STORYBOARD.md](STORYBOARD.md). The fonts load from Google Fonts at render time,
+so a render without network falls back to the bundled faces.
+
 ## Rendering
 
 Needs Node and an installed Chrome or Chromium. Remotion would otherwise

@@ -120,6 +120,7 @@ void main() {
 
     for (final page in [
       AppRoutes.settingsPage(SettingsPage.encryption.slug),
+      AppRoutes.signInServiceFor('s1'),
       AppRoutes.recordDetailFor('r1'),
       AppRoutes.shareDetailFor('l1'),
       AppRoutes.requestDetailFor('q1'),

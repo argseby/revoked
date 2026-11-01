@@ -1,3 +1,10 @@
+/// What each optional scope tells a service, in words for the person.
+const signInScopeLabels = {
+  'profile': 'Your name',
+  'email': 'Your email address',
+  'revoked_identity': 'Your Revoked identity',
+};
+
 /// What the consent screen shows for a sign-in the app opened on its server
 /// (`POST /oidc/authorize/app`): who asks, as which account, what each scope
 /// would reveal, and the person's entries for each vault key asked for.
@@ -19,16 +26,26 @@ class SignInConsent {
   /// The vault keys asked for, each with the entries that could answer it.
   final List<SignInLinkAsk> links;
 
+  /// The names the person could give this service, when it asks for one.
+  final List<SignInNameOption> nameOptions;
+
+  /// The option to start from: what they gave this service last time. Empty
+  /// when nothing is picked yet.
+  final String nameSelected;
+
   const SignInConsent({
     required this.ticket,
     required this.client,
     required this.accountEmail,
     required this.scopes,
     required this.links,
+    this.nameOptions = const [],
+    this.nameSelected = '',
   });
 
   factory SignInConsent.fromJson(Map<String, dynamic> json) {
     final account = json['account'] as Map<String, dynamic>? ?? const {};
+    final selected = json['nameSelected'] as Map<String, dynamic>?;
     return SignInConsent(
       ticket: json['ticket'] as String,
       client: json['client'] as String? ?? '',
@@ -41,6 +58,16 @@ class SignInConsent {
         for (final l in json['links'] as List<dynamic>? ?? const [])
           SignInLinkAsk.fromJson(l as Map<String, dynamic>),
       ],
+      nameOptions: [
+        for (final o in json['nameOptions'] as List<dynamic>? ?? const [])
+          SignInNameOption.fromJson(o as Map<String, dynamic>),
+      ],
+      nameSelected: selected == null
+          ? ''
+          : SignInNameOption.tokenFor(
+              selected['kind'] as String? ?? '',
+              selected['id'] as String? ?? '',
+            ),
     );
   }
 
@@ -59,6 +86,43 @@ class SignInScope {
     scope: json['scope'] as String,
     value: json['value'] is String ? json['value'] as String : '',
   );
+}
+
+/// A name the person could give a service: one of their identities' names, or
+/// a vault entry that reads as a name.
+class SignInNameOption {
+  static const fromIdentity = 'identity';
+  static const fromRecord = 'record';
+
+  final String kind;
+  final String id;
+  final String value;
+
+  /// The entry's key and label; empty for an identity.
+  final String key;
+  final String label;
+
+  const SignInNameOption({
+    required this.kind,
+    required this.id,
+    required this.value,
+    this.key = '',
+    this.label = '',
+  });
+
+  factory SignInNameOption.fromJson(Map<String, dynamic> json) =>
+      SignInNameOption(
+        kind: json['kind'] as String? ?? '',
+        id: json['id'] as String? ?? '',
+        value: json['value'] as String? ?? '',
+        key: json['key'] as String? ?? '',
+        label: json['label'] as String? ?? '',
+      );
+
+  /// Names this option in a select, where a value has to be one string.
+  static String tokenFor(String kind, String id) => '$kind:$id';
+
+  String get token => tokenFor(kind, id);
 }
 
 /// A vault key the service asks for, and the entries that could answer it,

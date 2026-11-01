@@ -11,12 +11,15 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"revoked/cmd/revoked/server"
+	"revoked/cmd/revoked/services"
 	"revoked/tests/testutils"
 	"revoked/util"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/pocketbase/dbx"
 )
 
 // oidcService plays a service signing people in with Revoked: an origin, a
@@ -327,6 +330,7 @@ func TestSignInWithRevoked(t *testing.T) {
 		"approve": true,
 		// The person keeps their identity to themselves.
 		"scopes": []string{util.OIDCScopeProfile, util.OIDCScopeEmail},
+		"name":   map[string]string{"kind": services.NameFromIdentity, "id": person.identityID},
 		"links":  map[string]string{"shipping_address": recordID},
 	})
 
@@ -681,5 +685,347 @@ func TestSignInIsApprovedOnlyInTheApp(t *testing.T) {
 		if status != http.StatusForbidden || out["code"] != util.Errors.IdentityRevoked.ErrorCode {
 			t.Fatalf("consent: %d %v", status, out)
 		}
+	})
+}
+
+func TestSignInsLeaveARowThePersonCanFind(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+	person := newOIDCPerson(t, baseURL)
+	f := util.Fields.SignIn
+	recordID := extractID(t, baseURL, util.Coll.Records, person.token, map[string]any{
+		util.Fields.Record.Key:       "shipping_address",
+		util.Fields.Record.Value:     "1 Infinite Loop",
+		util.Fields.Record.Label:     "Shipping address",
+		util.Fields.Record.Type:      util.TypeText,
+		util.Fields.Record.Format:    util.FormatDefault,
+		util.Fields.Record.User:      person.userID,
+		util.Fields.Record.Workspace: activeWorkspaceOf(t, api, person.userID, person.token),
+	})
+	rows := func(who *oidcPerson) []any {
+		return api.List(util.Coll.SignIns, who.token).Expect().Status(http.StatusOK).
+			JSON().Object().Value("items").Array().Raw()
+	}
+	only := func() map[string]any {
+		t.Helper()
+		items := rows(person)
+		if len(items) != 1 {
+			t.Fatalf("rows = %v", items)
+		}
+		return items[0].(map[string]any)
+	}
+
+	svc := newOIDCService(t, baseURL, "https://forum.example")
+
+	t.Run("declining writes nothing", func(t *testing.T) {
+		person.approve(t, svc.params(nil), map[string]any{"approve": false})
+		if items := rows(person); len(items) != 0 {
+			t.Fatalf("rows after declining = %v", items)
+		}
+	})
+
+	t.Run("an entry that is not theirs leaves no row", func(t *testing.T) {
+		stranger := newOIDCPerson(t, baseURL)
+		foreign := extractID(t, baseURL, util.Coll.Records, stranger.token, map[string]any{
+			util.Fields.Record.Key:       "shipping_address",
+			util.Fields.Record.Value:     "not yours",
+			util.Fields.Record.Label:     "Theirs",
+			util.Fields.Record.Type:      util.TypeText,
+			util.Fields.Record.Format:    util.FormatDefault,
+			util.Fields.Record.User:      stranger.userID,
+			util.Fields.Record.Workspace: activeWorkspaceOf(t, api, stranger.userID, stranger.token),
+		})
+		_, consent := person.open(t, svc.params(map[string]string{
+			"claims": `{"userinfo":{"revoked_links":{"values":["shipping_address"]}}}`,
+		}))
+		status, out := person.decide(t, consent["ticket"].(string), map[string]any{
+			"approve": true, "links": map[string]string{"shipping_address": foreign},
+		})
+		if status != http.StatusBadRequest {
+			t.Fatalf("consent: %d %v", status, out)
+		}
+		if items := rows(person); len(items) != 0 {
+			t.Fatalf("rows after a refused sign-in = %v", items)
+		}
+	})
+
+	person.approve(t, svc.params(map[string]string{
+		"claims": `{"userinfo":{"revoked_links":{"values":["shipping_address"]}}}`,
+	}), map[string]any{
+		"approve": true,
+		"scopes":  []string{util.OIDCScopeEmail},
+		"links":   map[string]string{"shipping_address": recordID},
+	})
+	first := only()
+	linkID, _ := first[f.Link].(string)
+
+	t.Run("an approval records the service, its scopes and its link", func(t *testing.T) {
+		if first[f.ClientId] != svc.clientID || linkID == "" {
+			t.Fatalf("row = %v", first)
+		}
+		if got := first[f.Scopes].([]any); len(got) != 1 || got[0] != util.OIDCScopeEmail {
+			t.Fatalf("scopes = %v", got)
+		}
+		api.Get(util.Coll.Links, linkID, person.token).Expect().Status(http.StatusOK).
+			JSON().Object().Value(util.Fields.Link.SignInClient).String().IsEqual(svc.clientID)
+	})
+
+	t.Run("signing in again keeps the one row, its link and what was learned", func(t *testing.T) {
+		time.Sleep(5 * time.Millisecond)
+		person.approve(t, svc.params(nil), map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": map[string]string{"kind": services.NameFromIdentity, "id": person.identityID},
+		})
+		again := only()
+		if again["id"] != first["id"] || again[f.Link] != linkID {
+			t.Fatalf("row = %v, was %v", again, first)
+		}
+		got := again[f.Scopes].([]any)
+		if len(got) != 2 || got[0] != util.OIDCScopeEmail || got[1] != util.OIDCScopeProfile {
+			t.Fatalf("scopes = %v", got)
+		}
+		if again[f.LastSignInAt].(string) <= first[f.LastSignInAt].(string) {
+			t.Fatalf("lastSignInAt did not move: %v then %v", first[f.LastSignInAt], again[f.LastSignInAt])
+		}
+	})
+
+	t.Run("the audit log names the keys and never the values", func(t *testing.T) {
+		logged, err := app.FindAllRecords(util.Coll.AuditLogs, dbx.HashExp{
+			util.Fields.AuditLog.Collection: util.Coll.SignIns,
+			util.Fields.AuditLog.RecordId:   first["id"].(string),
+			util.Fields.AuditLog.Action:     "sign_in_approved",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(logged) != 2 {
+			t.Fatalf("audit rows = %d, want one per approval", len(logged))
+		}
+		sharing := ""
+		for _, row := range logged {
+			if data := row.GetString(util.Fields.AuditLog.NewData); strings.Contains(data, "shipping_address") {
+				sharing = data
+			}
+		}
+		if !strings.Contains(sharing, svc.clientID) {
+			t.Fatalf("no audit row names the key and the service: %v", logged)
+		}
+		if strings.Contains(sharing, "Infinite Loop") || strings.Contains(sharing, "token") {
+			t.Fatalf("audit row holds more than names: %s", sharing)
+		}
+	})
+
+	t.Run("it is the person's alone and nobody writes it through the API", func(t *testing.T) {
+		id := first["id"].(string)
+		stranger := newOIDCPerson(t, baseURL)
+		if items := rows(stranger); len(items) != 0 {
+			t.Fatalf("a stranger lists %v", items)
+		}
+		api.Get(util.Coll.SignIns, id, stranger.token).Expect().Status(http.StatusNotFound)
+		api.Create(util.Coll.SignIns, person.token, map[string]any{
+			f.User: person.userID, f.ClientId: "https://planted.example", f.LastSignInAt: "2026-01-01 00:00:00.000Z",
+		}).Expect().Status(http.StatusForbidden)
+		api.Update(util.Coll.SignIns, id, person.token, map[string]any{
+			f.ClientId: "https://planted.example",
+		}).Expect().Status(http.StatusForbidden)
+		api.Delete(util.Coll.SignIns, id, person.token).Expect().Status(http.StatusForbidden)
+	})
+}
+
+// A person gives each service the name they choose for it: one of their
+// identities' names, or a vault entry that the service reads as it changes.
+func TestSignInNameIsChosenPerService(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+	person := newOIDCPerson(t, baseURL)
+	wsID := activeWorkspaceOf(t, api, person.userID, person.token)
+
+	entry := func(key, value, format string) string {
+		return extractID(t, baseURL, util.Coll.Records, person.token, map[string]any{
+			util.Fields.Record.Key:       key,
+			util.Fields.Record.Value:     value,
+			util.Fields.Record.Label:     key,
+			util.Fields.Record.Type:      util.TypeText,
+			util.Fields.Record.Format:    format,
+			util.Fields.Record.User:      person.userID,
+			util.Fields.Record.Workspace: wsID,
+		})
+	}
+	nameOf := func(kind, id string) map[string]string { return map[string]string{"kind": kind, "id": id} }
+
+	// signIn approves one sign-in and redeems its code.
+	signIn := func(svc *oidcService, decision map[string]any) map[string]any {
+		t.Helper()
+		_, loc := person.approve(t, svc.params(map[string]string{"scope": "openid profile"}), decision)
+		_, tokens := svc.redeem(redirectParams(t, loc).Get("code"))
+		return tokens
+	}
+	idName := func(tokens map[string]any) any {
+		t.Helper()
+		return verifyIDToken(t, baseURL, tokens["id_token"].(string))["name"]
+	}
+
+	gamerTag := entry("gamer_tag", "xXAdaXx", util.FormatDefault)
+
+	t.Run("no name picked means no name, even with the scope ticked", func(t *testing.T) {
+		svc := newOIDCService(t, baseURL, "https://quiet.example")
+		tokens := signIn(svc, map[string]any{"approve": true, "scopes": []string{util.OIDCScopeProfile}})
+		if tokens["scope"] != "openid" {
+			t.Fatalf("scope = %v", tokens["scope"])
+		}
+		if n := idName(tokens); n != nil {
+			t.Fatalf("name = %v", n)
+		}
+	})
+
+	t.Run("each service keeps its own name", func(t *testing.T) {
+		game := newOIDCService(t, baseURL, "https://game.example")
+		shop := newOIDCService(t, baseURL, "https://shop.example")
+		tag := signIn(game, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromRecord, gamerTag),
+		})
+		formal := signIn(shop, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromIdentity, person.identityID),
+		})
+		if n := idName(tag); n != "xXAdaXx" {
+			t.Fatalf("game got %v", n)
+		}
+		if n := idName(formal); n == "xXAdaXx" || n == nil {
+			t.Fatalf("shop got %v", n)
+		}
+	})
+
+	t.Run("a name from the vault reaches the service when it changes, until revoked", func(t *testing.T) {
+		live := newOIDCService(t, baseURL, "https://live.example")
+		tokens := signIn(live, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromRecord, gamerTag),
+		})
+		access := tokens["access_token"].(string)
+		_, info := userinfo(t, baseURL, access)
+		g := info[util.OIDCClaimLinks].(map[string]any)["grants"].([]any)[0].(map[string]any)
+		if keys := g["keys"].([]any); len(keys) != 1 || keys[0] != services.SignInNameKey {
+			t.Fatalf("keys = %v", keys)
+		}
+		read := func() map[string]any {
+			return api.E.POST("/api/grants/resolve").
+				WithJSON(map[string]any{"grants": []map[string]any{{"id": g["id"], "token": g["token"]}}}).
+				Expect().Status(http.StatusOK).JSON().Object().Value("items").Array().Value(0).Object().Raw()
+		}
+
+		api.Update(util.Coll.Records, gamerTag, person.token, map[string]any{
+			util.Fields.Record.Value: "NewTag",
+		}).Expect().Status(http.StatusOK)
+		if _, info = userinfo(t, baseURL, access); info["name"] != "NewTag" {
+			t.Fatalf("userinfo name = %v", info["name"])
+		}
+		if v := read()["values"].(map[string]any)[services.SignInNameKey]; v != "NewTag" {
+			t.Fatalf("grant value = %v", v)
+		}
+
+		api.Update(util.Coll.Links, g["id"].(string), person.token, map[string]any{
+			util.Fields.Link.Status: util.StatusRevoked,
+		}).Expect().Status(http.StatusOK)
+		if _, info = userinfo(t, baseURL, access); info["name"] != nil {
+			t.Fatalf("name after revoking = %v", info["name"])
+		}
+	})
+
+	t.Run("giving another name stops the old entry being read", func(t *testing.T) {
+		moved := newOIDCService(t, baseURL, "https://moved.example")
+		tokens := signIn(moved, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromRecord, gamerTag),
+		})
+		_, info := userinfo(t, baseURL, tokens["access_token"].(string))
+		g := info[util.OIDCClaimLinks].(map[string]any)["grants"].([]any)[0].(map[string]any)
+
+		signIn(moved, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromIdentity, person.identityID),
+		})
+		read := api.E.POST("/api/grants/resolve").
+			WithJSON(map[string]any{"grants": []map[string]any{{"id": g["id"], "token": g["token"]}}}).
+			Expect().Status(http.StatusOK).JSON().Object().Value("items").Array().Value(0).Object().Raw()
+		if read["status"] != util.StatusRevoked || read["values"] != nil {
+			t.Fatalf("old grant = %v", read)
+		}
+	})
+
+	t.Run("a name that is not the person's own is refused", func(t *testing.T) {
+		other := newOIDCPerson(t, baseURL)
+		foreign := extractID(t, baseURL, util.Coll.Records, other.token, map[string]any{
+			util.Fields.Record.Key:       "theirs",
+			util.Fields.Record.Value:     "Not yours",
+			util.Fields.Record.Label:     "Theirs",
+			util.Fields.Record.Type:      util.TypeText,
+			util.Fields.Record.Format:    util.FormatDefault,
+			util.Fields.Record.User:      other.userID,
+			util.Fields.Record.Workspace: activeWorkspaceOf(t, api, other.userID, other.token),
+		})
+		hidden := entry("a_password", "hunter2", util.FormatHidden)
+		for label, choice := range map[string]map[string]string{
+			"another person's identity": nameOf(services.NameFromIdentity, other.identityID),
+			"another person's entry":    nameOf(services.NameFromRecord, foreign),
+			"a hidden entry":            nameOf(services.NameFromRecord, hidden),
+			"an unknown kind":           nameOf("password", person.identityID),
+		} {
+			svc := newOIDCService(t, baseURL, "https://refused.example")
+			_, consent := person.open(t, svc.params(map[string]string{"scope": "openid profile"}))
+			status, out := person.decide(t, consent["ticket"].(string), map[string]any{
+				"approve": true, "scopes": []string{util.OIDCScopeProfile}, "name": choice,
+			})
+			if status != http.StatusBadRequest || out["code"] != util.Errors.OIDCNameInvalid.ErrorCode {
+				t.Fatalf("%s: %d %v", label, status, out)
+			}
+		}
+	})
+
+	t.Run("the consent screen offers names and remembers the choice", func(t *testing.T) {
+		svc := newOIDCService(t, baseURL, "https://game.example")
+		_, consent := person.open(t, svc.params(map[string]string{"scope": "openid profile"}))
+		selected := consent["nameSelected"].(map[string]any)
+		if selected["kind"] != services.NameFromRecord || selected["id"] != gamerTag {
+			t.Fatalf("selected = %v", selected)
+		}
+		seen := map[string]bool{}
+		for _, o := range consent["nameOptions"].([]any) {
+			item := o.(map[string]any)
+			seen[item["id"].(string)] = true
+			if item["key"] == "a_password" {
+				t.Fatalf("a hidden entry is offered: %v", item)
+			}
+		}
+		if !seen[person.identityID] || !seen[gamerTag] {
+			t.Fatalf("options = %v", consent["nameOptions"])
+		}
+
+		_, fresh := person.open(t, newOIDCService(t, baseURL, "https://new.example").params(map[string]string{"scope": "openid profile"}))
+		if fresh["nameSelected"] != nil {
+			t.Fatalf("a new service starts with %v", fresh["nameSelected"])
+		}
+	})
+
+	t.Run("the person can read which name a service gets, and nobody else can", func(t *testing.T) {
+		rows := api.E.GET("/api/collections/"+util.Coll.SignIns+"/records").
+			WithQuery("expand", "nameRecord,nameIdentity").
+			WithQuery("filter", util.Fields.SignIn.ClientId+"='https://game.example'").
+			WithHeader("Authorization", person.token).
+			Expect().Status(http.StatusOK).JSON().Object().Value("items").Array()
+		rows.Length().IsEqual(1)
+		rows.Value(0).Object().Value("expand").Object().Value("nameRecord").Object().
+			Value(util.Fields.Record.Value).String().IsEqual("NewTag")
+
+		other := newOIDCPerson(t, baseURL)
+		api.E.GET("/api/collections/"+util.Coll.SignIns+"/records").
+			WithHeader("Authorization", other.token).
+			Expect().Status(http.StatusOK).JSON().Object().Value("items").Array().Length().IsEqual(0)
+	})
+
+	t.Run("the account has no name of its own", func(t *testing.T) {
+		api.Update(util.Coll.Users, person.userID, person.token, map[string]any{"name": "Ada"}).
+			Expect().Status(http.StatusOK).JSON().Object().NotContainsKey("name")
 	})
 }

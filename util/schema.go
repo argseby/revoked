@@ -73,6 +73,9 @@ type collectionSchema struct {
 	// AttestationChecks are one person asking another to show an attestation:
 	// the request, and once answered, the verdict on what was shown.
 	AttestationChecks string
+	// SignIns are the services a person approved a sign-in at, so they can
+	// find them again.
+	SignIns string
 	// Contacts are the counterparties a workspace sends to and asks from. A
 	// contact names a route, never an identity relation: a peer's key material
 	// is held as its own fingerprint and domain, proven by the peer check,
@@ -251,6 +254,10 @@ type attestationCheckFields struct {
 	ExpiresAt, Result, AnsweredAt, Created, Updated string
 }
 
+type signInFields struct {
+	User, ClientId, Scopes, Link, NameRecord, NameIdentity, LastSignInAt, Created, Updated string
+}
+
 // Coll holds the collection (table) names used across the backend.
 var Coll = collectionSchema{
 	Workspaces:       "workspaces",
@@ -285,6 +292,7 @@ var Coll = collectionSchema{
 	AttestationStatus:   "attestationStatus",
 	Credentials:         "credentials",
 	AttestationChecks:   "attestationChecks",
+	SignIns:             "signIns",
 	Contacts:            "contacts",
 	DeviceKeys:          "deviceKeys",
 	WorkspaceKeyEpochs:  "workspaceKeyEpochs",
@@ -326,6 +334,7 @@ var Fields = struct {
 	AttestationStatus  attestationStatusFields
 	Credential         credentialFields
 	AttestationCheck   attestationCheckFields
+	SignIn             signInFields
 	Contact            contactFields
 }{
 	Workspace: workspaceFields{
@@ -725,6 +734,17 @@ var Fields = struct {
 		AnsweredAt: "answeredAt",
 		Created:    "created",
 		Updated:    "updated",
+	},
+	SignIn: signInFields{
+		User:         "user",
+		ClientId:     "clientId",
+		Scopes:       "scopes",
+		Link:         "link",
+		NameRecord:   "nameRecord",
+		NameIdentity: "nameIdentity",
+		LastSignInAt: "lastSignInAt",
+		Created:      "created",
+		Updated:      "updated",
 	},
 	Contact: contactFields{
 		Workspace:       "workspace",

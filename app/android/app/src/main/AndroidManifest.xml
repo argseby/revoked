@@ -36,6 +36,11 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- app_links delivers revoked:// links. Left on, Flutter also pushes
+                 the raw link at the router, which has no route for it. -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false"/>
             <!-- revoked:// is the only distribution channel for shares,
                  requests and invites, so without this filter those links do
                  nothing on Android. Matches the scheme already registered in

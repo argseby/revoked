@@ -8,6 +8,7 @@ import 'package:revoked_app/core/models/share_proposal.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/router/resume_location.dart';
+import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/attestations/view/attestation_offer_screen.dart';
@@ -27,6 +28,7 @@ import 'package:revoked_app/features/shares/view/share_proposal_screen.dart';
 import 'package:revoked_app/features/connections/view/connect_screen.dart';
 import 'package:revoked_app/features/connections/view/sign_in_approval_screen.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
+import 'package:revoked_app/features/connections/view/sign_ins_section.dart';
 import 'package:revoked_app/features/requests/view/inbox_screen.dart';
 import 'package:revoked_app/features/requests/view/request_detail_screen.dart';
 import 'package:revoked_app/features/requests/view/public_request_screen.dart';
@@ -93,6 +95,7 @@ abstract class AppRoutes {
   static const apiKeys = '/settings/api-keys';
   static const connectedTools = '/settings/connected-tools';
   static String connectedToolFor(String id) => '$connectedTools/$id';
+  static String signInServiceFor(String id) => '/settings/signed-in/$id';
   static const share = '/share/:slug';
   static const request = '/request/:slug';
   // Short, canonical public paths (the deep links generate these).
@@ -183,6 +186,12 @@ class AppRouter {
       initialLocation: AppRoutes.overview,
       refreshListenable: _AuthRefreshNotifier(authStore),
       redirect: (context, state) {
+        // A platform can hand the router the link as it arrived, scheme and
+        // all, and no route matches that. It stays out of history as well as
+        // the route table: a held location must be one the router can open.
+        if (state.uri.scheme == DeepLinks.scheme) {
+          return DeepLinks.locationFor(state.uri) ?? AppRoutes.overview;
+        }
         bool isPublic(String s) =>
             s.startsWith('/share/') ||
             s.startsWith('/request/') ||
@@ -580,6 +589,15 @@ class AppRouter {
                     child: ConnectedToolPage(
                       key: ValueKey(state.pathParameters['id']),
                       connectionId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ),
+                GoRoute(
+                  path: 'signed-in/:id',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: SignInServicePage(
+                      key: ValueKey(state.pathParameters['id']),
+                      serviceId: state.pathParameters['id']!,
                     ),
                   ),
                 ),

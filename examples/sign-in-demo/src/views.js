@@ -15,6 +15,7 @@ function layout(title, body) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(title)} · Corner Shop</title>
 <link rel="stylesheet" href="/style.css">
+<script type="module" src="/revoked/revoked-sign-in.js"></script>
 </head>
 <body>
 <header><span class="brand">Corner Shop</span><span class="tag">Sign in with Revoked · demo</span></header>
@@ -34,10 +35,8 @@ export function signInPage({ requestedKeys }) {
     `<section class="card">
   <h1>Sign in</h1>
   <p>The shop keeps no passwords. Sign in with your Revoked account.</p>
-  <form method="post" action="/login/app">
-    <button type="submit">Sign in with Revoked</button>
-  </form>
-  <p class="muted small">Opens the Revoked app, where you approve the sign-in. The app is needed on this device.</p>
+  <revoked-sign-in start="/login/start" wait="/login/wait"></revoked-sign-in>
+  <p class="muted small">You approve the sign-in in the Revoked app, on your phone or on this device.</p>
   ${asks}
 </section>`,
   );

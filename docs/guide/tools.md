@@ -79,3 +79,32 @@ A connection lasts **90 days** from the last time you confirmed it in the
 app. Only confirming it there again renews it; a tool can't keep itself
 alive. Everything a tool does (connecting, reading, revoking,
 disconnecting) is recorded in the audit log under its web address.
+
+## See where you signed in
+
+Signed in to a game or a shop with Revoked? Find it again under
+**Settings → Connected tools**, in **Services you signed in to**. Each
+service shows when you first and last signed in, what it learned about you,
+and any entries you shared.
+
+To stop a service reading your entries, tap its link under **Shared entries**
+and choose **Revoke**. It can't read them from then on.
+
+## Choose your name for each service
+
+When a service asks for your name, you decide which one it gets. You can use
+a game name in one place and your real name in another. Under **Your name**,
+pick one of your identities or a vault entry, or choose **Type a new name**
+to save a new entry just for that service. Choose **Don’t share** and it gets
+no name at all.
+
+Using a vault entry? Change the entry, and the service can pick up the new
+name. Some services only update it the next time you sign in. Your choice is
+remembered, and you can change it at your next sign-in. Either way, the
+service knows you by an ID that never changes.
+
+## Sign out of a service
+
+The service keeps its own login, so sign out there. It may also have saved
+what it learned, like your email address, and only the service can delete
+that.

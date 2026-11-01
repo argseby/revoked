@@ -31,6 +31,7 @@ abstract final class ResumeLocation {
     final path = Uri.tryParse(location)?.path ?? '';
     return path == '/p' ||
         path == '/connect' ||
+        path == '/signin' ||
         path == '/present' ||
         path.startsWith('/i/') ||
         path.startsWith('/a/');
@@ -89,6 +90,9 @@ abstract final class ResumeLocation {
     }
     if (path == '/connect') {
       return 'Afterwards, you continue connecting the tool you came from.';
+    }
+    if (path == '/signin') {
+      return 'Afterwards, you continue signing in to the service you came from.';
     }
     if (path == '/present') {
       return 'Afterwards, you continue with the attestation a service asked '

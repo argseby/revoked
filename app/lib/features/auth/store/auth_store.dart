@@ -14,7 +14,6 @@ import 'package:revoked_app/core/services/secure_storage.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/form_factor.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
-import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'auth_store.g.dart';
 
@@ -303,34 +302,6 @@ abstract class _AuthStore with Store {
   /// Whether the last sign-in made a new account. The first-run screen then
   /// shows itself as the end of the trip through the browser.
   bool createdAccount = false;
-
-  /// The name being typed in the name sheet. Owned here, not by the sheet:
-  /// the sheet still draws it while it slides away.
-  final ObservableTextController nameDraft = ObservableTextController();
-
-  /// Saves the account's own name, which services receive under the
-  /// `profile` scope when someone signs in there with Revoked. An empty
-  /// name clears it, and services then get the main identity's name.
-  ///
-  /// Not an `@action`: the store's generated half stays as it is, and the
-  /// one observable write is wrapped instead.
-  Future<bool> updateName(String name) async {
-    final user = currentUser;
-    if (user == null) return false;
-    try {
-      final record = await _api.patch(
-        '/api/collections/${AppConfig.usersCollection}/records/${user.id}',
-        body: {'name': name.trim()},
-      );
-      runInAction(
-        () => currentUser = User.fromJson(record as Map<String, dynamic>),
-      );
-      return true;
-    } catch (e) {
-      runInAction(() => errorMessage = _parseError(e));
-      return false;
-    }
-  }
 
   /// Lets a store that holds decrypted keys drop them on sign-out.
   void Function()? onLoggedOut;
