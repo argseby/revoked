@@ -35,6 +35,10 @@ security:
   - Session: []
 
 tags:
+  - name: Encrypted records
+    description: |
+      Experimental end-to-end encrypted entries. The server stores opaque bytes
+      and cannot read them; clients do all the cryptography.
   - name: Discovery
     description: |
       Unauthenticated endpoints describing the server itself. These anchor the
@@ -62,6 +66,14 @@ tags:
       The vault. Records hold the values that shares resolve at read time.
   - name: Grants
     description: Shares and requests as owned resources.
+  - name: Contacts
+    description: |
+      Handing a grant to a counterparty the workspace keeps in its address
+      book. The grant is always minted in the caller's own workspace, so the
+      caller keeps the side they can pause and revoke. Where the contact's
+      address belongs to an account on this server the grant is also put in
+      that person's own tray; otherwise the slug comes back for the caller to
+      pass on. Nothing is pushed to another server.
   - name: Peers
     description: |
       Calls one server makes to another when an answer to a request lives on
@@ -165,6 +177,22 @@ paths:
                     properties:
                       host: { type: string }
                       value: { type: string }
+                  mail:
+                    type: object
+                    description: >-
+                      Operator policy: how far this server will email a grant
+                      to a contact who has no account on it. A client reads it
+                      to say where a send will go before anyone sends.
+                    properties:
+                      recipients:
+                        type: string
+                        enum: [off, same-domain, trusted, all]
+                        description: >-
+                          `off` emails nobody. `same-domain` admits addresses
+                          in this server's own `domain`. `trusted` admits a
+                          domain that verifies as a Revoked peer, which proves
+                          the domain and not the mailbox. `all` admits any
+                          address.
                   limits:
                     type: object
                     description: Operator policy a client should respect before uploading.
@@ -1036,6 +1064,285 @@ paths:
             application/json:
               schema: { type: object }
         "401": { $ref: "#/components/responses/AppError" }
+
+  /api/sealed/state:
+    get:
+      tags: [Encrypted records]
+      summary: Read your device list and wrapped workspace keys
+      description: |
+        Experimental. The formats may change until they have been independently
+        reviewed.
+
+        Everything returned is opaque to the server. A client must verify the
+        device list before trusting any of it.
+      security:
+        - Session: []
+      responses:
+        "200": { description: The caller's device list and key material. }
+        "401": { description: Not signed in. }
+        "403": { description: An API key cannot hold encryption keys. }
+  /api/sealed/devices:
+    post:
+      tags: [Encrypted records]
+      summary: Add to your device list and hand keys to your devices
+      description: |
+        Experimental. Appends signed entries and stores wrapped workspace keys
+        in one transaction. Removing a device withdraws its wrapped keys and
+        refuses encrypted writes in those workspaces until a new key epoch
+        exists.
+      security:
+        - Session: []
+      responses:
+        "200": { description: Saved. }
+        "400": { description: "`sealed_invalid`: a malformed entry, or a key for a device not on the list." }
+        "403": { description: Not a member of a named workspace. }
+        "409": { description: "`sealed_version_conflict`: the list changed first." }
+  /api/sealed/workspaces/{id}/epochs:
+    post:
+      tags: [Encrypted records]
+      summary: Start a workspace's encryption key, or replace it
+      description: |
+        Experimental. Only someone holding the current key may replace it, and
+        all of their live devices must receive the new one.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Saved. }
+        "400": { description: "`sealed_invalid`." }
+        "403": { description: "`sealed_key_missing`: the caller does not hold the current key." }
+        "404": { description: Not a member of this workspace. }
+        "409": { description: "`sealed_version_conflict`: the epoch is not the next one." }
+  /api/sealed/records:
+    post:
+      tags: [Encrypted records]
+      summary: Create an end-to-end encrypted entry
+      description: |
+        Experimental. The client chooses the id, because the ciphertext is bound
+        to it. The entry's `value` stays empty; it does not appear in links,
+        short links, sign-in grants or request answers.
+      security:
+        - Session: []
+      responses:
+        "200": { description: The saved entry. }
+        "400": { description: "`sealed_invalid` or `sealed_record_unsupported`." }
+        "403": { description: "`sealed_key_missing`, or no access to the workspace." }
+        "409": { description: "`sealed_epoch_stale`: reload the keys and encrypt again." }
+  /api/sealed/records/{id}:
+    put:
+      tags: [Encrypted records]
+      summary: Encrypt an entry, or replace an encrypted entry's value
+      description: |
+        Experimental. `expectedVersion` is compared atomically: 0 encrypts a
+        plain entry, and a higher number replaces that version.
+
+        Encrypting an entry that live links read is refused with
+        `sealed_links_affected` and a `links` count, unless `dropLinks` is true.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: The saved entry. }
+        "400": { description: "`sealed_invalid` or `sealed_record_unsupported`." }
+        "403": { description: "`sealed_key_missing`." }
+        "404": { description: No such entry, or not one the caller may change. }
+        "409": { description: "`sealed_version_conflict`, `sealed_epoch_stale` or `sealed_links_affected`." }
+  /api/sealed/records/{id}/unseal:
+    post:
+      tags: [Encrypted records]
+      summary: Store an encrypted entry in plain text again
+      description: Experimental. The client decrypts the value and sends it back.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: The saved entry. }
+        "400": { description: "`sealed_invalid`." }
+        "404": { description: No such entry, or not one the caller may change. }
+        "409": { description: "`sealed_version_conflict`." }
+  /api/sealed/reset:
+    post:
+      tags: [Encrypted records]
+      summary: Start over after losing every device and the recovery key
+      description: |
+        Experimental. Clears the caller's device list and wrapped keys, and
+        deletes encrypted entries in workspaces where nobody else holds the key.
+        This cannot be undone. `confirm` must be `delete my encrypted records`.
+      security:
+        - Session: []
+      responses:
+        "200": { description: "`deleted` counts the entries removed." }
+        "400": { description: "`sealed_invalid`: the confirmation is missing or wrong." }
+  /api/contacts/{id}/send:
+    post:
+      tags: [Contacts]
+      summary: Share vault entries with a contact
+      description: |
+        Mints a share of the named entries in the contact's workspace, owned by
+        the caller, and answers with its `slug`.
+
+        Every entry and section must be one the caller may read in that
+        workspace; an id alone is not permission, so one from anywhere else is
+        reported as not found. `delivered` says whether the contact's address
+        belongs to an account here and the share was put in their tray — a
+        bookmark they can remove, resolved through the same public view as the
+        slug itself, with every gate and view cap still applying.
+
+        A session is required: an API key authenticates as a program, and this
+        is the one endpoint that writes into somebody else's account.
+
+        Two audit rows are written: the share's own creation, and the handover
+        naming the contact and whether it arrived.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                records:
+                  type: array
+                  items: { type: string }
+                  description: Vault entry ids to share.
+                sections:
+                  type: array
+                  items: { type: string }
+                  description: >-
+                    Vault section ids to share as units — entries added to one
+                    later are shared too. At least one record or section is
+                    required.
+                label:
+                  type: string
+                  description: What the recipient sees this share called.
+                expiresAt:
+                  type: string
+                  format: date-time
+                maxViews:
+                  type: integer
+                  description: Views allowed before the share revokes itself.
+      responses:
+        "200":
+          description: The share, and whether it reached an account here.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  id: { type: string }
+                  slug: { type: string }
+                  kind: { type: string, enum: [share] }
+                  delivered: { type: boolean }
+                  emailed:
+                    type: boolean
+                    description: >-
+                      The link was queued to be emailed to the contact's
+                      address — queued, not accepted by a mail server. Only
+                      ever true when `delivered` is false, and only where the
+                      operator's `mail.recipients` policy admits the address.
+                      The email carries what the grant is called and a link,
+                      never what was shared.
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/AppError" }
+
+  /api/contacts/{id}/ask:
+    post:
+      tags: [Contacts]
+      summary: Ask a contact for data
+      description: |
+        Mints a request in the contact's workspace, owned by the caller, and
+        answers with its `slug`.
+
+        `identity` is required and must be one the workspace holds: the name on
+        an ask is what the responder is asked to trust. Without a `template`
+        the responder may send whatever they choose. `maxResponses` defaults to
+        1, because an ask is addressed to one person — left uncapped it is a
+        form anyone holding the slug can keep filling in.
+
+        `delivered` says whether the contact's address belongs to an account
+        here and the ask was put in their tray, as something to answer rather
+        than something to read.
+
+        Two audit rows are written: the request's own creation, and the
+        handover naming the contact and whether it arrived.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label, identity]
+              properties:
+                label:
+                  type: string
+                  description: What the recipient sees they are being asked for.
+                identity:
+                  type: string
+                  description: Identity signing the ask; must belong to the workspace.
+                template:
+                  type: string
+                  description: Form the answer must match; omit to accept anything.
+                expiresAt:
+                  type: string
+                  format: date-time
+                maxResponses:
+                  type: integer
+      responses:
+        "200":
+          description: The request, and whether it reached an account here.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  id: { type: string }
+                  slug: { type: string }
+                  kind: { type: string, enum: [request] }
+                  delivered: { type: boolean }
+                  emailed:
+                    type: boolean
+                    description: >-
+                      The request was queued to be emailed. As for a share,
+                      plus one condition: answering needs an account, so an
+                      ask is only emailed while signups are open. The link
+                      goes to the sign-up page, which opens the request in the
+                      app afterwards.
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/AppError" }
 
   /api/links/{id}/archive:
     get:

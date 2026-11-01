@@ -117,6 +117,16 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 	Coll.AttestationChecks: {
 		ActionDelete: {Kind: AccessUserSelf},
 	},
+	// Workspace data, like shares: a contact is what the workspace sends to,
+	// so it follows the workspace rather than whoever typed it in. Whether a
+	// contact is proven is not the client's to say — the hooks hold
+	// trustState, verifiedAt and peerFingerprint, so a member cannot dress an
+	// address up as a verified peer for a co-member to send the vault to.
+	Coll.Contacts: {
+		ActionCreate: {Kind: AccessWorkspaceSelf, Scope: ScopeContactCreate},
+		ActionUpdate: {Kind: AccessWorkspaceSelf, Scope: ScopeContactUpdate},
+		ActionDelete: {Kind: AccessWorkspaceSelf, Scope: ScopeContactDelete},
+	},
 }
 
 // AccessSpecFor returns the requirement for a collection action, if declared.

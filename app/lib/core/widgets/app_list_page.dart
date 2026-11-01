@@ -130,21 +130,3 @@ class AppListBanner extends StatelessWidget {
     );
   }
 }
-
-/// A list's search, pinned above its tabs and chips and aligned with the
-/// content under it. Every list tab places its search here and none in the
-/// top bar, so the bar always names the screen.
-class AppListSearch extends StatelessWidget {
-  final Widget child;
-
-  const AppListSearch({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final h = AppSpacing.screenH(context);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(h, AppSpacing.md, h, AppSpacing.xs),
-      child: child,
-    );
-  }
-}

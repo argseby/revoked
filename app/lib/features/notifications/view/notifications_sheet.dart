@@ -105,6 +105,8 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                           ? () => _openRecord(context, notif)
                           : _opensCheck(notif)
                           ? () => _openChecks(context, notif)
+                          : _opensTray(notif)
+                          ? () => _openTray(context, notif)
                           : null,
                     );
                   },
@@ -127,6 +129,18 @@ bool _opensRecord(AppNotification n) =>
 /// the checks.
 bool _opensCheck(AppNotification n) =>
     n.refCollection == AppConfig.attestationChecksCollection;
+
+/// Somebody shared something or asked for something; tapping it opens the
+/// tray it landed in.
+bool _opensTray(AppNotification n) =>
+    n.refCollection == AppConfig.bookmarksCollection;
+
+void _openTray(BuildContext context, AppNotification n) {
+  if (!n.read) Stores.notifications.markRead(n.id);
+  final router = GoRouter.of(context);
+  Navigator.of(context).pop();
+  router.go(AppRoutes.requestsReceived);
+}
 
 void _openChecks(BuildContext context, AppNotification n) {
   if (!n.read) Stores.notifications.markRead(n.id);

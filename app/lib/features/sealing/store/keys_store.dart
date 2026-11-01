@@ -1,0 +1,1528 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
+import 'package:revoked_app/core/crypto/sealing.dart';
+import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/services/secure_storage.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
+
+part 'keys_store.g.dart';
+
+/// Where this device stands with end-to-end encryption.
+enum SealingStatus {
+  /// Not asked the server yet, or could not reach it.
+  unknown,
+
+  /// This server doesn't offer it.
+  unavailable,
+
+  /// Nothing set up on this account yet.
+  notSetUp,
+
+  /// This device holds its keys and can read and write.
+  ready,
+
+  /// The account uses it, but this device isn't on its list.
+  needsThisDevice,
+
+  /// A list names this device, but it has no way yet to know the list is the
+  /// real one. It trusts nothing until a device it can see confirms it.
+  needsConfirmation,
+
+  /// The device list doesn't match what this device knows. Nothing is written
+  /// or handed to anyone until the person decides what to do.
+  untrusted,
+}
+
+/// A workspace's keys as far as this device could open and check them.
+class _WorkspaceKeys {
+  final Map<int, Uint8List> keys;
+  final int currentEpoch;
+
+  /// New values may be encrypted under the current key: this device holds it,
+  /// a device still on the list handed it over after the last removal, and no
+  /// new one is due.
+  final bool writable;
+
+  /// This device holds the current key, and should replace it.
+  final bool mustRotate;
+
+  const _WorkspaceKeys({
+    required this.keys,
+    required this.currentEpoch,
+    required this.writable,
+    required this.mustRotate,
+  });
+}
+
+class _DeviceKeys {
+  final SealingKeyPair hpke;
+  final SealingKeyPair signing;
+
+  const _DeviceKeys(this.hpke, this.signing);
+
+  factory _DeviceKeys.generate() =>
+      _DeviceKeys(Sealing.generateKeyPair(), Sealing.generateKeyPair());
+
+  Map<String, String> toJson() => {
+    'hpkePrivate': SealedFormats.encode(hpke.privateKey),
+    'hpkePublic': SealedFormats.encode(hpke.publicKey),
+    'signingPrivate': SealedFormats.encode(signing.privateKey),
+    'signingPublic': SealedFormats.encode(signing.publicKey),
+  };
+
+  factory _DeviceKeys.fromJson(Map<String, dynamic> json) => _DeviceKeys(
+    SealingKeyPair(
+      privateKey: SealedFormats.decode(json['hpkePrivate'] as String),
+      publicKey: SealedFormats.decode(json['hpkePublic'] as String),
+    ),
+    SealingKeyPair(
+      privateKey: SealedFormats.decode(json['signingPrivate'] as String),
+      publicKey: SealedFormats.decode(json['signingPublic'] as String),
+    ),
+  );
+}
+
+/// What a device remembers, so a server cannot quietly roll it back: where its
+/// device list starts and has got to, the newest key per workspace, and the
+/// newest version and key per record.
+class _Pins {
+  String firstHash;
+  int headSeq;
+  String headHash;
+
+  /// Setup signed a first entry that may not have reached the server yet, so an
+  /// empty list doesn't mean someone wiped it.
+  bool setupPending;
+  final Map<String, int> epochs;
+  final Map<String, int> versions;
+  final Map<String, int> recordEpochs;
+
+  /// Records whose owner confirmed stopping encryption, and the version seen.
+  final Map<String, int> acceptedPlain;
+
+  _Pins({
+    this.firstHash = '',
+    this.headSeq = 0,
+    this.headHash = '',
+    this.setupPending = false,
+    Map<String, int>? epochs,
+    Map<String, int>? versions,
+    Map<String, int>? recordEpochs,
+    Map<String, int>? acceptedPlain,
+  }) : epochs = epochs ?? {},
+       versions = versions ?? {},
+       recordEpochs = recordEpochs ?? {},
+       acceptedPlain = acceptedPlain ?? {};
+
+  bool get isEmpty => firstHash.isEmpty;
+
+  Map<String, dynamic> toJson() => {
+    'firstHash': firstHash,
+    'headSeq': headSeq,
+    'headHash': headHash,
+    'setupPending': setupPending,
+    'epochs': epochs,
+    'versions': versions,
+    'recordEpochs': recordEpochs,
+    'acceptedPlain': acceptedPlain,
+  };
+
+  static Map<String, int> _ints(Object? raw) =>
+      (raw as Map<String, dynamic>? ?? const {}).map(
+        (k, v) => MapEntry(k, (v as num).toInt()),
+      );
+
+  factory _Pins.fromJson(Map<String, dynamic> json) => _Pins(
+    firstHash: json['firstHash'] as String? ?? '',
+    headSeq: (json['headSeq'] as num?)?.toInt() ?? 0,
+    headHash: json['headHash'] as String? ?? '',
+    setupPending: json['setupPending'] == true,
+    epochs: _ints(json['epochs']),
+    versions: _ints(json['versions']),
+    recordEpochs: _ints(json['recordEpochs']),
+    acceptedPlain: _ints(json['acceptedPlain']),
+  );
+}
+
+/// What goes on the wire for one sealed value.
+class SealedPayload {
+  final String sealedValue;
+  final int keyEpoch;
+  final String keyWrap;
+
+  const SealedPayload({
+    required this.sealedValue,
+    required this.keyEpoch,
+    required this.keyWrap,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'sealedValue': sealedValue,
+    'keyEpoch': keyEpoch,
+    'keyWrap': keyWrap,
+  };
+}
+
+/// Holds this device's encryption keys and does all the sealing. E2EE.md is the
+/// design; the server sees only what this store has already encrypted.
+// ignore: library_private_types_in_public_api
+class KeysStore extends _KeysStore with _$KeysStore {
+  KeysStore(super.api, {required super.currentUser, super.storage});
+
+  /// What someone must type, and the server must receive, to delete what nobody
+  /// can read any more.
+  static const startOverPhrase = 'delete my encrypted records';
+
+  /// A fingerprint a person can compare between two screens. Only needed when a
+  /// code travelled through something they don't fully trust.
+  static String fingerprint(Uint8List hpkeKey, Uint8List signingKey) {
+    final digest = Sealing.sha256(
+      Sealing.context('revoked-device-fingerprint-v1', [hpkeKey, signingKey]),
+    );
+    final groups = <String>[];
+    for (var i = 0; i < 10; i += 2) {
+      groups.add(
+        digest[i].toRadixString(16).padLeft(2, '0') +
+            digest[i + 1].toRadixString(16).padLeft(2, '0'),
+      );
+    }
+    return groups.join(' ').toUpperCase();
+  }
+}
+
+abstract class _KeysStore with Store {
+  final ApiClient _api;
+  final String Function() _currentUser;
+  final FlutterSecureStorage _storage;
+
+  _KeysStore(
+    this._api, {
+    required String Function() currentUser,
+    FlutterSecureStorage? storage,
+  }) : _currentUser = currentUser,
+       _storage = storage ?? createSecureStorage();
+
+  @observable
+  SealingStatus status = SealingStatus.unknown;
+
+  @observable
+  bool isLoading = false;
+
+  @observable
+  bool isSaving = false;
+
+  @observable
+  String? errorMessage;
+
+  /// The checked device list.
+  @observable
+  VerifiedChain chain = VerifiedChain.empty;
+
+  /// This device's position on the list, once it is on it.
+  @observable
+  int? thisDeviceSeq;
+
+  /// The list as served contains something that doesn't check out.
+  @observable
+  bool chainBroken = false;
+
+  /// Workspaces where this device may encrypt.
+  final ObservableSet<String> writableWorkspaces = ObservableSet<String>();
+
+  /// Workspaces where someone holds a key and this device doesn't.
+  final ObservableSet<String> lockedWorkspaces = ObservableSet<String>();
+
+  /// Shown once, while setting up or replacing the recovery key.
+  @observable
+  String? recoveryCode;
+
+  /// What this device shows so one already trusted can add it.
+  @observable
+  String? deviceInvite;
+
+  /// What a trusted device shows after adding another, for that one to enter.
+  @observable
+  String? deviceConfirmation;
+
+  final ObservableTextController recoveryConfirm = ObservableTextController();
+  final ObservableTextController recoveryInput = ObservableTextController();
+  final ObservableTextController deviceCodeInput = ObservableTextController();
+  final ObservableTextController confirmationInput = ObservableTextController();
+  final ObservableTextController startOverConfirm = ObservableTextController();
+
+  Uint8List? _pendingRecoverySecret;
+  bool _replacingRecovery = false;
+  _DeviceKeys? _device;
+  _Pins _pins = _Pins();
+  final Map<String, _WorkspaceKeys> _workspaces = {};
+  Map<String, dynamic> _lastState = const {};
+  bool? _serverSupports;
+  String _serverSupportsFor = '';
+  String _loadedFor = '';
+  Future<void>? _loading;
+  Future<void>? _pinWrites;
+
+  /// Bumped when the session ends, so a load still in flight cannot put keys
+  /// back in memory afterwards.
+  int _generation = 0;
+
+  String get _scope => '${_api.originAuthority}_${_currentUser()}';
+  String get _deviceStorageKey => 'sealed_device_$_scope';
+  String get _pinsStorageKey => 'sealed_pins_$_scope';
+
+  @computed
+  bool get isAvailable =>
+      status != SealingStatus.unavailable && status != SealingStatus.unknown;
+
+  @computed
+  bool get startOverConfirmed =>
+      startOverConfirm.text.trim().toLowerCase() == KeysStore.startOverPhrase;
+
+  @computed
+  bool get recoveryConfirmMatches {
+    final code = recoveryCode;
+    if (code == null) return false;
+    final groups = code.split('-');
+    final expected = groups.sublist(groups.length - 2).join();
+    return _normalizeCode(recoveryConfirm.text) == expected;
+  }
+
+  /// A list without a recovery key: removing the device that added it takes it
+  /// off too, so the person needs a new one.
+  @computed
+  bool get needsNewRecoveryKey =>
+      status == SealingStatus.ready &&
+      !chainBroken &&
+      chain.liveRecovery == null;
+
+  static String _normalizeCode(String text) => text
+      .toUpperCase()
+      .replaceAll(RegExp(r'[\s-]'), '')
+      .replaceAll('O', '0')
+      .replaceAll(RegExp('[IL]'), '1');
+
+  bool canSeal(String workspace) => writableWorkspaces.contains(workspace);
+
+  /// Whether a workspace's key is in someone else's hands only.
+  bool isLockedFor(String workspace) => lockedWorkspaces.contains(workspace);
+
+  /// Refuses anything that signs or hands out keys unless this device trusts
+  /// the list it would be acting on.
+  bool get _trusted =>
+      status == SealingStatus.ready &&
+      !chainBroken &&
+      _device != null &&
+      thisDeviceSeq != null;
+
+  /// Loads once per signed-in person; a later call awaits the same load.
+  Future<void> ensureLoaded() {
+    final scope = _scope;
+    if (_loadedFor == scope && status != SealingStatus.unknown) {
+      return Future.value();
+    }
+    return _loading ??= load().whenComplete(() => _loading = null);
+  }
+
+  /// Keys stay in memory only for a session; signing out drops them. The device
+  /// keys on disk stay, the way identity keys do, so signing back in doesn't
+  /// make this a new device.
+  @action
+  void forgetSession() {
+    _generation++;
+    _workspaces.clear();
+    writableWorkspaces.clear();
+    lockedWorkspaces.clear();
+    _device = null;
+    _pins = _Pins();
+    _lastState = const {};
+    _loadedFor = '';
+    chain = VerifiedChain.empty;
+    thisDeviceSeq = null;
+    chainBroken = false;
+    recoveryCode = null;
+    deviceInvite = null;
+    deviceConfirmation = null;
+    _pendingRecoverySecret = null;
+    status = SealingStatus.unknown;
+  }
+
+  Future<bool> _supported() async {
+    final origin = _api.originAuthority;
+    if (_serverSupports != null && _serverSupportsFor == origin) {
+      return _serverSupports!;
+    }
+    final info = await _api.get('/api/server');
+    final sealing = info is Map ? info['sealing'] : null;
+    _serverSupports = sealing is Map && sealing['records'] == true;
+    _serverSupportsFor = origin;
+    return _serverSupports!;
+  }
+
+  @action
+  Future<void> load() async {
+    errorMessage = null;
+    if (_currentUser().isEmpty) {
+      status = SealingStatus.unknown;
+      return;
+    }
+    final generation = _generation;
+    isLoading = true;
+    try {
+      // Before asking the server anything: what this device remembers must not
+      // depend on the server agreeing to be asked.
+      await _readLocal();
+      if (!await _supported()) {
+        // A server that stops offering this after this device has used it is
+        // either a downgrade or an attack on what this device remembers.
+        status = _device != null || !_pins.isEmpty
+            ? SealingStatus.untrusted
+            : SealingStatus.unavailable;
+        return;
+      }
+      await _refresh();
+      if (generation != _generation) {
+        forgetSession();
+        return;
+      }
+      _loadedFor = _scope;
+    } catch (e) {
+      errorMessage = e.toString();
+      status = SealingStatus.unknown;
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  Future<void> _readLocal() async {
+    final rawDevice = await _storage.read(key: _deviceStorageKey);
+    _device = rawDevice == null
+        ? null
+        : _DeviceKeys.fromJson(jsonDecode(rawDevice) as Map<String, dynamic>);
+    final rawPins = await _storage.read(key: _pinsStorageKey);
+    _pins = rawPins == null
+        ? _Pins()
+        : _Pins.fromJson(jsonDecode(rawPins) as Map<String, dynamic>);
+  }
+
+  /// Writes go one at a time, so an older snapshot can't land after a newer one.
+  Future<void> _savePins() {
+    final key = _pinsStorageKey;
+    final snapshot = jsonEncode(_pins.toJson());
+    Future<void> write() => _storage.write(key: key, value: snapshot);
+    final previous = _pinWrites;
+    final done = previous == null ? write() : previous.then((_) => write());
+    _pinWrites = done;
+    done.whenComplete(() {
+      if (identical(_pinWrites, done)) _pinWrites = null;
+    }).ignore();
+    return done;
+  }
+
+  Future<void> _saveDevice(_DeviceKeys device) {
+    _device = device;
+    return _storage.write(
+      key: _deviceStorageKey,
+      value: jsonEncode(device.toJson()),
+    );
+  }
+
+  /// Fetches the state, applies it, and replaces any key that's due. Replacing
+  /// one changes the state, so that path reads it once more.
+  Future<void> _refresh() async {
+    await _applyState(await _fetchState());
+    final due = [
+      for (final entry in _workspaces.entries)
+        if (entry.value.mustRotate) entry.key,
+    ];
+    if (due.isEmpty || !_trusted) return;
+    for (final workspace in due) {
+      final held = _workspaces[workspace]!;
+      await _startEpoch(
+        workspace,
+        held.currentEpoch + 1,
+        held.keys[held.currentEpoch],
+      );
+    }
+    await _applyState(await _fetchState());
+  }
+
+  Future<Map<String, dynamic>> _fetchState() async {
+    final data = await _api.get('/api/sealed/state');
+    return data as Map<String, dynamic>;
+  }
+
+  @action
+  Future<void> _applyState(Map<String, dynamic> state) async {
+    _lastState = state;
+    final user = _currentUser();
+    final served = [
+      for (final e in (state['devices'] as List<dynamic>? ?? const []))
+        DeviceChainEntry.fromJson(e as Map<String, dynamic>),
+    ];
+    final verified = VerifiedChain.verify(user, served);
+    chain = verified;
+    chainBroken = verified.broken;
+
+    _workspaces.clear();
+    writableWorkspaces.clear();
+    lockedWorkspaces.clear();
+    thisDeviceSeq = null;
+
+    final device = _device;
+    if (device != null) {
+      for (final entry in verified.live) {
+        if (entry.kind == DeviceChainEntry.kindDevice &&
+            _sameBytes(entry.hpkePublicKey, device.hpke.publicKey) &&
+            _sameBytes(entry.signingPublicKey, device.signing.publicKey)) {
+          thisDeviceSeq = entry.seq;
+        }
+      }
+    }
+
+    if (_pinsContradict(served, verified)) {
+      status = SealingStatus.untrusted;
+      thisDeviceSeq = null;
+      return;
+    }
+
+    if (served.isEmpty) {
+      status = SealingStatus.notSetUp;
+      return;
+    }
+    if (thisDeviceSeq == null) {
+      status = SealingStatus.needsThisDevice;
+      return;
+    }
+    if (_pins.isEmpty) {
+      // A list naming this device proves nothing: its public keys are public.
+      // This device has no reason yet to believe the list is the real one.
+      status = SealingStatus.needsConfirmation;
+      return;
+    }
+    status = SealingStatus.ready;
+
+    if (!verified.broken) {
+      _pins.setupPending = false;
+      _pins.headSeq = verified.headSeq;
+      _pins.headHash = SealedFormats.encode(verified.headHash);
+    }
+
+    for (final raw in (state['workspaces'] as List<dynamic>? ?? const [])) {
+      final row = raw as Map<String, dynamic>;
+      final workspace = row['workspace'] as String;
+      final opened = _openWorkspace(workspace, row);
+      if (opened == null) {
+        lockedWorkspaces.add(workspace);
+        continue;
+      }
+      _workspaces[workspace] = opened;
+      if (opened.writable) writableWorkspaces.add(workspace);
+    }
+    await _savePins();
+  }
+
+  /// Whether the list as served can't be the one this device has seen. Pinning
+  /// only the start would let a stolen device fork the list from before its
+  /// removal, in which it is still on the list.
+  bool _pinsContradict(List<DeviceChainEntry> served, VerifiedChain verified) {
+    if (_pins.isEmpty) return false;
+    if (served.isEmpty) return !_pins.setupPending;
+    if (verified.entries.isEmpty) return true;
+    if (SealedFormats.encode(verified.entries.first.hash) != _pins.firstHash) {
+      return true;
+    }
+    if (_pins.headSeq == 0) return false;
+    final pinned = verified.bySeq(_pins.headSeq);
+    return pinned == null ||
+        SealedFormats.encode(pinned.hash) != _pins.headHash;
+  }
+
+  /// Opens this device's newest wrapped key, then walks back through the older
+  /// ones. Returns null if it holds none. Each hand-over must be signed by a
+  /// device on the list: anyone can encrypt to a public key, so an unsigned one
+  /// could be a key the server chose in order to read what's written under it.
+  _WorkspaceKeys? _openWorkspace(String workspace, Map<String, dynamic> row) {
+    final seq = thisDeviceSeq;
+    final device = _device;
+    if (seq == null || device == null) return null;
+
+    final epochs = [
+      for (final e in (row['epochs'] as List<dynamic>? ?? const []))
+        e as Map<String, dynamic>,
+    ];
+    if (epochs.isEmpty) return null;
+    final priorWraps = {
+      for (final e in epochs)
+        (e['epoch'] as num).toInt(): e['priorWrap'] as String? ?? '',
+    };
+    final newestEpoch = priorWraps.keys.reduce((a, b) => a > b ? a : b);
+    final rotationDue = epochs.any(
+      (e) =>
+          (e['epoch'] as num).toInt() == newestEpoch &&
+          e['rotationDue'] == true,
+    );
+
+    final wraps = [
+      for (final w in (row['wraps'] as List<dynamic>? ?? const []))
+        if ((w['deviceSeq'] as num).toInt() == seq) w as Map<String, dynamic>,
+    ]..sort((a, b) => (b['epoch'] as num).compareTo(a['epoch'] as num));
+
+    final pinned = _pins.epochs[workspace] ?? 0;
+    for (final wrap in wraps) {
+      final epoch = (wrap['epoch'] as num).toInt();
+      final signerSeq = (wrap['signerSeq'] as num).toInt();
+      final chainSeq = (wrap['chainSeq'] as num?)?.toInt() ?? 0;
+      final fromLiveDevice = chain.isLive(signerSeq);
+
+      // A removed device may have kept its signing key, so what it signed can
+      // only ever be a key this device already knew about. Taking a higher
+      // epoch from it would let it choose the key, or block every write for
+      // good by naming an absurdly high one.
+      if (!fromLiveDevice && epoch > pinned) continue;
+      if (chainSeq < 1 || chainSeq > chain.headSeq) continue;
+
+      final key = _openWrap(
+        workspace: workspace,
+        epoch: epoch,
+        recipient: device.hpke,
+        wrap: wrap['wrap'] as String,
+        signerSeq: signerSeq,
+        chainSeq: chainSeq,
+        signature: wrap['signature'] as String,
+      );
+      if (key == null) continue;
+
+      final keys = <int, Uint8List>{epoch: key};
+      for (var e = epoch; e > 1; e--) {
+        final prior = priorWraps[e];
+        if (prior == null || prior.isEmpty) break;
+        try {
+          final opened = SealedFormats.openPriorEpoch(
+            newKey: keys[e]!,
+            wrapped: prior,
+            workspace: workspace,
+            epoch: e,
+          );
+          if (opened.length != Sealing.keyLength) break;
+          keys[e - 1] = opened;
+        } on SealingException {
+          break;
+        } on FormatException {
+          break;
+        }
+      }
+
+      if (fromLiveDevice && epoch > pinned) _pins.epochs[workspace] = epoch;
+
+      final isNewest = epoch == newestEpoch && epoch >= pinned;
+      // This device sees a removal the key predates for itself, so the server
+      // can't keep it writing under a key a removed device has by hiding a flag.
+      final predatesRemoval = chain.lastRemovalSeq > chainSeq;
+      final canAct = isNewest && !chainBroken;
+      return _WorkspaceKeys(
+        keys: keys,
+        currentEpoch: epoch,
+        writable: canAct && fromLiveDevice && !rotationDue && !predatesRemoval,
+        mustRotate:
+            canAct && (rotationDue || !fromLiveDevice || predatesRemoval),
+      );
+    }
+    return null;
+  }
+
+  Uint8List? _openWrap({
+    required String workspace,
+    required int epoch,
+    required SealingKeyPair recipient,
+    required String wrap,
+    required int signerSeq,
+    required int chainSeq,
+    required String signature,
+  }) {
+    final signer = chain.bySeq(signerSeq);
+    if (signer == null || signer.action != DeviceChainEntry.actionAdd) {
+      return null;
+    }
+    try {
+      final signed = SealedFormats.wrapSignaturePayload(
+        workspace: workspace,
+        epoch: epoch,
+        recipientHpkeKey: recipient.publicKey,
+        wrap: wrap,
+        chainSeq: chainSeq,
+      );
+      if (!Sealing.verify(
+        signer.signingPublicKey,
+        signed,
+        SealedFormats.decode(signature),
+      )) {
+        return null;
+      }
+      return SealedFormats.openWorkspaceKey(
+        recipient: recipient,
+        wrap: wrap,
+        workspace: workspace,
+        epoch: epoch,
+      );
+    } on SealingException {
+      return null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _wrapFor({
+    required String workspace,
+    required int epoch,
+    required Uint8List key,
+    required DeviceChainEntry recipient,
+    required SealingKeyPair signer,
+    required int signerSeq,
+    required int chainSeq,
+  }) {
+    final wrap = SealedFormats.wrapWorkspaceKey(
+      recipientHpkeKey: recipient.hpkePublicKey,
+      key: key,
+      workspace: workspace,
+      epoch: epoch,
+    );
+    return {
+      'workspace': workspace,
+      'epoch': epoch,
+      'deviceSeq': recipient.seq,
+      'wrap': wrap,
+      'signerSeq': signerSeq,
+      'chainSeq': chainSeq,
+      'signature': SealedFormats.encode(
+        Sealing.sign(
+          signer,
+          SealedFormats.wrapSignaturePayload(
+            workspace: workspace,
+            epoch: epoch,
+            recipientHpkeKey: recipient.hpkePublicKey,
+            wrap: wrap,
+            chainSeq: chainSeq,
+          ),
+        ),
+      ),
+    };
+  }
+
+  Future<void> _startEpoch(
+    String workspace,
+    int epoch,
+    Uint8List? prior,
+  ) async {
+    final device = _device!;
+    final seq = thisDeviceSeq!;
+    final key = Sealing.newSymmetricKey();
+    await _api.post(
+      '/api/sealed/workspaces/$workspace/epochs',
+      body: {
+        'epoch': epoch,
+        'priorWrap': prior == null
+            ? ''
+            : SealedFormats.wrapPriorEpoch(
+                newKey: key,
+                priorKey: prior,
+                workspace: workspace,
+                epoch: epoch,
+              ),
+        'wraps': [
+          for (final entry in chain.live)
+            _wrapFor(
+              workspace: workspace,
+              epoch: epoch,
+              key: key,
+              recipient: entry,
+              signer: device.signing,
+              signerSeq: seq,
+              chainSeq: chain.headSeq,
+            ),
+        ],
+      },
+    );
+  }
+
+  /// Makes sure this device can encrypt in [workspace], starting its key if
+  /// nobody has yet.
+  @action
+  Future<bool> ensureWorkspaceKey(String workspace) async {
+    errorMessage = null;
+    if (!_trusted || workspace.isEmpty) return false;
+    if (writableWorkspaces.contains(workspace)) return true;
+    try {
+      if (lockedWorkspaces.contains(workspace) ||
+          _workspaces.containsKey(workspace)) {
+        await _refresh();
+        return writableWorkspaces.contains(workspace);
+      }
+      await _startEpoch(workspace, 1, null);
+      await _refresh();
+      return writableWorkspaces.contains(workspace);
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    }
+  }
+
+  /// Creates the recovery key and shows it. Nothing is uploaded until the
+  /// person has confirmed saving it, so walking away changes nothing.
+  @action
+  void beginSetup() {
+    _replacingRecovery = false;
+    _beginRecovery();
+  }
+
+  @action
+  void beginRecoveryReplacement() {
+    _replacingRecovery = true;
+    _beginRecovery();
+  }
+
+  void _beginRecovery() {
+    errorMessage = null;
+    final secret = Sealing.randomBytes(Sealing.keyLength);
+    _pendingRecoverySecret = secret;
+    recoveryCode = RecoveryCode.encode(secret);
+    recoveryConfirm.clear();
+  }
+
+  @action
+  void cancelRecovery() {
+    _pendingRecoverySecret = null;
+    recoveryCode = null;
+    recoveryConfirm.clear();
+  }
+
+  static String _deviceLabel() {
+    if (Platform.isAndroid) return 'Android device';
+    if (Platform.isIOS) return 'iPhone or iPad';
+    if (Platform.isMacOS) return 'Mac';
+    if (Platform.isWindows) return 'Windows computer';
+    if (Platform.isLinux) return 'Linux computer';
+    return 'Device';
+  }
+
+  /// Finishes setting up or replacing the recovery key, once confirmed. Safe to
+  /// press again after a failure: what already landed is not done twice.
+  @action
+  Future<bool> finishRecovery({required String workspace}) async {
+    final secret = _pendingRecoverySecret;
+    if (secret == null || !recoveryConfirmMatches) return false;
+    errorMessage = null;
+    isSaving = true;
+    try {
+      if (_replacingRecovery) {
+        await _replaceRecovery(secret);
+      } else {
+        if (workspace.isEmpty) {
+          throw const SealingException('Choose a workspace first.');
+        }
+        await _firstSetup(secret);
+        if (!_workspaces.containsKey(workspace) &&
+            !lockedWorkspaces.contains(workspace)) {
+          await _startEpoch(workspace, 1, null);
+        }
+      }
+      await _refresh();
+      if (_workspaces.values.any((held) => held.mustRotate)) {
+        throw const SealingException(
+          'Your recovery key is saved, but your encryption key couldn\'t be '
+          'replaced. Check your connection and reload.',
+        );
+      }
+      cancelRecovery();
+      _loadedFor = _scope;
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  DeviceChainEntry _recoveryEntry(
+    Uint8List secret, {
+    required int seq,
+    required Uint8List previousHash,
+    required Uint8List rootHash,
+    required int signerSeq,
+    required SealingKeyPair signer,
+  }) {
+    final signing = RecoveryCode.signingKey(secret);
+    return DeviceChainEntry.sign(
+      user: _currentUser(),
+      seq: seq,
+      action: DeviceChainEntry.actionAdd,
+      kind: DeviceChainEntry.kindRecovery,
+      label: 'Recovery key',
+      hpkePublicKey: RecoveryCode.hpkeKey(secret).publicKey,
+      signingPublicKey: signing.publicKey,
+      targetSeq: 0,
+      previousHash: previousHash,
+      signerSeq: signerSeq,
+      signer: signer,
+      anchorSignature: Sealing.sign(
+        signing,
+        SealedFormats.recoveryAnchorPayload(_currentUser(), rootHash),
+      ),
+    );
+  }
+
+  Future<void> _firstSetup(Uint8List secret) async {
+    await _readLocal();
+    await _applyState(await _fetchState());
+    if (status == SealingStatus.ready) {
+      // A retry whose first attempt landed. The code on screen may be a newer
+      // one than the list holds, and the person believes this one works.
+      final recovery = chain.liveRecovery;
+      final hpke = RecoveryCode.hpkeKey(secret).publicKey;
+      if (recovery == null || !_sameBytes(recovery.hpkePublicKey, hpke)) {
+        await _replaceRecovery(secret);
+      }
+      return;
+    }
+    if (status != SealingStatus.notSetUp) {
+      throw const SealingException(
+        'This account already has encrypted records. Add this device instead.',
+      );
+    }
+
+    // Saved before the upload, and never replaced: a device list naming a key
+    // that a crash lost could never be used.
+    final device = _device ?? _DeviceKeys.generate();
+    await _saveDevice(device);
+    final first = DeviceChainEntry.sign(
+      user: _currentUser(),
+      seq: 1,
+      action: DeviceChainEntry.actionAdd,
+      kind: DeviceChainEntry.kindDevice,
+      label: _deviceLabel(),
+      hpkePublicKey: device.hpke.publicKey,
+      signingPublicKey: device.signing.publicKey,
+      targetSeq: 0,
+      previousHash: Uint8List(0),
+      signerSeq: 1,
+      signer: device.signing,
+    );
+    final recovery = _recoveryEntry(
+      secret,
+      seq: 2,
+      previousHash: first.hash,
+      rootHash: first.hash,
+      signerSeq: 1,
+      signer: device.signing,
+    );
+
+    // Pinned from what this device signed itself, before anything is uploaded.
+    // Trusting the list the server sends back would let it put its own device
+    // first and collect the workspace key this device then hands out.
+    _pins
+      ..firstHash = SealedFormats.encode(first.hash)
+      ..headSeq = 2
+      ..headHash = SealedFormats.encode(recovery.hash)
+      ..setupPending = true;
+    await _savePins();
+
+    await _api.post(
+      '/api/sealed/devices',
+      body: {
+        'entries': [first.toJson(), recovery.toJson()],
+      },
+    );
+    await _applyState(await _fetchState());
+    if (status != SealingStatus.ready) {
+      throw const SealingException(
+        'Your server didn\'t return what this device just saved.',
+      );
+    }
+  }
+
+  DeviceChainEntry _removalEntry({
+    required int seq,
+    required int target,
+    required Uint8List previousHash,
+    required int signerSeq,
+    required SealingKeyPair signer,
+  }) => DeviceChainEntry.sign(
+    user: _currentUser(),
+    seq: seq,
+    action: DeviceChainEntry.actionRemove,
+    kind: '',
+    label: '',
+    hpkePublicKey: Uint8List(0),
+    signingPublicKey: Uint8List(0),
+    targetSeq: target,
+    previousHash: previousHash,
+    signerSeq: signerSeq,
+    signer: signer,
+  );
+
+  Future<void> _replaceRecovery(Uint8List secret) async {
+    await _applyState(await _fetchState());
+    if (!_trusted) {
+      throw const SealingException(
+        'This device can\'t change your device list right now.',
+      );
+    }
+    final device = _device!;
+    final seq = thisDeviceSeq!;
+    final entries = <DeviceChainEntry>[];
+    var nextSeq = chain.nextSeq;
+    var previous = chain.headHash;
+    final old = chain.liveRecovery;
+    if (old != null) {
+      final removal = _removalEntry(
+        seq: nextSeq++,
+        target: old.seq,
+        previousHash: previous,
+        signerSeq: seq,
+        signer: device.signing,
+      );
+      entries.add(removal);
+      previous = removal.hash;
+    }
+    final fresh = _recoveryEntry(
+      secret,
+      seq: nextSeq,
+      previousHash: previous,
+      rootHash: chain.entries.first.hash,
+      signerSeq: seq,
+      signer: device.signing,
+    );
+    entries.add(fresh);
+    await _api.post(
+      '/api/sealed/devices',
+      body: {
+        'entries': [for (final e in entries) e.toJson()],
+        'wraps': _wrapsForNewEntry(fresh, chainSeq: fresh.seq),
+      },
+    );
+    await _applyState(await _fetchState());
+  }
+
+  /// Only keys this device may itself write under are passed on. Handing over a
+  /// key from a removed device would launder it: the new device would see a
+  /// signer still on the list, and trust it.
+  List<Map<String, dynamic>> _wrapsForNewEntry(
+    DeviceChainEntry entry, {
+    required int chainSeq,
+  }) {
+    final device = _device!;
+    final seq = thisDeviceSeq!;
+    return [
+      for (final held in _workspaces.entries)
+        if (held.value.writable)
+          _wrapFor(
+            workspace: held.key,
+            epoch: held.value.currentEpoch,
+            key: held.value.keys[held.value.currentEpoch]!,
+            recipient: entry,
+            signer: device.signing,
+            signerSeq: seq,
+            chainSeq: chainSeq,
+          ),
+    ];
+  }
+
+  @action
+  void clearDeviceConfirmation() => deviceConfirmation = null;
+
+  /// Gets this device ready to be added, and shows the code that adds it.
+  @action
+  Future<void> prepareThisDevice() async {
+    errorMessage = null;
+    try {
+      await _readLocal();
+      var device = _device;
+      if (device == null) {
+        device = _DeviceKeys.generate();
+        await _saveDevice(device);
+      }
+      deviceInvite = DeviceInvite(
+        hpkePublicKey: device.hpke.publicKey,
+        signingPublicKey: device.signing.publicKey,
+        label: _deviceLabel(),
+      ).encodeToString();
+    } catch (e) {
+      errorMessage = e.toString();
+    }
+  }
+
+  String? get thisDeviceFingerprint {
+    final device = _device;
+    return device == null
+        ? null
+        : KeysStore.fingerprint(
+            device.hpke.publicKey,
+            device.signing.publicKey,
+          );
+  }
+
+  /// Checks a pasted or scanned code and returns the device's fingerprint.
+  String? fingerprintOfInvite(String code) {
+    final invite = DeviceInvite.tryParse(code);
+    return invite == null
+        ? null
+        : KeysStore.fingerprint(invite.hpkePublicKey, invite.signingPublicKey);
+  }
+
+  /// Adds another device from the code it shows, and hands it every key. Leaves
+  /// [deviceConfirmation] for the new device to enter, which is how it learns
+  /// that the list it joined is the real one.
+  @action
+  Future<bool> addDevice(String code) async {
+    errorMessage = null;
+    deviceConfirmation = null;
+    final invite = DeviceInvite.tryParse(code);
+    if (invite == null) {
+      errorMessage = 'That code isn\'t complete. Copy all of it and try again.';
+      return false;
+    }
+    isSaving = true;
+    try {
+      // Signed against the list as it stands now: another device may have
+      // changed it, and an entry on a stale list would break it for everyone.
+      await _refresh();
+      if (!_trusted) {
+        errorMessage = 'This device can\'t change your device list right now.';
+        return false;
+      }
+      final device = _device!;
+      final seq = thisDeviceSeq!;
+      if (chain.live.any(
+        (e) => _sameBytes(e.signingPublicKey, invite.signingPublicKey),
+      )) {
+        errorMessage = 'That device is already on your list.';
+        return false;
+      }
+      final entry = DeviceChainEntry.sign(
+        user: _currentUser(),
+        seq: chain.nextSeq,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: invite.label,
+        hpkePublicKey: invite.hpkePublicKey,
+        signingPublicKey: invite.signingPublicKey,
+        targetSeq: 0,
+        previousHash: chain.headHash,
+        signerSeq: seq,
+        signer: device.signing,
+      );
+      await _api.post(
+        '/api/sealed/devices',
+        body: {
+          'entries': [entry.toJson()],
+          'wraps': _wrapsForNewEntry(entry, chainSeq: entry.seq),
+        },
+      );
+      deviceCodeInput.clear();
+      await _refresh();
+      deviceConfirmation = DeviceConfirmation.forEntry(entry).encodeToString();
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  /// Takes this device from "a list names me" to trusting it, using the code a
+  /// device it can see showed it.
+  @action
+  Future<bool> confirmThisDevice(String code) async {
+    errorMessage = null;
+    final confirmation = DeviceConfirmation.tryParse(code);
+    if (confirmation == null) {
+      errorMessage = 'That code isn\'t complete. Copy all of it and try again.';
+      return false;
+    }
+    isSaving = true;
+    try {
+      await _readLocal();
+      await _applyState(await _fetchState());
+      final entry = chain.bySeq(confirmation.seq);
+      final seq = thisDeviceSeq;
+      if (entry == null ||
+          chainBroken ||
+          !confirmation.matches(entry) ||
+          seq == null ||
+          entry.seq < seq) {
+        errorMessage =
+            'That code doesn\'t match your device list. Don\'t trust this '
+            'list until you know why.';
+        return false;
+      }
+      _pins
+        ..firstHash = SealedFormats.encode(chain.entries.first.hash)
+        ..headSeq = entry.seq
+        ..headHash = SealedFormats.encode(entry.hash);
+      await _savePins();
+      confirmationInput.clear();
+      await _refresh();
+      _loadedFor = _scope;
+      return status == SealingStatus.ready;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  /// What removing [targetSeq] takes off the list with it, including itself.
+  List<DeviceChainEntry> removalsFor(int targetSeq) {
+    final seq = thisDeviceSeq;
+    if (seq == null) return const [];
+    return [
+      for (final id in chain.removalsFor(targetSeq, keep: seq))
+        if (chain.bySeq(id) != null) chain.bySeq(id)!,
+    ];
+  }
+
+  /// Takes a device off the list, with everything it added, and replaces every
+  /// key it held, so it can't read anything written from now on. Only true once
+  /// the keys have actually been replaced.
+  @action
+  Future<bool> removeDevice(int targetSeq) async {
+    errorMessage = null;
+    isSaving = true;
+    try {
+      // Signed against the list as it stands now: another device may have
+      // changed it, and an entry on a stale list would break it for everyone.
+      await _applyState(await _fetchState());
+      final seq = thisDeviceSeq;
+      if (!_trusted || seq == null || targetSeq == seq) return false;
+      if (!chain.isLive(targetSeq)) return true;
+      final device = _device!;
+
+      final entries = <DeviceChainEntry>[];
+      var nextSeq = chain.nextSeq;
+      var previous = chain.headHash;
+      for (final id in chain.removalsFor(targetSeq, keep: seq)) {
+        final entry = _removalEntry(
+          seq: nextSeq++,
+          target: id,
+          previousHash: previous,
+          signerSeq: seq,
+          signer: device.signing,
+        );
+        entries.add(entry);
+        previous = entry.hash;
+      }
+      await _api.post(
+        '/api/sealed/devices',
+        body: {
+          'entries': [for (final e in entries) e.toJson()],
+        },
+      );
+      await _refresh();
+      if (_workspaces.values.any((held) => !held.writable)) {
+        errorMessage =
+            'The device is off your list, but your encryption key couldn\'t '
+            'be replaced. Check your connection and reload.';
+        return false;
+      }
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  /// Joins from the recovery key, for someone with no device left.
+  ///
+  /// The recovery key's public half is public, so finding it on a list proves
+  /// nothing. What proves the list is real is the recovery key's own signature
+  /// over its root, which only someone holding the secret could have made.
+  @action
+  Future<bool> restoreWithRecoveryKey() async {
+    errorMessage = null;
+    final secret = RecoveryCode.decode(recoveryInput.text);
+    if (secret == null) {
+      errorMessage = 'That recovery key isn\'t right. Check for a typo.';
+      return false;
+    }
+    isSaving = true;
+    try {
+      await _readLocal();
+      await _applyState(await _fetchState());
+      if (chainBroken || chain.entries.isEmpty) {
+        errorMessage = 'This device can\'t read your device list right now.';
+        return false;
+      }
+      final hpke = RecoveryCode.hpkeKey(secret);
+      final signing = RecoveryCode.signingKey(secret);
+      final recovery = chain.liveRecovery;
+      if (recovery == null ||
+          !_sameBytes(recovery.hpkePublicKey, hpke.publicKey) ||
+          !_sameBytes(recovery.signingPublicKey, signing.publicKey)) {
+        errorMessage = 'That recovery key doesn\'t belong to this account.';
+        return false;
+      }
+      final recoverySeq = recovery.seq;
+      final root = chain.entries.first.hash;
+      if (!Sealing.verify(
+        signing.publicKey,
+        SealedFormats.recoveryAnchorPayload(_currentUser(), root),
+        recovery.anchorSignature,
+      )) {
+        errorMessage = 'That recovery key doesn\'t belong to this account.';
+        return false;
+      }
+
+      var device = _device;
+      if (device == null) {
+        device = _DeviceKeys.generate();
+        await _saveDevice(device);
+      }
+      final entry = DeviceChainEntry.sign(
+        user: _currentUser(),
+        seq: chain.nextSeq,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: _deviceLabel(),
+        hpkePublicKey: device.hpke.publicKey,
+        signingPublicKey: device.signing.publicKey,
+        targetSeq: 0,
+        previousHash: chain.headHash,
+        signerSeq: recoverySeq,
+        signer: signing,
+      );
+
+      final wraps = <Map<String, dynamic>>[];
+      for (final raw
+          in (_lastState['workspaces'] as List<dynamic>? ?? const [])) {
+        final row = raw as Map<String, dynamic>;
+        final workspace = row['workspace'] as String;
+        final own = [
+          for (final w in (row['wraps'] as List<dynamic>? ?? const []))
+            if ((w['deviceSeq'] as num).toInt() == recoverySeq)
+              w as Map<String, dynamic>,
+        ]..sort((a, b) => (b['epoch'] as num).compareTo(a['epoch'] as num));
+        for (final w in own) {
+          final epoch = (w['epoch'] as num).toInt();
+          final signerSeq = (w['signerSeq'] as num).toInt();
+          // Only from devices still on the list: re-signing what a removed
+          // device handed over would launder a key it may have chosen.
+          if (!chain.isLive(signerSeq)) continue;
+          final key = _openWrap(
+            workspace: workspace,
+            epoch: epoch,
+            recipient: hpke,
+            wrap: w['wrap'] as String,
+            signerSeq: signerSeq,
+            chainSeq: (w['chainSeq'] as num?)?.toInt() ?? 0,
+            signature: w['signature'] as String,
+          );
+          if (key == null) continue;
+          wraps.add(
+            _wrapFor(
+              workspace: workspace,
+              epoch: epoch,
+              key: key,
+              recipient: entry,
+              signer: signing,
+              signerSeq: recoverySeq,
+              chainSeq: entry.seq,
+            ),
+          );
+          break;
+        }
+      }
+
+      _pins
+        ..firstHash = SealedFormats.encode(root)
+        ..headSeq = entry.seq
+        ..headHash = SealedFormats.encode(entry.hash)
+        ..setupPending = false;
+      await _savePins();
+
+      await _api.post(
+        '/api/sealed/devices',
+        body: {
+          'entries': [entry.toJson()],
+          'wraps': wraps,
+        },
+      );
+      recoveryInput.clear();
+      await _refresh();
+      _loadedFor = _scope;
+      return status == SealingStatus.ready;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  /// For someone who lost every device and their recovery key: deletes what
+  /// nobody can read any more, and clears the way to set up again.
+  @action
+  Future<bool> startOver() async {
+    if (!startOverConfirmed) return false;
+    errorMessage = null;
+    isSaving = true;
+    try {
+      await _api.post(
+        '/api/sealed/reset',
+        body: {'confirm': KeysStore.startOverPhrase},
+      );
+      await forgetThisDevice();
+      startOverConfirm.clear();
+      return true;
+    } catch (e) {
+      errorMessage = e.toString();
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  /// Drops this device's keys and what it remembered. It then has to join like
+  /// a new device: through a device that can vouch for the list, or the
+  /// recovery key. So a server that forces this gains nothing.
+  @action
+  Future<void> forgetThisDevice() async {
+    await _storage.delete(key: _deviceStorageKey);
+    await _storage.delete(key: _pinsStorageKey);
+    forgetSession();
+    await load();
+  }
+
+  /// Encrypts [value] under a fresh key for this version of this record. Throws
+  /// [SealingException] when this device may not write in [workspace].
+  SealedPayload sealValue({
+    required String workspace,
+    required String record,
+    required String recordKey,
+    required int version,
+    required String value,
+  }) {
+    final held = _workspaces[workspace];
+    if (held == null || !held.writable || !_trusted) {
+      throw const SealingException(
+        'This device can\'t encrypt in this workspace right now.',
+      );
+    }
+    final epoch = held.currentEpoch;
+    final valueKey = Sealing.newSymmetricKey();
+    return SealedPayload(
+      sealedValue: SealedFormats.sealValue(
+        valueKey: valueKey,
+        value: value,
+        workspace: workspace,
+        record: record,
+        recordKey: recordKey,
+        version: version,
+      ),
+      keyEpoch: epoch,
+      keyWrap: SealedFormats.wrapValueKey(
+        workspaceKey: held.keys[epoch]!,
+        valueKey: valueKey,
+        workspace: workspace,
+        record: record,
+        version: version,
+        epoch: epoch,
+      ),
+    );
+  }
+
+  /// Remembers a value this device just wrote, so the server can't serve the
+  /// previous one straight afterwards.
+  void noteWritten(String record, {required int version, required int epoch}) {
+    _pins.versions[record] = version;
+    _pins.recordEpochs[record] = epoch;
+    _pins.acceptedPlain.remove(record);
+    unawaited(_savePins());
+  }
+
+  /// Decrypts a sealed record, or returns null if this device can't: it holds no
+  /// key, the data doesn't authenticate, or it is older than what this device
+  /// has already seen. Any malformed row is treated the same way, so one bad row
+  /// can't take down the whole vault.
+  String? openRecord(models.Record record) {
+    if (status != SealingStatus.ready) return null;
+    final held = _workspaces[record.workspace];
+    final key = held?.keys[record.keyEpoch];
+    if (key == null) return null;
+    if (record.sealedVersion < (_pins.versions[record.id] ?? 0)) return null;
+    // A removed device still has old keys. Without this it could, with the
+    // server's help, write a "newer" version under a key this record has left.
+    if (record.keyEpoch < (_pins.recordEpochs[record.id] ?? 0)) return null;
+    try {
+      final valueKey = SealedFormats.openValueKey(
+        workspaceKey: key,
+        wrapped: record.keyWrap,
+        workspace: record.workspace,
+        record: record.id,
+        version: record.sealedVersion,
+        epoch: record.keyEpoch,
+      );
+      if (valueKey.length != Sealing.keyLength) return null;
+      final value = SealedFormats.openValue(
+        valueKey: valueKey,
+        sealed: record.sealedValue,
+        workspace: record.workspace,
+        record: record.id,
+        recordKey: record.key,
+        version: record.sealedVersion,
+      );
+      if (_pins.versions[record.id] != record.sealedVersion ||
+          _pins.recordEpochs[record.id] != record.keyEpoch ||
+          _pins.acceptedPlain.containsKey(record.id)) {
+        noteWritten(
+          record.id,
+          version: record.sealedVersion,
+          epoch: record.keyEpoch,
+        );
+      }
+      return value;
+    } on SealingException {
+      return null;
+    } on FormatException {
+      return null;
+    } on RangeError {
+      return null;
+    } on ArgumentError {
+      return null;
+    }
+  }
+
+  /// Whether this device knows [recordId] as encrypted, so a plain copy now
+  /// means someone unsealed it, or the server is passing off a value of its own.
+  /// Plain writes to it are refused until the person says it was them.
+  bool knewAsSealed(String recordId) =>
+      _pins.versions.containsKey(recordId) &&
+      !_pins.acceptedPlain.containsKey(recordId);
+
+  /// The person confirmed they unsealed it themselves. The version stays pinned:
+  /// resealing moves it forward, so an old sealed copy can't come back.
+  Future<void> acceptUnsealed(String recordId) async {
+    final version = _pins.versions[recordId];
+    if (version == null) return;
+    _pins.acceptedPlain[recordId] = version;
+    await _savePins();
+  }
+
+  static bool _sameBytes(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+}

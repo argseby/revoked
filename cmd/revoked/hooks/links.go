@@ -14,6 +14,9 @@ func BindLinkHooks(app core.App) {
 		if err := requireApplicationWatermark(e.Record); err != nil {
 			return err
 		}
+		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
+			return err
+		}
 		if err := validateLinkConnection(e.App, e.Record, ""); err != nil {
 			return err
 		}
@@ -27,6 +30,9 @@ func BindLinkHooks(app core.App) {
 
 	app.OnRecordUpdate(util.Coll.Links).BindFunc(func(e *core.RecordEvent) error {
 		if err := requireApplicationWatermark(e.Record); err != nil {
+			return err
+		}
+		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
 			return err
 		}
 		if err := validateLinkConnection(e.App, e.Record,

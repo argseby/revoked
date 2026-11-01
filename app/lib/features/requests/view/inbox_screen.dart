@@ -13,7 +13,6 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
@@ -59,31 +58,14 @@ class _InboxScreenState extends State<InboxScreen> {
     });
   }
 
-  /// The hint carries the count.
-  Widget _search(BuildContext context) {
-    final count = Stores.requests.requests.length;
-    return AppSearchField<DataRequest>(
-      controller: _table,
-      hint: 'Search $count ${count == 1 ? 'request' : 'requests'}',
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Your requests, and what others gave you (saved links). Answers to a
     // request are on that request's page.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppListSearch(child: Observer(builder: _search)),
-        Expanded(
-          child: AppTabs(
-            labels: const ['Your requests', 'Received'],
-            initialIndex: widget.initialTab,
-            views: [_yourRequests(context), const BookmarksTab()],
-          ),
-        ),
-      ],
+    return AppTabs(
+      labels: const ['Your requests', 'Received'],
+      initialIndex: widget.initialTab,
+      views: [_yourRequests(context), const BookmarksTab()],
     );
   }
 

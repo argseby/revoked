@@ -48,6 +48,32 @@ class RecordHiddenToggle extends StatelessWidget {
   }
 }
 
+/// Whether a record is end-to-end encrypted. Not the same setting as hiding:
+/// hiding keeps a value off the screen, this keeps it off the server.
+class RecordSealedToggle extends StatelessWidget {
+  final bool sealed;
+  final ValueChanged<bool> onChanged;
+
+  const RecordSealedToggle({
+    super.key,
+    required this.sealed,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppFormToggleRow(
+      icon: AppIcons.lock,
+      label: 'End-to-end encrypted',
+      subtitle:
+          'Not even your server can read this. You can’t share it yet. If you '
+          'lose your devices and your recovery key, it’s gone.',
+      value: sealed,
+      onChanged: onChanged,
+    );
+  }
+}
+
 /// What a record of [type] holds once the type is picked: a yes/no record
 /// holds `true` or `false` and nothing else, so anything else becomes
 /// `false` and the toggle starts in a state it can show.

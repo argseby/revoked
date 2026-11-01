@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"revoked/cmd/revoked/server"
@@ -41,7 +42,7 @@ func IdentityStatusRoute(app core.App, root *server.RootKey) {
 				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.IdentityFingerprintInvalid)
 			}
 
-			assertion, err := IssueIdentityStatusFor(app, root, fingerprint, time.Now())
+			assertion, err := identityStatusFor(app, root, fingerprint, time.Now())
 			if err != nil {
 				return re.InternalServerError("Failed to issue an identity status", nil)
 			}
@@ -59,13 +60,21 @@ func IdentityStatusRoute(app core.App, root *server.RootKey) {
 	})
 }
 
-// IssueIdentityStatusFor resolves a fingerprint and signs the answer.
+// identityStatusFor resolves a fingerprint and signs the answer, reusing a
+// signature it has already made for the same answer.
 //
 // An unknown fingerprint gets a signed "unknown" rather than a 404: answering
 // uniformly keeps the endpoint from being an existence oracle, and a signed
 // "I have no record of this" is itself useful — it is how a verifier tells a
 // server that disclaims an identity apart from a server it could not reach.
-func IssueIdentityStatusFor(app core.App, root *server.RootKey, fingerprint string, now time.Time) (server.IdentityStatusAssertion, error) {
+//
+// Signing is RSA, about a millisecond, and this runs on the unauthenticated
+// read path: a signature per probe caps one core at roughly a thousand of them
+// however little else the handler does. The status itself is read fresh every
+// time — it is an indexed lookup — and only the signature is reused, keyed by
+// the answer it signs. So a revocation changes the key and is stapled on the
+// very next probe, with no cache to invalidate from the paths that revoke.
+func identityStatusFor(app core.App, root *server.RootKey, fingerprint string, now time.Time) (server.IdentityStatusAssertion, error) {
 	status, err := services.LookupIdentityStatus(app, fingerprint)
 	if err != nil {
 		return server.IdentityStatusAssertion{}, err
@@ -79,7 +88,92 @@ func IssueIdentityStatusFor(app core.App, root *server.RootKey, fingerprint stri
 		wire = server.IdentityStatusRevoked
 	}
 
-	return root.IssueIdentityStatus(fingerprint, wire, status.Reason, status.RevokedAt, now)
+	// The payload carries its own issue time, so it is stamped at the start of
+	// the window rather than at the instant of the request: without that every
+	// second would need its own signature. The stamp only ever moves earlier,
+	// which no verifier minds.
+	issuedAt := now.Truncate(statusAssertionTTL)
+	key := strings.Join([]string{
+		fingerprint, wire, status.Reason,
+		strconv.FormatInt(status.RevokedAt.Unix(), 10),
+		strconv.FormatInt(issuedAt.Unix(), 10),
+	}, "\x00")
+
+	if cached, ok := statusAssertions.lookup(key); ok {
+		return cached, nil
+	}
+
+	assertion, err := root.IssueIdentityStatus(fingerprint, wire, status.Reason, status.RevokedAt, issuedAt)
+	if err != nil {
+		return server.IdentityStatusAssertion{}, err
+	}
+	// Only answers about identities this server knows. The fingerprint comes
+	// from the caller, so keeping "unknown" would let anyone fill the map with
+	// fingerprints of their own invention; those still cost a signature each,
+	// bounded by the probe rate limiter as before.
+	if status.Known {
+		statusAssertions.keep(key, assertion, issuedAt.Add(statusAssertionTTL))
+	}
+	return assertion, nil
+}
+
+// statusAssertionTTL is how long one signature is reused. Two orders of
+// magnitude under server.IdentityStatusTTL, and it does not bound how stale an
+// answer can be — the answer is re-read every time — only how often an
+// unchanged one is re-signed.
+const statusAssertionTTL = time.Minute
+
+// statusAssertionCap bounds the map: an instance with more live identities
+// being probed at once than this stops taking new ones rather than growing
+// without end.
+const statusAssertionCap = 4096
+
+// statusAssertions is deliberately in-process, like the challenge and download
+// registries: every entry is a copy of something this server can mint again,
+// so losing the map on restart costs one signature per answer.
+var statusAssertions = &statusAssertionCache{entries: make(map[string]statusAssertionEntry)}
+
+type statusAssertionEntry struct {
+	Assertion server.IdentityStatusAssertion
+	ExpiresAt time.Time
+}
+
+type statusAssertionCache struct {
+	mu      sync.Mutex
+	entries map[string]statusAssertionEntry
+}
+
+func (c *statusAssertionCache) lookup(key string) (server.IdentityStatusAssertion, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[key]
+	if !ok {
+		return server.IdentityStatusAssertion{}, false
+	}
+	return entry.Assertion, true
+}
+
+func (c *statusAssertionCache) keep(key string, assertion server.IdentityStatusAssertion, expiresAt time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.gcLocked(expiresAt)
+
+	if _, replacing := c.entries[key]; !replacing && len(c.entries) >= statusAssertionCap {
+		return
+	}
+	c.entries[key] = statusAssertionEntry{Assertion: assertion, ExpiresAt: expiresAt}
+}
+
+// gcLocked drops every entry whose window ends before upTo. Callers pass the
+// window they are about to write, so entries from earlier windows go and the
+// current one's stay: a key carries the window it was minted in, so an older
+// entry can never be read again and is only holding memory.
+func (c *statusAssertionCache) gcLocked(upTo time.Time) {
+	for key, entry := range c.entries {
+		if upTo.After(entry.ExpiresAt) {
+			delete(c.entries, key)
+		}
+	}
 }
 
 // stapleIdentityStatus attaches this server's signed answer about an identity to
@@ -93,7 +187,7 @@ func stapleIdentityStatus(app core.App, root *server.RootKey, block map[string]a
 	if !server.ValidIdentityFingerprint(fingerprint) {
 		return
 	}
-	assertion, err := IssueIdentityStatusFor(app, root, fingerprint, time.Now())
+	assertion, err := identityStatusFor(app, root, fingerprint, time.Now())
 	if err != nil {
 		app.Logger().Error("Failed to staple an identity status", "error", err)
 		return

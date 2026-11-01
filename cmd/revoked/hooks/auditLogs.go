@@ -1,7 +1,7 @@
 package hooks
 
 import (
-	"encoding/json"
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -19,7 +19,8 @@ func BindAuditLogHooks(app core.App) {
 			return err
 		}
 
-		return logAuditAction(app, e, "create", nil, e.Record.PublicExport())
+		logAuditAction(app, e, util.AuditActionCreate, nil, e.Record.PublicExport())
+		return nil
 	})
 
 	app.OnRecordUpdateRequest().BindFunc(func(e *core.RecordRequestEvent) error {
@@ -33,7 +34,8 @@ func BindAuditLogHooks(app core.App) {
 			return err
 		}
 
-		return logAuditAction(app, e, "update", oldData, e.Record.PublicExport())
+		logAuditAction(app, e, util.AuditActionUpdate, oldData, e.Record.PublicExport())
+		return nil
 	})
 
 	app.OnRecordDeleteRequest().BindFunc(func(e *core.RecordRequestEvent) error {
@@ -47,91 +49,64 @@ func BindAuditLogHooks(app core.App) {
 			return err
 		}
 
-		return logAuditAction(app, e, "delete", oldData, nil)
+		logAuditAction(app, e, util.AuditActionDelete, oldData, nil)
+		return nil
 	})
 }
 
-// logAuditAction saves an auditLog entry describing a completed action.
+// logAuditAction records a completed request action.
 //
 // Its callers have already advanced the chain with e.Next(), so it must never
-// call e.Next() again. Audit failures never block the operation they describe.
-//
-// Both snapshots pass through util.RedactAuditData first: an audit row outlives
-// and outtravels the record it describes, so a secret written into one — a
-// vault value, a submitted gate password — would persist in plaintext under a
-// collection nobody thinks of as secret storage.
-func logAuditAction(app core.App, e *core.RecordRequestEvent, action string, oldData map[string]any, newData map[string]any) error {
-	auditCollection, err := app.FindCollectionByNameOrId(util.Coll.AuditLogs)
-	if err != nil {
-		app.Logger().Error("Audit log collection missing", "error", err)
-		return nil
+// call e.Next() again. Writing the row belongs to services.RecordAudit, which
+// also redacts; what is left here is reading the actor, the address and the
+// workspace out of the request. It reports nothing, because an audit row must
+// not undo the operation it describes.
+func logAuditAction(app core.App, e *core.RecordRequestEvent, action string, oldData map[string]any, newData map[string]any) {
+	entry := services.AuditEntry{
+		Action:     action,
+		Collection: e.Collection.Name,
+		RecordId:   e.Record.Id,
+		Workspace:  auditWorkspace(e, action),
+		Ip:         e.Request.RemoteAddr,
+		UserAgent:  e.Request.UserAgent(),
+		OldData:    oldData,
+		NewData:    newData,
 	}
-
-	auditRecord := core.NewRecord(auditCollection)
 
 	if e.Auth != nil {
 		if e.Auth.Collection().Name == util.Coll.Users {
-			auditRecord.Set(util.Fields.AuditLog.User, e.Auth.Id)
+			entry.User = e.Auth.Id
 		} else if e.Auth.Collection().Name == util.Coll.ApiKeys {
-			auditRecord.Set(util.Fields.AuditLog.User, e.Auth.GetString(util.Fields.ApiKey.User))
-			auditRecord.Set(util.Fields.AuditLog.ApiKey, e.Auth.Id)
+			entry.User = e.Auth.GetString(util.Fields.ApiKey.User)
+			entry.ApiKey = e.Auth.Id
 		}
 	}
 
-	auditRecord.Set(util.Fields.AuditLog.Action, action)
-	auditRecord.Set(util.Fields.AuditLog.Collection, e.Collection.Name)
-	auditRecord.Set(util.Fields.AuditLog.RecordId, e.Record.Id)
+	services.RecordAudit(app, entry)
+}
 
-	oldData = util.RedactAuditData(e.Collection.Name, oldData)
-	newData = util.RedactAuditData(e.Collection.Name, newData)
-
-	if oldData != nil {
-		oldDataJSON, _ := json.Marshal(oldData)
-		auditRecord.Set(util.Fields.AuditLog.OldData, string(oldDataJSON))
-	}
-
-	if newData != nil {
-		newDataJSON, _ := json.Marshal(newData)
-		auditRecord.Set(util.Fields.AuditLog.NewData, string(newDataJSON))
-	}
-
-	auditRecord.Set(util.Fields.AuditLog.Ip, e.Request.RemoteAddr)
-	auditRecord.Set(util.Fields.AuditLog.UserAgent, e.Request.UserAgent())
-
-	workspaceId := ""
-
-	if ws := e.Record.GetString("workspace"); ws != "" {
-		workspaceId = ws
-	}
-
-	if workspaceId == "" && e.Collection.Name == util.Coll.Workspaces {
-		workspaceId = e.Record.Id
-	}
-
-	if workspaceId == "" && e.Collection.Name == util.Coll.WorkspaceMembers {
-		workspaceId = e.Record.GetString(util.Fields.WorkspaceMember.Workspace)
-	}
-
-	if workspaceId == "" && e.Auth != nil {
-		workspaceId = e.Auth.GetString(util.Fields.User.ActiveWorkspace)
-	}
-
+// auditWorkspace settles which workspace an action belongs to: the record's
+// own, the collections that are or name one, and finally the actor's.
+func auditWorkspace(e *core.RecordRequestEvent, action string) string {
 	// A workspace's own deletion cannot point at it: the row is gone by now and
-	// a relation to a missing record fails validation, which the save below only
+	// a relation to a missing record fails validation, which the save only
 	// logs. Without this the one action that ends a workspace is the one action
 	// never recorded — and the actor's activeWorkspace still names it, so the
-	// fallback above reintroduces it. recordId already identifies it.
-	if action == "delete" && e.Collection.Name == util.Coll.Workspaces {
-		workspaceId = ""
+	// fallback below would reintroduce it. recordId already identifies it.
+	if action == util.AuditActionDelete && e.Collection.Name == util.Coll.Workspaces {
+		return ""
 	}
-
-	if workspaceId != "" {
-		auditRecord.Set(util.Fields.AuditLog.Workspace, workspaceId)
+	if ws := e.Record.GetString(util.FieldWorkspace); ws != "" {
+		return ws
 	}
-
-	if err := app.Save(auditRecord); err != nil {
-		app.Logger().Error("Failed to save audit log", "error", err)
+	if e.Collection.Name == util.Coll.Workspaces {
+		return e.Record.Id
 	}
-
-	return nil
+	if e.Collection.Name == util.Coll.WorkspaceMembers {
+		return e.Record.GetString(util.Fields.WorkspaceMember.Workspace)
+	}
+	if e.Auth != nil {
+		return e.Auth.GetString(util.Fields.User.ActiveWorkspace)
+	}
+	return ""
 }

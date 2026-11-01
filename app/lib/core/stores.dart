@@ -19,6 +19,7 @@ import 'package:revoked_app/features/auth/store/server_settings_store.dart';
 import 'package:revoked_app/features/bookmarks/store/bookmarks_store.dart';
 import 'package:revoked_app/features/connections/sign_in_approval.dart';
 import 'package:revoked_app/features/connections/store/connections_store.dart';
+import 'package:revoked_app/features/contacts/store/contacts_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
@@ -26,6 +27,7 @@ import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
 import 'package:revoked_app/features/passkeys/store/passkeys_store.dart';
 import 'package:revoked_app/features/reminders/store/reminders_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
+import 'package:revoked_app/features/sealing/store/keys_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
@@ -37,38 +39,47 @@ import 'package:revoked_app/features/vault/store/vault_store.dart';
 /// Singleton stores live here; state that lasts only as long as a page (a
 /// create flow, a table) is a store the page constructs and disposes itself.
 abstract final class Stores {
-  static late final ApiClient api;
-  static late final CryptoService crypto;
-  static late final HandshakeService handshake;
-  static late final DomainVerificationService domainVerification;
-  static late final DeviceUnlock deviceUnlock;
-  static late final SignInApproval signInApproval;
+  static late ApiClient api;
+  static late CryptoService crypto;
+  static late HandshakeService handshake;
+  static late DomainVerificationService domainVerification;
+  static late DeviceUnlock deviceUnlock;
+  static late SignInApproval signInApproval;
   static const WorkspaceContext workspaceContext = WorkspaceContext();
 
-  static late final ThemeStore theme;
-  static late final AuthStore auth;
-  static late final VaultStore vault;
-  static late final SharesStore shares;
-  static late final BookmarksStore bookmarks;
-  static late final ConnectionsStore connections;
-  static late final PasskeysStore passkeys;
-  static late final RequestsStore requests;
-  static late final TemplatesStore templates;
-  static late final ApiKeysStore apiKeys;
-  static late final IdentitiesStore identities;
-  static late final CredentialsStore credentials;
-  static late final AttestationsStore attestations;
-  static late final AttestationChecksStore attestationChecks;
-  static late final NotificationsStore notifications;
-  static late final RemindersStore reminders;
-  static late final SettingsStore settings;
-  static late final InvitesStore invites;
-  static late final ServerSettingsStore serverSettings;
-  static late final LinkSearchStore linkSearch;
-  static late final OnboardingStore onboarding;
+  static late ThemeStore theme;
+  static late AuthStore auth;
+  static late KeysStore keys;
+  static late VaultStore vault;
+  static late SharesStore shares;
+  static late BookmarksStore bookmarks;
+  static late ConnectionsStore connections;
+  static late ContactsStore contacts;
+  static late PasskeysStore passkeys;
+  static late RequestsStore requests;
+  static late TemplatesStore templates;
+  static late ApiKeysStore apiKeys;
+  static late IdentitiesStore identities;
+  static late CredentialsStore credentials;
+  static late AttestationsStore attestations;
+  static late AttestationChecksStore attestationChecks;
+  static late NotificationsStore notifications;
+  static late RemindersStore reminders;
+  static late SettingsStore settings;
+  static late InvitesStore invites;
+  static late ServerSettingsStore serverSettings;
+  static late LinkSearchStore linkSearch;
+  static late OnboardingStore onboarding;
 
   /// [httpClient] replaces the network, for tests that play a server, and
   /// [unlock] the system's fingerprint, face or PIN prompt.
+  ///
+  /// Callable more than once, which is why the fields above are not `final`:
+  /// a MobX `AsyncAction` forks and caches a zone the first time it runs, so
+  /// a store that outlives the zone it was first used in runs every later
+  /// async action in a dead one — the body's awaits are queued on a
+  /// microtask queue nobody drains again. A widget test gets its own zone per
+  /// case, so each one has to build its own stores.
   static Future<void> init({
     http.Client? httpClient,
     DeviceUnlock? unlock,
@@ -78,7 +89,10 @@ abstract final class Stores {
 
     crypto = CryptoService();
     handshake = HandshakeService(api, crypto);
-    domainVerification = DomainVerificationService(crypto: crypto);
+    domainVerification = DomainVerificationService(
+      httpClient: httpClient,
+      crypto: crypto,
+    );
     // Awaited, not fired off: a deep link can mount its screen in the same
     // frame as init finishes, and an unloaded cache reads as "no verdict"
     // - which is exactly the spinner it exists to avoid. Bounded so a
@@ -98,12 +112,19 @@ abstract final class Stores {
     );
 
     auth = AuthStore(api);
+    keys = KeysStore(api, currentUser: () => auth.userId);
+    // Decrypted values go with the keys: nothing readable outlives the session.
+    auth.onLoggedOut = () {
+      keys.forgetSession();
+      vault.records.clear();
+    };
     // A rejected session drops to the login screen from wherever it happened.
     api.onUnauthorized = () => unawaited(auth.handleSessionExpired());
     vault = VaultStore(api);
     shares = SharesStore(api);
     bookmarks = BookmarksStore(api);
     connections = ConnectionsStore(api);
+    contacts = ContactsStore(api);
     passkeys = PasskeysStore(api);
     requests = RequestsStore(api);
     templates = TemplatesStore(api);

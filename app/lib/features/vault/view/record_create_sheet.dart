@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -18,6 +20,7 @@ import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
+import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_value_input.dart';
@@ -31,6 +34,7 @@ void openRecordCreateSheet({
   models.Record? initialRecord,
 }) {
   store.clearError();
+  unawaited(Stores.keys.ensureLoaded());
   showAppSheet(
     context: context,
     builder: (drawerContext) => _RecordCreateDrawer(
@@ -190,6 +194,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
       file: _isFileType ? _store.pickedFile : null,
+      sealed: !_isFileType && _store.recordSealed,
     );
 
     if (!mounted) return;
@@ -286,6 +291,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 _buildTypeRow(),
                 if (_isFileType) const VaultFileRow() else _buildValueRow(),
                 _hiddenToggle(),
+                if (!_isFileType && Stores.keys.isAvailable) _sealedToggle(),
 
                 AppFormAdvanced(
                   summary: 'Key and API preview',
@@ -387,6 +393,11 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
             'File records upload as multipart/form-data: the same fields as '
             'form parts, plus the file itself as a "file" part.',
           ).muted.small
+        : _store.recordSealed
+        ? const Text(
+            'Your device encrypts this before sending it, so the request '
+            'carries only encrypted data.',
+          ).muted.small
         : ApiPreview(
             spec: VaultStore.createRecordSpec(
               key: _effectiveKey,
@@ -415,6 +426,21 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     isFile: _isFileType,
     hidden: _store.recordFormat == 'hidden',
     onChanged: (on) => _store.setRecordFormat(on ? 'hidden' : 'default'),
+  );
+
+  Widget _sealedToggle() => RecordSealedToggle(
+    sealed: _store.recordSealed,
+    onChanged: (on) async {
+      if (!on) {
+        _store.setRecordSealed(false);
+        return;
+      }
+      final ready = await ensureSealingReady(
+        context,
+        widget.authStore.activeWorkspace ?? '',
+      );
+      if (ready) _store.setRecordSealed(true);
+    },
   );
 
   /// The value, entered the way its type asks: a yes/no is switched in the

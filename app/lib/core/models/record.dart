@@ -40,6 +40,19 @@ class Record {
   final String? mime;
   final int size;
 
+  /// End-to-end encrypted. The server holds only [sealedValue]; [value] is the
+  /// decrypted text once [opened], and empty until then.
+  final bool sealed;
+  final String sealedValue;
+  final int sealedVersion;
+  final int keyEpoch;
+  final String keyWrap;
+  final bool opened;
+
+  /// This device knew the record as encrypted and now it isn't: someone stopped
+  /// encrypting it, or the server is passing off a value of its own.
+  final bool unsealedElsewhere;
+
   Record({
     required this.id,
     required this.key,
@@ -58,6 +71,13 @@ class Record {
     this.contentHash,
     this.mime,
     this.size = 0,
+    this.sealed = false,
+    this.sealedValue = '',
+    this.sealedVersion = 0,
+    this.keyEpoch = 0,
+    this.keyWrap = '',
+    this.opened = false,
+    this.unsealedElsewhere = false,
   });
 
   factory Record.fromJson(Map<String, dynamic> json) {
@@ -66,7 +86,9 @@ class Record {
     return Record(
       id: json['id'] as String,
       key: json['key'] as String,
-      value: json['value'] as String? ?? '',
+      // A sealed record has no plain value. If a server sends one anyway it is
+      // not this record's, and must not reach a form or a screen.
+      value: json['sealed'] == true ? '' : json['value'] as String? ?? '',
       label: json['label'] as String,
       type: json['type'] as String,
       format: json['format'] as String,
@@ -83,13 +105,55 @@ class Record {
       contentHash: json['contentHash'] as String?,
       mime: json['mime'] as String?,
       size: (json['size'] as num?)?.toInt() ?? 0,
+      sealed: json['sealed'] == true,
+      sealedValue: json['sealedValue'] as String? ?? '',
+      sealedVersion: (json['sealedVersion'] as num?)?.toInt() ?? 0,
+      keyEpoch: (json['keyEpoch'] as num?)?.toInt() ?? 0,
+      keyWrap: json['keyWrap'] as String? ?? '',
     );
   }
+
+  Record _copy({String? value, bool? opened, bool? unsealedElsewhere}) =>
+      Record(
+        id: id,
+        key: key,
+        value: value ?? this.value,
+        label: label,
+        type: type,
+        format: format,
+        user: user,
+        workspace: workspace,
+        created: created,
+        updated: updated,
+        requestedBy: requestedBy,
+        aliasOf: aliasOf,
+        filename: filename,
+        file: file,
+        contentHash: contentHash,
+        mime: mime,
+        size: size,
+        sealed: sealed,
+        sealedValue: sealedValue,
+        sealedVersion: sealedVersion,
+        keyEpoch: keyEpoch,
+        keyWrap: keyWrap,
+        opened: opened ?? this.opened,
+        unsealedElsewhere: unsealedElsewhere ?? this.unsealedElsewhere,
+      );
+
+  /// This record with its decrypted value.
+  Record withOpenedValue(String plaintext) =>
+      _copy(value: plaintext, opened: true);
+
+  Record markedUnsealedElsewhere(bool flag) => _copy(unsealedElsewhere: flag);
 
   bool get isHidden => format == 'hidden';
   bool get isRequested => requestedBy != null && requestedBy!.isNotEmpty;
   bool get isAlias => aliasOf != null && aliasOf!.isNotEmpty;
   bool get isFile => type == 'file';
+
+  /// Encrypted, and this device can't read it.
+  bool get isLocked => sealed && !opened;
 
   /// What a reader should see this file called.
   String get displayName =>

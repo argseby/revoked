@@ -531,7 +531,10 @@ abstract class _RequestsStore with Store {
   }
 
   /// Fetch all requests in the current user's active workspace.
-  Future<List<DataRequest>> getAll({int page = 1, int perPage = 50}) async {
+  Future<List<DataRequest>> getAll({
+    int page = 1,
+    int perPage = AppConfig.listPageSize,
+  }) async {
     final data = await _api.get(
       _requestsPath,
       queryParams: {

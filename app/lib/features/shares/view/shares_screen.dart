@@ -14,7 +14,6 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
@@ -31,12 +30,14 @@ import 'package:revoked_app/features/shares/view/recipient_row.dart';
 enum _LinkFilter { all, active, paused, closed }
 
 class SharesScreen extends StatefulWidget {
-  final String? filterSlug;
+  /// Narrows the list to one recipient's links, opened from "By person".
+  /// Their name, which is what a link's label holds.
+  final String? recipient;
 
   /// The link open beside the list, marked in it. Only in a split.
   final String? selectedId;
 
-  const SharesScreen({super.key, this.filterSlug, this.selectedId});
+  const SharesScreen({super.key, this.recipient, this.selectedId});
 
   @override
   State<SharesScreen> createState() => _SharesScreenState();
@@ -59,9 +60,6 @@ class _SharesScreenState extends State<SharesScreen> {
       },
       defaultSort: 'created_desc',
     );
-    if (widget.filterSlug != null) {
-      _table.searchQuery = widget.filterSlug!;
-    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Stores.shares.loadShares();
@@ -72,45 +70,18 @@ class _SharesScreenState extends State<SharesScreen> {
   }
 
   @override
-  void didUpdateWidget(SharesScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // The list outlives navigation in a split, so a new filter ("By person"
-    // opening one recipient's links) arrives here rather than in initState.
-    final slug = widget.filterSlug;
-    if (slug != null && slug != oldWidget.filterSlug) {
-      _table.searchQuery = slug;
-    }
-  }
-
-  @override
   void dispose() {
     _table.dispose();
     super.dispose();
-  }
-
-  /// The hint carries the count.
-  Widget _search(BuildContext context) {
-    final count = Stores.shares.shares.length;
-    return AppSearchField<Link>(
-      controller: _table,
-      hint: 'Search $count ${count == 1 ? 'link' : 'links'}',
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     // Access by record moved to the record pages and the Overview, and
     // links others gave you to Requests › Received.
-    final tabs = AppTabs(
+    return AppTabs(
       labels: const ['Links', 'By person'],
       views: [_myLinks(context), const _ByPerson()],
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppListSearch(child: Observer(builder: _search)),
-        Expanded(child: tabs),
-      ],
     );
   }
 
@@ -185,7 +156,12 @@ class _SharesScreenState extends State<SharesScreen> {
         }
 
         final now = DateTime.now();
-        final matches = _table.filteredItems;
+        final recipient = widget.recipient?.trim();
+        final matches = recipient == null || recipient.isEmpty
+            ? _table.filteredItems
+            : _table.filteredItems
+                  .where((l) => l.label.trim() == recipient)
+                  .toList();
         final byGroup = {for (final g in LinkGroup.values) g: <Link>[]};
         for (final l in matches) {
           byGroup[linkGroup(l, now)]!.add(l);
@@ -231,6 +207,20 @@ class _SharesScreenState extends State<SharesScreen> {
         );
 
         return AppListPage(
+          banners: [
+            if (recipient != null && recipient.isNotEmpty)
+              AppListBanner(
+                icon: AppIcons.person,
+                message: 'Links for $recipient',
+                action: AppButton(
+                  icon: AppIcons.x,
+                  label: 'Show all',
+                  style: AppButtonStyle.accent,
+                  size: AppButtonSize.small,
+                  onTap: () => context.go(AppRoutes.shared),
+                ),
+              ),
+          ],
           filters: AppFilterChips<_LinkFilter>(
             selected: filter,
             onSelected: (f) => _filter.value = f,

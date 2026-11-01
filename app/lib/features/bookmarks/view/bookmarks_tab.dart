@@ -7,7 +7,6 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -267,13 +266,15 @@ class _BookmarkRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ownServer = Stores.api.isOwnOrigin(bookmark.origin);
     final saved = AppEntityCard.formatDate(bookmark.created);
+    final asks = bookmark.kind == BookmarkKind.request;
     return AppListRow(
-      icon: AppIcons.bookmark,
+      icon: asks ? AppIcons.askFor : AppIcons.bookmark,
       title: bookmark.title,
       subtitle: [
+        asks ? 'Waiting for your answer' : null,
         ownServer ? 'This server' : bookmark.origin,
         if (saved != null) 'saved $saved',
-      ].join(' · '),
+      ].nonNulls.join(' · '),
       onTap: () => context.push(bookmark.location),
       showChevron: false,
       trailing: AppMenuButton(
@@ -287,11 +288,8 @@ class _BookmarkRow extends StatelessWidget {
             label: 'Copy link',
             onSelected: () {
               // Copied links travel to other servers, so they name this one.
-              final link = DeepLinks.share(
-                bookmark.slug,
-                origin: ownServer
-                    ? Stores.api.originAuthority
-                    : bookmark.origin,
+              final link = bookmark.deepLink(
+                ownServer ? Stores.api.originAuthority : bookmark.origin,
               );
               Clipboard.setData(ClipboardData(text: link));
               AppToast.success(context, 'Link copied');

@@ -123,24 +123,28 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 			}
 			notifyApplicationOpened(app, link, currentViews)
 
-			recordIds := link.GetStringSlice(util.Fields.Link.Records)
-
 			sections := linkSections(app, link)
 			records := []map[string]any{}
+			// Everything the link grants, in grant order and in one lookup.
+			// The archive check at the end of this handler reads the same
+			// slice: it decides on what the link grants rather than on what
+			// this resolve chose to show.
+			granted := services.LinkRecords(app, link)
 
-			for _, id := range recordIds {
-				if rec, err := app.FindRecordById(util.Coll.Records, id); err == nil {
-					entry := sanitizeRecord(rec)
-					// The resolve above claimed the view; the token carries that
-					// claim to the byte endpoint, so a download is never a
-					// second claim and never claim-free.
-					if rec.GetString(util.Fields.Record.Type) == util.TypeFile {
-						if token, tokenErr := issueDownloadToken(slug, rec.Id); tokenErr == nil {
-							entry["downloadToken"] = token
-						}
-					}
-					records = append(records, entry)
+			for _, rec := range granted {
+				if services.IsSealedThroughAlias(app, rec) {
+					continue
 				}
+				entry := sanitizeRecord(rec)
+				// The resolve above claimed the view; the token carries that
+				// claim to the byte endpoint, so a download is never a
+				// second claim and never claim-free.
+				if rec.GetString(util.Fields.Record.Type) == util.TypeFile {
+					if token, tokenErr := issueDownloadToken(slug, rec.Id); tokenErr == nil {
+						entry["downloadToken"] = token
+					}
+				}
+				records = append(records, entry)
 			}
 
 			if revokedByLimit {
@@ -161,7 +165,7 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 				"records":   records,
 				"viewCount": currentViews,
 			}
-			if len(services.LinkFileRecords(app, link)) > 0 {
+			if len(services.FileRecords(granted)) > 0 {
 				if token, tokenErr := issueArchiveToken(slug); tokenErr == nil {
 					resolved["archiveToken"] = token
 				}

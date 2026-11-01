@@ -8,6 +8,14 @@ const (
 	FieldIdentity  = "identity"
 )
 
+// Columns a link and a request name identically, for code that handles a
+// grant without caring which of the two it is.
+const (
+	FieldSlug   = "slug"
+	FieldLabel  = "label"
+	FieldStatus = "status"
+)
+
 type collectionSchema struct {
 	Workspaces       string
 	WorkspaceMembers string
@@ -65,6 +73,18 @@ type collectionSchema struct {
 	// AttestationChecks are one person asking another to show an attestation:
 	// the request, and once answered, the verdict on what was shown.
 	AttestationChecks string
+	// Contacts are the counterparties a workspace sends to and asks from. A
+	// contact names a route, never an identity relation: a peer's key material
+	// is held as its own fingerprint and domain, proven by the peer check,
+	// because the identity relation is ownership-checked for this workspace's
+	// own identities.
+	Contacts string
+	// DeviceKeys is each person's signed, append-only list of the devices that
+	// hold their keys. WorkspaceKeyEpochs and WorkspaceKeyWraps are a workspace's
+	// encryption keys, wrapped per device. The server can read none of it.
+	DeviceKeys         string
+	WorkspaceKeyEpochs string
+	WorkspaceKeyWraps  string
 }
 
 type inviteFields struct {
@@ -74,7 +94,21 @@ type inviteFields struct {
 
 type recordFields struct {
 	Key, Value, User, Workspace, Label, Type, Format, RequestedBy, AliasOf,
-	File, Filename, ContentHash, HashSalt, Mime, Size, Created, Updated string
+	File, Filename, ContentHash, HashSalt, Mime, Size, Created, Updated,
+	Sealed, SealedValue, SealedVersion, KeyEpoch, KeyWrap string
+}
+
+type deviceKeyFields struct {
+	User, Seq, Action, Kind, Label, HpkePublicKey, SigningPublicKey, TargetSeq,
+	PreviousHash, SignerSeq, AnchorSignature, Signature, Created string
+}
+
+type workspaceKeyEpochFields struct {
+	Workspace, Epoch, PriorWrap, RotationDue, CreatedBy, Created string
+}
+
+type workspaceKeyWrapFields struct {
+	Workspace, Epoch, User, DeviceSeq, Wrap, SignerSeq, ChainSeq, Signature, Created string
 }
 
 type sectionFields struct {
@@ -149,7 +183,7 @@ type identityRevocationFields struct {
 }
 
 type bookmarkFields struct {
-	User, Origin, Slug, Label, Groups, Created, Updated string
+	User, Origin, Slug, Kind, Label, Groups, Created, Updated string
 }
 
 type bookmarkGroupFields struct {
@@ -189,6 +223,11 @@ type grantDeliveryFields struct {
 
 type reminderFields struct {
 	User, Workspace, Record, Kind, DueAt, Watch, Note, FiredAt, Created, Updated string
+}
+
+type contactFields struct {
+	Workspace, Name, User, Email, PeerDomain, PeerFingerprint,
+	TrustState, VerifiedAt, LastUsedAt, Created, Updated string
 }
 
 type attestationFields struct {
@@ -246,6 +285,10 @@ var Coll = collectionSchema{
 	AttestationStatus:   "attestationStatus",
 	Credentials:         "credentials",
 	AttestationChecks:   "attestationChecks",
+	Contacts:            "contacts",
+	DeviceKeys:          "deviceKeys",
+	WorkspaceKeyEpochs:  "workspaceKeyEpochs",
+	WorkspaceKeyWraps:   "workspaceKeyWraps",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -255,6 +298,9 @@ var Fields = struct {
 	WorkspaceMember    memberFields
 	ApiKey             apiKeyFields
 	Record             recordFields
+	DeviceKey          deviceKeyFields
+	WorkspaceKeyEpoch  workspaceKeyEpochFields
+	WorkspaceKeyWrap   workspaceKeyWrapFields
 	Section            sectionFields
 	Link               linkFields
 	AuditLog           auditLogFields
@@ -280,6 +326,7 @@ var Fields = struct {
 	AttestationStatus  attestationStatusFields
 	Credential         credentialFields
 	AttestationCheck   attestationCheckFields
+	Contact            contactFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -333,6 +380,46 @@ var Fields = struct {
 		Size:        "size",
 		Created:     "created",
 		Updated:     "updated",
+
+		Sealed:        "sealed",
+		SealedValue:   "sealedValue",
+		SealedVersion: "sealedVersion",
+		KeyEpoch:      "keyEpoch",
+		KeyWrap:       "keyWrap",
+	},
+	DeviceKey: deviceKeyFields{
+		User:             "user",
+		Seq:              "seq",
+		Action:           "action",
+		Kind:             "kind",
+		Label:            "label",
+		HpkePublicKey:    "hpkePublicKey",
+		SigningPublicKey: "signingPublicKey",
+		TargetSeq:        "targetSeq",
+		PreviousHash:     "previousHash",
+		SignerSeq:        "signerSeq",
+		AnchorSignature:  "anchorSignature",
+		Signature:        "signature",
+		Created:          "created",
+	},
+	WorkspaceKeyEpoch: workspaceKeyEpochFields{
+		Workspace:   "workspace",
+		Epoch:       "epoch",
+		PriorWrap:   "priorWrap",
+		RotationDue: "rotationDue",
+		CreatedBy:   "createdBy",
+		Created:     "created",
+	},
+	WorkspaceKeyWrap: workspaceKeyWrapFields{
+		Workspace: "workspace",
+		Epoch:     "epoch",
+		User:      "user",
+		DeviceSeq: "deviceSeq",
+		Wrap:      "wrap",
+		SignerSeq: "signerSeq",
+		ChainSeq:  "chainSeq",
+		Signature: "signature",
+		Created:   "created",
 	},
 	Section: sectionFields{
 		Key:         "key",
@@ -492,6 +579,7 @@ var Fields = struct {
 		User:    "user",
 		Origin:  "origin",
 		Slug:    "slug",
+		Kind:    "kind",
 		Label:   "label",
 		Groups:  "groups",
 		Created: "created",
@@ -637,5 +725,18 @@ var Fields = struct {
 		AnsweredAt: "answeredAt",
 		Created:    "created",
 		Updated:    "updated",
+	},
+	Contact: contactFields{
+		Workspace:       "workspace",
+		Name:            "name",
+		User:            "user",
+		Email:           "email",
+		PeerDomain:      "peerDomain",
+		PeerFingerprint: "peerFingerprint",
+		TrustState:      "trustState",
+		VerifiedAt:      "verifiedAt",
+		LastUsedAt:      "lastUsedAt",
+		Created:         "created",
+		Updated:         "updated",
 	},
 }

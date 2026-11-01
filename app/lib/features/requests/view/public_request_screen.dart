@@ -186,7 +186,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       runInAction(() {
         _store.responderVault
           ..clear()
-          ..addAll(Stores.vault.records);
+          ..addAll(Stores.vault.records.where((r) => !r.sealed));
       });
 
       await Stores.identities.loadIdentities();

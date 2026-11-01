@@ -26,7 +26,7 @@ class RecipientRow extends StatelessWidget {
       onTap: () => context.go(
         links.length == 1
             ? AppRoutes.shareDetailFor(links.first.id)
-            : '${AppRoutes.shared}?filterSlug='
+            : '${AppRoutes.shared}?recipient='
                   '${Uri.encodeQueryComponent(name)}',
       ),
     );

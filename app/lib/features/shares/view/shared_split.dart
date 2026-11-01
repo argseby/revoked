@@ -16,13 +16,13 @@ import 'package:revoked_app/features/shares/view/shares_screen.dart';
 /// [SharedPlaceholder] while none is.
 class SharedSplit extends StatefulWidget {
   final String? selectedId;
-  final String? filterSlug;
+  final String? recipient;
   final Widget child;
 
   const SharedSplit({
     super.key,
     required this.selectedId,
-    required this.filterSlug,
+    required this.recipient,
     required this.child,
   });
 
@@ -43,7 +43,7 @@ class _SharedSplitState extends State<SharedSplit> {
     final wide = MediaQuery.sizeOf(context).width >= AppSpacing.wideWidth;
     final list = SharesScreen(
       key: _listKey,
-      filterSlug: widget.filterSlug,
+      recipient: widget.recipient,
       selectedId: wide ? widget.selectedId : null,
     );
 

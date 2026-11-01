@@ -15,6 +15,11 @@ class AppConfig {
     defaultValue: 'http://127.0.0.1:3000',
   );
 
+  /// How many rows a list loads. Nothing in the app paginates, so this is
+  /// also the most a person can see or search — a smaller number silently
+  /// hides the rest. PocketBase refuses more than 1000.
+  static const int listPageSize = 500;
+
   /// PocketBase collection names - mirrors Go backend `util/schema.go`.
   static const String usersCollection = 'users';
   static const String workspacesCollection = 'workspaces';
@@ -36,6 +41,7 @@ class AppConfig {
   static const String attestationsCollection = 'attestations';
   static const String credentialsCollection = 'credentials';
   static const String attestationChecksCollection = 'attestationChecks';
+  static const String contactsCollection = 'contacts';
 
   /// Where the project lives, shown in Settings → About. Not the API: these
   /// are the same for every deployment, whoever hosts the server.

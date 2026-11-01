@@ -422,6 +422,9 @@ func linkOptions(app core.App, user *core.Record, keys []string) []map[string]an
 	for _, key := range keys {
 		var matching, others []map[string]any
 		for _, rec := range records {
+			if services.IsSealedThroughAlias(app, rec) {
+				continue
+			}
 			entry := map[string]any{
 				"id":    rec.Id,
 				"key":   rec.GetString(f.Key),

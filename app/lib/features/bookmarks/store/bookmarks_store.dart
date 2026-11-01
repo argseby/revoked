@@ -52,9 +52,15 @@ abstract class _BookmarksStore with Store {
   AppErrorMessage? error;
 
   /// The bookmark for a link, matched the way the server's unique index is.
-  Bookmark? find({required String origin, required String slug}) {
+  Bookmark? find({
+    required String origin,
+    required String slug,
+    BookmarkKind kind = BookmarkKind.share,
+  }) {
     for (final b in bookmarks) {
-      if (b.slug == slug && b.origin.toLowerCase() == origin.toLowerCase()) {
+      if (b.slug == slug &&
+          b.kind == kind &&
+          b.origin.toLowerCase() == origin.toLowerCase()) {
         return b;
       }
     }
@@ -98,13 +104,20 @@ abstract class _BookmarksStore with Store {
     required String origin,
     required String slug,
     required String label,
+    BookmarkKind kind = BookmarkKind.share,
   }) async {
     isSaving = true;
     error = null;
     try {
       final data = await _api.post(
         _basePath,
-        body: {'user': user, 'origin': origin, 'slug': slug, 'label': label},
+        body: {
+          'user': user,
+          'origin': origin,
+          'slug': slug,
+          'kind': kind.wire,
+          'label': label,
+        },
       );
       bookmarks.insert(0, Bookmark.fromJson(data as Map<String, dynamic>));
       return true;

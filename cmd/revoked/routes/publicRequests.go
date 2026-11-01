@@ -2,7 +2,6 @@ package routes
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -526,6 +525,9 @@ func resolveResponseMappings(app core.App, auth *core.Record, mappings map[strin
 				parent = p
 			}
 		}
+		if services.IsSealed(parent) {
+			continue
+		}
 
 		if parent.GetString(util.Fields.Record.Key) != requestedKey {
 			existing, _ := app.FindFirstRecordByFilter(util.Coll.Records,
@@ -545,6 +547,9 @@ func resolveResponseMappings(app core.App, auth *core.Record, mappings map[strin
 					if p, err := app.FindRecordById(util.Coll.Records, pid); err == nil && p != nil {
 						carrier = p
 					}
+				}
+				if services.IsSealed(carrier) {
+					continue
 				}
 				grants[requestedKey] = carrier.Id
 				data[requestedKey] = carrier.GetString(util.Fields.Record.Value)
@@ -791,23 +796,7 @@ func uniqueRecordKey(app core.App, base, userId, workspace string) string {
 // returns an error rather than degrading to a derivable slug.
 func mintLinkSlug(app core.App, req *core.Record) (string, error) {
 	_ = req // the slug deliberately encodes nothing about the request
-	var lastErr error
-	for attempt := 0; attempt < 5; attempt++ {
-		token, err := util.GenerateToken(grantSlugBytes)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		slug := grantSlugPrefix + token
-		existing, _ := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:s}", map[string]any{"s": slug})
-		if existing == nil {
-			return slug, nil
-		}
-	}
-	if lastErr == nil {
-		lastErr = errors.New("exhausted slug attempts")
-	}
-	return "", lastErr
+	return mintUniqueSlug(app, util.Coll.Links, grantSlugPrefix)
 }
 
 // requesterDisplayName names who issued a request, for the `requestedBy` stamp that

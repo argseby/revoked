@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 
 import 'package:revoked_app/core/utils/paste_link_shortcut.dart';
 
-/// The shell's keys, app-wide like [PasteLinkShortcut]: `/` searches or
-/// opens a link, `N` opens the New picker, and Ctrl+1…4 (Cmd on macOS) go to
-/// the four destinations.
+/// The shell's keys, app-wide like [PasteLinkShortcut]: `/` and Ctrl+K (Cmd
+/// on macOS) search or open a link, `N` opens the New picker, and Ctrl+1…6
+/// (Cmd on macOS) go to the destinations.
+///
+/// Ctrl+K sits beside `/` because it is what people try first; `/` stays
+/// because it needs no modifier.
 ///
 /// Each one stands aside while a text field has focus, so typing "n" or "/"
 /// into a field is never taken, and while [enabled] says no — outside the
@@ -26,11 +29,14 @@ class ShellShortcuts extends StatelessWidget {
     required this.child,
   });
 
+  /// One per shell destination, in `AppRoutes.destinations` order.
   static const _digits = [
     LogicalKeyboardKey.digit1,
     LogicalKeyboardKey.digit2,
     LogicalKeyboardKey.digit3,
     LogicalKeyboardKey.digit4,
+    LogicalKeyboardKey.digit5,
+    LogicalKeyboardKey.digit6,
   ];
 
   @override
@@ -38,6 +44,10 @@ class ShellShortcuts extends StatelessWidget {
     return Shortcuts(
       shortcuts: {
         const CharacterActivator('/'): const _ShellIntent.search(),
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            const _ShellIntent.search(),
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+            const _ShellIntent.search(),
         const CharacterActivator('n'): const _ShellIntent.create(),
         for (var i = 0; i < _digits.length; i++) ...{
           SingleActivator(_digits[i], control: true): _ShellIntent.go(i),

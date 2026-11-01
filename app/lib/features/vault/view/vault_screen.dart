@@ -12,7 +12,6 @@ import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
@@ -88,15 +87,6 @@ class _VaultScreenState extends State<VaultScreen> {
     super.dispose();
   }
 
-  /// The hint carries the count.
-  Widget _search(BuildContext context) {
-    final count = Stores.vault.recordCount;
-    return AppSearchField<models.Record>(
-      controller: _tableController,
-      hint: 'Search $count ${count == 1 ? 'record' : 'records'}',
-    );
-  }
-
   /// The way out of a mode the screen is held in — editing a section's records,
   /// or picking what a share exposes. Creation lives on the shell's floating
   /// button, so there is nothing here otherwise.
@@ -122,15 +112,7 @@ class _VaultScreenState extends State<VaultScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppListSearch(child: Observer(builder: _search)),
-        Expanded(child: _body(context)),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => _body(context);
 
   Widget _body(BuildContext context) {
     final store = Stores.vault;
@@ -324,7 +306,6 @@ class _VaultScreenState extends State<VaultScreen> {
               .toList();
         }
 
-        final searchQuery = _tableController.searchQuery.toLowerCase();
         final byId = {for (final r in records) r.id: r};
         final visibleSections = <(Section, List<models.Record>)>[];
         for (final section in sectionsSource) {
@@ -332,11 +313,9 @@ class _VaultScreenState extends State<VaultScreen> {
             for (final id in section.records)
               if (byId[id] != null) byId[id]!,
           ];
-          final matchesSection =
-              filter == _VaultFilter.all &&
-              (section.name.toLowerCase().contains(searchQuery) ||
-                  section.key.toLowerCase().contains(searchQuery));
-          if (matchesSection || sectionRecords.isNotEmpty) {
+          // Unfiltered, a section shows even when empty, so the vault's shape
+          // stays visible; a chip narrows to the ones holding a match.
+          if (filter == _VaultFilter.all || sectionRecords.isNotEmpty) {
             visibleSections.add((section, sectionRecords));
           }
         }
@@ -488,7 +467,7 @@ class _VaultScreenState extends State<VaultScreen> {
   /// A hidden record's line: the redaction bar, and a file's size beside it.
   /// Null for a record whose value is on show.
   Widget? _hiddenPreview(models.Record r) {
-    if (!r.isHidden || Stores.vault.isRevealed(r.id)) return null;
+    if (!r.isHidden || r.isLocked || Stores.vault.isRevealed(r.id)) return null;
     final length = r.isFile ? r.displayName.length : r.value.length;
     return Row(
       children: [
@@ -503,6 +482,7 @@ class _VaultScreenState extends State<VaultScreen> {
 
   /// One line of the value, masked while the record is hidden.
   String _preview(models.Record r) {
+    if (r.isLocked) return 'Encrypted';
     final hidden = r.isHidden && !Stores.vault.isRevealed(r.id);
     if (r.isFile) {
       final name = hidden ? '••••••••' : r.displayName;

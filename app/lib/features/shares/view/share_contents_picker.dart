@@ -12,14 +12,19 @@ import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 
-/// What a new link's draft shares, in words: "IBAN", "IBAN and 2 more",
-/// "Onboarding pack". Empty when nothing is picked yet.
-String shareContentsSummary() {
+/// What a draft shares, in words: "IBAN", "IBAN and 2 more", "Onboarding
+/// pack". Empty when nothing is picked yet.
+///
+/// The sets default to the link draft's. A send to a contact passes its own,
+/// so both read the vault the same way rather than growing a second picker.
+String shareContentsSummary({Set<String>? records, Set<String>? sections}) {
+  final pickedRecords = records ?? Stores.shares.draftRecords;
+  final pickedSections = sections ?? Stores.shares.draftSections;
   final names = <String>[
     for (final s in Stores.vault.sections)
-      if (Stores.shares.draftSections.contains(s.id)) s.name,
+      if (pickedSections.contains(s.id)) s.name,
     for (final r in Stores.vault.records)
-      if (Stores.shares.draftRecords.contains(r.id)) recordTitle(r),
+      if (pickedRecords.contains(r.id)) recordTitle(r),
   ];
   if (names.isEmpty) return '';
   if (names.length == 1) return names.first;
@@ -29,9 +34,23 @@ String shareContentsSummary() {
 /// A record's name as a person reads it: its label, else its key.
 String recordTitle(models.Record r) => r.label.isEmpty ? r.key : r.label;
 
-/// Lets the owner tick the sections and records a new link shares. A section
+/// Lets the owner tick the sections and records a share gives out. A section
 /// is shared as a unit: records added to it later show up on the link too.
-Future<void> openShareContentsPicker(BuildContext context) {
+///
+/// [toggleRecord]/[toggleSection] and the sets they read come from whichever
+/// draft is being filled in — a new link's, or a send to a contact.
+Future<void> openShareContentsPicker(
+  BuildContext context, {
+  Set<String>? records,
+  Set<String>? sections,
+  void Function(String id)? toggleRecord,
+  void Function(String id)? toggleSection,
+}) {
+  final shares = Stores.shares;
+  final pickedRecords = records ?? shares.draftRecords;
+  final pickedSections = sections ?? shares.draftSections;
+  final onRecord = toggleRecord ?? shares.toggleDraftRecord;
+  final onSection = toggleSection ?? shares.toggleDraftSection;
   return showAppSheet(
     context: context,
     builder: (sheetContext) => ConstrainedBox(
@@ -41,8 +60,7 @@ Future<void> openShareContentsPicker(BuildContext context) {
       child: Observer(
         builder: (_) {
           final vault = Stores.vault;
-          final draft = Stores.shares;
-          final picked = draft.draftRecords.length + draft.draftSections.length;
+          final picked = pickedRecords.length + pickedSections.length;
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -92,20 +110,20 @@ Future<void> openShareContentsPicker(BuildContext context) {
                           subtitle:
                               '${s.records.length} '
                               '${s.records.length == 1 ? 'record' : 'records'}',
-                          value: draft.draftSections.contains(s.id),
-                          onChanged: (_) => draft.toggleDraftSection(s.id),
+                          value: pickedSections.contains(s.id),
+                          onChanged: (_) => onSection(s.id),
                         ),
                     ],
-                    if (vault.records.isNotEmpty) ...[
+                    if (vault.records.any((r) => !r.sealed)) ...[
                       const _GroupLabel('Records'),
-                      for (final r in vault.records)
+                      for (final r in vault.records.where((r) => !r.sealed))
                         AppCheckRow(
                           label: recordTitle(r),
                           subtitle: r.isFile
                               ? 'File'
                               : (r.isHidden ? 'Hidden value' : null),
-                          value: draft.draftRecords.contains(r.id),
-                          onChanged: (_) => draft.toggleDraftRecord(r.id),
+                          value: pickedRecords.contains(r.id),
+                          onChanged: (_) => onRecord(r.id),
                         ),
                     ],
                     AppSpacing.gapMd,
@@ -147,15 +165,30 @@ class _GroupLabel extends StatelessWidget {
   }
 }
 
-/// The form row that opens [openShareContentsPicker].
+/// The form row that opens [openShareContentsPicker], for the link draft or
+/// for any other draft that gives vault entries out.
 class ShareContentsRow extends StatelessWidget {
-  const ShareContentsRow({super.key});
+  final Set<String>? records;
+  final Set<String>? sections;
+  final void Function(String id)? toggleRecord;
+  final void Function(String id)? toggleSection;
+
+  const ShareContentsRow({
+    super.key,
+    this.records,
+    this.sections,
+    this.toggleRecord,
+    this.toggleSection,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Observer(
       builder: (context) {
-        final summary = shareContentsSummary();
+        final summary = shareContentsSummary(
+          records: records,
+          sections: sections,
+        );
         return AppFormRow(
           icon: AppIcons.safe,
           label: 'What to share',
@@ -164,7 +197,13 @@ class ShareContentsRow extends StatelessWidget {
               : summary,
           isPlaceholder: summary.isEmpty,
           isError: summary.isEmpty,
-          onTap: () => openShareContentsPicker(context),
+          onTap: () => openShareContentsPicker(
+            context,
+            records: records,
+            sections: sections,
+            toggleRecord: toggleRecord,
+            toggleSection: toggleSection,
+          ),
         );
       },
     );

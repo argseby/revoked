@@ -29,7 +29,11 @@ type passkeyPageData struct {
 	VerifyEmail bool
 	// The account a ticket in the address is for; empty when it names none.
 	TicketEmail string
-	Nonce       string
+	// A request slug an emailed ask arrived with, so the page can send the
+	// person on to it once their account exists. A slug and never a URL, so
+	// this cannot become an open redirector.
+	AskSlug string
+	Nonce   string
 }
 
 // servePasskeyPage renders the one page a passkey ceremony runs on. What to do
@@ -49,6 +53,12 @@ func servePasskeyPage(app core.App, re *core.RequestEvent, root *server.RootKey)
 		Signups:     util.SignupsAllowed(),
 		VerifyEmail: util.SignupEmailVerification(),
 		Nonce:       nonce,
+	}
+	// Deliberately not looked up: the page is then not a slug-existence
+	// oracle and spends no probe budget. An unknown slug simply opens the
+	// app, which reports it.
+	if ask := re.Request.URL.Query().Get("ask"); requestSlugPattern.MatchString(ask) && len(ask) <= 100 {
+		data.AskSlug = ask
 	}
 	if ticket := re.Request.URL.Query().Get("ticket"); ticket != "" && allowRequest(re, passkeyLimiter, "") {
 		if _, account, err := services.FindPasskeyTicket(app, ticket); err == nil {
@@ -343,7 +353,7 @@ font-size: 14px; line-height: 1.45;
 <script nonce="{{.Nonce}}">
 (function () {
 'use strict';
-var server = { originOK: {{.OriginOK}}, signups: {{.Signups}}, verifyEmail: {{.VerifyEmail}}, ticketEmail: {{.TicketEmail}} };
+var server = { originOK: {{.OriginOK}}, signups: {{.Signups}}, verifyEmail: {{.VerifyEmail}}, ticketEmail: {{.TicketEmail}}, askSlug: {{.AskSlug}}, origin: location.host };
 var query = new URLSearchParams(location.search);
 var pkce = /^[A-Za-z0-9._~-]{43,128}$/.test(query.get('challenge') || '') ? query.get('challenge') : '';
 var state = /^[A-Za-z0-9._~-]{1,128}$/.test(query.get('state') || '') ? query.get('state') : '';
@@ -389,6 +399,8 @@ var STRINGS = {
     'done.returning': 'Back to the app now.',
     'done.close': 'Nothing happened? Tap the button.',
     'done.saved': 'Passkey saved', 'done.savedLead': 'Open Revoked on this device and sign in.',
+    'done.askLead': 'Open Revoked on this device and sign in. What you were asked for is waiting there.',
+    'open.ask': 'Open what you were asked for',
     'done.closeNow': 'You can close this page.',
     'stop.title': 'Passkeys do not work here',
     'stop.origin': 'Passkeys only work at this server’s own address.',
@@ -430,6 +442,8 @@ var STRINGS = {
     'done.returning': 'Jetzt zurück zur App.',
     'done.close': 'Nichts passiert? Tippe auf den Knopf.',
     'done.saved': 'Passkey gespeichert', 'done.savedLead': 'Öffne Revoked auf diesem Gerät und melde dich an.',
+    'done.askLead': 'Öffne Revoked auf diesem Gerät und melde dich an. Die Anfrage wartet dort auf dich.',
+    'open.ask': 'Angefragtes öffnen',
     'done.closeNow': 'Du kannst diese Seite schließen.',
     'stop.title': 'Passkeys gehen hier nicht',
     'stop.origin': 'Passkeys gehen nur unter der Adresse dieses Servers.',
@@ -759,7 +773,17 @@ function finished(result) {
   redraw = function () {
     show($('emailRow'), false); show($('codeRow'), false); show($('go'), false); show($('other'), false); show($('resend'), false); show($('hint'), false);
     steps(created ? STEP_COUNT + 1 : 0);
-    heading(t('done.saved'), t('done.savedLead'), 'check', 'ok');
+    // An account made from an emailed ask has somewhere to go next. It is
+    // still two steps, not one tap: the browser session and the app session
+    // are separate by design, so they sign in there with the new passkey.
+    if (server.askSlug) {
+      heading(t('done.saved'), t('done.askLead'), 'check', 'ok');
+      $('open').href = 'revoked://r/' + encodeURIComponent(server.origin) + '/' + encodeURIComponent(server.askSlug);
+      $('open').querySelector('[data-t="open"]').textContent = t('open.ask');
+      show($('open'), true);
+    } else {
+      heading(t('done.saved'), t('done.savedLead'), 'check', 'ok');
+    }
     $('note').textContent = t('done.closeNow');
   };
   redraw();

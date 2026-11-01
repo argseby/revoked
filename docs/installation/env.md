@@ -43,7 +43,9 @@ no `.env` file needed there.
 
 ## Mail
 
-The mail server that sends signup confirmation codes. These values replace
+The mail server that sends signup confirmation codes and, if you turn it on,
+the link when someone shares something with a person who has no account
+here. These values replace
 whatever the `/_/` dashboard has stored, on every start. Leave `SMTP_HOST`
 unset to keep the dashboard's settings.
 
@@ -56,6 +58,20 @@ unset to keep the dashboard's settings.
 | `SMTP_AUTH_METHOD` | `PLAIN` | `PLAIN` or `LOGIN`. |
 | `SMTP_SENDER_ADDRESS` | — | The From address, e.g. `no-reply@example.com`. |
 | `SMTP_SENDER_NAME` | `Revoked` | The From name. |
+
+### Emailing a share or a request
+
+Off unless you turn it on. This is the one thing a person using your server
+can do that makes it contact somebody who has no account on it, so you decide
+which addresses it may reach at all.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `GRANT_EMAIL_RECIPIENTS` | `off` | Who may be emailed a link. `off` emails nobody and the sender gets the link to pass on themselves. `same-domain` emails addresses in your own `DOMAIN`. `trusted` emails addresses whose domain publishes a Revoked server you can verify — which proves the domain, never that the mailbox exists or who reads it. `all` emails anyone. An unrecognised value reads as `off`. The server won't start with this set to anything but `off` and no `SMTP_HOST`/`SMTP_SENDER_ADDRESS`. |
+
+A request emailed this way needs the recipient to make an account before they
+can answer, so it is only sent while `ALLOW_SIGNUPS` is on. The email never
+carries what was shared — only what it is called and a link.
 
 ## Seed accounts
 
@@ -108,6 +124,8 @@ change needs a restart. `0` turns a limiter off.
 | `RATELIMIT_SIGNUP_EMAILS` | `10` | Signup confirmation codes mailed, per IP, per hour. Each address also gets at most one code a minute and five an hour, whoever asks. |
 | `RATELIMIT_GRANT_REQUESTS` | `300` | Calls between servers — grant reads, grant events and accepted answers — and calls to the OpenID Connect token and userinfo endpoints, per IP, per minute. Also answers to requests on other servers, per account. One read carries up to 100 grants. |
 | `RATELIMIT_SUBMISSIONS` | `60` | Answers to requests, per account, per hour. Each answer notifies the request's owner and may call their callback URL. |
+| `RATELIMIT_GRANT_EMAILS` | `5` | Links emailed to one address, per hour, whoever sends them. This is the only cap protecting someone who isn't using your server, so it is counted in the database rather than in memory: it holds even if you run more than one instance. |
+| `RATELIMIT_WORKSPACE_EMAILS` | `30` | Links emailed by one workspace, per hour. Guards your own sending quota and reputation, which the per-account cap does not once a workspace invites members. In memory, so more than one instance multiplies it. |
 
 PocketBase's own sign-in endpoints are limited too, by its built-in rate
 limiter, which a migration turns on: five superuser sign-ins per IP per five
@@ -119,6 +137,15 @@ All these limits count per IP. So set the
 [trusted-proxy header](reverse-proxy.md#let-rate-limits-see-real-ips).
 Without it, every request seems to come from your proxy, and everyone shares
 one budget.
+
+## Capacity
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MAX_CONNECTIONS` | `2048` | How many callers your server talks to at once. Past this a new caller waits for a free slot, and gives up if none comes. Every request in flight holds some memory, so without a ceiling enough callers at once will exhaust it and the machine will stop the server outright; this keeps it answering the callers it already took. `0` removes the ceiling. |
+
+If you put your server behind a reverse proxy, cap connections there too — the
+proxy meets the flood first.
 
 ## Storage
 

@@ -6,7 +6,8 @@ import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 
 /// The filter drawer sits over the list it filters. Every control in it has to
 /// move the list underneath immediately — closing the drawer to see the result
-/// is the bug this pins.
+/// is the bug this pins. Searching by name is not here: that is the shell's
+/// one search panel, over every kind at once.
 void main() {
   late ObservableList<String> source;
   late TableStore<String> table;
@@ -38,19 +39,6 @@ void main() {
     return builds;
   }
 
-  testWidgets('search updates the list without closing the drawer', (
-    tester,
-  ) async {
-    final seen = <String>[];
-    await mount(tester, seen);
-    expect(seen, ['alpha', 'beta', 'gamma']);
-
-    table.searchQuery = 'be';
-    await tester.pump();
-
-    expect(seen, ['beta']);
-  });
-
   testWidgets('adding and filling a filter updates the list', (tester) async {
     final seen = <String>[];
     await mount(tester, seen);
@@ -78,12 +66,12 @@ void main() {
   testWidgets('clearing filters restores the full list', (tester) async {
     final seen = <String>[];
     await mount(tester, seen);
-    table.searchQuery = 'zzz';
+    table.addFilter('name');
+    table.updateFilter(table.filters.first.id, value: 'zzz');
     await tester.pump();
     expect(seen, isEmpty);
 
     table.clearFilters();
-    table.searchQuery = '';
     await tester.pump();
 
     expect(seen, ['alpha', 'beta', 'gamma']);

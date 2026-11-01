@@ -207,16 +207,17 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 		return writeText(re, "text/calendar", iCalendar(link, textFields))
 	default:
 		records := []map[string]any{}
-		for _, id := range link.GetStringSlice(util.Fields.Link.Records) {
-			if rec, err := app.FindRecordById(util.Coll.Records, id); err == nil {
-				entry := sanitizeRecord(rec)
-				if rec.GetString(util.Fields.Record.Type) == util.TypeFile {
-					if token, tokenErr := issueDownloadToken(slug, rec.Id); tokenErr == nil {
-						entry["downloadToken"] = token
-					}
-				}
-				records = append(records, entry)
+		for _, rec := range services.LinkRecords(app, link) {
+			if services.IsSealedThroughAlias(app, rec) {
+				continue
 			}
+			entry := sanitizeRecord(rec)
+			if rec.GetString(util.Fields.Record.Type) == util.TypeFile {
+				if token, tokenErr := issueDownloadToken(slug, rec.Id); tokenErr == nil {
+					entry["downloadToken"] = token
+				}
+			}
+			records = append(records, entry)
 		}
 		sections := linkSections(app, link)
 		return re.JSON(http.StatusOK, withWatermark(link, map[string]any{
@@ -234,6 +235,9 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 func collectLinkFields(app core.App, link *core.Record) []linkField {
 	out := []linkField{}
 	add := func(rec *core.Record) {
+		if services.IsSealedThroughAlias(app, rec) {
+			return
+		}
 		out = append(out, linkField{
 			key:     rec.GetString("key"),
 			value:   rec.GetString("value"),
@@ -242,10 +246,8 @@ func collectLinkFields(app core.App, link *core.Record) []linkField {
 			updated: rec.GetDateTime("updated").Time(),
 		})
 	}
-	for _, id := range link.GetStringSlice(util.Fields.Link.Records) {
-		if rec, err := app.FindRecordById(util.Coll.Records, id); err == nil && rec != nil {
-			add(rec)
-		}
+	for _, rec := range services.LinkRecords(app, link) {
+		add(rec)
 	}
 	for _, sid := range link.GetStringSlice(util.Fields.Link.Sections) {
 		if sec, err := app.FindRecordById(util.Coll.Sections, sid); err == nil && sec != nil {

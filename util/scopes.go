@@ -60,6 +60,13 @@ const (
 	ScopeAttestationCreate = "attestation:create"
 	ScopeAttestationUpdate = "attestation:update"
 	ScopeAttestationDelete = "attestation:delete"
+
+	// contact:* covers the workspace's address book: who it sends to and asks
+	// from. Reading one yields an address and, for a peer, its fingerprint.
+	ScopeContactRead   = "contact:read"
+	ScopeContactCreate = "contact:create"
+	ScopeContactUpdate = "contact:update"
+	ScopeContactDelete = "contact:delete"
 )
 
 // AllScopes lists every defined API key scope.
@@ -106,6 +113,10 @@ var AllScopes = []string{
 	ScopeAttestationCreate,
 	ScopeAttestationUpdate,
 	ScopeAttestationDelete,
+	ScopeContactRead,
+	ScopeContactCreate,
+	ScopeContactUpdate,
+	ScopeContactDelete,
 }
 
 // AttestationScopes are the scopes added with attestations, for the migration

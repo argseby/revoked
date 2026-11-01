@@ -18,16 +18,16 @@ import (
 // LinkFileRecords returns the file records a link grants, each once and in
 // grant order.
 func LinkFileRecords(app core.App, link *core.Record) []*core.Record {
-	ids := link.GetStringSlice(util.Fields.Link.Records)
-	seen := map[string]bool{}
+	return FileRecords(recordsByIds(app, uniqueIds(link.GetStringSlice(util.Fields.Link.Records))))
+}
+
+// FileRecords picks the records carrying an uploaded file out of ones already
+// loaded, so a caller that has just read a link's records does not read them a
+// second time to find out whether any of them is a file.
+func FileRecords(records []*core.Record) []*core.Record {
 	var out []*core.Record
-	for _, id := range ids {
-		if seen[id] {
-			continue
-		}
-		seen[id] = true
-		rec, err := app.FindRecordById(util.Coll.Records, id)
-		if err != nil || rec == nil || rec.GetString(util.Fields.Record.Type) != util.TypeFile ||
+	for _, rec := range records {
+		if rec == nil || rec.GetString(util.Fields.Record.Type) != util.TypeFile ||
 			rec.GetString(util.Fields.Record.File) == "" {
 			continue
 		}

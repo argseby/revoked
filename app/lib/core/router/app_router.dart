@@ -35,6 +35,7 @@ import 'package:revoked_app/features/requests/view/request_sheet_screen.dart';
 import 'package:revoked_app/features/invites/view/invite_accept_screen.dart';
 import 'package:revoked_app/features/onboarding/view/tour_screen.dart';
 import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen.dart';
+import 'package:revoked_app/features/contacts/view/contacts_screen.dart';
 import 'package:revoked_app/features/overview/view/overview_screen.dart';
 
 abstract class AppRoutes {
@@ -76,8 +77,14 @@ abstract class AppRoutes {
   /// What others attested about the person, and what they attested.
   static const attestations = '/attestations';
 
+  /// What this workspace attested about others.
+  static const attestationsIssued = '$attestations?tab=issued';
+
   /// The people the person asked to show an attestation.
   static const attestationsChecked = '$attestations?tab=checked';
+
+  /// The people this workspace sends to and asks from.
+  static const contacts = '/contacts';
   static const settings = '/settings';
 
   /// Each settings topic is a page of its own under Settings.
@@ -120,7 +127,14 @@ abstract class AppRoutes {
   static const receivedVault = '/received-vault';
 
   /// The places the shell's navigation leads to, in order.
-  static const destinations = [overview, vault, shared, requests, attestations];
+  static const destinations = [
+    overview,
+    vault,
+    shared,
+    requests,
+    attestations,
+    contacts,
+  ];
 
   /// Which of [destinations] a location belongs to, or null outside them
   /// (Settings, and every screen without the shell).
@@ -423,7 +437,7 @@ class AppRouter {
             ShellRoute(
               builder: (context, state, child) => SharedSplit(
                 selectedId: state.pathParameters['id'],
-                filterSlug: state.uri.queryParameters['filterSlug'],
+                recipient: state.uri.queryParameters['recipient'],
                 child: child,
               ),
               routes: [
@@ -483,6 +497,11 @@ class AppRouter {
                   ),
                 ),
               ],
+            ),
+            GoRoute(
+              path: AppRoutes.contacts,
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: ContactsScreen()),
             ),
             GoRoute(
               path: AppRoutes.attestations,

@@ -31,6 +31,11 @@ const (
 	TypeDatetime = "datetime"
 	TypeFile     = "file"
 
+	SealedActionAdd    = "add"
+	SealedActionRemove = "remove"
+	SealedKindDevice   = "device"
+	SealedKindRecovery = "recovery"
+
 	FormatHidden    = "hidden"
 	FormatDefault   = "default"
 	FormatMultiline = "multiline"
@@ -57,11 +62,18 @@ const (
 	NotificationCallbackFailed  = "callback_failed"
 	NotificationInviteAccepted  = "invite_accepted"
 	NotificationLinkOpened      = "link_opened"
+	NotificationSealingReset    = "sealing_reset"
 	NotificationReminder        = "reminder"
 	// The attester hears that an offer was accepted and a credential issued.
 	NotificationAttestationAccepted = "attestation_accepted"
 	// Whoever asked to see an attestation hears that it was shown.
 	NotificationAttestationChecked = "attestation_checked"
+	// Someone with an account here handed this person a share, or asked them
+	// for data.
+	NotificationContactShare = "contact_share"
+	NotificationContactAsk   = "contact_ask"
+	// The sender hears that the email carrying their grant never arrived.
+	NotificationEmailUndelivered = "email_undelivered"
 
 	// A check waits open until it is answered once, or its time runs out.
 	CheckStatusOpen     = "open"
@@ -71,6 +83,28 @@ const (
 	// watches changes.
 	ReminderKindDate   = "date"
 	ReminderKindChange = "change"
+
+	// What a contact's key material has been shown to be. Unverified is the
+	// honest default: an address someone typed in proves nothing about who
+	// reads it.
+	ContactUnverified = "unverified"
+	ContactVerified   = "verified"
+	ContactRevoked    = "revoked"
+
+	// What a bookmark points at. Empty reads as a share, so every bookmark
+	// saved before a request could be handed over still resolves.
+	BookmarkKindShare   = "share"
+	BookmarkKindRequest = "request"
+
+	// What an audit row says happened. The three CRUD verbs are what the
+	// request hooks record. Handing a grant to a contact gets its own two,
+	// because that row names the contact rather than the grant: the grant's
+	// own creation is recorded separately, as any other create is.
+	AuditActionCreate = "create"
+	AuditActionUpdate = "update"
+	AuditActionDelete = "delete"
+	AuditActionSend   = "send"
+	AuditActionAsk    = "ask"
 
 	PurposeApplication = "application"
 
@@ -85,6 +119,8 @@ const (
 	// callback URL of one of this server's own requests.
 	DeliveryKindPeer     = "peer"
 	DeliveryKindCallback = "callback"
+	// DeliveryKindEmail mails a grant to a contact with no account here.
+	DeliveryKindEmail = "email"
 
 	// Revocation reasons recorded on an identity. They are advisory — a verifier
 	// treats every non-active status the same — but they are what tells an
@@ -152,10 +188,17 @@ var NotificationTypes = []string{
 	NotificationCallbackFailed,
 	NotificationInviteAccepted,
 	NotificationLinkOpened,
+	NotificationSealingReset,
 	NotificationReminder,
 	NotificationAttestationAccepted,
 	NotificationAttestationChecked,
+	NotificationContactShare,
+	NotificationContactAsk,
+	NotificationEmailUndelivered,
 }
+
+// BookmarkKinds lists what a bookmark may point at.
+var BookmarkKinds = []string{BookmarkKindShare, BookmarkKindRequest}
 
 // CheckStatuses lists the valid attestation check statuses.
 var CheckStatuses = []string{CheckStatusOpen, CheckStatusAnswered}
@@ -167,10 +210,13 @@ var CheckStatuses = []string{CheckStatusOpen, CheckStatusAnswered}
 var AttestationStatuses = []string{StatusOffered, StatusActive, StatusRevoked}
 
 // DeliveryKinds lists the valid grant delivery kinds.
-var DeliveryKinds = []string{DeliveryKindPeer, DeliveryKindCallback}
+var DeliveryKinds = []string{DeliveryKindPeer, DeliveryKindCallback, DeliveryKindEmail}
 
 // GrantEventTypes lists the valid grant event types.
 var GrantEventTypes = []string{GrantEventRevoked, GrantEventChanged, GrantEventExpired}
 
 // ReminderKinds lists the valid reminder kinds.
 var ReminderKinds = []string{ReminderKindDate, ReminderKindChange}
+
+// ContactTrustStates lists the valid contact trust states.
+var ContactTrustStates = []string{ContactUnverified, ContactVerified, ContactRevoked}

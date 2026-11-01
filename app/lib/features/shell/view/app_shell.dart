@@ -38,6 +38,7 @@ const _destinations = [
   _Destination(AppIcons.share, 'Shares', underVault: true),
   _Destination(AppIcons.inboxFill, 'Requests', underVault: true),
   _Destination(AppIcons.attestation, 'Attestations'),
+  _Destination(AppIcons.person, 'Contacts'),
 ];
 
 /// The frame around every signed-in screen.
@@ -226,14 +227,18 @@ class _AppShellState extends State<AppShell> {
                 title: _title(destination),
                 actions: [
                   _slot(ShellSlots.action),
-                  if (!sidebar)
-                    AppButton(
-                      icon: AppIcons.search,
-                      style: AppButtonStyle.accent,
-                      tooltip: 'Search or paste a link',
-                      onTap: () => openLinkSearchSheet(context),
-                    ),
                   if (!sidebar) const _NotificationBell(),
+                  // Search sits beside New because those two are what a
+                  // person reaches for from any screen: find a thing, or make
+                  // one. The sidebar carries its own, so it is not repeated.
+                  if (!sidebar)
+                    const Padding(
+                      padding: EdgeInsets.only(left: AppSpacing.xs),
+                      child: SizedBox(
+                        width: _searchTriggerWidth,
+                        child: _SearchField(),
+                      ),
+                    ),
                   // The one primary action, rightmost on every wide layout.
                   if (destination != null)
                     Padding(
@@ -378,7 +383,11 @@ class _Sidebar extends StatelessWidget {
   }
 }
 
-/// Opens the search and link drawer. `/` opens it too.
+/// How much room the trigger takes in a top bar — enough for the hint, but
+/// not so much that it crowds New on a mid-sized window.
+const double _searchTriggerWidth = 240;
+
+/// Opens the search and link drawer. `/` and Ctrl+K open it too.
 class _SearchField extends StatelessWidget {
   const _SearchField();
 

@@ -28,7 +28,72 @@ const (
 	// SignupVerifyEmailEnv makes a new account confirm its address with a
 	// code sent there before its passkey is registered.
 	SignupVerifyEmailEnv = "SIGNUP_VERIFY_EMAIL"
+
+	// GrantEmailRecipientsEnv says which addresses this server may mail a
+	// grant to. Mail is the one feature where a person's action makes the
+	// server contact a stranger, so the operator chooses the reach.
+	GrantEmailRecipientsEnv = "GRANT_EMAIL_RECIPIENTS"
+
+	// GrantEmailsPerHourEnv caps how many grant emails one address may be
+	// sent in an hour, whoever sends them.
+	GrantEmailsPerHourEnv = "RATELIMIT_GRANT_EMAILS"
+
+	// WorkspaceMailPerHourEnv caps how many grant emails one workspace may
+	// send in an hour.
+	WorkspaceMailPerHourEnv = "RATELIMIT_WORKSPACE_EMAILS"
 )
+
+// MailRecipients is how far grant email may reach.
+type MailRecipients string
+
+const (
+	// MailRecipientsOff sends nothing, and is the default: a server that
+	// upgrades into this feature must not start mailing on its own.
+	MailRecipientsOff MailRecipients = "off"
+
+	// MailRecipientsSameDomain admits only addresses in the server's own
+	// domain — the operator's own people.
+	MailRecipientsSameDomain MailRecipients = "same-domain"
+
+	// MailRecipientsTrusted admits an address whose domain verifies as a
+	// Revoked peer. That proves the domain published a pin, never that the
+	// mailbox exists or who reads it.
+	MailRecipientsTrusted MailRecipients = "trusted"
+
+	// MailRecipientsAll admits any address.
+	MailRecipientsAll MailRecipients = "all"
+)
+
+// DefaultGrantEmailsPerHour is how many grant emails one address may be sent
+// in an hour. It matches [EmailCodesPerHour]: the inbox being protected is a
+// stranger's either way.
+const DefaultGrantEmailsPerHour = 5
+
+// DefaultWorkspaceMailPerHour is how many grant emails one workspace may send
+// in an hour.
+const DefaultWorkspaceMailPerHour = 30
+
+// GrantEmailSuppressFor is how long a permanent delivery failure keeps an
+// address from being tried again.
+const GrantEmailSuppressFor = 30 * 24 * time.Hour
+
+// GrantEmailRecipients reports how far grant email may reach. Read per
+// request, like [SignupsAllowed].
+//
+// An unrecognised value reads as off, so a typo fails closed rather than
+// mailing the world.
+func GrantEmailRecipients() MailRecipients {
+	switch MailRecipients(strings.ToLower(strings.TrimSpace(os.Getenv(GrantEmailRecipientsEnv)))) {
+	case MailRecipientsSameDomain:
+		return MailRecipientsSameDomain
+	case MailRecipientsTrusted:
+		return MailRecipientsTrusted
+	case MailRecipientsAll:
+		return MailRecipientsAll
+	default:
+		return MailRecipientsOff
+	}
+}
 
 // DefaultOutboundMailPerHour is the cap when OutboundMailPerHourEnv is unset.
 const DefaultOutboundMailPerHour = 200

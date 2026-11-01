@@ -198,6 +198,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       );
       final records = ((data['items'] as List<dynamic>?) ?? [])
           .map((e) => models.Record.fromJson(e as Map<String, dynamic>))
+          .where((r) => !r.sealed)
           .toList();
       // Newest first, so a key held twice resolves to its latest record.
       final byKey = <String, models.Record>{};

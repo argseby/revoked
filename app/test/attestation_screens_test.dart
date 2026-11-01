@@ -154,11 +154,22 @@ void main() {
     return json({'items': <Object>[]});
   }
 
-  setUpAll(() async {
+  setUpAll(() {
     credential =
         (jsonDecode(File('test/fixtures/sd_jwt.json').readAsStringSync())
                 as Map<String, dynamic>)['credential']
             as String;
+  });
+
+  // Fresh stores per case; Stores.init says why they cannot be shared.
+  setUp(() async {
+    claims.clear();
+    presented.clear();
+    deleted.clear();
+    launched.clear();
+    offerStatus = 'offered';
+    claimAnswer = 200;
+    serviceRedirect = 'https://shop.test/done?ok=1';
     SharedPreferences.setMockInitialValues({});
     // The identity's key is on this device, as after creating it here.
     FlutterSecureStorage.setMockInitialValues({
@@ -173,17 +184,6 @@ void main() {
             return true;
           },
         );
-  });
-
-  setUp(() {
-    claims.clear();
-    presented.clear();
-    deleted.clear();
-    launched.clear();
-    offerStatus = 'offered';
-    claimAnswer = 200;
-    serviceRedirect = 'https://shop.test/done?ok=1';
-    Stores.credentials.clearOffer();
   });
 
   Future<void> open(WidgetTester tester, Widget screen) async {

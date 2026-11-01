@@ -13,7 +13,8 @@ import 'package:revoked_app/features/data/view/data_screen.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUpAll(() async {
+  // Fresh stores per case; Stores.init says why they cannot be shared.
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await Stores.init();
   });

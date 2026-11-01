@@ -6,12 +6,18 @@ import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/crypto/sealing.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/stores.dart';
 
 part 'vault_store.g.dart';
+
+/// How encrypting an existing record went.
+enum SealOutcome { sealed, linksAffected, failed }
 
 /// A MobX store backing the vault feature: holds the observable list of
 /// vault [models.Record]s and [Section]s for the active workspace and
@@ -150,6 +156,13 @@ abstract class _VaultStore with Store {
   @observable
   String recordFormat = 'default';
 
+  /// Whether the record being drafted is end-to-end encrypted.
+  @observable
+  bool recordSealed = false;
+
+  @action
+  void setRecordSealed(bool value) => recordSealed = value;
+
   @observable
   String? recordKeyWarning;
 
@@ -214,6 +227,9 @@ abstract class _VaultStore with Store {
     recordLabel.text = from?.label ?? '';
     recordType = from?.type ?? 'text';
     recordFormat = from?.format ?? 'default';
+    // A copy of something encrypted starts encrypted: the person would otherwise
+    // write it out in plaintext just by duplicating it.
+    recordSealed = from?.sealed ?? false;
     recordOriginSectionId = sectionId;
     recordKeyWarning = null;
     recordSuggestedKey = null;
@@ -483,12 +499,18 @@ abstract class _VaultStore with Store {
     try {
       final recordsData = await _api.get(
         '/api/collections/${AppConfig.recordsCollection}/records',
-        queryParams: {'page': '1', 'perPage': '50', 'sort': '-created'},
+        queryParams: {
+          'page': '1',
+          'perPage': '${AppConfig.listPageSize}',
+          'sort': '-created',
+        },
       );
       final recordItems = (recordsData['items'] as List<dynamic>?) ?? [];
       records = ObservableList.of(
-        recordItems.map(
-          (e) => models.Record.fromJson(e as Map<String, dynamic>),
+        await _openAll(
+          recordItems.map(
+            (e) => models.Record.fromJson(e as Map<String, dynamic>),
+          ),
         ),
       );
 
@@ -496,7 +518,7 @@ abstract class _VaultStore with Store {
         '/api/collections/${AppConfig.sectionsCollection}/records',
         queryParams: {
           'page': '1',
-          'perPage': '50',
+          'perPage': '${AppConfig.listPageSize}',
           'sort': '-created',
           'expand': 'records',
         },
@@ -616,6 +638,186 @@ abstract class _VaultStore with Store {
     uploadTotal = total;
   }
 
+  /// Decrypts what this device can. Anything it can't stays locked, with an
+  /// empty value, so nothing downstream can mistake it for the real one.
+  Future<List<models.Record>> _openAll(Iterable<models.Record> fetched) async {
+    final keys = Stores.keys;
+    await keys.ensureLoaded();
+    return [for (final r in fetched) _open(r)];
+  }
+
+  models.Record _open(models.Record record) {
+    final keys = Stores.keys;
+    if (!record.sealed) {
+      return keys.knewAsSealed(record.id)
+          ? record.markedUnsealedElsewhere(true)
+          : record;
+    }
+    final value = keys.openRecord(record);
+    return value == null ? record : record.withOpenedValue(value);
+  }
+
+  models.Record? _byId(String id) {
+    for (final r in records) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  void _replaceInList(models.Record record) {
+    final index = records.indexWhere((r) => r.id == record.id);
+    if (index != -1) records[index] = record;
+  }
+
+  static String _friendlyError(Object e) => e is ApiException
+      ? AppErrorMessage.fromException(e).description
+      : e.toString();
+
+  static String _newRecordId() {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    return Sealing.randomBytes(
+      15,
+    ).map((b) => alphabet[b % alphabet.length]).join();
+  }
+
+  /// Runs a sealed write, reloading the keys once if another device replaced
+  /// the workspace's key since this one last looked.
+  Future<dynamic> _withFreshKeys(Future<dynamic> Function() write) async {
+    try {
+      return await write();
+    } on ApiException catch (e) {
+      if (e.code != AppErrorCode.sealedEpochStale) rethrow;
+      await Stores.keys.load();
+      return write();
+    }
+  }
+
+  Future<models.Record> _createSealed({
+    required String key,
+    required String value,
+    required String label,
+    required String type,
+    required String format,
+    required String workspace,
+  }) async {
+    final id = _newRecordId();
+    final data = await _withFreshKeys(
+      () => _api.post(
+        '/api/sealed/records',
+        body: {
+          ...Stores.keys
+              .sealValue(
+                workspace: workspace,
+                record: id,
+                recordKey: key,
+                version: 1,
+                value: value,
+              )
+              .toJson(),
+          'id': id,
+          'key': key,
+          'label': label,
+          'type': type,
+          'format': format,
+          'workspace': workspace,
+        },
+      ),
+    );
+    return _rememberWritten(data as Map<String, dynamic>, value);
+  }
+
+  /// A value this device just wrote, remembered so that the server can't serve
+  /// the previous one straight afterwards.
+  models.Record _rememberWritten(Map<String, dynamic> json, String value) {
+    final record = models.Record.fromJson(json).withOpenedValue(value);
+    Stores.keys.noteWritten(
+      record.id,
+      version: record.sealedVersion,
+      epoch: record.keyEpoch,
+    );
+    return record;
+  }
+
+  /// Writes [value] encrypted, as this record's next version. The server sees
+  /// only ciphertext, and clears any plain value the record held.
+  Future<models.Record> _writeSealed(
+    models.Record record,
+    String value, {
+    bool dropLinks = false,
+  }) async {
+    final data = await _withFreshKeys(
+      () => _api.put(
+        '/api/sealed/records/${record.id}',
+        body: {
+          ...Stores.keys
+              .sealValue(
+                workspace: record.workspace,
+                record: record.id,
+                recordKey: record.key,
+                version: record.sealedVersion + 1,
+                value: value,
+              )
+              .toJson(),
+          'expectedVersion': record.sealedVersion,
+          'dropLinks': dropLinks,
+        },
+      ),
+    );
+    return _rememberWritten(data as Map<String, dynamic>, value);
+  }
+
+  /// Encrypts an existing plain record. Live links would stop showing it, so
+  /// the first attempt reports that rather than doing it.
+  @action
+  Future<SealOutcome> sealRecord(String id, {bool dropLinks = false}) async {
+    errorMessage = null;
+    final record = _byId(id);
+    if (record == null || record.isLocked) return SealOutcome.failed;
+    try {
+      _replaceInList(
+        await _writeSealed(record, record.value, dropLinks: dropLinks),
+      );
+      return SealOutcome.sealed;
+    } on ApiException catch (e) {
+      if (e.code == AppErrorCode.sealedLinksAffected) {
+        return SealOutcome.linksAffected;
+      }
+      errorMessage = _friendlyError(e);
+      return SealOutcome.failed;
+    } catch (e) {
+      errorMessage = e.toString();
+      return SealOutcome.failed;
+    }
+  }
+
+  /// Stores an encrypted record in plain text again, at its owner's request.
+  @action
+  Future<bool> unsealRecord(String id) async {
+    errorMessage = null;
+    final record = _byId(id);
+    if (record == null || record.isLocked) return false;
+    try {
+      final data = await _api.post(
+        '/api/sealed/records/$id/unseal',
+        body: {'expectedVersion': record.sealedVersion, 'value': record.value},
+      );
+      await Stores.keys.acceptUnsealed(id);
+      _replaceInList(models.Record.fromJson(data as Map<String, dynamic>));
+      return true;
+    } catch (e) {
+      errorMessage = _friendlyError(e);
+      return false;
+    }
+  }
+
+  /// The person confirmed it was them who stopped encrypting this record.
+  @action
+  Future<void> acceptUnsealedRecord(String id) async {
+    await Stores.keys.acceptUnsealed(id);
+    final record = _byId(id);
+    if (record != null) _replaceInList(record.markedUnsealedElsewhere(false));
+  }
+
   @action
   Future<bool> createRecord({
     required String key,
@@ -626,9 +828,54 @@ abstract class _VaultStore with Store {
     required String user,
     required String workspace,
     PendingUpload? file,
+    bool sealed = false,
   }) async {
     isLoading = true;
     errorMessage = null;
+
+    if (sealed) {
+      try {
+        final existing = records
+            .where((r) => r.key == key && r.requestedBy == null)
+            .toList();
+        if (existing.isEmpty) {
+          records.insert(
+            0,
+            await _createSealed(
+              key: key,
+              value: value,
+              label: label,
+              type: type,
+              format: format,
+              workspace: workspace,
+            ),
+          );
+          return true;
+        }
+        final current = existing.first;
+        if (current.isLocked) {
+          errorMessage =
+              'You already have an encrypted record called $key, and you '
+              'can\'t read it on this device.';
+          return false;
+        }
+        // Encrypted first and metadata after: the other order would write the
+        // new value out in plaintext on the way. Links aren't dropped here. That
+        // decision needs the warning on the record's own page.
+        final saved = await _writeSealed(current, value);
+        _replaceInList(saved);
+        return await updateRecord(saved.id, {
+          'label': label,
+          'type': type,
+          'format': format,
+        });
+      } catch (e) {
+        errorMessage = _friendlyError(e);
+        return false;
+      } finally {
+        isLoading = false;
+      }
+    }
 
     // An answered field is edited in place. The section is left alone: the
     // record may have been in the vault before this template ever asked for
@@ -776,9 +1023,45 @@ abstract class _VaultStore with Store {
     isLoading = true;
     errorMessage = null;
     try {
-      final spec = VaultStore.updateRecordSpec(id, updates);
+      // A sealed value never goes through the collection API: the server refuses
+      // it there, because that is how plaintext would get back in. The record
+      // may also be past the first page, so it's looked up, not assumed plain.
+      var current = _byId(id);
+      if (current == null && updates.containsKey('value')) {
+        current = _open(
+          models.Record.fromJson(
+            await _api.get(
+                  '/api/collections/${AppConfig.recordsCollection}/records/$id',
+                )
+                as Map<String, dynamic>,
+          ),
+        );
+      }
+      var remaining = updates;
+      if (current != null && current.sealed) {
+        final value = updates['value'];
+        if (value is String && current.isLocked) {
+          errorMessage = 'You can\'t change this record on this device.';
+          return false;
+        }
+        if (value is String && value != current.value) {
+          _replaceInList(await _writeSealed(current, value));
+        }
+        remaining = {...updates}..remove('value');
+        if (remaining.isEmpty) return true;
+      } else if (updates.containsKey('value') && Stores.keys.knewAsSealed(id)) {
+        // The server says this is plain, and this device knows it was encrypted.
+        // Believing it would send the new value out in plaintext.
+        errorMessage =
+            'This record was encrypted and now isn\'t. Open it and confirm '
+            'that was you before changing it.';
+        return false;
+      }
+      final spec = VaultStore.updateRecordSpec(id, remaining);
       final data = await _api.patch(spec.path, body: spec.body);
-      final updated = models.Record.fromJson(data as Map<String, dynamic>);
+      final updated = _open(
+        models.Record.fromJson(data as Map<String, dynamic>),
+      );
       final index = records.indexWhere((r) => r.id == id);
       if (index != -1) {
         records[index] = updated;

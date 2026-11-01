@@ -58,6 +58,19 @@ func ServerInfoRoute(app core.App, root *server.RootKey) {
 					"open":        util.SignupsAllowed(),
 					"verifyEmail": util.SignupEmailVerification(),
 				},
+				// Operator policy again: how far this server will mail a
+				// grant. The app reads it so it can say where a send will go
+				// before anyone taps Send, rather than offering a button that
+				// quietly does less than it looks like.
+				"mail": map[string]any{
+					"recipients": string(util.GrantEmailRecipients()),
+				},
+				// What this server's API can do rather than operator policy: an
+				// older server has no sealed routes, so the app hides the option
+				// instead of offering something that fails on save.
+				"sealing": map[string]any{
+					"records": true,
+				},
 			})
 		})
 

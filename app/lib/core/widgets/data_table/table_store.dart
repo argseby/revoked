@@ -57,7 +57,11 @@ List<DataTableSortOption> sortOptionsFor(List<DataTableColumn> columns) => [
   ],
 ];
 
-/// Search, filter and sort over an in-memory list.
+/// Filter and sort over an in-memory list.
+///
+/// It holds no text query: searching by name is the shell's one search panel,
+/// across every kind, so a list that also filtered by its own query would be
+/// a second way to do it.
 ///
 /// Page-scoped: the page that needs a table creates one and disposes it there,
 /// per the store rules — this is never a singleton.
@@ -80,9 +84,6 @@ abstract class _TableStore<T> with Store {
 
   @observable
   String sortBy;
-
-  @observable
-  String searchQuery = '';
 
   @action
   void addFilter(String defaultColumn) {
@@ -141,19 +142,6 @@ abstract class _TableStore<T> with Store {
     if (source.isEmpty) return [];
 
     List<T> result = List.from(source);
-
-    if (searchQuery.isNotEmpty) {
-      final query = searchQuery.toLowerCase();
-      result = result.where((item) {
-        return fieldGetters.values.any((getter) {
-          try {
-            return getter(item).toString().toLowerCase().contains(query);
-          } catch (_) {
-            return false;
-          }
-        });
-      }).toList();
-    }
 
     for (final f in filters) {
       if (f.value.isEmpty) continue;

@@ -373,7 +373,10 @@ abstract class _SharesStore with Store {
     errorMessage = null;
   }
 
-  Future<List<Link>> getAll({int page = 1, int perPage = 50}) async {
+  Future<List<Link>> getAll({
+    int page = 1,
+    int perPage = AppConfig.listPageSize,
+  }) async {
     final data = await _api.get(
       _basePath,
       queryParams: {

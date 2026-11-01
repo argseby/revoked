@@ -32,6 +32,8 @@ const (
 	PermIdentitiesManage  = "identities:manage"
 	PermAttestationsRead  = "attestations:read"
 	PermAttestationsIssue = "attestations:issue"
+	PermContactsRead      = "contacts:read"
+	PermContactsManage    = "contacts:manage"
 	PermMembersRead       = "members:read"
 	PermMembersAdd        = "members:add"
 	PermMembersRemove     = "members:remove"
@@ -116,6 +118,16 @@ var Permissions = []Permission{
 		Description: "Sign statements about other people's identities in the name of this server's domain, and revoke them. Whoever trusts the domain trusts what is issued here.",
 		Destructive: true,
 		Scopes:      []string{ScopeAttestationCreate, ScopeAttestationUpdate, ScopeAttestationDelete, ScopeAttestationRead},
+	},
+	{
+		Key: PermContactsRead, Label: "View contacts",
+		Description: "See the people this workspace sends to and asks from.",
+		Scopes:      []string{ScopeContactRead},
+	},
+	{
+		Key: PermContactsManage, Label: "Manage contacts",
+		Description: "Add, edit and remove the people this workspace sends to and asks from.",
+		Scopes:      []string{ScopeContactCreate, ScopeContactUpdate, ScopeContactDelete},
 	},
 	{
 		Key: PermMembersRead, Label: "View members",

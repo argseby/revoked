@@ -332,9 +332,13 @@ abstract class _AuthStore with Store {
     }
   }
 
+  /// Lets a store that holds decrypted keys drop them on sign-out.
+  void Function()? onLoggedOut;
+
   @action
   Future<void> logout() async {
     await _api.clearAuthState();
+    onLoggedOut?.call();
     currentUser = null;
     await purgeOpenedFiles();
   }
@@ -415,6 +419,7 @@ abstract class _AuthStore with Store {
   Future<void> handleSessionExpired() async {
     if (currentUser == null) return;
     await _api.clearAuthState();
+    onLoggedOut?.call();
     currentUser = null;
     errorMessage = 'Your session expired. Sign in again.';
   }

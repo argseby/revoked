@@ -13,6 +13,7 @@ import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -31,6 +32,7 @@ import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/record_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/redacted_value.dart';
@@ -124,8 +126,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         return AppDetailPage(
           header: _header(context, record),
           sections: [
+            if (record.unsealedElsewhere) _unsealedElsewhereAlert(record),
             _valueSection(record),
-            _sharedIn(context, record),
+            if (!record.sealed) _sharedIn(context, record),
             _reminders(context, record),
           ],
           aside: [
@@ -165,6 +168,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         AppBadge(icon: RecordTypeUtils.icon(r.type), label: r.type),
         if (r.isHidden)
           const AppBadge(icon: AppIcons.eyeSlash, label: 'Hidden'),
+        if (r.sealed)
+          const AppBadge(icon: AppIcons.lock, label: 'End-to-end encrypted'),
         if (r.isAlias) const AppBadge(icon: AppIcons.link, label: 'Alias'),
         if (r.isRequested)
           AppBadge(
@@ -181,6 +186,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               label: 'View',
               onTap: () => _viewFile(r),
             )
+          : r.isLocked
+          ? null
           : AppButton(
               icon: AppIcons.copy,
               label: 'Copy value',
@@ -197,19 +204,29 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             style: AppButtonStyle.accent,
             onTap: () => _downloadFile(r),
           ),
-        AppButton(
-          icon: AppIcons.share,
-          tooltip: 'Share',
-          style: AppButtonStyle.accent,
-          onTap: () => openShareCreateSheet(context: context, records: [r.id]),
-        ),
-        AppButton(
-          icon: AppIcons.pencil,
-          tooltip: 'Edit',
-          style: AppButtonStyle.accent,
-          onTap: () => openRecordEditSheet(context, store, r),
-        ),
-        if (!r.isFile)
+        if (!r.sealed)
+          AppButton(
+            icon: AppIcons.share,
+            tooltip: 'Share',
+            style: AppButtonStyle.accent,
+            onTap: () =>
+                openShareCreateSheet(context: context, records: [r.id]),
+          ),
+        if (!r.isLocked && !r.unsealedElsewhere)
+          AppButton(
+            icon: AppIcons.pencil,
+            tooltip: 'Edit',
+            style: AppButtonStyle.accent,
+            onTap: () => openRecordEditSheet(context, store, r),
+          ),
+        if (Stores.keys.isAvailable && !r.isFile && !r.isAlias && !r.isLocked)
+          AppButton(
+            icon: AppIcons.lock,
+            tooltip: r.sealed ? 'Stop encrypting' : 'Encrypt end to end',
+            style: AppButtonStyle.accent,
+            onTap: () => r.sealed ? _unseal(r) : _seal(r),
+          ),
+        if (!r.isFile && !r.isLocked)
           AppButton(
             icon: AppIcons.duplicate,
             tooltip: 'Duplicate',
@@ -224,6 +241,90 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       ],
     );
   }
+
+  Future<void> _seal(models.Record r) async {
+    final ready = await ensureSealingReady(context, r.workspace);
+    if (!ready || !mounted) return;
+    var outcome = await Stores.vault.sealRecord(r.id);
+    if (!mounted) return;
+    if (outcome == SealOutcome.linksAffected) {
+      final go = await showAppDialog(
+        context: context,
+        title: 'Take this record off your links?',
+        message:
+            'Your links can’t show an encrypted record, so it comes off them. '
+            'If it’s in a section you’ve shared, it comes back there only if '
+            'you stop encrypting it.',
+        confirmLabel: 'Encrypt',
+        confirmIcon: AppIcons.lock,
+      );
+      if (!go || !mounted) return;
+      outcome = await Stores.vault.sealRecord(r.id, dropLinks: true);
+      if (!mounted) return;
+    }
+    if (outcome == SealOutcome.sealed) {
+      await showAppDialog(
+        context: context,
+        title: 'Encrypted',
+        message:
+            'Your server can’t read this any more. It may still have the old '
+            'value in its backups, so change this secret if it really matters.',
+        confirmLabel: 'Got it',
+        confirmIcon: AppIcons.check,
+        cancelLabel: null,
+      );
+    } else if (outcome == SealOutcome.failed) {
+      AppToast.error(
+        context,
+        'Couldn’t encrypt it',
+        subtitle: Stores.vault.errorMessage,
+      );
+    }
+  }
+
+  Future<void> _unseal(models.Record r) async {
+    final go = await showAppDialog(
+      context: context,
+      title: 'Stop encrypting this record?',
+      message:
+          'Your server will be able to read it again. Any section link that '
+          'includes it will show it again too.',
+      confirmLabel: 'Stop encrypting',
+      confirmIcon: AppIcons.lock,
+      destructive: true,
+    );
+    if (!go) return;
+    final ok = await Stores.vault.unsealRecord(r.id);
+    if (!ok && mounted) {
+      AppToast.error(
+        context,
+        'Couldn’t change it',
+        subtitle: Stores.vault.errorMessage,
+      );
+    }
+  }
+
+  Widget _unsealedElsewhereAlert(models.Record r) => AppAlert(
+    destructive: true,
+    title: const Text('This record is no longer encrypted'),
+    content: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'If you didn’t stop encrypting it on another device, don’t trust '
+          'this value. It may not be yours.',
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        AppButton(
+          icon: AppIcons.check,
+          label: 'It was me',
+          style: AppButtonStyle.accent,
+          size: AppButtonSize.small,
+          onTap: () => Stores.vault.acceptUnsealedRecord(r.id),
+        ),
+      ],
+    ),
+  );
 
   Widget _valueSection(models.Record r) {
     final hidden = r.isHidden && !Stores.vault.isRevealed(r.id);
@@ -250,9 +351,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       rows = [
         _ValueRow(
           icon: RecordTypeUtils.icon(r.type),
-          text: value.isEmpty ? '—' : value,
-          masked: r.isHidden ? hidden : null,
-          onToggle: toggle,
+          text: r.isLocked
+              ? 'You can’t read this on this device'
+              : (value.isEmpty ? '—' : value),
+          masked: r.isHidden && !r.isLocked ? hidden : null,
+          onToggle: r.isLocked ? null : toggle,
         ),
         if (r.isAlias)
           AppDetailRow(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -34,10 +35,20 @@ Future<void> openLinkSearchSheet(BuildContext context) async {
   if (store.isDrawerOpen) return;
   store.isDrawerOpen = true;
   // The names it searches. Signed out (a link pasted on the login screen)
-  // there is nothing to search.
+  // there is nothing to search. Each list is fetched once and then reused;
+  // the panel is the only search in the app, so it has to look everywhere.
   if (Stores.auth.isAuthenticated) {
     if (Stores.vault.records.isEmpty) Stores.vault.loadRecords();
     if (Stores.shares.shares.isEmpty) Stores.shares.loadShares();
+    if (Stores.requests.requests.isEmpty) Stores.requests.loadRequests();
+    if (Stores.contacts.contacts.isEmpty) Stores.contacts.load();
+    if (Stores.bookmarks.bookmarks.isEmpty) Stores.bookmarks.load();
+    if (Stores.credentials.credentials.isEmpty) Stores.credentials.load();
+    if (Stores.attestations.attestations.isEmpty) Stores.attestations.load();
+    final workspace = Stores.auth.activeWorkspace ?? '';
+    if (workspace.isNotEmpty && Stores.templates.templates.isEmpty) {
+      Stores.templates.loadTemplates(workspace);
+    }
   }
   // Read the clipboard exactly here - opening this drawer is the one
   // moment a revoked:// link on it is almost certainly why we were opened.
@@ -237,9 +248,10 @@ class LinkSearchSheet extends StatelessWidget {
             const Text('Search or open a link').header,
             const SizedBox(height: AppSpacing.xxs),
             const Text(
-              'Find a record or link by name, or paste a link someone sent '
-              'you. Hidden values are never searched. Use Verify to check '
-              'the sender before you open it. Press / to search or Ctrl + V '
+              'Find anything by name — records, links, requests, contacts '
+              'and the rest — or paste a link someone sent you. Hidden '
+              'values are never searched. Use Verify to check the sender '
+              'before you open it. Press / or Ctrl + K to search, Ctrl + V '
               'to paste, from anywhere in the app.',
             ).muted.small,
             const SizedBox(height: AppSpacing.lg),
@@ -428,8 +440,27 @@ class LinkSearchSheet extends StatelessWidget {
 List<QuickSearchHit> _hits(String query) => quickSearch(
   query,
   records: Stores.vault.records,
+  sections: Stores.vault.sections,
   links: Stores.shares.shares,
+  requests: Stores.requests.requests,
+  contacts: Stores.contacts.contacts,
+  credentials: Stores.credentials.credentials,
+  attestations: Stores.attestations.attestations,
+  bookmarks: Stores.bookmarks.bookmarks,
+  templates: Stores.templates.templates,
 );
+
+/// The lists that came back exactly full, so there may be more behind them.
+/// Nothing in the app pages through a list, so saying nothing here would let
+/// a search look conclusive when it is not.
+List<String> _atPageLimit() {
+  const size = AppConfig.listPageSize;
+  return [
+    if (Stores.vault.records.length >= size) 'records',
+    if (Stores.shares.shares.length >= size) 'links',
+    if (Stores.requests.requests.length >= size) 'requests',
+  ];
+}
 
 void _go(BuildContext context, String location) {
   // Capture the router before popping — the sheet's context is gone after.
@@ -447,6 +478,7 @@ class _SearchResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hits = _hits(query);
+    final capped = _atPageLimit();
     if (hits.isEmpty) {
       return Semantics(
         liveRegion: true,
@@ -454,6 +486,12 @@ class _SearchResults extends StatelessWidget {
           'Nothing called "$query". Search looks at names, not values.',
         ).muted.small,
       );
+    }
+    // Grouped, because a name can belong to any of nine kinds and the kind is
+    // what tells the reader which one they found.
+    final groups = <QuickSearchKind, List<QuickSearchHit>>{};
+    for (final hit in hits) {
+      (groups[hit.kind] ??= []).add(hit);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -464,14 +502,25 @@ class _SearchResults extends StatelessWidget {
             '${hits.length} ${hits.length == 1 ? 'match' : 'matches'}',
           ).muted.small,
         ),
-        AppSpacing.gapXs,
-        for (final hit in hits)
-          AppListRow(
-            icon: hit.icon,
-            title: hit.title,
-            subtitle: hit.kind,
-            onTap: () => _go(context, hit.location),
-          ),
+        for (final entry in groups.entries) ...[
+          AppSpacing.gapSm,
+          Text(entry.key.label).small.bold.muted,
+          AppSpacing.gapXxs,
+          for (final hit in entry.value)
+            AppListRow(
+              icon: hit.icon,
+              title: hit.title,
+              subtitle: hit.subtitle,
+              onTap: () => _go(context, hit.location),
+            ),
+        ],
+        if (capped.isNotEmpty) ...[
+          AppSpacing.gapSm,
+          Text(
+            'Searched the most recent ${AppConfig.listPageSize} '
+            '${capped.join(' and ')}. There may be older ones.',
+          ).muted.small,
+        ],
       ],
     );
   }

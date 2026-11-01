@@ -103,3 +103,69 @@ func TestLinkResolveGroupsRecordsByVaultSection(t *testing.T) {
 		check(t, "/s/"+slug+".json", http.MethodGet)
 	})
 }
+
+// A resolve lists the link's records in the order it grants them, and one that
+// has since been deleted drops out without disturbing the rest — the loader
+// reads them all in one query, so order is its job rather than the database's.
+func TestLinkResolveKeepsGrantOrderAfterADeletion(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("CreateRandomUser: %v", err)
+	}
+	wsID := activeWorkspaceOf(t, api, userID, token)
+
+	record := func(key string) string {
+		return extractID(t, baseURL, util.Coll.Records, token, map[string]any{
+			util.Fields.Record.Key:       key,
+			util.Fields.Record.Value:     key + "-value",
+			util.Fields.Record.Label:     key,
+			util.Fields.Record.Type:      util.TypeText,
+			util.Fields.Record.Format:    util.FormatDefault,
+			util.Fields.Record.User:      userID,
+			util.Fields.Record.Workspace: wsID,
+		})
+	}
+
+	first := record("aaa_first")
+	gone := record("bbb_gone")
+	third := record("ccc_third")
+	fourth := record("ddd_fourth")
+
+	// Granted in an order that matches neither creation nor any sort of the
+	// keys, so a resolve that fell back to the database's order would show it.
+	slug := "ord-" + uuid.New().String()[:8]
+	extractID(t, baseURL, util.Coll.Links, token, map[string]any{
+		util.Fields.Link.Slug:      slug,
+		util.Fields.Link.Label:     "Ordered share",
+		util.Fields.Link.Status:    util.StatusActive,
+		util.Fields.Link.User:      userID,
+		util.Fields.Link.Workspace: wsID,
+		util.Fields.Link.Records:   []string{fourth, gone, first, third},
+	})
+
+	api.Delete(util.Coll.Records, gone, token).Expect().Status(http.StatusNoContent)
+
+	want := []string{"ddd_fourth", "aaa_first", "ccc_third"}
+	for _, probe := range []struct {
+		path, method string
+	}{
+		{"/s/" + slug, http.MethodGet},
+		{"/api/public/links/" + slug, http.MethodPost},
+	} {
+		t.Run(probe.method+" "+probe.path, func(t *testing.T) {
+			req := testutils.NewPBClient(t, baseURL).E.Request(probe.method, probe.path)
+			if probe.method == http.MethodPost {
+				req = req.WithJSON(map[string]any{})
+			}
+			records := req.Expect().Status(http.StatusOK).JSON().Object().
+				Value("records").Array()
+
+			records.Length().IsEqual(len(want))
+			for i, key := range want {
+				records.Value(i).Object().Value(util.Fields.Record.Key).String().IsEqual(key)
+			}
+		})
+	}
+}

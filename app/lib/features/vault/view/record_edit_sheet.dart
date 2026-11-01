@@ -291,7 +291,7 @@ void openRecordEditSheet(
                               'the file sends the same fields as '
                               'multipart/form-data with a "file" part.',
                             ).muted.small
-                          else
+                          else if (!record.sealed)
                             ApiPreview(
                               spec: VaultStore.updateRecordSpec(record.id, {
                                 'value': store.editRecordValue.text.trim(),

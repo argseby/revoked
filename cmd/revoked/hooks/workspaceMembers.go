@@ -94,6 +94,9 @@ func BindWorkspaceMembersHooks(app core.App) {
 		if err := e.Next(); err != nil {
 			return err
 		}
+		if err := services.RevokeSealedAccess(e.App, userId, workspaceId); err != nil {
+			return err
+		}
 		return services.RevokeWorkspaceIdentities(e.App, userId, workspaceId, util.RevocationMembershipEnded)
 	})
 

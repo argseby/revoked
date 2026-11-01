@@ -43,21 +43,16 @@ void main() {
     });
   });
 
-  // The stores are process-wide singletons: set up once per file.
-  var storesReady = false;
-
   Future<GoRouter> signedIn(WidgetTester tester, {required Size size}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    if (!storesReady) {
-      SharedPreferences.setMockInitialValues({});
-      FlutterSecureStorage.setMockInitialValues({});
-      await Stores.init(
-        httpClient: MockClient((_) async => http.Response('{}', 404)),
-      );
-      storesReady = true;
-    }
+    // Fresh stores per case; Stores.init says why they cannot be shared.
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    await Stores.init(
+      httpClient: MockClient((_) async => http.Response('{}', 404)),
+    );
     runInAction(() => Stores.auth.currentUser = null);
     final router = AppRouter.create(Stores.auth);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -92,7 +87,7 @@ void main() {
       '/inbox/q1': '/requests/q1',
       '/inbox/create': '/requests',
       '/data': '/shared',
-      '/shares?filterSlug=abc': '/shared?filterSlug=abc',
+      '/shares?recipient=Ada': '/shared?recipient=Ada',
       '/shares/l1': '/shared/l1',
       '/request-data?requestId=q1': '/requests/q1/data',
       '/request-sheet?requestId=q1': '/requests/q1/sheet',
@@ -196,12 +191,36 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.text('New'), findsOneWidget);
+    // Search sits beside New: the two things reached from any screen.
+    expect(find.text('Search or paste link'), findsOneWidget);
+  });
+
+  testWidgets('a phone keeps search as an icon, not the pill', (tester) async {
+    await signedIn(tester, size: const Size(400, 800));
+    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(
+      find.text('Search or paste link'),
+      findsNothing,
+      reason: 'there is no room for it beside the floating New button',
+    );
+  });
+
+  testWidgets('the narrowest window with a top bar still fits it', (
+    tester,
+  ) async {
+    // One pixel over the breakpoint is where the bar is tightest: a rail, a
+    // title, the bell, the search pill and New. An overflow here throws.
+    await signedIn(tester, size: const Size(601, 800));
+    expect(find.text('New'), findsOneWidget);
+    expect(find.text('Search or paste link'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a wide window gets the sidebar', (tester) async {
     await signedIn(tester, size: const Size(1200, 800));
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
+    // The sidebar carries it, so the top bar does not repeat it.
     expect(find.text('Search or paste link'), findsOneWidget);
     for (final label in [
       'Overview',
@@ -209,6 +228,7 @@ void main() {
       'Shares',
       'Requests',
       'Attestations',
+      'Contacts',
     ]) {
       expect(find.text(label), findsWidgets, reason: label);
     }

@@ -57,6 +57,10 @@ var Errors = struct {
 	IdentityWrongRoot             AppError
 	IdentityNotOwned              AppError
 	BookmarkGroupNotOwned         AppError
+	ContactRouteMissing           AppError
+	ContactNotFound               AppError
+	ContactNothingToSend          AppError
+	TemplateNotOwned              AppError
 	IdentityRevoked               AppError
 	IdentityFingerprintInvalid    AppError
 	InviteInviterLostAccess       AppError
@@ -159,6 +163,13 @@ var Errors = struct {
 	AttestationCheckInvalid       AppError
 	AttestationCheckNotFound      AppError
 	AttestationCheckClosed        AppError
+	SealedFieldsRestricted        AppError
+	SealedInvalid                 AppError
+	SealedVersionConflict         AppError
+	SealedEpochStale              AppError
+	SealedKeyMissing              AppError
+	SealedRecordUnsupported       AppError
+	SealedLinksAffected           AppError
 }{
 	DuplicateWorkspaceMember: AppError{
 		ErrorCode: "duplicate_workspace_member",
@@ -363,6 +374,22 @@ var Errors = struct {
 	BookmarkGroupNotOwned: AppError{
 		ErrorCode: "bookmark_group_not_owned",
 		ErrorText: "A selected group is not one of yours.",
+	},
+	ContactRouteMissing: AppError{
+		ErrorCode: "contact_route_missing",
+		ErrorText: "A contact needs a way to reach someone: an account, a server or an email address.",
+	},
+	ContactNotFound: AppError{
+		ErrorCode: "contact_not_found",
+		ErrorText: "That contact does not exist.",
+	},
+	ContactNothingToSend: AppError{
+		ErrorCode: "contact_nothing_to_send",
+		ErrorText: "Choose at least one entry to send.",
+	},
+	TemplateNotOwned: AppError{
+		ErrorCode: "template_not_owned",
+		ErrorText: "The selected template does not belong to your workspace.",
 	},
 	IdentityRevoked: AppError{
 		ErrorCode: "identity_revoked",
@@ -723,6 +750,34 @@ var Errors = struct {
 	AttestationCheckClosed: AppError{
 		ErrorCode: "attestation_check_closed",
 		ErrorText: "This check was already answered or has run out. Ask for a new one.",
+	},
+	SealedFieldsRestricted: AppError{
+		ErrorCode: "sealed_fields_restricted",
+		ErrorText: "This entry is end-to-end encrypted. Update your app to change it.",
+	},
+	SealedInvalid: AppError{
+		ErrorCode: "sealed_invalid",
+		ErrorText: "This encrypted data is not in the expected form.",
+	},
+	SealedVersionConflict: AppError{
+		ErrorCode: "sealed_version_conflict",
+		ErrorText: "Another device changed this first. Reload and try again.",
+	},
+	SealedEpochStale: AppError{
+		ErrorCode: "sealed_epoch_stale",
+		ErrorText: "This workspace's encryption key has changed. Reload and try again.",
+	},
+	SealedKeyMissing: AppError{
+		ErrorCode: "sealed_key_missing",
+		ErrorText: "You don't hold the encryption key for this workspace.",
+	},
+	SealedRecordUnsupported: AppError{
+		ErrorCode: "sealed_record_unsupported",
+		ErrorText: "End-to-end encrypted entries can't be used here yet.",
+	},
+	SealedLinksAffected: AppError{
+		ErrorCode: "sealed_links_affected",
+		ErrorText: "Links share this entry, and they'd stop showing it once it's encrypted.",
 	},
 }
 

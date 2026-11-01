@@ -160,7 +160,7 @@ func inviteProbe(app core.App, root *server.RootKey, invite *core.Record) map[st
 func inviterAttestation(app core.App, root *server.RootKey, invite, by *core.Record, email string) map[string]any {
 	att := map[string]any{
 		"email":          email,
-		"emailDomain":    emailDomain(email),
+		"emailDomain":    services.EmailDomain(email),
 		"serverDomain":   root.Domain(),
 		"canStillInvite": inviterCanStillInvite(app, invite),
 	}
@@ -168,8 +168,8 @@ func inviterAttestation(app core.App, root *server.RootKey, invite, by *core.Rec
 	// Exact match only. Treating a parent domain as equivalent needs a public
 	// suffix list to be safe, and a wrong "same organisation" is worse than
 	// naming both domains and letting the reader judge.
-	att["emailMatchesServer"] = emailDomain(email) != "" &&
-		strings.EqualFold(emailDomain(email), root.Domain())
+	att["emailMatchesServer"] = services.EmailDomain(email) != "" &&
+		strings.EqualFold(services.EmailDomain(email), root.Domain())
 
 	if id := primaryIdentityFor(app, by.Id, invite.GetString(util.Fields.Invite.Workspace)); id != nil {
 		identity := map[string]any{
@@ -217,14 +217,6 @@ func primaryIdentityFor(app core.App, userId, workspaceId string) *core.Record {
 
 // emailDomain returns the part after the last @, lowercased, or "" when the
 // address has no recognisable domain.
-func emailDomain(email string) string {
-	at := strings.LastIndex(email, "@")
-	if at < 0 || at == len(email)-1 {
-		return ""
-	}
-	return strings.ToLower(email[at+1:])
-}
-
 // permissionDetails labels granted scopes so screens never show raw scope strings.
 func permissionDetails(scopes []string) []map[string]any {
 	out := []map[string]any{}

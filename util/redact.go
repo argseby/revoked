@@ -24,6 +24,8 @@ var AuditSecretFields = map[string][]string{
 		Fields.Record.File,
 		Fields.Record.Filename,
 		Fields.Record.HashSalt,
+		Fields.Record.SealedValue,
+		Fields.Record.KeyWrap,
 	},
 	Coll.Links:      {Fields.Link.Password, Fields.Link.Data},
 	Coll.Requests:   {Fields.Request.Password},
@@ -39,6 +41,11 @@ var AuditSecretFields = map[string][]string{
 	Coll.Credentials:  {Fields.Credential.Credential, Fields.Credential.Claims},
 	// What was shown is the shower's data, and the nonce answers the check.
 	Coll.AttestationChecks: {Fields.AttestationCheck.Result, Fields.AttestationCheck.Nonce},
+	// Nothing snapshots this collection today — the outbox is written with
+	// app.Save, which bypasses the audit hook — but a payload names a grant
+	// and the day a write is routed through the request hooks it would be
+	// recorded verbatim.
+	Coll.GrantDeliveries: {Fields.GrantDelivery.Payload},
 }
 
 // RedactAuditData returns data with the collection's secret fields replaced by

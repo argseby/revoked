@@ -69,6 +69,10 @@ abstract class AppErrorCode {
   static const invalidCertificate = 'invalid_certificate';
 
   static const bookmarkGroupNotOwned = 'bookmark_group_not_owned';
+  static const contactRouteMissing = 'contact_route_missing';
+  static const contactNotFound = 'contact_not_found';
+  static const contactNothingToSend = 'contact_nothing_to_send';
+  static const templateNotOwned = 'template_not_owned';
   static const fileNotWatermarkable = 'file_not_watermarkable';
   static const applicationNeedsWatermark = 'application_needs_watermark';
   static const recordNotFound = 'record_not_found';
@@ -87,6 +91,13 @@ abstract class AppErrorCode {
   static const attestationCheckNotFound = 'attestation_check_not_found';
   static const attestationCheckClosed = 'attestation_check_closed';
   static const remoteIdentityInvalid = 'remote_identity_invalid';
+  static const sealedFieldsRestricted = 'sealed_fields_restricted';
+  static const sealedInvalid = 'sealed_invalid';
+  static const sealedVersionConflict = 'sealed_version_conflict';
+  static const sealedEpochStale = 'sealed_epoch_stale';
+  static const sealedKeyMissing = 'sealed_key_missing';
+  static const sealedRecordUnsupported = 'sealed_record_unsupported';
+  static const sealedLinksAffected = 'sealed_links_affected';
 }
 
 /// Translates an [ApiException] into a short, user-friendly message and a
@@ -476,6 +487,36 @@ class AppErrorMessage {
               'again.',
           code: e.code,
         );
+      case AppErrorCode.contactRouteMissing:
+        return AppErrorMessage(
+          title: 'No way to reach them',
+          description:
+              'Add an email address, or the server they are on, so there is '
+              'somewhere to send to.',
+          code: e.code,
+        );
+      case AppErrorCode.contactNotFound:
+        return AppErrorMessage(
+          title: 'Contact not found',
+          description:
+              'That contact is no longer in this workspace. Reload and pick '
+              'again.',
+          code: e.code,
+        );
+      case AppErrorCode.contactNothingToSend:
+        return AppErrorMessage(
+          title: 'Nothing picked yet',
+          description: 'Choose at least one entry to send.',
+          code: e.code,
+        );
+      case AppErrorCode.templateNotOwned:
+        return AppErrorMessage(
+          title: 'Template not found',
+          description:
+              'That template isn\'t in this workspace. Pick one of your own, '
+              'or ask without one.',
+          code: e.code,
+        );
       case AppErrorCode.identityRevoked:
         return AppErrorMessage(
           title: 'Identity revoked',
@@ -576,6 +617,53 @@ class AppErrorMessage {
               'whoever showed it to you for a new one.',
           code: e.code,
           isTerminal: true,
+        );
+      case AppErrorCode.sealedFieldsRestricted:
+        return AppErrorMessage(
+          title: 'This record is encrypted',
+          description: 'Update your app to change it.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.sealedInvalid:
+        return AppErrorMessage(
+          title: 'Couldn\'t save that',
+          description: 'Your app sent encrypted data the server can\'t accept.',
+          code: e.code,
+        );
+      case AppErrorCode.sealedVersionConflict:
+        return AppErrorMessage(
+          title: 'Changed on another device',
+          description: 'Reload to see the latest version, then try again.',
+          code: e.code,
+        );
+      case AppErrorCode.sealedEpochStale:
+        return AppErrorMessage(
+          title: 'Your encryption key changed',
+          description: 'Reload and try again.',
+          code: e.code,
+        );
+      case AppErrorCode.sealedKeyMissing:
+        return AppErrorMessage(
+          title: 'You don\'t have the key',
+          description:
+              'Only the person who turned on encryption in this workspace can '
+              'use it.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.sealedRecordUnsupported:
+        return AppErrorMessage(
+          title: 'Not with an encrypted record',
+          description: 'You can\'t use encrypted records here yet.',
+          code: e.code,
+          isTerminal: true,
+        );
+      case AppErrorCode.sealedLinksAffected:
+        return AppErrorMessage(
+          title: 'Links share this record',
+          description: 'They\'ll stop showing it once you encrypt it.',
+          code: e.code,
         );
       case AppErrorCode.remoteIdentityInvalid:
         return AppErrorMessage(

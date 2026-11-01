@@ -85,6 +85,9 @@ func SaveSignInGrant(app core.App, user *core.Record, clientID string, choices m
 				rec = parent
 			}
 		}
+		if IsSealed(rec) {
+			return nil, ErrSignInRecord
+		}
 		grants[key] = rec.Id
 		if !slices.Contains(records, rec.Id) {
 			records = append(records, rec.Id)

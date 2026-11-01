@@ -13,14 +13,16 @@ import (
 // the gate passwords. Each is env-overridable for a busy NAT or an exposed host; 0
 // disables that limiter, which is only ever safe outside a public deployment.
 const (
-	envLimitGate       = "RATELIMIT_GATE_ATTEMPTS"
-	envLimitProbe      = "RATELIMIT_PROBE_REQUESTS"
-	envLimitChallenge  = "RATELIMIT_CHALLENGE_REQUESTS"
-	envLimitCallback   = "RATELIMIT_CALLBACK_TESTS"
-	envLimitStamp      = "RATELIMIT_STAMP_REQUESTS"
-	envLimitSignupMail = "RATELIMIT_SIGNUP_EMAILS"
-	envLimitGrantPeer  = "RATELIMIT_GRANT_REQUESTS"
-	envLimitSubmission = "RATELIMIT_SUBMISSIONS"
+	envLimitGate        = "RATELIMIT_GATE_ATTEMPTS"
+	envLimitProbe       = "RATELIMIT_PROBE_REQUESTS"
+	envLimitChallenge   = "RATELIMIT_CHALLENGE_REQUESTS"
+	envLimitCallback    = "RATELIMIT_CALLBACK_TESTS"
+	envLimitStamp       = "RATELIMIT_STAMP_REQUESTS"
+	envLimitSignupMail  = "RATELIMIT_SIGNUP_EMAILS"
+	envLimitGrantPeer   = "RATELIMIT_GRANT_REQUESTS"
+	envLimitSubmission  = "RATELIMIT_SUBMISSIONS"
+	envLimitContactSend = "RATELIMIT_CONTACT_GRANTS"
+	envLimitSealed      = "RATELIMIT_SEALED_REQUESTS"
 )
 
 var (
@@ -60,7 +62,31 @@ var (
 	// account alone: each answer notifies the request's owner and may fire
 	// their callback, so one account must not be able to flood either.
 	submissionLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitSubmission, 60), time.Hour)
+
+	// contactGrantLimiter covers grants handed to a contact, keyed by the
+	// signed-in account alone: each one may write a bookmark and a
+	// notification into somebody else's account, which is the only path that
+	// does, so one account must not be able to flood another's tray.
+	contactGrantLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitContactSend, 60), time.Hour)
+
+	// sealedLimiter covers end-to-end encrypted writes and key state, keyed by
+	// the signed-in account. Each write can carry hundreds of wrapped keys.
+	sealedLimiter = util.NewRateLimiter(util.LimitFromEnv(envLimitSealed, 300), time.Minute)
+
+	// workspaceMailLimiter covers grant emails, keyed by workspace: the
+	// per-account cap above is multiplied by inviting members, and a
+	// workspace is the unit a tenant controls. It guards the operator's own
+	// relay quota and sending reputation, so in-process is adequate — the cap
+	// that protects a stranger's inbox counts outbox rows instead.
+	workspaceMailLimiter = util.NewRateLimiter(
+		util.LimitFromEnv(util.WorkspaceMailPerHourEnv, util.DefaultWorkspaceMailPerHour), time.Hour)
 )
+
+// ConfigureWorkspaceMailRateLimit replaces the per-workspace mail cap (0
+// disables it). For the test harness only.
+func ConfigureWorkspaceMailRateLimit(perHour int) {
+	workspaceMailLimiter = util.NewRateLimiter(perHour, time.Hour)
+}
 
 // ConfigureRateLimits replaces the public-surface limiters (0 disables one). For the
 // test harness only: the limiters are built at package init, so env tuning cannot

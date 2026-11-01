@@ -42,6 +42,21 @@ func main() {
 		}
 	}
 
+	// Same reasoning for grant email: every send would fail with something
+	// the sender cannot act on.
+	if policy := util.GrantEmailRecipients(); policy != util.MailRecipientsOff {
+		if smtp, ok := util.SMTPFromEnv(); !ok || smtp.SenderAddress == "" {
+			log.Fatalf("%s is %s, but no mail server is configured. Set %s and %s (and usually %s/%s), or set %s=off.",
+				util.GrantEmailRecipientsEnv, policy, util.SMTPHostEnv, util.SMTPSenderAddressEnv,
+				util.SMTPUsernameEnv, util.SMTPPasswordEnv, util.GrantEmailRecipientsEnv)
+		}
+		// The per-workspace and global caps live in this process's memory, so
+		// a second instance doubles both. The per-address cap counts rows and
+		// is exact either way.
+		log.Printf("%s is %s. The hourly send caps are per instance, so running more than one multiplies them.",
+			util.GrantEmailRecipientsEnv, policy)
+	}
+
 	keyPath := os.Getenv("SERVER_KEY_PATH")
 	if keyPath == "" {
 		keyPath = filepath.Join("pb_data", "server_root.pem")

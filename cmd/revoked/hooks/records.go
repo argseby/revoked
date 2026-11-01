@@ -16,6 +16,9 @@ import (
 // update.
 func BindRecordHooks(app core.App) {
 	app.OnRecordCreate(util.Coll.Records).BindFunc(func(e *core.RecordEvent) error {
+		if err := validateSealedRecord(e.Record); err != nil {
+			return err
+		}
 		if err := validateAliasRecord(app, e.Record); err != nil {
 			return err
 		}
@@ -26,6 +29,12 @@ func BindRecordHooks(app core.App) {
 	})
 
 	app.OnRecordUpdate(util.Coll.Records).BindFunc(func(e *core.RecordEvent) error {
+		if err := refuseStaleRecordWrite(e.App, e.Record); err != nil {
+			return err
+		}
+		if err := validateSealedRecord(e.Record); err != nil {
+			return err
+		}
 		if err := validateAliasRecord(app, e.Record); err != nil {
 			return err
 		}
@@ -50,8 +59,10 @@ func validateFileRecord(app core.App, rec *core.Record) error {
 		}
 		// The schema left value optional for the file type's sake; text records
 		// still require one. Aliases are exempt — their value is cleared by
-		// design and reads resolve through the parent.
-		if rec.GetString(util.Fields.Record.Value) == "" && rec.GetString(util.Fields.Record.AliasOf) == "" {
+		// design and reads resolve through the parent. A sealed record keeps its
+		// value in sealedValue.
+		if rec.GetString(util.Fields.Record.Value) == "" && rec.GetString(util.Fields.Record.AliasOf) == "" &&
+			!rec.GetBool(util.Fields.Record.Sealed) {
 			return validation.Errors{util.Fields.Record.Value: validation.NewError("validation_required", "Cannot be blank.")}
 		}
 		return nil
@@ -183,6 +194,9 @@ func validateAliasRecord(app core.App, rec *core.Record) error {
 	}
 	if parent.GetString(util.Fields.Record.AliasOf) != "" {
 		return util.AsValidationError(util.Errors.AliasCycle)
+	}
+	if parent.GetBool(util.Fields.Record.Sealed) {
+		return util.AsFieldValidationError(util.Fields.Record.AliasOf, util.Errors.SealedRecordUnsupported)
 	}
 	// An alias never stores its own value; reads resolve through the parent.
 	rec.Set(util.Fields.Record.Value, "")

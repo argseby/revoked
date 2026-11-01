@@ -39,6 +39,7 @@ import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
 import 'package:revoked_app/features/passkeys/view/passkeys_section.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
+import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/settings/view/appearance_page.dart';
 
 /// The settings topics, each a page of its own under Settings — opened from
@@ -46,6 +47,7 @@ import 'package:revoked_app/features/settings/view/appearance_page.dart';
 enum SettingsPage {
   appearance('appearance', 'Appearance and accessibility'),
   passkeys('passkeys', 'Passkeys'),
+  encryption('encryption', 'End-to-end encryption'),
   workspaces('workspaces', 'Workspaces'),
   members('members', 'Members'),
   invites('invites', 'Invites'),
@@ -118,6 +120,8 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
       case SettingsPage.domain:
         // Load themselves.
         break;
+      case SettingsPage.encryption:
+        Stores.keys.load();
       case SettingsPage.workspaces:
         Stores.settings.loadWorkspaces(auth.userId);
         Stores.invites.loadCatalogue();
@@ -148,6 +152,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),
           SettingsPage.passkeys => const PasskeysSection(),
+          SettingsPage.encryption => const SealingSection(),
           SettingsPage.workspaces => const _WorkspacesPage(),
           SettingsPage.members => const _MembersPage(),
           SettingsPage.invites => const _InvitesPage(),

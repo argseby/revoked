@@ -1,0 +1,91 @@
+# revoked — load-test instance.
+#
+# A deliberately starved copy of the API: one container, a hard CPU quota, a
+# hard memory ceiling and no swap, so a run reaches a wall you chose instead of
+# the host's. Driven by tools/loadtest; `tools/loadtest/run.sh` brings it up,
+# seeds it, ramps load and tears it down.
+#
+# NOT A DEPLOYMENT TEMPLATE. Every rate limiter is off and signups are open, so
+# the port is bound to 127.0.0.1 and nothing here belongs on a public host. Use
+# ../../docker-compose.yml for that.
+#
+#   LOADTEST_CPUS=1 LOADTEST_MEMORY=512m docker compose -f deploy/loadtest/docker-compose.yml up -d --build
+#
+# Settings:
+#   LOADTEST_CPUS      CPU quota, in cores (0.5 = half a core)
+#   LOADTEST_MEMORY    memory ceiling, Docker size syntax (256m, 1g)
+#   LOADTEST_GOMEMLIMIT  GC soft limit; keep it under LOADTEST_MEMORY or the
+#                        kernel OOM-kills before the collector reacts
+#   LOADTEST_PORT      host port, on 127.0.0.1 only
+
+name: revoked-loadtest
+
+services:
+  api:
+    build:
+      context: ../..
+    container_name: ${LOADTEST_CONTAINER:-revoked-loadtest-api}
+    # A restart would paper over the crash the run exists to find.
+    restart: "no"
+    cpus: ${LOADTEST_CPUS:-1.0}
+    mem_limit: ${LOADTEST_MEMORY:-512m}
+    # Equal to mem_limit: no swap, so memory pressure surfaces as an OOM kill
+    # rather than as latency the report cannot explain.
+    memswap_limit: ${LOADTEST_MEMORY:-512m}
+    pids_limit: ${LOADTEST_PIDS:-2048}
+    ulimits:
+      # Otherwise a few hundred concurrent sockets measure the fd limit
+      # instead of the server.
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "127.0.0.1:${LOADTEST_PORT:-3100}:3000"
+    environment:
+      # Passkeys bind to the hostname the request arrives on, and only
+      # "localhost" is allowed over plain http — the load generator sends that
+      # Host header whatever port it dials.
+      DOMAIN: localhost
+      SERVER_KEY_PATH: /pb/pb_data/server_root.pem
+      ADMIN_EMAIL: ${LOADTEST_ADMIN_EMAIL:-loadtest@localhost}
+      ADMIN_PASSWORD: ${LOADTEST_ADMIN_PASSWORD:-loadtest-password}
+      # The generator registers every account it drives.
+      ALLOW_SIGNUPS: "true"
+      SIGNUP_VERIFY_EMAIL: "false"
+      GRANT_EMAIL_RECIPIENTS: "off"
+      ALLOW_ATTESTATIONS: "false"
+      ALLOW_PRIVATE_CALLBACKS: "false"
+      # 0 disables a limiter. The whole run arrives from one address, so every
+      # public-surface budget would trip in the first second and the report
+      # would measure the limiter instead of the server.
+      RATELIMIT_GATE_ATTEMPTS: "0"
+      RATELIMIT_PROBE_REQUESTS: "0"
+      RATELIMIT_CHALLENGE_REQUESTS: "0"
+      RATELIMIT_PASSKEY_REQUESTS: "0"
+      RATELIMIT_SIGNUP_EMAILS: "0"
+      RATELIMIT_SUBMISSIONS: "0"
+      RATELIMIT_GRANT_EMAILS: "0"
+      RATELIMIT_WORKSPACE_EMAILS: "0"
+      RATELIMIT_CALLBACK_TESTS: "0"
+      RATELIMIT_STAMP_REQUESTS: "0"
+      RATELIMIT_GRANT_REQUESTS: "0"
+      RATELIMIT_CONTACT_GRANTS: "0"
+      GOMEMLIMIT: ${LOADTEST_GOMEMLIMIT:-}
+      GOMAXPROCS: ${LOADTEST_GOMAXPROCS:-}
+    command:
+      - serve
+      - --http=0.0.0.0:3000
+      - --dir=/pb/pb_data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/healthz >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 2s
+      start_period: 2s
+      retries: 30
+    volumes:
+      - pb_data:/pb/pb_data
+
+volumes:
+  # Wiped between runs by run.sh (`docker compose down -v`): a run that starts
+  # from the last run's rows is not the run you think you are repeating.
+  pb_data:

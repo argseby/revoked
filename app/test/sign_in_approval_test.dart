@@ -121,7 +121,8 @@ void main() {
     return json({'items': <Object>[]});
   }
 
-  setUpAll(() async {
+  // Fresh stores per case; Stores.init says why they cannot be shared.
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({
       'identity_priv_id1': identity.privateKeyPem,
@@ -137,9 +138,6 @@ void main() {
             return true;
           },
         );
-  });
-
-  setUp(() {
     opened.clear();
     delivered.clear();
     serviceUp = true;

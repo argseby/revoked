@@ -92,7 +92,7 @@ func resolveLinkPayload(app core.App, link *core.Record) map[string]any {
 	} else {
 		for key, recId := range grants {
 			rec, err := app.FindRecordById(util.Coll.Records, recId)
-			if err != nil || rec == nil {
+			if err != nil || rec == nil || services.IsSealedThroughAlias(app, rec) {
 				delete(data, key)
 				live[key] = false
 				continue

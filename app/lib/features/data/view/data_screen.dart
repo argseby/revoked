@@ -79,7 +79,9 @@ class DataItem {
 
 /// The Connections view — everything you hold as living, revocable, verified
 /// grants: request responses (data others shared with you) and your own vault
-/// records, filterable by name / value / template / source / status.
+/// records, newest first. It renders no search or filter of its own: finding
+/// something by name is the shell's one search panel. Its [TableStore] is
+/// here for the sort and the count.
 class DataScreen extends StatefulWidget {
   /// When set, only data from this request is shown.
   final String? requestId;
@@ -222,7 +224,9 @@ class _DataScreenState extends State<DataScreen> {
             origin: 'Vault',
             source: 'Vault',
             name: rec.label.isEmpty ? rec.key : rec.label,
-            value: rec.isHidden ? '••••••••' : rec.value,
+            value: rec.isLocked
+                ? 'Encrypted'
+                : (rec.isHidden ? '••••••••' : rec.value),
             templateId: '',
             requestId: '',
             linkSlug: '',

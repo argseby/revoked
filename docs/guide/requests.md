@@ -24,8 +24,8 @@ These options sit under **Advanced**:
 **Who can respond**
 
 - **Require a verified identity.** People have to prove who they are with
-  an identity before they answer. Accept **Any** identity, or only those
-  **From this root**, your own server.
+  an identity before they answer. Accept **Any** identity, or **This server
+  only**, which means your own.
 - **Identifier.** Something you tell the person yourself, such as a
   customer number or a case number. They have to enter it, so you know whose
   answer it is.
@@ -42,10 +42,10 @@ These options sit under **Advanced**:
 You need a Revoked account to answer. Your answer is kept in your own
 workspace, so you can change it or take it back later.
 
-For each field, choose **Use a vault entry** or type a value. A vault entry
-is the better choice: the answer stays yours. The person who asked always
-sees its current value, and you can withdraw it any time, just like a
-[share](sharing.md). **Revoke my response** takes your answer back.
+For each field, choose **Use a record** or **Use a different value**. A
+record is the better choice: the answer stays yours. The person who asked
+always sees its current value, and you can withdraw it any time, just like a
+[share](sharing.md). **Revoke response** takes your answer back.
 
 Before you send anything, the app checks who is asking. If the request's
 claim contradicts its domain, it's blocked: it's a fake. If the sender

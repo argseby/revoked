@@ -56,6 +56,7 @@ func recordContentChanged(rec *core.Record) bool {
 	original := rec.Original()
 	for _, field := range []string{
 		util.Fields.Record.Value,
+		util.Fields.Record.SealedValue,
 		util.Fields.Record.ContentHash,
 		util.Fields.Record.AliasOf,
 	} {

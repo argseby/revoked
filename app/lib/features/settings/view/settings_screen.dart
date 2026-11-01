@@ -43,6 +43,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Stores.settings.ensureDomainChecked();
       Stores.apiKeys.loadApiKeys();
       Stores.passkeys.load();
+      Stores.keys.ensureLoaded();
       Stores.connections.load();
       Stores.credentials.load();
       Stores.serverSettings.loadServerVersion();
@@ -105,6 +106,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'How you sign in',
               ),
             ),
+            if (Stores.keys.isAvailable)
+              _page(
+                SettingsPage.encryption,
+                AppIcons.lock,
+                'Only your devices can read what you encrypt',
+              ),
           ],
         ),
         AppListGroup(

@@ -588,3 +588,87 @@ func TestAnonymousSubmissionIsRefused(t *testing.T) {
 		t.Fatal("the response link landed in the requester's workspace")
 	}
 }
+
+// A grant email is the first thing this product puts in a stranger's inbox,
+// and the whole design rests on two properties: it carries nothing that was
+// shared, and the sender cannot borrow the server's authority by naming
+// themselves after it.
+func TestGrantEmailCarriesNoSecret(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	box := catchGrantMail(t, app)
+	mailPolicy(t, "all")
+
+	const sentinel = "do-not-leave-the-vault-9f3a"
+	const gatePassword = "topsecret-gate-7b21"
+
+	sender := newContactParty(t, baseURL)
+	record := newRecord(t, baseURL, sender.token, sender.id, sender.workspace, "iban", sentinel)
+	contact := newContact(t, baseURL, sender.token, sender.workspace,
+		"Ada", "ada@elsewhere.example")
+
+	sent := grant(t, baseURL, "send", contact, sender.token, map[string]any{
+		"records": []string{record},
+		"label":   "My bank details",
+	}).Expect().Status(http.StatusOK).JSON().Object()
+	linkID := sent.Value("id").String().Raw()
+
+	// Gate the link after it is minted, so the password exists on the record
+	// the worker reads when it renders the mail.
+	api := testutils.NewPBClient(t, baseURL)
+	api.Update(util.Coll.Links, linkID, sender.token, map[string]any{
+		util.Fields.Link.Password: gatePassword,
+	}).Expect().Status(http.StatusOK)
+
+	mail := box.await(t, "ada@elsewhere.example", 1)[0]
+	whole := mail.subject + mail.html + mail.text
+	for _, secret := range []string{sentinel, gatePassword} {
+		if strings.Contains(whole, secret) {
+			t.Errorf("the grant email carried %q", secret)
+		}
+	}
+}
+
+// An identity may call itself anything, and the mail shows that name directly
+// above the server's own domain. A name shaped like an address or a host is
+// therefore never shown: the mail falls back down the chain — the workspace's
+// name, then saying the grant is unsigned — rather than letting a sender
+// borrow the authority of the one row they could not choose.
+func TestGrantEmailRefusesASenderNamedLikeADomain(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	box := catchGrantMail(t, app)
+	mailPolicy(t, "all")
+
+	const impersonation = "security@bank.example"
+
+	sender := newContactParty(t, baseURL)
+	identityID, _ := newIdentity(t, baseURL, sender.token, impersonation, sender.id, sender.workspace)
+	contact := newContact(t, baseURL, sender.token, sender.workspace,
+		"Ada", "ada@elsewhere.example")
+	record := newRecord(t, baseURL, sender.token, sender.id, sender.workspace, "iban", "DE89")
+
+	linkID := grant(t, baseURL, "send", contact, sender.token, map[string]any{
+		"records": []string{record},
+		"label":   "My bank details",
+	}).Expect().Status(http.StatusOK).JSON().Object().Value("id").String().Raw()
+
+	api := testutils.NewPBClient(t, baseURL)
+	api.Update(util.Coll.Links, linkID, sender.token, map[string]any{
+		util.Fields.Link.Identity: identityID,
+	}).Expect().Status(http.StatusOK)
+
+	mail := box.await(t, "ada@elsewhere.example", 1)[0]
+	whole := mail.subject + mail.html + mail.text
+	if strings.Contains(whole, impersonation) {
+		t.Error("the grant email showed a sender name shaped like an address")
+	}
+	// The next name down the chain is the workspace's, which is a name rather
+	// than a borrowed domain.
+	if !strings.Contains(mail.html, "Test Workspace") {
+		t.Error("the grant email did not fall back to the workspace's name")
+	}
+	// And whatever it shows, it is quoted as the claim it is, so it never
+	// blurs into the unquoted monospace domain row beneath it.
+	if !strings.Contains(mail.html, "\u201cTest Workspace\u201d") {
+		t.Error("the sender's name is not quoted as a claim")
+	}
+}

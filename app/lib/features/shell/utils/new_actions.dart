@@ -5,6 +5,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_check_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
+import 'package:revoked_app/features/contacts/view/contact_create_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
@@ -13,6 +14,7 @@ import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 /// Where a new thing goes, which is what the picker groups by.
 enum NewGroup {
   vault('In your vault'),
+  people('People you deal with'),
   give('Give to someone'),
   ask('Ask someone'),
   received('Received a link?');
@@ -50,6 +52,13 @@ enum NewKind {
     'Section',
     'Group records you always share together.',
     's',
+  ),
+  contact(
+    NewGroup.people,
+    AppIcons.personPlus,
+    'Contact',
+    'Someone to send things to, or ask things from.',
+    'p',
   ),
   link(
     NewGroup.give,
@@ -111,6 +120,7 @@ enum NewKind {
     2 => NewKind.link,
     3 => NewKind.request,
     4 => NewKind.attestation,
+    5 => NewKind.contact,
     _ => NewKind.record,
   };
 }
@@ -126,6 +136,8 @@ Future<void> startNew(BuildContext context, NewKind kind) async {
       openVaultCreateSheet(context, initialTab: VaultCreateTab.template);
     case NewKind.section:
       openVaultCreateSheet(context, initialTab: VaultCreateTab.section);
+    case NewKind.contact:
+      await openContactCreateSheet(context);
     case NewKind.link:
       openShareCreateSheet(context: context);
     case NewKind.request:

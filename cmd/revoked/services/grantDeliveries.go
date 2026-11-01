@@ -119,6 +119,8 @@ func attemptDelivery(app core.App, root *server.RootKey, row *core.Record) {
 		err = deliverPeerEvents(root, row)
 	case util.DeliveryKindCallback:
 		err = deliverCallbackEvent(row)
+	case util.DeliveryKindEmail:
+		err = deliverGrantEmail(app, root, row)
 	default:
 		err = fmt.Errorf("%w: unknown kind", errPermanent)
 	}
@@ -233,8 +235,103 @@ func classifyStatus(status int) error {
 
 // deliveryGivenUp tells a request's owner that a callback never landed. A
 // peer delivery has nobody local to tell; the log is its record.
+// deliverGrantEmail mails the grant an outbox row names.
+//
+// The row holds the grant's id, not its slug, so the mail is rendered from the
+// grant as it stands now: one revoked in the seconds before sending is skipped
+// rather than mailed.
+func deliverGrantEmail(app core.App, root *server.RootKey, row *core.Record) error {
+	f := util.Fields.GrantDelivery
+	var payload GrantEmailPayload
+	if err := row.UnmarshalJSONField(f.Payload, &payload); err != nil {
+		return fmt.Errorf("%w: unreadable payload", errPermanent)
+	}
+	address := row.GetString(f.Target)
+	isAsk := payload.Collection == util.Coll.Requests
+
+	grant, err := app.FindRecordById(payload.Collection, payload.Grant)
+	if err != nil || grant == nil {
+		return fmt.Errorf("%w: the grant is gone", errPermanent)
+	}
+	if grant.GetString(util.FieldStatus) != util.StatusActive {
+		return fmt.Errorf("%w: the grant is no longer active", errPermanent)
+	}
+
+	// The trusted probe lives here rather than in the request that queued the
+	// row: it costs a DNS lookup plus an outbound GET and caches no failure,
+	// so in a request path it would be an amplifier. A domain that publishes
+	// no pin will not start publishing one because we retried, so a refusal
+	// is permanent.
+	if util.GrantEmailRecipients() == util.MailRecipientsTrusted {
+		domain := MailableEmailDomain(address)
+		if domain == "" {
+			return fmt.Errorf("%w: no mailable domain", errPermanent)
+		}
+		if _, err := PeerRootKey(domain); err != nil {
+			return fmt.Errorf("%w: %s does not verify as a peer", errPermanent, domain)
+		}
+	}
+
+	// The row may have waited through a backoff, so the caps are re-read
+	// rather than trusted from when it was queued.
+	if GrantEmailSuppressed(app, address) {
+		return fmt.Errorf("%w: address suppressed", errPermanent)
+	}
+	if GrantEmailsSentTo(app, address, time.Hour) > util.LimitFromEnv(
+		util.GrantEmailsPerHourEnv, util.DefaultGrantEmailsPerHour) {
+		return errors.New("this address has had its hour's worth")
+	}
+
+	name := ""
+	if id := grant.GetString(util.FieldIdentity); id != "" {
+		if rec, err := app.FindRecordById(util.Coll.Identities, id); err == nil && rec != nil {
+			// Shown only if it cannot be read as an address or a host: it sits
+			// directly above the server's own domain, which is the one value
+			// in the mail the sender could not choose.
+			if safe, ok := util.SafeDisplayName(rec.GetString(util.Fields.Identity.Name)); ok {
+				name = safe
+			}
+		}
+	}
+	if name == "" && payload.Workspace != "" {
+		if ws, err := app.FindRecordById(util.Coll.Workspaces, payload.Workspace); err == nil && ws != nil {
+			if safe, ok := util.SafeDisplayName(ws.GetString(util.Fields.Workspace.Name)); ok {
+				name = safe
+			}
+		}
+	}
+
+	slug := grant.GetString(util.FieldSlug)
+	label := grant.GetString(util.FieldLabel)
+	if safe, ok := util.SafeDisplayName(label); ok {
+		label = safe
+	} else {
+		label = ""
+	}
+
+	url := "https://" + root.Domain() + "/s/" + slug
+	if isAsk {
+		// An ask has no browser page of its own, so the link lands on the
+		// sign-up page, which opens the request in the app afterwards.
+		url = "https://" + root.Domain() + "/passkey?ask=" + slug
+	}
+
+	return SendGrantEmail(app, address, GrantMailData{
+		SenderName: name,
+		Domain:     root.Domain(),
+		Label:      label,
+		URL:        url,
+		IsAsk:      isAsk,
+		Locale:     payload.Locale,
+	})
+}
+
 func deliveryGivenUp(app core.App, row *core.Record, cause error) {
 	f := util.Fields.GrantDelivery
+	if row.GetString(f.Kind) == util.DeliveryKindEmail {
+		notifyGrantEmailFailed(app, row)
+		return
+	}
 	if row.GetString(f.Kind) != util.DeliveryKindCallback {
 		app.Logger().Warn("Gave up delivering grant events",
 			"domain", row.GetString(f.Target), "error", cause.Error())
@@ -251,6 +348,29 @@ func deliveryGivenUp(app core.App, row *core.Record, cause error) {
 		"An update about a response to request "+req.GetString(util.Fields.Request.Slug)+
 			" could not be delivered to its callback URL: "+cause.Error(),
 		util.Coll.Requests, req.Id)
+}
+
+// notifyGrantEmailFailed tells the sender their email never landed.
+//
+// Deliberately without the relay's own words: that text belongs in lastError
+// for the operator. Telling the sender "no such mailbox" would also make this
+// an address-validity oracle for anyone who can send.
+func notifyGrantEmailFailed(app core.App, row *core.Record) {
+	var payload GrantEmailPayload
+	if err := row.UnmarshalJSONField(util.Fields.GrantDelivery.Payload, &payload); err != nil {
+		return
+	}
+	grant, err := app.FindRecordById(payload.Collection, payload.Grant)
+	if err != nil || grant == nil {
+		return
+	}
+	label := grant.GetString(util.FieldLabel)
+	EmitNotification(app, grant.GetString(util.FieldUser), payload.Workspace,
+		util.NotificationEmailUndelivered,
+		"Email not delivered",
+		"The email carrying "+quoted(label)+" did not arrive. "+
+			"Open it and send the link yourself instead.",
+		payload.Collection, grant.Id)
 }
 
 func truncate(s string, n int) string {

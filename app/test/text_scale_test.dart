@@ -15,22 +15,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// screen on a phone: nothing may overflow, which in a test is an error.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  var storesReady = false;
-
   Future<GoRouter> boot(WidgetTester tester, Size size) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.view.reset);
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    if (!storesReady) {
-      SharedPreferences.setMockInitialValues({});
-      FlutterSecureStorage.setMockInitialValues({});
-      await Stores.init(
-        httpClient: MockClient((_) async => http.Response('{}', 404)),
-      );
-      storesReady = true;
-    }
+    // Fresh stores per case; Stores.init says why they cannot be shared.
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    await Stores.init(
+      httpClient: MockClient((_) async => http.Response('{}', 404)),
+    );
     runInAction(() => Stores.auth.currentUser = null);
     final router = AppRouter.create(Stores.auth);
     await tester.pumpWidget(

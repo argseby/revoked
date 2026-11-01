@@ -104,6 +104,9 @@ func ResolveGrant(app core.App, link *core.Record) GrantResolution {
 			}
 			rec = parent
 		}
+		if IsSealed(rec) {
+			continue
+		}
 		res.Values[key] = rec.GetString(util.Fields.Record.Value)
 	}
 	res.ETag = GrantETag(res.Status, res.Values)
