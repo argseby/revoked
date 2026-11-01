@@ -2,6 +2,7 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/passkey.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 
 part 'passkeys_store.g.dart';
 
@@ -37,7 +38,7 @@ abstract class _PasskeysStore with Store {
         items.map((e) => Passkey.fromJson(e as Map<String, dynamic>)),
       );
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }
@@ -54,7 +55,7 @@ abstract class _PasskeysStore with Store {
       runInAction(() => errorMessage = e.message);
       return null;
     } catch (e) {
-      runInAction(() => errorMessage = e.toString());
+      runInAction(() => errorMessage = describeError(e));
       return null;
     }
   }
@@ -72,7 +73,7 @@ abstract class _PasskeysStore with Store {
       errorMessage = e.message;
       return false;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }

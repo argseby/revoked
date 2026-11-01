@@ -141,7 +141,7 @@ func DetachSealedRecord(app core.App, recordID string) error {
 func NotifySealingReset(app core.App, userID, workspaceID string) {
 	EmitNotification(app, userID, workspaceID, util.NotificationSealingReset,
 		"Your encrypted records were reset",
-		"Someone signed in as you started over with encryption. If that wasn't you, sign out everywhere and change how you sign in.",
+		"Someone signed in as you started over with encryption. If that wasn't you, sign out your other sessions in Settings and change how you sign in.",
 		util.Coll.DeviceKeys, userID)
 }
 

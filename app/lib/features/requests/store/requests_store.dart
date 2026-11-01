@@ -7,6 +7,7 @@ import 'package:revoked_app/core/models/request_template.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'requests_store.g.dart';
@@ -378,17 +379,30 @@ abstract class _RequestsStore with Store {
   String get _requestsPath =>
       '/api/collections/${AppConfig.requestsCollection}/records';
 
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [loadRequests], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await loadRequests();
+  }
+
   @action
   Future<void> loadRequests() async {
     isLoading = true;
     errorMessage = null;
+    final ticket = loadState.begin();
     try {
       final reqs = await getAll();
+      if (!loadState.isCurrent(ticket)) return;
       requests
         ..clear()
         ..addAll(reqs);
+      loadState.succeed(ticket);
     } catch (e) {
-      errorMessage = e.toString();
+      if (!loadState.isCurrent(ticket)) return;
+      errorMessage = describeError(e);
+      loadState.fail(ticket, errorMessage!);
     } finally {
       isLoading = false;
     }
@@ -401,7 +415,7 @@ abstract class _RequestsStore with Store {
       responsesByRequest[requestId] = result;
       return result;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return [];
     }
   }
@@ -452,7 +466,7 @@ abstract class _RequestsStore with Store {
       requests.insert(0, req);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -490,7 +504,7 @@ abstract class _RequestsStore with Store {
       return CallbackTestResult(
         ok: false,
         code: CallbackTestResult.codeApi,
-        detail: e.toString(),
+        detail: describeError(e),
       );
     } finally {
       callbackTesting = false;
@@ -507,7 +521,7 @@ abstract class _RequestsStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -520,7 +534,7 @@ abstract class _RequestsStore with Store {
       responsesByRequest.remove(id);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }

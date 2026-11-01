@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 
@@ -12,6 +13,8 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 ///   Employer HR
 ///   k7m2p9xq
 ///   ( Share link                    ) [✎] [⧉]
+///
+/// With no room for that row, the icon buttons move under the main action.
 ///
 /// The page below it is built from `AppListGroup`s — what it contains, who
 /// can reach it, its history — and ends with the actions that are hard to
@@ -30,6 +33,9 @@ class AppDetailHeader extends StatelessWidget {
 
   /// Icon buttons after the main action.
   final List<Widget> secondaryActions;
+
+  /// The least the main action may shrink to and still show its whole label.
+  static const double _primaryMinWidth = 160;
 
   const AppDetailHeader({
     super.key,
@@ -71,15 +77,37 @@ class AppDetailHeader extends StatelessWidget {
           if (hasSubtitle) ...[const SizedBox(height: AppSpacing.xxs), sub],
           if (hasActions) ...[
             AppSpacing.gapLg,
-            Row(
-              children: [
-                if (primaryAction != null) Expanded(child: primaryAction!),
-                for (final a in secondaryActions) ...[AppSpacing.gapSm, a],
-              ],
-            ),
+            LayoutBuilder(builder: _actions),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _actions(BuildContext context, BoxConstraints constraints) {
+    final iconsWidth =
+        secondaryActions.length * (AppButton.normalExtent + AppSpacing.sm);
+    if (primaryAction == null ||
+        secondaryActions.isEmpty ||
+        constraints.maxWidth >= _primaryMinWidth + iconsWidth) {
+      return Row(
+        children: [
+          if (primaryAction != null) Expanded(child: primaryAction!),
+          for (final a in secondaryActions) ...[AppSpacing.gapSm, a],
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        primaryAction!,
+        AppSpacing.gapSm,
+        Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: secondaryActions,
+        ),
+      ],
     );
   }
 }
@@ -187,7 +215,8 @@ class AppDetailRow extends StatelessWidget {
 /// [AppDetailManage] block last — in the same column as the list it was opened
 /// from, so the edges do not jump.
 class AppDetailPage extends StatelessWidget {
-  final AppDetailHeader header;
+  /// An [AppDetailHeader].
+  final Widget header;
   final List<Widget> sections;
 
   /// What supports the main sections — details, deletion. On a wide window

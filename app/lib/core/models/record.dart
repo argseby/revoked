@@ -113,37 +113,55 @@ class Record {
     );
   }
 
-  Record _copy({String? value, bool? opened, bool? unsealedElsewhere}) =>
-      Record(
-        id: id,
-        key: key,
-        value: value ?? this.value,
-        label: label,
-        type: type,
-        format: format,
-        user: user,
-        workspace: workspace,
-        created: created,
-        updated: updated,
-        requestedBy: requestedBy,
-        aliasOf: aliasOf,
-        filename: filename,
-        file: file,
-        contentHash: contentHash,
-        mime: mime,
-        size: size,
-        sealed: sealed,
-        sealedValue: sealedValue,
-        sealedVersion: sealedVersion,
-        keyEpoch: keyEpoch,
-        keyWrap: keyWrap,
-        opened: opened ?? this.opened,
-        unsealedElsewhere: unsealedElsewhere ?? this.unsealedElsewhere,
-      );
+  Record _copy({
+    String? value,
+    String? label,
+    String? type,
+    String? format,
+    bool? opened,
+    bool? unsealedElsewhere,
+  }) => Record(
+    id: id,
+    key: key,
+    value: value ?? this.value,
+    label: label ?? this.label,
+    type: type ?? this.type,
+    format: format ?? this.format,
+    user: user,
+    workspace: workspace,
+    created: created,
+    updated: updated,
+    requestedBy: requestedBy,
+    aliasOf: aliasOf,
+    filename: filename,
+    file: file,
+    contentHash: contentHash,
+    mime: mime,
+    size: size,
+    sealed: sealed,
+    sealedValue: sealedValue,
+    sealedVersion: sealedVersion,
+    keyEpoch: keyEpoch,
+    keyWrap: keyWrap,
+    opened: opened ?? this.opened,
+    unsealedElsewhere: unsealedElsewhere ?? this.unsealedElsewhere,
+  );
 
-  /// This record with its decrypted value.
-  Record withOpenedValue(String plaintext) =>
-      _copy(value: plaintext, opened: true);
+  /// This record as decrypted. The label, type and format come from inside the
+  /// ciphertext: the copies on the row are for the server, which could swap them
+  /// and show a real secret under the wrong name.
+  Record withOpened({
+    required String value,
+    required String label,
+    required String type,
+    required String format,
+  }) => _copy(
+    value: value,
+    label: label,
+    type: type,
+    format: format,
+    opened: true,
+  );
 
   Record markedUnsealedElsewhere(bool flag) => _copy(unsealedElsewhere: flag);
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/device_key_alert.dart';
@@ -28,15 +29,12 @@ class AttestationsScreen extends StatefulWidget {
   State<AttestationsScreen> createState() => _AttestationsScreenState();
 }
 
-class _AttestationsScreenState extends State<AttestationsScreen> {
+class _AttestationsScreenState extends State<AttestationsScreen>
+    with RefreshOnEntry {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Stores.identities.loadIdentities();
-      Stores.credentials.load();
-      Stores.attestations.load();
-      Stores.attestationChecks.load();
       final ask = widget.ask;
       if (ask == null || !mounted) return;
       // The ask lives in the address only until it has filled in the form,
@@ -44,6 +42,14 @@ class _AttestationsScreenState extends State<AttestationsScreen> {
       context.go(AppRoutes.attestations);
       showAttestationCreateSheet(context, ask: ask);
     });
+  }
+
+  @override
+  void refresh() {
+    Stores.identities.loadIfDue();
+    Stores.credentials.loadIfDue();
+    Stores.attestations.loadIfDue();
+    Stores.attestationChecks.loadIfDue();
   }
 
   @override

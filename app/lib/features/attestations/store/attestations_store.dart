@@ -5,6 +5,7 @@ import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'attestations_store.g.dart';
@@ -99,10 +100,19 @@ abstract class _AttestationsStore with Store {
   @observable
   bool? issuingAllowed;
 
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [load], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await load();
+  }
+
   @action
   Future<void> load() async {
     isLoading = true;
     error = null;
+    final ticket = loadState.begin();
     try {
       await loadPolicy();
       final workspace = _api.userData?['activeWorkspace'] as String? ?? '';
@@ -114,14 +124,17 @@ abstract class _AttestationsStore with Store {
         },
       );
       final items = (data['items'] as List<dynamic>?) ?? [];
+      if (!loadState.isCurrent(ticket)) return;
       attestations
         ..clear()
         ..addAll(
           items.map((e) => Attestation.fromJson(e as Map<String, dynamic>)),
         );
+      loadState.succeed(ticket);
     } catch (e) {
-      attestations.clear();
+      if (!loadState.isCurrent(ticket)) return;
       error = AppErrorMessage.fromException(e);
+      loadState.fail(ticket, error!.description);
     } finally {
       isLoading = false;
     }
@@ -239,7 +252,7 @@ abstract class _AttestationsStore with Store {
           user.isEmpty ||
           workspace == null ||
           workspace.isEmpty) {
-        throw StateError('Sign in and open a workspace first.');
+        throw UserFacingException('Sign in and open a workspace first.');
       }
       final days = int.tryParse(validDaysController.text.trim());
       final subject = subjectController.text.trim().toLowerCase();

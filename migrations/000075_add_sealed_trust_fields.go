@@ -25,6 +25,18 @@ func init() {
 			return err
 		}
 
+		// A sealed value now carries its label and type inside it.
+		records, err := app.FindCollectionByNameOrId(util.Coll.Records)
+		if err != nil {
+			return err
+		}
+		if sealed, ok := records.Fields.GetByName(util.Fields.Record.SealedValue).(*core.TextField); ok {
+			sealed.Max = 12000
+		}
+		if err := app.Save(records); err != nil {
+			return err
+		}
+
 		wraps, err := app.FindCollectionByNameOrId(util.Coll.WorkspaceKeyWraps)
 		if err != nil {
 			return err

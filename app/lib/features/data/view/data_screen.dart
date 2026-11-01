@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -20,7 +21,6 @@ import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
@@ -342,7 +342,7 @@ class _DataScreenState extends State<DataScreen> {
           child: Observer(
             builder: (_) {
               if (Stores.requests.isLoadingData) {
-                return const Center(child: AppSpinner(large: true));
+                return const AppListSkeleton();
               }
               final items = _table.filteredItems;
               if (items.isEmpty) {
@@ -438,107 +438,113 @@ class _DataScreenState extends State<DataScreen> {
             AppSpacing.xl,
             AppSpacing.xl,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: Text(item.name).header),
-                  const SizedBox(width: AppSpacing.sm),
-                  _StatusPill(status: item.status),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest,
-                  borderRadius: AppRadius.allMd,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: Text(item.name).header),
+                    const SizedBox(width: AppSpacing.sm),
+                    _StatusPill(status: item.status),
+                  ],
                 ),
-                child: Text(
-                  item.value.isEmpty ? '—' : item.value,
-                ).mono.selectable,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              _kv(context, 'Source', item.isVault ? 'Your vault' : item.source),
-              if (!item.isVault) _kv(context, 'Shared by', item.sender),
-              if (!item.isVault)
+                const SizedBox(height: AppSpacing.md),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: AppRadius.allMd,
+                  ),
+                  child: Text(
+                    item.value.isEmpty ? '—' : item.value,
+                  ).mono.selectable,
+                ),
+                const SizedBox(height: AppSpacing.lg),
                 _kv(
                   context,
-                  'Identity',
-                  !item.verified
-                      ? 'Unsigned'
-                      : item.identityName.isEmpty
-                      ? 'Signed with an identity'
-                      : item.identityDomain.isEmpty
-                      ? 'Signed by ${item.identityName}'
-                      : 'Signed by ${item.identityName} (${item.identityDomain})',
+                  'Source',
+                  item.isVault ? 'Your vault' : item.source,
                 ),
-              if (item.created.isNotEmpty)
-                _kv(context, 'Received', _formatDate(item.created)),
-              if (pullSlug != null) ...[
-                const SizedBox(height: AppSpacing.lg),
-                AppButton(
-                  icon: AppIcons.server,
-                  label: 'Web & API access',
-                  style: AppButtonStyle.accent,
-                  onTap: () {
-                    Navigator.of(sheetCtx).pop();
-                    showApiAccessSheet(
-                      context,
-                      target: ApiAccessTarget(
-                        slug: pullSlug,
-                        title: item.name,
-                        intro:
-                            'Use this value, or the whole response, anywhere. '
-                            'Pick a format and copy the address.',
-                        keys: [item.name],
-                        presetKey: item.name,
-                      ),
-                    );
-                  },
-                ),
-              ],
-              const SizedBox(height: AppSpacing.xl),
-              if (item.isVault)
-                AppButton(
-                  icon: AppIcons.safe,
-                  label: 'Open in Vault',
-                  style: AppButtonStyle.accent,
-                  onTap: () {
-                    Navigator.of(sheetCtx).pop();
-                    context.go(AppRoutes.vault);
-                  },
-                )
-              else ...[
-                AppButton(
-                  icon: AppIcons.inboxFill,
-                  label: 'Open request',
-                  style: AppButtonStyle.accent,
-                  onTap: () {
-                    Navigator.of(sheetCtx).pop();
-                    context.go(AppRoutes.requests);
-                  },
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                if (item.status == GrantStatus.live)
+                if (!item.isVault) _kv(context, 'Shared by', item.sender),
+                if (!item.isVault)
+                  _kv(
+                    context,
+                    'Identity',
+                    !item.verified
+                        ? 'Unsigned'
+                        : item.identityName.isEmpty
+                        ? 'Signed with an identity'
+                        : item.identityDomain.isEmpty
+                        ? 'Signed by ${item.identityName}'
+                        : 'Signed by ${item.identityName} (${item.identityDomain})',
+                  ),
+                if (item.created.isNotEmpty)
+                  _kv(context, 'Received', _formatDate(item.created)),
+                if (pullSlug != null) ...[
+                  const SizedBox(height: AppSpacing.lg),
                   AppButton(
-                    icon: AppIcons.xCircle,
-                    label: 'Revoke request',
-                    style: AppButtonStyle.destructive,
-                    onTap: () => _revokeSource(sheetCtx, item),
+                    icon: AppIcons.server,
+                    label: 'Web & API access',
+                    style: AppButtonStyle.accent,
+                    onTap: () {
+                      Navigator.of(sheetCtx).pop();
+                      showApiAccessSheet(
+                        context,
+                        target: ApiAccessTarget(
+                          slug: pullSlug,
+                          title: item.name,
+                          intro:
+                              'Use this value, or the whole response, anywhere. '
+                              'Pick a format and copy the address.',
+                          keys: [item.name],
+                          presetKey: item.name,
+                        ),
+                      );
+                    },
                   ),
-                if (item.status == GrantStatus.live)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xs),
-                    child: const Text(
-                      'The request stops taking new responses.',
-                    ).muted.small,
+                ],
+                const SizedBox(height: AppSpacing.xl),
+                if (item.isVault)
+                  AppButton(
+                    icon: AppIcons.safe,
+                    label: 'Open in Vault',
+                    style: AppButtonStyle.accent,
+                    onTap: () {
+                      Navigator.of(sheetCtx).pop();
+                      context.go(AppRoutes.vault);
+                    },
+                  )
+                else ...[
+                  AppButton(
+                    icon: AppIcons.inboxFill,
+                    label: 'Open request',
+                    style: AppButtonStyle.accent,
+                    onTap: () {
+                      Navigator.of(sheetCtx).pop();
+                      context.go(AppRoutes.requests);
+                    },
                   ),
+                  const SizedBox(height: AppSpacing.sm),
+                  if (item.status == GrantStatus.live)
+                    AppButton(
+                      icon: AppIcons.xCircle,
+                      label: 'Revoke request',
+                      style: AppButtonStyle.destructive,
+                      onTap: () => _revokeSource(sheetCtx, item),
+                    ),
+                  if (item.status == GrantStatus.live)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.xs),
+                      child: const Text(
+                        'The request stops taking new responses.',
+                      ).muted.small,
+                    ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },

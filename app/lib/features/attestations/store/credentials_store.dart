@@ -15,6 +15,7 @@ import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/services/domain_verification_service.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'credentials_store.g.dart';
@@ -58,10 +59,19 @@ abstract class _CredentialsStore with Store {
   @observable
   String? errorMessage;
 
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [load], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await load();
+  }
+
   @action
   Future<void> load() async {
     isLoading = true;
     errorMessage = null;
+    final ticket = loadState.begin();
     try {
       // Like the identities they are bound to, credentials are listed for
       // the workspace that is active.
@@ -74,6 +84,7 @@ abstract class _CredentialsStore with Store {
         },
       );
       final items = (data['items'] as List<dynamic>?) ?? [];
+      if (!loadState.isCurrent(ticket)) return;
       credentials
         ..clear()
         ..addAll(
@@ -84,8 +95,11 @@ abstract class _CredentialsStore with Store {
       for (final c in credentials) {
         unawaited(loadVerdict(c.id));
       }
+      loadState.succeed(ticket);
     } catch (e) {
+      if (!loadState.isCurrent(ticket)) return;
       errorMessage = AppErrorMessage.fromException(e).description;
+      loadState.fail(ticket, errorMessage!);
     } finally {
       isLoading = false;
     }
@@ -177,7 +191,7 @@ abstract class _CredentialsStore with Store {
       // A failed check is an unverified server, not the absence of an opinion.
       verdict = TrustVerdict.unverified(
         domain: domain,
-        reason: 'We couldn’t check this domain: $e',
+        reason: 'We couldn’t check this domain.',
       );
     }
     runInAction(() {

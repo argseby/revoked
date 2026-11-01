@@ -237,7 +237,7 @@ void openRecordEditSheet(
                               ],
                             ),
                             if (store.pickedFileError != null) ...[
-                              const SizedBox(height: AppSpacing.xs),
+                              const SizedBox(height: AppSpacing.sm),
                               AppErrorText(store.pickedFileError!),
                             ],
                             if (store.isUploading) ...[
@@ -264,8 +264,9 @@ void openRecordEditSheet(
                               onChanged: validateAndDetectType,
                             ),
                             if (store.editRecordTypeWarning != null) ...[
-                              const SizedBox(height: AppSpacing.xs),
+                              const SizedBox(height: AppSpacing.sm),
                               AppErrorText(store.editRecordTypeWarning!),
+                              const SizedBox(height: AppSpacing.sm),
                             ],
                             RecordHiddenToggle(
                               hidden: hidden,

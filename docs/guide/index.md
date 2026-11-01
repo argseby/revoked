@@ -29,7 +29,9 @@ workspace. See [Workspaces & members](workspaces.md).
 ## Find your way around
 
 **New** starts anything: a record, a file, a share link, a request, an
-attestation. The sidebar takes you to the rest.
+attestation. The sidebar takes you to the rest. On a phone, use the bar
+along the bottom: **Attestations**, **Contacts** and **Settings** are under
+**More**.
 
 | Where | What you do there | Learn more |
 |---|---|---|

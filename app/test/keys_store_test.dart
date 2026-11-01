@@ -76,8 +76,19 @@ class _FakeServer {
   bool supportsSealing = true;
   bool failEpochs = false;
 
+  /// Answers "ok" to a device list change and stores nothing.
+  bool dropEntries = false;
+
+  /// Fails the first state read after a device list change.
+  bool failStateAfterDevices = false;
+
+  /// Refuses device list changes outright.
+  bool failDevices = false;
+
   /// Lets a dishonest server rewrite what it answers.
   Map<String, dynamic> Function(Map<String, dynamic> state)? tamperState;
+
+  bool _failNextState = false;
 
   http.Client get client => MockClient((request) async {
     received
@@ -91,6 +102,10 @@ class _FakeServer {
       });
     }
     if (path == '/api/sealed/state') {
+      if (_failNextState) {
+        _failNextState = false;
+        return http.Response('{"message":"down"}', 500);
+      }
       final current = state();
       return _json(tamperState == null ? current : tamperState!(current));
     }
@@ -98,6 +113,9 @@ class _FakeServer {
         ? <String, dynamic>{}
         : jsonDecode(request.body) as Map<String, dynamic>;
     if (path == '/api/sealed/devices') {
+      if (dropEntries) return _json({'ok': true});
+      if (failDevices) return http.Response('{"message":"down"}', 500);
+      _failNextState = failStateAfterDevices;
       for (final raw in body['entries'] as List<dynamic>) {
         final entry = {...raw as Map<String, dynamic>, 'user': _user};
         if (entry['seq'] != devices.length + 1) {
@@ -1386,6 +1404,705 @@ void main() {
       await loading;
       expect(first.canSeal(_workspace), isFalse);
       expect(first.status, SealingStatus.unknown);
+    });
+  });
+
+  group('second-round attacks', () {
+    // A stolen device adds a go-between, has it add a recovery key, then removes
+    // the go-between. Following only live entries would miss what it planted.
+    test('removal reaches what a removed go-between added', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final stolenStorage = _DeviceStorage();
+      final stolen = await _addDevice(server, first, storage: stolenStorage);
+      final stolenSeq = stolen.thisDeviceSeq!;
+
+      final middleStorage = _DeviceStorage();
+      final middle = await _addDevice(server, stolen, storage: middleStorage);
+      final middleSeq = middle.thisDeviceSeq!;
+
+      // The thief takes the real recovery key off, adds its own through the
+      // go-between, then removes the go-between.
+      middle.beginRecoveryReplacement();
+      _typeBack(middle);
+      expect(await middle.finishRecovery(workspace: _workspace), isTrue);
+      final planted = middle.chain.liveRecovery!.seq;
+      expect(await stolen.removeDevice(middleSeq), isTrue);
+      await first.load();
+      expect(
+        first.chain.isLive(planted),
+        isFalse,
+        reason: 'removing the go-between took its recovery key with it',
+      );
+
+      // Same again, with the entry surviving because a go-between added it after
+      // being signed by a device the owner then removes.
+      expect(first.removalsFor(stolenSeq).map((e) => e.seq), [stolenSeq]);
+      expect(await first.removeDevice(stolenSeq), isTrue);
+      expect(first.chain.live.map((e) => e.seq), [first.thisDeviceSeq]);
+    });
+
+    test('the closure follows entries already removed', () {
+      final a = Sealing.generateKeyPair();
+      final b = Sealing.generateKeyPair();
+      final c = Sealing.generateKeyPair();
+      final d = Sealing.generateKeyPair();
+      DeviceChainEntry add(
+        int seq,
+        SealingKeyPair key,
+        Uint8List prev,
+        int signerSeq,
+        SealingKeyPair signer,
+      ) => DeviceChainEntry.sign(
+        user: _user,
+        seq: seq,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: 'd$seq',
+        hpkePublicKey: key.publicKey,
+        signingPublicKey: key.publicKey,
+        targetSeq: 0,
+        previousHash: prev,
+        signerSeq: signerSeq,
+        signer: signer,
+      );
+      final e1 = add(1, a, Uint8List(0), 1, a);
+      final e2 = add(2, b, e1.hash, 1, a); // the stolen device
+      final e3 = add(3, c, e2.hash, 2, b); // its go-between
+      final e4 = add(4, d, e3.hash, 3, c); // what the go-between planted
+      final e5 = DeviceChainEntry.sign(
+        user: _user,
+        seq: 5,
+        action: DeviceChainEntry.actionRemove,
+        kind: '',
+        label: '',
+        hpkePublicKey: Uint8List(0),
+        signingPublicKey: Uint8List(0),
+        targetSeq: 3,
+        previousHash: e4.hash,
+        signerSeq: 2,
+        signer: b,
+      );
+      final chain = VerifiedChain.verify(_user, [e1, e2, e3, e4, e5]);
+      expect(chain.broken, isFalse);
+      expect(chain.removalsFor(2, keep: 1), [2, 4]);
+    });
+
+    test('restore takes every other device off the list', () async {
+      final server = _FakeServer();
+      final (first, code) = await _setUp(server);
+      final record = _sealedRecord(first);
+      await _addDevice(server, first);
+
+      final fresh = _device(server);
+      await fresh.load();
+      fresh.recoveryInput.text = code;
+      expect(await fresh.restoreWithRecoveryKey(), isTrue);
+
+      final liveDevices = fresh.chain.live
+          .where((e) => e.kind == DeviceChainEntry.kindDevice)
+          .map((e) => e.seq);
+      expect(liveDevices, [fresh.thisDeviceSeq]);
+      expect(fresh.openRecord(record), _canary);
+      expect(server.epochs.length, 2, reason: 'a new key only it holds');
+    });
+
+    // Reproduced in review: restore landed on a fork where a removed thief was
+    // live again, and wrote under a key the thief chose.
+    test('restore on a fork leaves the thief out of the new key', () async {
+      final server = _FakeServer();
+      final (first, code) = await _setUp(server);
+      final stolenStorage = _DeviceStorage();
+      final stolen = await _addDevice(server, first, storage: stolenStorage);
+      final stolenSeq = stolen.thisDeviceSeq!;
+      final stolenKey = _signingKeyOf(stolenStorage);
+      await first.removeDevice(stolenSeq);
+
+      final honest = server.devices.toList();
+      final atRemoval = honest.indexWhere((d) => d['action'] == 'remove');
+      final prefix = [
+        for (final d in honest.sublist(0, atRemoval))
+          DeviceChainEntry.fromJson(d),
+      ];
+      final attacker = Sealing.generateKeyPair();
+      final fork = DeviceChainEntry.sign(
+        user: _user,
+        seq: prefix.last.seq + 1,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: 'Attacker',
+        hpkePublicKey: attacker.publicKey,
+        signingPublicKey: attacker.publicKey,
+        targetSeq: 0,
+        previousHash: prefix.last.hash,
+        signerSeq: stolenSeq,
+        signer: stolenKey,
+      );
+      server.devices = [
+        ...honest.sublist(0, atRemoval),
+        {...fork.toJson(), 'user': _user},
+      ];
+
+      final fresh = _device(server);
+      await fresh.load();
+      fresh.recoveryInput.text = code;
+      await fresh.restoreWithRecoveryKey();
+
+      expect(fresh.chain.isLive(stolenSeq), isFalse);
+      expect(fresh.chain.isLive(fork.seq), isFalse);
+      if (fresh.canSeal(_workspace)) {
+        final written = _sealedRecord(fresh, id: 'record000000005');
+        final current = server.wraps
+            .where((w) => w['epoch'] == written.keyEpoch)
+            .map((w) => w['deviceSeq']);
+        expect(current, isNot(contains(stolenSeq)));
+        expect(current, isNot(contains(fork.seq)));
+      }
+    });
+
+    // Reproduced in review: the server answered "ok", stored nothing, and the
+    // app said the device was gone.
+    test('a dropped removal is reported, not believed', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      server.dropEntries = true;
+      expect(await first.removeDevice(second.thisDeviceSeq!), isFalse);
+      expect(first.errorMessage, contains('didn\'t save'));
+    });
+
+    test('a dropped recovery replacement is reported, not believed', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      server.dropEntries = true;
+      first.beginRecoveryReplacement();
+      _typeBack(first);
+      expect(await first.finishRecovery(workspace: _workspace), isFalse);
+      expect(first.errorMessage, contains('didn\'t save'));
+    });
+
+    // Reproduced in review: restore gave a pre-removal key a fresh number, so it
+    // looked as if it came after the removal.
+    test('a key from before a removal stays marked as such', () async {
+      final server = _FakeServer();
+      final (first, code) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      final removed = second.thisDeviceSeq!;
+      await first.removeDevice(removed);
+
+      // The server hides the rotation from a device recovering.
+      server.epochs.removeLast();
+      server.wraps.removeWhere((w) => w['epoch'] == 2);
+      final fresh = _device(server);
+      await fresh.load();
+      fresh.recoveryInput.text = code;
+      await fresh.restoreWithRecoveryKey();
+
+      if (fresh.canSeal(_workspace)) {
+        final written = _sealedRecord(fresh, id: 'record000000005');
+        expect(written.keyEpoch, greaterThan(1));
+        expect(second.openRecord(written), isNull);
+      }
+    });
+
+    // Reproduced in review: a removed device replaced the key of the current
+    // epoch, and a forged value opened on a record already pinned.
+    test('nobody can swap the key of an epoch already known', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final stolenStorage = _DeviceStorage();
+      final stolen = await _addDevice(server, first, storage: stolenStorage);
+      final stolenSeq = stolen.thisDeviceSeq!;
+      final stolenKey = _signingKeyOf(stolenStorage);
+      await first.removeDevice(stolenSeq);
+      final genuine = _sealedRecord(first);
+      final epoch = genuine.keyEpoch;
+      final seq = first.thisDeviceSeq!;
+      final (hpke, _) = _publicKeysOf(server, seq);
+      final chosen = Sealing.newSymmetricKey();
+      final head = first.chain.headSeq;
+
+      server.tamperState = (state) {
+        final row = (state['workspaces'] as List<dynamic>).first as Map;
+        (row['wraps'] as List<dynamic>)
+          ..removeWhere((w) => w['deviceSeq'] == seq && w['epoch'] == epoch)
+          ..add(
+            _forgedWrap(
+              recipient: hpke,
+              deviceSeq: seq,
+              key: chosen,
+              epoch: epoch,
+              signer: stolenKey,
+              signerSeq: stolenSeq,
+              chainSeq: head,
+            ),
+          );
+        return state;
+      };
+      await first.load();
+
+      final forgedKey = Sealing.newSymmetricKey();
+      final forged = models.Record(
+        id: genuine.id,
+        key: _recordKey,
+        value: '',
+        label: 'l',
+        type: 'text',
+        format: 'default',
+        user: _user,
+        workspace: _workspace,
+        sealed: true,
+        sealedValue: SealedFormats.sealValue(
+          valueKey: forgedKey,
+          value: SealedContent(
+            value: 'forged',
+            label: 'l',
+            type: 'text',
+            format: 'default',
+          ).encode(),
+          workspace: _workspace,
+          record: genuine.id,
+          recordKey: _recordKey,
+          version: 2,
+        ),
+        sealedVersion: 2,
+        keyEpoch: epoch,
+        keyWrap: SealedFormats.wrapValueKey(
+          workspaceKey: chosen,
+          valueKey: forgedKey,
+          workspace: _workspace,
+          record: genuine.id,
+          version: 2,
+          epoch: epoch,
+        ),
+      );
+      expect(first.openRecord(forged), isNull);
+
+      server.tamperState = null;
+      await first.load();
+      expect(first.openRecord(genuine), _canary);
+    });
+
+    // A live thief plus the server: a huge epoch must lead back to a known key.
+    test('a huge epoch that leads nowhere is not pinned', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final stolenStorage = _DeviceStorage();
+      final stolen = await _addDevice(server, first, storage: stolenStorage);
+      final stolenSeq = stolen.thisDeviceSeq!;
+      final stolenKey = _signingKeyOf(stolenStorage);
+      await first.load();
+      final seq = first.thisDeviceSeq!;
+      final (hpke, _) = _publicKeysOf(server, seq);
+      final head = first.chain.headSeq;
+
+      server.tamperState = (state) {
+        final row = (state['workspaces'] as List<dynamic>).first as Map;
+        (row['epochs'] as List<dynamic>).add({
+          'epoch': 1000000,
+          'priorWrap': '',
+          'rotationDue': false,
+        });
+        (row['wraps'] as List<dynamic>).add(
+          _forgedWrap(
+            recipient: hpke,
+            deviceSeq: seq,
+            key: Sealing.newSymmetricKey(),
+            epoch: 1000000,
+            signer: stolenKey,
+            signerSeq: stolenSeq,
+            chainSeq: head,
+          ),
+        );
+        return state;
+      };
+      await first.load();
+      expect(first.canSeal(_workspace), isFalse);
+
+      server.tamperState = null;
+      await first.load();
+      expect(first.canSeal(_workspace), isTrue, reason: 'nothing was pinned');
+    });
+
+    test('a garbage public key cannot break rotation', () {
+      final good = Sealing.generateKeyPair();
+      final e1 = DeviceChainEntry.sign(
+        user: _user,
+        seq: 1,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: 'a',
+        hpkePublicKey: good.publicKey,
+        signingPublicKey: good.publicKey,
+        targetSeq: 0,
+        previousHash: Uint8List(0),
+        signerSeq: 1,
+        signer: good,
+      );
+      final bad = DeviceChainEntry.sign(
+        user: _user,
+        seq: 2,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: 'b',
+        hpkePublicKey: Uint8List(65),
+        signingPublicKey: good.publicKey,
+        targetSeq: 0,
+        previousHash: e1.hash,
+        signerSeq: 1,
+        signer: good,
+      );
+      final chain = VerifiedChain.verify(_user, [e1, bad]);
+      expect(chain.broken, isTrue);
+      expect(chain.live.map((e) => e.seq), [1]);
+    });
+
+    test('a device taken off the list says so', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      await second.removeDevice(first.thisDeviceSeq!);
+      await first.load();
+      expect(first.status, SealingStatus.needsThisDevice);
+      expect(first.removedFromList, isTrue);
+    });
+
+    test('something new on the list is pointed out', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      await second.load();
+      expect(second.unreviewedEntries, isEmpty);
+
+      final third = await _addDevice(server, first);
+      await second.load();
+      expect(second.unreviewedEntries.map((e) => e.seq), [third.thisDeviceSeq]);
+
+      await second.acknowledgeNewEntries();
+      expect(second.unreviewedEntries, isEmpty);
+      await second.load();
+      expect(second.unreviewedEntries, isEmpty);
+    });
+
+    // Reproduced in review: forcing a rejoin wiped what the device remembered,
+    // after which a server could downgrade or roll back unnoticed.
+    test('rejoining keeps what this device knows of its records', () async {
+      final server = _FakeServer();
+      final storage = _DeviceStorage();
+      final (first, _) = await _setUp(server, storage: storage);
+      final record = _sealedRecord(first, version: 5);
+      first.openRecord(record);
+      final before = _signingKeyOf(storage).privateKey;
+
+      server.devices = _AttackerChain().toJson();
+      await first.load();
+      expect(first.status, SealingStatus.untrusted);
+      await first.forgetThisDevice();
+
+      expect(first.knewAsSealed(record.id), isTrue);
+      expect(_signingKeyOf(storage).privateKey, before);
+      expect(first.status, SealingStatus.needsThisDevice);
+    });
+
+    test('starting over does not leave anything behind', () async {
+      final server = _FakeServer();
+      final storage = _DeviceStorage();
+      final (first, _) = await _setUp(server, storage: storage);
+      first.openRecord(_sealedRecord(first));
+      first.startOverConfirm.text = KeysStore.startOverPhrase;
+      expect(await first.startOver(), isTrue);
+      expect(
+        storage.values.keys.where((k) => k.startsWith('sealed_')),
+        isEmpty,
+      );
+    });
+
+    // Reproduced in review: one bad answer stuck for the rest of the session.
+    test('one bad answer about support does not stick', () async {
+      final server = _FakeServer();
+      final storage = _DeviceStorage();
+      await _setUp(server, storage: storage);
+
+      server.supportsSealing = false;
+      final restarted = _device(server, storage: storage);
+      await restarted.load();
+      expect(restarted.status, SealingStatus.untrusted);
+
+      server.supportsSealing = true;
+      await restarted.load();
+      expect(restarted.status, SealingStatus.ready);
+    });
+
+    test('adding a device keeps its code if the refresh after fails', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = _device(server);
+      await second.load();
+      await second.prepareThisDevice();
+      server.failStateAfterDevices = true;
+      expect(await first.addDevice(second.deviceInvite!), isFalse);
+      // The entry went in, so the code is what lets the new device finish.
+      expect(server.devices.length, 3);
+      expect(first.deviceConfirmation, isNotNull);
+      await second.load();
+      expect(await second.confirmThisDevice(first.deviceConfirmation!), isTrue);
+    });
+
+    test('the label and format inside the ciphertext win', () async {
+      final (keys, _) = await _setUp(_FakeServer());
+      final payload = keys.sealValue(
+        workspace: _workspace,
+        record: 'record000000001',
+        recordKey: _recordKey,
+        version: 1,
+        value: _canary,
+        label: 'SMTP password',
+        format: 'hidden',
+      );
+      final swapped = _recordFrom('record000000001', 1, payload);
+      final content = keys.openContent(swapped)!;
+      expect(content.value, _canary);
+      expect(content.label, 'SMTP password');
+      expect(content.format, 'hidden');
+    });
+
+    test('short hand-over data fails cleanly', () {
+      final pair = Sealing.generateKeyPair();
+      for (var tail = 0; tail < 16; tail++) {
+        expect(
+          () => Sealing.hpkeOpen(
+            pair,
+            Uint8List(0),
+            Uint8List.fromList([...pair.publicKey, ...List.filled(tail, 0)]),
+          ),
+          throwsA(isA<SealingException>()),
+        );
+      }
+    });
+  });
+
+  group('third-round attacks', () {
+    /// A fork from before the stolen device was removed, as a dishonest server
+    /// would serve it to a device recovering.
+    Future<(_FakeServer, String, int, SealingKeyPair)> forkedServer() async {
+      final server = _FakeServer();
+      final (first, code) = await _setUp(server);
+      final stolenStorage = _DeviceStorage();
+      final stolen = await _addDevice(server, first, storage: stolenStorage);
+      final stolenSeq = stolen.thisDeviceSeq!;
+      final stolenKey = _signingKeyOf(stolenStorage);
+      await first.removeDevice(stolenSeq);
+
+      final honest = server.devices.toList();
+      final atRemoval = honest.indexWhere((d) => d['action'] == 'remove');
+      server.devices = honest.sublist(0, atRemoval);
+      return (server, code, stolenSeq, stolenKey);
+    }
+
+    // Reproduced in review: pins were saved before the commit, so a restore the
+    // server failed left this device trusting the fork, thief and all.
+    test('a failed restore pins nothing', () async {
+      final (server, code, stolenSeq, stolenKey) = await forkedServer();
+      final storage = _DeviceStorage();
+      final fresh = _device(server, storage: storage);
+      await fresh.load();
+
+      server.failDevices = true;
+      fresh.recoveryInput.text = code;
+      expect(await fresh.restoreWithRecoveryKey(), isFalse);
+      server.failDevices = false;
+
+      // The thief now adds this device to the fork, using what it just posted.
+      await fresh.prepareThisDevice();
+      final invite = DeviceInvite.tryParse(fresh.deviceInvite!)!;
+      final chain = VerifiedChain.verify(_user, [
+        for (final d in server.devices) DeviceChainEntry.fromJson(d),
+      ]);
+      server.devices.add({
+        ...DeviceChainEntry.sign(
+          user: _user,
+          seq: chain.nextSeq,
+          action: DeviceChainEntry.actionAdd,
+          kind: DeviceChainEntry.kindDevice,
+          label: 'Fresh',
+          hpkePublicKey: invite.hpkePublicKey,
+          signingPublicKey: invite.signingPublicKey,
+          targetSeq: 0,
+          previousHash: chain.headHash,
+          signerSeq: stolenSeq,
+          signer: stolenKey,
+        ).toJson(),
+        'user': _user,
+      });
+
+      final reloaded = _device(server, storage: storage);
+      await reloaded.load();
+      expect(reloaded.status, SealingStatus.needsConfirmation);
+      expect(reloaded.canSeal(_workspace), isFalse);
+    });
+
+    test('a dropped restore pins nothing either', () async {
+      final (server, code, _, _) = await forkedServer();
+      final storage = _DeviceStorage();
+      final fresh = _device(server, storage: storage);
+      await fresh.load();
+      server.dropEntries = true;
+      fresh.recoveryInput.text = code;
+      expect(await fresh.restoreWithRecoveryKey(), isFalse);
+      final pins = storage.values.entries.where(
+        (e) => e.key.startsWith('sealed_pins_'),
+      );
+      for (final saved in pins) {
+        expect(jsonDecode(saved.value)['firstHash'], '');
+      }
+    });
+
+    test(
+      'retrying a restore on a list that already names this device works',
+      () async {
+        final (server, code, stolenSeq, stolenKey) = await forkedServer();
+        final fresh = _device(server);
+        await fresh.load();
+        await fresh.prepareThisDevice();
+        final invite = DeviceInvite.tryParse(fresh.deviceInvite!)!;
+        final chain = VerifiedChain.verify(_user, [
+          for (final d in server.devices) DeviceChainEntry.fromJson(d),
+        ]);
+        final added = DeviceChainEntry.sign(
+          user: _user,
+          seq: chain.nextSeq,
+          action: DeviceChainEntry.actionAdd,
+          kind: DeviceChainEntry.kindDevice,
+          label: 'Fresh',
+          hpkePublicKey: invite.hpkePublicKey,
+          signingPublicKey: invite.signingPublicKey,
+          targetSeq: 0,
+          previousHash: chain.headHash,
+          signerSeq: stolenSeq,
+          signer: stolenKey,
+        );
+        server.devices.add({...added.toJson(), 'user': _user});
+
+        fresh.recoveryInput.text = code;
+        expect(
+          await fresh.restoreWithRecoveryKey(),
+          isTrue,
+          reason: fresh.errorMessage,
+        );
+        expect(fresh.chain.isLive(stolenSeq), isFalse);
+        expect(
+          fresh.chain.isLive(added.seq),
+          isTrue,
+          reason: 'this device stays',
+        );
+      },
+    );
+
+    test('a restore works on a list at its cap', () async {
+      final server = _FakeServer();
+      final (first, code) = await _setUp(server);
+      final record = _sealedRecord(first);
+      await _addDevice(server, first);
+
+      final fresh = _device(server);
+      await fresh.load();
+      fresh.recoveryInput.text = code;
+      expect(await fresh.restoreWithRecoveryKey(), isTrue);
+      final actions = server.devices.map((d) => d['action']).toList();
+      expect(actions.sublist(actions.length - 3), ['remove', 'remove', 'add']);
+      expect(fresh.openRecord(record), _canary);
+    });
+
+    // Reproduced in review: the server accepted an encoding of the same bytes
+    // that Dart refuses, and every device then failed to load at all.
+    test('an entry it cannot parse breaks the list, not the device', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final record = _sealedRecord(first);
+      final poisoned =
+          jsonDecode(jsonEncode(server.devices.first)) as Map<String, dynamic>;
+      poisoned
+        ..['seq'] = 3
+        ..['signature'] = '\n';
+      server.devices.add(poisoned);
+
+      await first.load();
+      expect(first.status, SealingStatus.ready);
+      expect(first.chainBroken, isTrue);
+      expect(first.canSeal(_workspace), isFalse);
+      expect(first.openRecord(record), _canary, reason: 'it can still read');
+    });
+
+    // Reproduced in review: adding a phone marked everything as reviewed, so the
+    // alert about a device the thief planted vanished.
+    test('making a change does not silence an alert', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      final planted = await _addDevice(server, second);
+
+      await first.load();
+      expect(first.unreviewedEntries.map((e) => e.seq), [
+        planted.thisDeviceSeq,
+      ]);
+
+      await _addDevice(server, first);
+      expect(first.unreviewedEntries.map((e) => e.seq), [
+        planted.thisDeviceSeq,
+      ]);
+
+      await first.load();
+      expect(first.unreviewedEntries.map((e) => e.seq), [
+        planted.thisDeviceSeq,
+      ]);
+
+      await first.acknowledgeNewEntries();
+      await first.load();
+      expect(first.unreviewedEntries, isEmpty);
+    });
+
+    test('a removal this device did not make is pointed out too', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      final third = await _addDevice(server, first);
+      await first.acknowledgeNewEntries();
+
+      await second.removeDevice(third.thisDeviceSeq!);
+      await first.load();
+      expect(
+        first.unreviewedEntries.map((e) => e.action),
+        contains(DeviceChainEntry.actionRemove),
+      );
+    });
+
+    test('a device on the list gets its code again', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = _device(server);
+      await second.load();
+      await second.prepareThisDevice();
+      expect(await first.addDevice(second.deviceInvite!), isTrue);
+      final code = first.deviceConfirmation;
+
+      first.clearDeviceConfirmation();
+      expect(await first.addDevice(second.deviceInvite!), isTrue);
+      expect(first.deviceConfirmation, isNotNull);
+      expect(server.devices.length, 3, reason: 'not added twice');
+
+      await second.load();
+      expect(await second.confirmThisDevice(first.deviceConfirmation!), isTrue);
+      expect(code, isNotNull);
+    });
+
+    test('this device knows which key new values go under', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      expect(first.writableEpoch(_workspace), 1);
+      final second = await _addDevice(server, first);
+      await first.removeDevice(second.thisDeviceSeq!);
+      expect(first.writableEpoch(_workspace), 2);
+      expect(first.writableEpoch('another-workspace'), isNull);
     });
   });
 }

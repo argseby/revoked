@@ -66,8 +66,9 @@ class RecordSealedToggle extends StatelessWidget {
       icon: AppIcons.lock,
       label: 'End-to-end encrypted',
       subtitle:
-          'Not even your server can read this. You can’t share it yet. If you '
-          'lose your devices and your recovery key, it’s gone.',
+          'Not even your server can read the value, but it can read the name, so '
+          'keep secrets out of that. You can’t share it yet. If you lose your '
+          'devices and your recovery key, it’s gone.',
       value: sealed,
       onChanged: onChanged,
     );

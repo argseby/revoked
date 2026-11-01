@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 
+import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
@@ -9,6 +10,7 @@ import 'package:revoked_app/core/services/device_unlock.dart';
 import 'package:revoked_app/core/services/domain_verification_service.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
 import 'package:revoked_app/core/services/workspace_context.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/theme/theme_store.dart';
 import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/attestations/store/attestations_store.dart';
@@ -116,8 +118,9 @@ abstract final class Stores {
     // Decrypted values go with the keys: nothing readable outlives the session.
     auth.onLoggedOut = () {
       keys.forgetSession();
-      vault.records.clear();
+      forgetAccountData();
     };
+    api.onWrite = invalidateLoads;
     // A rejected session drops to the login screen from wherever it happened.
     api.onUnauthorized = () => unawaited(auth.handleSessionExpired());
     vault = VaultStore(api);
@@ -147,5 +150,65 @@ abstract final class Stores {
     // and awaiting it before runApp meant the first frame waited on the
     // server. The router shows a splash until isInitialized flips.
     unawaited(auth.initialize());
+  }
+
+  static List<LoadState> get _loads => [
+    vault.loadState,
+    shares.loadState,
+    requests.loadState,
+    bookmarks.loadState,
+    contacts.loadState,
+    identities.loadState,
+    credentials.loadState,
+    attestations.loadState,
+    attestationChecks.loadState,
+  ];
+
+  /// Makes every cached list fetch again the next time a screen asks for it.
+  static void invalidateLoads() {
+    for (final load in _loads) {
+      load.invalidate();
+    }
+  }
+
+  /// Empties everything scoped to the active workspace, so a failed reload
+  /// shows nothing rather than the previous workspace's rows. A load still on
+  /// its way can't put them back: see [LoadState.begin].
+  static void forgetWorkspaceData() {
+    runInAction(() {
+      for (final load in _loads) {
+        load.reset();
+      }
+      vault.records.clear();
+      vault.sections.clear();
+      shares.shares.clear();
+      requests.requests.clear();
+      requests.responsesByRequest.clear();
+      bookmarks.bookmarks.clear();
+      bookmarks.groups.clear();
+      contacts.contacts.clear();
+      identities.identities.clear();
+      credentials.credentials.clear();
+      credentials.verdicts.clear();
+      attestations.attestations.clear();
+      attestationChecks.checks.clear();
+      templates.templates.clear();
+      invites.invites.clear();
+      invites.members.clear();
+    });
+  }
+
+  /// Empties everything the signed-in account could read, so the next account
+  /// on this device starts from nothing.
+  static void forgetAccountData() {
+    forgetWorkspaceData();
+    runInAction(() {
+      notifications.notifications.clear();
+      connections.connections.clear();
+      connections.linksByConnection.clear();
+      passkeys.passkeys.clear();
+      apiKeys.apiKeys.clear();
+      reminders.reminders.clear();
+    });
   }
 }

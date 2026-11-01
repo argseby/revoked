@@ -254,8 +254,7 @@ void main() {
         final sent = server.seen.map((r) => r.body).join('\n');
         expect(sent, isNot(contains(_secret)));
         expect(server.seen.any((r) => r.method == 'PUT'), isTrue);
-        final patch = server.seen.firstWhere((r) => r.method == 'PATCH');
-        expect(jsonDecode(patch.body), {'label': 'SMTP login'});
+        expect(server.seen.any((r) => r.method == 'PATCH'), isFalse);
 
         final record = Stores.vault.records.single;
         expect(record.value, '$_secret-new');
@@ -263,6 +262,40 @@ void main() {
         expect(record.sealedVersion, 2);
       },
     );
+
+    // Reproduced in review: a removed device forged a new version of a record
+    // nobody had edited since, because records stayed under the old key.
+    testWidgets('records move to the new key when one replaces it', (
+      tester,
+    ) async {
+      final server = await _start(tester);
+      await tester.runAsync(() async {
+        await _setUpKeys();
+        await Stores.vault.createRecord(
+          key: 'smtp_password',
+          value: _secret,
+          label: 'SMTP password',
+          type: 'text',
+          format: 'hidden',
+          user: _user,
+          workspace: _workspace,
+          sealed: true,
+        );
+        Stores.keys.beginRecoveryReplacement();
+        final groups = Stores.keys.recoveryCode!.split('-');
+        Stores.keys.recoveryConfirm.text = groups
+            .sublist(groups.length - 2)
+            .join('-');
+        expect(await Stores.keys.finishRecovery(workspace: _workspace), isTrue);
+        await Stores.vault.loadRecords();
+      });
+
+      final record = Stores.vault.records.single;
+      expect(record.keyEpoch, 2);
+      expect(record.sealedVersion, 2);
+      expect(record.value, _secret);
+      expect(server.records.single['keyEpoch'], 2);
+    });
 
     testWidgets('a device without the key sees a locked record', (
       tester,

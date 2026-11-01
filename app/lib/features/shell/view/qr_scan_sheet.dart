@@ -71,22 +71,24 @@ class _QrScanSheetState extends State<_QrScanSheet> {
         AppSpacing.xl,
         AppSpacing.xl,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Scan a link').header,
-          const SizedBox(height: AppSpacing.xxs),
-          const Text('Point the camera at a Revoked QR code.').muted.small,
-          const SizedBox(height: AppSpacing.lg),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: MobileScanner(controller: _camera, onDetect: _onDetect),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Scan a link').header,
+            const SizedBox(height: AppSpacing.xxs),
+            const Text('Point the camera at a Revoked QR code.').muted.small,
+            const SizedBox(height: AppSpacing.lg),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: MobileScanner(controller: _camera, onDetect: _onDetect),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

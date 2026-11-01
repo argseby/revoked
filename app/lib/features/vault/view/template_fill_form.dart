@@ -11,7 +11,7 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_collapsible_group.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
@@ -116,7 +116,7 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
 
     final templates = Stores.templates;
     if (templates.isLoading && templates.templates.isEmpty) {
-      return const Center(child: AppSpinner(large: true));
+      return const AppListSkeleton();
     }
     if (templates.templates.isEmpty) {
       return const AppEmptyState(

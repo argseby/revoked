@@ -3,6 +3,7 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/api_key.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'api_keys_store.g.dart';
@@ -77,7 +78,7 @@ abstract class _ApiKeysStore with Store {
         ..clear()
         ..addAll(items.map((e) => ApiKey.fromJson(e as Map<String, dynamic>)));
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }
@@ -116,7 +117,7 @@ abstract class _ApiKeysStore with Store {
       lastCreatedPlainToken = key.plainToken;
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -131,7 +132,7 @@ abstract class _ApiKeysStore with Store {
       await _api.delete('$_basePath/$id');
       apiKeys.removeWhere((k) => k.id == id);
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }

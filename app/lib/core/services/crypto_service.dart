@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:basic_utils/basic_utils.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pointycastle/export.dart' as pc;
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/services/secure_storage.dart';
 import 'package:revoked_app/core/utils/sd_jwt.dart';
 
@@ -69,7 +70,7 @@ class CryptoService {
   }) async {
     final pem = await loadPrivateKey(identityId);
     if (pem == null || pem.isEmpty) {
-      throw StateError(
+      throw UserFacingException(
         'This identity\'s key is on another device. A key stays on the '
         'device that created it; create an identity here to sign from '
         'this one.',
@@ -111,7 +112,7 @@ class CryptoService {
   }) async {
     final pem = await loadPrivateKey(identityId);
     if (pem == null || pem.isEmpty) {
-      throw StateError(
+      throw UserFacingException(
         'The key of the identity this credential is bound to is not on this '
         'device, so it cannot be presented from here.',
       );

@@ -27,7 +27,7 @@ import 'package:revoked_app/core/widgets/device_key_alert.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
@@ -175,7 +175,7 @@ class _LoadingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
-      child: Center(child: AppSpinner()),
+      child: AppListSkeleton(embedded: true),
     );
   }
 }
@@ -985,6 +985,7 @@ class _DomainPage extends StatelessWidget {
             ],
           ),
           if (store.domainError != null) ...[
+            AppSpacing.gapSm,
             AppErrorText(store.domainError!),
             AppSpacing.gapMd,
           ],

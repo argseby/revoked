@@ -609,39 +609,41 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       context: context,
       dismissible: true,
       builder: (sheetCtx) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                AppSpacing.sm,
+        return SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.xxs,
+                  AppSpacing.xl,
+                  AppSpacing.sm,
+                ),
+                child: Text('Value type').header,
               ),
-              child: Text('Value type').header,
-            ),
-            ...RecordTypeUtils.supportedTypes.map((t) {
-              final selected = t == _store.recordType;
-              final suggested = t == _store.recordDetectedType;
-              return AppTile(
-                padding: _pickerRowPadding,
-                title: Text(t.toUpperCase()),
-                subtitle: suggested
-                    ? const Text('Suggested for this value').muted.small
-                    : null,
-                trailing: selected
-                    ? Icon(
-                        AppIcons.check,
-                        color: Theme.of(sheetCtx).colorScheme.primary,
-                      )
-                    : null,
-                onTap: () => Navigator.of(sheetCtx).pop(t),
-              );
-            }),
-            const SizedBox(height: AppSpacing.sm),
-          ],
+              ...RecordTypeUtils.supportedTypes.map((t) {
+                final selected = t == _store.recordType;
+                final suggested = t == _store.recordDetectedType;
+                return AppTile(
+                  padding: _pickerRowPadding,
+                  title: Text(t.toUpperCase()),
+                  subtitle: suggested
+                      ? const Text('Suggested for this value').muted.small
+                      : null,
+                  trailing: selected
+                      ? Icon(
+                          AppIcons.check,
+                          color: Theme.of(sheetCtx).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetCtx).pop(t),
+                );
+              }),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+          ),
         );
       },
     );

@@ -174,6 +174,21 @@ abstract final class SealedFormats {
     chainSeq,
   ]);
 
+  /// What a device signs to store a sealed record in plaintext again. A session
+  /// can be stolen, and a device's key can't be taken from the server, so this is
+  /// what stops a stolen session replacing a secret with whatever it likes.
+  static Uint8List unsealPayload(
+    String user,
+    String record,
+    int expectedVersion,
+    String value,
+  ) => Sealing.context('revoked-unseal-v1', [
+    user,
+    record,
+    expectedVersion,
+    value,
+  ]);
+
   /// What the recovery key signs when it joins a list: the list's first entry.
   /// A public key alone proves nothing, because anyone can copy it into a list
   /// of their own. Only someone holding the recovery secret can produce this.
@@ -489,23 +504,28 @@ class VerifiedChain {
   }
 
   /// What must also come off the list when [target] does: everything it added,
-  /// and everything those added. A stolen device could have added a device or a
-  /// recovery key of its own, and removing only the device would leave those in
-  /// place, receiving every new key. [keep] is the device doing the removing.
+  /// and everything those added, including entries already removed. A stolen
+  /// device could add a device, have that add a recovery key of its own, then
+  /// remove the go-between, so only following live entries would miss what it
+  /// planted. [keep] is the device doing the removing.
   List<int> removalsFor(int target, {required int keep}) {
-    final out = <int>[target];
+    final closure = <int>{target};
     var grew = true;
     while (grew) {
       grew = false;
-      for (final e in live) {
-        if (e.seq == keep || out.contains(e.seq)) continue;
-        if (out.contains(e.signerSeq)) {
-          out.add(e.seq);
+      for (final e in entries) {
+        if (e.action != DeviceChainEntry.actionAdd) continue;
+        if (e.seq == keep || closure.contains(e.seq)) continue;
+        if (closure.contains(e.signerSeq)) {
+          closure.add(e.seq);
           grew = true;
         }
       }
     }
-    return out;
+    return [
+      for (final seq in closure.toList()..sort())
+        if (isLive(seq)) seq,
+    ];
   }
 
   /// Verifies [served] for [user]: consecutive numbering, each entry pointing
@@ -535,6 +555,8 @@ class VerifiedChain {
     if (sofar.entries.isEmpty) {
       return entry.action == DeviceChainEntry.actionAdd &&
           entry.kind == DeviceChainEntry.kindDevice &&
+          Sealing.isValidPublicKey(entry.hpkePublicKey) &&
+          Sealing.isValidPublicKey(entry.signingPublicKey) &&
           entry.signerSeq == entry.seq &&
           entry.verifiedBy(entry.signingPublicKey);
     }
@@ -547,6 +569,10 @@ class VerifiedChain {
       return sofar.isLive(entry.targetSeq);
     }
     if (entry.action != DeviceChainEntry.actionAdd) return false;
+    if (!Sealing.isValidPublicKey(entry.hpkePublicKey) ||
+        !Sealing.isValidPublicKey(entry.signingPublicKey)) {
+      return false;
+    }
     if (entry.kind == DeviceChainEntry.kindDevice) return true;
     // One recovery key at a time, and it must have signed this list's root. A
     // second one is how a stolen device would keep a way in after its removal.

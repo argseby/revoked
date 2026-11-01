@@ -509,7 +509,7 @@ class DomainVerificationService {
     } on _VerificationError {
       rethrow;
     } catch (e) {
-      throw _VerificationError('Could not reach $domain: $e');
+      throw _VerificationError('Could not reach $domain.');
     }
   }
 
@@ -555,7 +555,7 @@ class DomainVerificationService {
           pending--;
           lastFailure = e is _VerificationError
               ? e
-              : _VerificationError('DNS lookup failed: $e');
+              : _VerificationError('DNS lookup failed.');
           settleIfDone();
         },
       );
@@ -571,7 +571,7 @@ class DomainVerificationService {
           .get(uri, headers: const {'accept': 'application/dns-json'})
           .timeout(_networkTimeout);
     } catch (e) {
-      throw _VerificationError('DNS lookup failed: $e');
+      throw _VerificationError('DNS lookup failed.');
     }
     if (resp.statusCode != 200) {
       throw _VerificationError('DNS lookup returned HTTP ${resp.statusCode}.');
@@ -607,9 +607,7 @@ class DomainVerificationService {
     try {
       resp = await _http.get(uri).timeout(_networkTimeout);
     } catch (e) {
-      throw _VerificationError(
-        'Could not reach https://$domain/api/server: $e',
-      );
+      throw _VerificationError('Could not reach https://$domain/api/server.');
     }
     if (resp.statusCode != 200) {
       throw _VerificationError(

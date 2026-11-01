@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
@@ -24,7 +25,6 @@ import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
@@ -93,7 +93,18 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         final share = _share;
         if (share == null) {
           if (Stores.shares.isLoading) {
-            return const Center(child: AppSpinner(large: true));
+            return const AppDetailSkeleton(
+              badges: ['active'],
+              primary: 'Share link',
+              sections: [
+                AppSkeletonGroup('What it shares', rows: 2),
+                AppSkeletonGroup('Protection', rows: 3),
+              ],
+              aside: [
+                AppSkeletonGroup('Access', rows: 2),
+                AppSkeletonGroup('Details', rows: 3),
+              ],
+            );
           }
           return AppEmptyState(
             icon: AppIcons.linkSlash,

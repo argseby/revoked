@@ -4,10 +4,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -18,10 +20,12 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_load_error.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/sealing/store/keys_store.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/shell/view/qr_scan_sheet.dart';
 
 bool get _hasCamera => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -302,13 +306,17 @@ Future<void> _openAddAnotherDeviceSheet(BuildContext context) {
         final fingerprint = keys.fingerprintOfInvite(typed);
         final confirmation = keys.deviceConfirmation;
         if (confirmation != null) {
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.xl),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text('One last step').header,
+                if (keys.errorMessage != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  AppErrorText(keys.errorMessage!),
+                ],
                 const SizedBox(height: AppSpacing.xs),
                 const Text(
                   'Enter this code on your new device, so it knows your device '
@@ -338,7 +346,7 @@ Future<void> _openAddAnotherDeviceSheet(BuildContext context) {
             ),
           );
         }
-        return Padding(
+        return SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -408,7 +416,7 @@ Future<void> _openRecoverySheet(BuildContext context) {
     context: context,
     dismissible: true,
     builder: (sheetContext) => Observer(
-      builder: (_) => Padding(
+      builder: (_) => SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -418,7 +426,8 @@ Future<void> _openRecoverySheet(BuildContext context) {
             const SizedBox(height: AppSpacing.xs),
             const Text(
               'Enter the key you saved. This device can then read your '
-              'encrypted records.',
+              'encrypted records. Your other devices come off your list, so '
+              'add them again afterwards.',
             ).muted,
             const SizedBox(height: AppSpacing.lg),
             AppTextField(
@@ -458,7 +467,7 @@ Future<void> _openStartOverSheet(BuildContext context) {
   return showAppSheet<void>(
     context: context,
     builder: (sheetContext) => Observer(
-      builder: (_) => Padding(
+      builder: (_) => SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -530,17 +539,14 @@ class SealingSection extends StatelessWidget {
       builder: (context) {
         final keys = Stores.keys;
         if (keys.isLoading && keys.status == SealingStatus.unknown) {
-          return const Center(child: AppSpinner());
+          return const AppListSkeleton(embedded: true);
         }
         return switch (keys.status) {
-          SealingStatus.unknown => _Message(
-            text: keys.errorMessage ?? 'Couldn’t reach your server. Try again.',
-            action: AppButton(
-              icon: AppIcons.arrowClockwise,
-              label: 'Try again',
-              style: AppButtonStyle.accent,
-              onTap: keys.load,
-            ),
+          SealingStatus.unknown => AppLoadError(
+            title: 'Couldn’t load your devices',
+            message:
+                keys.errorMessage ?? 'Couldn’t reach your server. Try again.',
+            onRetry: keys.load,
           ),
           SealingStatus.unavailable => const _Message(
             text: 'Your server doesn’t offer end-to-end encryption yet.',
@@ -595,6 +601,23 @@ class _NeedsThisDevice extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (Stores.keys.removedFromList) ...[
+          AppAlert(
+            destructive: true,
+            title: const Text('This device was removed from your list'),
+            content: Text(
+              Stores.keys.chain.liveRecovery != null
+                  ? 'If you didn’t do that on another device, someone else may '
+                        'have access. Use your recovery key: it takes every '
+                        'other device off your list.'
+                  : 'If you didn’t do that on another device, someone else has '
+                        'access, and they’ve taken your recovery key off too. '
+                        'Sign out everywhere else from a device that’s still on '
+                        'your list. If you have none, you can only start over.',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         const Text(
           'You’ve encrypted records on another device. Add this one to read '
           'them here.',
@@ -667,9 +690,9 @@ class _Untrusted extends StatelessWidget {
                 context: context,
                 title: 'Rejoin from scratch?',
                 message:
-                    'This device forgets its keys and what it remembered. You’ll '
-                    'then need another device or your recovery key to get back '
-                    'in. Do this only if you started over yourself.',
+                    'This device stops trusting your old list. You’ll then need '
+                    'another device or your recovery key to get back in. Do '
+                    'this only if you started over yourself.',
                 confirmLabel: 'Rejoin',
                 confirmIcon: AppIcons.arrowClockwise,
                 destructive: true,
@@ -706,10 +729,39 @@ class _Devices extends StatelessWidget {
     );
     if (!ok || !context.mounted) return;
     final done = await Stores.keys.removeDevice(entry.seq);
-    if (!done && context.mounted) {
+    if (!context.mounted) return;
+    if (!done) {
       AppToast.error(
         context,
         'Couldn’t remove it',
+        subtitle: Stores.keys.errorMessage,
+      );
+      return;
+    }
+    await _signOutOthers(context);
+  }
+
+  Future<void> _signOutOthers(BuildContext context) async {
+    final go = await showAppDialog(
+      context: context,
+      title: 'Sign out everywhere else?',
+      message:
+          'A lost device may still be signed in. It can’t read what you encrypt '
+          'from now on, but it can read your other records until you sign it '
+          'out. You’ll need to sign in again on your other devices.',
+      confirmLabel: 'Sign out everywhere else',
+      confirmIcon: AppIcons.lock,
+      destructive: true,
+    );
+    if (!go || !context.mounted) return;
+    final ok = await Stores.keys.signOutOtherSessions();
+    if (!context.mounted) return;
+    if (ok) {
+      AppToast.success(context, 'Your other sessions are signed out');
+    } else {
+      AppToast.error(
+        context,
+        'Couldn’t sign them out',
         subtitle: Stores.keys.errorMessage,
       );
     }
@@ -734,6 +786,31 @@ class _Devices extends StatelessWidget {
             content: const Text(
               'This device still reads your records, but it has stopped '
               'encrypting and sharing keys.',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+        if (keys.unreviewedEntries.isNotEmpty) ...[
+          AppAlert(
+            destructive: true,
+            title: const Text('New on your list'),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${keys.unreviewedEntries.map((e) => e.action == DeviceChainEntry.actionRemove ? 'A removal' : e.label).join(', ')} '
+                  'came from another device. If that wasn’t you, remove that '
+                  'device.',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  icon: AppIcons.check,
+                  label: 'That was me',
+                  style: AppButtonStyle.accent,
+                  size: AppButtonSize.small,
+                  onTap: keys.acknowledgeNewEntries,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -805,7 +882,61 @@ class _Devices extends StatelessWidget {
             onTap: () => openRecoveryKeySheet(context, replacing: true),
           ),
         ),
+        const SizedBox(height: AppSpacing.sm),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AppButton(
+            icon: AppIcons.lock,
+            label: 'Sign out everywhere else',
+            style: AppButtonStyle.accent,
+            onTap: () => _signOutOthers(context),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+/// A warning that can't wait for someone to open Settings: their list changed in
+/// a way this device didn't do, or it no longer trusts it.
+class SealingAlarm extends StatelessWidget {
+  const SealingAlarm({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (context) {
+        final keys = Stores.keys;
+        final String? message = switch (keys) {
+          _ when keys.status == SealingStatus.untrusted =>
+            'Your device list changed in a way this device can’t confirm.',
+          _ when keys.removedFromList =>
+            'This device was removed from your device list.',
+          _ when keys.unreviewedEntries.isNotEmpty =>
+            'Something changed on your device list.',
+          _ => null,
+        };
+        if (message == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: AppAlert(
+            destructive: true,
+            title: Text(message),
+            content: Align(
+              alignment: Alignment.centerLeft,
+              child: AppButton(
+                icon: AppIcons.lock,
+                label: 'Check it',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: () => context.go(
+                  AppRoutes.settingsPage(SettingsPage.encryption.slug),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

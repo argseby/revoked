@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +17,7 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
@@ -41,9 +44,14 @@ const _destinations = [
   _Destination(AppIcons.person, 'Contacts'),
 ];
 
+/// How many of [_destinations] a phone's bottom bar shows; the rest sit behind
+/// More. A sixth tab leaves under 64 pixels each on a small phone, where longer
+/// labels break mid-word.
+const _phoneBarDestinations = 4;
+
 /// The frame around every signed-in screen.
 ///
-/// The same destinations at every width: a bottom bar on a phone, a
+/// The same destinations at every width: a bottom bar with More on a phone, a
 /// rail on a mid-sized window and a sidebar on a wide one. One "New" button
 /// opens the picker for everything that can be created; search and the
 /// account menu are reachable from every layout.
@@ -82,6 +90,26 @@ class _AppShellState extends State<AppShell> {
   void _openNew(int? destination) =>
       openNewPicker(context, destination: destination);
 
+  void _openMore() {
+    showAppOptionsSheet(
+      context: context,
+      title: 'More',
+      actions: [
+        for (var i = _phoneBarDestinations; i < _destinations.length; i++)
+          AppSheetAction(
+            icon: _destinations[i].icon,
+            label: _destinations[i].label,
+            onTap: () => _go(i),
+          ),
+        AppSheetAction(
+          icon: AppIcons.personGear,
+          label: 'Settings',
+          onTap: () => context.go(AppRoutes.settings),
+        ),
+      ],
+    );
+  }
+
   /// A control the active screen registered, with the gap that belongs to it —
   /// an unclaimed slot takes no space at all.
   Widget _slot(ShellSlot slot) {
@@ -111,22 +139,35 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final destination = AppRoutes.destinationOf(
-      GoRouterState.of(context).uri.path,
-    );
+    final path = GoRouterState.of(context).uri.path;
+    final destination = AppRoutes.destinationOf(path);
     if (destination != null) _lastDestination = destination;
     final width = MediaQuery.sizeOf(context).width;
-    if (width < AppSpacing.narrowWidth) return _narrow(destination);
+    if (width < AppSpacing.narrowWidth) {
+      return _narrow(
+        destination,
+        showNew:
+            destination != null && path == AppRoutes.destinations[destination],
+        showAccount: !path.startsWith('${AppRoutes.settings}/'),
+      );
+    }
     return _wide(destination, sidebar: width >= AppSpacing.wideWidth);
   }
 
-  Widget _narrow(int? destination) {
+  /// [showAccount] is off on a settings page: its back arrow is the way out, and
+  /// the avatar beside it would only leave the title less room.
+  Widget _narrow(
+    int? destination, {
+    required bool showNew,
+    required bool showAccount,
+  }) {
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
-      // Yields while any sheet is up, so it never overlaps a sheet's actions.
+      // Yields while any sheet is up, so it never overlaps a sheet's actions,
+      // and on a detail page, where it would sit on the page's own controls.
       floatingActionButton: Observer(
         builder: (_) {
-          if (SheetTracker.anyOpen || destination == null) {
+          if (SheetTracker.anyOpen || !showNew) {
             return const SizedBox.shrink();
           }
           return FloatingActionButton.extended(
@@ -139,12 +180,20 @@ class _AppShellState extends State<AppShell> {
         },
       ),
       appBar: AppBar(
-        leadingWidth: AppSpacing.lg + AppButton.normalExtent + AppSpacing.xs,
-        leading: const Padding(
-          padding: EdgeInsets.only(left: AppSpacing.lg, right: AppSpacing.xs),
-          child: Center(child: AccountMenu()),
-        ),
-        titleSpacing: AppSpacing.xs,
+        automaticallyImplyLeading: false,
+        leadingWidth: showAccount
+            ? AppSpacing.lg + AppButton.normalExtent + AppSpacing.xs
+            : null,
+        leading: showAccount
+            ? const Padding(
+                padding: EdgeInsets.only(
+                  left: AppSpacing.lg,
+                  right: AppSpacing.xs,
+                ),
+                child: Center(child: AccountMenu()),
+              )
+            : null,
+        titleSpacing: showAccount ? AppSpacing.xs : AppSpacing.lg,
         title: _title(destination),
         actions: [
           _slot(ShellSlots.action),
@@ -154,6 +203,7 @@ class _AppShellState extends State<AppShell> {
             tooltip: 'Search or paste a link',
             onTap: () => openLinkSearchSheet(context),
           ),
+          AppSpacing.gapXs,
           const _NotificationBell(),
           AppSpacing.gapXs,
         ],
@@ -165,15 +215,23 @@ class _AppShellState extends State<AppShell> {
 
   Widget _bottomBar(int? destination) {
     final bar = NavigationBar(
-      selectedIndex: destination ?? _lastDestination,
-      onDestinationSelected: _go,
+      selectedIndex: min(
+        destination ?? _lastDestination,
+        _phoneBarDestinations,
+      ),
+      onDestinationSelected: (i) =>
+          i == _phoneBarDestinations ? _openMore() : _go(i),
       destinations: [
-        for (final d in _destinations)
+        for (final d in _destinations.take(_phoneBarDestinations))
           NavigationDestination(icon: Icon(d.icon), label: d.label),
+        const NavigationDestination(
+          icon: Icon(AppIcons.threeDots),
+          label: 'More',
+        ),
       ],
     );
     if (destination != null) return bar;
-    // On Settings none of the four is current, so none looks it.
+    // On Settings no tab is current, so none looks it.
     final scheme = Theme.of(context).colorScheme;
     final theme = NavigationBarTheme.of(context);
     return NavigationBarTheme(
@@ -207,6 +265,8 @@ class _AppShellState extends State<AppShell> {
               selectedIndex: destination,
               onDestinationSelected: _go,
               labelType: NavigationRailLabelType.all,
+              // A phone on its side is this wide but too short for every place.
+              scrollable: true,
               leading: const Padding(
                 padding: EdgeInsets.only(bottom: AppSpacing.md),
                 child: AccountMenu(),
@@ -263,7 +323,7 @@ class _AppShellState extends State<AppShell> {
 }
 
 /// The wide layout's navigation: the workspace and account on top, search,
-/// the four destinations, and notifications and settings at the bottom.
+/// the destinations, and notifications and settings at the bottom.
 class _Sidebar extends StatelessWidget {
   final int? destination;
   final ValueChanged<int> onSelect;

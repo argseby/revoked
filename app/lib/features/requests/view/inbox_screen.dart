@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -13,7 +13,7 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/requests/view/request_groups.dart';
@@ -36,7 +36,7 @@ class InboxScreen extends StatefulWidget {
   State<InboxScreen> createState() => _InboxScreenState();
 }
 
-class _InboxScreenState extends State<InboxScreen> {
+class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
   late final TableStore<DataRequest> _table;
   final Local<_RequestFilter> _filter = Local(_RequestFilter.all);
 
@@ -53,9 +53,12 @@ class _InboxScreenState extends State<InboxScreen> {
       },
       defaultSort: 'created_desc',
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Stores.requests.loadRequests();
-    });
+  }
+
+  @override
+  void refresh() {
+    Stores.requests.loadIfDue();
+    Stores.bookmarks.loadIfDue();
   }
 
   @override
@@ -72,16 +75,32 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget _yourRequests(BuildContext context) {
     final reqStore = Stores.requests;
 
-    return Observer(
+    return AppLoadFade(
+      loading: () =>
+          reqStore.loadState.isFirstLoad && reqStore.requests.isEmpty,
+      skeleton: const AppListSkeleton(
+        filters: ['All', 'Open', 'Closed'],
+        group: 'Open',
+        rows: [
+          AppSkeletonRow(
+            'Tenant details',
+            '4 fields · 2 responses',
+            icon: AppIcons.inboxFill,
+            badge: '2 new',
+          ),
+          AppSkeletonRow('New starters', '6 fields', icon: AppIcons.inboxFill),
+          AppSkeletonRow(
+            'Club members',
+            '3 fields · 8 responses',
+            icon: AppIcons.inboxFill,
+          ),
+        ],
+      ),
       builder: (_) {
-        if (reqStore.isLoading && reqStore.requests.isEmpty) {
-          return const Center(child: AppSpinner(large: true));
-        }
-
-        if (reqStore.errorMessage != null) {
+        if (reqStore.requests.isEmpty && reqStore.loadState.error != null) {
           return AppLoadError(
             title: "Couldn't load your requests",
-            message: reqStore.errorMessage!,
+            message: reqStore.loadState.error!,
             onRetry: reqStore.loadRequests,
           );
         }
@@ -180,6 +199,10 @@ class _InboxScreenState extends State<InboxScreen> {
         final nothingShown = !matches.any(shows);
 
         return AppListPage(
+          banners: [
+            if (reqStore.loadState.error != null)
+              AppRefreshFailed(onRetry: reqStore.loadRequests),
+          ],
           filters: AppFilterChips<_RequestFilter>(
             selected: filter,
             onSelected: (f) => _filter.value = f,

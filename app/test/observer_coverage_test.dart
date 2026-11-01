@@ -21,7 +21,10 @@ void main() {
       final source = entity.readAsStringSync();
       final readsStore =
           source.contains('_store.') || source.contains('Stores.');
-      if (readsStore && !source.contains('Observer(')) {
+      // AppLoadFade is an Observer around the screen it wraps.
+      if (readsStore &&
+          !source.contains('Observer(') &&
+          !source.contains('AppLoadFade(')) {
         offenders.add(entity.path);
       }
     }

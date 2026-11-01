@@ -1,5 +1,3 @@
-import 'package:mobx/mobx.dart';
-
 import 'package:revoked_app/core/stores.dart';
 
 /// Moves the app from one workspace to another.
@@ -32,7 +30,7 @@ class WorkspaceContext {
   /// Clears and refetches every workspace-scoped store. Also used after
   /// accepting an invite, which lands the account in a different workspace.
   Future<void> reload() async {
-    _clear();
+    Stores.forgetWorkspaceData();
 
     final workspaceId = Stores.auth.activeWorkspace ?? '';
     await Future.wait([
@@ -40,25 +38,14 @@ class WorkspaceContext {
       Stores.shares.loadShares(),
       Stores.requests.loadRequests(),
       Stores.identities.loadIdentities(),
+      Stores.contacts.load(),
+      Stores.bookmarks.load(),
+      Stores.credentials.load(),
+      Stores.attestations.load(),
+      Stores.attestationChecks.load(),
       if (workspaceId.isNotEmpty) Stores.templates.loadTemplates(workspaceId),
       if (workspaceId.isNotEmpty) Stores.invites.load(workspaceId),
       if (workspaceId.isNotEmpty) Stores.invites.loadMembers(workspaceId),
     ]);
-  }
-
-  /// Empties the stores before refetching, so a failed reload shows nothing
-  /// rather than the previous workspace's rows.
-  void _clear() {
-    runInAction(() {
-      Stores.vault.records.clear();
-      Stores.vault.sections.clear();
-      Stores.shares.shares.clear();
-      Stores.requests.requests.clear();
-      Stores.requests.responsesByRequest.clear();
-      Stores.templates.templates.clear();
-      Stores.identities.identities.clear();
-      Stores.invites.invites.clear();
-      Stores.invites.members.clear();
-    });
   }
 }

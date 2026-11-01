@@ -5,6 +5,7 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/notification.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 
 part 'notifications_store.g.dart';
 
@@ -76,7 +77,7 @@ abstract class _NotificationsStore with Store {
           items.map((e) => AppNotification.fromJson(e as Map<String, dynamic>)),
         );
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }
@@ -90,7 +91,7 @@ abstract class _NotificationsStore with Store {
       final idx = notifications.indexWhere((n) => n.id == id);
       if (idx != -1) notifications[idx] = updated;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     }
   }
 
@@ -100,7 +101,7 @@ abstract class _NotificationsStore with Store {
       await _api.delete('$_basePath/$id');
       notifications.removeWhere((n) => n.id == id);
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     }
   }
 

@@ -1087,7 +1087,8 @@ paths:
       summary: Add to your device list and hand keys to your devices
       description: |
         Experimental. Appends signed entries and stores wrapped workspace keys
-        in one transaction. Removing a device withdraws its wrapped keys and
+        in one transaction. Every entry must follow from the list before it and be
+        signed by a device on it; a session alone cannot change the list. Removing a device withdraws its wrapped keys and
         refuses encrypted writes in those workspaces until a new key epoch
         exists.
       security:
@@ -1159,7 +1160,9 @@ paths:
     post:
       tags: [Encrypted records]
       summary: Store an encrypted entry in plain text again
-      description: Experimental. The client decrypts the value and sends it back.
+      description: |
+        Experimental. The client decrypts the value and sends it back, signed by
+        `deviceSeq`, a device on the caller's list.
       security:
         - Session: []
       parameters:
@@ -1170,8 +1173,22 @@ paths:
       responses:
         "200": { description: The saved entry. }
         "400": { description: "`sealed_invalid`." }
+        "403": { description: "`sealed_key_missing`: no valid signature from a device on the list." }
         "404": { description: No such entry, or not one the caller may change. }
         "409": { description: "`sealed_version_conflict`." }
+  /api/sealed/sessions/revoke:
+    post:
+      tags: [Encrypted records]
+      summary: End every other session on this account
+      description: |
+        Experimental. Rotates the account's token key and answers with a new
+        `token` for the caller. Every other session has to sign in again.
+      security:
+        - Session: []
+      responses:
+        "200": { description: "`token` replaces the caller's session." }
+        "401": { description: Not signed in. }
+        "403": { description: An API key cannot do this. }
   /api/sealed/reset:
     post:
       tags: [Encrypted records]

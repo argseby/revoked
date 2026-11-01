@@ -13,7 +13,7 @@ import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 
 void openNotificationsSheet(BuildContext context) {
   showAppSheet(
@@ -80,7 +80,7 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
             child: Observer(
               builder: (context) {
                 if (store.isLoading && store.notifications.isEmpty) {
-                  return const Center(child: AppSpinner(large: true));
+                  return const AppListSkeleton();
                 }
 
                 if (store.notifications.isEmpty) {

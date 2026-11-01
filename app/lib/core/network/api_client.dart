@@ -122,6 +122,10 @@ class ApiClient {
   /// can drop to the login screen instead of showing error toasts forever.
   void Function()? onUnauthorized;
 
+  /// A write went through. One change can touch lists on other screens (sending
+  /// to a contact creates a share), so whatever is cached has to be asked again.
+  void Function()? onWrite;
+
   ApiClient({http.Client? httpClient, FlutterSecureStorage? secureStorage})
     : _httpClient = httpClient ?? http.Client(),
       _secure = secureStorage ?? createSecureStorage();
@@ -191,6 +195,12 @@ class ApiClient {
     _userData = user;
     await _secure.write(key: _tokenKey, value: token);
     await _secure.write(key: _userKey, value: jsonEncode(user));
+  }
+
+  /// Swaps the session token for the same signed-in person.
+  Future<void> replaceToken(String token) async {
+    _authToken = token;
+    await _secure.write(key: _tokenKey, value: token);
   }
 
   /// Clear auth state, including the per-link handshake tokens. Those are
@@ -680,6 +690,10 @@ class ApiClient {
 
   dynamic _handleResponse(http.Response response, {bool foreign = false}) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
+      final method = response.request?.method;
+      if (method != null && method != 'GET' && method != 'HEAD') {
+        onWrite?.call();
+      }
       if (response.body.isEmpty) return null;
       return jsonDecode(response.body);
     }

@@ -94,6 +94,7 @@ abstract class AppIcons {
   static const IconData tag = Icons.sell_outlined;
   static const IconData table = Icons.table_chart_outlined;
   static const IconData globe = Icons.public_outlined;
+  static const IconData threeDots = Icons.more_horiz;
   static const IconData threeDotsVertical = Icons.more_vert;
   static const IconData toggleOn = Icons.toggle_on_outlined;
   static const IconData trash = Icons.delete_outline;

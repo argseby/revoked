@@ -203,8 +203,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
       }
       return decoded;
     } catch (e) {
-      _store.setJsonError(e.toString());
-      AppToast.error(context, 'That JSON isn\'t valid', subtitle: e.toString());
+      const hint = 'Check it for a missing bracket, comma or quote.';
+      _store.setJsonError(hint);
+      AppToast.error(context, 'That JSON isn\'t valid', subtitle: hint);
       return null;
     }
   }

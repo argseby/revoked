@@ -1,8 +1,13 @@
 package tests
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -21,12 +26,12 @@ import (
 // The server treats sealed data as opaque, so these stand-ins are enough: what
 // is under test is who may write what, and that nothing serves it. The canary
 // is what a leak would look like, were a plaintext ever to reach these paths.
-const (
-	sealedCiphertext = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA"
-	sealedKeyWrap    = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0"
-	sealedPublicKey  = "BAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
-	sealedSignature  = "c2lnbmF0dXJlLXN0YW5kLWlu"
-	plainCanary      = "plain-canary-value-7f3a"
+const plainCanary = "plain-canary-value-7f3a"
+
+var (
+	sealedCiphertext = base64.URLEncoding.EncodeToString([]byte("stand-in ciphertext, opaque to the server"))
+	sealedKeyWrap    = base64.URLEncoding.EncodeToString([]byte("stand-in wrapped key"))
+	sealedSignature  = base64.URLEncoding.EncodeToString([]byte("stand-in signature"))
 )
 
 type sealedFixture struct {
@@ -34,12 +39,21 @@ type sealedFixture struct {
 	baseURL string
 	app     *pocketbase.PocketBase
 	party   contactParty
+	chain   *util.SealedChain
+	signers map[int]*sealedSigner
 }
 
 func newSealedFixture(t *testing.T) *sealedFixture {
 	t.Helper()
 	baseURL, app := testutils.SetupTestApp(t)
-	return &sealedFixture{t: t, baseURL: baseURL, app: app, party: newContactParty(t, baseURL)}
+	return sealedFixtureFor(t, baseURL, app, newContactParty(t, baseURL))
+}
+
+func sealedFixtureFor(t *testing.T, baseURL string, app *pocketbase.PocketBase, party contactParty) *sealedFixture {
+	return &sealedFixture{
+		t: t, baseURL: baseURL, app: app, party: party,
+		chain: &util.SealedChain{}, signers: map[int]*sealedSigner{},
+	}
 }
 
 func (f *sealedFixture) request(method, path, token string, body any) *httpexpect.Request {
@@ -53,41 +67,149 @@ func (f *sealedFixture) request(method, path, token string, body any) *httpexpec
 	return req
 }
 
-func deviceEntry(seq, signer int) map[string]any {
+// sealedSigner plays a device's signing key: what the app holds, and what a
+// stolen session does not.
+type sealedSigner struct {
+	key    *ecdsa.PrivateKey
+	public []byte
+}
+
+func newSealedSigner(t *testing.T) *sealedSigner {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &sealedSigner{key: key, public: elliptic.Marshal(elliptic.P256(), key.X, key.Y)}
+}
+
+func (s *sealedSigner) signRaw(message []byte) []byte {
+	digest := sha256.Sum256(message)
+	r, sig, err := ecdsa.Sign(rand.Reader, s.key, digest[:])
+	if err != nil {
+		panic(err)
+	}
+	n := elliptic.P256().Params().N
+	if sig.Cmp(new(big.Int).Rsh(n, 1)) > 0 {
+		sig = new(big.Int).Sub(n, sig)
+	}
+	return append(r.FillBytes(make([]byte, 32)), sig.FillBytes(make([]byte, 32))...)
+}
+
+func encodeSealed(b []byte) string { return base64.URLEncoding.EncodeToString(b) }
+
+func sealedEntryJSON(e util.SealedChainEntry) map[string]any {
 	return map[string]any{
-		"seq":              seq,
-		"action":           "add",
-		"kind":             "device",
-		"label":            fmt.Sprintf("device %d", seq),
-		"hpkePublicKey":    sealedPublicKey,
-		"signingPublicKey": sealedPublicKey,
-		"previousHash":     "",
-		"signerSeq":        signer,
-		"signature":        sealedSignature,
+		"seq":              e.Seq,
+		"action":           e.Action,
+		"kind":             e.Kind,
+		"label":            e.Label,
+		"hpkePublicKey":    encodeSealed(e.HpkePublicKey),
+		"signingPublicKey": encodeSealed(e.SigningPublicKey),
+		"targetSeq":        e.TargetSeq,
+		"previousHash":     encodeSealed(e.PreviousHash),
+		"signerSeq":        e.SignerSeq,
+		"anchorSignature":  encodeSealed(e.AnchorSignature),
+		"signature":        encodeSealed(e.Signature),
+	}
+}
+
+// addition builds a correctly signed entry adding a device or recovery key,
+// without assuming the server took it.
+func (f *sealedFixture) addition(kind string) (util.SealedChainEntry, *sealedSigner) {
+	f.t.Helper()
+	signer := newSealedSigner(f.t)
+	hpke := newSealedSigner(f.t)
+	e := util.SealedChainEntry{
+		User: f.party.id, Seq: f.chain.NextSeq(), Action: util.SealedActionAdd, Kind: kind,
+		Label: kind, HpkePublicKey: hpke.public, SigningPublicKey: signer.public,
+		PreviousHash: f.chain.HeadHash(), SignerSeq: 1,
+	}
+	if e.Seq == 1 {
+		e.Signature = signer.signRaw(e.Payload())
+		return e, signer
+	}
+	if kind == util.SealedKindRecovery {
+		e.AnchorSignature = signer.signRaw(util.SealedRecoveryAnchorPayload(f.party.id, f.chain.Entry(1).Hash()))
+	}
+	e.Signature = f.signers[1].signRaw(e.Payload())
+	return e, signer
+}
+
+func (f *sealedFixture) removal(target int) util.SealedChainEntry {
+	f.t.Helper()
+	e := util.SealedChainEntry{
+		User: f.party.id, Seq: f.chain.NextSeq(), Action: util.SealedActionRemove,
+		TargetSeq: target, PreviousHash: f.chain.HeadHash(), SignerSeq: 1,
+	}
+	e.Signature = f.signers[1].signRaw(e.Payload())
+	return e
+}
+
+// accept records an entry the server took, so the next one follows from it.
+func (f *sealedFixture) accept(e util.SealedChainEntry, signer *sealedSigner) {
+	f.t.Helper()
+	f.chain.Load(e)
+	if signer != nil {
+		f.signers[e.Seq] = signer
+	}
+}
+
+func (f *sealedFixture) wrapTo(workspace string, epoch, deviceSeq int) map[string]any {
+	chainSeq := f.chain.HeadSeq()
+	return f.wrapSigned(workspace, epoch, deviceSeq, chainSeq)
+}
+
+func (f *sealedFixture) wrapSigned(workspace string, epoch, deviceSeq, chainSeq int) map[string]any {
+	wrap := sealedKeyWrap
+	payload := util.SealedWrapPayload(workspace, epoch, f.chain.Entry(deviceSeq).HpkePublicKey, wrap, chainSeq)
+	return map[string]any{
+		"workspace": workspace, "epoch": epoch, "deviceSeq": deviceSeq, "wrap": wrap,
+		"signerSeq": 1, "chainSeq": chainSeq, "signature": encodeSealed(f.signers[1].signRaw(payload)),
 	}
 }
 
 // enroll adds a device and a recovery entry, and starts the workspace's key.
 func (f *sealedFixture) enroll() {
 	f.t.Helper()
-	recovery := deviceEntry(2, 1)
-	recovery["kind"] = "recovery"
+	first, firstSigner := f.addition(util.SealedKindDevice)
+	f.accept(first, firstSigner)
+	recovery, recoverySigner := f.addition(util.SealedKindRecovery)
+	f.accept(recovery, recoverySigner)
 	f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
-		"entries": []any{deviceEntry(1, 1), recovery},
+		"entries": []any{sealedEntryJSON(first), sealedEntryJSON(recovery)},
 	}).Expect().Status(http.StatusOK)
-	f.startEpoch(1, "", 1, 2)
+	f.startEpoch(1, "", 1, 2).Status(http.StatusOK)
 }
 
 func (f *sealedFixture) startEpoch(epoch int, prior string, devices ...int) *httpexpect.Response {
 	f.t.Helper()
 	wraps := []any{}
 	for _, seq := range devices {
-		wraps = append(wraps, map[string]any{
-			"deviceSeq": seq, "wrap": sealedKeyWrap, "signerSeq": 1, "chainSeq": 2, "signature": sealedSignature,
-		})
+		wraps = append(wraps, f.wrapTo(f.party.workspace, epoch, seq))
 	}
 	return f.request("POST", "/api/sealed/workspaces/"+f.party.workspace+"/epochs", f.party.token,
 		map[string]any{"epoch": epoch, "priorWrap": prior, "wraps": wraps}).Expect()
+}
+
+// unsealBody is what the app sends: signed by a device on the list.
+func (f *sealedFixture) unsealBody(id string, version int, value string) map[string]any {
+	payload := util.SealedUnsealPayload(f.party.id, id, version, value)
+	return map[string]any{
+		"expectedVersion": version, "value": value, "deviceSeq": 1,
+		"signature": encodeSealed(f.signers[1].signRaw(payload)),
+	}
+}
+
+// put is a sealed write naming the record key the ciphertext is bound to.
+func (f *sealedFixture) put(id string, epoch int, extra map[string]any) map[string]any {
+	rec, err := f.app.FindRecordById(util.Coll.Records, id)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	body := sealedBody(epoch, extra)
+	body["key"] = rec.GetString(util.Fields.Record.Key)
+	return body
 }
 
 func sealedBody(epoch int, extra map[string]any) map[string]any {
@@ -229,7 +351,7 @@ func TestSealedRecordsDropFromEveryRead(t *testing.T) {
 	target := newRecord(t, f.baseURL, f.party.token, f.party.id, f.party.workspace, "smtp_password", plainCanary)
 	slug := f.link(plain, target)
 
-	f.request("PUT", "/api/sealed/records/"+target, f.party.token, sealedBody(1, map[string]any{
+	f.request("PUT", "/api/sealed/records/"+target, f.party.token, f.put(target, 1, map[string]any{
 		"expectedVersion": 0, "dropLinks": true,
 	})).Expect().Status(http.StatusOK)
 	assertStoredValueEmpty(t, f.app, target)
@@ -324,7 +446,7 @@ func TestSealedRecordsCannotBeShared(t *testing.T) {
 	t.Run("an existing link keeps saving after a record on it is sealed", func(t *testing.T) {
 		target := newRecord(t, f.baseURL, f.party.token, f.party.id, f.party.workspace, "later", "v")
 		slug := f.link(target)
-		f.request("PUT", "/api/sealed/records/"+target, f.party.token, sealedBody(1, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+target, f.party.token, f.put(target, 1, map[string]any{
 			"expectedVersion": 0, "dropLinks": true,
 		})).Expect().Status(http.StatusOK)
 		link, err := f.app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:s}", dbx.Params{"s": slug})
@@ -359,7 +481,7 @@ func TestSealingWarnsAboutLiveLinks(t *testing.T) {
 		util.Fields.Link.Sections:  []string{sectionID},
 	})
 
-	body := f.request("PUT", "/api/sealed/records/"+target, f.party.token, sealedBody(1, map[string]any{
+	body := f.request("PUT", "/api/sealed/records/"+target, f.party.token, f.put(target, 1, map[string]any{
 		"expectedVersion": 0,
 	})).Expect().Status(http.StatusConflict).JSON().Object()
 	body.Value("code").IsEqual(util.Errors.SealedLinksAffected.ErrorCode)
@@ -370,7 +492,7 @@ func TestSealingWarnsAboutLiveLinks(t *testing.T) {
 		t.Fatal("a refused sealing changed the record")
 	}
 
-	f.request("PUT", "/api/sealed/records/"+target, f.party.token, sealedBody(1, map[string]any{
+	f.request("PUT", "/api/sealed/records/"+target, f.party.token, f.put(target, 1, map[string]any{
 		"expectedVersion": 0, "dropLinks": true,
 	})).Expect().Status(http.StatusOK)
 }
@@ -381,14 +503,14 @@ func TestSealedWritesMoveOneVersionAtATime(t *testing.T) {
 	id := f.createSealed("smtp_password")
 
 	t.Run("a stale version is refused", func(t *testing.T) {
-		f.request("PUT", "/api/sealed/records/"+id, f.party.token, sealedBody(1, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+id, f.party.token, f.put(id, 1, map[string]any{
 			"expectedVersion": 5,
 		})).Expect().Status(http.StatusConflict).
 			JSON().Object().Value("code").IsEqual(util.Errors.SealedVersionConflict.ErrorCode)
 	})
 
 	t.Run("sealing what is already sealed is refused", func(t *testing.T) {
-		f.request("PUT", "/api/sealed/records/"+id, f.party.token, sealedBody(1, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+id, f.party.token, f.put(id, 1, map[string]any{
 			"expectedVersion": 0,
 		})).Expect().Status(http.StatusConflict)
 	})
@@ -400,8 +522,7 @@ func TestSealedWritesMoveOneVersionAtATime(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				results[i] = f.request("PUT", "/api/sealed/records/"+id, f.party.token,
-					sealedBody(1, map[string]any{"expectedVersion": 1})).Expect().Raw().StatusCode
+				results[i] = f.request("PUT", "/api/sealed/records/"+id, f.party.token, f.put(id, 1, map[string]any{"expectedVersion": 1})).Expect().Raw().StatusCode
 			}()
 		}
 		wg.Wait()
@@ -428,14 +549,6 @@ func TestSealedKeyEpochs(t *testing.T) {
 	f.enroll()
 	id := f.createSealed("smtp_password")
 
-	remove := func(target, seq int) {
-		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
-			"entries": []any{map[string]any{
-				"seq": seq, "action": "remove", "targetSeq": target, "signerSeq": 1, "signature": sealedSignature,
-			}},
-		}).Expect().Status(http.StatusOK)
-	}
-
 	t.Run("a new epoch must reach every live device", func(t *testing.T) {
 		f.startEpoch(2, sealedKeyWrap, 1).Status(http.StatusBadRequest)
 	})
@@ -450,59 +563,232 @@ func TestSealedKeyEpochs(t *testing.T) {
 
 	t.Run("a write under an old epoch is refused", func(t *testing.T) {
 		f.startEpoch(2, sealedKeyWrap, 1, 2).Status(http.StatusOK)
-		f.request("PUT", "/api/sealed/records/"+id, f.party.token, sealedBody(1, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+id, f.party.token, f.put(id, 1, map[string]any{
 			"expectedVersion": 1,
 		})).Expect().Status(http.StatusConflict).
 			JSON().Object().Value("code").IsEqual(util.Errors.SealedEpochStale.ErrorCode)
 	})
 
 	t.Run("removing a device withdraws its key and blocks writes until rotation", func(t *testing.T) {
+		added, signer := f.addition(util.SealedKindDevice)
+		f.accept(added, signer)
 		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
-			"entries": []any{deviceEntry(3, 1)},
-			"wraps": []any{map[string]any{
-				"workspace": f.party.workspace, "epoch": 2, "deviceSeq": 3,
-				"wrap": sealedKeyWrap, "signerSeq": 1, "chainSeq": 2, "signature": sealedSignature,
-			}},
+			"entries": []any{sealedEntryJSON(added)},
+			"wraps":   []any{f.wrapTo(f.party.workspace, 2, added.Seq)},
 		}).Expect().Status(http.StatusOK)
 
-		remove(3, 4)
+		removal := f.removal(added.Seq)
+		f.accept(removal, nil)
+		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
+			"entries": []any{sealedEntryJSON(removal)},
+		}).Expect().Status(http.StatusOK)
 
 		w := util.Fields.WorkspaceKeyWrap
 		rows, _ := f.app.FindRecordsByFilter(util.Coll.WorkspaceKeyWraps,
-			w.User+" = {:u} && "+w.DeviceSeq+" = 3", "", 0, 0, dbx.Params{"u": f.party.id})
+			w.User+" = {:u} && "+w.DeviceSeq+" = {:d}", "", 0, 0,
+			dbx.Params{"u": f.party.id, "d": added.Seq})
 		if len(rows) != 0 {
 			t.Fatal("the removed device kept its key")
 		}
 
-		f.request("PUT", "/api/sealed/records/"+id, f.party.token, sealedBody(2, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+id, f.party.token, f.put(id, 2, map[string]any{
 			"expectedVersion": 1,
 		})).Expect().Status(http.StatusConflict).
 			JSON().Object().Value("code").IsEqual(util.Errors.SealedEpochStale.ErrorCode)
 
 		f.startEpoch(3, sealedKeyWrap, 1, 2).Status(http.StatusOK)
-		f.request("PUT", "/api/sealed/records/"+id, f.party.token, sealedBody(3, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+id, f.party.token, f.put(id, 3, map[string]any{
 			"expectedVersion": 1,
 		})).Expect().Status(http.StatusOK)
 	})
 
 	t.Run("a key cannot be handed to a removed device", func(t *testing.T) {
+		removedSeq := f.chain.HeadSeq() - 1
+		added, signer := f.addition(util.SealedKindDevice)
+		wrap := f.wrapSigned(f.party.workspace, 3, 1, f.chain.HeadSeq())
+		wrap["deviceSeq"] = removedSeq
 		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
-			"entries": []any{deviceEntry(5, 1)},
-			"wraps": []any{map[string]any{
-				"workspace": f.party.workspace, "epoch": 3, "deviceSeq": 3,
-				"wrap": sealedKeyWrap, "signerSeq": 1, "chainSeq": 2, "signature": sealedSignature,
-			}},
+			"entries": []any{sealedEntryJSON(added)},
+			"wraps":   []any{wrap},
 		}).Expect().Status(http.StatusBadRequest)
+		_ = signer
 	})
 
 	t.Run("the list cannot skip or rewrite entries", func(t *testing.T) {
+		added, _ := f.addition(util.SealedKindDevice)
+		skipped := sealedEntryJSON(added)
+		skipped["seq"] = 99
 		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
-			"entries": []any{deviceEntry(99, 1)},
+			"entries": []any{skipped},
 		}).Expect().Status(http.StatusConflict)
+		rewritten := sealedEntryJSON(added)
+		rewritten["seq"] = 1
 		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
-			"entries": []any{deviceEntry(1, 1)},
+			"entries": []any{rewritten},
 		}).Expect().Status(http.StatusConflict)
 	})
+}
+
+// A session can be stolen. A device's signing key can't be taken from here, so a
+// session alone must not be able to change the list or the keys on it.
+func TestAStolenSessionCannotChangeTheList(t *testing.T) {
+	f := newSealedFixture(t)
+	f.enroll()
+	id := f.createSealed("smtp_password")
+
+	wrapCount := func() int {
+		w := util.Fields.WorkspaceKeyWrap
+		rows, _ := f.app.FindRecordsByFilter(util.Coll.WorkspaceKeyWraps,
+			w.User+" = {:u}", "", 0, 0, dbx.Params{"u": f.party.id})
+		return len(rows)
+	}
+	before := wrapCount()
+	listLength := func() int {
+		d := util.Fields.DeviceKey
+		rows, _ := f.app.FindRecordsByFilter(util.Coll.DeviceKeys,
+			d.User+" = {:u}", "", 0, 0, dbx.Params{"u": f.party.id})
+		return len(rows)
+	}
+
+	post := func(entry map[string]any) *httpexpect.Response {
+		return f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
+			"entries": []any{entry},
+		}).Expect()
+	}
+
+	t.Run("an unsigned removal deletes nothing", func(t *testing.T) {
+		removal := f.removal(1)
+		entry := sealedEntryJSON(removal)
+		entry["signature"] = encodeSealed(make([]byte, 64))
+		post(entry).Status(http.StatusBadRequest)
+		if wrapCount() != before || listLength() != 2 {
+			t.Fatal("an unsigned removal changed something")
+		}
+	})
+
+	t.Run("a removal signed by a stranger's key is refused", func(t *testing.T) {
+		removal := f.removal(1)
+		removal.Signature = newSealedSigner(t).signRaw(removal.Payload())
+		post(sealedEntryJSON(removal)).Status(http.StatusBadRequest)
+	})
+
+	t.Run("an entry not following the last is refused", func(t *testing.T) {
+		added, _ := f.addition(util.SealedKindDevice)
+		added.PreviousHash = make([]byte, 32)
+		added.Signature = f.signers[1].signRaw(added.Payload())
+		post(sealedEntryJSON(added)).Status(http.StatusBadRequest)
+	})
+
+	t.Run("a garbage public key is refused", func(t *testing.T) {
+		added, _ := f.addition(util.SealedKindDevice)
+		added.HpkePublicKey = []byte("not a point")
+		added.Signature = f.signers[1].signRaw(added.Payload())
+		post(sealedEntryJSON(added)).Status(http.StatusBadRequest)
+	})
+
+	t.Run("a second recovery key is refused", func(t *testing.T) {
+		added, _ := f.addition(util.SealedKindRecovery)
+		post(sealedEntryJSON(added)).Status(http.StatusBadRequest)
+	})
+
+	t.Run("a malleated signature is refused", func(t *testing.T) {
+		added, _ := f.addition(util.SealedKindDevice)
+		n := elliptic.P256().Params().N
+		s := new(big.Int).SetBytes(added.Signature[32:])
+		added.Signature = append(added.Signature[:32:32], new(big.Int).Sub(n, s).FillBytes(make([]byte, 32))...)
+		post(sealedEntryJSON(added)).Status(http.StatusBadRequest)
+	})
+
+	t.Run("a junk key hand-over is refused", func(t *testing.T) {
+		f.request("POST", "/api/sealed/workspaces/"+f.party.workspace+"/epochs", f.party.token, map[string]any{
+			"epoch": 2, "priorWrap": sealedKeyWrap, "wraps": []any{
+				map[string]any{"deviceSeq": 1, "wrap": sealedKeyWrap, "signerSeq": 1, "chainSeq": 2, "signature": sealedSignature},
+				map[string]any{"deviceSeq": 2, "wrap": sealedKeyWrap, "signerSeq": 1, "chainSeq": 2, "signature": sealedSignature},
+			},
+		}).Expect().Status(http.StatusBadRequest)
+		e := util.Fields.WorkspaceKeyEpoch
+		rows, _ := f.app.FindRecordsByFilter(util.Coll.WorkspaceKeyEpochs,
+			e.Workspace+" = {:w}", "", 0, 0, dbx.Params{"w": f.party.workspace})
+		if len(rows) != 1 {
+			t.Fatal("a junk epoch was stored")
+		}
+	})
+
+	t.Run("it cannot unseal and plant a value", func(t *testing.T) {
+		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, map[string]any{
+			"expectedVersion": 1, "value": "attacker-chosen", "deviceSeq": 1, "signature": encodeSealed(make([]byte, 64)),
+		}).Expect().Status(http.StatusForbidden)
+		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, map[string]any{
+			"expectedVersion": 1, "value": "attacker-chosen",
+		}).Expect().Status(http.StatusForbidden)
+		// A signature over another value doesn't carry over.
+		body := f.unsealBody(id, 1, "what the owner meant")
+		body["value"] = "attacker-chosen"
+		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, body).
+			Expect().Status(http.StatusForbidden)
+		rec, _ := f.app.FindRecordById(util.Coll.Records, id)
+		if !rec.GetBool(util.Fields.Record.Sealed) {
+			t.Fatal("the record was unsealed")
+		}
+	})
+}
+
+func TestADeviceListCannotGrowWithoutLimit(t *testing.T) {
+	f := newSealedFixture(t)
+	first, signer := f.addition(util.SealedKindDevice)
+	f.accept(first, signer)
+	entries := []any{sealedEntryJSON(first)}
+	for len(f.chain.Live()) < util.MaxSealedLiveEntries {
+		added, s := f.addition(util.SealedKindDevice)
+		f.accept(added, s)
+		entries = append(entries, sealedEntryJSON(added))
+	}
+	f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{"entries": entries}).
+		Expect().Status(http.StatusOK)
+	over, _ := f.addition(util.SealedKindDevice)
+	f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
+		"entries": []any{sealedEntryJSON(over)},
+	}).Expect().Status(http.StatusBadRequest)
+
+	// And a full list can still be emptied in one write.
+	removals := []any{}
+	for _, seq := range f.chain.Live() {
+		if seq == 1 {
+			continue
+		}
+		removal := f.removal(seq)
+		f.accept(removal, nil)
+		removals = append(removals, sealedEntryJSON(removal))
+	}
+	f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{"entries": removals}).
+		Expect().Status(http.StatusOK)
+}
+
+func TestSigningOutOtherSessions(t *testing.T) {
+	f := newSealedFixture(t)
+	old := f.party.token
+	fresh := f.request("POST", "/api/sealed/sessions/revoke", old, nil).
+		Expect().Status(http.StatusOK).JSON().Object().Value("token").String().Raw()
+
+	f.request("GET", "/api/sealed/state", old, nil).Expect().Status(http.StatusUnauthorized)
+	f.request("GET", "/api/sealed/state", fresh, nil).Expect().Status(http.StatusOK)
+	f.request("POST", "/api/sealed/sessions/revoke", "", nil).Expect().Status(http.StatusUnauthorized)
+}
+
+func TestASealedWriteIsBoundToTheKeyItsClientSaw(t *testing.T) {
+	f := newSealedFixture(t)
+	f.enroll()
+	id := f.createSealed("smtp_password")
+	body := f.put(id, 1, map[string]any{"expectedVersion": 1})
+	body["key"] = "renamed_meanwhile"
+	f.request("PUT", "/api/sealed/records/"+id, f.party.token, body).
+		Expect().Status(http.StatusConflict)
+
+	saved := f.put(id, 1, map[string]any{
+		"expectedVersion": 1, "label": "SMTP login", "format": util.FormatHidden,
+	})
+	f.request("PUT", "/api/sealed/records/"+id, f.party.token, saved).
+		Expect().Status(http.StatusOK).JSON().Object().Value("label").IsEqual("SMTP login")
 }
 
 func TestSealedRoutesKeepPeopleApart(t *testing.T) {
@@ -525,7 +811,7 @@ func TestSealedRoutesKeepPeopleApart(t *testing.T) {
 	})
 
 	t.Run("a stranger cannot write the record", func(t *testing.T) {
-		f.request("PUT", "/api/sealed/records/"+id, stranger.token, sealedBody(1, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+id, stranger.token, f.put(id, 1, map[string]any{
 			"expectedVersion": 1,
 		})).Expect().Status(http.StatusNotFound)
 		f.request("POST", "/api/sealed/records/"+id+"/unseal", stranger.token, map[string]any{
@@ -549,12 +835,12 @@ func TestSealedRoutesKeepPeopleApart(t *testing.T) {
 	})
 
 	t.Run("a stranger cannot hand themselves a key", func(t *testing.T) {
-		f.request("POST", "/api/sealed/devices", stranger.token, map[string]any{
-			"entries": []any{deviceEntry(1, 1)},
-			"wraps": []any{map[string]any{
-				"workspace": f.party.workspace, "epoch": 1, "deviceSeq": 1,
-				"wrap": sealedKeyWrap, "signerSeq": 1, "chainSeq": 2, "signature": sealedSignature,
-			}},
+		other := sealedFixtureFor(t, f.baseURL, f.app, stranger)
+		first, signer := other.addition(util.SealedKindDevice)
+		other.accept(first, signer)
+		other.request("POST", "/api/sealed/devices", stranger.token, map[string]any{
+			"entries": []any{sealedEntryJSON(first)},
+			"wraps":   []any{other.wrapTo(f.party.workspace, 1, 1)},
 		}).Expect().Status(http.StatusForbidden)
 	})
 
@@ -567,7 +853,7 @@ func TestSealedRoutesKeepPeopleApart(t *testing.T) {
 
 	t.Run("a member who holds no key cannot write or rotate", func(t *testing.T) {
 		member := addWorkspaceMember(t, f)
-		f.request("PUT", "/api/sealed/records/"+id, member.token, sealedBody(1, map[string]any{
+		f.request("PUT", "/api/sealed/records/"+id, member.token, f.put(id, 1, map[string]any{
 			"expectedVersion": 1,
 		})).Expect().Status(http.StatusForbidden)
 		f.request("POST", "/api/sealed/workspaces/"+f.party.workspace+"/epochs", member.token, map[string]any{
@@ -678,7 +964,7 @@ func TestSealedRecordRules(t *testing.T) {
 	})
 
 	t.Run("nothing can be written before anyone holds a key", func(t *testing.T) {
-		other := &sealedFixture{t: t, baseURL: f.baseURL, app: f.app, party: newContactParty(t, f.baseURL)}
+		other := sealedFixtureFor(t, f.baseURL, f.app, newContactParty(t, f.baseURL))
 		other.request("POST", "/api/sealed/records", other.party.token, sealedBody(1, map[string]any{
 			"id": newSealedID(), "key": "a", "label": "a", "type": "text", "format": "default",
 			"workspace": other.party.workspace,
@@ -688,12 +974,8 @@ func TestSealedRecordRules(t *testing.T) {
 
 	t.Run("unsealing writes the value back and clears the rest", func(t *testing.T) {
 		id := f.createSealed("to_unseal")
-		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, map[string]any{
-			"expectedVersion": 9, "value": "back",
-		}).Expect().Status(http.StatusConflict)
-		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, map[string]any{
-			"expectedVersion": 1, "value": "back",
-		}).Expect().Status(http.StatusOK)
+		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, f.unsealBody(id, 9, "back")).Expect().Status(http.StatusConflict)
+		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, f.unsealBody(id, 1, "back")).Expect().Status(http.StatusOK)
 
 		rec, _ := f.app.FindRecordById(util.Coll.Records, id)
 		r := util.Fields.Record
@@ -731,6 +1013,8 @@ func TestStartingOverDeletesWhatNobodyCanRead(t *testing.T) {
 	body.Value("devices").Array().IsEmpty()
 	body.Value("workspaces").Array().IsEmpty()
 
+	f.chain = &util.SealedChain{}
+	f.signers = map[int]*sealedSigner{}
 	f.enroll()
 	f.createSealed("smtp_password")
 }
@@ -749,7 +1033,7 @@ func TestSealingTakesARecordOffItsLinks(t *testing.T) {
 	other := newRecord(t, f.baseURL, f.party.token, f.party.id, f.party.workspace, "visible", "shown")
 	slug := f.link(target, other)
 
-	f.request("PUT", "/api/sealed/records/"+target, f.party.token, sealedBody(1, map[string]any{
+	f.request("PUT", "/api/sealed/records/"+target, f.party.token, f.put(target, 1, map[string]any{
 		"expectedVersion": 0, "dropLinks": true,
 	})).Expect().Status(http.StatusOK)
 
@@ -761,9 +1045,7 @@ func TestSealingTakesARecordOffItsLinks(t *testing.T) {
 		t.Fatalf("link still names %v", got)
 	}
 
-	f.request("POST", "/api/sealed/records/"+target+"/unseal", f.party.token, map[string]any{
-		"expectedVersion": 1, "value": plainCanary,
-	}).Expect().Status(http.StatusOK)
+	f.request("POST", "/api/sealed/records/"+target+"/unseal", f.party.token, f.unsealBody(target, 1, plainCanary)).Expect().Status(http.StatusOK)
 
 	body := testutils.NewExpect(t, f.baseURL).GET("/s/" + slug + ".txt").
 		Expect().Status(http.StatusOK).Body().Raw()
@@ -795,10 +1077,8 @@ func TestUnsealingNeedsTheKeyAndKeepsTheVersionRising(t *testing.T) {
 	})
 
 	t.Run("the version never goes back", func(t *testing.T) {
-		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, map[string]any{
-			"expectedVersion": 1, "value": "plain again",
-		}).Expect().Status(http.StatusOK).JSON().Object().Value("sealedVersion").IsEqual(2)
-		f.request("PUT", "/api/sealed/records/"+id, f.party.token, sealedBody(1, map[string]any{
+		f.request("POST", "/api/sealed/records/"+id+"/unseal", f.party.token, f.unsealBody(id, 1, "plain again")).Expect().Status(http.StatusOK).JSON().Object().Value("sealedVersion").IsEqual(2)
+		f.request("PUT", "/api/sealed/records/"+id, f.party.token, f.put(id, 1, map[string]any{
 			"expectedVersion": 2,
 		})).Expect().Status(http.StatusOK).JSON().Object().Value("sealedVersion").IsEqual(3)
 	})
@@ -830,7 +1110,7 @@ func TestSealingClearsTheAnswerSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	f.request("PUT", "/api/sealed/records/"+target, f.party.token, sealedBody(1, map[string]any{
+	f.request("PUT", "/api/sealed/records/"+target, f.party.token, f.put(target, 1, map[string]any{
 		"expectedVersion": 0, "dropLinks": true,
 	})).Expect().Status(http.StatusOK)
 
@@ -850,12 +1130,14 @@ func TestSealingClearsTheAnswerSnapshot(t *testing.T) {
 func TestAKeyAlreadyHandedOverIsNeverReplaced(t *testing.T) {
 	f := newSealedFixture(t)
 	f.enroll()
+	added, _ := f.addition(util.SealedKindDevice)
+	wrap := f.wrapTo(f.party.workspace, 1, 1)
+	wrap["wrap"] = "AAAA"
+	wrap["signature"] = encodeSealed(f.signers[1].signRaw(util.SealedWrapPayload(
+		f.party.workspace, 1, f.chain.Entry(1).HpkePublicKey, "AAAA", f.chain.HeadSeq())))
 	f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
-		"entries": []any{deviceEntry(3, 1)},
-		"wraps": []any{map[string]any{
-			"workspace": f.party.workspace, "epoch": 1, "deviceSeq": 1,
-			"wrap": "AAAA", "signerSeq": 1, "chainSeq": 3, "signature": sealedSignature,
-		}},
+		"entries": []any{sealedEntryJSON(added)},
+		"wraps":   []any{wrap},
 	}).Expect().Status(http.StatusConflict)
 
 	w := util.Fields.WorkspaceKeyWrap
@@ -888,4 +1170,51 @@ func TestStartingOverTellsThePerson(t *testing.T) {
 	if err != nil || len(rows) == 0 {
 		t.Fatalf("no notification for a reset: %v", err)
 	}
+}
+
+// Go's decoder skips newlines and tolerates spare trailing bits; the app's
+// doesn't. One entry the server accepts and no client can parse would brick the
+// list for good, so the server takes only the app's exact encoding.
+func TestOnlyTheCanonicalEncodingIsAccepted(t *testing.T) {
+	f := newSealedFixture(t)
+	f.enroll()
+
+	variants := map[string]func(map[string]any){
+		"a newline as an anchor":       func(e map[string]any) { e["anchorSignature"] = "\n" },
+		"a CRLF as an anchor":          func(e map[string]any) { e["anchorSignature"] = "\r\n" },
+		"a newline inside a signature": func(e map[string]any) { e["signature"] = "\n" + e["signature"].(string) },
+		"spare bits in a signature": func(e map[string]any) {
+			sig := e["signature"].(string)
+			e["signature"] = sig[:len(sig)-3] + "B=="
+		},
+		"spare bits in the previous hash": func(e map[string]any) {
+			hash := e["previousHash"].(string)
+			e["previousHash"] = hash[:len(hash)-2] + "B="
+		},
+		"unpadded": func(e map[string]any) { e["signature"] = strings.TrimRight(e["signature"].(string), "=") },
+	}
+	for name, spoil := range variants {
+		t.Run(name, func(t *testing.T) {
+			added, _ := f.addition(util.SealedKindDevice)
+			entry := sealedEntryJSON(added)
+			spoil(entry)
+			f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
+				"entries": []any{entry},
+			}).Expect().Status(http.StatusBadRequest)
+		})
+	}
+
+	t.Run("a newline on a removal's empty key", func(t *testing.T) {
+		removal := sealedEntryJSON(f.removal(2))
+		removal["hpkePublicKey"] = "\n"
+		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
+			"entries": []any{removal},
+		}).Expect().Status(http.StatusBadRequest)
+	})
+
+	t.Run("the list is untouched", func(t *testing.T) {
+		body := f.request("GET", "/api/sealed/state", f.party.token, nil).
+			Expect().Status(http.StatusOK).JSON().Object()
+		body.Value("devices").Array().Length().IsEqual(2)
+	})
 }

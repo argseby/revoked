@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:mobx/mobx.dart';
@@ -97,7 +98,7 @@ abstract class _SettingsStore with Store {
         verdict: _verdictFrom(res as Map<String, dynamic>),
       );
     } catch (e) {
-      store.finishDomainCheck(error: e.toString());
+      store.finishDomainCheck(error: describeError(e));
     }
   }
 
@@ -161,7 +162,7 @@ abstract class _SettingsStore with Store {
         ..clear()
         ..addAll(spaces);
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }
@@ -188,7 +189,7 @@ abstract class _SettingsStore with Store {
       );
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -229,7 +230,7 @@ abstract class _SettingsStore with Store {
       await loadWorkspaces(userId);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isDeletingWorkspace = false;
@@ -256,7 +257,7 @@ abstract class _SettingsStore with Store {
       await loadWorkspaces(userId);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;

@@ -23,7 +23,7 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/file_view_sheet.dart';
@@ -102,7 +102,17 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         final record = _record;
         if (record == null) {
           if (Stores.vault.isLoading) {
-            return const Center(child: AppSpinner(large: true));
+            return const AppDetailSkeleton(
+              badges: ['text'],
+              primary: 'Copy value',
+              icons: 3,
+              sections: [
+                AppSkeletonGroup('Value'),
+                AppSkeletonGroup('Who can see this'),
+                AppSkeletonGroup('Sections'),
+                AppSkeletonGroup('Reminders'),
+              ],
+            );
           }
           return AppEmptyState(
             icon: AppIcons.safe,

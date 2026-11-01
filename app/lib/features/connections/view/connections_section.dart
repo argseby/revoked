@@ -17,7 +17,7 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 
@@ -201,7 +201,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     final connection = _connection;
     if (connection == null) {
       if (store.isLoading) {
-        return const Center(child: AppSpinner(large: true));
+        return const AppListSkeleton();
       }
       return AppEmptyState(
         icon: AppIcons.plug,
@@ -331,7 +331,7 @@ class _Loading extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.all(24),
-      child: Center(child: AppSpinner()),
+      child: AppListSkeleton(embedded: true),
     );
   }
 }

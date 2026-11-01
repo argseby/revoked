@@ -18,7 +18,7 @@ abstract final class Sealing {
   static const int _tagLength = 16;
   static const int _formatVersion = 1;
 
-  static const List<int> _paddingBuckets = [64, 256, 1024, 4096];
+  static const List<int> _paddingBuckets = [64, 256, 1024, 4096, 8192];
 
   static final pc.ECDomainParameters _curve = pc.ECDomainParameters(
     'secp256r1',
@@ -107,7 +107,7 @@ abstract final class Sealing {
     Uint8List info,
     Uint8List sealed,
   ) {
-    if (sealed.length <= publicKeyLength) {
+    if (sealed.length < publicKeyLength + _tagLength) {
       throw const SealingException('This data is too short to open.');
     }
     final enc = Uint8List.sublistView(sealed, 0, publicKeyLength);
@@ -259,6 +259,17 @@ abstract final class Sealing {
         Uint8List.fromList(utf8.encode(purpose)),
         length,
       );
+
+  /// Whether [key] is a usable public key. A bad one on a device list would
+  /// otherwise make every later wrap to that list fail.
+  static bool isValidPublicKey(Uint8List key) {
+    try {
+      _decodePoint(key);
+      return true;
+    } on SealingException {
+      return false;
+    }
+  }
 
   /// Rejects anything that is not an on-curve uncompressed P-256 point: an
   /// off-curve key is how an invalid-curve attack extracts a private key.

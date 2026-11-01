@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/credential.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -19,7 +20,7 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/attestations/claim_text.dart';
 import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dart';
@@ -32,16 +33,14 @@ import 'package:revoked_app/features/attestations/view/verdict_badge.dart';
 /// tab shows [empty] instead, as every other list in the app does.
 class _TabList extends StatelessWidget {
   final String intro;
-  final bool loading;
-  final String? error;
+  final LoadState state;
   final VoidCallback onRetry;
   final Widget empty;
   final List<Widget> children;
 
   const _TabList({
     required this.intro,
-    required this.loading,
-    required this.error,
+    required this.state,
     required this.onRetry,
     required this.empty,
     required this.children,
@@ -49,23 +48,49 @@ class _TabList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (children.isEmpty) {
-      if (loading) return const Center(child: AppSpinner(large: true));
-      if (error != null) {
-        return AppLoadError(
-          title: 'Couldn’t load this list',
-          message: error!,
-          onRetry: onRetry,
+    return AppLoadFade(
+      loading: () => children.isEmpty && state.isFirstLoad,
+      skeleton: AppListSkeleton(
+        intro: intro,
+        rows: const [
+          AppSkeletonRow(
+            'Membership',
+            'From a club',
+            icon: AppIcons.shieldCheck,
+            badge: 'Verified',
+          ),
+          AppSkeletonRow(
+            'Employment',
+            'From a company',
+            icon: AppIcons.shieldCheck,
+            badge: 'Verified',
+          ),
+        ],
+      ),
+      builder: (_) {
+        final failure = state.error;
+        if (children.isEmpty) {
+          if (failure != null) {
+            return AppLoadError(
+              title: 'Couldn’t load this list',
+              message: failure,
+              onRetry: onRetry,
+            );
+          }
+          return empty;
+        }
+        return AppPageBody(
+          children: [
+            if (failure != null) ...[
+              AppRefreshFailed(onRetry: onRetry),
+              AppSpacing.gapLg,
+            ],
+            Text(intro).muted.small,
+            AppSpacing.gapMd,
+            AppListCard(children: children),
+          ],
         );
-      }
-      return empty;
-    }
-    return AppPageBody(
-      children: [
-        Text(intro).muted.small,
-        AppSpacing.gapMd,
-        AppListCard(children: children),
-      ],
+      },
     );
   }
 }
@@ -85,8 +110,7 @@ class HeldAttestations extends StatelessWidget {
         intro:
             'What others confirmed about you. Nobody sees one unless you '
             'choose to show it, detail by detail.',
-        loading: store.isLoading,
-        error: store.errorMessage,
+        state: store.loadState,
         onRetry: store.load,
         empty: AppEmptyState(
           icon: AppIcons.attestation,
@@ -395,13 +419,11 @@ class IssuedAttestations extends StatelessWidget {
     return Observer(
       builder: (_) {
         final off = store.issuingAllowed == false;
-        final error = store.error;
         return _TabList(
           intro:
               'What this workspace confirmed about others, in your domain\'s '
               'name. Anyone who trusts your domain can trust these.',
-          loading: store.isLoading,
-          error: error?.description,
+          state: store.loadState,
           onRetry: store.load,
           empty: off
               ? const AppEmptyState(
@@ -540,8 +562,7 @@ class CheckedAttestations extends StatelessWidget {
         intro:
             'What people showed you when you asked. Each answer is how it '
             'stood at that moment.',
-        loading: store.isLoading,
-        error: store.errorMessage,
+        state: store.loadState,
         onRetry: store.load,
         empty: AppEmptyState(
           icon: AppIcons.shieldCheck,

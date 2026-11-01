@@ -6,6 +6,7 @@ import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'attestation_checks_store.g.dart';
@@ -36,13 +37,23 @@ abstract class _AttestationChecksStore with Store {
   @observable
   String? errorMessage;
 
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [load], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await load();
+  }
+
   @action
   Future<void> load() async {
     isLoading = true;
     errorMessage = null;
+    final ticket = loadState.begin();
     try {
       final data = await _api.get(_basePath, queryParams: {'sort': '-created'});
       final items = (data['items'] as List<dynamic>?) ?? [];
+      if (!loadState.isCurrent(ticket)) return;
       checks
         ..clear()
         ..addAll(
@@ -50,8 +61,11 @@ abstract class _AttestationChecksStore with Store {
             (e) => AttestationCheck.fromJson(e as Map<String, dynamic>),
           ),
         );
+      loadState.succeed(ticket);
     } catch (e) {
+      if (!loadState.isCurrent(ticket)) return;
       errorMessage = AppErrorMessage.fromException(e).description;
+      loadState.fail(ticket, errorMessage!);
     } finally {
       isLoading = false;
     }

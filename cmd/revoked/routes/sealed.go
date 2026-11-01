@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"regexp"
@@ -14,7 +15,8 @@ import (
 )
 
 const (
-	maxSealedEntries = 8
+	// Enough to remove everything a full list could hold in one write.
+	maxSealedEntries = 2 * util.MaxSealedLiveEntries
 	maxSealedWraps   = 500
 	// sealedResetConfirmation must be sent to start over: it destroys data
 	// nobody can recover, so a stray or replayed call must not be enough.
@@ -22,9 +24,71 @@ const (
 )
 
 var (
-	sealedEncoded  = regexp.MustCompile(`^[A-Za-z0-9_-]+={0,2}$`)
 	sealedRecordID = regexp.MustCompile(`^[a-z0-9]{15}$`)
 )
+
+// decodeSealed accepts only the exact encoding the app produces. Go's decoder
+// skips newlines and tolerates spare trailing bits where Dart's refuses them, so
+// without this a stolen device could get an entry past this server that no client
+// can parse, and the list could never be repaired.
+func decodeSealed(s string) ([]byte, bool) {
+	raw, err := base64.URLEncoding.Strict().DecodeString(s)
+	if err != nil || base64.URLEncoding.EncodeToString(raw) != s {
+		return nil, false
+	}
+	return raw, true
+}
+
+func (e sealedEntry) toChainEntry(userID string) (util.SealedChainEntry, bool) {
+	hpke, ok1 := decodeSealed(e.HpkePublicKey)
+	signing, ok2 := decodeSealed(e.SigningPublicKey)
+	previous, ok3 := decodeSealed(e.PreviousHash)
+	anchor, ok4 := decodeSealed(e.AnchorSignature)
+	signature, ok5 := decodeSealed(e.Signature)
+	return util.SealedChainEntry{
+		User:             userID,
+		Seq:              e.Seq,
+		Action:           e.Action,
+		Kind:             e.Kind,
+		Label:            e.Label,
+		HpkePublicKey:    hpke,
+		SigningPublicKey: signing,
+		TargetSeq:        e.TargetSeq,
+		PreviousHash:     previous,
+		SignerSeq:        e.SignerSeq,
+		AnchorSignature:  anchor,
+		Signature:        signature,
+	}, ok1 && ok2 && ok3 && ok4 && ok5
+}
+
+// loadSealedChain rebuilds a person's device list from what was checked when it
+// was appended.
+func loadSealedChain(tx core.App, userID string) (*util.SealedChain, error) {
+	d := util.Fields.DeviceKey
+	rows, err := tx.FindRecordsByFilter(util.Coll.DeviceKeys,
+		d.User+" = {:u}", d.Seq, 0, 0, dbx.Params{"u": userID})
+	if err != nil {
+		return nil, err
+	}
+	chain := &util.SealedChain{}
+	for _, row := range rows {
+		entry, _ := sealedEntry{
+			HpkePublicKey:    row.GetString(d.HpkePublicKey),
+			SigningPublicKey: row.GetString(d.SigningPublicKey),
+			PreviousHash:     row.GetString(d.PreviousHash),
+			AnchorSignature:  row.GetString(d.AnchorSignature),
+			Signature:        row.GetString(d.Signature),
+			Seq:              row.GetInt(d.Seq),
+			Action:           row.GetString(d.Action),
+			Kind:             row.GetString(d.Kind),
+			Label:            row.GetString(d.Label),
+			TargetSeq:        row.GetInt(d.TargetSeq),
+			SignerSeq:        row.GetInt(d.SignerSeq),
+		}.toChainEntry(userID)
+		chain.Load(entry)
+	}
+	return chain, nil
+}
 
 // sealedRefusal carries a refusal out of a transaction, so everything the
 // transaction did rolls back before the error is written.
@@ -56,12 +120,13 @@ func writeSealedResult(re *core.RequestEvent, err error) error {
 	return err
 }
 
-// SealedRoute serves end-to-end encrypted records. The server never decrypts or
-// verifies anything here: it stores opaque bytes, and each client checks the
-// device list and wraps for itself (E2EE.md §4). What it does enforce is the
-// honest-server behaviour a client cannot do alone: versions move one at a
-// time, a record and its key land together, and nothing is written under a
-// key someone was removed from.
+// SealedRoute serves end-to-end encrypted records. The server never decrypts
+// anything here, and clients trust nothing it says: each one checks the device
+// list and wraps for itself (E2EE.md §4). The server enforces what a client
+// cannot do alone: versions move one at a time, a record and its key land
+// together, nothing is written under a key someone was removed from, and only
+// a device on the list can change it. A session is not enough for that last one,
+// because it can be stolen and a device's signing key can't be taken from here.
 //
 // An API key has no devices and can hold no key, so these are for people only.
 func SealedRoute(app core.App) {
@@ -101,6 +166,12 @@ func SealedRoute(app core.App) {
 				return nil
 			}
 			return unsealRecord(app, re)
+		})
+		e.Router.POST("/api/sealed/sessions/revoke", func(re *core.RequestEvent) error {
+			if !authorizeSealed(re) {
+				return nil
+			}
+			return revokeOtherSessions(app, re)
 		})
 		e.Router.POST("/api/sealed/reset", func(re *core.RequestEvent) error {
 			if !authorizeSealed(re) {
@@ -234,19 +305,16 @@ func sealedState(app core.App, re *core.RequestEvent) error {
 }
 
 func validSealedEntry(entry sealedEntry) bool {
-	if entry.Seq < 1 || entry.SignerSeq < 1 || !sealedEncoded.MatchString(entry.Signature) ||
-		len(entry.Label) > 255 {
+	if entry.Seq < 1 || entry.SignerSeq < 1 || len(entry.Label) > 255 {
 		return false
 	}
-	if entry.PreviousHash != "" && !sealedEncoded.MatchString(entry.PreviousHash) {
+	if _, ok := entry.toChainEntry(""); !ok {
 		return false
 	}
 	switch entry.Action {
 	case util.SealedActionAdd:
 		return (entry.Kind == util.SealedKindDevice || entry.Kind == util.SealedKindRecovery) &&
-			entry.TargetSeq == 0 &&
-			sealedEncoded.MatchString(entry.HpkePublicKey) &&
-			sealedEncoded.MatchString(entry.SigningPublicKey)
+			entry.TargetSeq == 0
 	case util.SealedActionRemove:
 		return entry.TargetSeq >= 1
 	}
@@ -280,28 +348,19 @@ func appendSealedDevices(app core.App, re *core.RequestEvent) error {
 		if err != nil {
 			return err
 		}
-		existing, err := tx.FindRecordsByFilter(util.Coll.DeviceKeys,
-			d.User+" = {:u}", d.Seq, 0, 0, dbx.Params{"u": userID})
+		chain, err := loadSealedChain(tx, userID)
 		if err != nil {
 			return err
 		}
-		live := map[int]bool{}
-		next := 1
-		for _, row := range existing {
-			seq := row.GetInt(d.Seq)
-			if row.GetString(d.Action) == util.SealedActionAdd {
-				live[seq] = true
-			} else {
-				delete(live, row.GetInt(d.TargetSeq))
-			}
-			next = seq + 1
-		}
 
 		for _, entry := range body.Entries {
-			if entry.Seq != next {
+			if entry.Seq != chain.NextSeq() {
 				return refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
 			}
-			next++
+			checked, ok := entry.toChainEntry(userID)
+			if !ok || chain.Append(checked) != nil {
+				return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+			}
 			row := core.NewRecord(collection)
 			row.Set(d.User, userID)
 			row.Set(d.Seq, entry.Seq)
@@ -318,20 +377,14 @@ func appendSealedDevices(app core.App, re *core.RequestEvent) error {
 			if err := tx.Save(row); err != nil {
 				return err
 			}
-			if entry.Action == util.SealedActionAdd {
-				live[entry.Seq] = true
-				continue
-			}
-			if !live[entry.TargetSeq] {
-				return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
-			}
-			delete(live, entry.TargetSeq)
-			if err := withdrawDeviceWraps(tx, userID, entry.TargetSeq); err != nil {
-				return err
+			if entry.Action == util.SealedActionRemove {
+				if err := withdrawDeviceWraps(tx, userID, entry.TargetSeq); err != nil {
+					return err
+				}
 			}
 		}
 
-		return saveSealedWraps(tx, userID, body.Wraps, live)
+		return saveSealedWraps(tx, userID, body.Wraps, chain)
 	})
 	if err != nil {
 		return writeSealedResult(re, err)
@@ -373,10 +426,10 @@ func withdrawDeviceWraps(tx core.App, userID string, deviceSeq int) error {
 	return nil
 }
 
-// saveSealedWraps stores keys handed to the caller's own live devices. Phase 1
-// has no way to hand a key to another person, so naming anyone else's device
-// is not a path that exists.
-func saveSealedWraps(tx core.App, userID string, wraps []sealedWrap, live map[int]bool) error {
+// saveSealedWraps stores keys handed to the caller's own live devices, each signed
+// by a device on the list. Phase 1 has no way to hand a key to another person, so
+// naming anyone else's device is not a path that exists.
+func saveSealedWraps(tx core.App, userID string, wraps []sealedWrap, chain *util.SealedChain) error {
 	if len(wraps) == 0 {
 		return nil
 	}
@@ -387,13 +440,18 @@ func saveSealedWraps(tx core.App, userID string, wraps []sealedWrap, live map[in
 	w := util.Fields.WorkspaceKeyWrap
 	e := util.Fields.WorkspaceKeyEpoch
 	for _, wrap := range wraps {
-		if !live[wrap.DeviceSeq] || wrap.ChainSeq < 1 ||
-			!sealedEncoded.MatchString(wrap.Wrap) ||
-			!sealedEncoded.MatchString(wrap.Signature) {
-			return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
-		}
 		if _, member := util.WorkspaceMemberOf(tx, wrap.Workspace, userID); !member {
 			return refuse(http.StatusForbidden, &util.Errors.NotWorkspaceMember)
+		}
+		signature, ok := decodeSealed(wrap.Signature)
+		_, wrapOk := decodeSealed(wrap.Wrap)
+		if !ok || !wrapOk || !chain.IsLive(wrap.DeviceSeq) || !chain.IsLive(wrap.SignerSeq) ||
+			wrap.ChainSeq < 1 || wrap.ChainSeq > chain.HeadSeq() ||
+			!util.VerifySealedSignature(chain.Entry(wrap.SignerSeq).SigningPublicKey,
+				util.SealedWrapPayload(wrap.Workspace, wrap.Epoch,
+					chain.Entry(wrap.DeviceSeq).HpkePublicKey, wrap.Wrap, wrap.ChainSeq),
+				signature) {
+			return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
 		}
 		epoch, _ := tx.FindFirstRecordByFilter(util.Coll.WorkspaceKeyEpochs,
 			e.Workspace+" = {:w} && "+e.Epoch+" = {:e}",
@@ -425,24 +483,6 @@ func saveSealedWraps(tx core.App, userID string, wraps []sealedWrap, live map[in
 	return nil
 }
 
-func liveDeviceSeqs(tx core.App, userID string) (map[int]bool, error) {
-	d := util.Fields.DeviceKey
-	rows, err := tx.FindRecordsByFilter(util.Coll.DeviceKeys,
-		d.User+" = {:u}", d.Seq, 0, 0, dbx.Params{"u": userID})
-	if err != nil {
-		return nil, err
-	}
-	live := map[int]bool{}
-	for _, row := range rows {
-		if row.GetString(d.Action) == util.SealedActionAdd {
-			live[row.GetInt(d.Seq)] = true
-		} else {
-			delete(live, row.GetInt(d.TargetSeq))
-		}
-	}
-	return live, nil
-}
-
 // startSealedEpoch creates a workspace's first key, or replaces the current one.
 //
 // Only someone already holding the key may replace it. Otherwise any member could
@@ -459,7 +499,7 @@ func startSealedEpoch(app core.App, re *core.RequestEvent) error {
 		len(body.Wraps) == 0 || len(body.Wraps) > maxSealedWraps {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
 	}
-	if body.PriorWrap != "" && !sealedEncoded.MatchString(body.PriorWrap) {
+	if _, ok := decodeSealed(body.PriorWrap); !ok {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
 	}
 
@@ -493,7 +533,7 @@ func startSealedEpoch(app core.App, re *core.RequestEvent) error {
 			}
 		}
 
-		live, err := liveDeviceSeqs(tx, userID)
+		chain, err := loadSealedChain(tx, userID)
 		if err != nil {
 			return err
 		}
@@ -503,7 +543,7 @@ func startSealedEpoch(app core.App, re *core.RequestEvent) error {
 			body.Wraps[i].Epoch = body.Epoch
 			covered[body.Wraps[i].DeviceSeq] = true
 		}
-		for seq := range live {
+		for _, seq := range chain.Live() {
 			if !covered[seq] {
 				return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
 			}
@@ -521,7 +561,7 @@ func startSealedEpoch(app core.App, re *core.RequestEvent) error {
 		if err := tx.Save(row); err != nil {
 			return err
 		}
-		return saveSealedWraps(tx, userID, body.Wraps, live)
+		return saveSealedWraps(tx, userID, body.Wraps, chain)
 	})
 	if err != nil {
 		return writeSealedResult(re, err)
@@ -561,7 +601,9 @@ type sealedPayload struct {
 }
 
 func (p sealedPayload) valid() bool {
-	return p.KeyEpoch >= 1 && sealedEncoded.MatchString(p.SealedValue) && sealedEncoded.MatchString(p.KeyWrap)
+	_, valueOk := decodeSealed(p.SealedValue)
+	_, wrapOk := decodeSealed(p.KeyWrap)
+	return p.KeyEpoch >= 1 && p.SealedValue != "" && p.KeyWrap != "" && valueOk && wrapOk
 }
 
 // applySealed is the only code that puts a record into the sealed state.
@@ -672,8 +714,12 @@ func authorizeSealedUpdate(app core.App, re *core.RequestEvent, rec *core.Record
 func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 	var body struct {
 		sealedPayload
-		ExpectedVersion int  `json:"expectedVersion"`
-		DropLinks       bool `json:"dropLinks"`
+		ExpectedVersion int    `json:"expectedVersion"`
+		DropLinks       bool   `json:"dropLinks"`
+		Key             string `json:"key"`
+		Label           string `json:"label"`
+		Type            string `json:"type"`
+		Format          string `json:"format"`
 	}
 	if err := re.BindBody(&body); err != nil || !body.valid() || body.ExpectedVersion < 0 {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
@@ -699,7 +745,9 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		if rec.GetString(f.Type) == util.TypeFile || rec.GetString(f.AliasOf) != "" {
 			return refuse(http.StatusBadRequest, &util.Errors.SealedRecordUnsupported)
 		}
-		if rec.GetInt(f.SealedVersion) != body.ExpectedVersion {
+		// The ciphertext is bound to the key the client saw. A rename racing this
+		// write would otherwise leave a value nobody can open.
+		if rec.GetInt(f.SealedVersion) != body.ExpectedVersion || rec.GetString(f.Key) != body.Key {
 			return refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
 		}
 		if refusal := checkSealedWrite(tx, rec.GetString(f.Workspace), re.Auth.Id, body.KeyEpoch); refusal != nil {
@@ -715,6 +763,17 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		before = rec.PublicExport()
 		newlySealed := !services.IsSealed(rec)
 		applySealed(rec, body.sealedPayload, body.ExpectedVersion+1)
+		// These travel inside the ciphertext too, which is what clients believe.
+		// The copies here must land with it or the list shows yesterday's name.
+		if body.Label != "" {
+			rec.Set(f.Label, body.Label)
+		}
+		if body.Type != "" {
+			rec.Set(f.Type, body.Type)
+		}
+		if body.Format != "" {
+			rec.Set(f.Format, body.Format)
+		}
 		if err := tx.Save(rec); err != nil {
 			return err
 		}
@@ -739,13 +798,16 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 }
 
 // unsealRecord writes a value back in plaintext, at the owner's explicit
-// request. Its version check stops a stale device undoing a newer value, and
-// holding the key is required so that anyone else with update access, or a stolen
-// session, can't replace the ciphertext with whatever they like.
+// request. Its version check stops a stale device undoing a newer value. It must
+// be signed by a device on the list: a row saying someone holds the key proves
+// nothing, and a stolen session could otherwise replace the ciphertext with
+// whatever it likes.
 func unsealRecord(app core.App, re *core.RequestEvent) error {
 	var body struct {
 		ExpectedVersion int    `json:"expectedVersion"`
 		Value           string `json:"value"`
+		DeviceSeq       int    `json:"deviceSeq"`
+		Signature       string `json:"signature"`
 	}
 	if err := re.BindBody(&body); err != nil || body.ExpectedVersion < 1 ||
 		body.Value == "" || len([]rune(body.Value)) > util.MaxRecordValueLength {
@@ -775,6 +837,16 @@ func unsealRecord(app core.App, re *core.RequestEvent) error {
 		e := util.Fields.WorkspaceKeyEpoch
 		current := services.CurrentKeyEpoch(tx, rec.GetString(f.Workspace))
 		if current == nil || !services.HoldsWorkspaceKey(tx, rec.GetString(f.Workspace), re.Auth.Id, current.GetInt(e.Epoch)) {
+			return refuse(http.StatusForbidden, &util.Errors.SealedKeyMissing)
+		}
+		chain, err := loadSealedChain(tx, re.Auth.Id)
+		if err != nil {
+			return err
+		}
+		signature, ok := decodeSealed(body.Signature)
+		if !ok || !chain.IsLive(body.DeviceSeq) ||
+			!util.VerifySealedSignature(chain.Entry(body.DeviceSeq).SigningPublicKey,
+				util.SealedUnsealPayload(re.Auth.Id, id, body.ExpectedVersion, body.Value), signature) {
 			return refuse(http.StatusForbidden, &util.Errors.SealedKeyMissing)
 		}
 		before = rec.PublicExport()
@@ -892,6 +964,33 @@ func resetSealing(app core.App, re *core.RequestEvent) error {
 	})
 	services.NotifySealingReset(app, userID, re.Auth.GetString(util.Fields.User.ActiveWorkspace))
 	return re.JSON(http.StatusOK, map[string]any{"ok": true, "deleted": deleted})
+}
+
+// revokeOtherSessions ends every session this account has, and hands the caller a
+// new one. A stolen device's session outlives its removal from the device list
+// otherwise, and can go on reading plain records and deleting sealed ones.
+func revokeOtherSessions(app core.App, re *core.RequestEvent) error {
+	user, err := app.FindRecordById(util.Coll.Users, re.Auth.Id)
+	if err != nil {
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.UserNotFound)
+	}
+	user.RefreshTokenKey()
+	if err := app.Save(user); err != nil {
+		return re.InternalServerError("Failed to end sessions.", err)
+	}
+	token, err := user.NewAuthToken()
+	if err != nil {
+		return re.InternalServerError("Failed to start a new session.", err)
+	}
+	services.RecordAudit(app, services.AuditEntry{
+		Action:     util.AuditActionUpdate,
+		Collection: util.Coll.Users,
+		RecordId:   user.Id,
+		User:       user.Id,
+		Ip:         re.Request.RemoteAddr,
+		UserAgent:  re.Request.UserAgent(),
+	})
+	return re.JSON(http.StatusOK, map[string]any{"token": token})
 }
 
 // auditSealedRecord records a write these routes made with app.Save, which

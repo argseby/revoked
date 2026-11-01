@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/features/templates/store/template_draft.dart';
 import 'package:mobx/mobx.dart';
@@ -156,7 +157,7 @@ abstract class _TemplatesStore with Store {
           items.map((e) => Template.fromJson(e as Map<String, dynamic>)),
         );
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }
@@ -180,7 +181,7 @@ abstract class _TemplatesStore with Store {
       templates.insert(0, Template.fromJson(data as Map<String, dynamic>));
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -203,7 +204,7 @@ abstract class _TemplatesStore with Store {
       if (idx != -1) templates[idx] = updated;
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -219,7 +220,7 @@ abstract class _TemplatesStore with Store {
       templates.removeWhere((t) => t.id == id);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;

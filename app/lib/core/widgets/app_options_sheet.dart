@@ -50,30 +50,32 @@ Future<void> showAppOptionsSheet({
           AppSpacing.xl,
           AppSpacing.xl,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis).header,
-            if (subtitle != null && subtitle.isNotEmpty) ...[
-              AppSpacing.gapXxs,
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ).mono.muted.small,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, maxLines: 1, overflow: TextOverflow.ellipsis).header,
+              if (subtitle != null && subtitle.isNotEmpty) ...[
+                AppSpacing.gapXxs,
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ).mono.muted.small,
+              ],
+              AppSpacing.gapLg,
+              for (final a in actions)
+                _OptionRow(
+                  action: a,
+                  color: a.destructive ? scheme.error : scheme.onSurface,
+                  onSelected: () {
+                    Navigator.of(sheetCtx).pop();
+                    a.onTap();
+                  },
+                ),
             ],
-            AppSpacing.gapLg,
-            for (final a in actions)
-              _OptionRow(
-                action: a,
-                color: a.destructive ? scheme.error : scheme.onSurface,
-                onSelected: () {
-                  Navigator.of(sheetCtx).pop();
-                  a.onTap();
-                },
-              ),
-          ],
+          ),
         ),
       );
     },

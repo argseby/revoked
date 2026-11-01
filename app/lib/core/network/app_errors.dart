@@ -1,4 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:revoked_app/core/crypto/sealing.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/services/device_unlock.dart';
+import 'package:revoked_app/features/connections/sign_in_approval.dart';
 
 /// Stable error codes emitted by the backend (`util/errors.go`).
 abstract class AppErrorCode {
@@ -100,6 +108,22 @@ abstract class AppErrorCode {
   static const sealedLinksAffected = 'sealed_links_affected';
 }
 
+/// A failure whose message was written for the reader, so it can be shown as is.
+/// Anything else is described by [AppErrorMessage], never by its `toString()`.
+class UserFacingException implements Exception {
+  final String message;
+
+  const UserFacingException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// What to tell the reader about any failure: the one way to turn a caught
+/// error into text.
+String describeError(Object error) =>
+    AppErrorMessage.fromException(error).description;
+
 /// Translates an [ApiException] into a short, user-friendly message and a
 /// flag indicating whether the issue is terminal (i.e. retrying without
 /// user input cannot recover).
@@ -130,14 +154,102 @@ class AppErrorMessage {
 
   /// Build a user-friendly message from an arbitrary exception.
   factory AppErrorMessage.fromException(Object error) {
-    if (error is ApiException) {
-      return _mapApiException(error);
+    switch (error) {
+      case ApiException():
+        return _mapApiException(error);
+      case UserFacingException(:final message) ||
+          SealingException(:final message) ||
+          DeviceUnlockException(:final message) ||
+          SignInApprovalException(:final message):
+        return AppErrorMessage(
+          title: 'Something went wrong',
+          description: message,
+          code: '',
+        );
+      case SocketException() ||
+          TlsException() ||
+          http.ClientException() ||
+          TimeoutException():
+        return const AppErrorMessage(
+          title: 'Couldn\'t reach your server',
+          description: 'Check your connection, then try again.',
+          code: '',
+        );
+      default:
+        // The text a reader never sees is still what a developer needs. Debug
+        // only: an error can carry what the request held.
+        if (kDebugMode) debugPrint('Unexpected error: $error');
+        return const AppErrorMessage(
+          title: 'Something went wrong',
+          description: 'Try again. If it keeps happening, restart the app.',
+          code: '',
+        );
     }
-    return AppErrorMessage(
-      title: 'Something went wrong',
-      description: error.toString(),
-      code: '',
-    );
+  }
+
+  /// An error without one of our codes: PocketBase's own envelope or a proxy in
+  /// front of the server. Its text was not written for the reader, so the
+  /// status decides what to say.
+  static AppErrorMessage _fromStatus(ApiException e) {
+    final status = e.statusCode;
+    return switch (status) {
+      0 => const AppErrorMessage(
+        title: 'Couldn\'t reach your server',
+        description: 'Check your connection, then try again.',
+        code: '',
+      ),
+      400 || 422 => const AppErrorMessage(
+        title: 'Couldn\'t do that',
+        description: 'Check what you entered and try again.',
+        code: '',
+      ),
+      401 => const AppErrorMessage(
+        title: 'Sign in again',
+        description: 'You\'ve been signed out. Sign in and try again.',
+        code: '',
+        isAuthError: true,
+      ),
+      403 => const AppErrorMessage(
+        title: 'Not permitted',
+        description:
+            'You don\'t have access to do this in this workspace. Ask an admin.',
+        code: '',
+      ),
+      404 => const AppErrorMessage(
+        title: 'Not found',
+        description:
+            'It may have been removed, or your server doesn\'t offer this yet.',
+        code: '',
+      ),
+      410 => const AppErrorMessage(
+        title: 'No longer available',
+        description: 'It was removed, or it has ended.',
+        code: '',
+        isTerminal: true,
+      ),
+      413 => const AppErrorMessage(
+        title: 'Too large',
+        description: 'Your server won\'t take something this big.',
+        code: '',
+      ),
+      429 => const AppErrorMessage(
+        title: 'Too many tries',
+        description: 'Wait a moment, then try again.',
+        code: '',
+      ),
+      >= 500 => const AppErrorMessage(
+        title: 'Your server had a problem',
+        description:
+            'Try again in a moment. If it keeps happening, tell whoever runs '
+            'your server.',
+        code: '',
+      ),
+      _ => const AppErrorMessage(
+        title: 'Something went wrong',
+        description: 'Try again. If it keeps happening, restart the app.',
+        code: '',
+      ),
+    };
   }
 
   static AppErrorMessage _mapApiException(ApiException e) {
@@ -733,40 +845,20 @@ class AppErrorMessage {
         );
     }
 
-    // Fallback for un-coded errors. Use HTTP status to give *some* hint.
-    switch (e.statusCode) {
-      case 401:
-        return AppErrorMessage(
-          title: 'Sign in',
-          description: e.message,
-          code: e.code,
-          isAuthError: true,
-        );
-      case 403:
-        return AppErrorMessage(
-          title: 'Not allowed',
-          description: e.message,
-          code: e.code,
-        );
-      case 404:
-        return AppErrorMessage(
-          title: 'Not found',
-          description: e.message,
-          code: e.code,
-        );
-      case 410:
-        return AppErrorMessage(
-          title: 'No longer available',
-          description: e.message,
-          code: e.code,
-          isTerminal: true,
-        );
-      default:
-        return AppErrorMessage(
-          title: 'Something went wrong',
-          description: e.message,
-          code: e.code,
-        );
-    }
+    if (e.code.isEmpty) return _fromStatus(e);
+    // A code this build doesn't know yet: the server wrote its text for people.
+    return AppErrorMessage(
+      title: switch (e.statusCode) {
+        401 => 'Sign in',
+        403 => 'Not allowed',
+        404 => 'Not found',
+        410 => 'No longer available',
+        _ => 'Something went wrong',
+      },
+      description: e.message,
+      code: e.code,
+      isAuthError: e.statusCode == 401,
+      isTerminal: e.statusCode == 410,
+    );
   }
 }

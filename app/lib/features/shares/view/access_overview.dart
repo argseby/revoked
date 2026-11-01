@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/shares/utils/record_access.dart';
 
 /// Who has which of the owner's data: every vault record someone else can
@@ -27,27 +27,33 @@ class AccessOverview extends StatefulWidget {
   State<AccessOverview> createState() => _AccessOverviewState();
 }
 
-class _AccessOverviewState extends State<AccessOverview> {
+class _AccessOverviewState extends State<AccessOverview> with RefreshOnEntry {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (Stores.shares.shares.isEmpty) Stores.shares.loadShares();
-      if (Stores.vault.records.isEmpty) Stores.vault.loadRecords();
-    });
+  void refresh() {
+    Stores.shares.loadIfDue();
+    Stores.vault.loadIfDue();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Observer(
+    final shares = Stores.shares;
+    final vault = Stores.vault;
+    return AppLoadFade(
+      loading: () =>
+          (shares.loadState.isFirstLoad && shares.shares.isEmpty) ||
+          (vault.loadState.isFirstLoad && vault.records.isEmpty),
+      skeleton: const AppListSkeleton(
+        group: 'Who can see your data',
+        rows: [
+          AppSkeletonRow('IBAN', '2 people can read this', icon: AppIcons.lock),
+          AppSkeletonRow(
+            'Home address',
+            '1 person can read this',
+            icon: AppIcons.lock,
+          ),
+        ],
+      ),
       builder: (context) {
-        final shares = Stores.shares;
-        final vault = Stores.vault;
-        if ((shares.isLoading && shares.shares.isEmpty) ||
-            (vault.isLoading && vault.records.isEmpty)) {
-          return const Center(child: AppSpinner(large: true));
-        }
-
         final rows = openAccessByRecord(
           links: shares.shares,
           sections: vault.sections,

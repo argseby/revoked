@@ -369,21 +369,7 @@ abstract class _AuthStore with Store {
     errorMessage = null;
   }
 
-  String _parseError(dynamic e) {
-    // A typed code beats matching on prose: the backend names the reason, and
-    // AppErrorMessage already knows how to say it.
-    final mapped = AppErrorMessage.fromException(e);
-    if (mapped.code.isNotEmpty) return mapped.description;
-
-    if (e.toString().contains('validation_')) {
-      return 'Check what you entered and try again.';
-    }
-    return e
-        .toString()
-        .replaceAll('ApiException', '')
-        .replaceAll('Exception:', '')
-        .trim();
-  }
+  String _parseError(Object e) => describeError(e);
 
   Future<User?> _tryRestoreSession() async {
     await _api.loadAuthState();

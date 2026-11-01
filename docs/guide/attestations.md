@@ -13,8 +13,8 @@ whoever confirmed them.
 | Reaches a service as | A share | Proof made on your device |
 | Ended by | You, by revoking the share | Whoever confirmed it, by revoking it |
 
-Open **Attestations** in the sidebar. **Held** is what others confirmed
-about you, **Issued** is what you confirmed about others, and **Checked**
+Open **Attestations** in the sidebar, or under **More** on a phone. **Held**
+is what others confirmed about you, **Issued** is what you confirmed about others, and **Checked**
 is what others showed you.
 
 ## Accept an attestation

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -13,6 +14,7 @@ import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/features/sealing/store/keys_store.dart';
 
 part 'vault_store.g.dart';
 
@@ -482,7 +484,7 @@ abstract class _VaultStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -492,10 +494,19 @@ abstract class _VaultStore with Store {
 
   /// Loads all records and sections for the workspace into the store,
   /// replacing the current lists.
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [loadRecords], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await loadRecords();
+  }
+
   @action
   Future<void> loadRecords() async {
     isLoading = true;
     errorMessage = null;
+    final ticket = loadState.begin();
     try {
       final recordsData = await _api.get(
         '/api/collections/${AppConfig.recordsCollection}/records',
@@ -506,13 +517,14 @@ abstract class _VaultStore with Store {
         },
       );
       final recordItems = (recordsData['items'] as List<dynamic>?) ?? [];
-      records = ObservableList.of(
-        await _openAll(
-          recordItems.map(
-            (e) => models.Record.fromJson(e as Map<String, dynamic>),
-          ),
+      final opened = await _openAll(
+        recordItems.map(
+          (e) => models.Record.fromJson(e as Map<String, dynamic>),
         ),
       );
+      if (!loadState.isCurrent(ticket)) return;
+      records = ObservableList.of(opened);
+      await _moveToCurrentKeys();
 
       final sectionsData = await _api.get(
         '/api/collections/${AppConfig.sectionsCollection}/records',
@@ -524,11 +536,15 @@ abstract class _VaultStore with Store {
         },
       );
       final sectionItems = (sectionsData['items'] as List<dynamic>?) ?? [];
+      if (!loadState.isCurrent(ticket)) return;
       sections = ObservableList.of(
         sectionItems.map((e) => Section.fromJson(e as Map<String, dynamic>)),
       );
+      loadState.succeed(ticket);
     } catch (e) {
-      errorMessage = e.toString();
+      if (!loadState.isCurrent(ticket)) return;
+      errorMessage = describeError(e);
+      loadState.fail(ticket, errorMessage!);
     } finally {
       isLoading = false;
     }
@@ -653,8 +669,35 @@ abstract class _VaultStore with Store {
           ? record.markedUnsealedElsewhere(true)
           : record;
     }
-    final value = keys.openRecord(record);
-    return value == null ? record : record.withOpenedValue(value);
+    final content = keys.openContent(record);
+    return content == null
+        ? record
+        : record.withOpened(
+            value: content.value,
+            label: content.label,
+            type: content.type,
+            format: content.format,
+          );
+  }
+
+  /// Re-encrypts readable records still under a replaced key. A removed device
+  /// kept that key, and could otherwise forge a new version of any record nobody
+  /// has edited since. Once a device has seen a record under the new key, it
+  /// refuses anything under the old one. A failure here is retried on next load.
+  Future<void> _moveToCurrentKeys() async {
+    final keys = Stores.keys;
+    for (final record in records.toList()) {
+      if (!record.sealed || record.isLocked) continue;
+      final epoch = keys.writableEpoch(record.workspace);
+      if (epoch == null || record.keyEpoch >= epoch) continue;
+      try {
+        _replaceInList(await _writeSealed(record, record.value));
+      } on ApiException {
+        continue;
+      } on SealingException {
+        continue;
+      }
+    }
   }
 
   models.Record? _byId(String id) {
@@ -669,9 +712,7 @@ abstract class _VaultStore with Store {
     if (index != -1) records[index] = record;
   }
 
-  static String _friendlyError(Object e) => e is ApiException
-      ? AppErrorMessage.fromException(e).description
-      : e.toString();
+  static String _friendlyError(Object e) => describeError(e);
 
   static String _newRecordId() {
     const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -701,19 +742,22 @@ abstract class _VaultStore with Store {
     required String workspace,
   }) async {
     final id = _newRecordId();
-    final data = await _withFreshKeys(
-      () => _api.post(
+    late SealedPayload payload;
+    final data = await _withFreshKeys(() {
+      payload = Stores.keys.sealValue(
+        workspace: workspace,
+        record: id,
+        recordKey: key,
+        version: 1,
+        value: value,
+        label: label,
+        type: type,
+        format: format,
+      );
+      return _api.post(
         '/api/sealed/records',
         body: {
-          ...Stores.keys
-              .sealValue(
-                workspace: workspace,
-                record: id,
-                recordKey: key,
-                version: 1,
-                value: value,
-              )
-              .toJson(),
+          ...payload.toJson(),
           'id': id,
           'key': key,
           'label': label,
@@ -721,49 +765,66 @@ abstract class _VaultStore with Store {
           'format': format,
           'workspace': workspace,
         },
-      ),
-    );
-    return _rememberWritten(data as Map<String, dynamic>, value);
-  }
-
-  /// A value this device just wrote, remembered so that the server can't serve
-  /// the previous one straight afterwards.
-  models.Record _rememberWritten(Map<String, dynamic> json, String value) {
-    final record = models.Record.fromJson(json).withOpenedValue(value);
-    Stores.keys.noteWritten(
-      record.id,
-      version: record.sealedVersion,
-      epoch: record.keyEpoch,
-    );
-    return record;
+      );
+    });
+    Stores.keys.noteWritten(id, version: 1, epoch: payload.keyEpoch);
+    return models.Record.fromJson(
+      data as Map<String, dynamic>,
+    ).withOpened(value: value, label: label, type: type, format: format);
   }
 
   /// Writes [value] encrypted, as this record's next version. The server sees
-  /// only ciphertext, and clears any plain value the record held.
+  /// only ciphertext, and clears any plain value the record held. What gets
+  /// remembered is what this device sent, not what the server answered: a reply
+  /// claiming a huge version would otherwise lock this record out for good.
   Future<models.Record> _writeSealed(
     models.Record record,
     String value, {
+    String? label,
+    String? type,
+    String? format,
     bool dropLinks = false,
   }) async {
-    final data = await _withFreshKeys(
-      () => _api.put(
+    final newLabel = label ?? record.label;
+    final newType = type ?? record.type;
+    final newFormat = format ?? record.format;
+    final version = record.sealedVersion + 1;
+    late SealedPayload payload;
+    final data = await _withFreshKeys(() {
+      payload = Stores.keys.sealValue(
+        workspace: record.workspace,
+        record: record.id,
+        recordKey: record.key,
+        version: version,
+        value: value,
+        label: newLabel,
+        type: newType,
+        format: newFormat,
+      );
+      return _api.put(
         '/api/sealed/records/${record.id}',
         body: {
-          ...Stores.keys
-              .sealValue(
-                workspace: record.workspace,
-                record: record.id,
-                recordKey: record.key,
-                version: record.sealedVersion + 1,
-                value: value,
-              )
-              .toJson(),
+          ...payload.toJson(),
           'expectedVersion': record.sealedVersion,
           'dropLinks': dropLinks,
+          'key': record.key,
+          'label': newLabel,
+          'type': newType,
+          'format': newFormat,
         },
-      ),
+      );
+    });
+    Stores.keys.noteWritten(
+      record.id,
+      version: version,
+      epoch: payload.keyEpoch,
     );
-    return _rememberWritten(data as Map<String, dynamic>, value);
+    return models.Record.fromJson(data as Map<String, dynamic>).withOpened(
+      value: value,
+      label: newLabel,
+      type: newType,
+      format: newFormat,
+    );
   }
 
   /// Encrypts an existing plain record. Live links would stop showing it, so
@@ -785,7 +846,7 @@ abstract class _VaultStore with Store {
       errorMessage = _friendlyError(e);
       return SealOutcome.failed;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return SealOutcome.failed;
     }
   }
@@ -799,7 +860,15 @@ abstract class _VaultStore with Store {
     try {
       final data = await _api.post(
         '/api/sealed/records/$id/unseal',
-        body: {'expectedVersion': record.sealedVersion, 'value': record.value},
+        body: {
+          'expectedVersion': record.sealedVersion,
+          'value': record.value,
+          ...Stores.keys.signUnseal(
+            record: id,
+            expectedVersion: record.sealedVersion,
+            value: record.value,
+          ),
+        },
       );
       await Stores.keys.acceptUnsealed(id);
       _replaceInList(models.Record.fromJson(data as Map<String, dynamic>));
@@ -862,13 +931,16 @@ abstract class _VaultStore with Store {
         // Encrypted first and metadata after: the other order would write the
         // new value out in plaintext on the way. Links aren't dropped here. That
         // decision needs the warning on the record's own page.
-        final saved = await _writeSealed(current, value);
-        _replaceInList(saved);
-        return await updateRecord(saved.id, {
-          'label': label,
-          'type': type,
-          'format': format,
-        });
+        _replaceInList(
+          await _writeSealed(
+            current,
+            value,
+            label: label,
+            type: type,
+            format: format,
+          ),
+        );
+        return true;
       } catch (e) {
         errorMessage = _friendlyError(e);
         return false;
@@ -916,7 +988,7 @@ abstract class _VaultStore with Store {
       records.insert(0, record);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -946,7 +1018,7 @@ abstract class _VaultStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -987,7 +1059,7 @@ abstract class _VaultStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       _endUpload();
@@ -1011,7 +1083,7 @@ abstract class _VaultStore with Store {
         queryParams: {'token': token},
       );
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return null;
     } finally {
       downloadingRecordIds.remove(record.id);
@@ -1039,15 +1111,34 @@ abstract class _VaultStore with Store {
       }
       var remaining = updates;
       if (current != null && current.sealed) {
-        final value = updates['value'];
-        if (value is String && current.isLocked) {
-          errorMessage = 'You can\'t change this record on this device.';
-          return false;
+        const inCiphertext = {'value', 'label', 'type', 'format'};
+        if (current.isLocked) {
+          if (updates.keys.any(inCiphertext.contains)) {
+            errorMessage = 'You can\'t change this record on this device.';
+            return false;
+          }
+        } else {
+          final value = updates['value'] as String? ?? current.value;
+          final label = updates['label'] as String? ?? current.label;
+          final type = updates['type'] as String? ?? current.type;
+          final format = updates['format'] as String? ?? current.format;
+          if (value != current.value ||
+              label != current.label ||
+              type != current.type ||
+              format != current.format) {
+            _replaceInList(
+              await _writeSealed(
+                current,
+                value,
+                label: label,
+                type: type,
+                format: format,
+              ),
+            );
+          }
         }
-        if (value is String && value != current.value) {
-          _replaceInList(await _writeSealed(current, value));
-        }
-        remaining = {...updates}..remove('value');
+        remaining = {...updates}
+          ..removeWhere((key, _) => inCiphertext.contains(key));
         if (remaining.isEmpty) return true;
       } else if (updates.containsKey('value') && Stores.keys.knewAsSealed(id)) {
         // The server says this is plain, and this device knows it was encrypted.
@@ -1068,7 +1159,7 @@ abstract class _VaultStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -1096,7 +1187,7 @@ abstract class _VaultStore with Store {
       sections.insert(0, section);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -1115,7 +1206,7 @@ abstract class _VaultStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -1127,7 +1218,7 @@ abstract class _VaultStore with Store {
       sections.removeWhere((s) => s.id == id);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -1241,7 +1332,7 @@ abstract class _VaultStore with Store {
 
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;

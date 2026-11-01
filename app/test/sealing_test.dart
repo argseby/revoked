@@ -271,7 +271,7 @@ void main() {
 
     test('refuses anything longer', () {
       expect(
-        () => Sealing.pad(Uint8List(4096)),
+        () => Sealing.pad(Uint8List(8192)),
         throwsA(isA<SealingException>()),
       );
     });

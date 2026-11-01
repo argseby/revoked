@@ -3,6 +3,7 @@ import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 
 part 'connections_store.g.dart';
 
@@ -67,7 +68,7 @@ abstract class _ConnectionsStore with Store {
       connections = ObservableList.of(loaded);
       linksByConnection = ObservableMap.of(byConnection);
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }
@@ -132,7 +133,7 @@ abstract class _ConnectionsStore with Store {
         connectionId: data['connectionId'] as String,
       );
     } catch (e) {
-      runInAction(() => errorMessage = e.toString());
+      runInAction(() => errorMessage = describeError(e));
       return null;
     }
   }
@@ -148,7 +149,7 @@ abstract class _ConnectionsStore with Store {
       linksByConnection.remove(id);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -183,7 +184,7 @@ abstract class _ConnectionsStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -205,7 +206,7 @@ abstract class _ConnectionsStore with Store {
       linksByConnection[link.connection] = list;
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }

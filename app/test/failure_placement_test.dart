@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 
@@ -53,5 +55,48 @@ void main() {
       tester.getCenter(find.text('Failed to load')).dy,
       lessThan(screen / 4),
     );
+  });
+
+  testWidgets('a load failure keeps clear of the edges of a screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(Brightness.light),
+        home: const Scaffold(
+          body: AppLoadError(title: 'Failed to load', message: 'No route'),
+        ),
+      ),
+    );
+
+    final alert = tester.getRect(find.byType(AppAlert));
+    expect(alert.left, AppSpacing.lg);
+    expect(alert.right, 375 - AppSpacing.lg);
+    expect(alert.top, AppSpacing.lg);
+  });
+
+  testWidgets('inside a scrolling page it leaves the page\'s edges alone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(Brightness.light),
+        home: const Scaffold(
+          body: SingleChildScrollView(
+            child: AppLoadError(title: 'Failed to load', message: 'No route'),
+          ),
+        ),
+      ),
+    );
+
+    final alert = tester.getRect(find.byType(AppAlert));
+    expect(alert.left, 0);
+    expect(alert.top, AppSpacing.lg);
   });
 }

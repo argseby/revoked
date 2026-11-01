@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -18,7 +17,7 @@ import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
 import 'package:revoked_app/core/config/app_config.dart';
@@ -55,11 +54,25 @@ class BookmarksTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = Stores.bookmarks;
-    return Observer(
+    return AppLoadFade(
+      loading: () => store.loadState.isFirstLoad && store.bookmarks.isEmpty,
+      skeleton: const AppListSkeleton(
+        group: 'Bookmarks',
+        rows: [
+          AppSkeletonRow(
+            'Lease details',
+            'From a landlord',
+            icon: AppIcons.bookmark,
+          ),
+          AppSkeletonRow(
+            'Pay slip',
+            'From an employer',
+            icon: AppIcons.bookmark,
+          ),
+          AppSkeletonRow('Club card', 'From a club', icon: AppIcons.bookmark),
+        ],
+      ),
       builder: (_) {
-        if (store.isLoading && store.bookmarks.isEmpty) {
-          return const Center(child: AppSpinner(large: true));
-        }
         if (store.error != null && store.bookmarks.isEmpty) {
           return AppLoadError(
             title: store.error!.title,

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/contact.dart';
+import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -16,7 +16,7 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/contacts/view/contact_create_sheet.dart';
 import 'package:revoked_app/features/contacts/view/contact_grant_sheets.dart';
@@ -30,28 +30,45 @@ class ContactsScreen extends StatefulWidget {
   State<ContactsScreen> createState() => _ContactsScreenState();
 }
 
-class _ContactsScreenState extends State<ContactsScreen> {
+class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Stores.contacts.load();
-    });
-  }
+  void refresh() => Stores.contacts.loadIfDue();
 
   @override
   Widget build(BuildContext context) {
     final store = Stores.contacts;
-    return Observer(
+    return AppLoadFade(
+      loading: () => store.loadState.isFirstLoad && store.contacts.isEmpty,
+      skeleton: const AppListSkeleton(
+        intro:
+            'Send something to someone, or ask them for something. They keep '
+            'what you send until you revoke it.',
+        rows: [
+          AppSkeletonRow(
+            'Ada Lovelace',
+            'ada@example.com',
+            icon: AppIcons.person,
+            badge: 'Verified',
+          ),
+          AppSkeletonRow(
+            'Grace Hopper',
+            'grace@example.com',
+            icon: AppIcons.person,
+          ),
+          AppSkeletonRow(
+            'Alan Turing',
+            'alan@example.com',
+            icon: AppIcons.person,
+          ),
+        ],
+      ),
       builder: (_) {
+        final failure = store.loadState.error;
         if (store.contacts.isEmpty) {
-          if (store.isLoading) {
-            return const Center(child: AppSpinner(large: true));
-          }
-          if (store.error != null) {
+          if (failure != null) {
             return AppLoadError(
               title: 'Couldn’t load your contacts',
-              message: store.error!.description,
+              message: failure,
               onRetry: store.load,
             );
           }
@@ -59,6 +76,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
         }
         return AppPageBody(
           children: [
+            if (failure != null) ...[
+              AppRefreshFailed(onRetry: store.load),
+              AppSpacing.gapLg,
+            ],
             const Text(
               'Send something to someone, or ask them for something. They '
               'keep what you send until you revoke it.',

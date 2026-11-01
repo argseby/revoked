@@ -7,6 +7,7 @@ import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
@@ -234,7 +235,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       };
       _loadError.value = null;
     } catch (e) {
-      _loadError.value = e.toString();
+      _loadError.value = describeError(e);
     }
   }
 

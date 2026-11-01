@@ -13,7 +13,7 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/sheet_view.dart';
 
@@ -283,7 +283,7 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
           child: Observer(
             builder: (_) {
               if (Stores.requests.isLoadingSheet) {
-                return const Center(child: AppSpinner(large: true));
+                return const AppListSkeleton();
               }
               final data = _pivot(context);
               if (data.rows.isEmpty) {

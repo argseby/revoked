@@ -309,7 +309,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       // an unverified identity, not the absence of an opinion.
       verdict = TrustVerdict.unverified(
         domain: domain,
-        reason: "We couldn't check the domain: $e",
+        reason: "We couldn't check the domain.",
       );
     }
     if (!mounted) return;
@@ -660,7 +660,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       debugPrint('[request submit] error: $e\n$st');
       if (!mounted) return;
       runInAction(() {
-        _store.publicFormError = e.toString();
+        _store.publicFormError = describeError(e);
         _store.isSubmittingPublic = false;
       });
     }
@@ -1215,7 +1215,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       AppToast.error(
         context,
         "Couldn't revoke your response",
-        subtitle: e.toString(),
+        subtitle: describeError(e),
       );
     }
   }

@@ -5,7 +5,9 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 
 part 'identities_store.g.dart';
 
@@ -78,21 +80,34 @@ abstract class _IdentitiesStore with Store {
     return null;
   }
 
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [loadIdentities], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await loadIdentities();
+  }
+
   @action
   Future<void> loadIdentities() async {
     isLoading = true;
     errorMessage = null;
+    final ticket = loadState.begin();
     try {
       final data = await _api.get(_basePath, queryParams: {'sort': '-created'});
       final items = (data['items'] as List<dynamic>?) ?? [];
+      if (!loadState.isCurrent(ticket)) return;
       identities
         ..clear()
         ..addAll(
           items.map((e) => Identity.fromJson(e as Map<String, dynamic>)),
         );
       await _checkLocalKeys();
+      loadState.succeed(ticket);
     } catch (e) {
-      errorMessage = e.toString();
+      if (!loadState.isCurrent(ticket)) return;
+      errorMessage = describeError(e);
+      loadState.fail(ticket, errorMessage!);
     } finally {
       isLoading = false;
     }
@@ -138,7 +153,7 @@ abstract class _IdentitiesStore with Store {
           user.isEmpty ||
           workspace == null ||
           workspace.isEmpty) {
-        throw StateError('Sign in and open a workspace first.');
+        throw UserFacingException('Sign in and open a workspace first.');
       }
 
       final generated = _crypto.generateIdentity(commonName: name);
@@ -160,7 +175,7 @@ abstract class _IdentitiesStore with Store {
       identities.insert(0, identity.copyWith(isPrimary: isPrimary));
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -184,7 +199,7 @@ abstract class _IdentitiesStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -214,7 +229,7 @@ abstract class _IdentitiesStore with Store {
       if (idx != -1) identities[idx] = updated;
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -231,7 +246,7 @@ abstract class _IdentitiesStore with Store {
       localKeyIds.remove(id);
       identities.removeWhere((i) => i.id == id);
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
     } finally {
       isLoading = false;
     }
@@ -253,7 +268,7 @@ abstract class _IdentitiesStore with Store {
       identities
         ..clear()
         ..addAll(previous);
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }

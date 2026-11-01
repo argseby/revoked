@@ -929,7 +929,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                       ],
                     ),
                   ] else if (_store.draftSlugWarning != null) ...[
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: AppSpacing.sm),
                     AppErrorText(_store.draftSlugWarning!),
                   ],
                   if (_store.draftSuggestedSlug != null) ...[

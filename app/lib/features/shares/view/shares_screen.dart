@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -14,7 +14,7 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
@@ -43,7 +43,7 @@ class SharesScreen extends StatefulWidget {
   State<SharesScreen> createState() => _SharesScreenState();
 }
 
-class _SharesScreenState extends State<SharesScreen> {
+class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   late final TableStore<Link> _table;
   final Local<_LinkFilter> _filter = Local(_LinkFilter.all);
 
@@ -60,13 +60,14 @@ class _SharesScreenState extends State<SharesScreen> {
       },
       defaultSort: 'created_desc',
     );
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Stores.shares.loadShares();
-      Stores.bookmarks.load();
-      Stores.vault.loadRecords();
-      Stores.identities.loadIdentities();
-    });
+  @override
+  void refresh() {
+    Stores.shares.loadIfDue();
+    Stores.bookmarks.loadIfDue();
+    Stores.vault.loadIfDue();
+    Stores.identities.loadIfDue();
   }
 
   @override
@@ -88,16 +89,31 @@ class _SharesScreenState extends State<SharesScreen> {
   Widget _myLinks(BuildContext context) {
     final store = Stores.shares;
 
-    return Observer(
+    return AppLoadFade(
+      loading: () => store.loadState.isFirstLoad && store.shares.isEmpty,
+      skeleton: const AppListSkeleton(
+        filters: ['All', 'Active', 'Paused', 'Closed'],
+        group: 'Active',
+        rows: [
+          AppSkeletonRow(
+            'Landlord',
+            '3 records · opened twice',
+            icon: AppIcons.link,
+          ),
+          AppSkeletonRow('Employer HR', '5 records', icon: AppIcons.link),
+          AppSkeletonRow(
+            'Insurance',
+            '2 records · expires soon',
+            icon: AppIcons.link,
+          ),
+          AppSkeletonRow('Bank', '1 record', icon: AppIcons.link),
+        ],
+      ),
       builder: (_) {
-        if (store.isLoading && store.shares.isEmpty) {
-          return const Center(child: AppSpinner(large: true));
-        }
-
-        if (store.errorMessage != null) {
+        if (store.shares.isEmpty && store.loadState.error != null) {
           return AppLoadError(
             title: "Couldn't load your links",
-            message: store.errorMessage!,
+            message: store.loadState.error!,
             onRetry: store.loadShares,
           );
         }
@@ -208,6 +224,8 @@ class _SharesScreenState extends State<SharesScreen> {
 
         return AppListPage(
           banners: [
+            if (store.loadState.error != null)
+              AppRefreshFailed(onRetry: store.loadShares),
             if (recipient != null && recipient.isNotEmpty)
               AppListBanner(
                 icon: AppIcons.person,
@@ -336,7 +354,29 @@ class _ByPerson extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Observer(
+    return AppLoadFade(
+      loading: () =>
+          Stores.shares.loadState.isFirstLoad && Stores.shares.shares.isEmpty,
+      skeleton: const AppListSkeleton(
+        group: 'Can see your data',
+        rows: [
+          AppSkeletonRow(
+            'Landlord',
+            '2 links · 5 records',
+            icon: AppIcons.person,
+          ),
+          AppSkeletonRow(
+            'Employer',
+            '1 link · 3 records',
+            icon: AppIcons.person,
+          ),
+          AppSkeletonRow(
+            'Insurance',
+            '1 link · 2 records',
+            icon: AppIcons.person,
+          ),
+        ],
+      ),
       builder: (context) {
         final groups = groupByRecipient(Stores.shares.shares);
         if (groups.isEmpty) {

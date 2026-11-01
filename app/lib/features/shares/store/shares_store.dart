@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:revoked_app/core/models/trust_verdict.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:mobx/mobx.dart';
@@ -218,7 +219,7 @@ abstract class _SharesStore with Store {
       _sharedFileBytes[recordId] = bytes;
       return bytes;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       if (e is ApiException && e.code == AppErrorCode.fileNotWatermarkable) {
         sharedFileFailure = AppErrorMessage.fromException(e);
       }
@@ -273,15 +274,28 @@ abstract class _SharesStore with Store {
       .where((l) => l.status == 'active' && l.sections.contains(sectionId))
       .toList();
 
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [loadShares], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await loadShares();
+  }
+
   @action
   Future<void> loadShares() async {
     isLoading = true;
     errorMessage = null;
+    final ticket = loadState.begin();
     try {
       final result = await getAll();
+      if (!loadState.isCurrent(ticket)) return;
       shares = ObservableList.of(result);
+      loadState.succeed(ticket);
     } catch (e) {
-      errorMessage = e.toString();
+      if (!loadState.isCurrent(ticket)) return;
+      errorMessage = describeError(e);
+      loadState.fail(ticket, errorMessage!);
     } finally {
       isLoading = false;
     }
@@ -334,7 +348,7 @@ abstract class _SharesStore with Store {
       shares.insert(0, link);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     } finally {
       isLoading = false;
@@ -351,7 +365,7 @@ abstract class _SharesStore with Store {
       }
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }
@@ -363,7 +377,7 @@ abstract class _SharesStore with Store {
       shares.removeWhere((s) => s.id == id);
       return true;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = describeError(e);
       return false;
     }
   }

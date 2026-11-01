@@ -23,14 +23,16 @@ import (
 // directions: a mistake in the Dart code that only agrees with itself would
 // otherwise pass every test it has.
 type sealingVectors struct {
-	IKM, PublicKey, PrivateKey, Info, Plaintext                 string
-	GoSealed, DartSealed                                        string
-	DartSignMessage, DartSignPublicKey, DartSignature           string
-	ValueKey, WorkspaceKey, Workspace, Record, RecordKey, Value string
-	Version, Epoch                                              int
-	SealedValue, KeyWrap                                        string
-	RecoverySecret                                              string
-	RecoveryHpkePublicKey, RecoverySigningPublicKey             string
+	IKM, PublicKey, PrivateKey, Info, Plaintext                                                                                       string
+	GoSealed, DartSealed                                                                                                              string
+	DartSignMessage, DartSignPublicKey, DartSignature                                                                                 string
+	ValueKey, WorkspaceKey, Workspace, Record, RecordKey, Value                                                                       string
+	Version, Epoch                                                                                                                    int
+	SealedValue, KeyWrap                                                                                                              string
+	ChainUser, ChainEntries, ChainWorkspace, ChainWrap, ChainWrapSignature, ChainUnsealRecord, ChainUnsealValue, ChainUnsealSignature string
+	ChainWrapEpoch, ChainWrapDeviceSeq, ChainWrapSignerSeq, ChainWrapChainSeq, ChainUnsealVersion, ChainUnsealDeviceSeq               int
+	RecoverySecret                                                                                                                    string
+	RecoveryHpkePublicKey, RecoverySigningPublicKey                                                                                   string
 }
 
 func loadSealingVectors(t *testing.T) sealingVectors {
@@ -185,6 +187,61 @@ func TestRecoveryKeysDeriveInGo(t *testing.T) {
 		if got := hex.EncodeToString(derived.PublicKey().Bytes()); got != want {
 			t.Fatalf("%s: public key differs: %s", purpose, got)
 		}
+	}
+}
+
+// The server checks every entry a client appends, so a list the app signed must
+// pass the Go check byte for byte.
+func TestDartSignedListVerifiesInGo(t *testing.T) {
+	v := loadSealingVectors(t)
+	var entries []struct {
+		Seq              int    `json:"seq"`
+		Action           string `json:"action"`
+		Kind             string `json:"kind"`
+		Label            string `json:"label"`
+		HpkePublicKey    string `json:"hpkePublicKey"`
+		SigningPublicKey string `json:"signingPublicKey"`
+		TargetSeq        int    `json:"targetSeq"`
+		PreviousHash     string `json:"previousHash"`
+		SignerSeq        int    `json:"signerSeq"`
+		AnchorSignature  string `json:"anchorSignature"`
+		Signature        string `json:"signature"`
+	}
+	if err := json.Unmarshal([]byte(v.ChainEntries), &entries); err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) < 4 {
+		t.Fatalf("only %d entries", len(entries))
+	}
+	decode := func(s string) []byte {
+		b, err := base64.URLEncoding.DecodeString(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	chain := &SealedChain{}
+	for _, e := range entries {
+		err := chain.Append(SealedChainEntry{
+			User: v.ChainUser, Seq: e.Seq, Action: e.Action, Kind: e.Kind, Label: e.Label,
+			HpkePublicKey: decode(e.HpkePublicKey), SigningPublicKey: decode(e.SigningPublicKey),
+			TargetSeq: e.TargetSeq, PreviousHash: decode(e.PreviousHash), SignerSeq: e.SignerSeq,
+			AnchorSignature: decode(e.AnchorSignature), Signature: decode(e.Signature),
+		})
+		if err != nil {
+			t.Fatalf("Go refused entry %d that Dart signed: %v", e.Seq, err)
+		}
+	}
+	if !VerifySealedSignature(chain.Entry(v.ChainWrapSignerSeq).SigningPublicKey,
+		SealedWrapPayload(v.ChainWorkspace, v.ChainWrapEpoch,
+			chain.Entry(v.ChainWrapDeviceSeq).HpkePublicKey, v.ChainWrap, v.ChainWrapChainSeq),
+		decode(v.ChainWrapSignature)) {
+		t.Fatal("Go refused a key hand-over Dart signed")
+	}
+	if !VerifySealedSignature(chain.Entry(v.ChainUnsealDeviceSeq).SigningPublicKey,
+		SealedUnsealPayload(v.ChainUser, v.ChainUnsealRecord, v.ChainUnsealVersion, v.ChainUnsealValue),
+		decode(v.ChainUnsealSignature)) {
+		t.Fatal("Go refused an unseal Dart signed")
 	}
 }
 

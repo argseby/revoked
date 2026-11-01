@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -14,7 +15,9 @@ import 'package:revoked_app/core/state/sheet_tracker.dart';
 ///
 /// A sheet closes only through its own buttons unless [dismissible]: a stray
 /// click beside a half-filled form would throw the input away. Pass it for a
-/// sheet that holds nothing to lose — a viewer, a menu, a pick-one list.
+/// sheet that holds nothing to lose — a viewer, a menu, a pick-one list. On a
+/// phone that sheet also stops short of the top, because it has no button to
+/// close it: the page left showing above is what you tap or pull from.
 Future<T?> showAppSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -50,6 +53,12 @@ Future<T?> showAppSheet<T>({
   return future;
 }
 
+/// The most of a phone's height a sheet without its own close button may take.
+const double _dismissibleHeightFactor = 0.7;
+
+/// The drag handle a dismissible sheet draws above its content.
+const double _dragHandleHeight = kMinInteractiveDimension;
+
 Future<T?> _bottomSheet<T>(
   BuildContext context,
   WidgetBuilder content,
@@ -75,17 +84,30 @@ Future<T?> _bottomSheet<T>(
       side: BorderSide(color: scheme.outlineVariant),
     ),
     constraints: const BoxConstraints(maxWidth: 640),
-    builder: (ctx) => Padding(
+    builder: (ctx) {
+      final media = MediaQuery.of(ctx);
       // Keyboard on top of the gesture-nav inset: without the second term
       // a sheet's bottom row of buttons sits under the home indicator.
-      padding: EdgeInsets.only(
-        top: dismissible ? 0 : AppSpacing.xxl,
-        bottom:
-            MediaQuery.of(ctx).viewInsets.bottom +
-            MediaQuery.of(ctx).viewPadding.bottom,
-      ),
-      child: content(ctx),
-    ),
+      final bottom = media.viewInsets.bottom + media.viewPadding.bottom;
+      return Padding(
+        padding: EdgeInsets.only(
+          top: dismissible ? 0 : AppSpacing.xxl,
+          bottom: bottom,
+        ),
+        child: dismissible
+            ? ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: min(
+                    media.size.height * _dismissibleHeightFactor -
+                        _dragHandleHeight,
+                    media.size.height - bottom - _dragHandleHeight,
+                  ),
+                ),
+                child: content(ctx),
+              )
+            : content(ctx),
+      );
+    },
   );
 }
 

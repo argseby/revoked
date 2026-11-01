@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
@@ -10,6 +9,7 @@ import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
@@ -26,10 +26,11 @@ import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/redacted_value.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
+import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
@@ -49,7 +50,7 @@ class VaultScreen extends StatefulWidget {
 /// Which records the chips above the list let through.
 enum _VaultFilter { all, shared, files, hidden }
 
-class _VaultScreenState extends State<VaultScreen> {
+class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   late TableStore<models.Record> _tableController;
   final Local<_VaultFilter> _filter = Local(_VaultFilter.all);
 
@@ -73,7 +74,6 @@ class _VaultScreenState extends State<VaultScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ShellSlots.action.claim(_primaryAction);
-      store.loadRecords();
       if (widget.editingShareId != null || widget.shareFilterId != null) {
         Stores.shares.loadShares();
       }
@@ -86,6 +86,9 @@ class _VaultScreenState extends State<VaultScreen> {
     _tableController.dispose();
     super.dispose();
   }
+
+  @override
+  void refresh() => Stores.vault.loadIfDue();
 
   /// The way out of a mode the screen is held in — editing a section's records,
   /// or picking what a share exposes. Creation lives on the shell's floating
@@ -117,28 +120,25 @@ class _VaultScreenState extends State<VaultScreen> {
   Widget _body(BuildContext context) {
     final store = Stores.vault;
 
-    return Observer(
+    return AppLoadFade(
+      loading: () =>
+          store.loadState.isFirstLoad &&
+          store.records.isEmpty &&
+          store.sections.isEmpty,
+      skeleton: const AppListSkeleton(
+        filters: ['All', 'Shared', 'Files', 'Hidden'],
+        group: 'Records',
+      ),
       builder: (_) {
-        if (store.isLoading &&
-            store.records.isEmpty &&
-            store.sections.isEmpty) {
-          return const Center(child: AppSpinner(large: true));
-        }
-
-        if (store.errorMessage != null) {
-          return Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenH(context),
-            ),
-            child: AppLoadError(
-              title: 'Couldn\'t load your vault',
-              message: store.errorMessage!,
-              onRetry: store.loadRecords,
-            ),
-          );
-        }
-
         if (store.records.isEmpty && store.sections.isEmpty) {
+          final failure = store.loadState.error;
+          if (failure != null) {
+            return AppLoadError(
+              title: 'Couldn\'t load your vault',
+              message: failure,
+              onRetry: store.loadRecords,
+            );
+          }
           return AppEmptyState(
             icon: AppIcons.safe,
             title: 'Keep what you share in one place',
@@ -392,6 +392,9 @@ class _VaultScreenState extends State<VaultScreen> {
 
         return AppListPage(
           banners: [
+            if (store.loadState.error != null)
+              AppRefreshFailed(onRetry: store.loadRecords),
+            const SealingAlarm(),
             if (shareFilter != null)
               AppListBanner(
                 icon: AppIcons.funnel,

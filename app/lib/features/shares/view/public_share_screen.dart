@@ -375,7 +375,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       });
     } catch (e) {
       runInAction(() {
-        _store.sharePasswordHint = e.toString();
+        _store.sharePasswordHint = describeError(e);
         _store.isUnlockingShare = false;
         _store.isLoadingShare = false;
       });
@@ -543,7 +543,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                   onSubmitted: (_) => _unlock(),
                 ),
                 if (_store.sharePasswordHint != null) ...[
-                  AppSpacing.gapXs,
+                  AppSpacing.gapSm,
                   AppErrorText(_store.sharePasswordHint!),
                 ],
               ],

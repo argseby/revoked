@@ -19,7 +19,7 @@ import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
@@ -82,7 +82,15 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         final request = _request;
         if (request == null) {
           if (Stores.requests.isLoading) {
-            return const Center(child: AppSpinner(large: true));
+            return const AppDetailSkeleton(
+              badges: ['open'],
+              primary: 'View responses',
+              sections: [
+                AppSkeletonGroup('Fields', rows: 3),
+                AppSkeletonGroup('Access', rows: 3),
+              ],
+              aside: [AppSkeletonGroup('Details', rows: 3)],
+            );
           }
           return AppEmptyState(
             icon: AppIcons.inboxFill,

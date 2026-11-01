@@ -3,6 +3,7 @@ import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/contact.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 part 'contacts_store.g.dart';
@@ -165,22 +166,35 @@ abstract class _ContactsStore with Store {
     return domain.isNotEmpty && domain == serverDomain.toLowerCase();
   }
 
+  /// Tracks this list for the cache and the first-load skeleton.
+  final LoadState loadState = LoadState();
+
+  /// [load], unless what's here is still fresh.
+  Future<void> loadIfDue() async {
+    if (loadState.isDue) await load();
+  }
+
   @action
   Future<void> load() async {
     isLoading = true;
     error = null;
+    final ticket = loadState.begin();
     try {
       final data = await _api.get(
         _basePath,
         queryParams: {'perPage': '200', 'sort': 'name'},
       );
       final items = (data['items'] as List<dynamic>?) ?? const [];
+      if (!loadState.isCurrent(ticket)) return;
       contacts = ObservableList.of(
         items.map((e) => Contact.fromJson(e as Map<String, dynamic>)),
       );
       await loadPolicy();
+      loadState.succeed(ticket);
     } catch (e) {
+      if (!loadState.isCurrent(ticket)) return;
       error = AppErrorMessage.fromException(e);
+      loadState.fail(ticket, error!.description);
     } finally {
       isLoading = false;
     }

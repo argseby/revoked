@@ -11,7 +11,7 @@ import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -119,7 +119,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
               if (store.isLoading && store.passkeys.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                  child: Center(child: AppSpinner()),
+                  child: AppListSkeleton(embedded: true),
                 )
               else if (store.passkeys.isEmpty)
                 AppDetailRow(
