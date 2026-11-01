@@ -13,6 +13,7 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -147,7 +148,7 @@ class LinkSearchSheet extends StatelessWidget {
     // Capture the router before popping — the sheet's context is gone after.
     final router = GoRouter.of(context);
     Navigator.of(context).pop();
-    router.go(resolved.location);
+    AppRouter.openLink(router, resolved.location);
   }
 
   /// Probes the link and walks the DNS trust chain. Request links carry the

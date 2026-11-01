@@ -160,6 +160,23 @@ class AppRouter {
   /// so the destination has to survive that wait.
   static String? _pendingLocation;
 
+  static int _linksOpened = 0;
+
+  /// Opens a link the person followed in place of whatever is showing. Every
+  /// arrival is a new screen, even for a link already open: a service that
+  /// asks again with the same request still has to be answered.
+  static void openLink(GoRouter router, String location) =>
+      router.go(location, extra: ++_linksOpened);
+
+  /// The page of a screen opened from a link. go_router keys a page by its
+  /// route pattern, so without this a second link keeps the first one's state:
+  /// a finished sign-in hid the next sign-in behind its "You're signed in".
+  static Page<void> _linkPage(GoRouterState state, Widget child) =>
+      NoTransitionPage(
+        key: ValueKey((state.pageKey, state.uri, state.extra)),
+        child: child,
+      );
+
   static GoRouter create(AuthStore authStore) {
     return GoRouter(
       navigatorKey: rootNavigatorKey,
@@ -245,31 +262,43 @@ class AppRouter {
         ),
         GoRoute(
           path: AppRoutes.share,
-          builder: (context, state) => PublicShareScreen(
-            shareSlug: state.pathParameters['slug'] ?? '',
-            origin: state.uri.queryParameters['o'],
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            PublicShareScreen(
+              shareSlug: state.pathParameters['slug'] ?? '',
+              origin: state.uri.queryParameters['o'],
+            ),
           ),
         ),
         GoRoute(
           path: AppRoutes.request,
-          builder: (context, state) => PublicRequestScreen(
-            requestSlug: state.pathParameters['slug'] ?? '',
-            origin: state.uri.queryParameters['o'],
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            PublicRequestScreen(
+              requestSlug: state.pathParameters['slug'] ?? '',
+              origin: state.uri.queryParameters['o'],
+            ),
           ),
         ),
         // Short canonical aliases.
         GoRoute(
           path: AppRoutes.shortShare,
-          builder: (context, state) => PublicShareScreen(
-            shareSlug: state.pathParameters['slug'] ?? '',
-            origin: state.uri.queryParameters['o'],
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            PublicShareScreen(
+              shareSlug: state.pathParameters['slug'] ?? '',
+              origin: state.uri.queryParameters['o'],
+            ),
           ),
         ),
         GoRoute(
           path: AppRoutes.shortRequest,
-          builder: (context, state) => PublicRequestScreen(
-            requestSlug: state.pathParameters['slug'] ?? '',
-            origin: state.uri.queryParameters['o'],
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            PublicRequestScreen(
+              requestSlug: state.pathParameters['slug'] ?? '',
+              origin: state.uri.queryParameters['o'],
+            ),
           ),
         ),
         // Readable while signed out so the recipient can see what an invite
@@ -281,44 +310,62 @@ class AppRouter {
         ),
         GoRoute(
           path: AppRoutes.invite,
-          builder: (context, state) => InviteAcceptScreen(
-            token: state.pathParameters['token'] ?? '',
-            origin: state.uri.queryParameters['o'],
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            InviteAcceptScreen(
+              token: state.pathParameters['token'] ?? '',
+              origin: state.uri.queryParameters['o'],
+            ),
           ),
         ),
         // Not public: it creates a share, so it needs the owner's session.
         GoRoute(
           path: AppRoutes.proposal,
-          builder: (context, state) => ShareProposalScreen(
-            proposal: ShareProposal.fromQuery(state.uri.queryParameters),
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            ShareProposalScreen(
+              proposal: ShareProposal.fromQuery(state.uri.queryParameters),
+            ),
           ),
         ),
         GoRoute(
           path: AppRoutes.connect,
-          builder: (context, state) => ConnectScreen(
-            request: ConnectRequest.fromQuery(state.uri.queryParameters),
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            ConnectScreen(
+              request: ConnectRequest.fromQuery(state.uri.queryParameters),
+            ),
           ),
         ),
         // Not public: the server to continue on is the one signed into.
         GoRoute(
           path: AppRoutes.signIn,
-          builder: (context, state) => SignInApprovalScreen(
-            request: SignInRequest.fromQuery(state.uri.queryParameters),
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            SignInApprovalScreen(
+              request: SignInRequest.fromQuery(state.uri.queryParameters),
+            ),
           ),
         ),
         // Not public: the identity an offer is accepted with, and the
         // credentials a presentation draws on, are the signed-in person's.
         GoRoute(
           path: AppRoutes.attestationOffer,
-          builder: (context, state) => AttestationOfferScreen(
-            token: state.pathParameters['token'] ?? '',
-            origin: state.uri.queryParameters['o'],
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            AttestationOfferScreen(
+              token: state.pathParameters['token'] ?? '',
+              origin: state.uri.queryParameters['o'],
+            ),
           ),
         ),
         GoRoute(
           path: AppRoutes.present,
-          builder: (context, state) => PresentationScreen(
-            request: PresentationRequest.fromQuery(state.uri.queryParameters),
+          pageBuilder: (context, state) => _linkPage(
+            state,
+            PresentationScreen(
+              request: PresentationRequest.fromQuery(state.uri.queryParameters),
+            ),
           ),
         ),
         // Fallbacks for public URLs missing slugs
@@ -505,16 +552,22 @@ class AppRouter {
             ),
             GoRoute(
               path: AppRoutes.attestations,
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: AttestationsScreen(
-                  ask: AttestationAsk.fromQuery(state.uri.queryParameters),
-                  initialTab: switch (state.uri.queryParameters['tab']) {
-                    'issued' => 1,
-                    'checked' => 2,
-                    _ => 0,
-                  },
-                ),
-              ),
+              pageBuilder: (context, state) {
+                final ask = AttestationAsk.fromQuery(state.uri.queryParameters);
+                return NoTransitionPage(
+                  child: AttestationsScreen(
+                    // An ask is taken up when the screen starts, so one that
+                    // arrives while this tab is open needs a new screen.
+                    key: ask == null ? null : ValueKey(state.uri),
+                    ask: ask,
+                    initialTab: switch (state.uri.queryParameters['tab']) {
+                      'issued' => 1,
+                      'checked' => 2,
+                      _ => 0,
+                    },
+                  ),
+                );
+              },
             ),
             GoRoute(
               path: AppRoutes.settings,

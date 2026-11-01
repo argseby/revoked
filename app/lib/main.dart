@@ -59,7 +59,7 @@ class _RevokedAppState extends State<RevokedApp> {
       return;
     }
     final location = DeepLinks.locationFor(uri);
-    if (location != null) _router.go(location);
+    if (location != null) AppRouter.openLink(_router, location);
   }
 
   /// Ctrl+V with no field focused: if the clipboard holds a revoked link,
