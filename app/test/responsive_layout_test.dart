@@ -104,18 +104,31 @@ void main() {
     });
   });
 
-  testWidgets('a phone\'s settings page has its back arrow, not the avatar', (
+  testWidgets('a phone\'s sub-page has its back arrow, not the avatar', (
     tester,
   ) async {
     final router = await signedIn(tester, sizes['phone']!);
-    router.go(AppRoutes.settings);
-    await tester.pumpAndSettle();
-    expect(find.byType(AccountMenu), findsOneWidget);
+    for (final root in [
+      AppRoutes.settings,
+      AppRoutes.vault,
+      AppRoutes.shared,
+    ]) {
+      router.go(root);
+      await tester.pumpAndSettle();
+      expect(find.byType(AccountMenu), findsOneWidget, reason: root);
+    }
 
-    router.go(AppRoutes.settingsPage(SettingsPage.encryption.slug));
-    await tester.pumpAndSettle();
-    expect(find.byType(AccountMenu), findsNothing);
-    expect(find.byTooltip('Back'), findsOneWidget);
+    for (final page in [
+      AppRoutes.settingsPage(SettingsPage.encryption.slug),
+      AppRoutes.recordDetailFor('r1'),
+      AppRoutes.shareDetailFor('l1'),
+      AppRoutes.requestDetailFor('q1'),
+    ]) {
+      router.go(page);
+      await tester.pumpAndSettle();
+      expect(find.byType(AccountMenu), findsNothing, reason: page);
+      expect(find.byTooltip('Back'), findsOneWidget, reason: page);
+    }
   });
 
   testWidgets('New stays off a phone\'s detail pages', (tester) async {

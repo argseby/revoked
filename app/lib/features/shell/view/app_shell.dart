@@ -144,30 +144,26 @@ class _AppShellState extends State<AppShell> {
     if (destination != null) _lastDestination = destination;
     final width = MediaQuery.sizeOf(context).width;
     if (width < AppSpacing.narrowWidth) {
-      return _narrow(
-        destination,
-        showNew:
-            destination != null && path == AppRoutes.destinations[destination],
-        showAccount: !path.startsWith('${AppRoutes.settings}/'),
-      );
+      final isSubPage =
+          path !=
+          (destination == null
+              ? AppRoutes.settings
+              : AppRoutes.destinations[destination]);
+      return _narrow(destination, isSubPage: isSubPage);
     }
     return _wide(destination, sidebar: width >= AppSpacing.wideWidth);
   }
 
-  /// [showAccount] is off on a settings page: its back arrow is the way out, and
-  /// the avatar beside it would only leave the title less room.
-  Widget _narrow(
-    int? destination, {
-    required bool showNew,
-    required bool showAccount,
-  }) {
+  /// A sub-page's back arrow is its way out, so it needs no avatar beside it,
+  /// and leaves the title that room.
+  Widget _narrow(int? destination, {required bool isSubPage}) {
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
       // Yields while any sheet is up, so it never overlaps a sheet's actions,
       // and on a detail page, where it would sit on the page's own controls.
       floatingActionButton: Observer(
         builder: (_) {
-          if (SheetTracker.anyOpen || !showNew) {
+          if (SheetTracker.anyOpen || destination == null || isSubPage) {
             return const SizedBox.shrink();
           }
           return FloatingActionButton.extended(
@@ -181,19 +177,19 @@ class _AppShellState extends State<AppShell> {
       ),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leadingWidth: showAccount
-            ? AppSpacing.lg + AppButton.normalExtent + AppSpacing.xs
-            : null,
-        leading: showAccount
-            ? const Padding(
+        leadingWidth: isSubPage
+            ? null
+            : AppSpacing.lg + AppButton.normalExtent + AppSpacing.xs,
+        leading: isSubPage
+            ? null
+            : const Padding(
                 padding: EdgeInsets.only(
                   left: AppSpacing.lg,
                   right: AppSpacing.xs,
                 ),
                 child: Center(child: AccountMenu()),
-              )
-            : null,
-        titleSpacing: showAccount ? AppSpacing.xs : AppSpacing.lg,
+              ),
+        titleSpacing: isSubPage ? AppSpacing.lg : AppSpacing.xs,
         title: _title(destination),
         actions: [
           _slot(ShellSlots.action),
