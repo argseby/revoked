@@ -102,6 +102,7 @@ flow, including a minimal working page, is described in
 | `api_key_vault_scope` | The key being created asks for the vault, which no key may hold. |
 | `connection_unauthorized` | No connection matches the `X-Revoked-Connection` token: mistyped, or the owner disconnected the tool. |
 | `connection_expired` | The connection lapsed, 90 days after the owner last connected the tool. Only the owner can connect it again. |
+| `connection_paused` | The owner paused the tool. The token works again once they activate it, so keep it. |
 | A named scope error | The key is valid but was not granted that permission. Create a key with the right grants; scopes are fixed at creation. |
 
 ## Revoking

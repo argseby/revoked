@@ -22,6 +22,7 @@ import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/features/connections/sign_in_approval.dart';
+import 'package:revoked_app/features/connections/view/day_label.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -43,7 +44,7 @@ class SignInApprovalScreen extends StatefulWidget {
   State<SignInApprovalScreen> createState() => _SignInApprovalScreenState();
 }
 
-enum _Stage { opening, consent, approved, declined, refused, failed }
+enum _Stage { opening, consent, approved, declined, refused, paused, failed }
 
 class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   final _stage = Local<_Stage>(_Stage.opening);
@@ -56,6 +57,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   /// The name picked for this service: an option's token, [_newName], or
   /// empty for none.
   final _nameChoice = Local<String>('');
+
+  /// The person's row for a service they paused, to offer activating it.
+  final _pausedService = Local<String?>(null);
 
   @override
   void initState() {
@@ -76,17 +80,25 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
       final consent = opened.consent;
       if (consent == null) {
         // The server refused the request; the service hears why.
-        _stage.value = _Stage.refused;
+        _pausedService.value = opened.paused;
+        _stage.value = opened.paused == null ? _Stage.refused : _Stage.paused;
         if (opened.refusal != null) await _answerService(opened.refusal!);
         return;
       }
       // The name has its own select, and starts where the person left it.
       _nameChoice.value = consent.nameSelected;
-      _scopes.value = {
-        for (final s in consent.scopes)
-          if (s.scope != _profile) s.scope,
+      // Coming back under a new ID, anything shared could give it away, so
+      // nothing starts out shared.
+      _scopes.value = consent.newId
+          ? {}
+          : {
+              for (final s in consent.scopes)
+                if (s.scope != _profile) s.scope,
+            };
+      _links.value = {
+        for (final l in consent.links)
+          l.key: consent.newId ? '' : l.match?.id ?? '',
       };
-      _links.value = {for (final l in consent.links) l.key: l.match?.id ?? ''};
       _consent.value = consent;
       _stage.value = _Stage.consent;
     } catch (e) {
@@ -189,6 +201,28 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                 message:
                     '${r.clientHost} asked for something Revoked doesn’t '
                     'allow. Nothing was shared.',
+              ),
+              _Stage.paused => AppStatusMessage(
+                icon: AppIcons.pause,
+                accent: Theme.of(context).colorScheme.onSurfaceVariant,
+                title: 'You paused ${r.clientHost}',
+                message: 'Nothing was shared. Activate it to sign in.',
+                actions: [
+                  AppButton(
+                    label: 'Open service',
+                    icon: AppIcons.globe,
+                    style: AppButtonStyle.accent,
+                    onTap: () => context.go(
+                      AppRoutes.signInServiceFor(_pausedService.value!),
+                    ),
+                  ),
+                  AppButton(
+                    label: 'Done',
+                    icon: AppIcons.check,
+                    style: AppButtonStyle.accent,
+                    onTap: () => context.go(AppRoutes.overview),
+                  ),
+                ],
               ),
               _Stage.failed => _finished(
                 context,
@@ -325,6 +359,18 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         // the person's own, and not one someone else put in front of them.
         if (widget.request!.background)
           ToolCheckCode(name: host, challenge: widget.request!.challenge),
+        if (c.disconnectedAt != null)
+          AppAlert(
+            leading: const Icon(AppIcons.info),
+            content: Text(
+              c.newId
+                  ? 'You disconnected $host on ${dayLabel(c.disconnectedAt)}. It '
+                        'will see you as someone new. '
+                        '${c.scopes.isEmpty && c.links.isEmpty ? '' : 'What you share can still tell it who you are, so nothing is picked yet.'}'
+                  : 'You disconnected $host on ${dayLabel(c.disconnectedAt)}. If '
+                        'you sign in, it will know you as before.',
+            ),
+          ),
         AppListGroup(
           title: 'Who is asking',
           trailing: quiet,

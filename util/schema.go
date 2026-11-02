@@ -122,7 +122,7 @@ type linkFields struct {
 	Slug, Label, User, Workspace, Sections, Records, Status,
 	Password, ExpiresAt, MaxViews, ViewCount, Identity, RequireHandshake,
 	Request, Grants, Data, SenderName, Identifier, Watermark, WatermarkText,
-	Purpose, Connection, Ref, HandedOver, ProposedBy,
+	Purpose, Connection, Ref, HandedOver, ProposedBy, HeldPaused,
 	RemoteDomain, RemoteRequest, GrantTokenHash, SignInClient, Created, Updated string
 }
 
@@ -194,7 +194,7 @@ type bookmarkGroupFields struct {
 }
 
 type connectionFields struct {
-	User, Workspace, ClientId, ClientName, AllowRevoke, AllowHandOver, ExpiresAt, LastUsedAt, Created, Updated string
+	User, Workspace, ClientId, ClientName, AllowRevoke, AllowHandOver, Paused, ExpiresAt, LastUsedAt, Created, Updated string
 }
 
 type connectionTokenFields struct {
@@ -255,7 +255,8 @@ type attestationCheckFields struct {
 }
 
 type signInFields struct {
-	User, ClientId, Scopes, Link, NameRecord, NameIdentity, LastSignInAt, Created, Updated string
+	User, ClientId, Scopes, Link, NameRecord, NameIdentity, LastSignInAt,
+	Status, Generation, SubjectVersion, DisconnectedAt, NewIdOnReturn, Created, Updated string
 }
 
 // Coll holds the collection (table) names used across the backend.
@@ -470,6 +471,7 @@ var Fields = struct {
 		RemoteRequest:    "remoteRequest",
 		GrantTokenHash:   "grantTokenHash",
 		SignInClient:     "signInClient",
+		HeldPaused:       "heldPaused",
 		Created:          "created",
 		Updated:          "updated",
 	},
@@ -607,6 +609,7 @@ var Fields = struct {
 		ClientName:    "clientName",
 		AllowRevoke:   "allowRevoke",
 		AllowHandOver: "allowHandOver",
+		Paused:        "paused",
 		ExpiresAt:     "expiresAt",
 		LastUsedAt:    "lastUsedAt",
 		Created:       "created",
@@ -743,8 +746,15 @@ var Fields = struct {
 		NameRecord:   "nameRecord",
 		NameIdentity: "nameIdentity",
 		LastSignInAt: "lastSignInAt",
-		Created:      "created",
-		Updated:      "updated",
+
+		Status:         "status",
+		Generation:     "generation",
+		SubjectVersion: "subjectVersion",
+		DisconnectedAt: "disconnectedAt",
+		NewIdOnReturn:  "newIdOnReturn",
+
+		Created: "created",
+		Updated: "updated",
 	},
 	Contact: contactFields{
 		Workspace:       "workspace",

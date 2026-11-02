@@ -44,11 +44,13 @@ const (
 	// limit set by migration 000052; keep the two in step.
 	MaxTemplateDescriptionLength = 500
 
-	StatusActive    = "active"
-	StatusPaused    = "paused"
-	StatusRevoked   = "revoked"
-	StatusExpired   = "expired"
-	StatusCompleted = "completed"
+	StatusActive  = "active"
+	StatusPaused  = "paused"
+	StatusRevoked = "revoked"
+	// StatusDisconnected ends a sign-in at a service; its row stays as history.
+	StatusDisconnected = "disconnected"
+	StatusExpired      = "expired"
+	StatusCompleted    = "completed"
 	// StatusOffered is an attestation that waits to be accepted: nothing has
 	// been signed yet, and nobody holds a credential for it.
 	StatusOffered = "offered"

@@ -109,6 +109,7 @@ sequenceDiagram
 | The browser doesn't return to Guestbook | The app opens your default browser, which may not be the one you started in. Open <http://localhost:8000> there. |
 | `connection_unauthorized` | The tool was disconnected. Connect it again. |
 | `connection_expired` | 90 days have passed. Only you can connect it again, from the app. |
+| `connection_paused` | You paused the tool. Press **Activate** in the app. |
 | No link address in the list | Links with a hidden record or a file are never handed over. Copy those yourself. |
 
 ## Next

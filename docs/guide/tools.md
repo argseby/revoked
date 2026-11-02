@@ -71,9 +71,19 @@ one. It gets the same permissions as before, nothing more.
 
 **Settings → Connected tools** lists every tool: when you connected it,
 when it was last used, when the connection ends, and the links it
-proposed. There you can change its two permissions, open or revoke each of
-its links, or **Disconnect** it. Disconnecting cuts the tool off at once.
-The links themselves stay and keep working.
+proposed. There you can change its two permissions, or open or revoke each
+of its links.
+
+### Take a break from a tool
+
+Not sure you still want it? Tap **Pause**. The tool can't do anything, and
+its links stop opening too. Tap **Activate** when you want it back, and
+everything works as before. Any link you paused yourself stays paused.
+
+### Cut a tool off for good
+
+Tap **Disconnect** and the tool is cut off at once. Its links stay yours and
+keep working, unless you also tick **Revoke its links too**.
 
 A connection lasts **90 days** from the last time you confirmed it in the
 app. Only confirming it there again renews it; a tool can't keep itself
@@ -90,6 +100,30 @@ and any entries you shared.
 To stop a service reading your entries, tap its link under **Shared entries**
 and choose **Revoke**. It can't read them from then on.
 
+### Pause a service
+
+Tap **Pause** and you can't sign in to that service with Revoked. It can't read
+your entries either. Tap **Activate** to undo it, and the service knows you as
+before.
+
+### Disconnect a service
+
+Done with a service? Tap **Disconnect**. It can't read your entries any more,
+and you can only sign in there again by approving it in the app.
+
+### Come back as someone new
+
+When you disconnect, tick **Get a new ID** and the service sees you as someone
+new if you ever come back. If you've already disconnected, the same button is
+on the service's page.
+
+Think before you tick it. You can't get your old account there back, along with
+anything saved in it, like game progress. Not sure? Use **Pause** instead.
+
+When you come back, the app shows you what the service is asking for, with
+nothing picked. Your email, your name or your identity can still tell the service
+who you are, so share them only if you don't mind that.
+
 ## Choose your name for each service
 
 When a service asks for your name, you decide which one it gets. You can use
@@ -101,10 +135,11 @@ no name at all.
 Using a vault entry? Change the entry, and the service can pick up the new
 name. Some services only update it the next time you sign in. Your choice is
 remembered, and you can change it at your next sign-in. Either way, the
-service knows you by an ID that never changes.
+service knows you by the same ID, unless you ask for a new one.
 
 ## Sign out of a service
 
-The service keeps its own login, so sign out there. It may also have saved
-what it learned, like your email address, and only the service can delete
-that.
+The service keeps its own login, so sign out there. **Pause** and
+**Disconnect** don't do that for you, so you may stay signed in until you do.
+It may also have saved what it learned, like your email address, and only the
+service can delete that.

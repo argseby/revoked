@@ -52,6 +52,8 @@ type oidcCode struct {
 	scopes   []string
 	authTime time.Time
 	grant    *services.SignInGrant
+	// The sign-in's generation when this was issued: a disconnect moves it.
+	generation int
 }
 
 // oidcAccess is what an access token lets the service read at userinfo.
@@ -60,6 +62,7 @@ type oidcAccess struct {
 	user, clientID string
 	scopes         []string
 	grant          *services.SignInGrant
+	generation     int
 }
 
 // All three live in memory, like the passkey ceremonies: a restart costs a
@@ -80,6 +83,16 @@ const oidcConsentPrefix = "revoked-oidc-consent:"
 // scopes and vault keys given, never their values.
 const auditSignInApproved = "sign_in_approved"
 
+// What a person does to a service they signed in to, as the audit log names it.
+const (
+	auditSignInPaused       = "sign_in_paused"
+	auditSignInResumed      = "sign_in_resumed"
+	auditSignInDisconnected = "sign_in_disconnected"
+)
+
+// errSignInPaused ends an approval of a service the person has since paused.
+var errSignInPaused = errors.New("sign-in paused")
+
 // OIDCRoute makes this server an OpenID Connect provider, so a service signs
 // people in with their Revoked account using an ordinary OIDC client library:
 //
@@ -90,6 +103,14 @@ const auditSignInApproved = "sign_in_approved"
 //	POST /oidc/authorize/consent         app session + {ticket, approve, scopes, links, identityId, signature} -> {redirect}
 //	POST /oidc/token                     authorization_code + PKCE -> id_token
 //	GET  /oidc/userinfo                  Bearer access token -> claims
+//
+// The person controls a service they signed in to with
+//
+//	POST /api/sign-ins/{id}/pause        refuses sign-ins, holds what it reads
+//	POST /api/sign-ins/{id}/resume       undoes that
+//	POST /api/sign-ins/{id}/disconnect   {"newId"?} ends what it can do here
+//
+// None of them reach the session the service keeps for itself.
 //
 // A sign-in is approved in the Revoked app and nowhere else. The browser page
 // only passes the request on to the app; the app opens it with its session,
@@ -168,7 +189,80 @@ func OIDCRoute(app core.App, root *server.RootKey) {
 			return oidcUserinfo(app, re, root)
 		})
 
+		e.Router.POST("/api/sign-ins/{id}/pause", func(re *core.RequestEvent) error {
+			row, err := ownedSignIn(app, re)
+			if err != nil {
+				return err
+			}
+			if err := services.PauseSignIn(app, row); err != nil {
+				return re.InternalServerError("Failed to pause the service", err)
+			}
+			return signInChanged(app, re, row, auditSignInPaused, nil)
+		})
+
+		e.Router.POST("/api/sign-ins/{id}/resume", func(re *core.RequestEvent) error {
+			row, err := ownedSignIn(app, re)
+			if err != nil {
+				return err
+			}
+			if err := services.ResumeSignIn(app, row); err != nil {
+				return re.InternalServerError("Failed to activate the service", err)
+			}
+			return signInChanged(app, re, row, auditSignInResumed, nil)
+		})
+
+		e.Router.POST("/api/sign-ins/{id}/disconnect", func(re *core.RequestEvent) error {
+			row, err := ownedSignIn(app, re)
+			if err != nil {
+				return err
+			}
+			var body struct {
+				NewID bool `json:"newId"`
+			}
+			if err := re.BindBody(&body); err != nil {
+				return re.BadRequestError("Invalid request body", nil)
+			}
+			if err := services.DisconnectSignIn(app, row, body.NewID); err != nil {
+				return re.InternalServerError("Failed to disconnect the service", err)
+			}
+			return signInChanged(app, re, row, auditSignInDisconnected, map[string]any{"newId": body.NewID})
+		})
+
 		return e.Next()
+	})
+}
+
+// ownedSignIn finds the row named in the path for the person asking.
+func ownedSignIn(app core.App, re *core.RequestEvent) (*core.Record, error) {
+	if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
+		return nil, re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+	}
+	row, err := app.FindRecordById(util.Coll.SignIns, re.Request.PathValue("id"))
+	if err != nil || row == nil || row.GetString(util.Fields.SignIn.User) != re.Auth.Id {
+		return nil, re.NotFoundError("Sign-in not found", nil)
+	}
+	return row, nil
+}
+
+// signInChanged records a change to a service's row and answers with where the
+// row now stands. It names the service and the choice, never what was shared.
+func signInChanged(app core.App, re *core.RequestEvent, row *core.Record, action string, extra map[string]any) error {
+	f := util.Fields.SignIn
+	fields := map[string]any{"clientId": row.GetString(f.ClientId)}
+	for k, v := range extra {
+		fields[k] = v
+	}
+	saveAuditRow(app, re, auditRow{
+		user:       re.Auth.Id,
+		workspace:  re.Auth.GetString(util.Fields.User.ActiveWorkspace),
+		action:     action,
+		collection: util.Coll.SignIns,
+		recordID:   row.Id,
+		fields:     fields,
+	})
+	return re.JSON(http.StatusOK, map[string]any{
+		f.Status:        services.SignInStatus(row),
+		f.NewIdOnReturn: row.GetBool(f.NewIdOnReturn),
 	})
 }
 
@@ -382,6 +476,13 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 	}
 	user := re.Auth
 
+	// The service hears what it hears from any decline, so it can't tell a
+	// pause from a no. The app learns which service to offer to activate.
+	row := services.FindSignIn(app, user.Id, req.clientID)
+	if row != nil && services.SignInStatus(row) == util.StatusPaused {
+		return re.JSON(http.StatusOK, map[string]any{"redirect": oidcDeclined(req), "paused": row.Id})
+	}
+
 	ticket := oidcTickets.put(&oidcTicket{req: *req, user: user.Id}, util.OIDCRequestTTL)
 
 	// What each scope would give away, shown before the person agrees to it.
@@ -409,6 +510,12 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 		"scopes":  scopes,
 		"links":   linkOptions(app, user, req.linkKeys),
 	}
+	if row != nil && services.SignInStatus(row) == util.StatusDisconnected {
+		answer["disconnected"] = map[string]any{
+			"at":    row.GetString(util.Fields.SignIn.DisconnectedAt),
+			"newId": row.GetBool(util.Fields.SignIn.NewIdOnReturn),
+		}
+	}
 	if slices.Contains(req.scopes, util.OIDCScopeProfile) {
 		options, selected := nameOptions(app, user, req.clientID)
 		answer["nameOptions"] = options
@@ -423,7 +530,8 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 // names, then the entries of their active workspace that read as a name. The
 // one selected is what they gave this service last time, otherwise an entry
 // under the plain key "name" if they have one, otherwise none: a name is shared
-// only once someone picks it.
+// only once someone picks it. Someone coming back under a new ID starts with
+// none, because their usual name is what would give them away.
 func nameOptions(app core.App, user *core.Record, clientID string) ([]map[string]any, *services.SignInNameChoice) {
 	options := []map[string]any{}
 	i := util.Fields.Identity
@@ -461,6 +569,9 @@ func nameOptions(app core.App, user *core.Record, clientID string) ([]map[string
 				return options, last
 			}
 		}
+	}
+	if row := services.FindSignIn(app, user.Id, clientID); row != nil && row.GetBool(util.Fields.SignIn.NewIdOnReturn) {
+		return options, nil
 	}
 	return options, plain
 }
@@ -545,9 +656,7 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		}
 	}
 	if !body.Approve {
-		return re.JSON(http.StatusOK, map[string]any{"redirect": oidcRedirect(req.redirectURI, map[string]string{
-			"error": "access_denied", "error_description": "The person declined.", "state": req.state, "iss": req.issuer,
-		})})
+		return re.JSON(http.StatusOK, map[string]any{"redirect": oidcDeclined(&req)})
 	}
 
 	// Only what was asked for can be granted, whatever the page sends.
@@ -595,6 +704,11 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 	var grant *services.SignInGrant
 	var signIn *core.Record
 	err := app.RunInTransaction(func(tx core.App) error {
+		// Inside the transaction, or a pause landing now would be overwritten
+		// by the active status this approval writes.
+		if row := services.FindSignIn(tx, t.user, req.clientID); row != nil && services.SignInStatus(row) == util.StatusPaused {
+			return errSignInPaused
+		}
 		linkID := ""
 		if len(choices) > 0 {
 			token, err := util.GenerateToken(32)
@@ -618,6 +732,9 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		})
 		return err
 	})
+	if errors.Is(err, errSignInPaused) {
+		return appErrorResponse(re, http.StatusConflict, &util.Errors.OIDCSignInPaused)
+	}
 	if errors.Is(err, services.ErrSignInRecord) {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCLinkRecordInvalid)
 	}
@@ -639,12 +756,21 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		scopes:   granted,
 		authTime: time.Now(),
 		grant:    grant,
+
+		generation: signIn.GetInt(util.Fields.SignIn.Generation),
 	}, util.OIDCCodeTTL)
 	app.Logger().Info("OIDC sign-in approved", "user", t.user, "client", req.clientID)
 
 	return re.JSON(http.StatusOK, map[string]any{"redirect": oidcRedirect(req.redirectURI, map[string]string{
 		"code": code, "state": req.state, "iss": req.issuer,
 	})})
+}
+
+// oidcDeclined is the redirect that tells a service the answer is no.
+func oidcDeclined(req *oidcAuthRequest) string {
+	return oidcRedirect(req.redirectURI, map[string]string{
+		"error": "access_denied", "error_description": "The person declined.", "state": req.state, "iss": req.issuer,
+	})
 }
 
 // verifyOIDCApproval checks that an approval of ticket was signed by one of
@@ -708,6 +834,9 @@ func oidcToken(app core.App, re *core.RequestEvent, root *server.RootKey) error 
 	if err != nil || user == nil {
 		return invalid()
 	}
+	if !services.SignInAllows(app, c.user, c.req.clientID, c.generation) {
+		return invalid()
+	}
 	keys, err := root.Issuer()
 	if err != nil {
 		return oauthError(re, http.StatusInternalServerError, "server_error", "The signing key is unavailable.")
@@ -736,6 +865,8 @@ func oidcToken(app core.App, re *core.RequestEvent, root *server.RootKey) error 
 		clientID: c.req.clientID,
 		scopes:   c.scopes,
 		grant:    c.grant,
+
+		generation: c.generation,
 	}, util.OIDCAccessTokenTTL)
 
 	re.Response.Header().Set("Cache-Control", "no-store")
@@ -761,10 +892,12 @@ func oidcUserinfo(app core.App, re *core.RequestEvent, root *server.RootKey) err
 	}
 	a, ok := oidcTokens.peek(token)
 	var user *core.Record
-	if ok {
+	// Checked on every read: without it a token from before a disconnect would
+	// read the subject a person came back under, tying the two together.
+	if ok && services.SignInAllows(app, a.user, a.clientID, a.generation) {
 		user, _ = app.FindRecordById(util.Coll.Users, a.user)
 	}
-	if !ok || user == nil {
+	if user == nil {
 		re.Response.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 		return oauthError(re, http.StatusUnauthorized, "invalid_token", "The access token is invalid or expired.")
 	}

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -69,11 +70,17 @@ func OIDCIssuer(domain string) string {
 
 // PairwiseSubject derives the subject a person has at one service: stable for
 // that service, and unrelated to the subject the same person has at any
-// other, so services cannot match their users across each other.
-func PairwiseSubject(secret []byte, userID, clientID string) string {
+// other, so services cannot match their users across each other. A higher
+// version is a new subject, unrelated to the earlier ones. Version 0 adds
+// nothing to the input, so subjects issued before versions existed still hold.
+func PairwiseSubject(secret []byte, userID, clientID string, version int) string {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(clientID))
 	mac.Write([]byte{0})
 	mac.Write([]byte(userID))
+	if version > 0 {
+		mac.Write([]byte{0})
+		mac.Write([]byte(strconv.Itoa(version)))
+	}
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }

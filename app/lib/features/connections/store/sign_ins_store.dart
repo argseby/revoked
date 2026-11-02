@@ -35,6 +35,15 @@ abstract class _SignInsStore with Store {
   @observable
   String? errorMessage;
 
+  /// A pause, activation or disconnect is on its way.
+  @observable
+  bool isChanging = false;
+
+  /// The choice in the disconnect dialog: whether the service gets a new ID.
+  /// It can't be undone, so it starts off every time the dialog opens.
+  @observable
+  bool newIdOnDisconnect = false;
+
   /// Tracks this list for the cache and the first-load skeleton.
   final LoadState loadState = LoadState();
 
@@ -88,6 +97,37 @@ abstract class _SignInsStore with Store {
       if (!loadState.isCurrent(ticket)) return;
       runInAction(() => errorMessage = describeError(e));
       loadState.fail(ticket, errorMessage!);
+    }
+  }
+
+  /// Refuses new sign-ins at the service and pauses what it may read.
+  Future<bool> pause(SignInService service) => _control(service, 'pause');
+
+  /// Undoes [pause].
+  Future<bool> activate(SignInService service) => _control(service, 'resume');
+
+  /// Ends what the service can do here, giving it a new ID if
+  /// [newIdOnDisconnect] is set. The login it keeps for itself is out of reach.
+  Future<bool> disconnect(SignInService service) =>
+      _control(service, 'disconnect', {'newId': newIdOnDisconnect});
+
+  @action
+  Future<bool> _control(
+    SignInService service,
+    String action, [
+    Map<String, dynamic> body = const {},
+  ]) async {
+    errorMessage = null;
+    isChanging = true;
+    try {
+      await _api.post('/api/sign-ins/${service.id}/$action', body: body);
+      await load();
+      return true;
+    } catch (e) {
+      runInAction(() => errorMessage = describeError(e));
+      return false;
+    } finally {
+      runInAction(() => isChanging = false);
     }
   }
 

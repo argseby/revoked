@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/connection.dart';
@@ -11,6 +12,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -99,7 +101,9 @@ class ConnectionsList extends StatelessWidget {
                       c,
                       store.linksByConnection[c.id] ?? const [],
                     ),
-                    trailing: c.isExpired
+                    trailing: c.paused
+                        ? const AppBadge(label: 'Paused')
+                        : c.isExpired
                         ? const AppBadge(label: 'Expired')
                         : null,
                     onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
@@ -162,12 +166,32 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       AppBarTitle(title: _connection?.name ?? 'Connected tool', onBack: _back);
 
   Future<void> _disconnect(Connection connection) async {
+    final store = Stores.connections;
+    final live = (store.linksByConnection[connection.id] ?? const <Link>[])
+        .where((l) => l.status == 'active' || l.status == 'paused')
+        .length;
+    runInAction(() => store.revokeLinksOnDisconnect = false);
     final ok = await showAppDialog(
       context: context,
       title: 'Disconnect ${connection.name}?',
-      message:
-          'It stops seeing its links. The links stay yours and keep working '
-          'until you revoke them, even ones you sent to it.',
+      message: connection.paused
+          ? 'It stops seeing its links. Its paused links stay paused until you '
+                'activate or revoke them.'
+          : 'It stops seeing its links. The links stay yours and keep working '
+                'until you revoke them, even ones you sent to it.',
+      content: live == 0
+          ? null
+          : Observer(
+              builder: (_) => AppCheckRow(
+                label: 'Revoke its links too',
+                subtitle:
+                    'Nobody will be able to open '
+                    '${live == 1 ? 'this link' : 'these $live links'}.',
+                value: store.revokeLinksOnDisconnect,
+                onChanged: (v) =>
+                    runInAction(() => store.revokeLinksOnDisconnect = v),
+              ),
+            ),
       confirmLabel: 'Disconnect',
       confirmIcon: AppIcons.linkSlash,
       cancelLabel: 'Keep',
@@ -181,6 +205,20 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         context,
         'Couldn’t disconnect',
         subtitle: Stores.connections.errorMessage,
+      );
+    }
+  }
+
+  Future<void> _setPaused(Connection connection, bool paused) async {
+    final store = Stores.connections;
+    final ok = paused
+        ? await store.pause(connection.id)
+        : await store.activate(connection.id);
+    if (!ok && mounted) {
+      AppToast.error(
+        context,
+        paused ? 'Couldn’t pause' : 'Couldn’t activate',
+        subtitle: store.errorMessage,
       );
     }
   }
@@ -230,7 +268,10 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
 
     return AppDetailPage(
       header: AppDetailHeader(
-        badges: [if (connection.isExpired) const AppBadge(label: 'Expired')],
+        badges: [
+          if (connection.paused) const AppBadge(label: 'Paused'),
+          if (connection.isExpired) const AppBadge(label: 'Expired'),
+        ],
         title: connection.name,
         subtitle: connection.clientId,
         subtitleMono: true,
@@ -239,7 +280,12 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         AppListGroup(
           title: 'Connection',
           trailing: const SizedBox.shrink(),
-          footer: connection.isExpired
+          footer: connection.paused
+              ? Text(
+                  '${connection.name} can’t do anything while it’s paused. Its '
+                  'links are paused too.',
+                )
+              : connection.isExpired
               ? const Text(
                   'This connection expired. Connect again from the tool to '
                   'renew it.',
@@ -287,11 +333,30 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         ),
         AppDetailManage(
           actions: [
+            if (connection.paused)
+              AppButton(
+                label: 'Activate',
+                icon: AppIcons.play,
+                busy: store.isChanging,
+                onTap: store.isChanging
+                    ? null
+                    : () => _setPaused(connection, false),
+              )
+            else if (!connection.isExpired)
+              AppButton(
+                label: 'Pause',
+                icon: AppIcons.pause,
+                style: AppButtonStyle.accent,
+                busy: store.isChanging,
+                onTap: store.isChanging
+                    ? null
+                    : () => _setPaused(connection, true),
+              ),
             AppButton(
               label: 'Disconnect',
               icon: AppIcons.linkSlash,
               style: AppButtonStyle.destructive,
-              onTap: () => _disconnect(connection),
+              onTap: store.isChanging ? null : () => _disconnect(connection),
             ),
           ],
         ),

@@ -196,7 +196,8 @@ a change at the next sign-in.
 
 `sub` is different at every service: the same person signing in to two
 services gives each its own identifier, so services cannot match their users
-with each other. It stays the same for one service across sign-ins.
+with each other. It stays the same for one service across sign-ins, unless the
+person asks for a new one ([Pausing and disconnecting](#pausing-and-disconnecting)).
 
 The person can decline every scope but `openid` in the app. The
 `scope` returned by the token endpoint lists what was granted.
@@ -242,8 +243,8 @@ link and replaces its token.
 Every approval also leaves a row in the person's `signIns` collection: the
 service's origin, the scopes it has learned, its link if it has one, where its
 name comes from, and when the person last signed in. The app lists these under **Settings → Connected
-tools**. The row is read-only and holds no values, and each approval is written
-to the audit log as `sign_in_approved`.
+tools**. The row can't be written through the collection API and holds no
+values, and each approval is written to the audit log as `sign_in_approved`.
 
 ## Sessions
 
@@ -254,6 +255,30 @@ session of its own. Consequently:
 - There are no refresh tokens. The ID token proves a sign-in that just
   happened; the service keeps its own session after that.
 - There is nothing to log out of at the provider.
+
+## Pausing and disconnecting
+
+The person can stop a service at any time. None of this reaches the session your
+service keeps for itself, so a person stays signed in with you until you end it.
+
+| | Pause | Disconnect | Disconnect with a new ID |
+|---|---|---|---|
+| Sign-in requests | Answered `access_denied`, exactly as if declined | Asked again, in the app | Asked again, in the app |
+| Access tokens and unredeemed codes | Refused while paused, good again after | Refused for good | Refused for good |
+| Grants | `paused`, no values | `revoked` | `revoked` |
+| `sub` on return | The same | The same | A new one |
+
+The endpoints are `POST /api/sign-ins/{id}/pause`, `/resume` and `/disconnect`
+with `{"newId": true}`, in the [reference](reference/openid-connect.md).
+
+A new `sub` is unrelated to the old one, and the grant that comes with the next
+share has a new id. Treat that sign-in like anyone else's first one: a new person
+to you. Your old account for them stays yours to delete. Don't match them up by
+email or name to bring the old account back. They asked to be someone new, and
+they may decline to share either.
+
+A paused service gets the same `access_denied` as a decline, so it can't tell a
+pause from a no.
 
 ## The signing key
 

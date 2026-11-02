@@ -33,6 +33,8 @@ Future<bool> showAppDialog({
     // the scrim is the only thing that would make the page look grey.
     barrierColor: Theme.of(context).colorScheme.scrim.withValues(alpha: 0.2),
     builder: (ctx) => AlertDialog(
+      // A long address or a short window must not push the buttons off screen.
+      scrollable: true,
       shape: const RoundedRectangleBorder(borderRadius: AppRadius.allLg),
       title: icon == null
           ? Text(title).header

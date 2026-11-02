@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"revoked/cmd/revoked/server"
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 	"strings"
 	"time"
@@ -60,6 +61,12 @@ var connectLimiter = util.NewRateLimiter(util.LimitFromEnv("RATELIMIT_CONNECT_RE
 // with
 //
 //	POST /api/connections/{id}/permissions   {"allowRevoke"?, "allowHandOver"?}
+//
+// and can stop the tool altogether:
+//
+//	POST /api/connections/{id}/pause         refuses its tokens, holds its links
+//	POST /api/connections/{id}/resume        undoes that
+//	POST /api/connections/{id}/disconnect    {"revokeLinks"?}
 //
 // Nothing here reads the vault: a token is not a PocketBase auth record, so no
 // collection rule ever admits it. Nor does a tool keep anything here — what it
@@ -133,6 +140,11 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 					conn.Set(util.Fields.Connection.Workspace, workspace)
 					conn.Set(util.Fields.Connection.ClientId, origin)
 				}
+				// A pause holds until the owner lifts it. Connecting again is not
+				// that, because a tool can ask for it at any time.
+				if conn.GetBool(util.Fields.Connection.Paused) {
+					return errConnectionPaused
+				}
 				expired := !conn.IsNew() && util.ConnectionExpired(conn.GetDateTime(util.Fields.Connection.ExpiresAt).Time())
 				if body.Reuse {
 					// Without the owner's say nothing is renewed: a tool that
@@ -188,6 +200,9 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			})
 			if errors.Is(err, errNotConnected) {
 				return appErrorResponse(re, http.StatusConflict, &util.Errors.ConnectionNotConnected)
+			}
+			if errors.Is(err, errConnectionPaused) {
+				return appErrorResponse(re, http.StatusConflict, &util.Errors.ConnectionPaused)
 			}
 			if err != nil {
 				return re.InternalServerError("Failed to connect", err)
@@ -261,10 +276,11 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				ok := !expires.IsZero() && expires.Time().After(time.Now()) &&
 					strings.TrimSpace(body.RedirectUri) == redirect &&
 					subtle.ConstantTimeCompare([]byte(util.PKCEChallenge(body.Verifier)), []byte(challenge)) == 1
-				if ok && polled {
+				if ok {
 					owner, err := tx.FindRecordById(util.Coll.Connections,
 						row.GetString(util.Fields.ConnectionToken.Connection))
-					ok = err == nil && owner.GetString(util.Fields.Connection.ClientId) == origin
+					ok = err == nil && !owner.GetBool(util.Fields.Connection.Paused) &&
+						(!polled || owner.GetString(util.Fields.Connection.ClientId) == origin)
 				}
 				if !ok {
 					// Committed, not rolled back: the spent code stays spent.
@@ -389,6 +405,48 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			})
 		})
 
+		e.Router.POST("/api/connections/{id}/pause", func(re *core.RequestEvent) error {
+			conn, err := ownedConnection(app, re)
+			if err != nil {
+				return err
+			}
+			if err := services.PauseConnection(app, conn); err != nil {
+				return re.InternalServerError("Failed to pause the tool", err)
+			}
+			auditConnection(app, re, conn, auditToolPaused, nil)
+			return re.JSON(http.StatusOK, map[string]any{"paused": true})
+		})
+
+		e.Router.POST("/api/connections/{id}/resume", func(re *core.RequestEvent) error {
+			conn, err := ownedConnection(app, re)
+			if err != nil {
+				return err
+			}
+			if err := services.ResumeConnection(app, conn); err != nil {
+				return re.InternalServerError("Failed to activate the tool", err)
+			}
+			auditConnection(app, re, conn, auditToolResumed, nil)
+			return re.JSON(http.StatusOK, map[string]any{"paused": false})
+		})
+
+		e.Router.POST("/api/connections/{id}/disconnect", func(re *core.RequestEvent) error {
+			conn, err := ownedConnection(app, re)
+			if err != nil {
+				return err
+			}
+			var body struct {
+				RevokeLinks bool `json:"revokeLinks"`
+			}
+			if err := re.BindBody(&body); err != nil {
+				return re.BadRequestError("Invalid request body", nil)
+			}
+			if err := services.DisconnectConnection(app, conn, body.RevokeLinks); err != nil {
+				return re.InternalServerError("Failed to disconnect", err)
+			}
+			auditConnection(app, re, conn, auditToolOwnerDisconnected, map[string]any{"revokeLinks": body.RevokeLinks})
+			return re.NoContent(http.StatusNoContent)
+		})
+
 		e.Router.DELETE("/api/connection", func(re *core.RequestEvent) error {
 			conn, _, ok := connectionFromRequest(app, re)
 			if !ok {
@@ -413,6 +471,21 @@ var errGrant error = grantError{}
 
 // errNotConnected ends a reuse that found no live connection to reuse.
 var errNotConnected = errors.New("not connected")
+
+// errConnectionPaused ends an authorize for a tool the owner has paused.
+var errConnectionPaused = errors.New("connection paused")
+
+// ownedConnection finds the connection named in the path for the person asking.
+func ownedConnection(app core.App, re *core.RequestEvent) (*core.Record, error) {
+	if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
+		return nil, re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+	}
+	conn, err := app.FindRecordById(util.Coll.Connections, re.Request.PathValue("id"))
+	if err != nil || conn == nil || conn.GetString(util.Fields.Connection.User) != re.Auth.Id {
+		return nil, re.NotFoundError("Connection not found", nil)
+	}
+	return conn, nil
+}
 
 // connectionLastUsedResolution keeps "last used" honest without a write per request.
 const connectionLastUsedResolution = 10 * time.Minute
@@ -442,6 +515,11 @@ func connectionFromRequest(app core.App, re *core.RequestEvent) (conn *core.Reco
 	if util.ConnectionExpired(conn.GetDateTime(util.Fields.Connection.ExpiresAt).Time()) {
 		return refuse(&util.Errors.ConnectionExpired)
 	}
+	// 403, not 401: a tool drops its token on a 401, and this one comes back.
+	if conn.GetBool(util.Fields.Connection.Paused) {
+		_ = appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionPaused)
+		return nil, false, false
+	}
 	now := time.Now()
 	touch := func(r *core.Record, field string) bool {
 		last := r.GetDateTime(field)
@@ -459,9 +537,9 @@ func connectionFromRequest(app core.App, re *core.RequestEvent) (conn *core.Reco
 	return conn, first, true
 }
 
-// What a connected tool does, as the audit log names it. The owner's own
-// disconnect goes through the collection API and is recorded there as a
-// delete.
+// What a connected tool does, and what its owner does to it, as the audit log
+// names it. An app older than the disconnect route still deletes through the
+// collection API, which records it as a delete.
 const (
 	auditToolAuthorized   = "tool_authorized"    // the owner connected or renewed it
 	auditToolBrowserAdded = "tool_browser_added" // the app let another browser in, the connection as it was
@@ -471,6 +549,9 @@ const (
 	auditToolDisconnected = "tool_disconnected"  // it disconnected itself
 
 	auditToolPermissionChanged = "tool_permission_changed" // the owner changed what it may do
+	auditToolPaused            = "tool_paused"             // the owner paused it
+	auditToolResumed           = "tool_resumed"            // the owner activated it again
+	auditToolOwnerDisconnected = "tool_owner_disconnected" // the owner disconnected it
 )
 
 // auditConnection records something done to or by a connection. The row names

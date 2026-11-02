@@ -1516,7 +1516,7 @@ paths:
         "400":
           description: "`connection_client_invalid`, `connection_redirect_invalid` or `connection_challenge_invalid`."
         "409":
-          description: "`connection_not_connected`: `reuse` was set, but the tool is not connected or its connection has lapsed."
+          description: "`connection_not_connected`: `reuse` was set, but the tool is not connected or its connection has lapsed. `connection_paused`: the owner paused the tool, and connecting again doesn't lift that."
   /api/connect/token:
     post:
       tags: [Connections]
@@ -1622,6 +1622,8 @@ paths:
                         url: { type: string, description: "Only when handed over and active." }
         "401":
           description: "`connection_unauthorized`, or `connection_expired` once the connection has lapsed."
+        "403":
+          description: "`connection_paused`: the owner paused the tool. Keep the token."
     delete:
       tags: [Connections]
       summary: Disconnect (the tool)
@@ -1633,6 +1635,8 @@ paths:
           description: Disconnected.
         "401":
           description: "`connection_unauthorized`, or `connection_expired` once the connection has lapsed."
+        "403":
+          description: "`connection_paused`: the owner paused the tool. Keep the token."
   /api/connection/links/{id}/revoke:
     post:
       tags: [Connections]
@@ -1655,7 +1659,7 @@ paths:
         "401":
           description: "`connection_unauthorized` or `connection_expired`."
         "403":
-          description: "`connection_revoke_not_allowed`."
+          description: "`connection_revoke_not_allowed`, or `connection_paused` while the owner has the tool paused."
         "404":
           description: Not a link of this tool.
   /api/connections/{id}/permissions:
@@ -1686,6 +1690,144 @@ paths:
           description: Both permissions as they now stand.
         "404":
           description: Not one of your connections.
+  /api/connections/{id}/pause:
+    post:
+      tags: [Connections]
+      summary: Pause a tool (the owner)
+      description: |
+        Refuses the tool's tokens with `connection_paused`, stops it connecting
+        another browser or adding links, and pauses its active links. Nothing
+        else changes, and its expiry keeps running.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: "`{ \"paused\": true }`."
+        "404":
+          description: Not one of your connections.
+  /api/connections/{id}/resume:
+    post:
+      tags: [Connections]
+      summary: Activate a paused tool (the owner)
+      description: |
+        Lets the tool's tokens work again and restores the links the pause
+        paused. A link the owner paused or changed themselves is left as it is.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: "`{ \"paused\": false }`."
+        "404":
+          description: Not one of your connections.
+  /api/connections/{id}/disconnect:
+    post:
+      tags: [Connections]
+      summary: Disconnect a tool (the owner)
+      description: |
+        Deletes the connection and its tokens. With `revokeLinks` its links are
+        revoked. Otherwise they stay the owner's, and one paused by pausing the
+        tool stays paused.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                revokeLinks: { type: boolean, description: "Also revoke every link the tool proposed." }
+      responses:
+        "204":
+          description: Disconnected.
+        "404":
+          description: Not one of your connections.
+  /api/sign-ins/{id}/pause:
+    post:
+      tags: [OpenID Connect]
+      summary: Pause a service you signed in to
+      description: |
+        Refuses new sign-ins at the service, its access tokens and its unredeemed
+        codes, and pauses its grant. An authorization request is answered
+        `access_denied`, the same as a decline. Does nothing to a disconnected
+        service.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: "`status` and `newIdOnReturn` as they now stand."
+        "404":
+          description: Not one of your sign-ins.
+  /api/sign-ins/{id}/resume:
+    post:
+      tags: [OpenID Connect]
+      summary: Activate a paused service
+      description: |
+        Undoes a pause. A grant the owner paused or changed themselves is left as
+        it is. Does nothing to a service that isn't paused.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: "`status` and `newIdOnReturn` as they now stand."
+        "404":
+          description: Not one of your sign-ins.
+  /api/sign-ins/{id}/disconnect:
+    post:
+      tags: [OpenID Connect]
+      summary: Disconnect a service you signed in to
+      description: |
+        Revokes its grant in whichever workspace it lives, and refuses for good
+        every access token and code issued so far. The row stays, marked
+        `disconnected`. A later sign-in needs a new approval in the app.
+
+        With `newId` the next sign-in gets a new `sub`, unrelated to the old one,
+        and a new grant id, and the remembered name is forgotten. It can't be
+        undone: calling this again can add a new ID, never take one back. None
+        of this reaches the session the service keeps for itself.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newId: { type: boolean, description: "Give the service a new `sub` at the next sign-in." }
+      responses:
+        "200":
+          description: "`status` and `newIdOnReturn` as they now stand."
+        "404":
+          description: Not one of your sign-ins.
   /api/requests/callback-test:
     post:
       tags: [Grants]
@@ -2390,6 +2532,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
 
+        "409":
+          description: "`oidc_sign_in_paused`: the person paused this service after the request was opened."
   /oidc/token:
     post:
       tags: [OpenID Connect]

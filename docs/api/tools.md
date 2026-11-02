@@ -153,8 +153,12 @@ curl "$SERVER/api/connection" -H "X-Revoked-Connection: $TOKEN"
 A `401` with `connection_unauthorized` means the tool was disconnected;
 `connection_expired` means its 90 days have run out. In both cases the token
 is of no further use, and a new connection can only be made by the owner,
-from the app. The full schemas are in the
-[Connections reference](reference/connections.md).
+from the app.
+
+A `403` with `connection_paused` means the owner paused the tool. Keep the
+token: it works again once they activate the tool. Until then the tool can't
+connect another browser either, and the links it proposed are paused. The full
+schemas are in the [Connections reference](reference/connections.md).
 
 ## A minimal tool
 

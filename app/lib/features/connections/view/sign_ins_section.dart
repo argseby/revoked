@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/sign_in_consent.dart';
@@ -8,8 +9,10 @@ import 'package:revoked_app/core/models/sign_in_service.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -52,6 +55,11 @@ class SignInServicesGroup extends StatelessWidget {
                 icon: AppIcons.globe,
                 title: s.host,
                 subtitle: _summary(s),
+                trailing: s.isDisconnected
+                    ? const AppBadge(label: 'Disconnected')
+                    : s.isPaused
+                    ? const AppBadge(label: 'Paused')
+                    : null,
                 onTap: () => context.go(AppRoutes.signInServiceFor(s.id)),
               ),
           ],
@@ -63,14 +71,16 @@ class SignInServicesGroup extends StatelessWidget {
   String _summary(SignInService s) {
     final link = Stores.signIns.links[s.link];
     return [
-      if (link != null && link.status == 'active') 'Sharing entries',
+      if (!s.isDisconnected && link != null && link.status == 'active')
+        'Sharing entries',
       'last signed in ${dayLabel(s.lastSignInAt)}',
     ].join(' · ');
   }
 }
 
-/// One service: when you signed in, what it learned, and the entries it may
-/// read. There is nothing to end here: the service keeps its own login.
+/// One service: when you signed in, what it learned, the entries it may read,
+/// and the way to pause or disconnect it. None of that signs you out there:
+/// the service keeps its own login.
 class SignInServicePage extends StatefulWidget {
   final String serviceId;
 
@@ -133,6 +143,124 @@ class _SignInServicePageState extends State<SignInServicePage> {
     }
   }
 
+  Future<void> _report(String title, bool ok) async {
+    if (!ok && mounted) {
+      AppToast.error(context, title, subtitle: Stores.signIns.errorMessage);
+    }
+  }
+
+  Future<void> _disconnect(SignInService service) async {
+    final store = Stores.signIns;
+    runInAction(() => store.newIdOnDisconnect = false);
+    final ok = await showAppDialog(
+      context: context,
+      title: 'Disconnect ${service.host}?',
+      message:
+          'It can’t read your entries any more. It can’t sign you in unless you '
+          'approve it again. You may stay signed in there until you sign out.',
+      content: Observer(
+        builder: (_) => AppCheckRow(
+          label: 'Get a new ID',
+          subtitle: _newIdWarning,
+          value: store.newIdOnDisconnect,
+          onChanged: (v) => runInAction(() => store.newIdOnDisconnect = v),
+        ),
+      ),
+      confirmLabel: 'Disconnect',
+      confirmIcon: AppIcons.linkSlash,
+      cancelLabel: 'Keep',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await _report('Couldn’t disconnect', await store.disconnect(service));
+  }
+
+  Future<void> _getNewId(SignInService service) async {
+    final store = Stores.signIns;
+    final ok = await showAppDialog(
+      context: context,
+      title: 'Get a new ID for ${service.host}?',
+      message: _newIdWarning,
+      confirmLabel: 'Get a new ID',
+      confirmIcon: AppIcons.arrowRepeat,
+      cancelLabel: 'Keep',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    runInAction(() => store.newIdOnDisconnect = true);
+    await _report('Couldn’t get a new ID', await store.disconnect(service));
+  }
+
+  static const _newIdWarning =
+      'If you come back, it sees you as someone new. You can’t get your old '
+      'account there back.';
+
+  String _signInFooter(SignInService service) {
+    final host = service.host;
+    if (service.isDisconnected) {
+      return '${service.newIdOnReturn ? 'If you sign in again, $host sees you as someone new.' : 'If you sign in again, $host knows you as before.'} '
+          'You may still be signed in there. To sign out, go to $host.';
+    }
+    if (service.isPaused) {
+      return 'You can’t sign in to $host while it’s paused. To sign out, go to '
+          '$host.';
+    }
+    return 'To sign out, go to $host.';
+  }
+
+  Widget? _manage(SignInService service) {
+    final store = Stores.signIns;
+    final busy = store.isChanging;
+    if (service.isDisconnected) {
+      if (service.newIdOnReturn) return null;
+      return AppDetailManage(
+        actions: [
+          AppButton(
+            label: 'Get a new ID',
+            icon: AppIcons.arrowRepeat,
+            style: AppButtonStyle.destructive,
+            busy: busy,
+            onTap: busy ? null : () => _getNewId(service),
+          ),
+        ],
+      );
+    }
+    return AppDetailManage(
+      note: 'This doesn’t sign you out of ${service.host}.',
+      actions: [
+        if (service.isPaused)
+          AppButton(
+            label: 'Activate',
+            icon: AppIcons.play,
+            busy: busy,
+            onTap: busy
+                ? null
+                : () async => _report(
+                    'Couldn’t activate',
+                    await store.activate(service),
+                  ),
+          )
+        else
+          AppButton(
+            label: 'Pause',
+            icon: AppIcons.pause,
+            style: AppButtonStyle.accent,
+            busy: busy,
+            onTap: busy
+                ? null
+                : () async =>
+                      _report('Couldn’t pause', await store.pause(service)),
+          ),
+        AppButton(
+          label: 'Disconnect',
+          icon: AppIcons.linkSlash,
+          style: AppButtonStyle.destructive,
+          onTap: busy ? null : () => _disconnect(service),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Observer(builder: (_) => _build(context));
@@ -176,9 +304,14 @@ class _SignInServicePageState extends State<SignInServicePage> {
     final host = service.host;
     final link = store.links[service.link];
     const quiet = SizedBox.shrink();
+    final manage = _manage(service);
 
     return AppDetailPage(
       header: AppDetailHeader(
+        badges: [
+          if (service.isDisconnected) const AppBadge(label: 'Disconnected'),
+          if (service.isPaused) const AppBadge(label: 'Paused'),
+        ],
         title: host,
         subtitle: service.clientId,
         subtitleMono: true,
@@ -187,7 +320,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
         AppListGroup(
           title: 'Sign-in',
           trailing: quiet,
-          footer: Text('To sign out, go to $host.'),
+          footer: Text(_signInFooter(service)),
           children: [
             AppDetailRow(
               icon: AppIcons.calendar,
@@ -199,6 +332,12 @@ class _SignInServicePageState extends State<SignInServicePage> {
               label: 'Last signed in',
               value: dayLabel(service.lastSignInAt),
             ),
+            if (service.isDisconnected)
+              AppDetailRow(
+                icon: AppIcons.linkSlash,
+                label: 'Disconnected',
+                value: dayLabel(service.disconnectedAt),
+              ),
           ],
         ),
         AppListGroup(
@@ -236,13 +375,16 @@ class _SignInServicePageState extends State<SignInServicePage> {
             else
               AppDetailRow(
                 icon: AppIcons.info,
-                label: service.link.isEmpty
+                label: service.isDisconnected && service.link.isEmpty
+                    ? 'Nothing is shared any more'
+                    : service.link.isEmpty
                     ? 'You didn’t share any entries'
                     : 'Shared from another workspace. Switch workspace to see '
                           'it.',
               ),
           ],
         ),
+        ?manage,
       ],
     );
   }

@@ -23,6 +23,15 @@ class SignInService {
   final String? lastSignInAt;
   final String? created;
 
+  /// `active`, `paused` or `disconnected`. A row from before there were
+  /// statuses is active.
+  final String status;
+
+  final String? disconnectedAt;
+
+  /// Whether the service gets a new ID the next time this person signs in.
+  final bool newIdOnReturn;
+
   const SignInService({
     required this.id,
     required this.clientId,
@@ -32,7 +41,14 @@ class SignInService {
     this.name = '',
     this.lastSignInAt,
     this.created,
+    this.status = 'active',
+    this.disconnectedAt,
+    this.newIdOnReturn = false,
   });
+
+  bool get isPaused => status == 'paused';
+
+  bool get isDisconnected => status == 'disconnected';
 
   /// The host, which is what the service provably is.
   String get host {
@@ -62,6 +78,9 @@ class SignInService {
       name: (identity?['name'] ?? entry?['value'] ?? '') as String,
       lastSignInAt: date('lastSignInAt'),
       created: date('created'),
+      status: date('status') ?? 'active',
+      disconnectedAt: date('disconnectedAt'),
+      newIdOnReturn: json['newIdOnReturn'] as bool? ?? false,
     );
   }
 }

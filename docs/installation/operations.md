@@ -12,7 +12,10 @@ you what happened without becoming a second copy of your secrets.
 
 An approved [Sign in with Revoked](../api/sign-in.md) is logged under the
 `signIns` collection as `sign_in_approved`, with the service's origin and the
-names of the scopes and vault keys it was given, never their values.
+names of the scopes and vault keys it was given, never their values. The person
+pausing, activating or disconnecting that service is logged there too, as
+`sign_in_paused`, `sign_in_resumed` and `sign_in_disconnected`, the last with
+whether they chose a new ID.
 
 What a connected tool does is logged under the `connections` collection, by
 the tool's origin:
@@ -26,9 +29,11 @@ the tool's origin:
   use, not one per request.
 - `tool_revoked_link` — it revoked one of its links, named in the row.
 - `tool_permission_changed` — the owner allowed or stopped that.
+- `tool_paused`, `tool_resumed` — the owner paused it, or activated it again.
+- `tool_owner_disconnected` — the owner disconnected it, with whether its links
+  were revoked. An older app disconnects through the collection instead, which
+  is an ordinary `delete`.
 - `tool_disconnected` — it disconnected itself.
-
-When the owner disconnects a tool, that's an ordinary `delete`.
 
 Only the superuser can read the log, in the `/_/` dashboard. Writes the server
 makes on its own (notifications, grant materialisation) don't come from a

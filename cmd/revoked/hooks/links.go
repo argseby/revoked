@@ -107,9 +107,12 @@ func validateLinkConnection(app core.App, rec *core.Record, before string) error
 		!conn.GetBool(util.Fields.Connection.AllowHandOver) {
 		return util.AsFieldValidationError(util.Fields.Link.HandedOver, util.Errors.LinkHandOverNotAllowed)
 	}
-	// A new link cannot join a connection the owner has let lapse.
+	// A new link cannot join a connection the owner has let lapse or paused.
 	if rec.IsNew() && util.ConnectionExpired(conn.GetDateTime(util.Fields.Connection.ExpiresAt).Time()) {
 		return util.AsFieldValidationError(util.Fields.Link.Connection, util.Errors.ConnectionExpired)
+	}
+	if rec.IsNew() && conn.GetBool(util.Fields.Connection.Paused) {
+		return util.AsFieldValidationError(util.Fields.Link.Connection, util.Errors.ConnectionPaused)
 	}
 	return nil
 }

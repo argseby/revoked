@@ -45,6 +45,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
   // Already connected, and the page that asked collects its answer itself:
   // the owner is asked whether this browser may join.
   final _joining = Local<bool>(false);
+  // The owner paused this tool, so nothing can be agreed until they lift it.
+  final _pausedTool = Local<String?>(null);
 
   bool get _polls =>
       widget.request != null && toolWatchesThisServer(widget.request!.poll);
@@ -71,6 +73,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
       return;
     }
     final existing = await Stores.connections.findByClient(r.client);
+    if (existing != null && existing.paused) {
+      if (!mounted) return;
+      _pausedTool.value = existing.id;
+      _checking.value = false;
+      return;
+    }
     if (existing != null && _polls) {
       if (!mounted) return;
       _joining.value = true;
@@ -151,7 +159,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   Widget _build(BuildContext context) {
     final r = widget.request;
-    final consenting = r != null && !_checking.value && !_done.value;
+    final paused = _pausedTool.value != null;
+    final consenting = r != null && !_checking.value && !_done.value && !paused;
     final joining = _joining.value;
     return AppFlowScaffold(
       title: !consenting
@@ -165,13 +174,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
           ? 'Another browser wants to use this connection'
           : 'Request from ${Uri.parse(r.client).host}',
       closeLabel: consenting ? 'Decline and go back' : 'Back to the app',
-      onClose: () =>
-          consenting ? _decline(context) : context.go(AppRoutes.overview),
+      onClose: () => consenting || paused
+          ? _decline(context)
+          : context.go(AppRoutes.overview),
       bottomBar: consenting ? _decision(context) : null,
       body: r == null
           ? _invalid(context)
           : _checking.value
           ? const Center(child: AppSpinner(large: true))
+          : paused
+          ? _paused(context, r)
           : _done.value
           ? _connected(context, r)
           : _consent(context, r),
@@ -190,6 +202,30 @@ class _ConnectScreenState extends State<ConnectScreen> {
           icon: AppIcons.arrowLeft,
           style: AppButtonStyle.accent,
           onTap: () => context.go(AppRoutes.overview),
+        ),
+      ],
+    );
+  }
+
+  Widget _paused(BuildContext context, ConnectRequest r) {
+    return AppStatusMessage(
+      icon: AppIcons.pause,
+      accent: Theme.of(context).colorScheme.onSurfaceVariant,
+      title: 'You paused ${r.name}',
+      message: 'Activate it to use it again.',
+      actions: [
+        AppButton(
+          label: 'Open tool',
+          icon: AppIcons.plug,
+          style: AppButtonStyle.accent,
+          onTap: () =>
+              context.go(AppRoutes.connectedToolFor(_pausedTool.value!)),
+        ),
+        AppButton(
+          label: 'Done',
+          icon: AppIcons.check,
+          style: AppButtonStyle.accent,
+          onTap: () => _decline(context),
         ),
       ],
     );

@@ -52,6 +52,8 @@ void main() {
   final decisions = <Map<String, dynamic>>[];
   final launched = <String>[];
   var refuse = false;
+  var paused = false;
+  Map<String, dynamic>? disconnected;
   var keyOnDevice = true;
   // The system prompt, answered yes unless a test says otherwise.
   final prompt = _Unlock(true);
@@ -73,7 +75,9 @@ void main() {
       case '/oidc/authorize/app':
         opened.add(jsonDecode(request.body) as Map<String, dynamic>);
         if (refuse) return json({'redirect': refusal});
+        if (paused) return json({'redirect': denied, 'paused': 's1'});
         return json({
+          'disconnected': ?disconnected,
           'ticket': ticket,
           'client': 'https://game.example',
           'account': {'email': 'ada@home.test'},
@@ -148,6 +152,8 @@ void main() {
     decisions.clear();
     launched.clear();
     refuse = false;
+    paused = false;
+    disconnected = null;
     keyOnDevice = true;
     prompt.asked.clear();
     Stores.identities.identities.clear();
@@ -272,6 +278,45 @@ void main() {
     expect(decisions, isEmpty);
     expect(launched, [refusal]);
     expect(find.text('This sign-in can’t continue'), findsOneWidget);
+  });
+
+  testWidgets('a paused service is refused unasked, and says how to undo it', (
+    tester,
+  ) async {
+    paused = true;
+    await show(tester);
+    expect(decisions, isEmpty);
+    expect(launched, [denied]);
+    expect(find.text('You paused game.example'), findsOneWidget);
+    expect(find.text('Open service'), findsOneWidget);
+  });
+
+  testWidgets('coming back under a new ID starts with nothing shared', (
+    tester,
+  ) async {
+    disconnected = {'at': '2026-11-02 10:00:00.000Z', 'newId': true};
+    await show(tester);
+    expect(find.textContaining('see you as someone new'), findsOneWidget);
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    final sent = decisions.single;
+    expect(sent['scopes'], isNot(contains('email')));
+    expect(sent['links'], isEmpty);
+  });
+
+  testWidgets('coming back under the same ID starts as usual and says so', (
+    tester,
+  ) async {
+    disconnected = {'at': '2026-11-02 10:00:00.000Z', 'newId': false};
+    await show(tester);
+    expect(find.textContaining('know you as before'), findsOneWidget);
+
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+    final sent = decisions.single;
+    expect(sent['scopes'], contains('email'));
+    expect(sent['links'], {'phone': 'r1'});
   });
 
   testWidgets('a service that waits gets the answer from the app, and the '

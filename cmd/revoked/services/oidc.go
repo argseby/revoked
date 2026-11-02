@@ -38,7 +38,11 @@ func PrimaryIdentity(app core.App, userID string) *core.Record {
 // subject is derived per service; everything else appears only under the
 // scope that carries it.
 func OIDCClaims(app core.App, user *core.Record, clientID string, secret []byte, scopes []string) map[string]any {
-	claims := map[string]any{"sub": util.PairwiseSubject(secret, user.Id, clientID)}
+	version := 0
+	if row := findSignIn(app, user.Id, clientID); row != nil {
+		version = row.GetInt(util.Fields.SignIn.SubjectVersion)
+	}
+	claims := map[string]any{"sub": util.PairwiseSubject(secret, user.Id, clientID, version)}
 	var identity *core.Record
 	identityLoaded := false
 	primary := func() *core.Record {
@@ -275,6 +279,11 @@ func DropSignInNameGrant(app core.App, userID, clientID string) error {
 	return app.Save(link)
 }
 
+// FindSignIn is a person's row for a service, if they ever signed in there.
+func FindSignIn(app core.App, userID, clientID string) *core.Record {
+	return findSignIn(app, userID, clientID)
+}
+
 func findSignIn(app core.App, userID, clientID string) *core.Record {
 	f := util.Fields.SignIn
 	row, err := app.FindFirstRecordByFilter(util.Coll.SignIns,
@@ -321,6 +330,8 @@ func RecordSignIn(app core.App, userID, clientID string, approval SignInApproval
 	}
 	row.Set(f.Scopes, learned)
 	row.Set(f.LastSignInAt, types.NowDateTime())
+	row.Set(f.Status, util.StatusActive)
+	row.Set(f.NewIdOnReturn, false)
 	if approval.LinkID != "" {
 		row.Set(f.Link, approval.LinkID)
 	}

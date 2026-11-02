@@ -114,6 +114,7 @@ var Errors = struct {
 	ConnectionExpired             AppError
 	ConnectionNotConnected        AppError
 	ConnectionRevokeNotAllowed    AppError
+	ConnectionPaused              AppError
 	LinkHandOverNotAllowed        AppError
 	LinkConnectionForeign         AppError
 	PasskeyOriginInvalid          AppError
@@ -145,6 +146,7 @@ var Errors = struct {
 	OIDCRequestInvalid            AppError
 	OIDCLinkRecordInvalid         AppError
 	OIDCNameInvalid               AppError
+	OIDCSignInPaused              AppError
 	AttestationsDisabled          AppError
 	AttestationTypeInvalid        AppError
 	AttestationClaimsInvalid      AppError
@@ -556,6 +558,10 @@ var Errors = struct {
 		ErrorCode: "connection_revoke_not_allowed",
 		ErrorText: "The owner has not allowed this tool to revoke links.",
 	},
+	ConnectionPaused: AppError{
+		ErrorCode: "connection_paused",
+		ErrorText: "The owner has paused this tool. It works again once they activate it.",
+	},
 	LinkHandOverNotAllowed: AppError{
 		ErrorCode: "link_hand_over_not_allowed",
 		ErrorText: "The owner has not allowed this tool to receive links.",
@@ -679,6 +685,10 @@ var Errors = struct {
 	OIDCNameInvalid: AppError{
 		ErrorCode: "oidc_name_invalid",
 		ErrorText: "That name can't be used. Choose another one.",
+	},
+	OIDCSignInPaused: AppError{
+		ErrorCode: "oidc_sign_in_paused",
+		ErrorText: "You paused this service. Activate it to sign in.",
 	},
 	AttestationsDisabled: AppError{
 		ErrorCode: "attestations_disabled",

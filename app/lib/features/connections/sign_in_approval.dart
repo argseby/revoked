@@ -20,8 +20,13 @@ class SignInApprovalException implements Exception {
 
 /// A request the app opened: the consent to show, or — when the server
 /// refused the request but could name the service — the address that tells
-/// the service so.
-typedef SignInOpened = ({SignInConsent? consent, String? refusal});
+/// the service so. [paused] is the person's row for a service they paused,
+/// which is why it was refused.
+typedef SignInOpened = ({
+  SignInConsent? consent,
+  String? refusal,
+  String? paused,
+});
 
 /// The app's side of "Sign in with Revoked". A sign-in is approved here and
 /// nowhere else: the request is opened on the server the app is signed into,
@@ -54,9 +59,13 @@ class SignInApproval {
     );
     final json = data as Map<String, dynamic>;
     if (json['ticket'] == null) {
-      return (consent: null, refusal: json['redirect'] as String?);
+      return (
+        consent: null,
+        refusal: json['redirect'] as String?,
+        paused: json['paused'] as String?,
+      );
     }
-    return (consent: SignInConsent.fromJson(json), refusal: null);
+    return (consent: SignInConsent.fromJson(json), refusal: null, paused: null);
   }
 
   /// Records the person's decision and returns where to send the browser.

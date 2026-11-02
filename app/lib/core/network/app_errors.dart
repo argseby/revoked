@@ -57,6 +57,9 @@ abstract class AppErrorCode {
   static const linkPasswordRequired = 'link_password_required';
   static const linkPasswordInvalid = 'link_password_invalid';
 
+  static const connectionPaused = 'connection_paused';
+  static const oidcSignInPaused = 'oidc_sign_in_paused';
+
   static const requestNotFound = 'request_not_found';
   static const requestRevoked = 'request_revoked';
   static const requestExpired = 'request_expired';

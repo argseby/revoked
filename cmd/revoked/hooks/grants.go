@@ -29,6 +29,13 @@ func BindGrantHooks(app core.App, root *server.RootKey) {
 		if err := util.RestrictFields(e, serverSetLinkFields...); err != nil {
 			return err
 		}
+		// The owner took this link's status into their own hands, so activating
+		// its tool or service later must not overrule them.
+		if info, err := e.RequestInfo(); err == nil {
+			if _, ok := info.Body[util.Fields.Link.Status]; ok {
+				e.Record.Set(util.Fields.Link.HeldPaused, false)
+			}
+		}
 		return e.Next()
 	})
 
@@ -120,4 +127,5 @@ var serverSetLinkFields = []string{
 	util.Fields.Link.RemoteRequest,
 	util.Fields.Link.GrantTokenHash,
 	util.Fields.Link.SignInClient,
+	util.Fields.Link.HeldPaused,
 }

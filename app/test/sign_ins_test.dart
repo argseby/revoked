@@ -33,6 +33,7 @@ void main() {
   late List<Map<String, dynamic>> links;
   late int signInStatus;
   late List<String> revoked;
+  late List<String> controls;
 
   Map<String, dynamic> signIn(
     String id,
@@ -69,6 +70,23 @@ void main() {
     if (path == signInsPath && request.method == 'GET') {
       if (signInStatus != 200) return json({'message': 'Nope'}, signInStatus);
       return json({'items': signIns});
+    }
+    final control = RegExp(r'^/api/sign-ins/(\w+)/(\w+)$').firstMatch(path);
+    if (control != null && request.method == 'POST') {
+      final row = signIns.firstWhere((s) => s['id'] == control.group(1));
+      controls.add('${control.group(2)} ${request.body}');
+      row['status'] = switch (control.group(2)) {
+        'pause' => 'paused',
+        'resume' => 'active',
+        _ => 'disconnected',
+      };
+      if (control.group(2) == 'disconnect') {
+        row['disconnectedAt'] = '2026-11-02 10:00:00.000Z';
+        row['newIdOnReturn'] =
+            (jsonDecode(request.body) as Map)['newId'] == true ||
+            row['newIdOnReturn'] == true;
+      }
+      return json(row);
     }
     if (path.startsWith('$linksPath/') && request.method == 'PATCH') {
       final id = path.split('/').last;
@@ -120,6 +138,7 @@ void main() {
     links = [link('l1', 'https://game.example')];
     signInStatus = 200;
     revoked = [];
+    controls = [];
   });
 
   testWidgets('sign-ins are listed even with no tools connected', (
@@ -207,6 +226,108 @@ void main() {
       find.text('game.example can’t read these entries any more.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('a service can be paused and activated again', (tester) async {
+    final router = await signedIn(tester);
+    router.go(AppRoutes.signInServiceFor('s1'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This doesn’t sign you out of game.example.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Pause'));
+    await tester.pumpAndSettle();
+    expect(controls, ['pause {}']);
+    expect(find.text('Paused'), findsOneWidget);
+    expect(find.textContaining('while it’s paused'), findsOneWidget);
+
+    await tester.tap(find.text('Activate'));
+    await tester.pumpAndSettle();
+    expect(controls.last, 'resume {}');
+    expect(find.text('Paused'), findsNothing);
+    expect(find.text('Pause'), findsOneWidget);
+  });
+
+  testWidgets('disconnecting keeps the ID unless you ask for a new one', (
+    tester,
+  ) async {
+    final router = await signedIn(tester);
+    router.go(AppRoutes.signInServiceFor('s1'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Disconnect'));
+    await tester.pumpAndSettle();
+    expect(find.text('Disconnect game.example?'), findsOneWidget);
+    expect(find.text('Get a new ID'), findsOneWidget);
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Disconnect').hitTestable(),
+    );
+    await tester.pumpAndSettle();
+
+    expect(controls, ['disconnect {"newId":false}']);
+    expect(find.textContaining('knows you as before'), findsOneWidget);
+    expect(find.text('Pause'), findsNothing);
+    expect(find.text('Disconnect'), findsNothing);
+
+    // Changing your mind afterwards still works, once.
+    await tester.tap(find.text('Get a new ID'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Get a new ID').hitTestable(),
+    );
+    await tester.pumpAndSettle();
+    expect(controls.last, 'disconnect {"newId":true}');
+    expect(find.textContaining('sees you as someone new'), findsOneWidget);
+    expect(find.text('Get a new ID'), findsNothing);
+  });
+
+  testWidgets('the new ID is opt-in every time the dialog opens', (
+    tester,
+  ) async {
+    final router = await signedIn(tester);
+    router.go(AppRoutes.signInServiceFor('s1'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Disconnect'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Get a new ID'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Keep'));
+    await tester.pumpAndSettle();
+    expect(controls, isEmpty);
+
+    await tester.tap(find.text('Disconnect'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Disconnect').hitTestable(),
+    );
+    await tester.pumpAndSettle();
+    expect(controls, ['disconnect {"newId":false}']);
+  });
+
+  testWidgets('a disconnected service says it no longer gets anything', (
+    tester,
+  ) async {
+    signIns.first
+      ..['status'] = 'disconnected'
+      ..['disconnectedAt'] = '2026-11-02 10:00:00.000Z'
+      ..['newIdOnReturn'] = true
+      ..['link'] = '';
+    final router = await signedIn(tester);
+    router.go(AppRoutes.connectedTools);
+    await tester.pumpAndSettle();
+    expect(find.text('Disconnected'), findsOneWidget);
+    expect(
+      find.text('Sharing entries · last signed in 2026-11-01'),
+      findsNothing,
+    );
+
+    router.go(AppRoutes.signInServiceFor('s1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing is shared any more'), findsOneWidget);
+    expect(find.text('You didn’t share any entries'), findsNothing);
   });
 
   testWidgets('a service shows the name it gets, and where to change it', (

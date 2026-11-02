@@ -16,6 +16,10 @@ class Connection {
   /// Whether the tool may receive links the owner shares with it.
   final bool allowHandOver;
 
+  /// Whether the owner paused it: its tokens are refused until they activate
+  /// it again.
+  final bool paused;
+
   /// When the connection lapses; connecting the tool again renews it.
   final String? expiresAt;
 
@@ -28,6 +32,7 @@ class Connection {
     this.clientName = '',
     this.allowRevoke = false,
     this.allowHandOver = false,
+    this.paused = false,
     this.expiresAt,
     this.lastUsedAt,
     this.created,
@@ -58,6 +63,7 @@ class Connection {
       clientName: json['clientName'] as String? ?? '',
       allowRevoke: json['allowRevoke'] as bool? ?? false,
       allowHandOver: json['allowHandOver'] as bool? ?? false,
+      paused: json['paused'] as bool? ?? false,
       expiresAt: date('expiresAt'),
       lastUsedAt: date('lastUsedAt'),
       created: date('created'),

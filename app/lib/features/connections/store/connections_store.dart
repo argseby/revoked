@@ -37,6 +37,15 @@ abstract class _ConnectionsStore with Store {
   @observable
   String? errorMessage;
 
+  /// A pause or activation is on its way.
+  @observable
+  bool isChanging = false;
+
+  /// The choice in the disconnect dialog: whether the tool's links go too.
+  /// It can't be undone, so it starts off every time the dialog opens.
+  @observable
+  bool revokeLinksOnDisconnect = false;
+
   @action
   Future<void> load() async {
     isLoading = true;
@@ -74,8 +83,9 @@ abstract class _ConnectionsStore with Store {
     }
   }
 
-  /// The live connection this workspace has with the tool at [origin], if
-  /// any. A lapsed one counts as none, so the tool is asked to connect again.
+  /// The connection this workspace has with the tool at [origin], if any. A
+  /// lapsed one counts as none, so the tool is asked to connect again, unless
+  /// it is paused: that has to be lifted first.
   Future<Connection?> findByClient(String origin) async {
     try {
       // The origin passed the same pattern the server enforces, so it holds
@@ -87,7 +97,7 @@ abstract class _ConnectionsStore with Store {
       final items = (data['items'] as List<dynamic>?) ?? [];
       if (items.isEmpty) return null;
       final found = Connection.fromJson(items.first as Map<String, dynamic>);
-      return found.isExpired ? null : found;
+      return found.isExpired && !found.paused ? null : found;
     } catch (_) {
       return null;
     }
@@ -139,18 +149,53 @@ abstract class _ConnectionsStore with Store {
   }
 
   /// Ends the connection: every token the tool holds stops working. Links it
-  /// proposed stay the owner's and keep working until revoked.
+  /// proposed are revoked if [revokeLinksOnDisconnect] is set. Otherwise they
+  /// stay the owner's and keep working until revoked.
   @action
   Future<bool> disconnect(String id) async {
     errorMessage = null;
     try {
-      await _api.delete('$_basePath/$id');
-      connections.removeWhere((c) => c.id == id);
-      linksByConnection.remove(id);
+      try {
+        await _api.post(
+          '/api/connections/$id/disconnect',
+          body: {'revokeLinks': revokeLinksOnDisconnect},
+        );
+      } on ApiException catch (e) {
+        // A server older than this app has only the collection's delete, and
+        // that can't revoke links, so asking for it has to fail visibly.
+        if (e.statusCode != 404 || revokeLinksOnDisconnect) rethrow;
+        await _api.delete('$_basePath/$id');
+      }
+      runInAction(() {
+        connections.removeWhere((c) => c.id == id);
+        linksByConnection.remove(id);
+      });
       return true;
     } catch (e) {
-      errorMessage = describeError(e);
+      runInAction(() => errorMessage = describeError(e));
       return false;
+    }
+  }
+
+  /// Refuses the tool's tokens and pauses its links.
+  Future<bool> pause(String id) => _setPaused(id, 'pause');
+
+  /// Undoes [pause]. A link the owner paused themselves stays paused.
+  Future<bool> activate(String id) => _setPaused(id, 'resume');
+
+  @action
+  Future<bool> _setPaused(String id, String action) async {
+    errorMessage = null;
+    isChanging = true;
+    try {
+      await _api.post('/api/connections/$id/$action', body: const {});
+      await load();
+      return errorMessage == null;
+    } catch (e) {
+      runInAction(() => errorMessage = describeError(e));
+      return false;
+    } finally {
+      runInAction(() => isChanging = false);
     }
   }
 
@@ -177,6 +222,7 @@ abstract class _ConnectionsStore with Store {
           clientName: c.clientName,
           allowRevoke: data['allowRevoke'] as bool? ?? c.allowRevoke,
           allowHandOver: data['allowHandOver'] as bool? ?? c.allowHandOver,
+          paused: c.paused,
           expiresAt: c.expiresAt,
           lastUsedAt: c.lastUsedAt,
           created: c.created,

@@ -33,6 +33,13 @@ class SignInConsent {
   /// when nothing is picked yet.
   final String nameSelected;
 
+  /// When the person disconnected this service, if they did and have not come
+  /// back since.
+  final String? disconnectedAt;
+
+  /// Whether this sign-in gives the service a new ID.
+  final bool newId;
+
   const SignInConsent({
     required this.ticket,
     required this.client,
@@ -41,11 +48,14 @@ class SignInConsent {
     required this.links,
     this.nameOptions = const [],
     this.nameSelected = '',
+    this.disconnectedAt,
+    this.newId = false,
   });
 
   factory SignInConsent.fromJson(Map<String, dynamic> json) {
     final account = json['account'] as Map<String, dynamic>? ?? const {};
     final selected = json['nameSelected'] as Map<String, dynamic>?;
+    final disconnected = json['disconnected'] as Map<String, dynamic>?;
     return SignInConsent(
       ticket: json['ticket'] as String,
       client: json['client'] as String? ?? '',
@@ -68,6 +78,8 @@ class SignInConsent {
               selected['kind'] as String? ?? '',
               selected['id'] as String? ?? '',
             ),
+      disconnectedAt: disconnected?['at'] as String?,
+      newId: disconnected?['newId'] as bool? ?? false,
     );
   }
 
