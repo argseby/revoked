@@ -9,6 +9,7 @@ import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -358,7 +359,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           for (final (section, sectionRecords) in visibleSections)
             AppListGroup(
               key: ValueKey('${section.id}-$filter'),
-              title: section.isRequested
+              title: section.isSignIn
+                  ? 'Sign-in · ${_sectionName(section)}'
+                  : section.isRequested
                   ? '${_sectionName(section)} · requested by '
                         '${section.requestedBy}'
                   : _sectionName(section),
@@ -459,7 +462,11 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       // Text, not a badge: most records are shared somewhere, and a badge on
       // every row is the noise this list is meant to be rid of. But who can
       // read a record is the vault's one question, so it is not muted.
-      trailing: links > 0 ? _LinkCount(links) : null,
+      trailing: r.sealed
+          ? const _EncryptedMark()
+          : links > 0
+          ? _LinkCount(links)
+          : null,
       showChevron: !picking,
       onTap: picking
           ? () => onToggle(!selected)
@@ -485,7 +492,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
   /// One line of the value, masked while the record is hidden.
   String _preview(models.Record r) {
-    if (r.isLocked) return 'Encrypted';
+    if (r.isLocked) return 'Can’t read on this device';
     final hidden = r.isHidden && !Stores.vault.isRevealed(r.id);
     if (r.isFile) {
       final name = hidden ? '••••••••' : r.displayName;
@@ -501,6 +508,20 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     }
     value = value.replaceAll('\n', ' ');
     return value.isEmpty ? '—' : value;
+  }
+
+  /// Goes to the service this section's entries were made for, or to the list
+  /// of services when its row is gone.
+  Future<void> _openSignInService(BuildContext context, Section section) async {
+    await Stores.signIns.loadIfDue();
+    if (!context.mounted) return;
+    for (final s in Stores.signIns.services) {
+      if (Uri.tryParse(s.clientId)?.host == section.requestedBy) {
+        context.go(AppRoutes.signInServiceFor(s.id));
+        return;
+      }
+    }
+    context.go(AppRoutes.settingsPage(SettingsPage.connectedTools.slug));
   }
 
   Widget _sectionMenu(BuildContext context, Section section, int shown) {
@@ -523,6 +544,12 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               label: 'Add or remove records',
               onSelected: () => store.editSection(section.id),
             ),
+            if (section.isSignIn)
+              AppMenuItem(
+                icon: AppIcons.globe,
+                label: 'Open service',
+                onSelected: () => _openSignInService(context, section),
+              ),
             if (access.isNotEmpty)
               AppMenuItem(
                 icon: AppIcons.share,
@@ -804,6 +831,28 @@ class _WholeSectionToggle extends StatelessWidget {
 }
 
 /// The tinted square behind each choice in the "Create New" sheet.
+
+/// Only this person's devices can read the record, so it takes the place of a
+/// link count: an encrypted record can't be on a link.
+class _EncryptedMark extends StatelessWidget {
+  const _EncryptedMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'End-to-end encrypted',
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(AppIcons.lock, size: 16),
+          AppSpacing.gapXxs,
+          const AppText('Encrypted').small,
+        ],
+      ),
+    );
+  }
+}
 
 /// How many links reach a record: the row's answer to "who can read this".
 class _LinkCount extends StatelessWidget {

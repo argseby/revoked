@@ -104,6 +104,7 @@ func sealedEntryJSON(e util.SealedChainEntry) map[string]any {
 		"action":           e.Action,
 		"kind":             e.Kind,
 		"label":            e.Label,
+		"credentialId":     e.CredentialID,
 		"hpkePublicKey":    encodeSealed(e.HpkePublicKey),
 		"signingPublicKey": encodeSealed(e.SigningPublicKey),
 		"targetSeq":        e.TargetSeq,
@@ -133,6 +134,22 @@ func (f *sealedFixture) addition(kind string) (util.SealedChainEntry, *sealedSig
 		e.AnchorSignature = signer.signRaw(util.SealedRecoveryAnchorPayload(f.party.id, f.chain.Entry(1).Hash()))
 	}
 	e.Signature = f.signers[1].signRaw(e.Payload())
+	return e, signer
+}
+
+// passkeyAddition builds a passkey entry signed by signerSeq and anchored by
+// the passkey's own derived key, as the app does from a PRF output.
+func (f *sealedFixture) passkeyAddition(credential string, signerSeq int) (util.SealedChainEntry, *sealedSigner) {
+	f.t.Helper()
+	signer := newSealedSigner(f.t)
+	hpke := newSealedSigner(f.t)
+	e := util.SealedChainEntry{
+		User: f.party.id, Seq: f.chain.NextSeq(), Action: util.SealedActionAdd, Kind: util.SealedKindPasskey,
+		Label: "Chrome on Mac", CredentialID: credential, HpkePublicKey: hpke.public, SigningPublicKey: signer.public,
+		PreviousHash: f.chain.HeadHash(), SignerSeq: signerSeq,
+	}
+	e.AnchorSignature = signer.signRaw(util.SealedPasskeyAnchorPayload(f.party.id, f.chain.Entry(1).Hash(), credential))
+	e.Signature = f.signers[signerSeq].signRaw(e.Payload())
 	return e, signer
 }
 
@@ -1216,5 +1233,120 @@ func TestOnlyTheCanonicalEncodingIsAccepted(t *testing.T) {
 		body := f.request("GET", "/api/sealed/state", f.party.token, nil).
 			Expect().Status(http.StatusOK).JSON().Object()
 		body.Value("devices").Array().Length().IsEqual(2)
+	})
+}
+
+// A passkey holds a key through a chain entry of its own (E2EE.md §6.8). What
+// keeps a stolen session out is that such an entry is never self-signed: the
+// session can make a passkey, but holds nothing that may vouch for one.
+func TestAPasskeyCanHoldTheKey(t *testing.T) {
+	f := newSealedFixture(t)
+	f.enroll()
+	d := util.Fields.DeviceKey
+	w := util.Fields.WorkspaceKeyWrap
+	listLength := func() int {
+		rows, _ := f.app.FindRecordsByFilter(util.Coll.DeviceKeys,
+			d.User+" = {:u}", "", 0, 0, dbx.Params{"u": f.party.id})
+		return len(rows)
+	}
+	wrapsTo := func(seq int) int {
+		rows, _ := f.app.FindRecordsByFilter(util.Coll.WorkspaceKeyWraps,
+			w.User+" = {:u} && "+w.DeviceSeq+" = {:d}", "", 0, 0, dbx.Params{"u": f.party.id, "d": seq})
+		return len(rows)
+	}
+	post := func(entry util.SealedChainEntry, wraps ...map[string]any) *httpexpect.Response {
+		body := map[string]any{"entries": []any{sealedEntryJSON(entry)}}
+		if len(wraps) > 0 {
+			body["wraps"] = wraps
+		}
+		return f.request("POST", "/api/sealed/devices", f.party.token, body).Expect()
+	}
+
+	t.Run("a stolen session cannot make its own passkey a key holder", func(t *testing.T) {
+		// Self-signed: the only signature a session without a device key can make.
+		e, signer := f.passkeyAddition("thief-credential", 1)
+		e.SignerSeq = e.Seq
+		e.Signature = signer.signRaw(e.Payload())
+		post(e).Status(http.StatusBadRequest)
+		// Or signed by a key of its own choosing.
+		e, _ = f.passkeyAddition("thief-credential", 1)
+		e.Signature = newSealedSigner(t).signRaw(e.Payload())
+		post(e).Status(http.StatusBadRequest)
+		if listLength() != 2 {
+			t.Fatal("a passkey entry landed without a device's signature")
+		}
+	})
+
+	t.Run("its anchor must cover this root and this credential", func(t *testing.T) {
+		e, signer := f.passkeyAddition("cred-a", 1)
+		e.AnchorSignature = signer.signRaw(util.SealedPasskeyAnchorPayload(f.party.id, make([]byte, 32), "cred-a"))
+		e.Signature = f.signers[1].signRaw(e.Payload())
+		post(e).Status(http.StatusBadRequest)
+
+		e, signer = f.passkeyAddition("cred-a", 1)
+		e.AnchorSignature = signer.signRaw(util.SealedPasskeyAnchorPayload(f.party.id, f.chain.Entry(1).Hash(), "cred-b"))
+		e.Signature = f.signers[1].signRaw(e.Payload())
+		post(e).Status(http.StatusBadRequest)
+
+		e, _ = f.passkeyAddition("", 1)
+		post(e).Status(http.StatusBadRequest)
+
+		// A device entry cannot borrow the credential field.
+		device, _ := f.addition(util.SealedKindDevice)
+		device.CredentialID = "cred-a"
+		device.Signature = f.signers[1].signRaw(device.Payload())
+		post(device).Status(http.StatusBadRequest)
+		if listLength() != 2 {
+			t.Fatal("a mis-anchored entry landed")
+		}
+	})
+
+	t.Run("a device holding the key enrols it and hands it the key", func(t *testing.T) {
+		e, signer := f.passkeyAddition("cred-a", 1)
+		f.accept(e, signer)
+		post(e, f.wrapTo(f.party.workspace, 1, e.Seq)).Status(http.StatusOK)
+		state := f.request("GET", "/api/sealed/state", f.party.token, nil).Expect().Status(http.StatusOK).JSON().Object()
+		third := state.Value("devices").Array().Value(2).Object()
+		third.Value("kind").String().IsEqual(util.SealedKindPasskey)
+		third.Value("credentialId").String().IsEqual("cred-a")
+		if wrapsTo(e.Seq) != 1 {
+			t.Fatal("the passkey entry received no key")
+		}
+	})
+
+	t.Run("one live entry per credential", func(t *testing.T) {
+		e, _ := f.passkeyAddition("cred-a", 1)
+		post(e).Status(http.StatusBadRequest)
+	})
+
+	t.Run("the passkey can vouch for a device", func(t *testing.T) {
+		signer := newSealedSigner(t)
+		hpke := newSealedSigner(t)
+		e := util.SealedChainEntry{
+			User: f.party.id, Seq: f.chain.NextSeq(), Action: util.SealedActionAdd, Kind: util.SealedKindDevice,
+			Label: "iPhone or iPad", HpkePublicKey: hpke.public, SigningPublicKey: signer.public,
+			PreviousHash: f.chain.HeadHash(), SignerSeq: 3,
+		}
+		e.Signature = f.signers[3].signRaw(e.Payload())
+		f.accept(e, signer)
+		post(e).Status(http.StatusOK)
+		if listLength() != 4 {
+			t.Fatal("the device the passkey vouched for was refused")
+		}
+	})
+
+	t.Run("removing it withdraws its key and makes a new one due", func(t *testing.T) {
+		removal := f.removal(3)
+		f.accept(removal, nil)
+		post(removal).Status(http.StatusOK)
+		if wrapsTo(3) != 0 {
+			t.Fatal("the removed passkey still holds a key")
+		}
+		epoch := util.Fields.WorkspaceKeyEpoch
+		current, _ := f.app.FindFirstRecordByFilter(util.Coll.WorkspaceKeyEpochs,
+			epoch.Workspace+" = {:w}", dbx.Params{"w": f.party.workspace})
+		if current == nil || !current.GetBool(epoch.RotationDue) {
+			t.Fatal("no new key is due after removing a key holder")
+		}
 	})
 }

@@ -509,12 +509,16 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 		"account": map[string]any{"email": user.Email()},
 		"scopes":  scopes,
 		"links":   linkOptions(app, user, req.linkKeys),
+		"signers": signingIdentities(app, user),
 	}
 	if row != nil && services.SignInStatus(row) == util.StatusDisconnected {
 		answer["disconnected"] = map[string]any{
 			"at":    row.GetString(util.Fields.SignIn.DisconnectedAt),
 			"newId": row.GetBool(util.Fields.SignIn.NewIdOnReturn),
 		}
+	}
+	if len(req.linkKeys) > 0 || slices.Contains(req.scopes, util.OIDCScopeProfile) {
+		answer["sections"] = vaultSections(app, user)
 	}
 	if slices.Contains(req.scopes, util.OIDCScopeProfile) {
 		options, selected := nameOptions(app, user, req.clientID)
@@ -524,6 +528,41 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 		}
 	}
 	return re.JSON(http.StatusOK, answer)
+}
+
+// vaultSections lists the sections of the person's active workspace, so the app
+// can show their entries the way the vault files them.
+func vaultSections(app core.App, user *core.Record) []map[string]any {
+	f := util.Fields.Section
+	sections, _ := app.FindRecordsByFilter(util.Coll.Sections,
+		f.User+" = {:u} && "+f.Workspace+" = {:w}", f.Name, maxLinkOptions, 0,
+		dbx.Params{"u": user.Id, "w": user.GetString(util.Fields.User.ActiveWorkspace)})
+	out := make([]map[string]any, 0, len(sections))
+	for _, section := range sections {
+		out = append(out, map[string]any{
+			"id":      section.Id,
+			"key":     section.GetString(f.Key),
+			"name":    section.GetString(f.Name),
+			"records": section.GetStringSlice(f.Records),
+		})
+	}
+	return out
+}
+
+// signingIdentities names the person's active identities, primary first. The
+// app can only list the active workspace's, and the one whose key is on the
+// device may belong to another workspace. Ids are public, and only the device
+// holding the key can sign with one.
+func signingIdentities(app core.App, user *core.Record) []string {
+	i := util.Fields.Identity
+	identities, _ := app.FindRecordsByFilter(util.Coll.Identities,
+		i.User+" = {:u} && "+i.Status+" = {:active}", "-"+i.IsPrimary, maxLinkOptions, 0,
+		dbx.Params{"u": user.Id, "active": util.StatusActive})
+	ids := make([]string, 0, len(identities))
+	for _, id := range identities {
+		ids = append(ids, id.Id)
+	}
+	return ids
 }
 
 // nameOptions lists the names a person could give a service: their identities'
@@ -598,10 +637,15 @@ func linkOptions(app core.App, user *core.Record, keys []string) []map[string]an
 				"id":    rec.Id,
 				"key":   rec.GetString(f.Key),
 				"label": rec.GetString(f.Label),
+				"type":  rec.GetString(f.Type),
 			}
-			if rec.GetString(f.Format) != util.FormatHidden && rec.GetString(f.Type) != util.TypeFile &&
-				rec.GetString(f.AliasOf) == "" {
-				entry["preview"] = truncateRunes(rec.GetString(f.Value), 60)
+			source := rec
+			if parentID := rec.GetString(f.AliasOf); parentID != "" {
+				source, _ = app.FindRecordById(util.Coll.Records, parentID)
+			}
+			if source != nil && source.GetString(f.Format) != util.FormatHidden &&
+				rec.GetString(f.Format) != util.FormatHidden && rec.GetString(f.Type) != util.TypeFile {
+				entry["preview"] = truncateRunes(source.GetString(f.Value), 60)
 			}
 			if rec.GetString(f.Key) == key {
 				matching = append(matching, entry)
@@ -641,6 +685,9 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		Signature  string            `json:"signature"`
 
 		Name *services.SignInNameChoice `json:"name"`
+
+		// Entries the app saved for this sign-in, to be filed under the service.
+		Created []string `json:"created"`
 	}
 	if err := re.BindBody(&body); err != nil {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
@@ -665,6 +712,10 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		if slices.Contains(body.Scopes, s) {
 			granted = append(granted, s)
 		}
+	}
+	// A sign-in saves at most a name and one value per key asked for.
+	if len(body.Created) > len(req.linkKeys)+1 {
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
 	}
 	choices := map[string]string{}
 	for _, key := range req.linkKeys {
@@ -710,6 +761,7 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 			return errSignInPaused
 		}
 		linkID := ""
+		filed := slices.Clone(body.Created)
 		if len(choices) > 0 {
 			token, err := util.GenerateToken(32)
 			if err != nil {
@@ -721,8 +773,26 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 			}
 			grant = &services.SignInGrant{ID: link.Id, Token: token, Keys: keys}
 			linkID = link.Id
+			// Only keys the service asked for: a name shared under the key "name"
+			// was picked for this one service, and must not become every service's.
+			for _, key := range req.linkKeys {
+				if id := body.Links[key]; id != "" {
+					alias, err := services.SaveSignInAlias(tx, re.Auth, key, id)
+					if err != nil {
+						return err
+					}
+					if alias != "" {
+						filed = append(filed, alias)
+					}
+				}
+			}
 		} else if nameAsked {
 			if err := services.DropSignInNameGrant(tx, t.user, req.clientID); err != nil {
+				return err
+			}
+		}
+		if len(filed) > 0 {
+			if err := services.SaveSignInSection(tx, re.Auth, req.clientID, filed); err != nil {
 				return err
 			}
 		}

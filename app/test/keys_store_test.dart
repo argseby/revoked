@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/crypto/sealing.dart';
+import 'package:revoked_app/core/models/passkey.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/features/sealing/store/keys_store.dart';
@@ -2103,6 +2104,243 @@ void main() {
       await first.removeDevice(second.thisDeviceSeq!);
       expect(first.writableEpoch(_workspace), 2);
       expect(first.writableEpoch('another-workspace'), isNull);
+    });
+  });
+  group('a passkey', () {
+    PasskeySignIn signIn(
+      Uint8List? secret, {
+      String credential = 'cred-A',
+      String user = _user,
+    }) => PasskeySignIn(
+      user: user,
+      credentialId: credential,
+      name: 'Chrome on Mac',
+      secret: secret,
+      asked: true,
+    );
+
+    /// Sets up encryption on a device that signed in with [secret].
+    Future<(KeysStore, String)> setUpWith(
+      _FakeServer server,
+      Uint8List secret,
+    ) async {
+      final first = _device(server);
+      await first.offerPasskeySignIn(signIn(secret));
+      await first.load();
+      first.beginSetup();
+      final code = first.recoveryCode!;
+      _typeBack(first);
+      expect(await first.finishRecovery(workspace: _workspace), isTrue);
+      expect(first.status, SealingStatus.ready);
+      return (first, code);
+    }
+
+    test(
+      'joins the list at setup, and unlocks the next device by itself',
+      () async {
+        final server = _FakeServer();
+        final secret = Sealing.randomBytes(32);
+        final (first, _) = await setUpWith(server, secret);
+        expect(first.chain.livePasskeys.map((e) => e.credentialId), ['cred-A']);
+        expect(first.thisPasskeyCredentialId, 'cred-A');
+        final record = _sealedRecord(first);
+
+        final phone = _device(server);
+        await phone.offerPasskeySignIn(signIn(secret));
+        await phone.load();
+        expect(phone.status, SealingStatus.ready);
+        expect(phone.openRecord(record), _canary);
+        expect(phone.canSeal(_workspace), isTrue);
+
+        // Nobody was evicted.
+        await first.load();
+        expect(first.status, SealingStatus.ready);
+        expect(first.openRecord(record), _canary);
+        expect(first.chain.live, hasLength(4));
+
+        // The secret and the keys it derives never left either device.
+        final sent = server.received.toString();
+        expect(sent, isNot(contains(SealedFormats.encode(secret))));
+        expect(
+          sent,
+          isNot(
+            contains(
+              SealedFormats.encode(PasskeyKeys.hpkeKey(secret).privateKey),
+            ),
+          ),
+        );
+
+        first.forgetSession();
+        expect(first.passkeySignIn, isNull);
+      },
+    );
+
+    test(
+      'is enrolled by a trusted device the first time it signs in there',
+      () async {
+        final server = _FakeServer();
+        final (first, _) = await _setUp(server);
+        expect(first.chain.livePasskeys, isEmpty);
+        final record = _sealedRecord(first);
+
+        final secret = Sealing.randomBytes(32);
+        await first.offerPasskeySignIn(signIn(secret));
+        expect(first.chain.livePasskeys.single.label, 'Chrome on Mac');
+
+        final phone = _device(server);
+        await phone.offerPasskeySignIn(signIn(secret));
+        await phone.load();
+        expect(phone.status, SealingStatus.ready);
+        expect(phone.openRecord(record), _canary);
+      },
+    );
+
+    test('confirms a device the list already names', () async {
+      final server = _FakeServer();
+      final secret = Sealing.randomBytes(32);
+      final (first, _) = await setUpWith(server, secret);
+      final phone = _device(server);
+      await phone.load();
+      await phone.prepareThisDevice();
+      expect(await first.addDevice(phone.deviceInvite!), isTrue);
+      await phone.load();
+      expect(phone.status, SealingStatus.needsConfirmation);
+
+      await phone.offerPasskeySignIn(signIn(secret));
+      expect(phone.status, SealingStatus.ready);
+      expect(phone.openRecord(_sealedRecord(first)), _canary);
+    });
+
+    test('a different passkey gets nothing', () async {
+      final server = _FakeServer();
+      final (first, _) = await setUpWith(server, Sealing.randomBytes(32));
+      final record = _sealedRecord(first);
+      final phone = _device(server);
+      await phone.offerPasskeySignIn(
+        signIn(Sealing.randomBytes(32), credential: 'cred-B'),
+      );
+      await phone.load();
+      expect(phone.status, SealingStatus.needsThisDevice);
+      expect(phone.openRecord(record), isNull);
+      expect(server.devices, hasLength(3));
+    });
+
+    test('a secret from another account is ignored', () async {
+      final server = _FakeServer();
+      final secret = Sealing.randomBytes(32);
+      final (first, _) = await setUpWith(server, secret);
+      final phone = _device(server);
+      await phone.offerPasskeySignIn(signIn(secret, user: 'someone0000else'));
+      await phone.load();
+      expect(phone.status, SealingStatus.needsThisDevice);
+      await first.offerPasskeySignIn(
+        signIn(
+          Sealing.randomBytes(32),
+          credential: 'cred-X',
+          user: 'someone0000else',
+        ),
+      );
+      expect(first.chain.livePasskeys.map((e) => e.credentialId), ['cred-A']);
+    });
+
+    test('one without a secret changes nothing', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      await first.offerPasskeySignIn(signIn(null));
+      expect(first.passkeyWithoutSecret, isTrue);
+      expect(first.thisPasskeyCredentialId, isNull);
+      expect(first.canConnectPasskey, isFalse);
+      expect(first.chain.livePasskeys, isEmpty);
+    });
+
+    test(
+      'a list the server built around the passkey’s keys is not trusted',
+      () async {
+        final server = _FakeServer();
+        final secret = Sealing.randomBytes(32);
+        final hpke = PasskeyKeys.hpkeKey(secret);
+        final signing = PasskeyKeys.signingKey(secret);
+        // The public keys are on the real list, so a server knows them. The
+        // anchor needs the secret, which it does not have.
+        final attacker = _AttackerChain();
+        attacker.entries.add(
+          DeviceChainEntry.sign(
+            user: _user,
+            seq: 2,
+            action: DeviceChainEntry.actionAdd,
+            kind: DeviceChainEntry.kindPasskey,
+            label: 'Chrome on Mac',
+            credentialId: 'cred-A',
+            hpkePublicKey: hpke.publicKey,
+            signingPublicKey: signing.publicKey,
+            targetSeq: 0,
+            previousHash: attacker.entries.last.hash,
+            signerSeq: 1,
+            signer: attacker.signing,
+            anchorSignature: Sealing.sign(
+              attacker.signing,
+              SealedFormats.passkeyAnchorPayload(
+                _user,
+                attacker.entries.first.hash,
+                'cred-A',
+              ),
+            ),
+          ),
+        );
+        server.devices = attacker.toJson();
+        server.epochs.add({'epoch': 1, 'priorWrap': '', 'rotationDue': false});
+        server.wraps.add(
+          _forgedWrap(
+            recipient: hpke.publicKey,
+            deviceSeq: 2,
+            key: Sealing.newSymmetricKey(),
+            epoch: 1,
+            signer: attacker.signing,
+            signerSeq: 1,
+            chainSeq: 2,
+          ),
+        );
+
+        final phone = _device(server);
+        await phone.offerPasskeySignIn(signIn(secret));
+        await phone.load();
+        expect(phone.status, isNot(SealingStatus.ready));
+        expect(phone.canSeal(_workspace), isFalse);
+        expect(server.devices, hasLength(2));
+      },
+    );
+
+    test('one the person took off is not put back by itself', () async {
+      final server = _FakeServer();
+      final (first, _) = await setUpWith(server, Sealing.randomBytes(32));
+      expect(await first.removePasskeyEntry('cred-A'), isTrue);
+      expect(first.chain.livePasskeys, isEmpty);
+      expect(first.canSeal(_workspace), isTrue);
+
+      await first.load();
+      expect(first.chain.livePasskeys, isEmpty);
+      expect(first.canConnectPasskey, isTrue);
+
+      expect(await first.connectPasskey(), isTrue);
+      expect(first.chain.livePasskeys.single.credentialId, 'cred-A');
+      expect(first.canConnectPasskey, isFalse);
+    });
+
+    test('the recovery key takes passkeys off too', () async {
+      final server = _FakeServer();
+      final (first, code) = await setUpWith(server, Sealing.randomBytes(32));
+      final record = _sealedRecord(first);
+      final fresh = _device(server);
+      fresh.recoveryInput.text = code;
+      expect(await fresh.restoreWithRecoveryKey(), isTrue);
+      expect(fresh.status, SealingStatus.ready);
+      expect(fresh.chain.livePasskeys, isEmpty);
+      expect(fresh.chain.live.map((e) => e.kind).toSet(), {
+        DeviceChainEntry.kindDevice,
+        DeviceChainEntry.kindRecovery,
+      });
+      expect(fresh.chain.live, hasLength(2));
+      expect(fresh.openRecord(record), _canary);
     });
   });
 }

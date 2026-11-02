@@ -196,9 +196,11 @@ void main() {
     expect(launched, isEmpty, reason: 'deciding happens here, not there');
     expect(find.text('Sign in to game.example'), findsOneWidget);
     expect(find.text('Your name'), findsOneWidget);
-    expect(find.text('Ada Lovelace — Your identity'), findsOneWidget);
+    expect(find.text('game.example will see you as'), findsOneWidget);
+    expect(find.text('Ada Lovelace'), findsWidgets);
     expect(find.text('Your email address'), findsOneWidget);
-    expect(find.text('Phone — +49'), findsOneWidget);
+    expect(find.text('Your phone'), findsOneWidget);
+    expect(find.text('+49'), findsWidgets);
     expect(decisions, isEmpty);
   });
 
@@ -239,9 +241,8 @@ void main() {
     tester,
   ) async {
     await show(tester);
-    await tester.tap(find.text('Phone — +49'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Don’t share').last);
+    // The entry is on by default; its switch comes after the name's.
+    await tester.tap(find.byType(Switch).last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();

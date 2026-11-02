@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,9 @@ import (
 	"revoked/util"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 // oidcService plays a service signing people in with Revoked: an origin, a
@@ -1027,5 +1030,170 @@ func TestSignInNameIsChosenPerService(t *testing.T) {
 	t.Run("the account has no name of its own", func(t *testing.T) {
 		api.Update(util.Coll.Users, person.userID, person.token, map[string]any{"name": "Ada"}).
 			Expect().Status(http.StatusOK).JSON().Object().NotContainsKey("name")
+	})
+}
+
+func TestSignInSharesEntriesFromTheChosenWorkspace(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+	person := newOIDCPerson(t, baseURL)
+	first := activeWorkspaceOf(t, api, person.userID, person.token)
+	f := util.Fields.Record
+	saveEntry := func(workspace, key, value, format string) string {
+		return extractID(t, baseURL, util.Coll.Records, person.token, map[string]any{
+			f.Key: key, f.Value: value, f.Label: key, f.Type: util.TypeText, f.Format: format,
+			f.User: person.userID, f.Workspace: workspace,
+		})
+	}
+	claims := map[string]string{
+		"scope":  "openid",
+		"claims": `{"userinfo":{"revoked_links":{"values":["game_name"]}}}`,
+	}
+	game := newOIDCService(t, baseURL, "https://game.example")
+	inVault := func(workspace, key string) *core.Record {
+		rec, _ := app.FindFirstRecordByFilter(util.Coll.Records,
+			f.Key+" = {:k} && "+f.User+" = {:u} && "+f.Workspace+" = {:w}",
+			dbx.Params{"k": key, "u": person.userID, "w": workspace})
+		return rec
+	}
+	option := func(consent map[string]any) map[string]any {
+		return consent["links"].([]any)[0].(map[string]any)["options"].([]any)[0].(map[string]any)
+	}
+
+	tag := saveEntry(first, "gamer_tag", "xXAdaXx", util.FormatDefault)
+	consent, _ := person.approve(t, game.params(claims), map[string]any{
+		"approve": true, "links": map[string]string{"game_name": tag},
+	})
+	if option(consent)["type"] != util.TypeText {
+		t.Fatalf("option = %v", option(consent))
+	}
+
+	t.Run("an entry under another key gets an alias under the one asked for", func(t *testing.T) {
+		alias := inVault(first, "game_name")
+		if alias == nil || alias.GetString(f.AliasOf) != tag || alias.GetString(f.Value) != "" {
+			t.Fatalf("alias = %v", alias)
+		}
+	})
+
+	t.Run("the alias is filed under the service, and the entry it uses is not", func(t *testing.T) {
+		section, err := app.FindFirstRecordByFilter(util.Coll.Sections,
+			util.Fields.Section.Key+" = 'signin_game_example' && "+util.Fields.Section.User+" = {:u}",
+			dbx.Params{"u": person.userID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		alias := inVault(first, "game_name")
+		if got := section.GetStringSlice(util.Fields.Section.Records); len(got) != 1 || got[0] != alias.Id {
+			t.Fatalf("records = %v", got)
+		}
+		if section.GetString(util.Fields.Section.Name) != "game.example" ||
+			alias.GetString(f.RequestedBy) != "game.example" {
+			t.Fatalf("section = %v, alias = %v", section, alias)
+		}
+		if rec := inVault(first, "gamer_tag"); rec.GetString(f.RequestedBy) != "" {
+			t.Fatalf("the person's own entry was marked: %v", rec)
+		}
+	})
+
+	t.Run("an entry saved for the sign-in joins the section", func(t *testing.T) {
+		saved := saveEntry(first, "game_badge", "Gold", util.FormatDefault)
+		person.approve(t, game.params(claims), map[string]any{
+			"approve": true,
+			"links":   map[string]string{"game_name": saved},
+			"created": []string{saved},
+		})
+		section, err := app.FindFirstRecordByFilter(util.Coll.Sections,
+			util.Fields.Section.Key+" = 'signin_game_example' && "+util.Fields.Section.User+" = {:u}",
+			dbx.Params{"u": person.userID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(section.GetStringSlice(util.Fields.Section.Records), saved) {
+			t.Fatalf("records = %v", section.GetStringSlice(util.Fields.Section.Records))
+		}
+	})
+
+	t.Run("someone else's entry can't be filed", func(t *testing.T) {
+		other := newOIDCPerson(t, baseURL)
+		_, opened := other.open(t, game.params(claims))
+		status, out := other.decide(t, opened["ticket"].(string), map[string]any{
+			"approve": true, "created": []string{tag},
+		})
+		if status != http.StatusBadRequest {
+			t.Fatalf("decide: %d %v", status, out)
+		}
+	})
+
+	t.Run("the next sign-in offers the alias first, with its value", func(t *testing.T) {
+		status, again := person.open(t, game.params(claims))
+		if status != http.StatusOK {
+			t.Fatalf("open: %d %v", status, again)
+		}
+		o := option(again)
+		if o["key"] != "game_name" || o["preview"] != "xXAdaXx" {
+			t.Fatalf("option = %v", o)
+		}
+		sections := again["sections"].([]any)
+		if len(sections) != 1 || sections[0].(map[string]any)["key"] != "signin_game_example" ||
+			sections[0].(map[string]any)["name"] != "game.example" {
+			t.Fatalf("sections = %v", sections)
+		}
+	})
+
+	t.Run("a name read from an entry adds no alias", func(t *testing.T) {
+		service := newOIDCService(t, baseURL, "https://named.example")
+		person.approve(t, service.params(map[string]string{"scope": "openid profile"}), map[string]any{
+			"approve": true,
+			"scopes":  []string{util.OIDCScopeProfile},
+			"name":    map[string]string{"kind": services.NameFromRecord, "id": tag},
+		})
+		if rec := inVault(first, services.SignInNameKey); rec != nil {
+			t.Fatalf("an alias took over the key %q: %v", services.SignInNameKey, rec)
+		}
+	})
+
+	second := api.Create(util.Coll.Workspaces, person.token, map[string]any{
+		"name": "Second", "slug": "second-" + uuid.New().String()[:8],
+	}).Expect().Status(http.StatusOK).JSON().Object().Value("id").String().Raw()
+	api.Update(util.Coll.Users, person.userID, person.token, map[string]any{
+		util.Fields.User.ActiveWorkspace: second,
+		util.Fields.User.ActiveRole:      util.RoleAdmin,
+	}).Expect().Status(http.StatusOK)
+
+	t.Run("the identity that signs can belong to another workspace", func(t *testing.T) {
+		_, opened := person.open(t, game.params(claims))
+		signers := opened["signers"].([]any)
+		if len(signers) != 1 || signers[0] != person.identityID {
+			t.Fatalf("signers = %v", signers)
+		}
+	})
+
+	t.Run("an entry from the workspace left behind is refused", func(t *testing.T) {
+		_, opened := person.open(t, game.params(claims))
+		status, out := person.decide(t, opened["ticket"].(string), map[string]any{
+			"approve": true, "links": map[string]string{"game_name": tag},
+		})
+		if status != http.StatusBadRequest {
+			t.Fatalf("decide: %d %v", status, out)
+		}
+	})
+
+	t.Run("the link moves to the workspace its entries are in", func(t *testing.T) {
+		secondTag := saveEntry(second, "game_name", "AdaAtWork", util.FormatDefault)
+		consent, _ := person.approve(t, game.params(claims), map[string]any{
+			"approve": true, "links": map[string]string{"game_name": secondTag},
+		})
+		if option(consent)["id"] != secondTag {
+			t.Fatalf("option = %v", option(consent))
+		}
+		link, err := app.FindFirstRecordByFilter(util.Coll.Links,
+			util.Fields.Link.User+" = {:u} && "+util.Fields.Link.SignInClient+" = {:c}",
+			dbx.Params{"u": person.userID, "c": game.clientID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if link.GetString(util.Fields.Link.Workspace) != second {
+			t.Fatalf("link workspace = %q", link.GetString(util.Fields.Link.Workspace))
+		}
 	})
 }

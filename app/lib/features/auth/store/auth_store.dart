@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/models/passkey.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/services/secure_storage.dart';
@@ -228,6 +229,7 @@ abstract class _AuthStore with Store {
       final token = data['token'] as String;
       final record = data['record'] as Map<String, dynamic>;
       await _api.saveAuthState(token, record);
+      onPasskeySignIn?.call(_passkeySignIn(link, data, record));
       createdAccount = pending['signup'] == true;
       signupIntro = null;
       currentUser = User.fromJson(record);
@@ -305,6 +307,44 @@ abstract class _AuthStore with Store {
 
   /// Lets a store that holds decrypted keys drop them on sign-out.
   void Function()? onLoggedOut;
+
+  /// Tells the store that holds encryption keys which passkey signed in, and
+  /// the secret its PRF extension derived. Called before [currentUser] changes.
+  void Function(PasskeySignIn signIn)? onPasskeySignIn;
+
+  /// The page sends the PRF output in the link's fragment and nowhere else:
+  /// `#prf=<base64url>`, empty when the authenticator gave none, absent when
+  /// an older page never asked. The server names the passkey in `meta`.
+  static PasskeySignIn _passkeySignIn(
+    Uri link,
+    Map<String, dynamic> data,
+    Map<String, dynamic> record,
+  ) {
+    final fragment = Uri.splitQueryString(link.fragment);
+    final meta = data['meta'];
+    final passkey = meta is Map ? meta['passkey'] : null;
+    return PasskeySignIn(
+      user: record['id'] as String? ?? '',
+      credentialId: passkey is Map
+          ? passkey['credentialId'] as String? ?? ''
+          : '',
+      name: passkey is Map ? passkey['name'] as String? ?? '' : '',
+      secret: _prfSecret(fragment['prf']),
+      asked: fragment.containsKey('prf'),
+    );
+  }
+
+  /// A PRF output is 32 bytes. Anything else is not one, and is dropped rather
+  /// than used to derive a weaker key.
+  static Uint8List? _prfSecret(String? encoded) {
+    if (encoded == null || encoded.isEmpty) return null;
+    try {
+      final bytes = base64Url.decode(base64Url.normalize(encoded));
+      return bytes.length == 32 ? Uint8List.fromList(bytes) : null;
+    } on FormatException {
+      return null;
+    }
+  }
 
   @action
   Future<void> logout() async {

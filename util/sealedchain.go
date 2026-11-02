@@ -74,11 +74,14 @@ func ValidSealedPublicKey(key []byte) bool {
 
 // SealedChainEntry is one entry on a person's signed device list.
 type SealedChainEntry struct {
-	User             string
-	Seq              int
-	Action           string
-	Kind             string
-	Label            string
+	User   string
+	Seq    int
+	Action string
+	Kind   string
+	Label  string
+	// CredentialID names the passkey a passkey entry derives from. It is outside
+	// the signed payload but bound through AnchorSignature, which covers it.
+	CredentialID     string
 	HpkePublicKey    []byte
 	SigningPublicKey []byte
 	TargetSeq        int
@@ -104,6 +107,13 @@ func (e SealedChainEntry) Hash() []byte {
 // SealedRecoveryAnchorPayload is what a recovery key signs when it joins a list.
 func SealedRecoveryAnchorPayload(user string, rootHash []byte) []byte {
 	return SealedContext("revoked-recovery-anchor-v1", user, rootHash)
+}
+
+// SealedPasskeyAnchorPayload is what a passkey's derived key signs when it joins a
+// list: the root, so a fresh device holding the same passkey can trust the list it
+// is shown, and the credential, so the entry cannot be relabelled as another passkey.
+func SealedPasskeyAnchorPayload(user string, rootHash []byte, credentialID string) []byte {
+	return SealedContext("revoked-passkey-anchor-v1", user, rootHash, credentialID)
 }
 
 // SealedWrapPayload is what a device signs when it hands over a workspace key.
@@ -173,12 +183,21 @@ func (c *SealedChain) acceptable(e SealedChainEntry) bool {
 		if len(c.Live()) >= MaxSealedLiveEntries {
 			return false
 		}
-		if e.Kind == SealedKindDevice {
+		switch e.Kind {
+		case SealedKindDevice:
 			return true
+		case SealedKindRecovery:
+			return c.LiveRecovery() == nil &&
+				VerifySealedSignature(e.SigningPublicKey,
+					SealedRecoveryAnchorPayload(e.User, c.entries[0].Hash()), e.AnchorSignature)
+		case SealedKindPasskey:
+			// Never self-signed, which the live-signer check above already
+			// enforces past the first entry: a stolen session can register a
+			// passkey, but holds nothing that may vouch for it.
+			return e.CredentialID != "" && c.LivePasskey(e.CredentialID) == nil &&
+				VerifySealedSignature(e.SigningPublicKey,
+					SealedPasskeyAnchorPayload(e.User, c.entries[0].Hash(), e.CredentialID), e.AnchorSignature)
 		}
-		return e.Kind == SealedKindRecovery && c.LiveRecovery() == nil &&
-			VerifySealedSignature(e.SigningPublicKey,
-				SealedRecoveryAnchorPayload(e.User, c.entries[0].Hash()), e.AnchorSignature)
 	}
 	return false
 }
@@ -220,6 +239,16 @@ func (c *SealedChain) Live() []int {
 		}
 	}
 	return out
+}
+
+// LivePasskey returns the live entry for a passkey credential, or nil.
+func (c *SealedChain) LivePasskey(credentialID string) *SealedChainEntry {
+	for _, seq := range c.Live() {
+		if e := c.Entry(seq); e.Kind == SealedKindPasskey && e.CredentialID == credentialID {
+			return e
+		}
+	}
+	return nil
 }
 
 // LiveRecovery returns the live recovery entry, or nil.

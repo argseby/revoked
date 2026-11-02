@@ -33,6 +33,7 @@ import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/record_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/redacted_value.dart';
@@ -197,7 +198,13 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               onTap: () => _viewFile(r),
             )
           : r.isLocked
-          ? null
+          ? AppButton(
+              icon: AppIcons.personPlus,
+              label: 'Add this device',
+              onTap: () => context.go(
+                AppRoutes.settingsPage(SettingsPage.encryption.slug),
+              ),
+            )
           : AppButton(
               icon: AppIcons.copy,
               label: 'Copy value',

@@ -561,4 +561,176 @@ void main() {
       expect(DeviceInvite.tryParse('rvkdev1.AAAA.BBBB.CCCC'), isNull);
     });
   });
+  group('a passkey on the device chain', () {
+    const user = 'u1';
+    const credential = 'cred-1';
+    final device = Sealing.generateKeyPair();
+    final secret = Sealing.randomBytes(32);
+    final pkSigning = PasskeyKeys.signingKey(secret);
+    final pkHpke = PasskeyKeys.hpkeKey(secret);
+
+    DeviceChainEntry root() => DeviceChainEntry.sign(
+      user: user,
+      seq: 1,
+      action: DeviceChainEntry.actionAdd,
+      kind: DeviceChainEntry.kindDevice,
+      label: 'first',
+      hpkePublicKey: Sealing.generateKeyPair().publicKey,
+      signingPublicKey: device.publicKey,
+      targetSeq: 0,
+      previousHash: Uint8List(0),
+      signerSeq: 1,
+      signer: device,
+    );
+
+    DeviceChainEntry passkey({
+      required DeviceChainEntry after,
+      required Uint8List rootHash,
+      int signerSeq = 1,
+      SealingKeyPair? signer,
+      Uint8List? anchor,
+      String cred = credential,
+    }) => DeviceChainEntry.sign(
+      user: user,
+      seq: after.seq + 1,
+      action: DeviceChainEntry.actionAdd,
+      kind: DeviceChainEntry.kindPasskey,
+      label: 'Chrome on Mac',
+      credentialId: cred,
+      hpkePublicKey: pkHpke.publicKey,
+      signingPublicKey: pkSigning.publicKey,
+      targetSeq: 0,
+      previousHash: after.hash,
+      signerSeq: signerSeq,
+      signer: signer ?? device,
+      anchorSignature:
+          anchor ??
+          Sealing.sign(
+            pkSigning,
+            SealedFormats.passkeyAnchorPayload(user, rootHash, cred),
+          ),
+    );
+
+    test('derives the same keys from the same secret', () {
+      expect(PasskeyKeys.hpkeKey(secret).publicKey, pkHpke.publicKey);
+      expect(PasskeyKeys.signingKey(secret).publicKey, pkSigning.publicKey);
+      expect(
+        PasskeyKeys.hpkeKey(Sealing.randomBytes(32)).publicKey,
+        isNot(pkHpke.publicKey),
+      );
+      expect(pkHpke.publicKey, isNot(pkSigning.publicKey));
+    });
+
+    test('is accepted when a device signs it and it signed the root', () {
+      final a = root();
+      final p = passkey(after: a, rootHash: a.hash);
+      final chain = VerifiedChain.verify(user, [a, p]);
+      expect(chain.broken, isFalse);
+      expect(chain.livePasskey(credential)?.seq, 2);
+      expect(chain.everNamedPasskey(credential), isTrue);
+    });
+
+    test('cannot sign itself', () {
+      final a = root();
+      final p = passkey(
+        after: a,
+        rootHash: a.hash,
+        signerSeq: 2,
+        signer: pkSigning,
+      );
+      final chain = VerifiedChain.verify(user, [a, p]);
+      expect(chain.broken, isTrue);
+      expect(chain.livePasskeys, isEmpty);
+    });
+
+    test('needs its anchor over this root and this credential', () {
+      final a = root();
+      final otherRoot = passkey(after: a, rootHash: Sealing.randomBytes(32));
+      expect(VerifiedChain.verify(user, [a, otherRoot]).broken, isTrue);
+      final otherCredential = passkey(
+        after: a,
+        rootHash: a.hash,
+        anchor: Sealing.sign(
+          pkSigning,
+          SealedFormats.passkeyAnchorPayload(user, a.hash, 'cred-2'),
+        ),
+      );
+      expect(VerifiedChain.verify(user, [a, otherCredential]).broken, isTrue);
+      final byTheDevice = passkey(
+        after: a,
+        rootHash: a.hash,
+        anchor: Sealing.sign(
+          device,
+          SealedFormats.passkeyAnchorPayload(user, a.hash, credential),
+        ),
+      );
+      expect(VerifiedChain.verify(user, [a, byTheDevice]).broken, isTrue);
+      final unnamed = passkey(after: a, rootHash: a.hash, cred: '');
+      expect(VerifiedChain.verify(user, [a, unnamed]).broken, isTrue);
+    });
+
+    test('is one live entry per credential', () {
+      final a = root();
+      final p = passkey(after: a, rootHash: a.hash);
+      final again = passkey(after: p, rootHash: a.hash);
+      final chain = VerifiedChain.verify(user, [a, p, again]);
+      expect(chain.broken, isTrue);
+      expect(chain.live.map((e) => e.seq), [1, 2]);
+    });
+
+    test('can vouch for a device', () {
+      final a = root();
+      final p = passkey(after: a, rootHash: a.hash);
+      final joined = DeviceChainEntry.sign(
+        user: user,
+        seq: 3,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: 'phone',
+        hpkePublicKey: Sealing.generateKeyPair().publicKey,
+        signingPublicKey: Sealing.generateKeyPair().publicKey,
+        targetSeq: 0,
+        previousHash: p.hash,
+        signerSeq: 2,
+        signer: pkSigning,
+      );
+      final chain = VerifiedChain.verify(user, [a, p, joined]);
+      expect(chain.broken, isFalse);
+      expect(chain.live.map((e) => e.seq), [1, 2, 3]);
+    });
+
+    test('matches the shared vectors, which Go checks too', () {
+      final v =
+          jsonDecode(
+                File(
+                  'test/fixtures/sealing_passkey_vectors.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      Uint8List hex(String s) => Uint8List.fromList([
+        for (var i = 0; i < s.length; i += 2)
+          int.parse(s.substring(i, i + 2), radix: 16),
+      ]);
+      final prf = hex(v['prfSecret'] as String);
+      expect(
+        PasskeyKeys.hpkeKey(prf).publicKey,
+        hex(v['hpkePublicKey'] as String),
+      );
+      expect(
+        PasskeyKeys.signingKey(prf).publicKey,
+        hex(v['signingPublicKey'] as String),
+      );
+      final entries = [
+        for (final e in jsonDecode(v['entries'] as String) as List<dynamic>)
+          DeviceChainEntry.fromJson({
+            ...e as Map<String, dynamic>,
+            'user': v['user'],
+          }),
+      ];
+      final chain = VerifiedChain.verify(v['user'] as String, entries);
+      expect(chain.broken, isFalse);
+      expect(chain.livePasskey(v['credentialId'] as String)?.seq, 2);
+      expect(chain.live, hasLength(3));
+    });
+  });
 }

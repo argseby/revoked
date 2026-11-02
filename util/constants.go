@@ -35,6 +35,7 @@ const (
 	SealedActionRemove = "remove"
 	SealedKindDevice   = "device"
 	SealedKindRecovery = "recovery"
+	SealedKindPasskey  = "passkey"
 
 	FormatHidden    = "hidden"
 	FormatDefault   = "default"

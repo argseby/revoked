@@ -1,4 +1,3 @@
-import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/models/sign_in_consent.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/config/app_config.dart';
@@ -48,11 +47,23 @@ class SignInApproval {
   /// A new name being typed for this service.
   final ObservableTextController nameDraft = ObservableTextController();
 
+  /// What's being searched for in the vault browser.
+  final ObservableTextController browseQuery = ObservableTextController();
+
+  final Map<String, ObservableTextController> _valueDrafts = {};
+
+  /// A new value being typed for the vault key [key].
+  ObservableTextController valueDraft(String key) =>
+      _valueDrafts.putIfAbsent(key, ObservableTextController.new);
+
   SignInApproval(this._api, this._crypto, this._identities, this._unlock);
 
   /// Opens [request] on the signed-in server.
   Future<SignInOpened> open(SignInRequest request) async {
     nameDraft.clear();
+    for (final draft in _valueDrafts.values) {
+      draft.clear();
+    }
     final data = await _api.post(
       '/oidc/authorize/app',
       body: {'params': request.toQuery()},
@@ -74,7 +85,8 @@ class SignInApproval {
   /// ticket with an identity whose key this device holds. [links] maps each
   /// key asked for to the chosen entry id; an empty id shares nothing. [name]
   /// is the name picked for this service; [newName] is one to save first, as
-  /// a vault entry of its own, once the person has confirmed.
+  /// a vault entry of its own, once the person has confirmed. [newValues] maps
+  /// a key asked for to a value to save the same way and share under that key.
   Future<String> decide(
     SignInConsent consent, {
     required bool approve,
@@ -82,13 +94,14 @@ class SignInApproval {
     Map<String, String> links = const {},
     SignInNameOption? name,
     String newName = '',
+    Map<String, String> newValues = const {},
   }) async {
     final body = <String, dynamic>{
       'ticket': consent.ticket,
       'approve': approve,
     };
     if (approve) {
-      final identity = await _signingIdentity();
+      final identityId = await _signingIdentity(consent);
       final bool confirmed;
       try {
         confirmed = await _unlock.confirm('Sign in to ${consent.clientHost}');
@@ -101,6 +114,10 @@ class SignInApproval {
         );
       }
       final saved = newName.isEmpty ? null : await _saveName(consent, newName);
+      final savedValues = {
+        for (final e in newValues.entries)
+          e.key: (await _saveValue(e.key, e.value)).id,
+      };
       final given = saved ?? name;
       if (given != null) {
         body['name'] = {'kind': given.kind, 'id': given.id};
@@ -109,10 +126,12 @@ class SignInApproval {
       body['links'] = {
         for (final e in links.entries)
           if (e.value.isNotEmpty) e.key: e.value,
+        ...savedValues,
       };
-      body['identityId'] = identity.id;
+      body['created'] = [?saved?.id, ...savedValues.values];
+      body['identityId'] = identityId;
       body['signature'] = await _crypto.signMessage(
-        identityId: identity.id,
+        identityId: identityId,
         message: '$consentPrefix${consent.ticket}',
       );
     }
@@ -121,13 +140,36 @@ class SignInApproval {
   }
 
   /// Saves [value] as a vault entry for this service, under a key of its own.
-  Future<SignInNameOption> _saveName(SignInConsent c, String value) async {
-    final records = '/api/collections/${AppConfig.recordsCollection}/records';
+  Future<SignInNameOption> _saveName(SignInConsent c, String value) {
     final host = c.clientHost.toLowerCase().replaceAll(
       RegExp(r'[^a-z0-9]'),
       '_',
     );
-    final base = 'name_${host.length > 80 ? host.substring(0, 80) : host}';
+    return _saveEntry(
+      base: 'name_${host.length > 80 ? host.substring(0, 80) : host}',
+      value: value,
+      label: 'Name on ${c.clientHost}',
+      failure: 'Couldn’t save your name. Please try again.',
+    );
+  }
+
+  /// Saves [value] under the key a service asked for. A key the person already
+  /// uses keeps its value, because other links may read it: the new entry takes
+  /// the next free key, and is shared under the one asked for.
+  Future<SignInNameOption> _saveValue(String key, String value) => _saveEntry(
+    base: key,
+    value: value,
+    label: key,
+    failure: 'Couldn’t save your new value. Please try again.',
+  );
+
+  Future<SignInNameOption> _saveEntry({
+    required String base,
+    required String value,
+    required String label,
+    required String failure,
+  }) async {
+    final records = '/api/collections/${AppConfig.recordsCollection}/records';
     try {
       // The base holds only characters a key allows, so it can't break out of
       // the filter.
@@ -148,7 +190,7 @@ class SignInApproval {
         body: {
           'key': key,
           'value': value,
-          'label': 'Name on ${c.clientHost}',
+          'label': label,
           'type': 'text',
           'format': 'default',
           'user': Stores.auth.currentUser?.id,
@@ -164,9 +206,7 @@ class SignInApproval {
     } on ApiException {
       // Not left as an ApiException: the ticket is still good, so the person
       // can try again from here.
-      throw const SignInApprovalException(
-        'Couldn’t save your name. Please try again.',
-      );
+      throw SignInApprovalException(failure);
     }
   }
 
@@ -182,15 +222,15 @@ class SignInApproval {
     }
   }
 
-  /// The identity the approval is signed with: the primary one if its key is
-  /// on this device, otherwise any active one whose key is.
-  Future<Identity> _signingIdentity() async {
+  /// The identity the approval is signed with: the first of the person's, in
+  /// any workspace, whose key is on this device.
+  Future<String> _signingIdentity(SignInConsent consent) async {
     if (_identities.identities.isEmpty) await _identities.loadIdentities();
     final active = _identities.identities.where((i) => !i.isRevoked).toList()
       ..sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));
-    for (final identity in active) {
-      final key = await _crypto.loadPrivateKey(identity.id);
-      if (key != null && key.isNotEmpty) return identity;
+    for (final id in {...active.map((i) => i.id), ...consent.signers}) {
+      final key = await _crypto.loadPrivateKey(id);
+      if (key != null && key.isNotEmpty) return id;
     }
     throw const SignInApprovalException(
       'This device has no identity yet. Approve the sign-in on the device '

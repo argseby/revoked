@@ -71,6 +71,19 @@ func TestSigningInWithAPasskey(t *testing.T) {
 		passkeyRefusal(t, err, http.StatusBadRequest, util.Errors.PasskeyGrantInvalid)
 	})
 
+	t.Run("the session names the passkey that signed in", func(t *testing.T) {
+		api := api.T(t)
+		verifier := strings.Repeat("c", 43)
+		code, err := device.SignInCode(util.PKCEChallenge(verifier))
+		if err != nil {
+			t.Fatalf("sign in: %v", err)
+		}
+		passkey := api.E.POST("/api/passkeys/token").WithJSON(map[string]any{"code": code, "verifier": verifier}).
+			Expect().Status(http.StatusOK).JSON().Object().Value("meta").Object().Value("passkey").Object()
+		passkey.Value("credentialId").String().IsEqual(services.PasskeyCredentialID(device.Credential.ID))
+		passkey.Value("id").String().NotEmpty()
+	})
+
 	t.Run("another account's passkey is not this one's", func(t *testing.T) {
 		other := testutils.NewPasskeyDevice(baseURL)
 		session, err := other.Register(map[string]any{"email": passkeyEmail()})
@@ -256,5 +269,13 @@ func TestThePasskeyPage(t *testing.T) {
 		Expect().Status(http.StatusOK).Body().Raw()
 	if strings.Contains(body, "alert(1)") {
 		t.Error("the page reflects its query")
+	}
+	// The PRF output derives encryption keys: asked for on every ceremony,
+	// handed to the app in the fragment, and stripped before anything goes to
+	// this server.
+	for _, want := range []string{"revoked-sealed-prf-v1", "prf: { eval: { first: PRF_SALT } }", "delete ext.prf", "'#prf=' +"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page lacks %q", want)
+		}
 	}
 }

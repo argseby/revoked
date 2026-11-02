@@ -102,7 +102,7 @@ type recordFields struct {
 }
 
 type deviceKeyFields struct {
-	User, Seq, Action, Kind, Label, HpkePublicKey, SigningPublicKey, TargetSeq,
+	User, Seq, Action, Kind, Label, CredentialId, HpkePublicKey, SigningPublicKey, TargetSeq,
 	PreviousHash, SignerSeq, AnchorSignature, Signature, Created string
 }
 
@@ -403,6 +403,7 @@ var Fields = struct {
 		Action:           "action",
 		Kind:             "kind",
 		Label:            "label",
+		CredentialId:     "credentialId",
 		HpkePublicKey:    "hpkePublicKey",
 		SigningPublicKey: "signingPublicKey",
 		TargetSeq:        "targetSeq",

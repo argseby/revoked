@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:revoked_app/core/files/file_saver.dart';
@@ -507,6 +508,10 @@ abstract class _VaultStore with Store {
     isLoading = true;
     errorMessage = null;
     final ticket = loadState.begin();
+    // Started with the list, not after it: whether this device can read its
+    // encrypted records is shown above the list, and must not wait for a
+    // list that may fail.
+    unawaited(Stores.keys.ensureLoaded());
     try {
       final recordsData = await _api.get(
         '/api/collections/${AppConfig.recordsCollection}/records',

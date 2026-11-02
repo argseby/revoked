@@ -863,6 +863,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   /// Slug editor — text field plus regenerate and live uniqueness validation.
   Future<void> _editSlug() async {
+    final before = _store.draftSlug.text;
     await showAppSheet(
       context: context,
       builder: (sheetCtx) {
@@ -948,7 +949,14 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
+                  AppEditSheetActions(
+                    onCancel: () {
+                      _store.draftSlug.text = before;
+                      _validateSlug(before);
+                      Navigator.of(sheetCtx).pop();
+                    },
+                    onDone: done,
+                  ),
                 ],
               ),
             );

@@ -194,6 +194,32 @@ abstract final class SealedFormats {
   /// of their own. Only someone holding the recovery secret can produce this.
   static Uint8List recoveryAnchorPayload(String user, Uint8List rootHash) =>
       Sealing.context('revoked-recovery-anchor-v1', [user, rootHash]);
+
+  /// What a passkey's key signs when it joins a list: the root, so a fresh device
+  /// holding the same passkey can trust the list it is shown, and the credential,
+  /// so the entry can't be passed off as another passkey's.
+  static Uint8List passkeyAnchorPayload(
+    String user,
+    Uint8List rootHash,
+    String credentialId,
+  ) => Sealing.context('revoked-passkey-anchor-v1', [
+    user,
+    rootHash,
+    credentialId,
+  ]);
+}
+
+/// The keys a passkey holds, derived from what its PRF extension returns. The
+/// same passkey gives the same output on every device it is synced to, so these
+/// are the same pair wherever the person signs in with it.
+abstract final class PasskeyKeys {
+  static SealingKeyPair hpkeKey(Uint8List secret) => Sealing.deriveKeyPair(
+    Sealing.derive(secret, 'revoked-passkey-hpke-v1', Sealing.keyLength),
+  );
+
+  static SealingKeyPair signingKey(Uint8List secret) => Sealing.deriveKeyPair(
+    Sealing.derive(secret, 'revoked-passkey-sign-v1', Sealing.keyLength),
+  );
 }
 
 /// Turns the recovery secret into the code a person writes down, and back.
@@ -283,12 +309,17 @@ class DeviceChainEntry {
   static const String actionRemove = 'remove';
   static const String kindDevice = 'device';
   static const String kindRecovery = 'recovery';
+  static const String kindPasskey = 'passkey';
 
   final String user;
   final int seq;
   final String action;
   final String kind;
   final String label;
+
+  /// On a passkey entry: the credential it derives from. Outside the signed
+  /// payload, but the anchor signature covers it.
+  final String credentialId;
   final Uint8List hpkePublicKey;
   final Uint8List signingPublicKey;
 
@@ -309,6 +340,7 @@ class DeviceChainEntry {
     required this.action,
     required this.kind,
     required this.label,
+    this.credentialId = '',
     required this.hpkePublicKey,
     required this.signingPublicKey,
     required this.targetSeq,
@@ -350,6 +382,7 @@ class DeviceChainEntry {
     required String action,
     required String kind,
     required String label,
+    String credentialId = '',
     required Uint8List hpkePublicKey,
     required Uint8List signingPublicKey,
     required int targetSeq,
@@ -363,6 +396,7 @@ class DeviceChainEntry {
     action: action,
     kind: kind,
     label: label,
+    credentialId: credentialId,
     hpkePublicKey: hpkePublicKey,
     signingPublicKey: signingPublicKey,
     targetSeq: targetSeq,
@@ -395,6 +429,7 @@ class DeviceChainEntry {
     action: json['action'] as String,
     kind: json['kind'] as String? ?? '',
     label: json['label'] as String? ?? '',
+    credentialId: json['credentialId'] as String? ?? '',
     hpkePublicKey: SealedFormats.decode(json['hpkePublicKey'] as String? ?? ''),
     signingPublicKey: SealedFormats.decode(
       json['signingPublicKey'] as String? ?? '',
@@ -413,6 +448,7 @@ class DeviceChainEntry {
     'action': action,
     'kind': kind,
     'label': label,
+    'credentialId': credentialId,
     'hpkePublicKey': SealedFormats.encode(hpkePublicKey),
     'signingPublicKey': SealedFormats.encode(signingPublicKey),
     'targetSeq': targetSeq,
@@ -503,6 +539,26 @@ class VerifiedChain {
     return null;
   }
 
+  List<DeviceChainEntry> get livePasskeys => [
+    for (final e in live)
+      if (e.kind == DeviceChainEntry.kindPasskey) e,
+  ];
+
+  DeviceChainEntry? livePasskey(String credentialId) {
+    for (final e in livePasskeys) {
+      if (e.credentialId == credentialId) return e;
+    }
+    return null;
+  }
+
+  /// Whether [credentialId] was ever on the list, live or removed. A passkey the
+  /// person took off is not put back without them asking.
+  bool everNamedPasskey(String credentialId) => entries.any(
+    (e) =>
+        e.kind == DeviceChainEntry.kindPasskey &&
+        e.credentialId == credentialId,
+  );
+
   /// What must also come off the list when [target] does: everything it added,
   /// and everything those added, including entries already removed. A stolen
   /// device could add a device, have that add a recovery key of its own, then
@@ -573,16 +629,38 @@ class VerifiedChain {
         !Sealing.isValidPublicKey(entry.signingPublicKey)) {
       return false;
     }
-    if (entry.kind == DeviceChainEntry.kindDevice) return true;
-    // One recovery key at a time, and it must have signed this list's root. A
-    // second one is how a stolen device would keep a way in after its removal.
-    return entry.kind == DeviceChainEntry.kindRecovery &&
-        sofar.liveRecovery == null &&
-        Sealing.verify(
-          entry.signingPublicKey,
-          SealedFormats.recoveryAnchorPayload(user, sofar.entries.first.hash),
-          entry.anchorSignature,
-        );
+    switch (entry.kind) {
+      case DeviceChainEntry.kindDevice:
+        return true;
+      // One recovery key at a time, and it must have signed this list's root.
+      // A second one is how a stolen device would keep a way in after its
+      // removal.
+      case DeviceChainEntry.kindRecovery:
+        return sofar.liveRecovery == null &&
+            Sealing.verify(
+              entry.signingPublicKey,
+              SealedFormats.recoveryAnchorPayload(
+                user,
+                sofar.entries.first.hash,
+              ),
+              entry.anchorSignature,
+            );
+      // Never the first entry, so never self-signed: a stolen session can make
+      // a passkey, but nothing it holds may vouch for one.
+      case DeviceChainEntry.kindPasskey:
+        return entry.credentialId.isNotEmpty &&
+            sofar.livePasskey(entry.credentialId) == null &&
+            Sealing.verify(
+              entry.signingPublicKey,
+              SealedFormats.passkeyAnchorPayload(
+                user,
+                sofar.entries.first.hash,
+                entry.credentialId,
+              ),
+              entry.anchorSignature,
+            );
+    }
+    return false;
   }
 
   static bool _listEquals(List<int> a, List<int> b) {

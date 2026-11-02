@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/crypto/sealing.dart';
+import 'package:revoked_app/core/models/passkey.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
@@ -333,6 +334,18 @@ abstract class _KeysStore with Store {
   @observable
   bool removedFromList = false;
 
+  /// The passkey this session signed in with, and the secret it derived, when
+  /// the authenticator gave one. Memory only: it is never written anywhere, and
+  /// it goes with the session.
+  @observable
+  PasskeySignIn? passkeySignIn;
+
+  /// Why the passkey could not be connected or used, when it could not.
+  @observable
+  String? passkeyError;
+
+  bool _passkeyBusy = false;
+
   final ObservableTextController recoveryConfirm = ObservableTextController();
   final ObservableTextController recoveryInput = ObservableTextController();
   final ObservableTextController deviceCodeInput = ObservableTextController();
@@ -392,6 +405,36 @@ abstract class _KeysStore with Store {
 
   bool canSeal(String workspace) => writableWorkspaces.contains(workspace);
 
+  /// The passkey this session signed in with, when it derived a secret and the
+  /// session is still this person's.
+  PasskeySignIn? get _heldPasskey {
+    final p = passkeySignIn;
+    return p != null && p.user == _currentUser() && p.secret != null ? p : null;
+  }
+
+  /// The credential this session signed in with, when it holds a secret.
+  @computed
+  String? get thisPasskeyCredentialId => _heldPasskey?.credentialId;
+
+  /// A passkey signed in here, but gave nothing a key could derive from.
+  @computed
+  bool get passkeyWithoutSecret {
+    final p = passkeySignIn;
+    return p != null && p.user == _currentUser() && p.asked && p.secret == null;
+  }
+
+  /// Whether the passkey this session signed in with could be made a key
+  /// holder from here: this device is trusted and the list doesn't name it.
+  @computed
+  bool get canConnectPasskey {
+    final p = _heldPasskey;
+    return p != null &&
+        p.credentialId.isNotEmpty &&
+        status == SealingStatus.ready &&
+        !chainBroken &&
+        chain.livePasskey(p.credentialId) == null;
+  }
+
   /// Whether a workspace's key is in someone else's hands only.
   bool isLockedFor(String workspace) => lockedWorkspaces.contains(workspace);
 
@@ -434,7 +477,22 @@ abstract class _KeysStore with Store {
     unreviewedEntries.clear();
     removedFromList = false;
     _pendingRecoverySecret = null;
+    passkeySignIn = null;
+    passkeyError = null;
     status = SealingStatus.unknown;
+  }
+
+  /// Takes what the sign-in page brought back. Acted on by the next load, or
+  /// now if this person is already loaded: a device that can read nothing joins
+  /// through the passkey, a trusted one lets the passkey hold its keys.
+  @action
+  Future<void> offerPasskeySignIn(PasskeySignIn signIn) {
+    passkeySignIn = signIn;
+    passkeyError = null;
+    if (_loadedFor == _scope && status != SealingStatus.unknown) {
+      return load();
+    }
+    return Future.value();
   }
 
   /// Only "yes" is remembered. One bad answer, or a server mid-upgrade, must not
@@ -517,10 +575,15 @@ abstract class _KeysStore with Store {
     );
   }
 
-  /// Fetches the state, applies it, and replaces any key that's due. Replacing
-  /// one changes the state, so that path reads it once more.
+  /// Fetches the state, applies it, lets the passkey act on it, and replaces any
+  /// key that's due. Each of those changes the state, so it is read again.
   Future<void> _refresh() async {
     await _applyState(await _fetchState());
+    if (await _applyPasskey()) await _applyState(await _fetchState());
+    await _rotateDue();
+  }
+
+  Future<void> _rotateDue() async {
     final due = [
       for (final entry in _workspaces.entries)
         if (entry.value.mustRotate) entry.key,
@@ -940,6 +1003,295 @@ abstract class _KeysStore with Store {
 
   /// Creates the recovery key and shows it. Nothing is uploaded until the
   /// person has confirmed saving it, so walking away changes nothing.
+  /// What the passkey this session signed in with should do about the list, if
+  /// anything, and does it: joins a device the list doesn't name through a
+  /// passkey entry it can prove is its own, or enrols the passkey from a trusted
+  /// device the first time the list sees that credential. True when it changed
+  /// the list. A failure is kept for the person and never stops a load.
+  Future<bool> _applyPasskey() async {
+    final p = _heldPasskey;
+    if (p == null || _passkeyBusy) return false;
+    _passkeyBusy = true;
+    try {
+      switch (status) {
+        case SealingStatus.needsThisDevice:
+        case SealingStatus.needsConfirmation:
+          return await _joinWithPasskey(p);
+        case SealingStatus.ready:
+          if (!_trusted ||
+              p.credentialId.isEmpty ||
+              chain.everNamedPasskey(p.credentialId)) {
+            return false;
+          }
+          await _enrollPasskey(p);
+          return true;
+        case SealingStatus.unknown:
+        case SealingStatus.unavailable:
+        case SealingStatus.notSetUp:
+        case SealingStatus.untrusted:
+          return false;
+      }
+    } catch (e) {
+      runInAction(() => passkeyError = describeError(e));
+      return false;
+    } finally {
+      _passkeyBusy = false;
+    }
+  }
+
+  /// Joins from a passkey entry whose keys this device can derive. The entry's
+  /// anchor proves the real passkey signed the list's root, which only a device
+  /// holding the same secret could have done, so the root is pinned from it.
+  /// Nothing is evicted: unlike the recovery key, this is the ordinary way in.
+  Future<bool> _joinWithPasskey(PasskeySignIn p) async {
+    if (chainBroken || chain.entries.isEmpty) return false;
+    final secret = p.secret!;
+    final hpke = PasskeyKeys.hpkeKey(secret);
+    final signing = PasskeyKeys.signingKey(secret);
+    final root = chain.entries.first.hash;
+    DeviceChainEntry? holder;
+    for (final e in chain.livePasskeys) {
+      if (_sameBytes(e.hpkePublicKey, hpke.publicKey) &&
+          _sameBytes(e.signingPublicKey, signing.publicKey) &&
+          Sealing.verify(
+            signing.publicKey,
+            SealedFormats.passkeyAnchorPayload(
+              _currentUser(),
+              root,
+              e.credentialId,
+            ),
+            e.anchorSignature,
+          )) {
+        holder = e;
+      }
+    }
+    if (holder == null) return false;
+    await _joinThrough(
+      holder: holder,
+      hpke: hpke,
+      signing: signing,
+      root: root,
+    );
+    return true;
+  }
+
+  DeviceChainEntry _passkeyEntry(
+    PasskeySignIn p, {
+    required int seq,
+    required Uint8List previousHash,
+    required Uint8List rootHash,
+    required int signerSeq,
+    required SealingKeyPair signer,
+  }) {
+    final secret = p.secret!;
+    final signing = PasskeyKeys.signingKey(secret);
+    return DeviceChainEntry.sign(
+      user: _currentUser(),
+      seq: seq,
+      action: DeviceChainEntry.actionAdd,
+      kind: DeviceChainEntry.kindPasskey,
+      label: p.name.isEmpty ? 'Passkey' : p.name,
+      credentialId: p.credentialId,
+      hpkePublicKey: PasskeyKeys.hpkeKey(secret).publicKey,
+      signingPublicKey: signing.publicKey,
+      targetSeq: 0,
+      previousHash: previousHash,
+      signerSeq: signerSeq,
+      signer: signer,
+      anchorSignature: Sealing.sign(
+        signing,
+        SealedFormats.passkeyAnchorPayload(
+          _currentUser(),
+          rootHash,
+          p.credentialId,
+        ),
+      ),
+    );
+  }
+
+  /// Puts the passkey on the list, signed by this device, and hands it every key
+  /// this device may write under. From then on it receives each new key like any
+  /// entry, and a device signing in with it can join by itself.
+  Future<void> _enrollPasskey(PasskeySignIn p) async {
+    if (!_trusted || p.credentialId.isEmpty) {
+      throw const SealingException(
+        'This device can\'t change your device list right now.',
+      );
+    }
+    if (chain.livePasskey(p.credentialId) != null) return;
+    final entry = _passkeyEntry(
+      p,
+      seq: chain.nextSeq,
+      previousHash: chain.headHash,
+      rootHash: chain.entries.first.hash,
+      signerSeq: thisDeviceSeq!,
+      signer: _device!.signing,
+    );
+    await _commit([entry], wraps: _wrapsForNewEntry(entry));
+  }
+
+  /// Makes the passkey this session signed in with a key holder, at the person's
+  /// request. The automatic path leaves alone a passkey they once took off.
+  @action
+  Future<bool> connectPasskey() async {
+    final p = _heldPasskey;
+    passkeyError = null;
+    errorMessage = null;
+    if (p == null) return false;
+    isSaving = true;
+    try {
+      await _applyState(await _fetchState());
+      await _enrollPasskey(p);
+      await _refresh();
+      return chain.livePasskey(p.credentialId) != null;
+    } catch (e) {
+      passkeyError = describeError(e);
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  /// Takes a passkey's entry off the list, when it has one. The server can't do
+  /// this when the passkey itself is removed, because only a key holder can sign
+  /// it. True when no live entry names the credential afterwards.
+  @action
+  Future<bool> removePasskeyEntry(String credentialId) async {
+    final entry = chain.livePasskey(credentialId);
+    if (entry == null) return true;
+    return removeDevice(entry.seq);
+  }
+
+  /// Puts this device on the list on the strength of [holder], an entry whose
+  /// keys this device holds: removes [removeSeqs] and signs its own entry with
+  /// them, carries every key wrapped to [holder] over to itself, and pins the
+  /// list from [root]. Nothing is pinned until the server has shown all of that
+  /// landed; pinning sooner would leave a failed join trusting a fork.
+  Future<void> _joinThrough({
+    required DeviceChainEntry holder,
+    required SealingKeyPair hpke,
+    required SealingKeyPair signing,
+    required Uint8List root,
+    List<int> removeSeqs = const [],
+  }) async {
+    var device = _device;
+    if (device == null) {
+      device = _DeviceKeys.generate();
+      await _saveDevice(device);
+    }
+
+    // Removals first: a list at its cap would otherwise refuse this device, and
+    // it may already be on a fork's list.
+    final entries = <DeviceChainEntry>[];
+    var nextSeq = chain.nextSeq;
+    var previous = chain.headHash;
+    final existing = thisDeviceSeq;
+    for (final target in removeSeqs) {
+      final removal = _removalEntry(
+        seq: nextSeq++,
+        target: target,
+        previousHash: previous,
+        signerSeq: holder.seq,
+        signer: signing,
+      );
+      entries.add(removal);
+      previous = removal.hash;
+    }
+    final entry = existing != null
+        ? chain.bySeq(existing)!
+        : DeviceChainEntry.sign(
+            user: _currentUser(),
+            seq: nextSeq,
+            action: DeviceChainEntry.actionAdd,
+            kind: DeviceChainEntry.kindDevice,
+            label: _deviceLabel(),
+            hpkePublicKey: device.hpke.publicKey,
+            signingPublicKey: device.signing.publicKey,
+            targetSeq: 0,
+            previousHash: previous,
+            signerSeq: holder.seq,
+            signer: signing,
+          );
+    if (existing == null) entries.add(entry);
+
+    if (entries.isNotEmpty) {
+      await _commit(
+        entries,
+        wraps: existing == null
+            ? _carriedWraps(
+                holder: holder,
+                hpke: hpke,
+                signing: signing,
+                recipient: entry,
+              )
+            : const [],
+      );
+    } else {
+      await _applyState(await _fetchState());
+    }
+    _pins
+      ..firstHash = SealedFormats.encode(root)
+      ..headSeq = chain.headSeq
+      ..headHash = SealedFormats.encode(chain.headHash)
+      ..reviewedSeq = chain.headSeq
+      ..setupPending = false;
+    await _savePins();
+  }
+
+  /// Every key wrapped to [holder] that this device can open, wrapped again to
+  /// [recipient] and signed by [holder]'s key.
+  List<Map<String, dynamic>> _carriedWraps({
+    required DeviceChainEntry holder,
+    required SealingKeyPair hpke,
+    required SealingKeyPair signing,
+    required DeviceChainEntry recipient,
+  }) {
+    final wraps = <Map<String, dynamic>>[];
+    for (final raw
+        in (_lastState['workspaces'] as List<dynamic>? ?? const [])) {
+      final row = raw as Map<String, dynamic>;
+      final workspace = row['workspace'] as String;
+      final own = [
+        for (final w in (row['wraps'] as List<dynamic>? ?? const []))
+          if ((w['deviceSeq'] as num).toInt() == holder.seq)
+            w as Map<String, dynamic>,
+      ]..sort((a, b) => (b['epoch'] as num).compareTo(a['epoch'] as num));
+      for (final w in own) {
+        final epoch = (w['epoch'] as num).toInt();
+        final signerSeq = (w['signerSeq'] as num).toInt();
+        // Only from devices still on the list: re-signing what a removed
+        // device handed over would launder a key it may have chosen.
+        if (!chain.isLive(signerSeq)) continue;
+        final chainSeq = (w['chainSeq'] as num?)?.toInt() ?? 0;
+        final key = _openWrap(
+          workspace: workspace,
+          epoch: epoch,
+          recipient: hpke,
+          wrap: w['wrap'] as String,
+          signerSeq: signerSeq,
+          chainSeq: chainSeq,
+          signature: w['signature'] as String,
+        );
+        if (key == null) continue;
+        wraps.add(
+          _wrapFor(
+            workspace: workspace,
+            epoch: epoch,
+            key: key,
+            recipient: recipient,
+            signer: signing,
+            signerSeq: holder.seq,
+            // Carried over: a fresh number would hide that this key predates
+            // a removal, and spare it from being replaced.
+            chainSeq: chainSeq,
+          ),
+        );
+        break;
+      }
+    }
+    return wraps;
+  }
+
   @action
   void beginSetup() {
     _replacingRecovery = false;
@@ -1087,22 +1439,36 @@ abstract class _KeysStore with Store {
       signerSeq: 1,
       signer: device.signing,
     );
+    final entries = [first, recovery];
+    final passkey = _heldPasskey;
+    if (passkey != null && passkey.credentialId.isNotEmpty) {
+      entries.add(
+        _passkeyEntry(
+          passkey,
+          seq: 3,
+          previousHash: recovery.hash,
+          rootHash: first.hash,
+          signerSeq: 1,
+          signer: device.signing,
+        ),
+      );
+    }
 
     // Pinned from what this device signed itself, before anything is uploaded.
     // Trusting the list the server sends back would let it put its own device
     // first and collect the workspace key this device then hands out.
     _pins
       ..firstHash = SealedFormats.encode(first.hash)
-      ..headSeq = 2
-      ..headHash = SealedFormats.encode(recovery.hash)
-      ..reviewedSeq = 2
+      ..headSeq = entries.length
+      ..headHash = SealedFormats.encode(entries.last.hash)
+      ..reviewedSeq = entries.length
       ..setupPending = true;
     await _savePins();
 
     await _api.post(
       '/api/sealed/devices',
       body: {
-        'entries': [first.toJson(), recovery.toJson()],
+        'entries': [for (final e in entries) e.toJson()],
       },
     );
     await _applyState(await _fetchState());
@@ -1442,7 +1808,6 @@ abstract class _KeysStore with Store {
         errorMessage = 'That recovery key doesn\'t belong to this account.';
         return false;
       }
-      final recoverySeq = recovery.seq;
       final root = chain.entries.first.hash;
       if (!Sealing.verify(
         signing.publicKey,
@@ -1453,106 +1818,20 @@ abstract class _KeysStore with Store {
         return false;
       }
 
-      var device = _device;
-      if (device == null) {
-        device = _DeviceKeys.generate();
-        await _saveDevice(device);
-      }
-
-      // Removals first, signed by the recovery key: a list at its cap would
-      // otherwise refuse this device, and it may already be on a fork's list.
-      final entries = <DeviceChainEntry>[];
-      var nextSeq = chain.nextSeq;
-      var previous = chain.headHash;
-      final existing = thisDeviceSeq;
-      for (final other in chain.live) {
-        if (other.kind != DeviceChainEntry.kindDevice ||
-            other.seq == existing) {
-          continue;
-        }
-        final removal = _removalEntry(
-          seq: nextSeq++,
-          target: other.seq,
-          previousHash: previous,
-          signerSeq: recoverySeq,
-          signer: signing,
-        );
-        entries.add(removal);
-        previous = removal.hash;
-      }
-      final entry = existing != null
-          ? chain.bySeq(existing)!
-          : DeviceChainEntry.sign(
-              user: _currentUser(),
-              seq: nextSeq,
-              action: DeviceChainEntry.actionAdd,
-              kind: DeviceChainEntry.kindDevice,
-              label: _deviceLabel(),
-              hpkePublicKey: device.hpke.publicKey,
-              signingPublicKey: device.signing.publicKey,
-              targetSeq: 0,
-              previousHash: previous,
-              signerSeq: recoverySeq,
-              signer: signing,
-            );
-      if (existing == null) entries.add(entry);
-
-      final wraps = <Map<String, dynamic>>[];
-      for (final raw
-          in (_lastState['workspaces'] as List<dynamic>? ?? const [])) {
-        final row = raw as Map<String, dynamic>;
-        final workspace = row['workspace'] as String;
-        final own = [
-          for (final w in (row['wraps'] as List<dynamic>? ?? const []))
-            if ((w['deviceSeq'] as num).toInt() == recoverySeq)
-              w as Map<String, dynamic>,
-        ]..sort((a, b) => (b['epoch'] as num).compareTo(a['epoch'] as num));
-        for (final w in own) {
-          final epoch = (w['epoch'] as num).toInt();
-          final signerSeq = (w['signerSeq'] as num).toInt();
-          // Only from devices still on the list: re-signing what a removed
-          // device handed over would launder a key it may have chosen.
-          if (!chain.isLive(signerSeq)) continue;
-          final chainSeq = (w['chainSeq'] as num?)?.toInt() ?? 0;
-          final key = _openWrap(
-            workspace: workspace,
-            epoch: epoch,
-            recipient: hpke,
-            wrap: w['wrap'] as String,
-            signerSeq: signerSeq,
-            chainSeq: chainSeq,
-            signature: w['signature'] as String,
-          );
-          if (key == null) continue;
-          wraps.add(
-            _wrapFor(
-              workspace: workspace,
-              epoch: epoch,
-              key: key,
-              recipient: entry,
-              signer: signing,
-              signerSeq: recoverySeq,
-              // Carried over: a fresh number would hide that this key predates
-              // a removal, and spare it from being replaced.
-              chainSeq: chainSeq,
-            ),
-          );
-          break;
-        }
-      }
-
-      if (entries.isNotEmpty) {
-        await _commit(entries, wraps: existing == null ? wraps : const []);
-      } else {
-        await _applyState(await _fetchState());
-      }
-      _pins
-        ..firstHash = SealedFormats.encode(root)
-        ..headSeq = chain.headSeq
-        ..headHash = SealedFormats.encode(chain.headHash)
-        ..reviewedSeq = chain.headSeq
-        ..setupPending = false;
-      await _savePins();
+      // Every device and passkey comes off: a thief with a stolen device could
+      // have added either, and this device can't tell which.
+      await _joinThrough(
+        holder: recovery,
+        hpke: hpke,
+        signing: signing,
+        root: root,
+        removeSeqs: [
+          for (final other in chain.live)
+            if (other.kind != DeviceChainEntry.kindRecovery &&
+                other.seq != thisDeviceSeq)
+              other.seq,
+        ],
+      );
 
       recoveryInput.clear();
       await _refresh();

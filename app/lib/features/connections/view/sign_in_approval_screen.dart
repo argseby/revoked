@@ -18,11 +18,11 @@ import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
-import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
-import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/core/widgets/identity_controls.dart';
 import 'package:revoked_app/features/connections/sign_in_approval.dart';
 import 'package:revoked_app/features/connections/view/day_label.dart';
+import 'package:revoked_app/features/connections/view/sign_in_picker.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -54,9 +54,12 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   final _scopes = Local<Set<String>>({});
   final _links = Local<Map<String, String>>({});
 
-  /// The name picked for this service: an option's token, [_newName], or
-  /// empty for none.
+  /// The name picked for this service: an option's token,
+  /// [SignInPicker.newValue], or empty for none.
   final _nameChoice = Local<String>('');
+
+  /// What each picker held before its switch was turned off.
+  final Map<String, String> _lastPicks = {};
 
   /// The person's row for a service they paused, to offer activating it.
   final _pausedService = Local<String?>(null);
@@ -74,6 +77,10 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   };
 
   Future<void> _open() async {
+    final settings = Stores.settings;
+    if (settings.workspaces.isEmpty) {
+      settings.loadWorkspaces(Stores.auth.userId);
+    }
     try {
       final opened = await Stores.signInApproval.open(widget.request!);
       if (!mounted) return;
@@ -85,7 +92,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         if (opened.refusal != null) await _answerService(opened.refusal!);
         return;
       }
-      // The name has its own select, and starts where the person left it.
+      _lastPicks.clear();
+      // The name has its own picker, and starts where the person left it.
       _nameChoice.value = consent.nameSelected;
       // Coming back under a new ID, anything shared could give it away, so
       // nothing starts out shared.
@@ -108,6 +116,29 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     }
   }
 
+  /// Entries belong to a workspace, so what the service can be given changes
+  /// with it, and the request is opened again to find out. The ticket from
+  /// before simply expires.
+  Future<void> _switchWorkspace(String workspaceId) async {
+    final auth = Stores.auth;
+    if (_busy.value || workspaceId == auth.activeWorkspace) return;
+    _busy.value = true;
+    _error.value = null;
+    final switched = await Stores.workspaceContext.switchTo(
+      userId: auth.userId,
+      workspaceId: workspaceId,
+    );
+    if (!mounted) return;
+    if (switched) {
+      await _open();
+    } else {
+      _error.value =
+          Stores.settings.errorMessage ??
+          'Couldn’t switch workspace. Please try again.';
+    }
+    if (mounted) _busy.value = false;
+  }
+
   Future<void> _decide(bool approve) async {
     final consent = _consent.value!;
     _busy.value = true;
@@ -120,9 +151,17 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
           ..._scopes.value,
           if (_typingName || _pickedName != null) _profile,
         },
-        links: _links.value,
+        links: {
+          for (final e in _links.value.entries)
+            if (e.value != SignInPicker.newValue) e.key: e.value,
+        },
         name: _pickedName,
         newName: _typingName ? Stores.signInApproval.nameDraft.text.trim() : '',
+        newValues: {
+          for (final e in _links.value.entries)
+            if (e.value == SignInPicker.newValue)
+              e.key: Stores.signInApproval.valueDraft(e.key).text.trim(),
+        },
       );
       if (!mounted) return;
       _stage.value = approve ? _Stage.approved : _Stage.declined;
@@ -281,9 +320,6 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
 
   static const _profile = 'profile';
 
-  /// In the name select: type a new one instead of picking one.
-  static const _newName = 'new';
-
   SignInNameOption? get _pickedName {
     for (final o in _consent.value?.nameOptions ?? const <SignInNameOption>[]) {
       if (o.token == _nameChoice.value) return o;
@@ -291,60 +327,139 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     return null;
   }
 
-  bool get _typingName => _nameChoice.value == _newName;
+  bool get _typingName => _nameChoice.value == SignInPicker.newValue;
 
   /// Whether what the name comes from stays readable in the vault.
   bool get _nameIsEntry =>
       _typingName || _pickedName?.kind == SignInNameOption.fromRecord;
 
-  String _nameLabel(SignInNameOption o) => o.kind == SignInNameOption.fromRecord
-      ? '${o.label.isEmpty ? o.key : o.label} — ${o.value}'
-      : '${o.value} — Your identity';
+  String? get _workspaceName {
+    final spaces = Stores.settings.workspaces;
+    if (spaces.length < 2) return null;
+    for (final w in spaces) {
+      if (w.id == Stores.auth.activeWorkspace) return w.name;
+    }
+    return null;
+  }
 
-  /// "Your name": a service gets the name picked for it here, and nothing
-  /// until one is picked.
+  List<SignInChoice> _nameChoices(SignInConsent c) => [
+    for (final o in c.nameOptions)
+      SignInChoice(
+        id: o.token,
+        recordId: o.kind == SignInNameOption.fromRecord ? o.id : null,
+        value: o.value,
+        title: o.kind == SignInNameOption.fromRecord
+            ? (o.label.isEmpty ? o.key : o.label)
+            : 'Your identity',
+        key: o.key,
+      ),
+  ];
+
+  List<SignInChoice> _linkChoices(SignInLinkAsk l) => [
+    for (final o in l.options)
+      SignInChoice(
+        id: o.id,
+        recordId: o.id,
+        value: o.preview,
+        title: o.label.isEmpty ? o.key : o.label,
+        key: o.key,
+      ),
+  ];
+
+  /// Remembers what a picker held when it's turned off, for turning it back on.
+  void _pick(
+    String slot,
+    String current,
+    String next,
+    void Function(String) set,
+  ) {
+    if (current.isNotEmpty) _lastPicks[slot] = current;
+    set(next);
+  }
+
+  /// A service gets the name picked for it here, and nothing until one is.
   Widget _nameRow(SignInConsent c) {
-    final busy = _busy.value;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text('Your name'),
-        AppSpacing.gapSm,
-        AppSelect<String>(
-          value: _nameChoice.value,
-          onChanged: busy ? null : (v) => _nameChoice.value = v ?? '',
-          items: [
-            const AppSelectItem('', Text('Don’t share')),
-            for (final o in c.nameOptions)
-              AppSelectItem(
-                o.token,
-                Text(_nameLabel(o), overflow: TextOverflow.ellipsis),
-              ),
-            const AppSelectItem(_newName, Text('Type a new name')),
-          ],
-        ),
-        if (_typingName) ...[
-          AppSpacing.gapSm,
-          AppTextField(
-            controller: Stores.signInApproval.nameDraft,
-            hint: 'Your name on ${c.clientHost}',
-            enabled: !busy,
-          ),
-        ],
-        if (_nameIsEntry) ...[
-          AppSpacing.gapSm,
-          Text(
-            'Saved in your vault. Change it there, and ${c.clientHost} can '
-            'pick up the new name.',
-          ).small.muted,
-        ],
-      ],
+    const slot = 'profile';
+    return SignInPicker(
+      heading: 'Your name',
+      preview: '${c.clientHost} will see you as',
+      nothing: 'No name',
+      newHint: 'Your new name',
+      askedKey: 'name',
+      allFit: true,
+      selected: _nameChoice.value,
+      lastPick: _lastPicks[slot],
+      choices: _nameChoices(c),
+      draft: Stores.signInApproval.nameDraft,
+      workspace: _workspaceName,
+      busy: _busy.value,
+      note: _nameIsEntry
+          ? 'Saved in your vault. Change it there, and ${c.clientHost} can '
+                'pick up the new name.'
+          : null,
+      onChanged: (v) => _pick(slot, _nameChoice.value, v, (next) {
+        _nameChoice.value = next;
+      }),
+      onSwitchWorkspace: _switchWorkspace,
+      browse: () =>
+          _browseData(_nameChoices(_consent.value!), _nameChoice.value),
     );
   }
+
+  /// One key the service asked for: an entry to share under it, a new value
+  /// saved in the vault, or nothing.
+  Widget _linkRow(SignInConsent c, SignInLinkAsk l) {
+    final choice = _links.value[l.key] ?? '';
+    SignInLinkOption? picked;
+    for (final o in l.options) {
+      if (o.id == choice) picked = o;
+    }
+    final section = 'Sign-in · ${c.clientHost}';
+    return SignInPicker(
+      heading: 'Your ${l.key.replaceAll('_', ' ')}',
+      preview: '${c.clientHost} will see',
+      nothing: 'Nothing',
+      newHint: 'Your new value',
+      askedKey: l.key,
+      selected: choice,
+      lastPick: _lastPicks[l.key],
+      choices: _linkChoices(l),
+      draft: Stores.signInApproval.valueDraft(l.key),
+      workspace: _workspaceName,
+      busy: _busy.value,
+      note: choice == SignInPicker.newValue
+          ? 'Saved in your vault under $section.'
+          : l.match == null && picked != null && !picked.isFile
+          ? 'We’ll add an alias called “${l.key}” to your vault, under '
+                '$section.'
+          : null,
+      onChanged: (v) => _pick(l.key, choice, v, (next) {
+        _links.value = {..._links.value, l.key: next};
+      }),
+      onSwitchWorkspace: _switchWorkspace,
+      browse: () {
+        final asks = _consent.value!.links.where((a) => a.key == l.key);
+        return _browseData(
+          asks.isEmpty ? const [] : _linkChoices(asks.first),
+          _links.value[l.key] ?? '',
+        );
+      },
+    );
+  }
+
+  SignInBrowseData _browseData(List<SignInChoice> choices, String selected) =>
+      SignInBrowseData(
+        choices: choices,
+        sections: _consent.value!.sections,
+        selected: selected,
+        busy: _busy.value,
+      );
 
   Widget _consentBody(SignInConsent c) {
     final host = c.clientHost;
     const quiet = SizedBox.shrink();
+    final asksName = c.scopes.any((s) => s.scope == _profile);
+    final chip = WorkspaceChip(onSwitch: _switchWorkspace);
     Widget pad(Widget child) => Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xs,
@@ -389,7 +504,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         ),
         AppListGroup(
           title: '$host learns',
-          trailing: quiet,
+          trailing: c.links.isEmpty && asksName ? chip : quiet,
           children: [
             pad(
               AppCheckRow(
@@ -423,7 +538,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         if (c.links.isNotEmpty)
           AppListGroup(
             title: '$host may read',
-            trailing: quiet,
+            trailing: chip,
             footer: Text(
               'Shared entries stay in your vault. $host reads them from '
               'there until you revoke them.',
@@ -432,36 +547,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
               for (final l in c.links)
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text('Your entry “${l.key}”'),
-                      AppSpacing.gapSm,
-                      AppSelect<String>(
-                        value: _links.value[l.key] ?? '',
-                        onChanged: _busy.value
-                            ? null
-                            : (v) => _links.value = {
-                                ..._links.value,
-                                l.key: v ?? '',
-                              },
-                        items: [
-                          const AppSelectItem('', Text('Don’t share')),
-                          for (final o in l.options)
-                            AppSelectItem(
-                              o.id,
-                              Text(
-                                [
-                                  o.label.isEmpty ? o.key : o.label,
-                                  if (o.preview.isNotEmpty) o.preview,
-                                ].join(' — '),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  child: _linkRow(c, l),
                 ),
             ],
           ),
@@ -474,7 +560,12 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   Widget _decision() {
     final busy = _busy.value;
     final unnamed =
-        _typingName && Stores.signInApproval.nameDraft.text.trim().isEmpty;
+        (_typingName && Stores.signInApproval.nameDraft.text.trim().isEmpty) ||
+        _links.value.entries.any(
+          (e) =>
+              e.value == SignInPicker.newValue &&
+              Stores.signInApproval.valueDraft(e.key).text.trim().isEmpty,
+        );
     return AppActionBar(
       note: const Text(
         'You confirm on this device. Nothing is shared until you do.',

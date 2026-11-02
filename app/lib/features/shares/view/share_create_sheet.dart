@@ -593,6 +593,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   }
 
   Future<void> _editSlug() async {
+    final before = _store.draftSlug.text;
     await showAppSheet(
       context: context,
       builder: (sheetCtx) {
@@ -652,7 +653,14 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                     Text(_store.draftSlugWarning!).small,
                   ],
                   AppSpacing.gapLg,
-                  AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
+                  AppEditSheetActions(
+                    onCancel: () {
+                      _store.draftSlug.text = before;
+                      _validateSlug(before);
+                      Navigator.of(sheetCtx).pop();
+                    },
+                    onDone: done,
+                  ),
                 ],
               ),
             );

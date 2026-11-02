@@ -536,14 +536,14 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   }
 
   Future<void> _editKey() async {
+    final before = _store.recordKey.text;
     await showAppSheet(
       context: context,
       builder: (sheetCtx) {
         return Observer(
           builder: (ctx) {
-            final done =
-                _store.recordKey.text.trim().isNotEmpty &&
-                    _store.recordKeyWarning == null
+            // Empty is fine: the key then comes from the label.
+            final done = _store.recordKeyWarning == null
                 ? () => Navigator.of(sheetCtx).pop()
                 : null;
             return Padding(
@@ -594,7 +594,14 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     ),
                   ],
                   const SizedBox(height: AppSpacing.lg),
-                  AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
+                  AppEditSheetActions(
+                    onCancel: () {
+                      _store.recordKey.text = before;
+                      _validateKey(before);
+                      Navigator.of(sheetCtx).pop();
+                    },
+                    onDone: done,
+                  ),
                 ],
               ),
             );

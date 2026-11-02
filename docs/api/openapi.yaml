@@ -1091,6 +1091,16 @@ paths:
         signed by a device on it; a session alone cannot change the list. Removing a device withdraws its wrapped keys and
         refuses encrypted writes in those workspaces until a new key epoch
         exists.
+
+        An entry's `kind` is `device`, `recovery` or `passkey`. A `passkey` entry
+        holds keys derived from a passkey's WebAuthn PRF output: it names its
+        credential in `credentialId`, carries in `anchorSignature` the derived
+        key's signature over `revoked-passkey-anchor-v1 ‖ user ‖ root hash ‖
+        credentialId`, and is never the first entry, so it is never self-signed.
+        One live entry per credential. The PRF output itself never reaches the
+        server: the sign-in page hands it to the app in the fragment of the
+        `revoked://auth` link, and `POST /api/passkeys/token` names the passkey
+        that signed in under `meta.passkey` (`id`, `name`, `credentialId`).
       security:
         - Session: []
       responses:
@@ -2447,6 +2457,14 @@ paths:
                   account: { type: object }
                   scopes: { type: array, items: { type: object } }
                   links: { type: array, items: { type: object } }
+                  sections:
+                    type: array
+                    description: When entries or a name are asked for, the sections of the person's active workspace, each with its record ids.
+                    items: { type: object }
+                  signers:
+                    type: array
+                    description: The person's active identity ids, primary first, from every workspace. The app signs with one whose key it holds.
+                    items: { type: string }
                   nameOptions:
                     type: array
                     description: With the `profile` scope, the names the person could give this service.
@@ -2498,8 +2516,12 @@ paths:
                   items: { type: string }
                 links:
                   type: object
-                  description: Requested key → the person's entry id.
+                  description: Requested key → an entry id from the person's active workspace. An entry under another key also gets an alias under the requested key, unless that key is taken or the entry is a file.
                   additionalProperties: { type: string }
+                created:
+                  type: array
+                  description: Ids of entries the app saved for this sign-in, filed in the service's section. Must be the person's own and in their active workspace.
+                  items: { type: string }
                 name:
                   type: object
                   description: The name this service gets.
@@ -2517,7 +2539,7 @@ paths:
                 properties:
                   redirect: { type: string }
         "400":
-          description: "`oidc_request_invalid`, or `oidc_link_record_invalid` for an entry that is not the person's."
+          description: "`oidc_request_invalid`, or `oidc_link_record_invalid` for an entry that is not the person's or not in their active workspace."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }

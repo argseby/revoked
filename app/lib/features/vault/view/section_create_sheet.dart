@@ -265,6 +265,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
   }
 
   Future<void> _editKey() async {
+    final before = _store.sectionKey.text;
     await showAppSheet(
       context: context,
       builder: (sheetCtx) => Observer(
@@ -318,7 +319,14 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                   ),
                 ],
                 const SizedBox(height: AppSpacing.lg),
-                AppButton(icon: AppIcons.check, label: 'Done', onTap: done),
+                AppEditSheetActions(
+                  onCancel: () {
+                    _store.sectionKey.text = before;
+                    _validateKey(before);
+                    Navigator.of(sheetCtx).pop();
+                  },
+                  onDone: done,
+                ),
               ],
             ),
           );

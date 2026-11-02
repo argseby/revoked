@@ -26,12 +26,19 @@ class SignInConsent {
   /// The vault keys asked for, each with the entries that could answer it.
   final List<SignInLinkAsk> links;
 
+  /// How the active workspace's vault is filed, for browsing it.
+  final List<SignInSection> sections;
+
   /// The names the person could give this service, when it asks for one.
   final List<SignInNameOption> nameOptions;
 
   /// The option to start from: what they gave this service last time. Empty
   /// when nothing is picked yet.
   final String nameSelected;
+
+  /// The person's active identities in every workspace, primary first, for
+  /// finding one whose key is on this device.
+  final List<String> signers;
 
   /// When the person disconnected this service, if they did and have not come
   /// back since.
@@ -46,8 +53,10 @@ class SignInConsent {
     required this.accountEmail,
     required this.scopes,
     required this.links,
+    this.sections = const [],
     this.nameOptions = const [],
     this.nameSelected = '',
+    this.signers = const [],
     this.disconnectedAt,
     this.newId = false,
   });
@@ -68,9 +77,17 @@ class SignInConsent {
         for (final l in json['links'] as List<dynamic>? ?? const [])
           SignInLinkAsk.fromJson(l as Map<String, dynamic>),
       ],
+      sections: [
+        for (final s in json['sections'] as List<dynamic>? ?? const [])
+          SignInSection.fromJson(s as Map<String, dynamic>),
+      ],
       nameOptions: [
         for (final o in json['nameOptions'] as List<dynamic>? ?? const [])
           SignInNameOption.fromJson(o as Map<String, dynamic>),
+      ],
+      signers: [
+        for (final id in json['signers'] as List<dynamic>? ?? const [])
+          id as String,
       ],
       nameSelected: selected == null
           ? ''
@@ -85,6 +102,33 @@ class SignInConsent {
 
   /// The service's host, for showing who is asking.
   String get clientHost => Uri.tryParse(client)?.host ?? client;
+}
+
+/// A section of the person's vault.
+class SignInSection {
+  final String id;
+  final String name;
+  final List<String> records;
+
+  /// Whether it holds entries made for a service they signed in to.
+  final bool isSignIn;
+
+  const SignInSection({
+    required this.id,
+    required this.name,
+    this.records = const [],
+    this.isSignIn = false,
+  });
+
+  factory SignInSection.fromJson(Map<String, dynamic> json) => SignInSection(
+    id: json['id'] as String,
+    name: json['name'] as String? ?? '',
+    records: [
+      for (final r in json['records'] as List<dynamic>? ?? const [])
+        r as String,
+    ],
+    isSignIn: (json['key'] as String? ?? '').startsWith('signin_'),
+  );
 }
 
 /// One optional scope, and the value it would reveal when the server knows.
@@ -168,13 +212,17 @@ class SignInLinkOption {
   final String key;
   final String label;
   final String preview;
+  final String type;
 
   const SignInLinkOption({
     required this.id,
     required this.key,
     this.label = '',
     this.preview = '',
+    this.type = '',
   });
+
+  bool get isFile => type == 'file';
 
   factory SignInLinkOption.fromJson(Map<String, dynamic> json) =>
       SignInLinkOption(
@@ -182,5 +230,6 @@ class SignInLinkOption {
         key: json['key'] as String? ?? '',
         label: json['label'] as String? ?? '',
         preview: json['preview'] as String? ?? '',
+        type: json['type'] as String? ?? '',
       );
 }

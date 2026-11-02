@@ -622,6 +622,14 @@ class _NeedsThisDevice extends StatelessWidget {
           'You’ve encrypted records on another device. Add this one to read '
           'them here.',
         ),
+        if (Stores.keys.chain.livePasskeys.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          const _PasskeyWayIn(),
+        ],
+        if (Stores.keys.passkeyError != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          AppErrorText(Stores.keys.passkeyError!),
+        ],
         const SizedBox(height: AppSpacing.lg),
         Wrap(
           spacing: AppSpacing.sm,
@@ -645,6 +653,44 @@ class _NeedsThisDevice extends StatelessWidget {
               onTap: () => _openStartOverSheet(context),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// On a device the list doesn't name, when a passkey on the list could let it
+/// in: which one, and the way to use it. Says nothing a passkey can't deliver.
+class _PasskeyWayIn extends StatelessWidget {
+  const _PasskeyWayIn();
+
+  @override
+  Widget build(BuildContext context) {
+    final keys = Stores.keys;
+    final names = keys.chain.livePasskeys.map((e) => e.label).join(', ');
+    if (keys.thisPasskeyCredentialId != null) {
+      return const Text(
+        'The passkey you signed in with here doesn’t hold your key yet. Add '
+        'this device another way, and it will from then on.',
+      ).muted;
+    }
+    if (keys.passkeyWithoutSecret) {
+      return Text(
+        'Your passkey can’t unlock them on this device. Signing in with '
+        '$names on a device that supports it would.',
+      ).muted;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Signing in with $names unlocks them here.').muted,
+        const SizedBox(height: AppSpacing.sm),
+        AppButton(
+          icon: AppIcons.key,
+          label: 'Sign in with your passkey',
+          style: AppButtonStyle.accent,
+          size: AppButtonSize.small,
+          onTap: () => Stores.auth.beginSignIn(),
         ),
       ],
     );
@@ -773,6 +819,7 @@ class _Devices extends StatelessWidget {
     final devices = keys.chain.live
         .where((e) => e.kind == DeviceChainEntry.kindDevice)
         .toList();
+    final passkeys = keys.chain.livePasskeys;
     final recovery = keys.chain.liveRecovery;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -826,9 +873,11 @@ class _Devices extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
         ],
-        const Text(
+        Text(
           'Only these devices can read what you encrypt. Not even your server '
-          'can. You can’t share an encrypted record yet.',
+          'can. You can’t share an encrypted record yet.'
+          '${passkeys.isEmpty ? '' : ' Signing in with a passkey on this list '
+                    'unlocks them on a new device.'}',
         ),
         const SizedBox(height: AppSpacing.lg),
         AppListGroup(
@@ -860,6 +909,21 @@ class _Devices extends StatelessWidget {
                     ),
                 ],
               ),
+            for (final entry in passkeys)
+              AppEntityCard(
+                title: entry.label,
+                subtitle: entry.credentialId == keys.thisPasskeyCredentialId
+                    ? 'Passkey · signed in here'
+                    : 'Passkey · ${KeysStore.fingerprint(entry.hpkePublicKey, entry.signingPublicKey)}',
+                actions: [
+                  AppSheetAction(
+                    icon: AppIcons.trash,
+                    label: 'Remove',
+                    destructive: true,
+                    onTap: () => _remove(context, entry),
+                  ),
+                ],
+              ),
             if (recovery != null)
               AppEntityCard(
                 title: recovery.label,
@@ -870,6 +934,41 @@ class _Devices extends StatelessWidget {
               ),
           ],
         ),
+        if (keys.passkeyError != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          AppErrorText(keys.passkeyError!),
+        ],
+        if (keys.canConnectPasskey) ...[
+          const SizedBox(height: AppSpacing.lg),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AppButton(
+              icon: AppIcons.key,
+              label: 'Connect your passkey',
+              style: AppButtonStyle.accent,
+              busy: keys.isSaving,
+              onTap: keys.isSaving ? null : () => keys.connectPasskey(),
+            ),
+          ),
+        ] else if (passkeys.isEmpty &&
+            keys.thisPasskeyCredentialId == null &&
+            !keys.passkeyWithoutSecret) ...[
+          const SizedBox(height: AppSpacing.lg),
+          const Text(
+            'Sign in again with your passkey, and it can unlock your records '
+            'on your next device.',
+          ).muted,
+          const SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AppButton(
+              icon: AppIcons.key,
+              label: 'Sign in with your passkey',
+              style: AppButtonStyle.accent,
+              onTap: () => Stores.auth.beginSignIn(),
+            ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         Align(
           alignment: Alignment.centerLeft,
@@ -907,26 +1006,32 @@ class SealingAlarm extends StatelessWidget {
     return Observer(
       builder: (context) {
         final keys = Stores.keys;
+        final locked =
+            keys.status == SealingStatus.needsThisDevice ||
+            keys.status == SealingStatus.needsConfirmation;
         final String? message = switch (keys) {
           _ when keys.status == SealingStatus.untrusted =>
             'Your device list changed in a way this device can’t confirm.',
           _ when keys.removedFromList =>
             'This device was removed from your device list.',
+          _ when locked =>
+            'Your encrypted records can’t be read on this device yet.',
           _ when keys.unreviewedEntries.isNotEmpty =>
             'Something changed on your device list.',
           _ => null,
         };
         if (message == null) return const SizedBox.shrink();
+        final alarm = !locked || keys.removedFromList;
         return Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: AppAlert(
-            destructive: true,
+            destructive: alarm,
             title: Text(message),
             content: Align(
               alignment: Alignment.centerLeft,
               child: AppButton(
-                icon: AppIcons.lock,
-                label: 'Check it',
+                icon: alarm ? AppIcons.lock : AppIcons.personPlus,
+                label: alarm ? 'Check it' : 'Add this device',
                 style: AppButtonStyle.accent,
                 size: AppButtonSize.small,
                 onTap: () => context.go(

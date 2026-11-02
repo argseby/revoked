@@ -122,6 +122,7 @@ abstract final class Stores {
       keys.forgetSession();
       forgetAccountData();
     };
+    auth.onPasskeySignIn = keys.offerPasskeySignIn;
     api.onWrite = invalidateLoads;
     // A rejected session drops to the login screen from wherever it happened.
     api.onUnauthorized = () => unawaited(auth.handleSessionExpired());

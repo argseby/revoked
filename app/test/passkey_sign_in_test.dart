@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:revoked_app/core/models/passkey.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
@@ -89,6 +90,86 @@ void main() {
         isFalse,
       );
       expect(exchanges, hasLength(1));
+    },
+  );
+
+  test(
+    'a passkey sign-in hands over its PRF secret, and names the passkey',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      final requests = <http.Request>[];
+      final api = ApiClient(
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode({
+              'token': 'session-token',
+              'record': {'id': 'u1', 'email': 'a@example.com'},
+              'meta': {
+                'passkey': {
+                  'id': 'pk1',
+                  'name': 'Chrome on Mac',
+                  'credentialId': 'cred-1',
+                },
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final opened = <Uri>[];
+      final auth = AuthStore(
+        api,
+        openBrowser: (page) async {
+          opened.add(page);
+          return true;
+        },
+      );
+      final signIns = <PasskeySignIn>[];
+      auth.onPasskeySignIn = signIns.add;
+
+      Future<PasskeySignIn> signInWith(String fragment) async {
+        await auth.beginSignIn();
+        final state = opened.last.queryParameters['state']!;
+        expect(
+          await auth.completeSignIn(
+            Uri.parse('revoked://auth?code=c&state=$state$fragment'),
+          ),
+          isTrue,
+        );
+        return signIns.last;
+      }
+
+      final secret = List<int>.generate(32, (i) => i);
+      final encoded = base64Url.encode(secret).replaceAll('=', '');
+      final full = await signInWith('#prf=$encoded');
+      expect(full.user, 'u1');
+      expect(full.credentialId, 'cred-1');
+      expect(full.name, 'Chrome on Mac');
+      expect(full.asked, isTrue);
+      expect(full.secret, secret);
+      // The secret stays on this side of the wire.
+      for (final r in requests) {
+        expect(r.url.toString(), isNot(contains(encoded)));
+        expect(r.body, isNot(contains(encoded)));
+      }
+
+      // The page asked; the authenticator gave nothing.
+      final none = await signInWith('#prf=');
+      expect(none.asked, isTrue);
+      expect(none.secret, isNull);
+
+      // An older page never asked.
+      final old = await signInWith('');
+      expect(old.asked, isFalse);
+      expect(old.secret, isNull);
+
+      // Anything but a 32-byte output is not one.
+      final short = await signInWith('#prf=c2hvcnQ');
+      expect(short.asked, isTrue);
+      expect(short.secret, isNull);
     },
   );
 

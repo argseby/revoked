@@ -18,6 +18,8 @@ const (
 	// Enough to remove everything a full list could hold in one write.
 	maxSealedEntries = 2 * util.MaxSealedLiveEntries
 	maxSealedWraps   = 500
+	// The passkeys collection's own limit on a credential id.
+	maxSealedCredentialID = 1400
 	// sealedResetConfirmation must be sent to start over: it destroys data
 	// nobody can recover, so a stray or replayed call must not be enough.
 	sealedResetConfirmation = "delete my encrypted records"
@@ -51,6 +53,7 @@ func (e sealedEntry) toChainEntry(userID string) (util.SealedChainEntry, bool) {
 		Action:           e.Action,
 		Kind:             e.Kind,
 		Label:            e.Label,
+		CredentialID:     e.CredentialId,
 		HpkePublicKey:    hpke,
 		SigningPublicKey: signing,
 		TargetSeq:        e.TargetSeq,
@@ -82,6 +85,7 @@ func loadSealedChain(tx core.App, userID string) (*util.SealedChain, error) {
 			Action:           row.GetString(d.Action),
 			Kind:             row.GetString(d.Kind),
 			Label:            row.GetString(d.Label),
+			CredentialId:     row.GetString(d.CredentialId),
 			TargetSeq:        row.GetInt(d.TargetSeq),
 			SignerSeq:        row.GetInt(d.SignerSeq),
 		}.toChainEntry(userID)
@@ -202,6 +206,7 @@ type sealedEntry struct {
 	Action           string `json:"action"`
 	Kind             string `json:"kind"`
 	Label            string `json:"label"`
+	CredentialId     string `json:"credentialId"`
 	HpkePublicKey    string `json:"hpkePublicKey"`
 	SigningPublicKey string `json:"signingPublicKey"`
 	TargetSeq        int    `json:"targetSeq"`
@@ -236,6 +241,7 @@ func sealedState(app core.App, re *core.RequestEvent) error {
 			"action":           row.GetString(d.Action),
 			"kind":             row.GetString(d.Kind),
 			"label":            row.GetString(d.Label),
+			"credentialId":     row.GetString(d.CredentialId),
 			"hpkePublicKey":    row.GetString(d.HpkePublicKey),
 			"signingPublicKey": row.GetString(d.SigningPublicKey),
 			"targetSeq":        row.GetInt(d.TargetSeq),
@@ -313,10 +319,18 @@ func validSealedEntry(entry sealedEntry) bool {
 	}
 	switch entry.Action {
 	case util.SealedActionAdd:
-		return (entry.Kind == util.SealedKindDevice || entry.Kind == util.SealedKindRecovery) &&
-			entry.TargetSeq == 0
+		if entry.TargetSeq != 0 {
+			return false
+		}
+		switch entry.Kind {
+		case util.SealedKindDevice, util.SealedKindRecovery:
+			return entry.CredentialId == ""
+		case util.SealedKindPasskey:
+			return entry.CredentialId != "" && len(entry.CredentialId) <= maxSealedCredentialID
+		}
+		return false
 	case util.SealedActionRemove:
-		return entry.TargetSeq >= 1
+		return entry.TargetSeq >= 1 && entry.CredentialId == ""
 	}
 	return false
 }
@@ -367,6 +381,7 @@ func appendSealedDevices(app core.App, re *core.RequestEvent) error {
 			row.Set(d.Action, entry.Action)
 			row.Set(d.Kind, entry.Kind)
 			row.Set(d.Label, entry.Label)
+			row.Set(d.CredentialId, entry.CredentialId)
 			row.Set(d.HpkePublicKey, entry.HpkePublicKey)
 			row.Set(d.SigningPublicKey, entry.SigningPublicKey)
 			row.Set(d.TargetSeq, entry.TargetSeq)

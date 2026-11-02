@@ -653,7 +653,23 @@ function encode(buf) {
   for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
+// The PRF extension's output derives this person's encryption keys
+// (E2EE.md §6.8). It goes to the app and never to the server: it is taken out
+// of the extension results before they are sent, whatever the browser
+// serialises them as.
+var PRF_SALT = new TextEncoder().encode('revoked-sealed-prf-v1');
+function withPrf(options) {
+  options.extensions = Object.assign({}, options.extensions, { prf: { eval: { first: PRF_SALT } } });
+  return options;
+}
+function prfOf(c) {
+  var ext = c.getClientExtensionResults ? c.getClientExtensionResults() : null;
+  var first = ext && ext.prf && ext.prf.results && ext.prf.results.first;
+  return first ? encode(first) : '';
+}
 function credentialJSON(c) {
+  var ext = Object.assign({}, c.getClientExtensionResults());
+  delete ext.prf;
   var r = c.response, out = { clientDataJSON: encode(r.clientDataJSON) };
   if (r.attestationObject) {
     out.attestationObject = encode(r.attestationObject);
@@ -666,7 +682,7 @@ function credentialJSON(c) {
   return {
     id: c.id, rawId: encode(c.rawId), type: c.type,
     authenticatorAttachment: c.authenticatorAttachment || undefined,
-    clientExtensionResults: c.getClientExtensionResults(),
+    clientExtensionResults: ext,
     response: out
   };
 }
@@ -697,8 +713,11 @@ async function signIn() {
   var options = begin.options.publicKey;
   options.challenge = decode(options.challenge);
   (options.allowCredentials || []).forEach(function (c) { c.id = decode(c.id); });
-  var credential = await navigator.credentials.get({ publicKey: options });
-  return call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
+  var credential = await navigator.credentials.get({ publicKey: withPrf(options) });
+  var prf = prfOf(credential);
+  var result = await call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
+  result.prf = prf;
+  return result;
 }
 async function register() {
   var body = { name: deviceName() };
@@ -713,8 +732,11 @@ async function register() {
   options.challenge = decode(options.challenge);
   options.user.id = decode(options.user.id);
   (options.excludeCredentials || []).forEach(function (c) { c.id = decode(c.id); });
-  var credential = await navigator.credentials.create({ publicKey: options });
-  return call('/api/passkeys/register/finish', { session: begin.session, credential: credentialJSON(credential) });
+  var credential = await navigator.credentials.create({ publicKey: withPrf(options) });
+  var prf = prfOf(credential);
+  var result = await call('/api/passkeys/register/finish', { session: begin.session, credential: credentialJSON(credential) });
+  result.prf = prf;
+  return result;
 }
 
 // Set once the page has its answer, so nothing redraws over the result.
@@ -757,7 +779,11 @@ function finished(result) {
   var created = mode === 'signup';
   if (result.code) {
     // The code is useless without the verifier only the app that asked holds.
-    var back = 'revoked://auth?code=' + encodeURIComponent(result.code) + '&state=' + encodeURIComponent(state);
+    // The PRF output rides in the fragment, never the query: the query can
+    // end up in a system log, the fragment does not. Empty when the
+    // authenticator gave none, so the app knows the page asked.
+    var back = 'revoked://auth?code=' + encodeURIComponent(result.code) + '&state=' + encodeURIComponent(state) +
+      '#prf=' + (result.prf || '');
     redraw = function () {
       show($('emailRow'), false); show($('codeRow'), false); show($('go'), false); show($('other'), false); show($('resend'), false); show($('hint'), false);
       steps(created ? STEP_COUNT + 1 : 0);

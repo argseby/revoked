@@ -127,15 +127,40 @@ who you are, so share them only if you don't mind that.
 ## Choose your name for each service
 
 When a service asks for your name, you decide which one it gets. You can use
-a game name in one place and your real name in another. Under **Your name**,
-pick one of your identities or a vault entry, or choose **Type a new name**
-to save a new entry just for that service. Choose **Don’t share** and it gets
-no name at all.
+a game name in one place and your real name in another. The top of **Your name**
+shows what the service will see.
+
+Tap one of your identities or vault entries to use it. Want a new name just for
+that service? Type it in **Your new name**. Don't want to share one? Turn off the
+switch, and you can still sign in.
 
 Using a vault entry? Change the entry, and the service can pick up the new
 name. Some services only update it the next time you sign in. Your choice is
 remembered, and you can change it at your next sign-in. Either way, the
 service knows you by the same ID, unless you ask for a new one.
+
+## Choose what a service reads
+
+A service can ask for something from your vault, like a game asking for a
+player name. The app shows what the service will see, and you decide:
+
+- Tap one of the entries suggested for you.
+- Not there? Tap **Browse your vault**, open a section and pick an entry. Or use
+  **Search your vault** to look through every section.
+- Type in **Your new value** to save a new entry and share that.
+- Turn off the switch to keep it to yourself. You can still sign in.
+
+Pick an entry with a different key, and the app adds an alias to your vault, so
+it's ready next time.
+
+Your entries come from the workspace you're in. Have more than one? Tap the
+workspace name on the same screen to switch. New entries are saved there too,
+and the app stays in that workspace afterwards.
+
+Anything added for a service goes in its own section of your vault, named after
+the service, like **Sign-in · showdown.example**. So you can always see what a
+service asked you to add. To go to that service, open the section's menu and
+choose **Open service**. Entries you already had stay where they are.
 
 ## Sign out of a service
 

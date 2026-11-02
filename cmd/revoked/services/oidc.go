@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -73,11 +75,13 @@ func OIDCClaims(app core.App, user *core.Record, clientID string, secret []byte,
 // shares something, with a fresh token each time. choices maps the key the
 // service asked for to the person's entry; every entry must be theirs.
 func SaveSignInGrant(app core.App, user *core.Record, clientID string, choices map[string]string, token string) (*core.Record, error) {
+	workspace := user.GetString(util.Fields.User.ActiveWorkspace)
 	grants := map[string]string{}
 	var records []string
 	for key, recordID := range choices {
 		rec, err := app.FindRecordById(util.Coll.Records, recordID)
-		if err != nil || rec == nil || rec.GetString(util.Fields.Record.User) != user.Id {
+		if err != nil || rec == nil || rec.GetString(util.Fields.Record.User) != user.Id ||
+			rec.GetString(util.Fields.Record.Workspace) != workspace {
 			return nil, ErrSignInRecord
 		}
 		// Grants point at the entry holding the value, as request answers do.
@@ -110,9 +114,11 @@ func SaveSignInGrant(app core.App, user *core.Record, clientID string, choices m
 		link = core.NewRecord(col)
 		link.Set(f.Slug, "s_"+slug)
 		link.Set(f.User, user.Id)
-		link.Set(f.Workspace, user.GetString(util.Fields.User.ActiveWorkspace))
 		link.Set(f.SignInClient, clientID)
 	}
+	// Set on an existing link too: a link has to live where its entries do, and
+	// the person may have picked this service's entries from another workspace.
+	link.Set(f.Workspace, workspace)
 	link.Set(f.Label, "Sign-in at "+clientID)
 	link.Set(f.Status, util.StatusActive)
 	link.Set(f.Records, records)
@@ -124,9 +130,113 @@ func SaveSignInGrant(app core.App, user *core.Record, clientID string, choices m
 	return link, nil
 }
 
+// SaveSignInAlias files the entry chosen for key under that key in the person's
+// vault, so the next sign-in finds it there. A key already in use stays as it
+// is: keys are unique per workspace, and a file can't be an alias. It returns
+// the new alias's id, or "" when none was needed.
+func SaveSignInAlias(app core.App, user *core.Record, key, recordID string) (string, error) {
+	f := util.Fields.Record
+	parent, err := app.FindRecordById(util.Coll.Records, recordID)
+	if err != nil {
+		return "", err
+	}
+	if parentID := parent.GetString(f.AliasOf); parentID != "" {
+		if parent, err = app.FindRecordById(util.Coll.Records, parentID); err != nil {
+			return "", err
+		}
+	}
+	if parent.GetString(f.Type) == util.TypeFile {
+		return "", nil
+	}
+	workspace := user.GetString(util.Fields.User.ActiveWorkspace)
+	existing, _ := app.FindFirstRecordByFilter(util.Coll.Records,
+		f.Key+" = {:k} && "+f.User+" = {:u} && "+f.Workspace+" = {:w}",
+		dbx.Params{"k": key, "u": user.Id, "w": workspace})
+	if existing != nil {
+		return "", nil
+	}
+	col, err := app.FindCollectionByNameOrId(util.Coll.Records)
+	if err != nil {
+		return "", err
+	}
+	alias := core.NewRecord(col)
+	alias.Set(f.Key, key)
+	alias.Set(f.Label, key)
+	alias.Set(f.Type, parent.GetString(f.Type))
+	alias.Set(f.Format, parent.GetString(f.Format))
+	alias.Set(f.User, user.Id)
+	alias.Set(f.Workspace, workspace)
+	alias.Set(f.AliasOf, parent.Id)
+	if err := app.Save(alias); err != nil {
+		return "", err
+	}
+	return alias.Id, nil
+}
+
+var signInSectionKeyInvalid = regexp.MustCompile(`[^a-z0-9_]`)
+
+// SaveSignInSection groups entries made for a service under a section named
+// after it, and marks them as made for that service, so the vault can say where
+// they came from. Only entries made during a sign-in come here: one the person
+// already had stays where they filed it.
+func SaveSignInSection(app core.App, user *core.Record, clientID string, entryIDs []string) error {
+	host := clientID
+	if u, err := url.Parse(clientID); err == nil && u.Hostname() != "" {
+		host = u.Hostname()
+	}
+	if utf8.RuneCountInString(host) > maxSignInSectionName {
+		host = string([]rune(host)[:maxSignInSectionName])
+	}
+	workspace := user.GetString(util.Fields.User.ActiveWorkspace)
+	r := util.Fields.Record
+	for _, id := range entryIDs {
+		rec, err := app.FindRecordById(util.Coll.Records, id)
+		if err != nil || rec.GetString(r.User) != user.Id || rec.GetString(r.Workspace) != workspace || IsSealed(rec) {
+			return ErrSignInRecord
+		}
+		rec.Set(r.RequestedBy, host)
+		if err := app.Save(rec); err != nil {
+			return err
+		}
+	}
+
+	f := util.Fields.Section
+	key := SignInSectionPrefix + signInSectionKeyInvalid.ReplaceAllString(strings.ToLower(host), "_")
+	section, _ := app.FindFirstRecordByFilter(util.Coll.Sections,
+		f.Key+" = {:k} && "+f.User+" = {:u} && "+f.Workspace+" = {:w}",
+		dbx.Params{"k": key, "u": user.Id, "w": workspace})
+	if section == nil {
+		col, err := app.FindCollectionByNameOrId(util.Coll.Sections)
+		if err != nil {
+			return err
+		}
+		section = core.NewRecord(col)
+		section.Set(f.Key, key)
+		section.Set(f.Name, host)
+		section.Set(f.RequestedBy, host)
+		section.Set(f.User, user.Id)
+		section.Set(f.Workspace, workspace)
+	}
+	records := section.GetStringSlice(f.Records)
+	for _, id := range entryIDs {
+		if !slices.Contains(records, id) {
+			records = append(records, id)
+		}
+	}
+	section.Set(f.Records, records)
+	return app.Save(section)
+}
+
 // ErrSignInRecord is returned by SaveSignInGrant for an entry that is not
-// the signed-in person's own.
+// the signed-in person's own, or not in their active workspace.
 var ErrSignInRecord = errors.New("entry is not the signed-in person's")
+
+// SignInSectionPrefix starts the key of a section holding a service's entries.
+const SignInSectionPrefix = "signin_"
+
+// maxSignInSectionName is the shorter of the section name and key limits, once
+// the key has its prefix.
+const maxSignInSectionName = 93
 
 // SignInNameKey is the key a name read from the vault is shared under, so a
 // service can read it again and see it change.

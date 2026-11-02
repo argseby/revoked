@@ -143,15 +143,13 @@ void main() {
   }
 
   Future<void> pick(WidgetTester tester, String item) async {
-    await tester.tap(find.text('Don’t share').last);
-    await tester.pumpAndSettle();
     await tester.tap(find.text(item).last);
     await tester.pumpAndSettle();
   }
 
   testWidgets('nothing picked: the name stays private', (tester) async {
     await show(tester);
-    expect(find.text('Don’t share'), findsOneWidget);
+    expect(find.text('No name'), findsOneWidget);
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
 
@@ -161,7 +159,7 @@ void main() {
 
   testWidgets('a vault entry can be the name for this service', (tester) async {
     await show(tester);
-    await pick(tester, 'Gamer tag — xXAdaXx');
+    await pick(tester, 'xXAdaXx');
     expect(find.textContaining('Saved in your vault'), findsOneWidget);
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
@@ -174,7 +172,8 @@ void main() {
   testWidgets('it starts on the name given last time', (tester) async {
     selected = {'kind': 'identity', 'id': 'id1'};
     await show(tester);
-    expect(find.text('Ada Lovelace — Your identity'), findsOneWidget);
+    expect(find.text('Ada Lovelace'), findsWidgets);
+    expect(find.text('No name'), findsNothing);
     expect(find.textContaining('Saved in your vault'), findsNothing);
   });
 
@@ -183,13 +182,17 @@ void main() {
   ) async {
     takenKeys = ['name_game_example'];
     await show(tester);
-    await pick(tester, 'Type a new name');
+    await tester.tap(find.widgetWithText(TextField, 'Your new name'));
+    await tester.pumpAndSettle();
 
     final signIn = find.widgetWithText(FilledButton, 'Sign in');
     expect(tester.widget<FilledButton>(signIn).onPressed, isNull);
     expect(created, isEmpty);
 
-    await tester.enterText(find.byType(TextField).last, ' xXAdaXx ');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Your new name'),
+      ' xXAdaXx ',
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();

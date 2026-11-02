@@ -14,7 +14,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 ///
 /// Resolves true when Done was pressed and false when the sheet was
 /// dismissed, so a caller that writes the value on the way out can tell a
-/// save from a cancel.
+/// save from a cancel. Cancel puts the text back as it was.
 Future<bool> showAppEditSheet({
   required BuildContext context,
   required String title,
@@ -27,6 +27,7 @@ Future<bool> showAppEditSheet({
   int maxLines = 1,
   String doneLabel = 'Done',
 }) {
+  final before = controller.text;
   return showAppSheet<bool>(
     context: context,
     builder: (sheetCtx) => Padding(
@@ -59,27 +60,55 @@ Future<bool> showAppEditSheet({
                 : null,
           ),
           AppSpacing.gapLg,
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: 'Cancel',
-                  style: AppButtonStyle.accent,
-                  onTap: () => Navigator.of(sheetCtx).pop(false),
-                ),
-              ),
-              AppSpacing.gapMd,
-              Expanded(
-                child: AppButton(
-                  icon: AppIcons.check,
-                  label: doneLabel,
-                  onTap: () => Navigator.of(sheetCtx).pop(true),
-                ),
-              ),
-            ],
+          AppEditSheetActions(
+            doneLabel: doneLabel,
+            onCancel: () {
+              controller.text = before;
+              Navigator.of(sheetCtx).pop(false);
+            },
+            onDone: () => Navigator.of(sheetCtx).pop(true),
           ),
         ],
       ),
     ),
   ).then((done) => done ?? false);
+}
+
+/// The bottom row of a sheet that edits one thing. Done may be unavailable while
+/// the value is invalid, so a sheet that only closes through its own buttons
+/// always needs Cancel beside it, or the person is stuck inside.
+class AppEditSheetActions extends StatelessWidget {
+  final VoidCallback onCancel;
+  final VoidCallback? onDone;
+  final String doneLabel;
+
+  const AppEditSheetActions({
+    super.key,
+    required this.onCancel,
+    required this.onDone,
+    this.doneLabel = 'Done',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: AppButton(
+            label: 'Cancel',
+            style: AppButtonStyle.accent,
+            onTap: onCancel,
+          ),
+        ),
+        AppSpacing.gapMd,
+        Expanded(
+          child: AppButton(
+            icon: AppIcons.check,
+            label: doneLabel,
+            onTap: onDone,
+          ),
+        ),
+      ],
+    );
+  }
 }

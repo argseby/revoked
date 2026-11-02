@@ -47,4 +47,8 @@ class Section {
   }
 
   bool get isRequested => requestedBy != null && requestedBy!.isNotEmpty;
+
+  /// Holds the entries made for a service the person signed in to, which
+  /// [requestedBy] names.
+  bool get isSignIn => key.startsWith('signin_');
 }

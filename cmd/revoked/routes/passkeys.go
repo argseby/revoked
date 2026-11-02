@@ -132,7 +132,9 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 				app.Logger().Error("Failed to record a passkey sign-in", "error", err)
 			}
 			return re.JSON(http.StatusOK, map[string]any{
-				"code": passkeyCodes.put(&passkeyGrant{user: account.Id, pkce: ceremony.pkce}, util.PasskeyCodeTTL),
+				"code": passkeyCodes.put(&passkeyGrant{
+					user: account.Id, pkce: ceremony.pkce, credential: services.PasskeyCredentialID(credential.ID),
+				}, util.PasskeyCodeTTL),
 			})
 		})
 
@@ -310,7 +312,9 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 			out := map[string]any{}
 			// Asked for by the app: it is signed in with what was just made.
 			if ceremony.pkce != "" {
-				out["code"] = passkeyCodes.put(&passkeyGrant{user: ceremony.user, pkce: ceremony.pkce}, util.PasskeyCodeTTL)
+				out["code"] = passkeyCodes.put(&passkeyGrant{
+					user: ceremony.user, pkce: ceremony.pkce, credential: services.PasskeyCredentialID(credential.ID),
+				}, util.PasskeyCodeTTL)
 			}
 			return re.JSON(http.StatusOK, out)
 		})
@@ -339,7 +343,20 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 			if err != nil || account == nil {
 				return invalid()
 			}
-			return apis.RecordAuthResponse(re, account, "passkey", nil)
+			// Which passkey signed in, so the app can name it when it holds an
+			// encryption key (E2EE.md §6.8). Public: the id and name are the
+			// account's own listing.
+			var meta map[string]any
+			if row, err := app.FindFirstRecordByFilter(util.Coll.Passkeys,
+				util.Fields.Passkey.User+" = {:u} && "+util.Fields.Passkey.CredentialId+" = {:c}",
+				dbx.Params{"u": account.Id, "c": grant.credential}); err == nil && row != nil {
+				meta = map[string]any{"passkey": map[string]any{
+					"id":           row.Id,
+					"name":         row.GetString(util.Fields.Passkey.Name),
+					"credentialId": grant.credential,
+				}}
+			}
+			return apis.RecordAuthResponse(re, account, "passkey", meta)
 		})
 
 		e.Router.POST("/api/passkeys/tickets", func(re *core.RequestEvent) error {
@@ -444,6 +461,8 @@ type passkeyCeremony struct {
 // passkeyGrant is a finished ceremony waiting for the app to collect it.
 type passkeyGrant struct {
 	user, pkce string
+	// The credential that signed in, as the passkeys collection stores it.
+	credential string
 }
 
 // passkeyVault keeps short-lived values under a random one-time key. In

@@ -253,3 +253,79 @@ func mustExtract(t *testing.T, secret []byte) []byte {
 	}
 	return prk
 }
+
+// A passkey's keys derive from its PRF output the way the recovery key's do, and
+// a list the app signed with one must pass the Go check (E2EE.md §6.8).
+func TestPasskeyKeysDeriveAndVerifyInGo(t *testing.T) {
+	raw, err := os.ReadFile("../app/test/fixtures/sealing_passkey_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		User, CredentialId, PrfSecret, HpkePublicKey, SigningPublicKey, Entries string
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+	kem := hpke.DHKEM(ecdh.P256())
+	secret := mustHex(t, v.PrfSecret)
+	for purpose, want := range map[string]string{
+		"revoked-passkey-hpke-v1": v.HpkePublicKey,
+		"revoked-passkey-sign-v1": v.SigningPublicKey,
+	} {
+		ikm, err := hkdf.Expand(sha256.New, mustExtract(t, secret), purpose, 32)
+		if err != nil {
+			t.Fatal(err)
+		}
+		derived, err := kem.DeriveKeyPair(ikm)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := hex.EncodeToString(derived.PublicKey().Bytes()); got != want {
+			t.Fatalf("%s: public key differs: %s", purpose, got)
+		}
+	}
+
+	var entries []struct {
+		Seq              int    `json:"seq"`
+		Action           string `json:"action"`
+		Kind             string `json:"kind"`
+		Label            string `json:"label"`
+		CredentialId     string `json:"credentialId"`
+		HpkePublicKey    string `json:"hpkePublicKey"`
+		SigningPublicKey string `json:"signingPublicKey"`
+		TargetSeq        int    `json:"targetSeq"`
+		PreviousHash     string `json:"previousHash"`
+		SignerSeq        int    `json:"signerSeq"`
+		AnchorSignature  string `json:"anchorSignature"`
+		Signature        string `json:"signature"`
+	}
+	if err := json.Unmarshal([]byte(v.Entries), &entries); err != nil {
+		t.Fatal(err)
+	}
+	decode := func(s string) []byte {
+		b, err := base64.URLEncoding.DecodeString(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	chain := &SealedChain{}
+	for _, e := range entries {
+		err := chain.Append(SealedChainEntry{
+			User: v.User, Seq: e.Seq, Action: e.Action, Kind: e.Kind, Label: e.Label, CredentialID: e.CredentialId,
+			HpkePublicKey: decode(e.HpkePublicKey), SigningPublicKey: decode(e.SigningPublicKey),
+			TargetSeq: e.TargetSeq, PreviousHash: decode(e.PreviousHash), SignerSeq: e.SignerSeq,
+			AnchorSignature: decode(e.AnchorSignature), Signature: decode(e.Signature),
+		})
+		if err != nil {
+			t.Fatalf("Go refused entry %d that Dart signed: %v", e.Seq, err)
+		}
+	}
+	if chain.LivePasskey(v.CredentialId) == nil || chain.Entry(3).SignerSeq != 2 {
+		t.Fatal("the passkey entry is not live, or did not vouch for the device")
+	}
+	if hex.EncodeToString(chain.LivePasskey(v.CredentialId).SigningPublicKey) != v.SigningPublicKey {
+		t.Fatal("the list's passkey entry does not carry the derived key")
+	}
+}

@@ -93,11 +93,26 @@ class _PasskeysSectionState extends State<PasskeysSection>
       destructive: true,
     );
     if (!ok || !mounted) return;
-    if (!await Stores.passkeys.remove(passkey.id) && mounted) {
+    if (!await Stores.passkeys.remove(passkey.id)) {
+      if (!mounted) return;
       AppToast.error(
         context,
         'Couldn’t remove it',
         subtitle: Stores.passkeys.errorMessage,
+      );
+      return;
+    }
+    // Its place on the device list goes with it, where this device may sign
+    // that. The server can't: only a key holder can take a key holder off.
+    if (passkey.credentialId.isEmpty) return;
+    await Stores.keys.ensureLoaded();
+    if (Stores.keys.chain.livePasskey(passkey.credentialId) == null) return;
+    final gone = await Stores.keys.removePasskeyEntry(passkey.credentialId);
+    if (!gone && mounted) {
+      AppToast.error(
+        context,
+        'It still holds your encryption key',
+        subtitle: 'Remove it under End-to-end encryption.',
       );
     }
   }

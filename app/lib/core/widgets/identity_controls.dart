@@ -16,7 +16,12 @@ import 'package:revoked_app/core/widgets/app_menu_button.dart';
 /// Self-loads the user's workspaces, so it can be dropped anywhere (the shell
 /// top bar, the public request screen, …).
 class WorkspaceChip extends StatefulWidget {
-  const WorkspaceChip({super.key});
+  /// Replaces the plain switch, for a flow that has to react to it. Such a flow
+  /// can't be left for the workspace settings, and with only one workspace
+  /// there's nothing to offer, so the chip then shows less, or nothing.
+  final ValueChanged<String>? onSwitch;
+
+  const WorkspaceChip({super.key, this.onSwitch});
 
   @override
   State<WorkspaceChip> createState() => _WorkspaceChipState();
@@ -48,6 +53,8 @@ class _WorkspaceChipState extends State<WorkspaceChip> {
   Future<void> _switch(String wsId) async {
     final auth = Stores.auth;
     if (wsId == auth.activeWorkspace) return;
+    final onSwitch = widget.onSwitch;
+    if (onSwitch != null) return onSwitch(wsId);
     await Stores.workspaceContext.switchTo(
       userId: auth.userId,
       workspaceId: wsId,
@@ -60,6 +67,8 @@ class _WorkspaceChipState extends State<WorkspaceChip> {
       builder: (_) {
         final activeId = Stores.auth.activeWorkspace;
         final spaces = Stores.settings.workspaces;
+        final inFlow = widget.onSwitch != null;
+        if (inFlow && spaces.length < 2) return const SizedBox.shrink();
         return AppMenuButton(
           icon: AppIcons.personWorkspace,
           label: _name(activeId),
@@ -73,12 +82,14 @@ class _WorkspaceChipState extends State<WorkspaceChip> {
                 checked: w.id == activeId,
                 onSelected: () => _switch(w.id),
               ),
-            if (spaces.isNotEmpty) null,
-            AppMenuItem(
-              label: 'Manage workspaces',
-              icon: AppIcons.personGear,
-              onSelected: () => context.go(AppRoutes.settingsWorkspace),
-            ),
+            if (!inFlow) ...[
+              if (spaces.isNotEmpty) null,
+              AppMenuItem(
+                label: 'Manage workspaces',
+                icon: AppIcons.personGear,
+                onSelected: () => context.go(AppRoutes.settingsWorkspace),
+              ),
+            ],
           ],
         );
       },

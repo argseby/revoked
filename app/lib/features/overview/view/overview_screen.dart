@@ -145,19 +145,6 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
 
     return AppPageBody(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: Semantics(
-            liveRegion: true,
-            child: Text(
-              cards.isEmpty
-                  ? 'Nothing needs you right now.'
-                  : cards.length == 1
-                  ? 'One thing needs you.'
-                  : '${cards.length} things need you.',
-            ),
-          ),
-        ),
         if (cards.isNotEmpty) ...[_Cards(cards: cards), AppSpacing.gapLg],
         AppListGroup(
           title: 'Who can see your data',

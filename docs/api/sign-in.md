@@ -211,7 +211,17 @@ parameter:
 { "userinfo": { "revoked_links": { "values": ["shipping_address", "phone"] } } }
 ```
 
-In the app the person picks one of their entries for each key, or none. The userinfo endpoint then returns a grant over the chosen entries:
+In the app the person picks one of the entries in their active workspace for
+each key, types a new value, or shares nothing. A new value is saved as an entry
+under that key, or the next free key if it is taken. Picking an entry with
+another key adds an alias under the key asked for, unless the key is taken or
+the entry is a file. The person can switch workspace from the consent screen,
+which opens the request again with a new ticket. An entry from any other
+workspace is refused with `oidc_link_record_invalid`, and a service's link moves
+to the workspace its entries are in. New values and aliases are filed in a
+section keyed `signin_<host>` and get the service's host in `requestedBy`;
+entries the person already had are not moved. The userinfo endpoint then returns a grant
+over the chosen entries:
 
 ```json
 {
