@@ -204,15 +204,15 @@ found" and each has a different fix:
 
 ## Testing locally
 
-The repo root has a throwaway listener:
+The repo has a throwaway listener:
 
 ```
-python run.py            # listens on http://0.0.0.0:8000/hook
-python run.py 9000 spy   # http://0.0.0.0:9000/spy
+python3 examples/labs/listen.py        # listens on http://0.0.0.0:8000
+python3 examples/labs/listen.py 9000   # http://0.0.0.0:9000
 ```
 
-It prints every delivery (headers, pretty-printed JSON body) and answers 404
-with a hint for a wrong path. Point the request's callback at
+It prints every delivery (the request id and the pretty-printed JSON body) and
+answers 200 on any path. Point the request's callback at
 `http://127.0.0.1:8000/hook`, run the server with
 `ALLOW_PRIVATE_CALLBACKS=true`, submit a response to the request's public
 link, and the payload appears in the terminal.

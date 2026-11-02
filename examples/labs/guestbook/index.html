@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Guestbook</title>
+<button id="propose">Register for the summer party</button>
+<ul id="links"></ul>
+<script type="module">
+  const here = location.origin + '/';
+  const b64url = (bytes) => btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const random = (n) => b64url(crypto.getRandomValues(new Uint8Array(n)));
+  const sha256 = async (s) =>
+    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
+  const enc = encodeURIComponent;
+
+  // 1. The proposal, with a request to be connected along the way.
+  document.querySelector('#propose').onclick = async () => {
+    const state = random(16), verifier = random(32);
+    sessionStorage.setItem('pending:' + state, verifier);
+    const q = {
+      label: 'Summer party', keys: 'full_name,email,dietary_restrictions',
+      template: 'Event registration', from: 'Guestbook',
+      client: location.origin, redirect: here, state, ref: 'summer-2026',
+      challenge: b64url(await sha256(verifier)),
+      links_reason: 'To put your registration on the guest list',
+    };
+    location.href = 'revoked://p?' + Object.entries(q).map(([k, v]) => k + '=' + enc(v)).join('&');
+  };
+
+  // 2. Back from the app: the state is checked and the code redeemed.
+  const p = new URLSearchParams(location.search);
+  const verifier = p.get('state') && sessionStorage.getItem('pending:' + p.get('state'));
+  history.replaceState(null, '', location.pathname);
+  if (verifier && p.get('code') && p.get('server')) {
+    sessionStorage.removeItem('pending:' + p.get('state'));
+    const res = await fetch(p.get('server') + '/api/connect/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: p.get('code'), verifier, redirectUri: here }),
+    });
+    if (res.ok) {
+      const { token } = await res.json();
+      localStorage.setItem('connection', JSON.stringify({ server: p.get('server'), token }));
+    }
+  }
+
+  // 3. With a token, the status of the proposed links is read.
+  const conn = JSON.parse(localStorage.getItem('connection') || 'null');
+  if (conn) {
+    const res = await fetch(conn.server + '/api/connection', {
+      headers: { 'X-Revoked-Connection': conn.token },
+    });
+    if (res.status === 401) localStorage.removeItem('connection');
+    else for (const l of (await res.json()).links) {
+      const li = document.createElement('li');
+      li.textContent = `${l.label} (${l.ref}): ${l.status}, opened ${l.viewCount}× ${l.url ?? ''}`;
+      document.querySelector('#links').append(li);
+    }
+  }
+</script>

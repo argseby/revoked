@@ -26,13 +26,13 @@ export const Open: React.FC = () => {
     >
       <Mark size={wide ? 150 : 170} at={2} color={WHITE} />
       <Fade at={26}>
-        <div style={{fontSize: wide ? 136 : 94, fontWeight: 600, letterSpacing: '-0.045em', lineHeight: 1}}>
-          Share any data.
+        <div style={{fontSize: wide ? 160 : 150, fontWeight: 600, letterSpacing: '-0.045em', lineHeight: 1}}>
+          Access,
         </div>
       </Fade>
-      <Fade at={50} style={{marginTop: wide ? -44 : -38}}>
-        <div style={{fontSize: wide ? 136 : 94, fontWeight: 600, letterSpacing: '-0.045em', lineHeight: 1}}>
-          Take it back any time.
+      <Fade at={50} style={{marginTop: wide ? -38 : -32}}>
+        <div style={{display: 'inline-block', padding: '4px 22px 16px', background: WHITE, color: INK, fontSize: wide ? 160 : 150, fontWeight: 600, letterSpacing: '-0.045em', lineHeight: 1}}>
+          not copies.
         </div>
       </Fade>
     </AbsoluteFill>
@@ -223,6 +223,47 @@ export const Fact: React.FC = () => {
         <Row k="age_over_18" v="Yes" />
         <Row k="birth_date" v="1991-03-14" covered={prog(f, 76, 12)} />
         <Row k="address" v={VALUES.address} covered={prog(f, 84, 12)} />
+      </Card>
+    </Scene>
+  );
+};
+
+export const SignIn: React.FC = () => {
+  const wide = useWide();
+  const f = useCurrentFrame();
+  const AT = 112;
+  const pressed = prog(f, AT - 8, 8) * (1 - prog(f, AT, 8));
+  const done = f >= AT;
+  const button: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 76,
+    fontSize: 38,
+    fontWeight: 500,
+    letterSpacing: '-0.015em',
+    background: INK,
+    color: WHITE,
+  };
+  return (
+    <Scene
+      title={wide ? 'Sign people in. No passwords.' : <>Sign people in.<br />No passwords.</>}
+      beats={[
+        {at: 12, text: 'Add one button to any site.'},
+        {at: 56, text: 'They approve in the app and choose what you learn.'},
+        {at: AT + 22, text: 'You keep no password. They can revoke the rest.'},
+      ]}
+    >
+      <Card title="shop.example" at={8}>
+        <div style={{...button, marginBottom: 16}}>Sign in with Revoked</div>
+        <Row k="code" v="0D2-99B" />
+      </Card>
+      <Card title="Sign in to shop.example" at={52}>
+        <Row k="learns" v="That it is you" />
+        <Row k="may read" v="address" />
+        <div style={{...button, margin: '4px 0 12px', transform: `scale(${1 - pressed * 0.04})`}}>
+          {done ? '✓ Signed in' : 'Sign in'}
+        </div>
       </Card>
     </Scene>
   );

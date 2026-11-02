@@ -47,3 +47,13 @@ Every setting is in the [.env reference](env.md).
 
 Once the server runs, give people [the app](app.md), or send them straight to
 the desktop and Android downloads.
+
+## Portainer
+
+Use a **git-backed** stack, not the web editor: `build: .` needs the repository
+to build from. Set the compose path to `docker-compose.yml`, and put the `.env`
+values in Portainer's *Environment variables* section.
+
+Pin the stack's repository reference to a release tag (`refs/tags/v0.22.0`) and
+set `REVOKED_VERSION` to the same tag. Portainer's checkout has no `.git`, so
+without it the server can't tell its release and reports `dev`.

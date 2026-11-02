@@ -17,6 +17,7 @@ import {Attestation} from './scenes/Attestation';
 import {Whole} from './scenes/Whole';
 import {Outro} from './scenes/Outro';
 import {SHORT_TOTAL, Short} from './short/Short';
+import {FEATURE_FILMS, Film, filmFrames} from './short/features';
 
 loadFont({family: 'Inter', url: staticFile('InterVariable.ttf'), weight: '100 900'});
 loadFont({family: 'Noto Sans Mono', url: staticFile('NotoSansMono-Regular.ttf')});
@@ -60,6 +61,10 @@ export const Root: React.FC = () => (
     <Composition id="Explainer" component={Explainer} durationInFrames={TOTAL} fps={FPS} width={WIDTH} height={HEIGHT} />
     <Composition id="ShortWide" component={Short} durationInFrames={SHORT_TOTAL} fps={FPS} width={1920} height={1080} />
     <Composition id="ShortTall" component={Short} durationInFrames={SHORT_TOTAL} fps={FPS} width={1080} height={1350} />
+    {Object.keys(FEATURE_FILMS).flatMap((name) => [
+      <Composition key={`${name}Wide`} id={`${name}Wide`} component={() => <Film name={name} />} durationInFrames={filmFrames(name)} fps={FPS} width={1920} height={1080} />,
+      <Composition key={`${name}Tall`} id={`${name}Tall`} component={() => <Film name={name} />} durationInFrames={filmFrames(name)} fps={FPS} width={1080} height={1350} />,
+    ])}
     {SCENES.map(({id, frames, C}) => (
       <Composition
         key={id}

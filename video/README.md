@@ -21,6 +21,9 @@ phones). `npm run render:short` writes both to `out/`. Its scenes are in
 [STORYBOARD.md](STORYBOARD.md). The fonts load from Google Fonts at render time,
 so a render without network falls back to the bundled faces.
 
+`src/short/features.tsx` adds a film of about 30 seconds for each of Sign in,
+Share, Collect, Prove and Connect. `npm run render:films` writes them to `out/`.
+
 ## Rendering
 
 Needs Node and an installed Chrome or Chromium. Remotion would otherwise

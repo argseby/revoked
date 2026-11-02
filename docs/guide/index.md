@@ -7,6 +7,10 @@ The app looks for a server on your own computer first. To use another one,
 tap the server on the login screen and enter its address. **Test** checks
 that it answers, and **Save** keeps it.
 
+Just want to try it? Enter `https://api.revoked.link`, the official server.
+It's experimental and for testing, with no guarantees for your data, so keep
+nothing there you can't lose.
+
 ## Get started {#first-start}
 
 Sign in. If you don't have a workspace yet, the app helps you set one up:

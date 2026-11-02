@@ -14,6 +14,16 @@ docs_dir = "docs"
 
 nav = [
   { "Overview" = "index.md" },
+  { "Try it" = "try/index.md" },
+  { "Labs" = [
+    "labs/index.md",
+    { "Share" = "labs/share.md" },
+    { "Collect" = "labs/collect.md" },
+    { "Prove" = "labs/prove.md" },
+    { "Connect" = "labs/connect.md" },
+    { "Sign in" = "labs/sign-in.md" },
+  ] },
+  { "How it works" = "how-it-works/index.md" },
   { "Installation" = [
     { "Server" = [
       "installation/index.md",
@@ -106,4 +116,9 @@ tables = {}
 attr_list = {}
 toc.permalink = true
 "pymdownx.highlight" = {}
-"pymdownx.superfences" = {}
+"pymdownx.tabbed" = { alternate_style = true }
+
+[project.markdown_extensions."pymdownx.superfences"]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]

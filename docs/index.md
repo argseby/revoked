@@ -1,7 +1,8 @@
 # Revoked
 
-Share your details as a link, not a copy. People always see the latest
-version, and you can switch it off any time.
+Access, not copies. Share what you have, request what you need, sign people
+in and check who's asking. The data stays with its owner, who can end access
+any time.
 
 ## Why a link beats a copy
 
@@ -17,6 +18,9 @@ version, and you can switch it off any time.
 
 | You want to | Start at |
 |---|---|
+| See it working in 5 minutes | [Try it](try/index.md) |
+| Learn each part by using it | [Labs](labs/index.md) |
+| Understand how the parts fit together | [How it works](how-it-works/index.md) |
 | Run your own server, or install the app | [Installation](installation/index.md) |
 | Keep a vault, share secrets, collect data | [Guide](guide/index.md) |
 | Write scripts or connect your own systems | [Developer API](api/index.md) |
@@ -25,3 +29,6 @@ version, and you can switch it off any time.
 Run Revoked on your own server, and your data, your keys and your domain
 all stay under your control. The app connects to whichever server you
 choose.
+
+Just want to try it? Use the official server, `api.revoked.link`. It's
+experimental and for testing, with no guarantees for your data.

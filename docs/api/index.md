@@ -2,7 +2,9 @@
 
 Everything the app does, this API does — it is the same surface, with no
 private endpoints held back. Operators run it under their own domain, so there
-is no shared base URL: substitute your own host throughout.
+is no shared base URL: substitute your own host throughout. To try it, use the
+official server, `https://api.revoked.link`. It is experimental and for testing,
+with no guarantees for your data.
 
 ## Where to start
 

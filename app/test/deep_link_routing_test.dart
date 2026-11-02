@@ -90,6 +90,16 @@ void platformLinkTests() {
     expect(held, contains('revoked_return=background'));
   });
 
+  testWidgets('Android\'s form of the link, with a slash, works the same', (
+    tester,
+  ) async {
+    final router = await startSignedOut(tester);
+    await arrive(tester, router, signIn.replaceFirst('signin?', 'signin/?'));
+
+    expect(find.textContaining('no routes for location'), findsNothing);
+    expect(ResumeLocation.take(), startsWith('/signin?'));
+  });
+
   testWidgets('a share link from the platform opens the share', (tester) async {
     final router = await startSignedOut(tester);
     await arrive(tester, router, 'revoked://s/api.revoked.link/abc123');

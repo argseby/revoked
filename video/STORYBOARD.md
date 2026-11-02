@@ -26,18 +26,33 @@ by the recipient, no central authority, no private key on the server.
 
 # Storyboard — short film for the website
 
-About 50 s, silent, black and white. Two renders of the same scenes: `ShortWide`
+About 57 s, silent, black and white. Two renders of the same scenes: `ShortWide`
 (1920×1080) and `ShortTall` (1080×1350, for phones). Type is large enough to read
 at phone width. There is no named character: the viewer is "you".
 
 | # | Scene | On screen | Source |
 |---|---|---|---|
-| 1 | Open | Mark, "Share any data. Take it back any time." | the website |
+| 1 | Open | Mark, "Access, not copies." | the website |
 | 2 | Copies | One file sent to four recipients. "Once it's out, you can't change it or take it back." | `docs/index.md` |
 | 3 | Share | Vault, a `/s/…` link, what the landlord sees. | `docs/guide/sharing.md` |
 | 4 | Update | One value changes in the vault, then on the landlord's side. | `docs/guide/vault.md` |
 | 5 | Revoke | Landlord's link goes Revoked, bars cover the values, "This link has been revoked." The tax advisor's link stays Active. | `routes/` share page, `docs/guide/sharing.md` |
 | 6 | Ask | Request from `employer.example`, Verified, answered from the vault, the answer appears under your links. | `docs/guide/requests.md` |
 | 7 | Fact | `age_over_18` shown, `birth_date` and `address` withheld. | `docs/guide/attestations.md` |
-| 8 | Code | `POST /api/grants/resolve` answering `active` with values, then `revoked` with none. | `docs/api/openapi.yaml` |
-| 9 | Close | Mark, "Start with one link.", revoked.link | the website |
+| 8 | Sign in | "Sign in with Revoked" on `shop.example`, the check code, approval in the app. | `docs/api/sign-in.md`, `sign_in_approval_screen.dart` |
+| 9 | Code | `POST /api/grants/resolve` answering `active` with values, then `revoked` with none. | `docs/api/openapi.yaml` |
+| 10 | Close | Mark, "Start with one link.", revoked.link | the website |
+
+# Storyboard — feature films for the website
+
+About 30 s each, silent, black and white, in the short film's style and with the
+docs' wording. Each is rendered wide and tall (`SignInWide`, `SignInTall` and so
+on, from `src/short/features.tsx`). `npm run render:films` writes all of them.
+
+| Film | Scenes | Source |
+|---|---|---|
+| Sign in | Add the button · They approve in the app · A different ID at every service · Read the current value | `docs/api/sign-in.md`, `sign_in_approval_screen.dart`, `examples/sign-in-button` |
+| Share | Pick what to share · Decide who gets in · Change a password · Watermark your files · Revoke it | `docs/guide/sharing.md` |
+| Collect | Ask for what you need · The app checks who is asking · They answer from their vault · Read the answers · Callback | `docs/guide/requests.md`, `docs/api/callbacks.md` |
+| Prove | Tied to your domain · The app checks who sent it · Someone else confirms it · Show only what they need | `docs/guide/identities.md`, `docs/guide/attestations.md` |
+| Connect | A tool asks to connect · You decide what it can do · It sees what became of its links · Disconnect any time | `docs/guide/tools.md`, `tool_permissions.dart` |

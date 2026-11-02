@@ -2,7 +2,7 @@ import React from 'react';
 import {AbsoluteFill} from 'remotion';
 import {TransitionSeries, linearTiming} from '@remotion/transitions';
 import {fade} from '@remotion/transitions/fade';
-import {Ask, Close, Code, Copies, Fact, Open, Share, TakeBack, Update} from './scenes';
+import {Ask, Close, Code, Copies, Fact, Open, Share, SignIn, TakeBack, Update} from './scenes';
 import {Fonts, WHITE} from './ui';
 
 const FADE = 12;
@@ -15,6 +15,7 @@ export const SHORT_SCENES: {id: string; frames: number; C: React.FC}[] = [
   {id: 'revoke', frames: 210, C: TakeBack},
   {id: 'ask', frames: 285, C: Ask},
   {id: 'fact', frames: 165, C: Fact},
+  {id: 'sign-in', frames: 180, C: SignIn},
   {id: 'code', frames: 165, C: Code},
   {id: 'close', frames: 105, C: Close},
 ];

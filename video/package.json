@@ -5,6 +5,7 @@
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "render": "remotion render src/index.ts Explainer out/revoked-explainer.mp4",
+    "render:films": "for f in SignIn Share Collect Prove Connect; do remotion render src/index.ts ${f}Wide out/film-$f-wide.mp4 --crf=23 && remotion render src/index.ts ${f}Tall out/film-$f-tall.mp4 --crf=23 || exit 1; done",
     "render:short": "remotion render src/index.ts ShortWide out/revoked-short-wide.mp4 --crf=23 && remotion render src/index.ts ShortTall out/revoked-short-tall.mp4 --crf=23",
     "still": "remotion still src/index.ts Explainer",
     "typecheck": "tsc --noEmit"

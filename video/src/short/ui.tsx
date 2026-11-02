@@ -202,8 +202,8 @@ export const Row: React.FC<{k: string; v: string; flash?: number; covered?: numb
 export type Status = 'Active' | 'Paused' | 'Revoked';
 
 export const Tag: React.FC<{children: string}> = ({children}) => {
-  const solid = children === 'Active' || children === 'Verified';
-  const gone = children === 'Revoked';
+  const solid = ['Active', 'Verified', 'DNS verified', 'Connected', 'Signed in'].includes(children);
+  const gone = children === 'Revoked' || children === 'Disconnected';
   return (
     <span
       style={{
