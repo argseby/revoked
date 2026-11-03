@@ -6,6 +6,7 @@ import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
@@ -77,6 +78,10 @@ class ToolPermissions extends StatelessWidget {
     this.reasons = const ToolReasons(),
   });
 
+  /// What a tool can do with these can't be taken back, or reaches other
+  /// people in the owner's name: a link handed out, a request sent.
+  static const sensitive = {'shares:manage', 'requests:manage'};
+
   /// The keys a tool acts on by itself, in the order they are offered.
   static const onItsOwn = [
     'shares:manage',
@@ -129,12 +134,15 @@ class ToolPermissions extends StatelessWidget {
       required String subtitle,
       required bool value,
       required ValueChanged<bool>? onChanged,
+      bool sensitive = false,
     }) => AppFormToggleRow(
       icon: icon,
       label: label,
       subtitle: subtitle,
       value: value,
       onChanged: onChanged,
+      badge: sensitive ? 'Sensitive' : null,
+      badgeVariant: AppBadgeVariant.destructive,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
     );
     final own = [
@@ -213,6 +221,7 @@ class ToolPermissions extends StatelessWidget {
                 label: _detail(p).$2,
                 subtitle: _detail(p).$3,
                 value: granted.contains(p.key),
+                sensitive: sensitive.contains(p.key),
                 onChanged: onPermission == null
                     ? null
                     : (v) => onPermission!(p.key, v),
@@ -237,6 +246,7 @@ class ToolPermissions extends StatelessWidget {
                 label: 'Read vault',
                 subtitle: 'Every record except encrypted ones',
                 value: allowVaultRead,
+                sensitive: true,
                 onChanged: onAllowVaultRead,
               ),
           ],
