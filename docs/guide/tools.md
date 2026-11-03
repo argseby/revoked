@@ -69,15 +69,18 @@ example from the tool's settings. A connected tool can see what became of
 the links it proposed: active, paused, revoked or expired, and how often
 they were opened. It can follow the requests, attestations and checks it
 suggested the same way. It never sees what they contain, or anything else in
-your vault, unless you let it read your vault.
+your vault, unless you give it a section or let it read your vault.
 
-More permissions are your choice, per tool. Each one shows the reason the
-tool gave for asking:
+Everything else is your choice, per tool. The app groups it, and shows the
+reason the tool gave for asking:
 
-| Permission | What it allows |
+| Choice | What it allows |
 |---|---|
-| **End what it proposed** | The tool can end what came from its own proposals: revoke a link, for example when you delete the printed card it belongs to, close a request, or revoke an attestation. It can never create or read them. You're notified like for any other revocation. |
-| **Receive the links it proposed** | The finished link goes straight to the tool, so you don't have to copy it over. Links with a hidden record or a file are never handed over: copy those yourself. |
+| **Give it a section** | The tool gets a section of your vault, named after it, to keep what it saves for you. Pick **It can read** or **Read and add**. It can't see the rest of your vault. |
+| **Let it end what it suggested** | The tool can turn off a share or request that came from it, like when you throw away the printed card. You're notified like for any other revocation. |
+| **Send it the finished link** | When you create a share it suggested, the link goes straight to the tool, so you don't copy it over. Links with files or hidden values you always send yourself. |
+| **Share what it can read** | The tool shares records it can read without asking you each time. You see every share in the app, and can stop it. |
+| **Ask people for data in your name** | The tool sends requests without asking you each time. Only when you confirm on this device, never with a code. |
 | **Read your vault** | Only when the tool asks, and off until you turn it on. The tool can see the values of your records, but not your encrypted ones, and it can't change anything. What it sees can't be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) explains what to weigh. |
 
 ### Confirm on another device
@@ -92,12 +95,46 @@ original tab then carries on, even if you confirmed on your phone.
 Already connected in one browser? **Let this browser in** admits another
 one. It gets the same permissions as before, nothing more.
 
+## Give a tool its own section
+
+A tool that keeps things for you, like a packing list or a game save, can
+keep them in your vault instead of on its own servers. Leave **Give it a
+section** ticked when you connect it. The app shows the name of the section
+it will get:
+
+- Everything it saves there is yours. You see it in your vault, marked
+  **Added by** and the tool's name.
+- It can change only what it added. Records you put in its section are
+  yours, and it can only read them.
+- The section stays in your vault when you disconnect the tool. Untick
+  **Give it a section** later, and the tool can't use it any more. Tick it
+  again, and it gets the same section back.
+
+Putting one of your records into a section a tool can read lets the tool
+read it. The app asks first, and names the tool. Tap **Add to section** only
+if that's what you want. To take it back, remove the record from the
+section.
+
+Want a tool to read more? Open it under **Settings → Connected tools**. In
+**Sections … can read**, tap **Add** and pick one of your sections. Tap a
+section and **Remove** to take it away again. The section stays in your
+vault.
+
+## Give your scripts a key
+
+Your own scripts, like one that keeps a record up to date, use an **API
+key** instead. You'll find them under **Settings → Connected tools**, in
+**API keys**. Tap **New**, tick what the key may do, and, if it should use
+your vault, pick the **Sections it can reach**. The key reaches only those.
+You see the key once: copy it then. To stop a key, revoke it in the same
+list.
+
 ## Manage your connected tools
 
 **Settings → Connected tools** lists every tool: when you connected it,
 when it was last used, when the connection ends, and everything it
 proposed: its links, requests, attestations and checks. There you can
-change its permissions, or open or revoke each of its links. **Read your
+change its permissions and sections, or open or revoke each of its links. **Read your
 vault** shows only while it's on. You can turn it off there. To turn it on
 again, the tool has to ask when it connects. Tap a
 request, an attestation or a check to open it where it lives.

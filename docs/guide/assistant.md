@@ -6,8 +6,10 @@ of your links were opened. It prepares everything, and you confirm in the
 Revoked app.
 
 By default your assistant never sees your values. It names what to share,
-and you fill in and save. If you want it to answer questions about your
-vault too, you can [let it read your vault](#let-it-read-your-vault).
+and you fill in and save. It can also [keep notes for
+you](#let-it-keep-notes-for-you) in a section of its own. If you want it to
+answer questions about your whole vault, you can [let it read your
+vault](#let-it-read-your-vault).
 
 ## What you need
 
@@ -85,6 +87,22 @@ until you do.
 Your assistant only keeps track of what it prepared. Links and requests you
 made yourself stay out of its sight.
 
+## Let it keep notes for you
+
+Want your assistant to remember a packing list, or keep a draft until
+you're ready? Give it a section of its own:
+
+1. Ask your assistant: *“Connect to Revoked with a section of your own.”*
+2. The Revoked app shows **Give it a section** and the name of the new
+   section. Leave it ticked and press **Connect**.
+3. Ask it to save something. It shows up in your vault, marked **Added by**
+   and your assistant's name.
+
+It sees only that section, and only changes what it added. Want it to share
+or ask for something on its own, without you confirming each time? Ask it to
+*“connect with permission to create shares and requests”*. As with your
+vault, this needs the Revoked app on the same computer.
+
 ## Let it read your vault
 
 Want to ask *“What's my IBAN?”* or *“Fill in this form from my vault”*? Your
@@ -103,7 +121,7 @@ Before you turn it on, know what it means:
   it back.
 - If it's an AI assistant, the company that runs the AI gets what it sees,
   too.
-- It can't change or delete anything in your vault.
+- It can't change or delete anything you added to your vault.
 - Encrypted records stay hidden from it.
 
 This only works when the Revoked app runs on the same computer as your
@@ -117,7 +135,7 @@ it on again, ask your assistant to connect with vault access.
 ## What it can never do
 
 - Save, send or publish anything without you.
-- Change or delete records in your vault.
+- Change or delete records you added to your vault.
 - See your account, or the links and requests you made yourself.
 - Read your vault, unless you turned on **Read your vault**.
 
