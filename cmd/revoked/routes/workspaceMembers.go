@@ -36,7 +36,7 @@ func WorkspaceMembersRoute(app core.App) {
 
 			out := make([]map[string]any, 0, len(members))
 			for _, member := range members {
-				scopes := member.GetStringSlice(util.Fields.WorkspaceMember.Permissions)
+				scopes := services.MemberScopes(member)
 				userId := member.GetString(util.Fields.WorkspaceMember.User)
 
 				entry := map[string]any{
@@ -51,6 +51,8 @@ func WorkspaceMembersRoute(app core.App) {
 				}
 				if user, err := app.FindRecordById(util.Coll.Users, userId); err == nil && user != nil {
 					entry["email"] = user.GetString(util.Fields.User.Email)
+					// What they chose to see, so an admin can tell "hidden" from "refused".
+					entry["features"] = accountFeatureKeys(user)
 				}
 				out = append(out, entry)
 			}

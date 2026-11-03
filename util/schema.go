@@ -91,7 +91,7 @@ type collectionSchema struct {
 }
 
 type inviteFields struct {
-	Workspace, TokenHash, Permissions, Role, InvitedBy, Email,
+	Workspace, TokenHash, Permissions, Features, Role, InvitedBy, Email,
 	Label, Status, ExpiresAt, MaxUses, UseCount, Created, Updated string
 }
 
@@ -131,7 +131,7 @@ type workspaceFields struct {
 }
 
 type userFields struct {
-	ActiveWorkspace, ActiveRole, Email, Verified, Avatar, Active string
+	ActiveWorkspace, ActiveRole, Email, Verified, Avatar, Active, Features string
 }
 
 type memberFields struct {
@@ -352,6 +352,7 @@ var Fields = struct {
 		Verified:        "verified",
 		Avatar:          "avatar",
 		Active:          "active",
+		Features:        "features",
 	},
 	WorkspaceMember: memberFields{
 		User:        "user",
@@ -576,6 +577,7 @@ var Fields = struct {
 		Workspace:   "workspace",
 		TokenHash:   "tokenHash",
 		Permissions: "permissions",
+		Features:    "features",
 		Role:        "role",
 		InvitedBy:   "invitedBy",
 		Email:       "email",
