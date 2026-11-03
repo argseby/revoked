@@ -20,11 +20,16 @@ class AppSegmented<T> extends StatelessWidget {
   final List<AppSegmentedItem<T>> items;
   final ValueChanged<T> onChanged;
 
+  /// Fills the width it is given, for a choice that is the point of its row
+  /// rather than a filter beside a title.
+  final bool expand;
+
   const AppSegmented({
     super.key,
     required this.value,
     required this.items,
     required this.onChanged,
+    this.expand = false,
   });
 
   @override
@@ -41,8 +46,13 @@ class AppSegmented<T> extends StatelessWidget {
       ],
       selected: {value},
       showSelectedIcon: false,
+      expandedInsets: expand ? EdgeInsets.zero : null,
       onSelectionChanged: (s) => onChanged(s.first),
+      // The chosen segment is filled, not tinted: a pale tint left people
+      // unsure which option they had picked.
       style: SegmentedButton.styleFrom(
+        selectedBackgroundColor: Theme.of(context).colorScheme.primary,
+        selectedForegroundColor: Theme.of(context).colorScheme.onPrimary,
         visualDensity: VisualDensity.compact,
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.allMd),
       ),
