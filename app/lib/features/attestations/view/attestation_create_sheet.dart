@@ -145,23 +145,23 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                     child: Column(
                       children: [
                         AppFormField(
-label: 'Kind',
-inset: false,
-child: AppTextField(
-controller: _store.typeController,
-hint: 'membership',
-mono: true,
-),
-),
+                          label: 'Kind',
+                          inset: false,
+                          child: AppTextField(
+                            controller: _store.typeController,
+                            hint: 'membership',
+                            mono: true,
+                          ),
+                        ),
                         AppSpacing.gapSm,
                         AppFormField(
-label: 'Name in your list (optional)',
-inset: false,
-child: AppTextField(
-controller: _store.labelController,
-hint: 'Membership 2026 — Ada',
-),
-),
+                          label: 'Name in your list (optional)',
+                          inset: false,
+                          child: AppTextField(
+                            controller: _store.labelController,
+                            hint: 'Membership 2026 — Ada',
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -196,14 +196,14 @@ hint: 'Membership 2026 — Ada',
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         AppFormField(
-label: 'Only for this identity (optional)',
-inset: false,
-child: AppTextField(
-controller: _store.subjectController,
-hint: 'Their fingerprint, 64 characters',
-mono: true,
-),
-),
+                          label: 'Only for this identity (optional)',
+                          inset: false,
+                          child: AppTextField(
+                            controller: _store.subjectController,
+                            hint: 'Their fingerprint, 64 characters',
+                            mono: true,
+                          ),
+                        ),
                         AppSpacing.gapXs,
                         const Text(
                           'Leave it empty and whoever opens the link first can '
@@ -212,15 +212,15 @@ mono: true,
                         ).muted.small,
                         AppSpacing.gapSm,
                         AppFormField(
-label: 'Valid for, in days (optional)',
-inset: false,
-child: AppTextField(
-controller: _store.validDaysController,
-hint:
-                              'Leave empty to keep it valid until you revoke it',
-keyboardType: TextInputType.number,
-),
-),
+                          label: 'Valid for, in days (optional)',
+                          inset: false,
+                          child: AppTextField(
+                            controller: _store.validDaysController,
+                            hint:
+                                'Leave empty to keep it valid until you revoke it',
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -254,12 +254,12 @@ keyboardType: TextInputType.number,
             child: Row(
               children: [
                 AppButton(
-                    label: 'Cancel',
-                    style: AppButtonStyle.accent,
-                    onTap: _store.isCreating
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                  ),
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: _store.isCreating
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
@@ -302,14 +302,14 @@ class _ClaimRow extends StatelessWidget {
               children: [
                 Expanded(
                   child: AppFormField(
-label: 'Detail',
-inset: false,
-child: AppTextField(
-controller: claim.name,
-hint: 'age_over_18',
-mono: true,
-),
-),
+                    label: 'Detail',
+                    inset: false,
+                    child: AppTextField(
+                      controller: claim.name,
+                      hint: 'age_over_18',
+                      mono: true,
+                    ),
+                  ),
                 ),
                 AppSpacing.gapSm,
                 AppButton(
@@ -335,28 +335,26 @@ mono: true,
             ),
             AppSpacing.gapXs,
             claim.kind == ClaimKind.yesNo
-                      ? Row(
-                          children: [
-                            AppSwitch(
-                              value: claim.yes,
-                              onChanged: (v) => claim.yes = v,
-                            ),
-                            AppSpacing.gapSm,
-                            Text(claim.yes ? 'Yes' : 'No'),
-                          ],
-                        )
-                      : AppTextField(
-                          controller: claim.value,
-                          hint: claim.kind == ClaimKind.number
-                              ? 'A number'
-                              : 'Value',
-                          keyboardType: claim.kind == ClaimKind.number
-                              ? const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                  signed: true,
-                                )
-                              : null,
-                        ),
+                ? Row(
+                    children: [
+                      AppSwitch(
+                        value: claim.yes,
+                        onChanged: (v) => claim.yes = v,
+                      ),
+                      AppSpacing.gapSm,
+                      Text(claim.yes ? 'Yes' : 'No'),
+                    ],
+                  )
+                : AppTextField(
+                    controller: claim.value,
+                    hint: claim.kind == ClaimKind.number ? 'A number' : 'Value',
+                    keyboardType: claim.kind == ClaimKind.number
+                        ? const TextInputType.numberWithOptions(
+                            decimal: true,
+                            signed: true,
+                          )
+                        : null,
+                  ),
           ],
         ),
       ),

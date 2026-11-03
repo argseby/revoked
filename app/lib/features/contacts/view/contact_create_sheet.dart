@@ -55,34 +55,34 @@ class _CreateSheet extends StatelessWidget {
             ).muted.small,
             AppSpacing.gapLg,
             AppFormField(
-label: 'Their name',
-inset: false,
-child: AppTextField(
-controller: store.name,
-hint: 'Ada Lovelace',
-autofocus: true,
-),
-),
+              label: 'Their name',
+              inset: false,
+              child: AppTextField(
+                controller: store.name,
+                hint: 'Ada Lovelace',
+                autofocus: true,
+              ),
+            ),
             AppSpacing.gapSm,
             AppFormField(
-label: 'Email address',
-inset: false,
-child: AppTextField(
-controller: store.email,
-hint: 'ada@example.com',
-keyboardType: TextInputType.emailAddress,
-),
-),
+              label: 'Email address',
+              inset: false,
+              child: AppTextField(
+                controller: store.email,
+                hint: 'ada@example.com',
+                keyboardType: TextInputType.emailAddress,
+              ),
+            ),
             AppSpacing.gapSm,
             AppFormField(
-label: 'Their server (optional)',
-inset: false,
-child: AppTextField(
-controller: store.peerDomain,
-hint: 'revoked.example.com',
-mono: true,
-),
-),
+              label: 'Their server (optional)',
+              inset: false,
+              child: AppTextField(
+                controller: store.peerDomain,
+                hint: 'revoked.example.com',
+                mono: true,
+              ),
+            ),
             AppSpacing.gapXs,
             const Text(
               'Fill in their server only if they run their own Revoked. '
@@ -96,10 +96,10 @@ mono: true,
             Row(
               children: [
                 AppButton(
-                    label: 'Cancel',
-                    style: AppButtonStyle.accent,
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(

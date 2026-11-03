@@ -19,7 +19,6 @@ import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
-import 'package:revoked_app/features/vault/tool_reach_confirm.dart';
 import 'package:revoked_app/features/vault/view/record_value_input.dart';
 import 'package:revoked_app/features/vault/view/vault_file_row.dart';
 
@@ -209,8 +208,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         (s) => s.id == _store.recordOriginSectionId,
         orElse: () => widget.store.sections.first,
       );
-      if (sec.id == _store.recordOriginSectionId &&
-          await confirmToolsReach(context, sec, widget.store.records.first)) {
+      if (sec.id == _store.recordOriginSectionId) {
         final merged = List<String>.from(sec.records)..add(newId);
         await widget.store.updateSection(sec.id, {'records': merged});
       }
@@ -268,7 +266,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
             ),
             const AppDivider(),
           ],
-
           Flexible(
             fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
             child: ListView(
@@ -294,7 +291,6 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
             ),
           ),
           const AppDivider(),
-
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.xl,
@@ -305,12 +301,12 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
             child: Row(
               children: [
                 AppButton(
-                    label: 'Cancel',
-                    onTap: _store.isSubmittingRecord
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                    style: AppButtonStyle.accent,
-                  ),
+                  label: 'Cancel',
+                  onTap: _store.isSubmittingRecord
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  style: AppButtonStyle.accent,
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(

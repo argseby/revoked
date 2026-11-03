@@ -384,12 +384,12 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
             child: Row(
               children: [
                 AppButton(
-                    label: 'Cancel',
-                    style: AppButtonStyle.accent,
-                    onTap: _store.isSubmittingShare
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                  ),
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: _store.isSubmittingShare
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                ),
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(

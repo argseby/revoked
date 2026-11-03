@@ -122,23 +122,29 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   AppFormField(
-label: 'Invite key',
-inset: false,
-child: AppTextField(
-controller: store.joinKeyController,
-hint: 'revoked://i/… or the key itself',
-mono: true,
-autofocus: true,
-onSubmitted: (_) => _check(),
-trailing: AppButton(
-                      icon: AppIcons.copy,
-                      tooltip: 'Paste from clipboard',
-                      style: AppButtonStyle.accent,
-                      size: AppButtonSize.small,
-                      onTap: _pasteFromClipboard,
+                    label: 'Invite key',
+                    inset: false,
+                    child: AppTextField(
+                      controller: store.joinKeyController,
+                      hint: 'revoked://i/… or the key itself',
+                      mono: true,
+                      autofocus: true,
+                      onSubmitted: (_) => _check(),
+                      trailing: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xs,
+                        ),
+                        child: AppButton(
+                          icon: AppIcons.copy,
+                          tooltip: 'Paste from clipboard',
+                          showTooltip: false,
+                          style: AppButtonStyle.ghost,
+                          size: AppButtonSize.small,
+                          onTap: _pasteFromClipboard,
+                        ),
+                      ),
                     ),
-),
-),
+                  ),
                   AppSpacing.gapSm,
                   AppButton(
                     icon: AppIcons.key,
@@ -190,12 +196,12 @@ trailing: AppButton(
             child: Row(
               children: [
                 AppButton(
-                    label: 'Cancel',
-                    style: AppButtonStyle.accent,
-                    onTap: store.isAccepting
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                  ),
+                  label: 'Cancel',
+                  style: AppButtonStyle.accent,
+                  onTap: store.isAccepting
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                ),
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(

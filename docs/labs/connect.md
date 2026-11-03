@@ -42,7 +42,7 @@ The proposal also asks to connect.
 **You should see** what the tool can do, what you decide, and what it can never
 do. It can never read your vault, your other links or your account.
 
-Tick **Receive the links it proposed**, leave **End what it proposed**
+Tick **Send it the finished link**, leave **Let it end what it suggested**
 unticked, and continue. Nothing is shared until you approve it.
 
 ## 4. See what it sees

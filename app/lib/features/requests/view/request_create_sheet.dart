@@ -414,12 +414,12 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
             child: Row(
               children: [
                 AppButton(
-                    label: 'Cancel',
-                    onTap: _store.isSubmittingRequest
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                    style: AppButtonStyle.accent,
-                  ),
+                  label: 'Cancel',
+                  onTap: _store.isSubmittingRequest
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  style: AppButtonStyle.accent,
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(

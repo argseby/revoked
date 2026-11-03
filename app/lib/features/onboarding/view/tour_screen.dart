@@ -298,21 +298,16 @@ class _TourScreenState extends State<TourScreen> {
       case TourStep.record:
         return [
           AppFormField(
-label: 'Label',
-inset: false,
-child: AppTextField(
-controller: _label,
-),
-),
+            label: 'Label',
+            inset: false,
+            child: AppTextField(controller: _label),
+          ),
           AppSpacing.gapMd,
           AppFormField(
-label: 'Value',
-inset: false,
-child: AppTextField(
-controller: _value,
-mono: true,
-),
-),
+            label: 'Value',
+            inset: false,
+            child: AppTextField(controller: _value, mono: true),
+          ),
           AppSpacing.gapLg,
           _primary(
             icon: AppIcons.safe,
@@ -385,13 +380,10 @@ mono: true,
         }
         return [
           AppFormField(
-label: 'New value',
-inset: false,
-child: AppTextField(
-controller: _value,
-mono: true,
-),
-),
+            label: 'New value',
+            inset: false,
+            child: AppTextField(controller: _value, mono: true),
+          ),
           AppSpacing.gapLg,
           _primary(
             icon: AppIcons.check,

@@ -93,34 +93,34 @@ class _Form extends StatelessWidget {
         ],
         AppSpacing.gapLg,
         AppFormField(
-label: 'What kind (optional)',
-inset: false,
-child: AppTextField(
-controller: store.typeController,
-hint: 'membership',
-mono: true,
-),
-),
+          label: 'What kind (optional)',
+          inset: false,
+          child: AppTextField(
+            controller: store.typeController,
+            hint: 'membership',
+            mono: true,
+          ),
+        ),
         AppSpacing.gapSm,
         AppFormField(
-label: 'Confirmed by (optional)',
-inset: false,
-child: AppTextField(
-controller: store.issuersController,
-hint: 'chess-club.org',
-mono: true,
-),
-),
+          label: 'Confirmed by (optional)',
+          inset: false,
+          child: AppTextField(
+            controller: store.issuersController,
+            hint: 'chess-club.org',
+            mono: true,
+          ),
+        ),
         AppSpacing.gapSm,
         AppFormField(
-label: 'Details you need (optional)',
-inset: false,
-child: AppTextField(
-controller: store.claimsController,
-hint: 'member_since, board',
-mono: true,
-),
-),
+          label: 'Details you need (optional)',
+          inset: false,
+          child: AppTextField(
+            controller: store.claimsController,
+            hint: 'member_since, board',
+            mono: true,
+          ),
+        ),
         if (error != null) ...[
           AppSpacing.gapMd,
           AppAlert(
@@ -133,12 +133,12 @@ mono: true,
         Row(
           children: [
             AppButton(
-                label: 'Cancel',
-                style: AppButtonStyle.accent,
-                onTap: store.isCreating
-                    ? null
-                    : () => Navigator.of(context).pop(),
-              ),
+              label: 'Cancel',
+              style: AppButtonStyle.accent,
+              onTap: store.isCreating
+                  ? null
+                  : () => Navigator.of(context).pop(),
+            ),
             AppSpacing.gapMd,
             Expanded(
               child: AppButton(

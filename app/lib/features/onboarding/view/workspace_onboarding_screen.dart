@@ -227,26 +227,26 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
 
   List<Widget> _createForm() => [
     AppFormField(
-label: 'Name',
-inset: false,
-child: AppTextField(
-controller: _store.identityNameController,
-hint: 'Ada Lovelace',
-autofocus: true,
-),
-),
+      label: 'Name',
+      inset: false,
+      child: AppTextField(
+        controller: _store.identityNameController,
+        hint: 'Ada Lovelace',
+        autofocus: true,
+      ),
+    ),
     AppSpacing.gapXxs,
     const Text('Taken from your email. You can change it later.').muted.small,
     AppSpacing.gapLg,
     if (_renaming.value)
       AppFormField(
-label: 'Workspace name',
-inset: false,
-child: AppTextField(
-controller: _store.nameController,
-hint: 'Personal, Family or Acme',
-),
-)
+        label: 'Workspace name',
+        inset: false,
+        child: AppTextField(
+          controller: _store.nameController,
+          hint: 'Personal, Family or Acme',
+        ),
+      )
     else
       Row(
         children: [
@@ -328,13 +328,13 @@ hint: 'Personal, Family or Acme',
 
   List<Widget> _joinForm() => [
     AppFormField(
-label: 'Invite key',
-inset: false,
-child: AppTextField(
-controller: _store.keyController,
-hint: 'revoked://i/… or the key itself',
-),
-),
+      label: 'Invite key',
+      inset: false,
+      child: AppTextField(
+        controller: _store.keyController,
+        hint: 'revoked://i/… or the key itself',
+      ),
+    ),
     AppSpacing.gapSm,
     AppButton(
       label: _store.isPreviewing ? 'Checking…' : 'Check invite',
