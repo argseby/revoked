@@ -99,7 +99,7 @@ var FeaturePresets = []FeaturePreset{
 	},
 	{
 		Key: "everything", Label: "Everything",
-		Description: "Every part of the workspace, except handing out access.",
+		Description: "Every part of the workspace, without the sensitive permissions.",
 		Permissions: []string{
 			PermVaultRead, PermVaultWrite,
 			PermResponsesRead, PermResponsesManage,
