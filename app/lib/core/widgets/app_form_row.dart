@@ -180,6 +180,10 @@ class AppFormToggleRow extends StatelessWidget {
   /// sits inside a container that already provides the padding.
   final bool inset;
 
+  /// The row's own inner padding, in place of [inset], for a row inside a
+  /// group: the hover then reaches the group's edges, as its other rows do.
+  final EdgeInsetsGeometry? padding;
+
   const AppFormToggleRow({
     super.key,
     required this.label,
@@ -189,15 +193,18 @@ class AppFormToggleRow extends StatelessWidget {
     this.icon,
     this.badge,
     this.inset = true,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return ListTile(
-      contentPadding: inset
-          ? const EdgeInsets.symmetric(horizontal: AppSpacing.xl)
-          : EdgeInsets.zero,
+      contentPadding:
+          padding ??
+          (inset
+              ? const EdgeInsets.symmetric(horizontal: AppSpacing.xl)
+              : EdgeInsets.zero),
       leading: icon == null ? null : Icon(icon, color: scheme.onSurfaceVariant),
       title: badge == null
           ? Text(label)

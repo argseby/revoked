@@ -129,16 +129,13 @@ class ToolPermissions extends StatelessWidget {
       required String subtitle,
       required bool value,
       required ValueChanged<bool>? onChanged,
-    }) => Padding(
+    }) => AppFormToggleRow(
+      icon: icon,
+      label: label,
+      subtitle: subtitle,
+      value: value,
+      onChanged: onChanged,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: AppFormToggleRow(
-        icon: icon,
-        label: label,
-        subtitle: subtitle,
-        value: value,
-        onChanged: onChanged,
-        inset: false,
-      ),
     );
     final own = [
       for (final key in onItsOwn)
