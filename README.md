@@ -95,6 +95,7 @@ proxy that handles TLS. You need a domain and Docker with Compose.
 
 ```bash
 git clone https://github.com/argseby/revoked && cd revoked
+docker network create proxy-network   # once, or reuse your proxy's network
 cp .env.example .env                  # set DOMAIN
 docker compose up -d
 docker compose logs api               # prints the DNS record to publish

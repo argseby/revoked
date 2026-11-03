@@ -1,5 +1,9 @@
 # revoked — API stack.
 #
+# Create the shared network once, or reuse the one your reverse proxy already
+# has, then bring it up:
+#
+#   docker network create proxy-network
 #   cp .env.example .env    # DOMAIN is required — the server refuses to boot without it
 #   docker compose up -d
 #   docker compose logs api # prints the _revoked TXT record to publish
@@ -116,9 +120,10 @@ services:
       # - /etc/letsencrypt:/etc/letsencrypt:ro
 
 networks:
-  # Shared with the reverse proxy. Not external: compose creates it when it is
-  # missing and joins it when another stack, such as the proxy's, already has.
+  # Shared with the reverse proxy, and created outside this file so several
+  # stacks can sit on it.
   proxy:
+    external: true
     name: ${PROXY_NETWORK:-proxy-network}
 
 volumes:

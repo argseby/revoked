@@ -22,6 +22,7 @@ check your server against.
 
 ```bash
 git clone https://github.com/argseby/revoked && cd revoked
+docker network create proxy-network   # once — or reuse your proxy's network
 cp .env.example .env                  # set DOMAIN; see the .env reference
 docker compose up -d
 docker compose logs api               # prints the DNS record to publish

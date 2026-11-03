@@ -17,7 +17,7 @@ no `.env` file needed there.
 | `API_PORT` | `3000` | The port the API listens on *inside* the container, and the one your reverse proxy forwards to. |
 | `API_PUBLISH` | `127.0.0.1:3000` | Where the API is published on the host. The default answers on that machine only, at `http://localhost:3000`. A bare port such as `3000` opens it on every interface, reachable by the machine's IP: `/healthz` and the version answer, but nobody can sign in, because a passkey cannot be bound to an IP address. Never leave it open on a public host: it skips the proxy's TLS. |
 | `CONTAINER_NAME` | `revoked-api` | The container's name. Your reverse proxy forwards to this hostname. |
-| `PROXY_NETWORK` | `proxy-network` | The Docker network you share with your reverse proxy. Compose creates it when it doesn't exist; name the proxy's own network to join that one. |
+| `PROXY_NETWORK` | `proxy-network` | The external Docker network you share with your reverse proxy. Create it once: `docker network create proxy-network`, or name the proxy's own network to join that one. |
 | `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | Only for the bundled nginx (`--profile proxy`). |
 | `REVOKED_IMAGE` | `ghcr.io/argseby/revoked:latest` | The server image to run, as a full image reference: a tag alone such as `latest` fails to pull. Pin a release, such as `ghcr.io/argseby/revoked:v0.36.0`: a new tag is pulled on the next `up`, while `:latest` only moves when the image is pulled again. `docker compose up -d --build` builds the checkout under this name instead. |
 

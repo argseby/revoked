@@ -8,9 +8,14 @@ compose file makes that proxy the *only* way in.
 The container is published on the host's loopback interface only, for a test
 from the machine itself. A port open at the machine's IP would skip your
 proxy's TLS. Instead, your proxy reaches the container **by name** over a
-shared Docker network, `proxy-network` by default. Compose creates it on the
-first `up`; to use the network your proxy already has, set `PROXY_NETWORK` to
-its name.
+shared Docker network, `proxy-network` by default:
+
+```bash
+docker network create proxy-network   # once — or reuse your proxy's own network
+```
+
+To use the network your proxy already has, set `PROXY_NETWORK` to its name
+instead.
 
 Attach your proxy's container to that network. Then forward to
 `revoked-api:3000` (that is `CONTAINER_NAME:API_PORT`) over plain `http`.
