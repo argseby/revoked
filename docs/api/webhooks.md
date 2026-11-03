@@ -168,6 +168,13 @@ sample of the type you pick through the real path: the same signature, the
 same client, the same address policy. The sample's ids start with `example_`
 and the body carries `"test": true`. A test is tried once and never retried.
 
+To watch deliveries on your own machine, run
+[`examples/webhook_receiver.py`](https://github.com/argseby/revoked/blob/main/examples/webhook_receiver.py).
+It listens on `127.0.0.1:47381`, checks the signature when
+`REVOKED_WEBHOOK_SECRET` holds the endpoint's secret, drops repeats, and
+prints each event with a link to what it carries. A local server must run
+with `ALLOW_PRIVATE_CALLBACKS=true` to deliver to it.
+
 ## Errors
 
 | `code` | Means |
