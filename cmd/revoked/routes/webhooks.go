@@ -54,6 +54,7 @@ func WebhooksRoute(app core.App) {
 		e.Router.POST("/api/webhooks/endpoints/{id}/test", func(re *core.RequestEvent) error { return testWebhookEndpoint(app, re) })
 		e.Router.POST("/api/webhooks/endpoints/{id}/replay", func(re *core.RequestEvent) error { return replayWebhookEndpoint(app, re) })
 		e.Router.GET("/api/webhooks/events", func(re *core.RequestEvent) error { return listWebhookEvents(app, re) })
+		e.Router.GET("/api/webhooks/endpoints/{id}/metrics", func(re *core.RequestEvent) error { return webhookEndpointMetrics(app, re) })
 		e.Router.GET("/api/webhooks/deliveries", func(re *core.RequestEvent) error { return listWebhookDeliveries(app, re) })
 		e.Router.GET("/api/webhooks/deliveries/{id}", func(re *core.RequestEvent) error { return getWebhookDelivery(app, re) })
 		e.Router.POST("/api/webhooks/deliveries/{id}/resend", func(re *core.RequestEvent) error { return resendWebhookDelivery(app, re) })
@@ -118,6 +119,7 @@ func endpointJSON(app core.App, ep *core.Record) map[string]any {
 		"failingSince":   dateOrEmpty(ep.GetDateTime(f.FailingSince)),
 		"created":        dateOrEmpty(ep.GetDateTime(f.Created)),
 		"stats":          services.StatsForEndpoint(app, ep.Id, time.Now()),
+		"series":         services.WebhookSeries(app, ep.Id, time.Now()),
 	}
 }
 
@@ -277,6 +279,17 @@ func getWebhookEndpoint(app core.App, re *core.RequestEvent) error {
 		return nil
 	}
 	return re.JSON(http.StatusOK, endpointJSON(app, ep))
+}
+
+// webhookEndpointMetrics answers how an endpoint has done over ?range=1h,
+// 24h (the default) or 7d.
+func webhookEndpointMetrics(app core.App, re *core.RequestEvent) error {
+	ep, _, ok := endpointFor(app, re)
+	if !ok {
+		return nil
+	}
+	r := services.WebhookRangeFor(re.Request.URL.Query().Get("range"))
+	return re.JSON(http.StatusOK, services.MetricsForEndpoint(app, ep.Id, r, time.Now()))
 }
 
 func updateWebhookEndpoint(app core.App, re *core.RequestEvent) error {

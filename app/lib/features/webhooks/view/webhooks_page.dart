@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/status_colors.dart';
@@ -18,6 +19,7 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_chart.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
@@ -101,7 +103,7 @@ class WebhooksList extends StatelessWidget {
                 icon: AppIcons.send,
                 title: e.host,
                 subtitle: _summary(e),
-                trailing: _stateBadge(e),
+                trailing: _trailing(context, e),
                 onTap: () => context.go(AppRoutes.webhookFor(e.id)),
               ),
           ],
@@ -130,6 +132,27 @@ String _todayLabel(WebhookEndpoint e) {
     if (e.failed > 0) '${e.failed} failed',
     if (e.pending > 0) '${e.pending} waiting',
   ].join(', ');
+}
+
+/// The last day's attempts as a small chart; a webhook that is off or
+/// failing shows that instead, since it is what needs attention.
+Widget? _trailing(BuildContext context, WebhookEndpoint e) {
+  final scheme = Theme.of(context).colorScheme;
+  final badge = _stateBadge(e);
+  if (badge != null || !e.series.any((b) => b.total > 0)) return badge;
+  return AppSparkBars(
+    series: [
+      AppChartSeries(
+        'Delivered',
+        scheme.onSurfaceVariant.withValues(alpha: 0.55),
+      ),
+      AppChartSeries('Failed', scheme.danger),
+    ],
+    points: [
+      for (final b in e.series)
+        AppChartPoint('', [b.delivered.toDouble(), b.failed.toDouble()]),
+    ],
+  );
 }
 
 Widget? _stateBadge(WebhookEndpoint e) {
@@ -194,6 +217,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
         store.loadIfDue();
       }
       store.loadDeliveries(widget.endpointId);
+      store.loadMetrics(widget.endpointId);
     });
   }
 
@@ -316,6 +340,201 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     return Observer(builder: (_) => _build(context));
   }
 
+  static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  /// A bucket's start as the time axis shows it: the time of day, with the
+  /// weekday once the range spans days.
+  static String _when(DateTime start, String range) {
+    final t = start.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final time = '${two(t.hour)}:${two(t.minute)}';
+    return range == '7d' ? '${_weekdays[t.weekday - 1]} $time' : time;
+  }
+
+  static String _ms(double ms) =>
+      ms >= 1000 ? '${(ms / 1000).toStringAsFixed(1)} s' : '${ms.round()} ms';
+
+  /// How the endpoint has done over the picked range: the figures that
+  /// matter first, then attempts and response times over time, the answers
+  /// it gave and what was sent.
+  Widget _activity(WebhookEndpoint e) {
+    final store = Stores.webhooks;
+    final scheme = Theme.of(context).colorScheme;
+    final m = store.metrics[e.id];
+    final range = store.metricsRange;
+    final codes = m?.codes ?? const <String, int>{};
+    final answered = codes.values.fold(0, (a, b) => a + b);
+    return AppListGroup(
+      title: 'Activity',
+      trailing: AppSegmented<String>(
+        value: range,
+        items: const [
+          AppSegmentedItem(value: '1h', label: '1h'),
+          AppSegmentedItem(value: '24h', label: '24h'),
+          AppSegmentedItem(value: '7d', label: '7d'),
+        ],
+        onChanged: (r) => store.setMetricsRange(r, e.id),
+      ),
+      footer: e.isFailing
+          ? Text(
+              'Failing since ${dayLabel(e.failingSince?.toIso8601String())}. '
+              'Failed messages are tried again for about a day and a half. '
+              'After three days without success the webhook turns itself off.',
+            )
+          : null,
+      children: [
+        if (m == null)
+          const AppListSkeleton(embedded: true)
+        else
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LayoutBuilder(
+                  builder: (context, box) {
+                    final columns = box.maxWidth >= AppSpacing.narrowWidth
+                        ? 4
+                        : 2;
+                    final width =
+                        (box.maxWidth - AppSpacing.sm * (columns - 1)) /
+                        columns;
+                    final rate = m.firstTryRate;
+                    return Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        for (final tile in [
+                          AppStatTile(
+                            label: 'Deliveries',
+                            value: '${m.deliveries}',
+                          ),
+                          AppStatTile(
+                            label: 'First try',
+                            value: rate == null
+                                ? '–'
+                                : '${(rate * 100).toStringAsFixed(1)}%',
+                          ),
+                          AppStatTile(
+                            label: 'Response p95',
+                            value: m.p95Ms == 0 ? '–' : _ms(m.p95Ms.toDouble()),
+                          ),
+                          AppStatTile(
+                            icon: m.retrying > 0
+                                ? AppIcons.exclamationTriangle
+                                : null,
+                            label: 'Waiting to retry',
+                            value: '${m.retrying}',
+                          ),
+                        ])
+                          SizedBox(width: width, child: tile),
+                      ],
+                    );
+                  },
+                ),
+                AppSpacing.gapLg,
+                const Text('Attempts').small.bold.muted,
+                AppSpacing.gapSm,
+                AppChart(
+                  series: [
+                    AppChartSeries(
+                      'Delivered',
+                      scheme.onSurfaceVariant.withValues(alpha: 0.55),
+                    ),
+                    AppChartSeries('Failed', scheme.danger),
+                  ],
+                  points: [
+                    for (final b in m.buckets)
+                      AppChartPoint(_when(b.start, range), [
+                        b.delivered.toDouble(),
+                        b.failed.toDouble(),
+                      ]),
+                  ],
+                ),
+                AppSpacing.gapLg,
+                const Text('Response time').small.bold.muted,
+                AppSpacing.gapSm,
+                AppChart(
+                  lines: true,
+                  height: 120,
+                  format: _ms,
+                  series: [
+                    AppChartSeries('p95', scheme.onSurface),
+                    AppChartSeries('Median', scheme.outline),
+                  ],
+                  points: [
+                    for (final b in m.buckets)
+                      AppChartPoint(_when(b.start, range), [
+                        b.p95Ms.toDouble(),
+                        b.p50Ms.toDouble(),
+                      ]),
+                  ],
+                ),
+                AppSpacing.gapLg,
+                const Text('Answers').small.bold.muted,
+                AppSpacing.gapXs,
+                for (final (code, label) in const [
+                  ('2xx', '2xx'),
+                  ('4xx', '4xx'),
+                  ('5xx', '5xx'),
+                  ('none', 'No answer'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.xxs,
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(width: 80, child: Text(label).small.mono),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: AppRadius.allXs,
+                            child: LinearProgressIndicator(
+                              value: answered == 0
+                                  ? 0
+                                  : (codes[code] ?? 0) / answered,
+                              minHeight: 8,
+                              backgroundColor: scheme.surfaceContainerHighest,
+                              color: code == '2xx'
+                                  ? scheme.onSurfaceVariant
+                                  : scheme.danger,
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 56,
+                          child: Text(
+                            '${codes[code] ?? 0}',
+                            textAlign: TextAlign.end,
+                          ).small,
+                        ),
+                      ],
+                    ),
+                  ),
+                if (m.events.isNotEmpty) ...[
+                  AppSpacing.gapLg,
+                  const Text('Events sent').small.bold.muted,
+                  AppSpacing.gapXs,
+                  for (final (type, count) in m.events)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.xxs,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(type).small.mono),
+                          Text('$count').small,
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _build(BuildContext context) {
     final store = Stores.webhooks;
     final e = store.endpoint(widget.endpointId);
@@ -368,34 +587,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
             ),
             children: const [],
           ),
-        AppListGroup(
-          title: 'Last 24 hours',
-          trailing: const SizedBox.shrink(),
-          footer: e.isFailing
-              ? Text(
-                  'Failing since ${dayLabel(e.failingSince?.toIso8601String())}. Failed messages '
-                  'are tried again for about a day and a half. After three '
-                  'days without success the webhook turns itself off.',
-                )
-              : null,
-          children: [
-            AppDetailRow(
-              icon: AppIcons.checkCircle,
-              label: 'Delivered',
-              value: '${e.succeeded}',
-            ),
-            AppDetailRow(
-              icon: AppIcons.xCircle,
-              label: 'Failed',
-              value: '${e.failed}',
-            ),
-            AppDetailRow(
-              icon: AppIcons.hourglass,
-              label: 'Waiting',
-              value: '${e.pending}',
-            ),
-          ],
-        ),
+        _activity(e),
         AppListGroup(
           title: 'What it hears',
           trailing: const SizedBox.shrink(),

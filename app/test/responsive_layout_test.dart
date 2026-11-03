@@ -325,6 +325,16 @@ void main() {
     for (final entry in sizes.entries) {
       testWidgets('fit on a ${entry.key}', (tester) async {
         final router = await signedIn(tester, entry.value);
+        final day = [
+          for (var i = 0; i < 24; i++)
+            {
+              'start': DateTime.utc(2026, 11, 3, i).toIso8601String(),
+              'delivered': 40 + i,
+              'failed': i == 15 ? 20 : 1,
+              'p50Ms': 120,
+              'p95Ms': i == 15 ? 2400 : 300,
+            },
+        ];
         runInAction(() {
           final store = Stores.webhooks;
           store.endpoints.add(
@@ -337,8 +347,22 @@ void main() {
               'enabled': true,
               'failingSince': '2026-11-01T09:00:00Z',
               'stats': {'succeeded': 1204, 'failed': 37, 'pending': 3},
+              'series': day,
             }),
           );
+          store.metrics['h1'] = WebhookMetrics.fromJson({
+            'range': '24h',
+            'buckets': day,
+            'deliveries': 1241,
+            'firstTry': 1190,
+            'retrying': 3,
+            'p95Ms': 1420,
+            'codes': {'2xx': 1204, '4xx': 12, '5xx': 20, 'none': 5},
+            'events': [
+              {'type': 'response.submitted', 'count': 800},
+              {'type': 'link.revoked', 'count': 441},
+            ],
+          });
           store.eventTypes.addAll([
             const WebhookEventType(
               type: 'response.submitted',
@@ -373,7 +397,9 @@ void main() {
 
         router.go(AppRoutes.webhookFor('h1'));
         await tester.pumpAndSettle();
-        expect(find.text('Deliveries'), findsOneWidget);
+        expect(find.text('Deliveries'), findsWidgets);
+        expect(find.text('Activity'), findsOneWidget);
+        expect(find.text('Response time'), findsOneWidget);
         expect(tester.takeException(), isNull);
 
         await tester.ensureVisible(find.text('attestation.revoked'));

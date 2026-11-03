@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -210,9 +211,9 @@ func TestWebhookRetryAndResend(t *testing.T) {
 		t.Fatal(err)
 	}
 	ws := webhookWorkspaceOf(t, app, userID)
-	api.E.POST("/api/webhooks/endpoints").WithHeader("Authorization", token).
+	endpointID := api.E.POST("/api/webhooks/endpoints").WithHeader("Authorization", token).
 		WithJSON(map[string]any{"url": rcv.srv.URL, "events": []string{"*"}}).
-		Expect().Status(http.StatusCreated)
+		Expect().Status(http.StatusCreated).JSON().Object().Value("id").String().Raw()
 
 	createShare(t, api, token, ws)
 	rcv.waitFor(t, util.WebhookLinkCreated)
@@ -248,6 +249,42 @@ func TestWebhookRetryAndResend(t *testing.T) {
 	log.Value(0).Object().Value("responseStatus").Number().IsEqual(200)
 	log.Value(1).Object().Value("responseStatus").Number().IsEqual(500)
 	detail.Value("payload").Object().Value("type").String().IsEqual(util.WebhookLinkCreated)
+
+	t.Run("its metrics count both attempts and the event sent", func(t *testing.T) {
+		metrics := func(r string) *httpexpect.Object {
+			return api.E.GET("/api/webhooks/endpoints/"+endpointID+"/metrics").WithHeader("Authorization", token).
+				WithQuery("range", r).Expect().Status(http.StatusOK).JSON().Object()
+		}
+		m := metrics("24h")
+		m.Value("range").String().IsEqual("24h")
+		buckets := m.Value("buckets").Array()
+		buckets.Length().IsEqual(24)
+		last := buckets.Value(23).Object()
+		last.Value("delivered").Number().Ge(1)
+		last.Value("failed").Number().Ge(1)
+		m.Value("codes").Object().Value("2xx").Number().Ge(1)
+		m.Value("codes").Object().Value("5xx").Number().Ge(1)
+		m.Value("deliveries").Number().Ge(1)
+		types := []string{}
+		for _, e := range m.Value("events").Array().Iter() {
+			types = append(types, e.Object().Value("type").String().Raw())
+		}
+		if !slices.Contains(types, util.WebhookLinkCreated) {
+			t.Fatalf("link.created missing from the event counts: %v", types)
+		}
+		metrics("1h").Value("buckets").Array().Length().IsEqual(12)
+		metrics("7d").Value("buckets").Array().Length().IsEqual(28)
+		metrics("nonsense").Value("range").String().IsEqual("24h")
+
+		api.E.GET("/api/webhooks/endpoints").WithHeader("Authorization", token).
+			Expect().Status(http.StatusOK).JSON().Object().Value("items").Array().
+			Value(0).Object().Value("series").Array().Length().IsEqual(24)
+
+		other := testutils.NewPBClient(t, baseURL)
+		_, otherToken, _ := testutils.CreateRandomUser(baseURL)
+		other.E.GET("/api/webhooks/endpoints/"+endpointID+"/metrics").WithHeader("Authorization", otherToken).
+			Expect().Status(http.StatusNotFound)
+	})
 }
 
 // The test button sends a marked sample through the real path.
