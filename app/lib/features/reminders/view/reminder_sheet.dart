@@ -281,12 +281,14 @@ class _ReminderSheetState extends State<_ReminderSheet> {
         ),
       ),
       AppSpacing.gapSm,
-      AppFormRow(
-        icon: AppIcons.calendar,
+      AppFormField(
         label: 'Reminds you on',
-        valueText: due == null ? 'Pick a date' : formatReminderDay(due),
-        isPlaceholder: due == null,
-        onTap: _pickDate,
+        child: AppPickerField(
+          text: due == null ? 'Pick a date' : formatReminderDay(due),
+          isPlaceholder: due == null,
+          opens: AppIcons.calendar,
+          onTap: _pickDate,
+        ),
       ),
     ];
   }

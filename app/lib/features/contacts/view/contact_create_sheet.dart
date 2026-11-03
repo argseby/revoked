@@ -8,6 +8,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 
@@ -53,26 +54,35 @@ class _CreateSheet extends StatelessWidget {
               'their email address.',
             ).muted.small,
             AppSpacing.gapLg,
-            AppTextField(
-              controller: store.name,
-              label: 'Their name',
-              hint: 'e.g. Ada Lovelace',
-              autofocus: true,
-            ),
+            AppFormField(
+label: 'Their name',
+inset: false,
+child: AppTextField(
+controller: store.name,
+hint: 'Ada Lovelace',
+autofocus: true,
+),
+),
             AppSpacing.gapSm,
-            AppTextField(
-              controller: store.email,
-              label: 'Email address',
-              hint: 'e.g. ada@example.com',
-              keyboardType: TextInputType.emailAddress,
-            ),
+            AppFormField(
+label: 'Email address',
+inset: false,
+child: AppTextField(
+controller: store.email,
+hint: 'ada@example.com',
+keyboardType: TextInputType.emailAddress,
+),
+),
             AppSpacing.gapSm,
-            AppTextField(
-              controller: store.peerDomain,
-              label: 'Their server (optional)',
-              hint: 'e.g. revoked.example.com',
-              mono: true,
-            ),
+            AppFormField(
+label: 'Their server (optional)',
+inset: false,
+child: AppTextField(
+controller: store.peerDomain,
+hint: 'revoked.example.com',
+mono: true,
+),
+),
             AppSpacing.gapXs,
             const Text(
               'Fill in their server only if they run their own Revoked. '
@@ -85,13 +95,11 @@ class _CreateSheet extends StatelessWidget {
             AppSpacing.gapLg,
             Row(
               children: [
-                Expanded(
-                  child: AppButton(
+                AppButton(
                     label: 'Cancel',
                     style: AppButtonStyle.accent,
                     onTap: () => Navigator.of(context).pop(),
                   ),
-                ),
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(

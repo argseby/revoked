@@ -21,6 +21,7 @@ import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
@@ -296,9 +297,22 @@ class _TourScreenState extends State<TourScreen> {
     switch (s) {
       case TourStep.record:
         return [
-          AppTextField(controller: _label, label: 'Label'),
+          AppFormField(
+label: 'Label',
+inset: false,
+child: AppTextField(
+controller: _label,
+),
+),
           AppSpacing.gapMd,
-          AppTextField(controller: _value, label: 'Value', mono: true),
+          AppFormField(
+label: 'Value',
+inset: false,
+child: AppTextField(
+controller: _value,
+mono: true,
+),
+),
           AppSpacing.gapLg,
           _primary(
             icon: AppIcons.safe,
@@ -370,7 +384,14 @@ class _TourScreenState extends State<TourScreen> {
           ];
         }
         return [
-          AppTextField(controller: _value, label: 'New value', mono: true),
+          AppFormField(
+label: 'New value',
+inset: false,
+child: AppTextField(
+controller: _value,
+mono: true,
+),
+),
           AppSpacing.gapLg,
           _primary(
             icon: AppIcons.check,

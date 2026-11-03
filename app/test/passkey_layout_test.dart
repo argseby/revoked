@@ -340,7 +340,10 @@ void main() {
         await tester.scrollUntilVisible(
           note,
           120,
-          scrollable: find.byType(Scrollable).last,
+          // The sheet's own list; each text field in it scrolls too.
+          scrollable: find
+              .ancestor(of: find.text('Details'), matching: find.byType(Scrollable))
+              .first,
         );
         expect(note, findsOneWidget);
         expect(tester.takeException(), isNull, reason: 'create sheet note');

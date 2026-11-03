@@ -86,9 +86,11 @@ void main() {
   });
 
   test('picking boolean leaves only true or false behind', () {
-    expect(recordValueForType('boolean', 'TRUE'), 'true');
-    expect(recordValueForType('boolean', 'hello'), 'false');
-    expect(recordValueForType('text', 'hello'), 'hello');
+    expect(recordValueForType('boolean', 'TRUE', from: 'text'), 'true');
+    expect(recordValueForType('boolean', 'hello', from: 'text'), 'false');
+    expect(recordValueForType('text', 'hello', from: 'url'), 'hello');
+    // Back from yes/no, the placeholder would be offered as a yes/no again.
+    expect(recordValueForType('text', 'false', from: 'boolean'), '');
   });
 
   test('a plain date reads without a time', () {

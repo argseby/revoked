@@ -158,7 +158,7 @@ void main() {
     // Nothing picked yet, so the button is still refusing.
     expect(Stores.contacts.canSend, isFalse);
 
-    await tester.tap(find.text('What to share'));
+    await tester.tap(find.text('Pick from your vault'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('IBAN'));
     await tester.pumpAndSettle();
@@ -191,7 +191,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'My number');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('What to share'));
+    await tester.tap(find.text('Pick from your vault'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('IBAN'));
     await tester.pumpAndSettle();

@@ -14,6 +14,7 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/invite_trust_summary.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
@@ -225,21 +226,27 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   }
 
   List<Widget> _createForm() => [
-    AppTextField(
-      controller: _store.identityNameController,
-      label: 'Name',
-      hint: 'e.g. Ada Lovelace',
-      autofocus: true,
-    ),
+    AppFormField(
+label: 'Name',
+inset: false,
+child: AppTextField(
+controller: _store.identityNameController,
+hint: 'Ada Lovelace',
+autofocus: true,
+),
+),
     AppSpacing.gapXxs,
     const Text('Taken from your email. You can change it later.').muted.small,
     AppSpacing.gapLg,
     if (_renaming.value)
-      AppTextField(
-        controller: _store.nameController,
-        label: 'Workspace name',
-        hint: 'e.g. Personal, Family or Acme',
-      )
+      AppFormField(
+label: 'Workspace name',
+inset: false,
+child: AppTextField(
+controller: _store.nameController,
+hint: 'Personal, Family or Acme',
+),
+)
     else
       Row(
         children: [
@@ -320,11 +327,14 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   ];
 
   List<Widget> _joinForm() => [
-    AppTextField(
-      controller: _store.keyController,
-      label: 'Invite key',
-      hint: 'revoked://i/… or the key itself',
-    ),
+    AppFormField(
+label: 'Invite key',
+inset: false,
+child: AppTextField(
+controller: _store.keyController,
+hint: 'revoked://i/… or the key itself',
+),
+),
     AppSpacing.gapSm,
     AppButton(
       label: _store.isPreviewing ? 'Checking…' : 'Check invite',

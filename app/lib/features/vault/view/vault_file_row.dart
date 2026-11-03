@@ -12,6 +12,8 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 
@@ -45,10 +47,10 @@ Widget vaultDropTarget({
   );
 }
 
-/// The vault's one staged-file row: what is attached (or why it was refused),
-/// an image preview, and the upload's progress while it runs. Used by the
-/// record drawer and by a template's file field, so a file behaves the same
-/// wherever it is attached.
+/// The vault's one staged-file field: a place to drop or choose a file, then
+/// what is attached, with its preview and a way to replace or remove it, and
+/// the upload's progress while it runs. Used by the record drawer and by a
+/// template's file field, so a file behaves the same wherever it is attached.
 class VaultFileRow extends StatelessWidget {
   const VaultFileRow({super.key});
 
@@ -58,62 +60,150 @@ class VaultFileRow extends StatelessWidget {
       builder: (_) {
         final store = Stores.vault;
         final file = store.pickedFile;
-        final refusal = store.pickedFileError;
-        final preview = store.pickedFilePreview;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppFormRow(
-              icon: AppIcons.filePlus,
-              label: 'File',
-              valueText:
-                  refusal ??
-                  (file != null
-                      ? '${file.name} · ${formatBytes(file.size)}'
-                      : (vaultCanDropFiles
-                            ? 'Required — browse or drop a file here'
-                            : 'Required — tap to pick a file')),
-              isPlaceholder: file == null,
-              isError: file == null || refusal != null,
-              onTap: pickVaultFile,
-            ),
-            if (preview != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  0,
-                  AppSpacing.xl,
-                  AppSpacing.sm,
-                ),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: ClipRRect(
-                    borderRadius: AppRadius.allMd,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 160),
-                      child: Image.memory(preview, fit: BoxFit.contain),
-                    ),
-                  ),
-                ),
-              ),
-            if (store.isUploading)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  0,
-                  AppSpacing.xl,
-                  AppSpacing.sm,
-                ),
-                child: AppUploadProgress(
+        return AppFormField(
+          label: 'File',
+          error: store.pickedFileError,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (file == null)
+                const _DropArea()
+              else
+                _Attached(file: file, preview: store.pickedFilePreview),
+              if (store.isUploading) ...[
+                AppSpacing.gapSm,
+                AppUploadProgress(
                   sent: store.uploadSent,
                   total: store.uploadTotal,
                   onCancel: store.cancelUpload,
                 ),
-              ),
-          ],
+              ],
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+/// Where a file goes before there is one. The whole drawer takes a drop; this
+/// is the place that says so.
+class _DropArea extends StatelessWidget {
+  const _DropArea();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHighest,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.allMd,
+        side: BorderSide(color: scheme.outline),
+      ),
+      child: InkWell(
+        onTap: pickVaultFile,
+        borderRadius: AppRadius.allMd,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            children: [
+              Icon(AppIcons.filePlus, color: scheme.onSurfaceVariant),
+              AppSpacing.gapSm,
+              Text(
+                vaultCanDropFiles ? 'Drop a file here' : 'Add a file',
+                textAlign: TextAlign.center,
+              ),
+              AppSpacing.gapMd,
+              AppButton(
+                icon: AppIcons.folder,
+                label: 'Choose a file',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: pickVaultFile,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The staged file at a glance, and the two things to do with it.
+class _Attached extends StatelessWidget {
+  final PendingUpload file;
+  final Uint8List? preview;
+
+  const _Attached({required this.file, required this.preview});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final busy = Stores.vault.isUploading;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        borderRadius: AppRadius.allMd,
+        border: Border.all(color: scheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (preview != null) ...[
+            ClipRRect(
+              borderRadius: AppRadius.allSm,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 160),
+                child: Image.memory(preview!, fit: BoxFit.contain),
+              ),
+            ),
+            AppSpacing.gapMd,
+          ],
+          Row(
+            children: [
+              Icon(
+                file.isImage ? AppIcons.image : AppIcons.fileEarmark,
+                color: scheme.onSurfaceVariant,
+              ),
+              AppSpacing.gapSm,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      file.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(formatBytes(file.size)).muted.small,
+                  ],
+                ),
+              ),
+            ],
+          ),
+          AppSpacing.gapMd,
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              AppButton(
+                icon: AppIcons.arrowRepeat,
+                label: 'Replace',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: busy ? null : pickVaultFile,
+              ),
+              AppButton(
+                icon: AppIcons.trash,
+                label: 'Remove',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: busy ? null : Stores.vault.clearPickedFile,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

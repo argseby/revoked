@@ -144,18 +144,24 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                     ),
                     child: Column(
                       children: [
-                        AppTextField(
-                          controller: _store.typeController,
-                          label: 'Kind',
-                          hint: 'e.g. membership',
-                          mono: true,
-                        ),
+                        AppFormField(
+label: 'Kind',
+inset: false,
+child: AppTextField(
+controller: _store.typeController,
+hint: 'membership',
+mono: true,
+),
+),
                         AppSpacing.gapSm,
-                        AppTextField(
-                          controller: _store.labelController,
-                          label: 'Name in your list (optional)',
-                          hint: 'e.g. Membership 2026 — Ada',
-                        ),
+                        AppFormField(
+label: 'Name in your list (optional)',
+inset: false,
+child: AppTextField(
+controller: _store.labelController,
+hint: 'Membership 2026 — Ada',
+),
+),
                       ],
                     ),
                   ),
@@ -189,12 +195,15 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        AppTextField(
-                          controller: _store.subjectController,
-                          label: 'Only for this identity (optional)',
-                          hint: 'Their fingerprint, 64 characters',
-                          mono: true,
-                        ),
+                        AppFormField(
+label: 'Only for this identity (optional)',
+inset: false,
+child: AppTextField(
+controller: _store.subjectController,
+hint: 'Their fingerprint, 64 characters',
+mono: true,
+),
+),
                         AppSpacing.gapXs,
                         const Text(
                           'Leave it empty and whoever opens the link first can '
@@ -202,13 +211,16 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                           'can.',
                         ).muted.small,
                         AppSpacing.gapSm,
-                        AppTextField(
-                          controller: _store.validDaysController,
-                          label: 'Valid for, in days (optional)',
-                          hint:
+                        AppFormField(
+label: 'Valid for, in days (optional)',
+inset: false,
+child: AppTextField(
+controller: _store.validDaysController,
+hint:
                               'Leave empty to keep it valid until you revoke it',
-                          keyboardType: TextInputType.number,
-                        ),
+keyboardType: TextInputType.number,
+),
+),
                       ],
                     ),
                   ),
@@ -241,15 +253,13 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: AppButton(
+                AppButton(
                     label: 'Cancel',
                     style: AppButtonStyle.accent,
                     onTap: _store.isCreating
                         ? null
                         : () => Navigator.of(context).pop(),
                   ),
-                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
@@ -291,12 +301,15 @@ class _ClaimRow extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: AppTextField(
-                    controller: claim.name,
-                    label: 'Detail',
-                    hint: 'e.g. age_over_18',
-                    mono: true,
-                  ),
+                  child: AppFormField(
+label: 'Detail',
+inset: false,
+child: AppTextField(
+controller: claim.name,
+hint: 'age_over_18',
+mono: true,
+),
+),
                 ),
                 AppSpacing.gapSm,
                 AppButton(
@@ -309,19 +322,19 @@ class _ClaimRow extends StatelessWidget {
               ],
             ),
             AppSpacing.gapXs,
-            Row(
-              children: [
-                AppSegmented<ClaimKind>(
-                  value: claim.kind,
-                  items: [
-                    for (final kind in ClaimKind.values)
-                      AppSegmentedItem(value: kind, label: kind.label),
-                  ],
-                  onChanged: (kind) => claim.kind = kind,
-                ),
-                AppSpacing.gapSm,
-                Expanded(
-                  child: claim.kind == ClaimKind.yesNo
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AppSegmented<ClaimKind>(
+                value: claim.kind,
+                items: [
+                  for (final kind in ClaimKind.values)
+                    AppSegmentedItem(value: kind, label: kind.label),
+                ],
+                onChanged: (kind) => claim.kind = kind,
+              ),
+            ),
+            AppSpacing.gapXs,
+            claim.kind == ClaimKind.yesNo
                       ? Row(
                           children: [
                             AppSwitch(
@@ -344,9 +357,6 @@ class _ClaimRow extends StatelessWidget {
                                 )
                               : null,
                         ),
-                ),
-              ],
-            ),
           ],
         ),
       ),

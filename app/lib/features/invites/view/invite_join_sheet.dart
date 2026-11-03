@@ -12,6 +12,7 @@ import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/invite_trust_summary.dart';
@@ -120,21 +121,24 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  AppTextField(
-                    controller: store.joinKeyController,
-                    label: 'Invite key',
-                    hint: 'revoked://i/… or the key itself',
-                    mono: true,
-                    autofocus: true,
-                    onSubmitted: (_) => _check(),
-                    trailing: AppButton(
+                  AppFormField(
+label: 'Invite key',
+inset: false,
+child: AppTextField(
+controller: store.joinKeyController,
+hint: 'revoked://i/… or the key itself',
+mono: true,
+autofocus: true,
+onSubmitted: (_) => _check(),
+trailing: AppButton(
                       icon: AppIcons.copy,
                       tooltip: 'Paste from clipboard',
                       style: AppButtonStyle.accent,
                       size: AppButtonSize.small,
                       onTap: _pasteFromClipboard,
                     ),
-                  ),
+),
+),
                   AppSpacing.gapSm,
                   AppButton(
                     icon: AppIcons.key,
@@ -185,15 +189,13 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
             padding: const EdgeInsets.all(AppSpacing.xl),
             child: Row(
               children: [
-                Expanded(
-                  child: AppButton(
+                AppButton(
                     label: 'Cancel',
                     style: AppButtonStyle.accent,
                     onTap: store.isAccepting
                         ? null
                         : () => Navigator.of(context).pop(),
                   ),
-                ),
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(

@@ -8,6 +8,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/qr_sheet.dart';
@@ -78,25 +79,33 @@ class _AskSheet extends StatelessWidget {
                   'something about you. You get a link to pass on yourself.',
                 ).muted.small,
                 AppSpacing.gapLg,
-                AppTextField(
-                  controller: store.askTypeController,
-                  label: 'What kind',
-                  hint: 'e.g. membership',
-                  mono: true,
-                ),
+                AppFormField(
+label: 'What kind',
+inset: false,
+child: AppTextField(
+controller: store.askTypeController,
+hint: 'membership',
+mono: true,
+),
+),
                 AppSpacing.gapSm,
-                AppTextField(
-                  controller: store.askClaimsController,
-                  label: 'What they should confirm (optional)',
-                  hint: 'e.g. member_since, board',
-                  mono: true,
-                ),
+                AppFormField(
+label: 'What they should confirm (optional)',
+inset: false,
+child: AppTextField(
+controller: store.askClaimsController,
+hint: 'member_since, board',
+mono: true,
+),
+),
                 AppSpacing.gapLg,
-                const Text('For your identity').small.bold.muted,
-                AppSpacing.gapSm,
-                IdentityPicker(
-                  selectedId: store.askIdentityId,
-                  onChanged: store.setAskIdentity,
+                AppFormField(
+                  label: 'For your identity',
+                  inset: false,
+                  child: IdentityPicker(
+                    selectedId: store.askIdentityId,
+                    onChanged: store.setAskIdentity,
+                  ),
                 ),
                 if (problem != null &&
                     store.askTypeController.text.trim().isNotEmpty) ...[
@@ -106,13 +115,11 @@ class _AskSheet extends StatelessWidget {
                 AppSpacing.gapLg,
                 Row(
                   children: [
-                    Expanded(
-                      child: AppButton(
+                    AppButton(
                         label: 'Cancel',
                         style: AppButtonStyle.accent,
                         onTap: () => Navigator.of(context).pop(),
                       ),
-                    ),
                     AppSpacing.gapMd,
                     Expanded(
                       child: AppButton(

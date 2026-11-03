@@ -155,17 +155,23 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                     ),
                     child: Column(
                       children: [
-                        AppTextField(
-                          controller: _store.labelController,
-                          label: 'Name this invite',
-                          hint: 'e.g. Accountant',
-                        ),
+                        AppFormField(
+label: 'Name this invite',
+inset: false,
+child: AppTextField(
+controller: _store.labelController,
+hint: 'Accountant',
+),
+),
                         AppSpacing.gapSm,
-                        AppTextField(
-                          controller: _store.emailController,
-                          label: 'Lock to an email (optional)',
-                          hint: 'name@example.com',
-                        ),
+                        AppFormField(
+label: 'Lock to an email (optional)',
+inset: false,
+child: AppTextField(
+controller: _store.emailController,
+hint: 'name@example.com',
+),
+),
                       ],
                     ),
                   ),
@@ -281,15 +287,13 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: AppButton(
+                AppButton(
                     label: 'Cancel',
                     style: AppButtonStyle.accent,
                     onTap: _store.isCreating
                         ? null
                         : () => Navigator.of(context).pop(),
                   ),
-                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(

@@ -15,6 +15,7 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/tool_proposal_alert.dart';
@@ -91,26 +92,35 @@ class _Form extends StatelessWidget {
           ToolProposalAlert(proposer: store.proposer),
         ],
         AppSpacing.gapLg,
-        AppTextField(
-          controller: store.typeController,
-          label: 'What kind (optional)',
-          hint: 'e.g. membership',
-          mono: true,
-        ),
+        AppFormField(
+label: 'What kind (optional)',
+inset: false,
+child: AppTextField(
+controller: store.typeController,
+hint: 'membership',
+mono: true,
+),
+),
         AppSpacing.gapSm,
-        AppTextField(
-          controller: store.issuersController,
-          label: 'Confirmed by (optional)',
-          hint: 'e.g. chess-club.org',
-          mono: true,
-        ),
+        AppFormField(
+label: 'Confirmed by (optional)',
+inset: false,
+child: AppTextField(
+controller: store.issuersController,
+hint: 'chess-club.org',
+mono: true,
+),
+),
         AppSpacing.gapSm,
-        AppTextField(
-          controller: store.claimsController,
-          label: 'Details you need (optional)',
-          hint: 'e.g. member_since, board',
-          mono: true,
-        ),
+        AppFormField(
+label: 'Details you need (optional)',
+inset: false,
+child: AppTextField(
+controller: store.claimsController,
+hint: 'member_since, board',
+mono: true,
+),
+),
         if (error != null) ...[
           AppSpacing.gapMd,
           AppAlert(
@@ -122,15 +132,13 @@ class _Form extends StatelessWidget {
         AppSpacing.gapLg,
         Row(
           children: [
-            Expanded(
-              child: AppButton(
+            AppButton(
                 label: 'Cancel',
                 style: AppButtonStyle.accent,
                 onTap: store.isCreating
                     ? null
                     : () => Navigator.of(context).pop(),
               ),
-            ),
             AppSpacing.gapMd,
             Expanded(
               child: AppButton(

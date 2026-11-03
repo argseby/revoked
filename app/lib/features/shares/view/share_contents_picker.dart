@@ -173,12 +173,16 @@ class ShareContentsRow extends StatelessWidget {
   final void Function(String id)? toggleRecord;
   final void Function(String id)? toggleSection;
 
+  /// Off inside a sheet that already pads its fields.
+  final bool inset;
+
   const ShareContentsRow({
     super.key,
     this.records,
     this.sections,
     this.toggleRecord,
     this.toggleSection,
+    this.inset = true,
   });
 
   @override
@@ -189,20 +193,20 @@ class ShareContentsRow extends StatelessWidget {
           records: records,
           sections: sections,
         );
-        return AppFormRow(
-          icon: AppIcons.safe,
+        return AppFormField(
           label: 'What to share',
-          valueText: summary.isEmpty
-              ? 'Required — pick from your vault'
-              : summary,
-          isPlaceholder: summary.isEmpty,
-          isError: summary.isEmpty,
-          onTap: () => openShareContentsPicker(
-            context,
-            records: records,
-            sections: sections,
-            toggleRecord: toggleRecord,
-            toggleSection: toggleSection,
+          inset: inset,
+          child: AppPickerField(
+            leading: AppIcons.safe,
+            text: summary.isEmpty ? 'Pick from your vault' : summary,
+            isPlaceholder: summary.isEmpty,
+            onTap: () => openShareContentsPicker(
+              context,
+              records: records,
+              sections: sections,
+              toggleRecord: toggleRecord,
+              toggleSection: toggleSection,
+            ),
           ),
         );
       },
