@@ -104,7 +104,7 @@ class _RevokedAppState extends State<RevokedApp> {
   void _openNew() {
     final ctx = AppRouter.rootNavigatorKey.currentContext;
     if (ctx == null) return;
-    openNewPicker(ctx, destination: AppRoutes.destinationOf(_path));
+    openNewPicker(ctx, destination: AppRoutes.rootOf(_path));
   }
 
   @override

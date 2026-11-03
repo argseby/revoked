@@ -24,7 +24,6 @@ void main() {
   });
 
   setUp(() async {
-    await DisplayPreferences.setDetailLevel(DetailLevel.essentials);
     await DisplayPreferences.setTextScale(1);
     await DisplayPreferences.setReduceMotion(false);
   });
@@ -43,13 +42,11 @@ void main() {
     );
   }
 
-  testWidgets('full detail shows more in the preview', (tester) async {
+  testWidgets('how much a screen says is not chosen here', (tester) async {
+    // That is the Developer feature, kept on the account under Features.
     await pumpPage(tester);
-    expect(find.text('example.org/s/k7m2p9'), findsNothing);
-    await tester.tap(find.text('Full detail'));
-    await tester.pump();
-    expect(DisplayPreferences.detailLevel, DetailLevel.full);
-    expect(find.text('example.org/s/k7m2p9'), findsOneWidget);
+    expect(find.text('Full detail'), findsNothing);
+    expect(find.text('Essentials'), findsNothing);
   });
 
   testWidgets('the theme is chosen here', (tester) async {

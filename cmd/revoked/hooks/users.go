@@ -80,11 +80,14 @@ func BindUsersHooks(app core.App) {
 			}
 		}
 
+		// Features go through PUT /api/account/features, which checks every
+		// key against the catalogue; the collection API would store anything.
 		if err := util.RestrictFields(e,
 			util.Fields.User.Email,
 			util.Fields.User.Verified,
 			util.Fields.User.Avatar,
 			util.Fields.User.Active,
+			util.Fields.User.Features,
 		); err != nil {
 			return err
 		}

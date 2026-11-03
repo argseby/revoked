@@ -66,6 +66,7 @@ var Errors = struct {
 	InviteInviterLostAccess       AppError
 	SignupsDisabled               AppError
 	InvalidScope                  AppError
+	UnknownFeature                AppError
 	InvalidApiKey                 AppError
 	ApiKeyExpired                 AppError
 	ApiKeyNotPermitted            AppError
@@ -414,6 +415,10 @@ var Errors = struct {
 	InvalidScope: AppError{
 		ErrorCode: "invalid_scope",
 		ErrorText: "One or more requested API key scopes are unknown.",
+	},
+	UnknownFeature: AppError{
+		ErrorCode: "unknown_feature",
+		ErrorText: "One or more requested features are unknown.",
 	},
 	ApiKeyExpired: AppError{
 		ErrorCode: "api_key_expired",

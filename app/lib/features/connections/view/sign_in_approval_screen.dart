@@ -5,6 +5,7 @@ import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/sign_in_consent.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/network/api_client.dart';
@@ -211,6 +212,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
           ? _decide(false)
           : context.go(AppRoutes.overview),
       bottomBar: consenting ? _decision() : null,
+      feature: Feature.tools,
       body: r == null
           ? _invalid(context)
           : switch (_stage.value) {

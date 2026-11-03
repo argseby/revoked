@@ -12,6 +12,7 @@ import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/feature_notice.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/attestations/view/attestation_offer_screen.dart';
 import 'package:revoked_app/features/attestations/view/attestations_screen.dart';
@@ -131,8 +132,10 @@ abstract class AppRoutes {
   static const connections = '/connections';
   static const receivedVault = '/received-vault';
 
-  /// The places the shell's navigation leads to, in order.
-  static const destinations = [
+  /// Every place the shell can lead to, in order. Which of them show is
+  /// [destinations]; the order never changes, so a tab stays where people
+  /// learned it when another appears or goes.
+  static const allDestinations = [
     overview,
     vault,
     shared,
@@ -141,15 +144,40 @@ abstract class AppRoutes {
     contacts,
   ];
 
-  /// Which of [destinations] a location belongs to, or null outside them
-  /// (Settings, and every screen without the shell).
-  static int? destinationOf(String location) {
+  /// The places the shell's navigation leads to right now: those of
+  /// [allDestinations] whose feature the person has on and may use.
+  static List<String> get destinations => [
+    for (final root in allDestinations)
+      if (isDestinationShown(root)) root,
+  ];
+
+  /// The vault and Settings are always there; the rest follow their feature.
+  static bool isDestinationShown(String root) {
+    final feature = featureForLocation(root);
+    return feature == null || Stores.features.visible(feature);
+  }
+
+  /// Where the app lands after sign-in: the overview, which sums up who can
+  /// read the person's data, or the vault for someone who shares nothing.
+  static String get landing => isDestinationShown(overview) ? overview : vault;
+
+  /// The root of [allDestinations] a location sits under, shown or not, or
+  /// null outside them (Settings, and every screen without the shell).
+  static String? rootOf(String location) {
     final path = Uri.tryParse(location)?.path ?? location;
-    for (var i = 0; i < destinations.length; i++) {
-      final root = destinations[i];
-      if (path == root || path.startsWith('$root/')) return i;
+    for (final root in allDestinations) {
+      if (path == root || path.startsWith('$root/')) return root;
     }
     return null;
+  }
+
+  /// Which of [destinations] a location belongs to, or null outside them and
+  /// for a place the person has hidden.
+  static int? destinationOf(String location) {
+    final root = rootOf(location);
+    if (root == null) return null;
+    final index = destinations.indexOf(root);
+    return index < 0 ? null : index;
   }
 }
 
@@ -259,6 +287,13 @@ class AppRouter {
           // workspace exists, and moves on by itself once that is done.
           if (Stores.onboarding.isBusy) return null;
           return ResumeLocation.take() ?? AppRoutes.overview;
+        }
+        // Someone who shares nothing has no overview to land on; every path
+        // that says "overview" means "home", and home is the vault for them.
+        if (isLoggedIn &&
+            state.matchedLocation == AppRoutes.overview &&
+            !AppRoutes.isDestinationShown(AppRoutes.overview)) {
+          return AppRoutes.landing;
         }
         return null;
       },
@@ -673,8 +708,12 @@ class _AuthRefreshNotifier extends ChangeNotifier {
     // no-session initialize() completes with the flag still false and
     // nothing ever woke the router to notice isInitialized had flipped.
     _disposer = reaction(
-      (_) =>
-          (store.isInitialized, store.isAuthenticated, store.activeWorkspace),
+      (_) => (
+        store.isInitialized,
+        store.isAuthenticated,
+        store.activeWorkspace,
+        store.currentUser?.features,
+      ),
       (_) => notifyListeners(),
     );
   }

@@ -255,6 +255,35 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/Permission" }
 
+  /api/features:
+    get:
+      tags: [Discovery]
+      summary: Feature catalogue and invite presets
+      description: |
+        The parts of the app a person can choose to see, and the presets an
+        invite can start a member on. A feature is a display choice stored on
+        the account, never an access boundary: a client shows a feature only
+        where the account chose it *and* the member holds the permission it
+        names, and the server enforces the permission regardless.
+
+        Served, like the permission catalogue, so a client never hardcodes
+        the list and drifts from what the server knows.
+      security: []
+      responses:
+        "200":
+          description: The catalogue.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  features:
+                    type: array
+                    items: { $ref: "#/components/schemas/Feature" }
+                  presets:
+                    type: array
+                    items: { $ref: "#/components/schemas/FeaturePreset" }
+
   /api/certificate:
     get:
       tags: [Discovery]
@@ -972,6 +1001,10 @@ paths:
         the authority that issued it. The response carries the server's own
         claim too, so the recipient can verify the domain before handing over
         an account.
+
+        `features` lists the parts of the app the invite starts a member on
+        (labelled, as in `GET /api/features`), or is `null` when the invite
+        leaves that choice to the person.
       security: []
       parameters:
         - name: token
@@ -988,6 +1021,12 @@ paths:
     post:
       tags: [Invites]
       summary: Accept an invitation
+      description: |
+        Joins the workspace with the invite's permissions. If the invite
+        carries a starting feature set and the account has never chosen one,
+        that set becomes the account's; a set the person chose themselves is
+        never overwritten. The answer's `features` is what the account sees
+        afterwards.
       security:
         - Session: []
       parameters:
@@ -2022,6 +2061,54 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
+
+  /api/account/features:
+    put:
+      tags: [Workspaces]
+      summary: Choose which parts of the app the account sees
+      description: |
+        Replaces the account's feature set with the keys given. Every key must
+        be in the catalogue at `GET /api/features`, or nothing is stored and
+        the answer is `unknown_feature`. An empty list means the vault alone.
+
+        This is the only way the field is written: a `PATCH` on the users
+        record refuses it. The stored set is readable on the account's own
+        record as `features`, and is `null` while the account has never
+        chosen — then the catalogue's defaults apply, and an accepted invite
+        that carries a starting set fills it in.
+
+        Users only. A feature set is a person's view of the app, which an API
+        key has none of.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [features]
+              properties:
+                features:
+                  type: array
+                  items: { type: string, examples: ["sharing"] }
+      responses:
+        "200":
+          description: The stored set, in catalogue order.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  features:
+                    type: array
+                    items: { type: string }
+        "400":
+          description: "`unknown_feature`: a key is not in the catalogue."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
 
   /passkey:
     get:
@@ -3557,12 +3644,49 @@ components:
           type: array
           description: What the permission expands to when stored.
           items: { type: string }
+    Feature:
+      type: object
+      properties:
+        key: { type: string, examples: ["sharing"] }
+        label: { type: string }
+        description: { type: string }
+        permission:
+          type: string
+          description: |
+            The permission the feature is pointless without, or empty. A
+            client hides the feature from a member who lacks it; holding the
+            feature never grants the permission.
+        defaultOn:
+          type: boolean
+          description: Whether an account that never chose sees it.
+    FeaturePreset:
+      type: object
+      description: |
+        A kind of member an invite can be made for: the permissions it grants
+        and the features it starts the member on. The server stores the two
+        expanded lists; the preset's name is never kept.
+      properties:
+        key: { type: string, examples: ["vault-sharing"] }
+        label: { type: string }
+        description: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+        features:
+          type: array
+          items: { type: string }
     Member:
       type: object
       properties:
         id: { type: string }
         user: { type: string }
         email: { type: string }
+        features:
+          type: array
+          description: |
+            What the member chose to see, or the catalogue's defaults while
+            they never chose. Display only: gate on permissions.
+          items: { type: string }
         role:
           type: string
           enum: [admin, member]

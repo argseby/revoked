@@ -14,10 +14,12 @@ import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/permission_check_row.dart';
+import 'package:revoked_app/features/settings/view/features_page.dart';
 
 /// Creates a workspace invite: choose what the person will be able to do, then
 /// hand them the key.
@@ -51,6 +53,13 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
     super.initState();
     Stores.invites.resetDraft();
     Stores.invites.loadCatalogue();
+    Stores.features.loadIfDue().then((_) {
+      // Most invites are for one kind of member; the first preset is the
+      // narrowest, so nothing is handed out that was not chosen.
+      if (!mounted || _store.draftPermissions.isNotEmpty) return;
+      final presets = Stores.features.presets;
+      if (presets.isNotEmpty) _store.applyPreset(presets.first);
+    });
   }
 
   Future<void> _submit() async {
@@ -67,6 +76,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
           ? 'Invite'
           : _store.labelController.text.trim(),
       permissions: _store.draftPermissions.toList(),
+      features: _store.draftFeatures.toList(),
       email: _store.emailController.text.trim(),
       maxUses: _store.draftSingleUse ? 1 : null,
     );
@@ -180,33 +190,55 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
                   ),
 
                   const AppFormSectionHeader('What they can do'),
-                  Observer(
-                    builder: (_) {
-                      if (store.catalogue.isEmpty) {
-                        return const Padding(
+                  _Presets(store: _store),
+                  AppFormAdvanced(
+                    summary: 'Each permission, and what they see',
+                    // A draft no preset describes is only readable in here.
+                    initiallyOpen: _store.draftPreset == null,
+                    children: [
+                      const AppFormSectionHeader('Permissions'),
+                      if (store.catalogue.isEmpty)
+                        const Padding(
                           padding: EdgeInsets.all(AppSpacing.xl),
                           child: Text('Loading permissions…'),
-                        );
-                      }
-                      return Column(
-                        children: [
-                          for (final p in store.catalogue)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.xl,
-                              ),
-                              child: PermissionCheckRow(
-                                permission: p,
-                                selected: _store.draftPermissions.contains(
-                                  p.key,
-                                ),
-                                onChanged: (on) =>
-                                    _store.toggleDraftPermission(p.key, on),
-                              ),
+                        )
+                      else
+                        for (final p in store.catalogue)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xl,
                             ),
-                        ],
-                      );
-                    },
+                            child: PermissionCheckRow(
+                              permission: p,
+                              selected: _store.draftPermissions.contains(p.key),
+                              onChanged: (on) =>
+                                  _store.toggleDraftPermission(p.key, on),
+                            ),
+                          ),
+                      const AppFormSectionHeader('What they see at first'),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          0,
+                          AppSpacing.xl,
+                          AppSpacing.xs,
+                        ),
+                        child: const Text(
+                          'Only for someone who hasn’t chosen yet. They can '
+                          'change it any time under Settings → Features.',
+                        ).muted.small,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                        ),
+                        child: FeatureRows(
+                          draft: _store.draftFeatures,
+                          onChanged: (feature, on) =>
+                              _store.toggleDraftFeature(feature.key, on),
+                        ),
+                      ),
+                    ],
                   ),
 
                   if (_store.draftPermissions.isNotEmpty &&
@@ -272,6 +304,47 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The kinds of member the catalogue offers, one of which is the draft.
+/// Picking one fills in its permissions and features; editing those under
+/// Advanced leaves none picked, which the rows show by selecting nothing.
+class _Presets extends StatelessWidget {
+  final InvitesStore store;
+
+  const _Presets({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (_) {
+        final presets = Stores.features.presets;
+        if (presets.isEmpty) return const SizedBox.shrink();
+        final current = store.draftPreset;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final preset in presets)
+                AppListRow(
+                  icon: switch (preset.features.length) {
+                    0 => AppIcons.safe,
+                    1 => AppIcons.share,
+                    _ => AppIcons.stars,
+                  },
+                  title: preset.label,
+                  subtitle: preset.description,
+                  selected: preset.key == current,
+                  showChevron: false,
+                  onTap: () => store.applyPreset(preset),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

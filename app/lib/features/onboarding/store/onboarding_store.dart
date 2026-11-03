@@ -46,6 +46,38 @@ abstract class _OnboardingStore with Store {
   @observable
   OnboardingChoice choice = OnboardingChoice.create;
 
+  /// Creating a workspace asks two things in turn: the name, then what the
+  /// person will use the app for. True while on the second.
+  @observable
+  bool choosingFeatures = false;
+
+  /// The feature keys ticked on that second step.
+  final ObservableSet<String> draftFeatures = ObservableSet<String>();
+
+  @action
+  void askFeatures(Iterable<String> defaults) {
+    draftFeatures
+      ..clear()
+      ..addAll(defaults);
+    choosingFeatures = true;
+    error = null;
+  }
+
+  @action
+  void backToName() {
+    choosingFeatures = false;
+    error = null;
+  }
+
+  @action
+  void toggleFeature(String key, bool on) {
+    if (on) {
+      draftFeatures.add(key);
+    } else {
+      draftFeatures.remove(key);
+    }
+  }
+
   @observable
   bool isBusy = false;
 
@@ -100,6 +132,7 @@ abstract class _OnboardingStore with Store {
   @action
   void restart() {
     choice = OnboardingChoice.create;
+    choosingFeatures = false;
     preview = null;
     error = null;
   }

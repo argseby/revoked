@@ -48,6 +48,8 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.PublicRequestsRoute(app, root)
 	routes.PublicInvitesRoute(app, root)
 	routes.PermissionsRoute(app)
+	routes.FeaturesRoute(app)
+	routes.AccountFeaturesRoute(app)
 	routes.WorkspaceMembersRoute(app)
 	routes.RequestGrantsRoute(app)
 	routes.ContactGrantsRoute(app, root)

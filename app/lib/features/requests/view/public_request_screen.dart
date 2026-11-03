@@ -12,6 +12,7 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/identity_status_assertion.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/request_template.dart';
@@ -741,6 +742,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       // Which account and workspace the answer is given as, with a switcher.
       actions: [if (Stores.auth.isAuthenticated) const WorkspaceChip()],
       bottomBar: filling ? _submitBar() : null,
+      feature: Feature.requests,
       body: _buildBody(theme),
     );
   }

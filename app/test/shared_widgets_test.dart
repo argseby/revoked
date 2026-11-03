@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/design/motion.dart';
-import 'package:revoked_app/core/state/display_preferences.dart';
+import 'package:revoked_app/core/models/user.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
@@ -98,10 +103,24 @@ void main() {
   });
 
   group('detail gate', () {
-    setUp(() => SharedPreferences.setMockInitialValues({}));
+    setUpAll(() async {
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      await Stores.init(
+        httpClient: MockClient((_) async => http.Response('{}', 404)),
+      );
+    });
 
-    testWidgets('shows the expert part only at Full', (tester) async {
-      await DisplayPreferences.setDetailLevel(DetailLevel.essentials);
+    void developer(bool on) => runInAction(
+      () => Stores.auth.currentUser = User.fromJson({
+        'id': 'u1',
+        'email': 'ada@example.com',
+        'features': [if (on) 'developer'],
+      }),
+    );
+
+    testWidgets('shows the expert part only with Developer on', (tester) async {
+      developer(false);
       await tester.pumpWidget(
         host(
           const DetailGate(
@@ -113,18 +132,10 @@ void main() {
       expect(find.text('Plain'), findsOneWidget);
       expect(find.text('example.org/s/k7m2p9'), findsNothing);
 
-      await DisplayPreferences.setDetailLevel(DetailLevel.full);
+      developer(true);
       await tester.pump();
       expect(find.text('example.org/s/k7m2p9'), findsOneWidget);
       expect(find.text('Plain'), findsNothing);
-    });
-
-    test('the choice survives a restart', () async {
-      await DisplayPreferences.setDetailLevel(DetailLevel.full);
-      await DisplayPreferences.setDetailLevel(DetailLevel.essentials);
-      await DisplayPreferences.setDetailLevel(DetailLevel.full);
-      await DisplayPreferences.load();
-      expect(DisplayPreferences.detailLevel, DetailLevel.full);
     });
   });
 

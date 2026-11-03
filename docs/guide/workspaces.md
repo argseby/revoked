@@ -8,7 +8,8 @@ you sign up. You can belong to up to ten, and switch between them under
 ## Choose what each member can do
 
 You decide exactly what each person may do. When you invite someone or
-edit a member, tick the permissions they need. Most areas have one to view
+edit a member, tick the permissions they need. Editing a member also shows
+which parts of the app they have turned on. Most areas have one to view
 and one to manage: vault, collected data, shares, requests, templates and
 identities. Attestations can be viewed and issued, and members can be
 viewed, invited and removed. **Manage workspace** covers renaming and
@@ -25,7 +26,16 @@ remove, so nobody can lock it for good.
 ## Invite someone
 
 Create an invite under **Settings → Invites** and send the key any way you
-like. It carries the permissions you picked. You can narrow it further:
+like. Pick what kind of member they are: **Vault only**, **Vault and
+sharing** or **Everything**. Each one sets the permissions and the parts of
+the app they see at first. Open **Advanced** to tick each permission
+yourself, and to choose what they see.
+
+What they see is their own choice from then on, under
+**Settings → Features**; the invite only fills it in for someone who hasn't
+chosen yet. Hiding a part of the app never takes a permission away, and
+turning one on never grants one. The invite carries the permissions you
+picked. You can narrow it further:
 
 - **Lock to an email**: only that account can accept it.
 - **Single use**: the key stops working once someone joins. Otherwise it

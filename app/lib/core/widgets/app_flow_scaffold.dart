@@ -4,6 +4,8 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
+import 'package:revoked_app/core/widgets/feature_notice.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 
 /// The frame of every full-screen page outside the tabs — a link someone sent,
@@ -38,6 +40,11 @@ class AppFlowScaffold extends StatelessWidget {
   /// The page's decision, pinned to the bottom. Usually an [AppActionBar].
   final Widget? bottomBar;
 
+  /// The feature this page belongs to. A link can open it while the person
+  /// has that feature off, so the page says so above its content and offers
+  /// to turn it on, rather than being a dead end.
+  final Feature? feature;
+
   const AppFlowScaffold({
     super.key,
     required this.title,
@@ -47,6 +54,7 @@ class AppFlowScaffold extends StatelessWidget {
     this.closeLabel = 'Back',
     this.actions = const [],
     this.bottomBar,
+    this.feature,
   });
 
   @override
@@ -92,7 +100,15 @@ class AppFlowScaffold extends StatelessWidget {
           SizedBox(width: AppSpacing.screenH(context) - AppSpacing.sm),
         ],
       ),
-      body: body,
+      body: feature == null
+          ? body
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FeatureNotice(feature!),
+                Expanded(child: body),
+              ],
+            ),
       bottomNavigationBar: bottomBar,
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -11,7 +12,10 @@ import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 /// The shell's one create action: a grouped list of everything that can be
 /// made, each with a sentence on what it is. Picking a row opens the form
 /// that already exists for it, in the same sheet or panel the list sat in.
-Future<void> openNewPicker(BuildContext context, {int? destination}) async {
+///
+/// [destination] is the shell place the picker was opened from, a root of
+/// `AppRoutes.allDestinations`, so the list starts on the row that fits it.
+Future<void> openNewPicker(BuildContext context, {String? destination}) async {
   final first = NewKind.firstFor(destination);
   final picked = await showAppSheet<NewKind>(
     context: context,
@@ -27,7 +31,8 @@ Future<void> openNewPicker(BuildContext context, {int? destination}) async {
 
 /// The picker's body: a title, then the rows under their group names. Arrow
 /// keys move between rows, Enter picks, and each row's letter picks it
-/// directly.
+/// directly. Only rows whose feature the person has on are listed, and a
+/// group with none of them is left out.
 class NewPickerList extends StatelessWidget {
   final NewKind first;
   final ValueChanged<NewKind> onPick;
@@ -36,9 +41,14 @@ class NewPickerList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Observer(builder: _build);
+  }
+
+  Widget _build(BuildContext context) {
+    final kinds = NewKind.available;
     return CallbackShortcuts(
       bindings: {
-        for (final kind in NewKind.values)
+        for (final kind in kinds)
           CharacterActivator(kind.key): () => onPick(kind),
       },
       child: SingleChildScrollView(
@@ -59,27 +69,28 @@ class NewPickerList extends StatelessWidget {
                 child: const Text('Create something new').header,
               ),
             ),
-            for (final group in NewGroup.values) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.sm,
-                  AppSpacing.lg,
-                  AppSpacing.sm,
-                  AppSpacing.xxs,
-                ),
-                child: Semantics(
-                  header: true,
-                  child: Text(group.title).small.muted,
-                ),
-              ),
-              for (final kind in NewKind.values)
-                if (kind.group == group)
-                  _PickerRow(
-                    kind: kind,
-                    autofocus: kind == first,
-                    onTap: () => onPick(kind),
+            for (final group in NewGroup.values)
+              if (kinds.any((k) => k.group == group)) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.xxs,
                   ),
-            ],
+                  child: Semantics(
+                    header: true,
+                    child: Text(group.title).small.muted,
+                  ),
+                ),
+                for (final kind in kinds)
+                  if (kind.group == group)
+                    _PickerRow(
+                      kind: kind,
+                      autofocus: kind == first,
+                      onTap: () => onPick(kind),
+                    ),
+              ],
           ],
         ),
       ),

@@ -67,6 +67,10 @@ class InvitePreview {
   final String workspaceName;
   final String? invitedBy;
   final List<InvitePermission> permissions;
+
+  /// The parts of the app the invite starts the member on, labelled; null
+  /// when the invite leaves that choice to the person.
+  final List<InviteFeature>? features;
   final bool requiresEmail;
   final String? expiresAt;
 
@@ -83,6 +87,7 @@ class InvitePreview {
     required this.label,
     required this.workspaceName,
     required this.permissions,
+    this.features,
     this.invitedBy,
     this.requiresEmail = false,
     this.expiresAt,
@@ -95,6 +100,7 @@ class InvitePreview {
     final workspace = (json['workspace'] as Map<String, dynamic>?) ?? const {};
     final server = (json['server'] as Map<String, dynamic>?) ?? const {};
     final perms = (json['permissions'] as List<dynamic>?) ?? const [];
+    final features = json['features'];
     return InvitePreview(
       label: json['label'] as String? ?? '',
       workspaceName: workspace['name'] as String? ?? 'this workspace',
@@ -102,6 +108,11 @@ class InvitePreview {
       permissions: perms
           .map((e) => InvitePermission.fromJson(e as Map<String, dynamic>))
           .toList(),
+      features: features is List
+          ? features
+                .map((e) => InviteFeature.fromJson(e as Map<String, dynamic>))
+                .toList()
+          : null,
       requiresEmail: json['requiresEmail'] as bool? ?? false,
       expiresAt: _orNull(json['expiresAt'] as String?),
       serverDomain: server['domain'] as String? ?? '',
@@ -111,6 +122,19 @@ class InvitePreview {
   }
 
   bool get grantsDestructive => permissions.any((p) => p.destructive);
+}
+
+/// A feature as an invite names it, labelled by the server.
+class InviteFeature {
+  final String key;
+  final String label;
+
+  const InviteFeature({required this.key, required this.label});
+
+  factory InviteFeature.fromJson(Map<String, dynamic> json) => InviteFeature(
+    key: json['key'] as String? ?? '',
+    label: json['label'] as String? ?? '',
+  );
 }
 
 /// What the issuing server states about whoever created an invite.
@@ -192,6 +216,9 @@ class Invite {
   final String label;
   final String status;
   final List<String> permissions;
+
+  /// The feature keys the invite starts a member on; null when it carries none.
+  final List<String>? features;
   final String? email;
   final String? expiresAt;
   final int maxUses;
@@ -205,6 +232,7 @@ class Invite {
     required this.label,
     required this.status,
     required this.permissions,
+    this.features,
     this.email,
     this.expiresAt,
     this.maxUses = 0,
@@ -215,12 +243,16 @@ class Invite {
 
   factory Invite.fromJson(Map<String, dynamic> json, {String? plainToken}) {
     final perms = (json['permissions'] as List<dynamic>?) ?? const [];
+    final features = json['features'];
     return Invite(
       id: json['id'] as String,
       workspace: json['workspace'] as String? ?? '',
       label: json['label'] as String? ?? '',
       status: json['status'] as String? ?? 'active',
       permissions: perms.map((e) => e.toString()).toList(),
+      features: features is List
+          ? features.map((e) => e.toString()).toList()
+          : null,
       email: _orNull(json['email'] as String?),
       expiresAt: _orNull(json['expiresAt'] as String?),
       maxUses: (json['maxUses'] as num?)?.toInt() ?? 0,
@@ -250,6 +282,9 @@ class WorkspaceMemberDetail {
   final String email;
   final String role;
   final List<InvitePermission> permissions;
+
+  /// The feature keys the member has on, as the server reports them.
+  final List<String> features;
   final bool isSelf;
 
   /// The only member who can still invite. Removing or demoting them would
@@ -263,6 +298,7 @@ class WorkspaceMemberDetail {
     required this.email,
     required this.role,
     required this.permissions,
+    this.features = const [],
     this.isSelf = false,
     this.isLastAdmin = false,
   });
@@ -276,6 +312,9 @@ class WorkspaceMemberDetail {
       role: json['role'] as String? ?? 'member',
       permissions: perms
           .map((e) => InvitePermission.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      features: ((json['features'] as List<dynamic>?) ?? const [])
+          .map((e) => e.toString())
           .toList(),
       isSelf: json['isSelf'] as bool? ?? false,
       isLastAdmin: json['isLastAdmin'] as bool? ?? false,
