@@ -61,7 +61,7 @@ Your AI app may already list Revoked as connected. That only means the
 program is running. Your account still has to say yes:
 
 1. Ask your assistant: *“Connect to Revoked.”*
-2. The Revoked app opens with **AI assistant wants to connect**, and your
+2. The Revoked app opens with **Connect AI assistant**, and your
    assistant tells you a short code, such as `83C-047`.
 3. Check that the app shows the same code. If it doesn't, press **Decline**.
 4. Choose what it may do, then press **Connect**.
@@ -93,8 +93,8 @@ Want your assistant to remember a packing list, or keep a draft until
 you're ready? Give it a section of its own:
 
 1. Ask your assistant: *“Connect to Revoked with a section of your own.”*
-2. The Revoked app shows **Give it a section** and the name of the new
-   section. Leave it ticked and press **Connect**.
+2. The Revoked app shows **Vault section** with the name of the new
+   section. Leave it on and press **Connect**.
 3. Ask it to save something. It shows up in your vault, marked **Added by**
    and your assistant's name.
 
@@ -109,7 +109,7 @@ Want to ask *“What's my IBAN?”* or *“Fill in this form from my vault”*? 
 assistant has to read your vault for that. You decide:
 
 1. Ask your assistant: *“Connect to Revoked with vault access.”*
-2. The Revoked app shows **Read your vault**. It's off.
+2. The Revoked app shows **Read vault**. It's off.
 3. Read **What reading your vault means**. Turn it on only if you agree.
 4. Press **Connect**. A browser tab opens and says your assistant is
    connected. You can close it.
@@ -129,7 +129,7 @@ assistant. That way, a connect link from someone else can never get into
 your vault.
 
 **Changed your mind?** Open **Settings → Connected tools**, pick your
-assistant, and untick **Read your vault**. It stops reading at once. To turn
+assistant, and turn off **Read vault**. It stops reading at once. To turn
 it on again, ask your assistant to connect with vault access.
 
 ## What it can never do
@@ -137,7 +137,7 @@ it on again, ask your assistant to connect with vault access.
 - Save, send or publish anything without you.
 - Change or delete records you added to your vault.
 - See your account, or the links and requests you made yourself.
-- Read your vault, unless you turned on **Read your vault**.
+- Read your vault, unless you turned on **Read vault**.
 
 ## Take a break or stop
 

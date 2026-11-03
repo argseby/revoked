@@ -324,9 +324,9 @@ void main() {
       );
       expect(find.text('Connect Mietunterlagen'), findsOneWidget);
       // The owner's own choices sit in their own section, ticked to start.
-      expect(find.text('What it suggests'), findsOneWidget);
-      expect(find.text('Let it end what it suggested'), findsOneWidget);
-      expect(find.text('Send it the finished link'), findsOneWidget);
+      expect(find.text('Permissions'), findsOneWidget);
+      expect(find.text('Revoke its links'), findsOneWidget);
+      expect(find.text('Receive links'), findsOneWidget);
       // The connection is decided first; the link is reviewed after it.
       expect(find.textContaining('will receive this link'), findsNothing);
       await tester.tap(find.text('Continue'));
@@ -377,8 +377,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Mietunterlagen wants to connect'), findsOneWidget);
-      expect(find.text('See the rest of your vault'), findsOneWidget);
+      expect(find.text('Connect Mietunterlagen'), findsOneWidget);
+      expect(
+        find.text('No access to your vault, your links or your account.'),
+        findsOneWidget,
+      );
       // The tool's reason is quoted as its own words; unticking is respected.
       expect(
         find.text('Mietunterlagen says: “To end a link you remove”'),
@@ -386,9 +389,9 @@ void main() {
       );
       // The decision is pinned to the bottom, so a choice further down the
       // page has to be scrolled into view before it can be tapped.
-      await tester.ensureVisible(find.text('Send it the finished link'));
+      await tester.ensureVisible(find.text('Receive links'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Send it the finished link'));
+      await tester.tap(find.text('Receive links'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
@@ -460,7 +463,7 @@ void main() {
       }
 
       await askForVault();
-      expect(find.text('Read your vault'), findsOneWidget);
+      expect(find.text('Read vault'), findsOneWidget);
       expect(find.text('What reading your vault means'), findsOneWidget);
       expect(
         find.text('Assistant says: “To answer your questions”'),
@@ -472,11 +475,14 @@ void main() {
       expect(authorized.single['allowVaultRead'], false);
 
       await askForVault();
-      await tester.ensureVisible(find.text('Read your vault'));
+      await tester.ensureVisible(find.text('Read vault'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Read your vault'));
+      await tester.tap(find.text('Read vault'));
       await tester.pumpAndSettle();
-      expect(find.text('Change records you added'), findsOneWidget);
+      expect(
+        find.text('No access to your links or your account.'),
+        findsOneWidget,
+      );
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
@@ -484,7 +490,7 @@ void main() {
 
       // A page collecting its own answer is never offered it.
       await askForVault(poll: watched);
-      expect(find.text('Read your vault'), findsNothing);
+      expect(find.text('Read vault'), findsNothing);
       expect(find.text('What reading your vault means'), findsNothing);
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));
@@ -514,12 +520,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Give it a section'), findsOneWidget);
-      expect(find.text('New section: Saves'), findsOneWidget);
+      expect(find.text('Vault section'), findsOneWidget);
+      expect(find.text('Saves · new'), findsOneWidget);
       expect(find.text('Saves says: “To keep your saves”'), findsOneWidget);
-      await tester.ensureVisible(find.text('Share what it can read'));
+      await tester.ensureVisible(find.text('Manage shares'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Share what it can read'));
+      await tester.tap(find.text('Manage shares'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));

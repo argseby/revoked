@@ -214,18 +214,18 @@ void main() {
   testWidgets('reading the vault shows while it is on, and can only be '
       'turned off', (tester) async {
     await signedIn(tester);
-    expect(find.text('Read your vault'), findsNothing);
+    expect(find.text('Read vault'), findsNothing);
 
     tool['allowVaultRead'] = true;
     await Stores.connections.load();
     await tester.pumpAndSettle();
     expect(find.text('What reading your vault means'), findsOneWidget);
-    await tester.ensureVisible(find.text('Read your vault'));
+    await tester.ensureVisible(find.text('Read vault'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Read your vault'));
+    await tester.tap(find.text('Read vault'));
     await tester.pumpAndSettle();
     expect(calls, ['permissions {"allowVaultRead":false}']);
-    expect(find.text('Read your vault'), findsNothing);
+    expect(find.text('Read vault'), findsNothing);
   });
 
   testWidgets('what it does on its own comes from the catalogue, and '
@@ -236,9 +236,9 @@ void main() {
     // Only what a tool does by itself is offered here.
     expect(find.text('Invite members'), findsNothing);
     expect(find.text('View shares'), findsNothing);
-    await tester.ensureVisible(find.text('Share what it can read'));
+    await tester.ensureVisible(find.text('Manage shares'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Share what it can read'));
+    await tester.tap(find.text('Manage shares'));
     await tester.pumpAndSettle();
     expect(calls, ['permissions {"permissions":[]}']);
   });
@@ -251,16 +251,16 @@ void main() {
     await Stores.vault.loadRecords();
     await tester.pumpAndSettle();
 
-    expect(find.text('Section: Flat tool'), findsOneWidget);
-    await tester.ensureVisible(find.text('It can read'));
+    expect(find.text('Vault section'), findsOneWidget);
+    await tester.ensureVisible(find.text('Read'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('It can read'));
+    await tester.tap(find.text('Read'));
     await tester.pumpAndSettle();
     expect(calls.last, 'permissions {"permissions":["vault:read"]}');
 
-    await tester.ensureVisible(find.text('Give it a section'));
+    await tester.ensureVisible(find.text('Vault section'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Give it a section'));
+    await tester.tap(find.text('Vault section'));
     await tester.pumpAndSettle();
     expect(calls.last, 'permissions {"section":false}');
   });
