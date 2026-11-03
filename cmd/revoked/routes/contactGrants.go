@@ -334,38 +334,81 @@ type contactHandOver struct {
 func answerContactGrant(app core.App, re *core.RequestEvent, h contactHandOver) error {
 	workspace := h.contact.GetString(util.Fields.Contact.Workspace)
 	recipient := services.ContactAccountHere(app, h.contact)
-	services.MarkContactUsed(app, h.contact, recipient)
+	standing := services.ContactStanding(app, h.contact, re.Auth.Id, recipient)
+	services.MarkContactUsed(app, h.contact, recipient, standing)
 
-	delivered := false
+	delivered, refused := false, ""
 	recipientId := ""
 	if recipient != nil {
 		recipientId = recipient.Id
-		from := services.ContactSenderName(app, workspace, h.identityId)
-		if err := services.DeliverToContact(app, recipient, h.kind, h.slug, h.label, from); err != nil {
-			app.Logger().Error("Failed to deliver grant to contact", "error", err, "contact", h.contact.Id)
-		} else {
-			delivered = true
+		refused = services.ContactDeliveryRefusal(app, re.Auth, recipient, standing)
+		if refused == "" {
+			from := services.ContactSenderName(app, workspace, h.identityId)
+			if err := services.DeliverToContact(app, re.Auth, recipient, h.kind, h.slug, h.label, from); err != nil {
+				app.Logger().Error("Failed to deliver grant to contact", "error", err, "contact", h.contact.Id)
+			} else {
+				delivered = true
+				services.RecordContactDelivery(app, re.Auth, recipient, workspace, h.kind)
+			}
 		}
 	}
 
-	// Mail only where the tray could not be used. Someone with an account
-	// here already has the better channel, and mailing them as well would
-	// double the outbound volume for nothing.
+	// Mail only where there is no account to deliver to. Someone with an
+	// account here already has the better channel, and mailing them as well
+	// would double the outbound volume for nothing — and would turn a refused
+	// delivery into the same message in their inbox, which is the flood this
+	// guards against taking the other door.
 	emailed, emailReason := false, ""
-	if !delivered {
+	if recipient == nil {
 		emailed, emailReason = emailContactGrant(app, h, workspace)
 	}
 
-	auditHandOver(app, re, h, recipientId, delivered, emailed, emailReason)
+	// The audit row keeps the whole truth, including the refusal: the operator
+	// is the one reader who must be able to see a sender working through
+	// addresses.
+	auditHandOver(app, re, h, recipientId, delivered, emailed, emailReason, refused)
 
-	return re.JSON(http.StatusOK, map[string]any{
-		"ok":        true,
-		"id":        h.grant.Id,
-		"slug":      h.slug,
-		"kind":      h.kind,
-		"delivered": delivered,
-		"emailed":   emailed,
-	})
+	// A refused delivery is told as little as a stranger's: a sender who
+	// learns they were blocked opens another account, and the person who
+	// blocked them is the one with something to lose.
+	return re.JSON(http.StatusOK, contactGrantAnswer(h, standing && refused == "", delivered, emailed))
+}
+
+// contactGrantAnswer is what the sender is told. Where something already
+// connects the two it is the precise outcome; otherwise it says only that the
+// grant exists and hands over the slug.
+//
+// Without that reserve the answer resolves an address for anyone who types
+// one: "delivered" means the address has an account on this server, and
+// "emailed" — only ever attempted where it has none — means it does not. Sixty
+// addresses an hour, per account, with nothing to show for it on the other
+// side. The slug is in every answer, so the sender always has a way to pass
+// the grant on by hand; what they lose is the confirmation, until the
+// recipient is somebody they are actually in touch with.
+func contactGrantAnswer(h contactHandOver, precise, delivered, emailed bool) map[string]any {
+	answer := map[string]any{
+		"ok":   true,
+		"id":   h.grant.Id,
+		"slug": h.slug,
+		"kind": h.kind,
+	}
+	if !precise {
+		answer["delivered"] = false
+		answer["emailed"] = false
+		answer["channel"] = util.ContactChannelHandedOver
+		return answer
+	}
+	answer["delivered"] = delivered
+	answer["emailed"] = emailed
+	switch {
+	case delivered:
+		answer["channel"] = util.ContactChannelAccount
+	case emailed:
+		answer["channel"] = util.ContactChannelEmail
+	default:
+		answer["channel"] = util.ContactChannelManual
+	}
+	return answer
 }
 
 // emailContactGrant queues the grant for email where the operator's policy
@@ -429,7 +472,7 @@ func auditGrantCreated(app core.App, re *core.RequestEvent, collection string, g
 // somebody else's hands, and the audit log redacts a bookmark's slug for that
 // same reason; the grant id is what leads back to the rest.
 func auditHandOver(app core.App, re *core.RequestEvent, h contactHandOver,
-	recipientId string, delivered, emailed bool, emailReason string) {
+	recipientId string, delivered, emailed bool, emailReason, refused string) {
 	services.RecordAudit(app, services.AuditEntry{
 		Action:     h.action,
 		Collection: util.Coll.Contacts,
@@ -449,6 +492,9 @@ func auditHandOver(app core.App, re *core.RequestEvent, h contactHandOver,
 			// row is read by people who hold no key, and the contact id in
 			// recordId already leads to it.
 			"emailReason": emailReason,
+			// Why the recipient's tray was left alone — a block of theirs, or
+			// the per-pair cap. Empty when nothing stood in the way.
+			"refused": refused,
 		},
 	})
 }

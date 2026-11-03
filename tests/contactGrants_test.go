@@ -88,7 +88,10 @@ func TestSendToContactLandsInTheirTray(t *testing.T) {
 		"records": []string{recordID},
 		"label":   "My bank details",
 	}).Expect().Status(http.StatusOK).JSON().Object()
-	sent.Value("delivered").Boolean().IsTrue()
+	// Nothing connects these two yet, so the answer says only that the grant
+	// exists — TestContactAnswerSaysNothingAboutTheAddress has the why. That
+	// the delivery itself happened is what the subtests below check.
+	sent.Value("channel").String().IsEqual(util.ContactChannelHandedOver)
 	sent.Value("kind").String().IsEqual(util.BookmarkKindShare)
 	slug := sent.Value("slug").String().Raw()
 
@@ -129,10 +132,15 @@ func TestSendToContactLandsInTheirTray(t *testing.T) {
 		items.Value(0).Object().Value(util.Fields.Link.Slug).String().IsEqual(slug)
 	})
 
-	t.Run("the resolved account is cached on the contact", func(t *testing.T) {
+	// The resolution is deliberately not cached on the contact here: the app
+	// reads that field as "they are here", so filling it in for an address
+	// nobody has confirmed would leave an account-existence oracle sitting on
+	// the contact row. It is written once the two are in touch —
+	// TestReciprocityEarnsThePreciseAnswer covers that side.
+	t.Run("the resolved account is not cached on an unconfirmed contact", func(t *testing.T) {
 		api := api.T(t)
 		api.Get(util.Coll.Contacts, contactID, sender.token).Expect().Status(http.StatusOK).
-			JSON().Object().Value(util.Fields.Contact.User).String().IsEqual(recipient.id)
+			JSON().Object().Value(util.Fields.Contact.User).String().IsEmpty()
 	})
 }
 
@@ -160,7 +168,7 @@ func TestSendCanHandOverAWholeSection(t *testing.T) {
 		"sections": []string{sectionID},
 		"label":    "My bank details",
 	}).Expect().Status(http.StatusOK).JSON().Object()
-	sent.Value("delivered").Boolean().IsTrue()
+	sent.Value("channel").String().IsEqual(util.ContactChannelHandedOver)
 	slug := sent.Value("slug").String().Raw()
 
 	api.Get(util.Coll.Links, sent.Value("id").String().Raw(), sender.token).
@@ -273,7 +281,7 @@ func TestAskContactMintsARequestTheyCanAnswer(t *testing.T) {
 		"label":    "Your new address",
 		"identity": identityID,
 	}).Expect().Status(http.StatusOK).JSON().Object()
-	asked.Value("delivered").Boolean().IsTrue()
+	asked.Value("channel").String().IsEqual(util.ContactChannelHandedOver)
 	asked.Value("kind").String().IsEqual(util.BookmarkKindRequest)
 	slug := asked.Value("slug").String().Raw()
 	requestID := asked.Value("id").String().Raw()

@@ -82,6 +82,18 @@ type collectionSchema struct {
 	// because the identity relation is ownership-checked for this workspace's
 	// own identities.
 	Contacts string
+	// ContactDeliveries is the ledger of grants put in other people's trays:
+	// one row per delivery, written by the server and read by nobody else. The
+	// per-pair cap counts these rows rather than keeping a counter in memory,
+	// so two instances cannot hand out the budget twice, and the recipient
+	// deleting the bookmark cannot buy the sender a fresh one. The same rows
+	// say a grant once came the other way, which is what tells a stranger from
+	// somebody already in touch.
+	ContactDeliveries string
+	// ContactBlocks are the senders a person refuses: an account, an address,
+	// or a whole domain. Personal, like bookmarks — being sent something
+	// unwanted is not the workspace's business.
+	ContactBlocks string
 	// DeviceKeys is each person's signed, append-only list of the devices that
 	// hold their keys. WorkspaceKeyEpochs and WorkspaceKeyWraps are a workspace's
 	// encryption keys, wrapped per device. The server can read none of it.
@@ -163,6 +175,7 @@ type identityFields struct {
 	Name, Certificate, PublicKey, PrivateKey, Fingerprint,
 	ParentSignature, DomainAtIssue, IsPrimary,
 	Status, RevokedAt, RevokedReason,
+	SealedKey, SealedKeyEpoch,
 	User, Workspace, Created, Updated string
 }
 
@@ -196,7 +209,7 @@ type identityRevocationFields struct {
 }
 
 type bookmarkFields struct {
-	User, Origin, Slug, Kind, Label, Groups, Created, Updated string
+	User, Sender, Origin, Slug, Kind, Label, Groups, Created, Updated string
 }
 
 type bookmarkGroupFields struct {
@@ -242,6 +255,14 @@ type reminderFields struct {
 type contactFields struct {
 	Workspace, Name, User, Email, PeerDomain, PeerFingerprint,
 	TrustState, VerifiedAt, LastUsedAt, Created, Updated string
+}
+
+type contactDeliveryFields struct {
+	Sender, Recipient, Workspace, Kind, Created string
+}
+
+type contactBlockFields struct {
+	User, BlockedUser, Email, Domain, Created string
 }
 
 type attestationFields struct {
@@ -325,6 +346,8 @@ var Coll = collectionSchema{
 	AttestationChecks:   "attestationChecks",
 	SignIns:             "signIns",
 	Contacts:            "contacts",
+	ContactDeliveries:   "contactDeliveries",
+	ContactBlocks:       "contactBlocks",
 	DeviceKeys:          "deviceKeys",
 	WorkspaceKeyEpochs:  "workspaceKeyEpochs",
 	WorkspaceKeyWraps:   "workspaceKeyWraps",
@@ -371,6 +394,8 @@ var Fields = struct {
 	AttestationCheck   attestationCheckFields
 	SignIn             signInFields
 	Contact            contactFields
+	ContactDelivery    contactDeliveryFields
+	ContactBlock       contactBlockFields
 	WebhookEndpoint    webhookEndpointFields
 	WebhookEvent       webhookEventFields
 	WebhookDelivery    webhookDeliveryFields
@@ -551,6 +576,8 @@ var Fields = struct {
 		Status:          "status",
 		RevokedAt:       "revokedAt",
 		RevokedReason:   "revokedReason",
+		SealedKey:       "sealedKey",
+		SealedKeyEpoch:  "sealedKeyEpoch",
 		User:            "user",
 		Workspace:       "workspace",
 		Created:         "created",
@@ -637,6 +664,7 @@ var Fields = struct {
 	},
 	Bookmark: bookmarkFields{
 		User:    "user",
+		Sender:  "sender",
 		Origin:  "origin",
 		Slug:    "slug",
 		Kind:    "kind",
@@ -828,6 +856,20 @@ var Fields = struct {
 		LastUsedAt:      "lastUsedAt",
 		Created:         "created",
 		Updated:         "updated",
+	},
+	ContactDelivery: contactDeliveryFields{
+		Sender:    "sender",
+		Recipient: "recipient",
+		Workspace: "workspace",
+		Kind:      "kind",
+		Created:   "created",
+	},
+	ContactBlock: contactBlockFields{
+		User:        "user",
+		BlockedUser: "blockedUser",
+		Email:       "email",
+		Domain:      "domain",
+		Created:     "created",
 	},
 	WebhookEndpoint: webhookEndpointFields{
 		Workspace:               "workspace",

@@ -14,6 +14,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/utils/sd_jwt.dart';
 import 'package:revoked_app/features/attestations/view/attestation_offer_screen.dart';
@@ -410,6 +413,27 @@ void main() {
     expect(find.text('Ada Lovelace'), findsOneWidget);
     expect(find.text('42'), findsOneWidget);
 
+    // The pill ends flush with its row, as every value does, rather than
+    // starting at the middle of the row.
+    final statusRow = find.ancestor(
+      of: find.text('Status'),
+      matching: find.byType(AppDetailRow),
+    );
+    final pill = find.descendant(
+      of: statusRow,
+      matching: find.byType(AppBadge),
+    );
+    expect(
+      tester.getRect(statusRow).right - tester.getRect(pill).right,
+      lessThanOrEqualTo(AppSpacing.md + 1),
+    );
+
+    // Holding it says how to show it: through the asker's link, never a copy.
+    expect(find.text('Open or scan their link'), findsOneWidget);
+    expect(find.textContaining('shown, not copied'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Remove attestation'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Remove attestation'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove'));

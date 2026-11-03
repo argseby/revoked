@@ -55,46 +55,32 @@ var oidcPageTemplate = template.Must(template.New("oidc").Funcs(brandFuncs).Pars
 <link rel="icon" type="image/svg+xml" href="{{logoLight}}" media="(prefers-color-scheme: light)">
 <link rel="icon" type="image/svg+xml" href="{{logoDark}}" media="(prefers-color-scheme: dark)">
 <title>Sign in with Revoked</title>
-<style>
-:root {
-color-scheme: light dark;
---bg: #f4f6fb; --card: #ffffff; --border: #dde1e8; --fg: #191c20; --fg-muted: #555b64;
---primary: #35618e; --primary-subtle: #d8e7fb; --primary-fg: #ffffff;
---bad: #ba1a1a; --bad-subtle: #ffdad6;
---shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 16px rgba(16, 24, 40, .06);
-}
-@media (prefers-color-scheme: dark) {
-:root {
---bg: #0f1216; --card: #181c21; --border: #2c3137; --fg: #e3e5ea; --fg-muted: #a9aeb7;
---primary: #a0cafd; --primary-subtle: #1c3b5c; --primary-fg: #003258;
---bad: #ffb4ab; --bad-subtle: #5c1512; --shadow: none;
-}
-}
+<style>` + pageTokens + `
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.45 var(--font-sans); min-height: 100vh; -webkit-font-smoothing: antialiased; }
 header { border-bottom: 1px solid var(--border); }
 .nav { max-width: 640px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
-.logo { width: 24px; height: 24px; border-radius: 6px; }
+.logo { width: 24px; height: 24px; border-radius: 0; }
 .logo-dark { display: none; }
 @media (prefers-color-scheme: dark) { .logo-light { display: none; } .logo-dark { display: block; } }
-.lang { min-width: 38px; height: 38px; padding: 0 10px; border-radius: 11px; border: 1px solid var(--border); background: var(--card); color: var(--fg); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+.lang { min-width: 38px; height: 38px; padding: 0 10px; border-radius: 0; border: 1px solid var(--control); background: var(--card); color: var(--fg); font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
 main { max-width: 440px; margin: 0 auto; padding: 18px 16px 40px; display: flex; flex-direction: column; gap: 16px; }
 @media (min-width: 600px) { main { padding-top: 10vh; } }
-h1 { font-size: 22px; font-weight: 650; line-height: 1.25; overflow-wrap: anywhere; }
+h1 { font-size: 28px; font-weight: 650; line-height: 1.15; letter-spacing: -0.04em; overflow-wrap: anywhere; }
 .lead { color: var(--fg-muted); font-size: 14px; overflow-wrap: anywhere; }
-.card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 0; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .asks { list-style: none; display: flex; flex-direction: column; gap: 10px; }
 .asks li { display: flex; gap: 10px; align-items: flex-start; }
 .asks input[type=checkbox] { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--primary); flex: none; }
 .ask-t { font-weight: 600; }
 .ask-v { color: var(--fg-muted); font-size: 13px; overflow-wrap: anywhere; }
-select { width: 100%; height: 44px; padding: 0 10px; margin-top: 4px; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
-.callout { padding: 12px 14px; border-radius: 14px; background: var(--bad-subtle); color: var(--bad); font-size: 14px; }
-.big, .quiet { display: flex; align-items: center; justify-content: center; text-decoration: none; width: 100%; min-height: 50px; border-radius: 15px; font: inherit; font-size: 16px; font-weight: 650; cursor: pointer; }
+select { width: 100%; height: 44px; padding: 0 10px; margin-top: 4px; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--control); border-radius: 0; }
+.callout { padding: 12px 14px; border-radius: 0; background: var(--bad-subtle); color: var(--bad); font-size: 14px; }
+.big, .quiet { display: flex; align-items: center; justify-content: center; text-decoration: none; width: 100%; min-height: 50px; border-radius: 0; font: inherit; font-size: 16px; font-weight: 650; cursor: pointer; }
 .big { border: 0; background: var(--primary); color: var(--primary-fg); }
 .big:disabled { opacity: .7; cursor: progress; }
-.quiet { border: 1px solid var(--border); background: transparent; color: var(--fg); font-weight: 600; }
+.quiet { border: 1px solid var(--control); background: transparent; color: var(--fg); font-weight: 600; }
 .big:focus-visible, .quiet:focus-visible, .lang:focus-visible, select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .fine { text-align: center; color: var(--fg-muted); font-size: 12px; }
 [hidden] { display: none !important; }

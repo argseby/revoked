@@ -168,11 +168,30 @@ class AppDetailRow extends StatelessWidget {
             Icon(icon, size: 18, color: scheme.onSurfaceVariant),
             AppSpacing.gapMd,
           ],
-          if (value.isEmpty) ...[
-            Expanded(child: labelText),
-            // A row whose value is the badge itself, such as a standing.
-            if (badge != null) ...[AppSpacing.gapLg, Flexible(child: badge!)],
-          ] else
+          if (value.isEmpty && badge == null)
+            Expanded(child: labelText)
+          else if (value.isEmpty)
+            // A row whose value is the badge itself, such as a standing: laid
+            // out like a value, so it ends flush with the right edge too. Side
+            // by side as Expanded and Flexible, the two split the row in half
+            // and the badge sat at the start of its half, near the middle.
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(flex: 2, child: labelText),
+                  AppSpacing.gapLg,
+                  Expanded(
+                    flex: 3,
+                    child: Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: badge,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
             // The label keeps to its words within two fifths; whatever it
             // leaves unused goes between it and the value, so the value always
             // ends flush with the row's right edge.

@@ -58,6 +58,7 @@ var Errors = struct {
 	IdentityNotOwned              AppError
 	BookmarkGroupNotOwned         AppError
 	ContactRouteMissing           AppError
+	ContactBlockTargetMissing     AppError
 	ContactNotFound               AppError
 	ContactNothingToSend          AppError
 	TemplateNotOwned              AppError
@@ -401,6 +402,10 @@ var Errors = struct {
 	ContactRouteMissing: AppError{
 		ErrorCode: "contact_route_missing",
 		ErrorText: "A contact requires an account, a server or an email address.",
+	},
+	ContactBlockTargetMissing: AppError{
+		ErrorCode: "contact_block_target_missing",
+		ErrorText: "A block requires an account, an email address or a domain.",
 	},
 	ContactNotFound: AppError{
 		ErrorCode: "contact_not_found",

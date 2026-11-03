@@ -67,7 +67,11 @@ String _reachLine(Contact contact, {required bool isAsk}) {
     return '$name needs an account here to respond. '
         'The link is returned for manual delivery.';
   }
-  return '$name has no account here. The link is returned for manual delivery.';
+  // What this server will do with the link, without the old claim that the
+  // address names nobody here: for a contact nobody has confirmed, that is
+  // not something the server says, and it may well be wrong.
+  return 'The link is returned for manual delivery. If $name holds an '
+      'account here, it arrives in their app as well.';
 }
 
 /// What happened to a grant, told once and the same way for both sheets: it
@@ -97,6 +101,7 @@ Future<void> _reportOutcome(
   }
 
   final askNeedsAccount = grant.isRequest && !Stores.contacts.signupsOpen;
+  final unsaid = grant.channel == ContactChannel.handedOver;
   final origin = Stores.api.originAuthority;
   final link = grant.isRequest
       ? DeepLinks.request(grant.slug, origin: origin)
@@ -107,7 +112,15 @@ Future<void> _reportOutcome(
         ? 'Request link for ${contact.name}'
         : 'Link for ${contact.name}',
     link: link,
-    message: askNeedsAccount
+    // An unconfirmed contact is told what to do, not what the address is:
+    // "no account here" would answer a question the server withholds on
+    // purpose, and it may well be wrong — the grant can be in their app
+    // already.
+    message: unsaid
+        ? '${contact.name} already has this if they hold an account here. '
+              'Otherwise the link reaches them however you like, and stays '
+              'revocable.'
+        : askNeedsAccount
         ? '${contact.name} needs an account on this server to respond. '
               'Accounts can be added by the server operator.'
         : grant.isRequest

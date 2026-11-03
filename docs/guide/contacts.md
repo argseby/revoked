@@ -20,8 +20,10 @@ refuses a contact that reaches nobody.
 
 A new contact always starts unverified. Only the server marks a contact as
 **Verified**; neither the app nor a member can set it. Which account an
-email address belongs to is also settled by the server, the first time
-something is sent.
+email address belongs to is settled by the server, and it is not reported
+back for a contact nobody has confirmed: an address can be typed in, and
+answering whether it has an account here would turn the contact list into a
+way of finding out who holds one.
 
 ## Sending records
 
@@ -51,6 +53,14 @@ contact.
 | Email address the server may mail | The link is sent by email. |
 | Any other contact | The link is shown with a QR code, to be passed on manually. It remains revocable. |
 
+What the sheet reports afterwards depends on the contact. For a contact the
+two are in touch with — proven by the server, a member of the same
+workspace, or someone who has sent something back — it names where the link
+went. For anyone else it says only that the link exists and shows it, which
+is also what is said when the delivery was refused. The link may well be in
+the contact's app already; the server does not confirm it, because a
+confirmation would also answer which addresses hold an account here.
+
 Whether the server sends email, and to whom, is set by the operator with
 [`GRANT_EMAIL_RECIPIENTS`](../installation/env.md#emailing-a-share-or-a-request):
 nobody, addresses in the server's own domain, addresses on verified Revoked
@@ -61,6 +71,24 @@ server operator can add the account.
 
 Nothing is pushed to another server. A contact on their own server receives
 the link by email or by hand.
+
+## Unwanted deliveries
+
+A delivery into someone else's app is the one thing a workspace can write
+into another account, and the address it is aimed at can be guessed, so it
+is bounded. While nothing connects the two accounts, three deliveries a day
+reach one recipient
+([`RATELIMIT_CONTACT_PAIR`](../installation/env.md#rate-limits)); the rest
+are left undelivered, and the sender is told no more than that the link
+exists. The count is kept by the server, so deleting the bookmarks does not
+make room for more. Once the two are in touch the cap no longer applies.
+
+A received share or request names the account that sent it, which can be
+refused: nothing from that account, that address, or that whole domain
+reaches the tray again, however long the two have been in touch. A refused
+sender is told the same as an unconfirmed one, so they are not invited to
+come back under another account. Links that were already delivered stay
+where they are and can be removed like any other bookmark.
 
 ## Renaming and removing
 

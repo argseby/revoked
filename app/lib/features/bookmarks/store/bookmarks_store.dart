@@ -24,6 +24,9 @@ abstract class _BookmarksStore with Store {
   String get _groupsPath =>
       '/api/collections/${AppConfig.bookmarkGroupsCollection}/records';
 
+  String get _blocksPath =>
+      '/api/collections/${AppConfig.contactBlocksCollection}/records';
+
   final ObservableTextController renameLabel = ObservableTextController();
   final ObservableTextController groupName = ObservableTextController();
 
@@ -244,6 +247,31 @@ abstract class _BookmarksStore with Store {
     } catch (e) {
       error = AppErrorMessage.fromException(e);
       return false;
+    }
+  }
+
+  /// Refuses everything this account sends from now on. The bookmarks it
+  /// already left stay where they are — removing them is a separate choice,
+  /// and one of them is how the sender was named in the first place.
+  ///
+  /// The sender is never told. They see what an unconfirmed contact sees,
+  /// so a block does not read as an invitation to come back under another
+  /// account.
+  @action
+  Future<bool> blockSender({
+    required String user,
+    required String sender,
+  }) async {
+    isSaving = true;
+    error = null;
+    try {
+      await _api.post(_blocksPath, body: {'user': user, 'blockedUser': sender});
+      return true;
+    } catch (e) {
+      error = AppErrorMessage.fromException(e);
+      return false;
+    } finally {
+      isSaving = false;
     }
   }
 

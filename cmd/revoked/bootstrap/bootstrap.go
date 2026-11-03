@@ -39,6 +39,7 @@ func Bind(app core.App, root *server.RootKey) {
 	hooks.BindInviteHooks(app)
 	hooks.BindBookmarkHooks(app)
 	hooks.BindContactHooks(app)
+	hooks.BindContactBlockHooks(app)
 	hooks.BindWebhookHooks(app)
 	hooks.RegisterTenancyHooks(app)
 	hooks.BindAuditLogHooks(app)

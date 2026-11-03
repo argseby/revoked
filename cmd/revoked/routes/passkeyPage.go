@@ -87,81 +87,14 @@ var passkeyPageTemplate = template.Must(template.New("passkey").Funcs(brandFuncs
 <link rel="icon" type="image/svg+xml" href="{{logoLight}}" media="(prefers-color-scheme: light)">
 <link rel="icon" type="image/svg+xml" href="{{logoDark}}" media="(prefers-color-scheme: dark)">
 <title>Sign in · Revoked</title>
-<style>
-:root {
---font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
---ease: cubic-bezier(.2, .8, .2, 1);
-}
-
-/* The app's own palette (app/lib/core/design/app_colors.dart), so the trip
-   through the browser does not look like leaving it. */
-:root,
-html[data-theme="light"] {
-color-scheme: light;
---bg: #f6f5f1;
---field: #ffffff;
---surface-subtle: #efede7;
---border: #dad7cf;
---control: #7f7b73;
---fg: #14171c;
---fg-muted: #5a5f68;
---primary: #14171c;
---primary-fg: #ffffff;
---ok: #216a4d;
---ok-subtle: #ddf0e6;
---bad: #b42318;
---bad-subtle: #fce4e1;
---warn: #7a5900;
---warn-subtle: #ffe9b8;
-}
-
-html[data-theme="dark"] {
-color-scheme: dark;
---bg: #171a1f;
---field: #0f1114;
---surface-subtle: #1f232a;
---border: #2e333b;
---control: #727883;
---fg: #f2f1ec;
---fg-muted: #a3a8b0;
---primary: #f2f1ec;
---primary-fg: #14171c;
---ok: #8ed5b1;
---ok-subtle: #12352a;
---bad: #ff6259;
---bad-subtle: #3f1512;
---warn: #f2c24b;
---warn-subtle: #3d2e05;
-}
-
-@media (prefers-color-scheme: dark) {
-html:not([data-theme="light"]) {
-color-scheme: dark;
---bg: #171a1f;
---field: #0f1114;
---surface-subtle: #1f232a;
---border: #2e333b;
---control: #727883;
---fg: #f2f1ec;
---fg-muted: #a3a8b0;
---primary: #f2f1ec;
---primary-fg: #14171c;
---ok: #8ed5b1;
---ok-subtle: #12352a;
---bad: #ff6259;
---bad-subtle: #3f1512;
---warn: #f2c24b;
---warn-subtle: #3d2e05;
-}
-}
-
+<style>` + pageTokens + `
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
 background: var(--bg);
 color: var(--fg);
 font-family: var(--font-sans);
-font-size: 15px;
-line-height: 1.5;
+font-size: 16px;
+line-height: 1.45;
 min-height: 100vh;
 -webkit-font-smoothing: antialiased;
 -webkit-tap-highlight-color: transparent;
@@ -187,7 +120,7 @@ align-items: center;
 justify-content: space-between;
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; color: var(--fg); }
-.logo { width: 24px; height: 24px; border-radius: 6px; }
+.logo { width: 24px; height: 24px; border-radius: 0; }
 .logo-dark { display: none; }
 html[data-theme="dark"] .logo-light { display: none; }
 html[data-theme="dark"] .logo-dark { display: block; }
@@ -197,7 +130,7 @@ html:not([data-theme="light"]) .logo-dark { display: block; }
 }
 .tools { display: flex; gap: 8px; }
 .theme, .lang {
-min-width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--border);
+min-width: 38px; height: 38px; border-radius: 0; border: 1px solid var(--control);
 background: var(--bg); color: var(--fg); cursor: pointer;
 display: inline-flex; align-items: center; justify-content: center;
 }
@@ -205,9 +138,9 @@ display: inline-flex; align-items: center; justify-content: center;
 
 .steps { display: flex; flex-direction: column; gap: 8px; }
 .steps-t { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--fg-muted); }
-.steps-t img { width: 18px; height: 18px; border-radius: 5px; }
+.steps-t img { width: 18px; height: 18px; border-radius: 0; }
 .steps ol { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
-.steps li { height: 4px; border-radius: 2px; background: var(--border); transition: background .3s; }
+.steps li { height: 4px; border-radius: 999px; background: var(--border); transition: background .3s; }
 .steps li.on { background: var(--primary); }
 
 main {
@@ -222,7 +155,7 @@ gap: 16px;
 
 .hero { display: flex; flex-direction: column; gap: 14px; }
 .hero-tile {
-width: 56px; height: 56px; border-radius: 16px; flex: none;
+width: 56px; height: 56px; border-radius: 0; flex: none;
 display: flex; align-items: center; justify-content: center;
 background: var(--surface-subtle); color: var(--fg);
 transition: background .3s, color .3s;
@@ -232,7 +165,7 @@ transition: background .3s, color .3s;
 .hero-tile.bad { background: var(--bad-subtle); color: var(--bad); }
 .hero-tile:empty { display: none; }
 .hero-tile svg { animation: pop .3s var(--ease); }
-.hero h1 { font-size: 26px; font-weight: 650; line-height: 1.2; letter-spacing: -0.015em; }
+.hero h1 { font-size: 28px; font-weight: 650; line-height: 1.15; letter-spacing: -0.04em; }
 .lead { color: var(--fg-muted); font-size: 16px; line-height: 1.45; margin-top: 6px; overflow-wrap: anywhere; }
 .lead:empty { display: none; }
 
@@ -245,7 +178,7 @@ animation: rise .4s var(--ease) both;
 
 .callout {
 display: flex; gap: 12px; align-items: flex-start;
-padding: 14px; border-radius: 14px;
+padding: 14px; border-radius: 0;
 background: var(--bad-subtle); color: var(--bad);
 font-size: 14px; line-height: 1.45;
 }
@@ -254,7 +187,7 @@ font-size: 14px; line-height: 1.45;
 input {
 width: 100%; height: 50px; padding: 0 14px;
 font: inherit; font-size: 16px; font-weight: 400; color: var(--fg);
-background: var(--field); border: 1px solid var(--control); border-radius: 12px;
+background: var(--field); border: 1px solid var(--control); border-radius: 0;
 transition: border-color .15s, box-shadow .15s;
 }
 input::placeholder { color: var(--fg-muted); opacity: .7; }
@@ -263,7 +196,7 @@ input:focus { outline: none; border-color: var(--fg); box-shadow: 0 0 0 3px colo
 .quiet:disabled { cursor: default; opacity: .6; }
 
 .big, .quiet {
-width: 100%; min-height: 52px; border-radius: 12px;
+width: 100%; min-height: 52px; border-radius: 0;
 font-size: 16px; font-weight: 650;
 display: flex; align-items: center; justify-content: center; gap: 10px;
 padding: 12px 16px; text-align: center;
@@ -284,7 +217,7 @@ transition: transform .12s var(--ease), filter .15s, background .15s;
 
 .hint {
 display: flex; gap: 10px; align-items: flex-start;
-padding: 12px 14px; border-radius: 12px;
+padding: 12px 14px; border-radius: 0;
 background: var(--surface-subtle); color: var(--fg);
 font-size: 14px; line-height: 1.45;
 }
@@ -877,7 +810,9 @@ function render() {
   action(t('signin.go'), 'key');
   hint('hint.signin');
   if (server.signups) {
-    $('other').classList.remove('link');
+    // The app already said which of the two this is, so the other way stays
+    // a quiet link for a wrong tap — not a second choice to make here.
+    $('other').classList.add('link');
     $('other').textContent = t('signin.other');
     show($('other'), true);
   } else {

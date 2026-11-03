@@ -117,6 +117,12 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 		e.Record.Set(util.Fields.Identity.ParentSignature, hex.EncodeToString(parentSig))
 		e.Record.Set(util.Fields.Identity.DomainAtIssue, root.Domain())
 
+		// A sealed key binds the identity's id, which does not exist before this
+		// create, so nothing sent with it can be a valid wrap. The app uploads
+		// the wrap right after, once it knows the id.
+		e.Record.Set(util.Fields.Identity.SealedKey, "")
+		e.Record.Set(util.Fields.Identity.SealedKeyEpoch, 0)
+
 		// Set here rather than trusted from the client, so no caller can mint an
 		// identity that is born revoked or carries a backdated revocation.
 		e.Record.Set(util.Fields.Identity.Status, util.StatusActive)
@@ -155,23 +161,21 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 		return services.WriteIdentityTombstone(e.App, fingerprint, domain, reason)
 	})
 
-	// Defense in depth: the private key is stored empty already.
+	// Before e.Next(), which writes the response: a change made after it is
+	// never serialized. The private key is defense in depth (stored empty
+	// already); the sealed key is live data for every reader but the owner.
 	app.OnRecordViewRequest(util.Coll.Identities).BindFunc(func(e *core.RecordRequestEvent) error {
-		if err := e.Next(); err != nil {
-			return err
-		}
 		e.Record.Set(util.Fields.Identity.PrivateKey, "")
-		return nil
+		stripSealedKey(e.Auth, e.Record)
+		return e.Next()
 	})
 
 	app.OnRecordsListRequest(util.Coll.Identities).BindFunc(func(e *core.RecordsListRequestEvent) error {
-		if err := e.Next(); err != nil {
-			return err
-		}
 		for _, record := range e.Records {
 			record.Set(util.Fields.Identity.PrivateKey, "")
+			stripSealedKey(e.Auth, record)
 		}
-		return nil
+		return e.Next()
 	})
 }
 
@@ -198,6 +202,7 @@ func applyRevocationTransition(app core.App, rec *core.Record) error {
 		rec.Set(util.Fields.Identity.RevokedAt, original.GetDateTime(util.Fields.Identity.RevokedAt))
 		rec.Set(util.Fields.Identity.RevokedReason, original.GetString(util.Fields.Identity.RevokedReason))
 		rec.Set(util.Fields.Identity.IsPrimary, false)
+		clearSealedKey(rec)
 		return nil
 	}
 
@@ -209,9 +214,28 @@ func applyRevocationTransition(app core.App, rec *core.Record) error {
 		rec.Set(util.Fields.Identity.RevokedAt, types.NowDateTime())
 		rec.Set(util.Fields.Identity.RevokedReason, reason)
 		rec.Set(util.Fields.Identity.IsPrimary, false)
+		// Revocation is the action taken when the key may have leaked; a copy
+		// other devices could still fetch would be the one mistake it undoes.
+		clearSealedKey(rec)
 	}
 
 	return nil
+}
+
+func clearSealedKey(rec *core.Record) {
+	rec.Set(util.Fields.Identity.SealedKey, "")
+	rec.Set(util.Fields.Identity.SealedKeyEpoch, 0)
+}
+
+// stripSealedKey keeps the wrapped private key between the owner's own
+// devices: it is ciphertext under their workspace key, but an API key or any
+// other reader has no business holding even that.
+func stripSealedKey(auth, rec *core.Record) {
+	if auth != nil && auth.Collection().Name == util.Coll.Users &&
+		auth.Id == rec.GetString(util.Fields.Identity.User) {
+		return
+	}
+	clearSealedKey(rec)
 }
 
 // demotePrimaryIdentities clears isPrimary on the user's other identities in the

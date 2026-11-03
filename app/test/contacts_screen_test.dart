@@ -20,6 +20,9 @@ void main() {
   final handed = <Map<String, dynamic>>[];
   var contacts = <Map<String, dynamic>>[];
   var delivers = true;
+  // Set where the server answers an unconfirmed contact: the grant exists
+  // and it says no more than that.
+  var reserved = false;
 
   Future<http.Response> server(http.Request request) async {
     final path = request.url.path;
@@ -41,7 +44,14 @@ void main() {
         'id': 'g1',
         'slug': 'abc123',
         'kind': action == 'ask' ? 'request' : 'share',
-        'delivered': delivers,
+        'delivered': !reserved && delivers,
+        // The channel the server sends where it is willing to name one; a
+        // contact nobody has confirmed gets 'handed_over' instead.
+        'channel': reserved
+            ? 'handed_over'
+            : delivers
+            ? 'account'
+            : 'manual',
       });
     }
     if (path == '/api/collections/contacts/records') {
@@ -201,7 +211,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Link for Ada Lovelace'), findsOneWidget);
-    expect(find.textContaining('has no account here. The link is delivered'), findsOneWidget);
+    expect(
+      find.textContaining('has no account here. The link is delivered'),
+      findsOneWidget,
+    );
+  });
+
+  // The reserve the server keeps for an unconfirmed contact has to read as
+  // what to do next, not as a claim about the address: "no account here"
+  // would be a guess, and the grant may well be in their app already.
+  testWidgets('an unconfirmed contact is told the link is theirs to pass on', (
+    tester,
+  ) async {
+    reserved = true;
+    addTearDown(() => reserved = false);
+    await open(tester);
+
+    await tester.tap(find.text('Ada Lovelace'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Send records'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'My number');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select from the vault'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('IBAN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Share 1 item'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Send'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Link for Ada Lovelace'), findsOneWidget);
+    expect(
+      find.textContaining('already has this if they hold an account here'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('has no account here'), findsNothing);
   });
 
   testWidgets('asking is signed with an identity of this workspace', (

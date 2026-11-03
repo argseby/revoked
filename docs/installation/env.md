@@ -27,8 +27,8 @@ no `.env` file needed there.
 |---|---|---|
 | `ALLOW_SIGNUPS` | `false` | Lets anyone create their own account over HTTP. Off by default, so only you can add people to a fresh server. See [Add people](accounts.md) for how to add them while it's off. |
 | `SIGNUP_VERIFY_EMAIL` | `false` | Makes a new account confirm its address with a 6-digit code mailed to it. Without it, anyone can sign up with any address. Needs the [mail server](#mail) below — the server won't start with this on and no `SMTP_HOST`/`SMTP_SENDER_ADDRESS`. Accounts you create yourself aren't affected. |
-| `APP_STORE_URL` | — | Your app's App Store page (https). The `/app` page, where a computer's QR code leads, offers it to iPhones. Unset, the page only offers to open the app. |
-| `PLAY_STORE_URL` | — | The same for Google Play, offered to Android phones. |
+| `APP_STORE_URL` | — | Where your iOS build is downloaded (https) — a store listing or a release page. The `/app` page, where a computer's QR code leads, offers it to iPhones as "Download for iPhone". Unset, the page only offers to open the app. |
+| `PLAY_STORE_URL` | — | The same for Android, offered to Android phones as "Download for Android". |
 
 ## Attestations
 
@@ -126,6 +126,8 @@ change needs a restart. `0` turns a limiter off.
 | `RATELIMIT_GRANT_REQUESTS` | `300` | Calls between servers — grant reads, grant events and accepted answers — and calls to the OpenID Connect token and userinfo endpoints, per IP, per minute. Also answers to requests on other servers, per account. One read carries up to 100 grants. |
 | `RATELIMIT_SUBMISSIONS` | `60` | Answers to requests, per account, per hour. Each answer notifies the request's owner and may call their callback URL. |
 | `RATELIMIT_WEBHOOK_SENDS` | `30` | Webhook tests and resends, per caller, per minute. Each one is a request to an address the caller chose. |
+| `RATELIMIT_CONTACT_GRANTS` | `60` | Shares and requests handed to contacts, per account, per hour. Each one may write a bookmark and a notification into somebody else's account. |
+| `RATELIMIT_CONTACT_PAIR` | `3` | Deliveries into one other account's tray, per sender, per day, while nothing connects the two — the contact unproven, no shared workspace, nothing received from them. Counted in the database, so it holds across instances and clearing the tray does not refill it. Lifted entirely once the two are in touch. |
 | `RATELIMIT_GRANT_EMAILS` | `5` | Links emailed to one address, per hour, whoever sends them. This is the only cap protecting someone who isn't using your server, so it is counted in the database rather than in memory: it holds even if you run more than one instance. |
 | `RATELIMIT_WORKSPACE_EMAILS` | `30` | Links emailed by one workspace, per hour. Guards your own sending quota and reputation, which the per-account cap does not once a workspace invites members. In memory, so more than one instance multiplies it. |
 

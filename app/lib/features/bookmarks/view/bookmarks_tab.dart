@@ -252,6 +252,38 @@ class _BookmarkRow extends StatelessWidget {
     }
   }
 
+  /// Refuses the account that sent this. Offered only on a bookmark that was
+  /// handed over, because only those name a sender.
+  Future<void> _blockSender(BuildContext context) async {
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Refuse this sender?',
+      message:
+          'Nothing they send reaches this account again, from any of their '
+          'workspaces. What they have already sent stays until it is '
+          'removed, and the links themselves keep working. They are not '
+          'told.',
+      confirmLabel: 'Refuse',
+      destructive: true,
+    );
+    if (!confirmed || !context.mounted) return;
+    final store = Stores.bookmarks;
+    final ok = await store.blockSender(
+      user: Stores.auth.userId,
+      sender: bookmark.sender,
+    );
+    if (!context.mounted) return;
+    if (ok) {
+      AppToast.success(context, 'Sender refused');
+    } else {
+      AppToast.error(
+        context,
+        'The sender could not be refused.',
+        subtitle: store.error?.description,
+      );
+    }
+  }
+
   Future<void> _remove(BuildContext context) async {
     final confirmed = await showAppDialog(
       context: context,
@@ -319,6 +351,13 @@ class _BookmarkRow extends StatelessWidget {
             label: 'Rename',
             onSelected: () => _rename(context),
           ),
+          if (bookmark.sender.isNotEmpty)
+            AppMenuItem(
+              icon: AppIcons.shieldSlash,
+              label: 'Refuse sender',
+              destructive: true,
+              onSelected: () => _blockSender(context),
+            ),
           AppMenuItem(
             icon: AppIcons.trash,
             label: 'Remove',

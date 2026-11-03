@@ -44,6 +44,9 @@ void main() {
         'slug': 'abc123',
         'kind': action == 'ask' ? 'request' : 'share',
         'delivered': delivers,
+        // The channel the server sends where it is willing to name one; a
+        // contact nobody has confirmed gets 'handed_over' instead.
+        'channel': delivers ? 'account' : 'manual',
       });
     }
     if (path == '/api/server') {

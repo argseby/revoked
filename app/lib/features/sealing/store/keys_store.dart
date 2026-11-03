@@ -1953,6 +1953,56 @@ abstract class _KeysStore with Store {
     );
   }
 
+  /// Encrypts an identity's private key for the owner's other devices, under
+  /// the current workspace key. Null when this device may not write in
+  /// [workspace] right now; the caller then leaves the key where it is.
+  ({String wrap, int epoch})? sealIdentityKey({
+    required String workspace,
+    required String identity,
+    required String privateKeyPem,
+  }) {
+    final held = _workspaces[workspace];
+    if (held == null || !held.writable || !_trusted) return null;
+    final epoch = held.currentEpoch;
+    return (
+      wrap: SealedFormats.wrapIdentityKey(
+        workspaceKey: held.keys[epoch]!,
+        privateKeyPem: privateKeyPem,
+        workspace: workspace,
+        identity: identity,
+        epoch: epoch,
+      ),
+      epoch: epoch,
+    );
+  }
+
+  /// Decrypts an identity key wrapped by [sealIdentityKey] on some device of
+  /// this account, or returns null when this device can't: it holds no key
+  /// for that epoch, or the data doesn't authenticate.
+  String? openIdentityKey({
+    required String workspace,
+    required String identity,
+    required int epoch,
+    required String wrap,
+  }) {
+    if (status != SealingStatus.ready || !_trusted) return null;
+    final key = _workspaces[workspace]?.keys[epoch];
+    if (key == null) return null;
+    try {
+      return SealedFormats.openIdentityKey(
+        workspaceKey: key,
+        wrapped: wrap,
+        workspace: workspace,
+        identity: identity,
+        epoch: epoch,
+      );
+    } on SealingException {
+      return null;
+    } on FormatException {
+      return null;
+    }
+  }
+
   /// The key new values go under, when this device may write in [workspace].
   int? writableEpoch(String workspace) {
     final held = _workspaces[workspace];

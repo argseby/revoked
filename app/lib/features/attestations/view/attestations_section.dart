@@ -27,6 +27,7 @@ import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dar
 import 'package:revoked_app/features/attestations/view/attestation_check_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
 import 'package:revoked_app/features/attestations/view/verdict_badge.dart';
+import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 
 /// A tab's list: one line on what it holds, then its rows. The tab names it,
 /// so it carries no heading of its own. While there is nothing to list, the
@@ -163,6 +164,7 @@ class HeldAttestations extends StatelessWidget {
                 builder: (_) => _CredentialSheet(
                   credential: c,
                   identityName: _identityName(c),
+                  host: context,
                 ),
               ),
             ),
@@ -177,10 +179,24 @@ class _CredentialSheet extends StatelessWidget {
   final Credential credential;
   final String identityName;
 
+  /// The list the sheet was opened from, still mounted once the sheet has
+  /// closed: where the link panel opens.
+  final BuildContext host;
+
   const _CredentialSheet({
     required this.credential,
     required this.identityName,
+    required this.host,
   });
+
+  /// An attestation is shown, never copied: a copy carries every detail, and
+  /// whoever holds it could pass it on as theirs. The one who wants to see it
+  /// sends a link, and opening it here lets the holder pick the details and
+  /// sign for that one occasion.
+  void _show(BuildContext context) {
+    Navigator.of(context).pop();
+    openLinkSearchSheet(host);
+  }
 
   Future<void> _remove(BuildContext context) async {
     final confirmed = await showAppDialog(
@@ -279,6 +295,22 @@ class _CredentialSheet extends StatelessWidget {
                       for (final d in claims)
                         AppDetailRow(label: d.name, value: claimText(d.value)),
                   ],
+                ),
+                AppSpacing.gapMd,
+                const Text('Showing it'),
+                AppSpacing.gapSm,
+                const Text(
+                  'An attestation is shown, not copied. Whoever wants to see '
+                  'it sends a link or a QR code, made under New → See '
+                  'someone\'s attestation. Opening that link here asks which '
+                  'details to show, and signs them for that one occasion, so '
+                  'what they receive cannot be passed on as someone else\'s.',
+                ).muted.small,
+                AppSpacing.gapMd,
+                AppButton(
+                  icon: AppIcons.qrCode,
+                  label: 'Open or scan their link',
+                  onTap: () => _show(context),
                 ),
                 AppSpacing.gapLg,
                 AppButton(

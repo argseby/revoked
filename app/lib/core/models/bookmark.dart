@@ -26,6 +26,11 @@ class Bookmark {
   final BookmarkKind kind;
   final String label;
 
+  /// The account that put this in the tray, for one that was handed over;
+  /// empty for a bookmark saved by its owner. Written by the server alone —
+  /// it is what refusing a sender is aimed at.
+  final String sender;
+
   /// Ids of the [BookmarkGroup]s it is filed under; empty when ungrouped.
   final List<String> groups;
   final String? created;
@@ -36,6 +41,7 @@ class Bookmark {
     required this.slug,
     required this.label,
     this.kind = BookmarkKind.share,
+    this.sender = '',
     this.groups = const [],
     this.created,
   });
@@ -47,6 +53,7 @@ class Bookmark {
       slug: json['slug'] as String,
       kind: BookmarkKind.parse(json['kind'] as String?),
       label: json['label'] as String? ?? '',
+      sender: json['sender'] as String? ?? '',
       groups: (json['groups'] as List<dynamic>? ?? const [])
           .whereType<String>()
           .toList(),

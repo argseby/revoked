@@ -26,8 +26,8 @@ var appPageCopy = map[string]appPageText{
 		Lead:      "Continue in the Revoked app on this device.",
 		Open:      "Open Revoked",
 		NoApp:     "App not installed?",
-		AppStore:  "Get it on the App Store",
-		PlayStore: "Get it on Google Play",
+		AppStore:  "Download for iPhone",
+		PlayStore: "Download for Android",
 		Server:    "Server",
 	},
 	"de": {
@@ -36,8 +36,8 @@ var appPageCopy = map[string]appPageText{
 		Lead:      "Weiter in der Revoked-App auf diesem Gerät.",
 		Open:      "Revoked öffnen",
 		NoApp:     "App nicht installiert?",
-		AppStore:  "Im App Store laden",
-		PlayStore: "Bei Google Play laden",
+		AppStore:  "Für iPhone laden",
+		PlayStore: "Für Android laden",
 		Server:    "Server",
 	},
 }
@@ -112,15 +112,11 @@ var appPageTemplate = template.Must(template.New("app").Funcs(brandFuncs).Parse(
 <link rel="icon" type="image/svg+xml" href="{{logoLight}}" media="(prefers-color-scheme: light)">
 <link rel="icon" type="image/svg+xml" href="{{logoDark}}" media="(prefers-color-scheme: dark)">
 <title>{{.T.Title}} · Revoked</title>
-<style>
-:root { color-scheme: light; --bg: #f6f5f1; --fg: #14171c; --fg-muted: #5a5f68; --control: #7f7b73; --subtle: #efede7; --primary: #14171c; --primary-fg: #ffffff; }
-@media (prefers-color-scheme: dark) {
-:root { color-scheme: dark; --bg: #171a1f; --fg: #f2f1ec; --fg-muted: #a3a8b0; --control: #727883; --subtle: #1f232a; --primary: #f2f1ec; --primary-fg: #14171c; }
-}
+<style>` + pageTokens + `
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
 background: var(--bg); color: var(--fg);
-font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+font-family: var(--font-sans);
 font-size: 16px; line-height: 1.45; min-height: 100vh; -webkit-font-smoothing: antialiased;
 }
 main {
@@ -129,14 +125,14 @@ padding: 24px 20px calc(32px + env(safe-area-inset-bottom));
 display: flex; flex-direction: column; gap: 14px;
 }
 .space { flex: 1; }
-.tile { width: 64px; height: 64px; border-radius: 18px; overflow: hidden; }
+.tile { width: 64px; height: 64px; border-radius: 0; overflow: hidden; }
 .tile img { width: 64px; height: 64px; display: block; }
 .tile img.dark { display: none; }
 @media (prefers-color-scheme: dark) { .tile img.light { display: none; } .tile img.dark { display: block; } }
-h1 { font-size: 26px; font-weight: 650; line-height: 1.2; letter-spacing: -0.015em; }
+h1 { font-size: 28px; font-weight: 650; line-height: 1.15; letter-spacing: -0.04em; }
 .lead { color: var(--fg-muted); }
 .btn {
-min-height: 52px; border-radius: 12px; padding: 12px 16px;
+min-height: 52px; border-radius: 0; padding: 12px 16px;
 display: flex; align-items: center; justify-content: center;
 font-size: 16px; font-weight: 650; text-decoration: none; text-align: center;
 }
@@ -144,7 +140,7 @@ font-size: 16px; font-weight: 650; text-decoration: none; text-align: center;
 .quiet { border: 1px solid var(--control); color: var(--fg); font-weight: 600; }
 .btn:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .label { color: var(--fg-muted); font-size: 14px; text-align: center; }
-.server { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--subtle); font-size: 13px; color: var(--fg-muted); text-align: center; }
+.server { margin-top: 8px; padding: 10px 12px; border-radius: 0; background: var(--subtle); font-size: 13px; color: var(--fg-muted); text-align: center; }
 .server b { color: var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500; }
 </style>
 </head>
