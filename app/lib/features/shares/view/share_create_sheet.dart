@@ -121,6 +121,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // The picker sits under Advanced; the sheet needs the list itself to
+      // say so when there is nothing to sign with.
+      Stores.identities.loadIfDue();
       if (_store.draftSlug.text.isNotEmpty && widget.editShare == null) {
         _validateSlug(_store.draftSlug.text);
       }
@@ -348,6 +351,23 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                     _buildLabelRow(),
                     _buildExpiryRow(),
                     _buildPasswordRow(),
+                    if (Stores.identities.loadState.hasLoaded &&
+                        Stores.identities.identities.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.sm,
+                          AppSpacing.xl,
+                          0,
+                        ),
+                        child: NoIdentityAlert(
+                          onCreated: () {
+                            if (_store.draftIdentityId != null) return;
+                            final made = Stores.identities.primaryIdentity;
+                            if (made != null) _store.setDraftIdentity(made.id);
+                          },
+                        ),
+                      ),
 
                     AppFormAdvanced(
                       summary:
@@ -552,12 +572,16 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
             'A signature lets recipients verify the link\'s origin.',
           ).muted.small,
           AppSpacing.gapMd,
-          IdentityPicker(
-            selectedId: _store.draftIdentityId,
-            allowNone: true,
-            onChanged: _store.setDraftIdentity,
-          ),
-          AppSpacing.gapXxs,
+          // Without an identity the alert above the advanced options says
+          // so; the picker would only repeat it.
+          if (Stores.identities.identities.isNotEmpty) ...[
+            IdentityPicker(
+              selectedId: _store.draftIdentityId,
+              allowNone: true,
+              onChanged: _store.setDraftIdentity,
+            ),
+            AppSpacing.gapXxs,
+          ],
           AppFormToggleRow(
             label: 'Require a verified viewer',
             subtitle:

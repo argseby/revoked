@@ -188,12 +188,13 @@ func SignInStatus(row *core.Record) string {
 	return util.StatusActive
 }
 
-// signInLink is the link holding what a person shared with a service, in any
-// of their workspaces.
-func signInLink(app core.App, userID, clientID string) *core.Record {
+// signInLink is the link holding what a person shared with a service from
+// one workspace.
+func signInLink(app core.App, userID, workspace, clientID string) *core.Record {
 	f := util.Fields.Link
 	link, err := app.FindFirstRecordByFilter(util.Coll.Links,
-		f.User+" = {:u} && "+f.SignInClient+" = {:c}", dbx.Params{"u": userID, "c": clientID})
+		f.User+" = {:u} && "+f.Workspace+" = {:w} && "+f.SignInClient+" = {:c}",
+		dbx.Params{"u": userID, "w": workspace, "c": clientID})
 	if err != nil {
 		return nil
 	}
@@ -212,7 +213,7 @@ func PauseSignIn(app core.App, row *core.Record) error {
 		if err := tx.Save(row); err != nil {
 			return err
 		}
-		if link := signInLink(tx, row.GetString(f.User), row.GetString(f.ClientId)); link != nil {
+		if link := signInLink(tx, row.GetString(f.User), row.GetString(f.Workspace), row.GetString(f.ClientId)); link != nil {
 			return holdLink(tx, link)
 		}
 		return nil
@@ -230,7 +231,7 @@ func ResumeSignIn(app core.App, row *core.Record) error {
 		if err := tx.Save(row); err != nil {
 			return err
 		}
-		if link := signInLink(tx, row.GetString(f.User), row.GetString(f.ClientId)); link != nil {
+		if link := signInLink(tx, row.GetString(f.User), row.GetString(f.Workspace), row.GetString(f.ClientId)); link != nil {
 			return releaseLink(tx, link)
 		}
 		return nil
@@ -255,7 +256,7 @@ func DisconnectSignIn(app core.App, row *core.Record, newID bool) error {
 		return nil
 	}
 	return app.RunInTransaction(func(tx core.App) error {
-		if link := signInLink(tx, row.GetString(f.User), row.GetString(f.ClientId)); link != nil {
+		if link := signInLink(tx, row.GetString(f.User), row.GetString(f.Workspace), row.GetString(f.ClientId)); link != nil {
 			if newID {
 				link.Set(util.Fields.Link.SignInClient, "")
 			}
@@ -282,9 +283,9 @@ func DisconnectSignIn(app core.App, row *core.Record, newID bool) error {
 }
 
 // SignInAllows reports whether something issued under generation may still act
-// for this person at this service.
-func SignInAllows(app core.App, userID, clientID string, generation int) bool {
-	row := findSignIn(app, userID, clientID)
+// for this person at this service from this workspace.
+func SignInAllows(app core.App, userID, workspace, clientID string, generation int) bool {
+	row := findSignIn(app, userID, workspace, clientID)
 	return row != nil && SignInStatus(row) == util.StatusActive &&
 		row.GetInt(util.Fields.SignIn.Generation) == generation
 }

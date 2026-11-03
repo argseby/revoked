@@ -1178,7 +1178,7 @@ func TestSignInSharesEntriesFromTheChosenWorkspace(t *testing.T) {
 		}
 	})
 
-	t.Run("the link moves to the workspace its entries are in", func(t *testing.T) {
+	t.Run("each workspace shares through a link of its own", func(t *testing.T) {
 		secondTag := saveEntry(second, "game_name", "AdaAtWork", util.FormatDefault)
 		consent, _ := person.approve(t, game.params(claims), map[string]any{
 			"approve": true, "links": map[string]string{"game_name": secondTag},
@@ -1186,14 +1186,13 @@ func TestSignInSharesEntriesFromTheChosenWorkspace(t *testing.T) {
 		if option(consent)["id"] != secondTag {
 			t.Fatalf("option = %v", option(consent))
 		}
-		link, err := app.FindFirstRecordByFilter(util.Coll.Links,
-			util.Fields.Link.User+" = {:u} && "+util.Fields.Link.SignInClient+" = {:c}",
-			dbx.Params{"u": person.userID, "c": game.clientID})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if link.GetString(util.Fields.Link.Workspace) != second {
-			t.Fatalf("link workspace = %q", link.GetString(util.Fields.Link.Workspace))
+		for _, ws := range []string{first, second} {
+			if _, err := app.FindFirstRecordByFilter(util.Coll.Links,
+				util.Fields.Link.User+" = {:u} && "+util.Fields.Link.Workspace+" = {:w} && "+
+					util.Fields.Link.SignInClient+" = {:c}",
+				dbx.Params{"u": person.userID, "w": ws, "c": game.clientID}); err != nil {
+				t.Fatalf("no link in workspace %s: %v", ws, err)
+			}
 		}
 	})
 }

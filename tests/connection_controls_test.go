@@ -1,10 +1,9 @@
 package tests
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"net/http"
+
+	"github.com/google/uuid"
 	"testing"
 
 	"revoked/cmd/revoked/services"
@@ -14,17 +13,18 @@ import (
 
 const gameOrigin = "https://game.example"
 
-// A subject issued before versions existed has to stay what it was, or every
-// existing person becomes a stranger at every service they use.
-func TestSubjectVersionZeroIsTheSubjectAlreadyIssued(t *testing.T) {
+// Each workspace is its own account at a service: the subject is stable for
+// one workspace, unrelated across workspaces, and a new version replaces it.
+func TestSubjectIsPerWorkspace(t *testing.T) {
 	secret := []byte("secret")
-	mac := hmac.New(sha256.New, secret)
-	mac.Write([]byte(gameOrigin + "\x00user1"))
-	issued := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
-	if got := util.PairwiseSubject(secret, "user1", gameOrigin, 0); got != issued {
-		t.Fatalf("version 0 = %s, want %s", got, issued)
+	first := util.PairwiseSubject(secret, "user1", "ws1", gameOrigin, 0)
+	if util.PairwiseSubject(secret, "user1", "ws1", gameOrigin, 0) != first {
+		t.Fatal("the subject is not stable")
 	}
-	if util.PairwiseSubject(secret, "user1", gameOrigin, 1) == issued {
+	if util.PairwiseSubject(secret, "user1", "ws2", gameOrigin, 0) == first {
+		t.Fatal("another workspace kept the subject")
+	}
+	if util.PairwiseSubject(secret, "user1", "ws1", gameOrigin, 1) == first {
 		t.Fatal("a new version kept the subject")
 	}
 }
@@ -445,4 +445,45 @@ func TestDisconnectingATool(t *testing.T) {
 			t.Fatalf("link = %s", got)
 		}
 	})
+}
+
+// Each workspace is its own account at a service: another subject, no name
+// carried over, and its own row in the list, which shows the active
+// workspace's alone.
+func TestSigningInFromAnotherWorkspace(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	s := signInAndShare(t, baseURL)
+	first := activeWorkspaceOf(t, s.api, s.person.userID, s.person.token)
+
+	second := s.api.Create(util.Coll.Workspaces, s.person.token, map[string]any{
+		"name": "Second", "slug": "second-" + uuid.New().String()[:8],
+	}).Expect().Status(http.StatusOK).JSON().Object().Value("id").String().Raw()
+	use := func(ws string) {
+		s.api.Update(util.Coll.Users, s.person.userID, s.person.token, map[string]any{
+			util.Fields.User.ActiveWorkspace: ws,
+			util.Fields.User.ActiveRole:      util.RoleAdmin,
+		}).Expect().Status(http.StatusOK)
+	}
+	use(second)
+
+	game := newOIDCService(t, baseURL, gameOrigin)
+	_, opened := s.person.open(t, game.params(map[string]string{"scope": "openid profile"}))
+	if selected, ok := opened["nameSelected"]; ok {
+		t.Fatalf("the first workspace's name was offered: %v", selected)
+	}
+
+	sub, _, _ := s.signIn(t, false)
+	if sub == s.sub {
+		t.Fatal("another workspace signed in as the same account")
+	}
+	items := s.api.List(util.Coll.SignIns, s.person.token).Expect().Status(http.StatusOK).
+		JSON().Object().Value("items").Array().Raw()
+	if len(items) != 1 || items[0].(map[string]any)["id"] == s.rowID {
+		t.Fatalf("listed in the second workspace: %v", items)
+	}
+
+	use(first)
+	if again, _, _ := s.signIn(t, false); again != s.sub {
+		t.Fatal("the first workspace's account changed")
+	}
 }

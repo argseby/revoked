@@ -285,7 +285,7 @@ type webhookAttemptFields struct {
 }
 
 type signInFields struct {
-	User, ClientId, Scopes, Link, NameRecord, NameIdentity, LastSignInAt,
+	User, Workspace, ClientId, Scopes, Link, NameRecord, NameIdentity, LastSignInAt,
 	Status, Generation, SubjectVersion, DisconnectedAt, NewIdOnReturn, Created, Updated string
 }
 
@@ -799,6 +799,7 @@ var Fields = struct {
 	},
 	SignIn: signInFields{
 		User:         "user",
+		Workspace:    "workspace",
 		ClientId:     "clientId",
 		Scopes:       "scopes",
 		Link:         "link",

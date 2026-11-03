@@ -2,12 +2,61 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/device_key_alert.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
+
+/// Shown once the identities have loaded and there are none, as for a new
+/// account: without one nothing can be signed, and nothing else says so.
+class NoIdentityAlert extends StatelessWidget {
+  /// Runs once the new-identity form has closed, so a form can sign with
+  /// the identity just made.
+  final VoidCallback? onCreated;
+
+  const NoIdentityAlert({super.key, this.onCreated});
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (_) {
+        final store = Stores.identities;
+        if (!store.loadState.hasLoaded || store.identities.isNotEmpty) {
+          return const SizedBox.shrink();
+        }
+        return AppAlert(
+          leading: const Icon(AppIcons.keyOff),
+          title: const Text('No identity yet'),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Shares and requests stay unsigned until an identity exists, '
+                'so recipients cannot verify who sent them.',
+              ).small,
+              AppSpacing.gapSm,
+              AppButton(
+                icon: AppIcons.plus,
+                label: 'Create identity',
+                size: AppButtonSize.small,
+                onTap: () async {
+                  await openIdentityCreateSheet(context);
+                  onCreated?.call();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
 /// Radio-style picker over the signed-in user's cryptographic identities.
 ///
@@ -58,11 +107,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
     return Observer(
       builder: (_) {
         final ids = Stores.identities.identities;
-        if (ids.isEmpty) {
-          return const Text(
-            'No identities. Identities for signing are created in Account.',
-          ).muted.small;
-        }
+        if (ids.isEmpty) return const NoIdentityAlert();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

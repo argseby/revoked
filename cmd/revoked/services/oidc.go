@@ -36,15 +36,15 @@ func PrimaryIdentity(app core.App, userID string) *core.Record {
 	return rec
 }
 
-// OIDCClaims are the claims a person agreed to give a service, by scope. The
-// subject is derived per service; everything else appears only under the
-// scope that carries it.
-func OIDCClaims(app core.App, user *core.Record, clientID string, secret []byte, scopes []string) map[string]any {
+// OIDCClaims are the claims a person agreed to give a service from one of
+// their workspaces, by scope. The subject is derived per service and
+// workspace; everything else appears only under the scope that carries it.
+func OIDCClaims(app core.App, user *core.Record, workspace, clientID string, secret []byte, scopes []string) map[string]any {
 	version := 0
-	if row := findSignIn(app, user.Id, clientID); row != nil {
+	if row := findSignIn(app, user.Id, workspace, clientID); row != nil {
 		version = row.GetInt(util.Fields.SignIn.SubjectVersion)
 	}
-	claims := map[string]any{"sub": util.PairwiseSubject(secret, user.Id, clientID, version)}
+	claims := map[string]any{"sub": util.PairwiseSubject(secret, user.Id, workspace, clientID, version)}
 	var identity *core.Record
 	identityLoaded := false
 	primary := func() *core.Record {
@@ -54,7 +54,7 @@ func OIDCClaims(app core.App, user *core.Record, clientID string, secret []byte,
 		return identity
 	}
 	if slices.Contains(scopes, util.OIDCScopeProfile) {
-		if name := SignInName(app, user.Id, clientID); name != "" {
+		if name := SignInName(app, user.Id, workspace, clientID); name != "" {
 			claims["name"] = name
 		}
 	}
@@ -101,7 +101,8 @@ func SaveSignInGrant(app core.App, user *core.Record, clientID string, choices m
 
 	f := util.Fields.Link
 	link, _ := app.FindFirstRecordByFilter(util.Coll.Links,
-		f.User+" = {:u} && "+f.SignInClient+" = {:c}", dbx.Params{"u": user.Id, "c": clientID})
+		f.User+" = {:u} && "+f.Workspace+" = {:w} && "+f.SignInClient+" = {:c}",
+		dbx.Params{"u": user.Id, "w": workspace, "c": clientID})
 	if link == nil {
 		col, err := app.FindCollectionByNameOrId(util.Coll.Links)
 		if err != nil {
@@ -116,8 +117,6 @@ func SaveSignInGrant(app core.App, user *core.Record, clientID string, choices m
 		link.Set(f.User, user.Id)
 		link.Set(f.SignInClient, clientID)
 	}
-	// Set on an existing link too: a link has to live where its entries do, and
-	// the person may have picked this service's entries from another workspace.
 	link.Set(f.Workspace, workspace)
 	link.Set(f.Label, "Sign-in at "+clientID)
 	link.Set(f.Status, util.StatusActive)
@@ -314,11 +313,11 @@ func identityName(app core.App, userID, identityID string) string {
 	return id.GetString(f.Name)
 }
 
-// SignInName reads the name a person chose for a service as it stands now. A
-// name from the vault is shared through the service's link, so revoking or
-// pausing that link stops the name too.
-func SignInName(app core.App, userID, clientID string) string {
-	row := findSignIn(app, userID, clientID)
+// SignInName reads the name a person chose for a service from a workspace as
+// it stands now. A name from the vault is shared through the service's link,
+// so revoking or pausing that link stops the name too.
+func SignInName(app core.App, userID, workspace, clientID string) string {
+	row := findSignIn(app, userID, workspace, clientID)
 	if row == nil {
 		return ""
 	}
@@ -343,9 +342,9 @@ func SignInName(app core.App, userID, clientID string) string {
 }
 
 // RememberedSignInName is the choice a person made at their last sign-in at a
-// service, whether or not it is still usable.
-func RememberedSignInName(app core.App, userID, clientID string) *SignInNameChoice {
-	row := findSignIn(app, userID, clientID)
+// service from a workspace, whether or not it is still usable.
+func RememberedSignInName(app core.App, userID, workspace, clientID string) *SignInNameChoice {
+	row := findSignIn(app, userID, workspace, clientID)
 	if row == nil {
 		return nil
 	}
@@ -362,10 +361,9 @@ func RememberedSignInName(app core.App, userID, clientID string) *SignInNameChoi
 // DropSignInNameGrant takes the name out of a service's link when the person
 // stopped giving it one from the vault: the service's token must not go on
 // reading the old entry. A link left with nothing to read is revoked.
-func DropSignInNameGrant(app core.App, userID, clientID string) error {
+func DropSignInNameGrant(app core.App, userID, workspace, clientID string) error {
 	f := util.Fields.Link
-	link, _ := app.FindFirstRecordByFilter(util.Coll.Links,
-		f.User+" = {:u} && "+f.SignInClient+" = {:c}", dbx.Params{"u": userID, "c": clientID})
+	link := signInLink(app, userID, workspace, clientID)
 	if link == nil {
 		return nil
 	}
@@ -389,15 +387,17 @@ func DropSignInNameGrant(app core.App, userID, clientID string) error {
 	return app.Save(link)
 }
 
-// FindSignIn is a person's row for a service, if they ever signed in there.
-func FindSignIn(app core.App, userID, clientID string) *core.Record {
-	return findSignIn(app, userID, clientID)
+// FindSignIn is a person's row for a service from one of their workspaces, if
+// they ever signed in there from it. Each workspace is its own account there.
+func FindSignIn(app core.App, userID, workspace, clientID string) *core.Record {
+	return findSignIn(app, userID, workspace, clientID)
 }
 
-func findSignIn(app core.App, userID, clientID string) *core.Record {
+func findSignIn(app core.App, userID, workspace, clientID string) *core.Record {
 	f := util.Fields.SignIn
 	row, err := app.FindFirstRecordByFilter(util.Coll.SignIns,
-		f.User+" = {:u} && "+f.ClientId+" = {:c}", dbx.Params{"u": userID, "c": clientID})
+		f.User+" = {:u} && "+f.Workspace+" = {:w} && "+f.ClientId+" = {:c}",
+		dbx.Params{"u": userID, "w": workspace, "c": clientID})
 	if err != nil {
 		return nil
 	}
@@ -414,13 +414,14 @@ type SignInApproval struct {
 	Name      *SignInNameChoice
 }
 
-// RecordSignIn notes an approved sign-in: one row per person and service.
+// RecordSignIn notes an approved sign-in: one row per person, workspace and
+// service.
 // Scopes only accumulate, because a service keeps what it once learned. A
 // sign-in that shares nothing leaves the row's link alone: the earlier grant
 // is still live.
-func RecordSignIn(app core.App, userID, clientID string, approval SignInApproval) (*core.Record, error) {
+func RecordSignIn(app core.App, userID, workspace, clientID string, approval SignInApproval) (*core.Record, error) {
 	f := util.Fields.SignIn
-	row := findSignIn(app, userID, clientID)
+	row := findSignIn(app, userID, workspace, clientID)
 	if row == nil {
 		col, err := app.FindCollectionByNameOrId(util.Coll.SignIns)
 		if err != nil {
@@ -428,6 +429,7 @@ func RecordSignIn(app core.App, userID, clientID string, approval SignInApproval
 		}
 		row = core.NewRecord(col)
 		row.Set(f.User, userID)
+		row.Set(f.Workspace, workspace)
 		row.Set(f.ClientId, clientID)
 	}
 

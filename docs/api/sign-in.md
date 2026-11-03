@@ -196,8 +196,11 @@ a change at the next sign-in.
 
 `sub` is different at every service: the same person signing in to two
 services gives each its own identifier, so services cannot match their users
-with each other. It stays the same for one service across sign-ins, unless the
-person asks for a new one ([Pausing and disconnecting](#pausing-and-disconnecting)).
+with each other. Each of the person's workspaces is a separate account as well:
+signing in from another workspace gives the service another `sub`, and no name
+or entry chosen in the first workspace is offered. `sub` stays the same for one
+service and workspace across sign-ins, unless the person asks for a new one
+([Pausing and disconnecting](#pausing-and-disconnecting)).
 
 The person can decline every scope but `openid` in the app. The
 `scope` returned by the token endpoint lists what was granted.
@@ -217,8 +220,9 @@ under that key, or the next free key if it is taken. Picking an entry with
 another key adds an alias under the key asked for, unless the key is taken or
 the entry is a file. The person can switch workspace from the consent screen,
 which opens the request again with a new ticket. An entry from any other
-workspace is refused with `oidc_link_record_invalid`, and a service's link moves
-to the workspace its entries are in. New values and aliases are filed in a
+workspace is refused with `oidc_link_record_invalid`. Switching workspace also
+switches the account the service sees, so each workspace shares through its own
+link. New values and aliases are filed in a
 section keyed `signin_<host>` and get the service's host in `requestedBy`;
 entries the person already had are not moved. The userinfo endpoint then returns a grant
 over the chosen entries:

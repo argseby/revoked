@@ -28,8 +28,8 @@ abstract class _SignInsStore with Store {
   final ObservableList<SignInService> services =
       ObservableList<SignInService>();
 
-  /// Sign-in links in the active workspace, by id. A service's link can be
-  /// missing here while it still names one: it lives in another workspace.
+  /// Sign-in links in the active workspace, by id. The services listed are
+  /// the active workspace's too: each workspace is its own account there.
   final ObservableMap<String, Link> links = ObservableMap<String, Link>();
 
   @observable

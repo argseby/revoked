@@ -43,26 +43,30 @@ type oidcAuthRequest struct {
 type oidcTicket struct {
 	req  oidcAuthRequest
 	user string
+	// The workspace the request was opened in: each workspace is its own
+	// account at a service, and the decision is for that one.
+	workspace string
 }
 
 // oidcCode is a decision waiting for the service to redeem it.
 type oidcCode struct {
-	req      oidcAuthRequest
-	user     string
-	scopes   []string
-	authTime time.Time
-	grant    *services.SignInGrant
+	req       oidcAuthRequest
+	user      string
+	workspace string
+	scopes    []string
+	authTime  time.Time
+	grant     *services.SignInGrant
 	// The sign-in's generation when this was issued: a disconnect moves it.
 	generation int
 }
 
 // oidcAccess is what an access token lets the service read at userinfo.
 type oidcAccess struct {
-	issuer         string
-	user, clientID string
-	scopes         []string
-	grant          *services.SignInGrant
-	generation     int
+	issuer                    string
+	user, workspace, clientID string
+	scopes                    []string
+	grant                     *services.SignInGrant
+	generation                int
 }
 
 // All three live in memory, like the passkey ceremonies: a restart costs a
@@ -475,18 +479,19 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 		return re.JSON(http.StatusOK, map[string]any{"redirect": refusal})
 	}
 	user := re.Auth
+	workspace := user.GetString(util.Fields.User.ActiveWorkspace)
 
 	// The service hears what it hears from any decline, so it can't tell a
 	// pause from a no. The app learns which service to offer to activate.
-	row := services.FindSignIn(app, user.Id, req.clientID)
+	row := services.FindSignIn(app, user.Id, workspace, req.clientID)
 	if row != nil && services.SignInStatus(row) == util.StatusPaused {
 		return re.JSON(http.StatusOK, map[string]any{"redirect": oidcDeclined(req), "paused": row.Id})
 	}
 
-	ticket := oidcTickets.put(&oidcTicket{req: *req, user: user.Id}, util.OIDCRequestTTL)
+	ticket := oidcTickets.put(&oidcTicket{req: *req, user: user.Id, workspace: workspace}, util.OIDCRequestTTL)
 
 	// What each scope would give away, shown before the person agrees to it.
-	preview := services.OIDCClaims(app, user, req.clientID, nil, util.OIDCOptionalScopes)
+	preview := services.OIDCClaims(app, user, workspace, req.clientID, nil, util.OIDCOptionalScopes)
 	scopes := make([]map[string]any, 0, len(req.scopes))
 	for _, s := range req.scopes {
 		item := map[string]any{"scope": s}
@@ -521,7 +526,7 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 		answer["sections"] = vaultSections(app, user)
 	}
 	if slices.Contains(req.scopes, util.OIDCScopeProfile) {
-		options, selected := nameOptions(app, user, req.clientID)
+		options, selected := nameOptions(app, user, workspace, req.clientID)
 		answer["nameOptions"] = options
 		if selected != nil {
 			answer["nameSelected"] = selected
@@ -570,8 +575,9 @@ func signingIdentities(app core.App, user *core.Record) []string {
 // one selected is what they gave this service last time, otherwise an entry
 // under the plain key "name" if they have one, otherwise none: a name is shared
 // only once someone picks it. Someone coming back under a new ID starts with
-// none, because their usual name is what would give them away.
-func nameOptions(app core.App, user *core.Record, clientID string) ([]map[string]any, *services.SignInNameChoice) {
+// none, because their usual name is what would give them away; so does
+// someone signing in from another workspace, which is another account there.
+func nameOptions(app core.App, user *core.Record, workspace, clientID string) ([]map[string]any, *services.SignInNameChoice) {
 	options := []map[string]any{}
 	i := util.Fields.Identity
 	identities, _ := app.FindRecordsByFilter(util.Coll.Identities,
@@ -586,7 +592,7 @@ func nameOptions(app core.App, user *core.Record, clientID string) ([]map[string
 	f := util.Fields.Record
 	records, _ := app.FindRecordsByFilter(util.Coll.Records,
 		f.User+" = {:u} && "+f.Workspace+" = {:w}", f.Key, maxLinkOptions, 0,
-		dbx.Params{"u": user.Id, "w": user.GetString(util.Fields.User.ActiveWorkspace)})
+		dbx.Params{"u": user.Id, "w": workspace})
 	var plain *services.SignInNameChoice
 	for _, rec := range records {
 		value, ok := services.RecordNameValue(app, rec)
@@ -602,14 +608,14 @@ func nameOptions(app core.App, user *core.Record, clientID string) ([]map[string
 		}
 	}
 
-	if last := services.RememberedSignInName(app, user.Id, clientID); last != nil {
+	if last := services.RememberedSignInName(app, user.Id, workspace, clientID); last != nil {
 		for _, o := range options {
 			if o["kind"] == last.Kind && o["id"] == last.ID {
 				return options, last
 			}
 		}
 	}
-	if row := services.FindSignIn(app, user.Id, clientID); row != nil && row.GetBool(util.Fields.SignIn.NewIdOnReturn) {
+	if row := services.FindSignIn(app, user.Id, workspace, clientID); row != nil && row.GetBool(util.Fields.SignIn.NewIdOnReturn) {
 		return options, nil
 	}
 	return options, plain
@@ -693,7 +699,9 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
 	}
 	t, ok := oidcTickets.take(body.Ticket)
-	if !ok || t.user != re.Auth.Id {
+	// A switch of workspace since the request opened would approve it for an
+	// account the consent screen never showed.
+	if !ok || t.user != re.Auth.Id || t.workspace != re.Auth.GetString(util.Fields.User.ActiveWorkspace) {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCRequestInvalid)
 	}
 	req := t.req
@@ -757,7 +765,7 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 	err := app.RunInTransaction(func(tx core.App) error {
 		// Inside the transaction, or a pause landing now would be overwritten
 		// by the active status this approval writes.
-		if row := services.FindSignIn(tx, t.user, req.clientID); row != nil && services.SignInStatus(row) == util.StatusPaused {
+		if row := services.FindSignIn(tx, t.user, t.workspace, req.clientID); row != nil && services.SignInStatus(row) == util.StatusPaused {
 			return errSignInPaused
 		}
 		linkID := ""
@@ -787,7 +795,7 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 				}
 			}
 		} else if nameAsked {
-			if err := services.DropSignInNameGrant(tx, t.user, req.clientID); err != nil {
+			if err := services.DropSignInNameGrant(tx, t.user, t.workspace, req.clientID); err != nil {
 				return err
 			}
 		}
@@ -797,7 +805,7 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 			}
 		}
 		var err error
-		signIn, err = services.RecordSignIn(tx, t.user, req.clientID, services.SignInApproval{
+		signIn, err = services.RecordSignIn(tx, t.user, t.workspace, req.clientID, services.SignInApproval{
 			Scopes: granted, LinkID: linkID, NameAsked: nameAsked, Name: name,
 		})
 		return err
@@ -821,11 +829,12 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 	})
 
 	code := oidcCodes.put(&oidcCode{
-		req:      req,
-		user:     t.user,
-		scopes:   granted,
-		authTime: time.Now(),
-		grant:    grant,
+		req:       req,
+		user:      t.user,
+		workspace: t.workspace,
+		scopes:    granted,
+		authTime:  time.Now(),
+		grant:     grant,
 
 		generation: signIn.GetInt(util.Fields.SignIn.Generation),
 	}, util.OIDCCodeTTL)
@@ -904,7 +913,7 @@ func oidcToken(app core.App, re *core.RequestEvent, root *server.RootKey) error 
 	if err != nil || user == nil {
 		return invalid()
 	}
-	if !services.SignInAllows(app, c.user, c.req.clientID, c.generation) {
+	if !services.SignInAllows(app, c.user, c.workspace, c.req.clientID, c.generation) {
 		return invalid()
 	}
 	keys, err := root.Issuer()
@@ -913,7 +922,7 @@ func oidcToken(app core.App, re *core.RequestEvent, root *server.RootKey) error 
 	}
 
 	now := time.Now()
-	claims := services.OIDCClaims(app, user, c.req.clientID, keys.SubjectSecret(), c.scopes)
+	claims := services.OIDCClaims(app, user, c.workspace, c.req.clientID, keys.SubjectSecret(), c.scopes)
 	claims["iss"] = c.req.issuer
 	claims["aud"] = c.req.clientID
 	claims["iat"] = now.Unix()
@@ -930,11 +939,12 @@ func oidcToken(app core.App, re *core.RequestEvent, root *server.RootKey) error 
 	}
 
 	access := oidcTokens.put(&oidcAccess{
-		issuer:   c.req.issuer,
-		user:     c.user,
-		clientID: c.req.clientID,
-		scopes:   c.scopes,
-		grant:    c.grant,
+		issuer:    c.req.issuer,
+		user:      c.user,
+		workspace: c.workspace,
+		clientID:  c.req.clientID,
+		scopes:    c.scopes,
+		grant:     c.grant,
 
 		generation: c.generation,
 	}, util.OIDCAccessTokenTTL)
@@ -964,7 +974,7 @@ func oidcUserinfo(app core.App, re *core.RequestEvent, root *server.RootKey) err
 	var user *core.Record
 	// Checked on every read: without it a token from before a disconnect would
 	// read the subject a person came back under, tying the two together.
-	if ok && services.SignInAllows(app, a.user, a.clientID, a.generation) {
+	if ok && services.SignInAllows(app, a.user, a.workspace, a.clientID, a.generation) {
 		user, _ = app.FindRecordById(util.Coll.Users, a.user)
 	}
 	if user == nil {
@@ -975,7 +985,7 @@ func oidcUserinfo(app core.App, re *core.RequestEvent, root *server.RootKey) err
 	if err != nil {
 		return oauthError(re, http.StatusInternalServerError, "server_error", "The issuer keys are unavailable.")
 	}
-	claims := services.OIDCClaims(app, user, a.clientID, keys.SubjectSecret(), a.scopes)
+	claims := services.OIDCClaims(app, user, a.workspace, a.clientID, keys.SubjectSecret(), a.scopes)
 	if a.grant != nil {
 		claims[util.OIDCClaimLinks] = map[string]any{
 			"endpoint": a.issuer + "/api/grants/resolve",

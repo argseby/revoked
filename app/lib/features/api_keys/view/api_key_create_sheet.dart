@@ -7,7 +7,9 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/api_key.dart';
 import 'package:revoked_app/core/models/invite.dart';
+import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
@@ -21,7 +23,9 @@ import 'package:revoked_app/core/widgets/app_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/permission_check_row.dart';
+import 'package:revoked_app/features/api_keys/store/api_keys_store.dart';
 import 'package:revoked_app/features/connections/view/access_summary.dart';
+import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 /// Clears the last draft and loads what the form offers, before it opens.
 void prepareApiKeyDraft() {
@@ -179,6 +183,17 @@ class ApiKeyCreateForm extends StatelessWidget {
           ),
           const AppDivider(),
 
+          // A greyed-out button alone does not say what it is waiting for.
+          if (_missing(store) case final missing?)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.md,
+                AppSpacing.xl,
+                0,
+              ),
+              child: Text(missing).muted.small,
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.xl,
@@ -212,6 +227,19 @@ class ApiKeyCreateForm extends StatelessWidget {
       ),
     );
   }
+}
+
+/// What the form still needs before the key can be created, in the order
+/// the form asks for it; null once [ApiKeysStore.canCreateDraft] holds.
+String? _missing(ApiKeysStore store) {
+  if (store.draftLabel.text.trim().isEmpty) return 'A key name is required.';
+  if (store.draftScopes.isEmpty) return 'At least one permission is required.';
+  if (store.draftReachesVault && store.draftSections.isEmpty) {
+    return _ownSections().isEmpty
+        ? 'Vault access requires a vault section, and there are none yet.'
+        : 'Vault access requires at least one selected section.';
+  }
+  return null;
 }
 
 Future<void> _create(BuildContext context, VoidCallback close) async {
@@ -346,12 +374,24 @@ bool _isVault(InvitePermission p) =>
 
 /// The catalogue's words are about a member, who reaches the whole vault; a
 /// key reaches only its sections.
-String _vaultSubtitle(InvitePermission p) => p.key == 'vault:write'
-    ? 'Adds records to the selected sections and edits its own records.'
-    : 'Reads the records in the selected sections.';
+///
+/// Easy to miss until the button stays grey: without a section there is
+/// nothing to reach, so the row says so.
+String _vaultSubtitle(InvitePermission p) => [
+  p.key == 'vault:write'
+      ? 'Adds records to the selected sections and edits its own records.'
+      : 'Reads the records in the selected sections.',
+  if (_ownSections().isEmpty) 'Requires a vault section; there are none yet.',
+].join(' ');
 
-/// The person's own sections, to pick the ones a new key reaches. A section
+/// The person's own sections, the only ones a key may reach. A section
 /// holding a request's answers or a sign-in's entries isn't theirs to hand on.
+List<Section> _ownSections() => [
+  for (final s in Stores.vault.sections)
+    if (!s.isRequested && s.user == Stores.auth.userId) s,
+];
+
+/// Picks the sections a new key reaches, or says how to make one.
 class _SectionPicker extends StatelessWidget {
   const _SectionPicker();
 
@@ -360,16 +400,35 @@ class _SectionPicker extends StatelessWidget {
     return Observer(
       builder: (_) {
         final store = Stores.apiKeys;
-        final sections = [
-          for (final s in Stores.vault.sections)
-            if (!s.isRequested && s.user == Stores.auth.userId) s,
-        ];
+        final sections = _ownSections();
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: sections.isEmpty
-              ? const Text(
-                  'No sections. Sections are created in the vault.',
-                ).muted.small
+              ? AppAlert(
+                  tone: AppAlertTone.warning,
+                  leading: const Icon(AppIcons.folder),
+                  title: const Text('No vault sections yet'),
+                  content: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'A key reaches the vault only through sections. '
+                        'Records outside a section stay out of every key\'s '
+                        'reach.',
+                      ).small,
+                      AppSpacing.gapSm,
+                      AppButton(
+                        icon: AppIcons.plus,
+                        label: 'Create section',
+                        size: AppButtonSize.small,
+                        onTap: () => openVaultCreateSheet(
+                          context,
+                          initialTab: VaultCreateTab.section,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

@@ -68,16 +68,19 @@ func OIDCIssuer(domain string) string {
 	return "https://" + domain
 }
 
-// PairwiseSubject derives the subject a person has at one service: stable for
-// that service, and unrelated to the subject the same person has at any
-// other, so services cannot match their users across each other. A higher
-// version is a new subject, unrelated to the earlier ones. Version 0 adds
-// nothing to the input, so subjects issued before versions existed still hold.
-func PairwiseSubject(secret []byte, userID, clientID string, version int) string {
+// PairwiseSubject derives the subject a person has at one service from one
+// workspace: stable for that service and workspace, and unrelated to the
+// subject the same person has at any other service or from any other of their
+// workspaces, so neither services nor one workspace's accounts can be matched
+// to another's. A higher version is a new subject, unrelated to the earlier
+// ones.
+func PairwiseSubject(secret []byte, userID, workspaceID, clientID string, version int) string {
 	mac := hmac.New(sha256.New, secret)
 	mac.Write([]byte(clientID))
 	mac.Write([]byte{0})
 	mac.Write([]byte(userID))
+	mac.Write([]byte{0})
+	mac.Write([]byte(workspaceID))
 	if version > 0 {
 		mac.Write([]byte{0})
 		mac.Write([]byte(strconv.Itoa(version)))
