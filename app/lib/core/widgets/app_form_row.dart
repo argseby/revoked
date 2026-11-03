@@ -175,6 +175,7 @@ class AppFormToggleRow extends StatelessWidget {
 
   /// A short tag after the label, such as "Alpha" on a feature still settling.
   final String? badge;
+  final AppBadgeVariant badgeVariant;
 
   /// Aligns the row with a create drawer's other rows. Off when the toggle
   /// sits inside a container that already provides the padding.
@@ -192,6 +193,7 @@ class AppFormToggleRow extends StatelessWidget {
     required this.onChanged,
     this.icon,
     this.badge,
+    this.badgeVariant = AppBadgeVariant.experimental,
     this.inset = true,
     this.padding,
   });
@@ -206,13 +208,17 @@ class AppFormToggleRow extends StatelessWidget {
               ? const EdgeInsets.symmetric(horizontal: AppSpacing.xl)
               : EdgeInsets.zero),
       leading: icon == null ? null : Icon(icon, color: scheme.onSurfaceVariant),
+      // A badge that doesn't fit beside the label moves under it, so a narrow
+      // window never breaks the label mid-word.
       title: badge == null
           ? Text(label)
-          : Row(
+          : Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xxs,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Flexible(child: Text(label)),
-                AppSpacing.gapSm,
-                AppBadge(label: badge!, variant: AppBadgeVariant.experimental),
+                Text(label),
+                AppBadge(label: badge!, variant: badgeVariant),
               ],
             ),
       subtitle: Text(subtitle).muted.small,

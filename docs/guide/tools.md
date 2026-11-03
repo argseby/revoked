@@ -83,6 +83,10 @@ reason the tool gave for asking:
 | **Receive links** | When you create a link it proposed, the tool gets it, so you don't copy it over. Links with files or hidden values you always send yourself. |
 | **Read vault** | Only when the tool asks, and off until you turn it on. The tool can see the values of your records, but not your encrypted ones, and it can't change anything. What it sees can't be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) explains what to weigh. |
 
+Switches marked **Sensitive** let the tool do something you can't take
+back: hand out links, ask people for data in your name, or read your whole
+vault. Turn them on only for a tool you trust with that.
+
 ### Confirm on another device
 
 To answer a tool, the app opens the tool's page again in your default
