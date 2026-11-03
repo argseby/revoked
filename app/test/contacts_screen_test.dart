@@ -201,7 +201,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Link for Ada Lovelace'), findsOneWidget);
-    expect(find.textContaining('has no account here. The link is delivered'), findsOneWidget);
+    expect(
+      find.textContaining('has no account here. The link is delivered'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('asking is signed with an identity of this workspace', (

@@ -24,6 +24,7 @@ import 'package:revoked_app/features/connections/store/connections_store.dart';
 import 'package:revoked_app/features/connections/store/sign_ins_store.dart';
 import 'package:revoked_app/features/contacts/store/contacts_store.dart';
 import 'package:revoked_app/features/identities/store/identities_store.dart';
+import 'package:revoked_app/features/identities/store/identity_replacement_store.dart';
 import 'package:revoked_app/features/invites/store/invites_store.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
@@ -69,6 +70,7 @@ abstract final class Stores {
   static late WebhooksStore webhooks;
   static late IdentitiesStore identities;
   static late CredentialsStore credentials;
+  static late IdentityReplacementStore identityReplacement;
   static late AttestationsStore attestations;
   static late AttestationChecksStore attestationChecks;
   static late NotificationsStore notifications;
@@ -147,6 +149,7 @@ abstract final class Stores {
     deviceUnlock = unlock ?? SystemDeviceUnlock();
     signInApproval = SignInApproval(api, crypto, identities, deviceUnlock);
     credentials = CredentialsStore(api, crypto, handshake, domainVerification);
+    identityReplacement = IdentityReplacementStore(identities, credentials);
     attestations = AttestationsStore(api);
     attestationChecks = AttestationChecksStore(api);
     notifications = NotificationsStore(api);

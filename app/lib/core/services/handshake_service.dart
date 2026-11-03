@@ -32,6 +32,9 @@ class HandshakeService {
 
   static final _tokenPattern = RegExp(r'^[A-Za-z0-9_-]{16,256}$');
 
+  /// Whether [nonce] has the shape of a challenge, and so may be signed.
+  static bool isNonce(String nonce) => _tokenPattern.hasMatch(nonce);
+
   final ApiClient _apiClient;
   final CryptoService _cryptoService;
 
@@ -62,7 +65,7 @@ class HandshakeService {
     // A nonce is a token, never a message: anything else could be something
     // signed in another context — a sign-in approval — dressed as a nonce by
     // a server that chose it.
-    if (!_tokenPattern.hasMatch(nonce)) {
+    if (!isNonce(nonce)) {
       throw const FormatException('The server sent a malformed challenge.');
     }
 

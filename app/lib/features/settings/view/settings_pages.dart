@@ -34,6 +34,7 @@ import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/api_keys/view/api_keys_group.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
+import 'package:revoked_app/features/identities/view/identity_replace_sheet.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
@@ -657,6 +658,14 @@ class _IdentitiesPage extends StatelessWidget {
             icon: AppIcons.stars,
             label: 'Set as primary',
             onTap: () => _setPrimary(context, id),
+          ),
+        // The old key vouches for the identity that replaces it, so it has to
+        // be on this device.
+        if (!id.isRevoked && store.hasLocalKey(id.id))
+          AppSheetAction(
+            icon: AppIcons.arrowRepeat,
+            label: 'Replace',
+            onTap: () => openIdentityReplaceSheet(context, id),
           ),
         // Revoking, not deleting, is the answer to a leaked key: the holder
         // of a copy keeps passing every check until this server says

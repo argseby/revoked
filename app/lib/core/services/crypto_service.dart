@@ -124,6 +124,41 @@ class CryptoService {
     );
   }
 
+  /// The domain separator of a reissue voucher; `ReissueVoucherType` in
+  /// `cmd/revoked/server/reissue.go`.
+  static const reissueVoucherType = 'credential-reissue-v1';
+
+  /// Signs, with the key of [identityId], the voucher that hands a credential
+  /// [issuer] gave that identity over to the identity [newFingerprint], on
+  /// the occasion of the issuer's challenge [nonce].
+  ///
+  /// The type tag comes first, so the signature can never pass for one made
+  /// over a nonce or a sign-in consent. The exact bytes signed travel with
+  /// the signature, so the server never has to rebuild the JSON.
+  Future<Map<String, String>> signReissueVoucher({
+    required String identityId,
+    required String issuer,
+    required String oldFingerprint,
+    required String newFingerprint,
+    required String nonce,
+  }) async {
+    final payload = jsonEncode({
+      'type': reissueVoucherType,
+      'issuer': issuer,
+      'oldFingerprint': oldFingerprint,
+      'newFingerprint': newFingerprint,
+      'nonce': nonce,
+    });
+    final signature = await signMessage(
+      identityId: identityId,
+      message: payload,
+    );
+    return {
+      'payload': base64Url.encode(utf8.encode(payload)).replaceAll('=', ''),
+      'signature': signature,
+    };
+  }
+
   /// Verifies an ECDSA / SHA-256 signature.
   ///
   /// [signatureBytes] is the raw signature (already hex- or base64-decoded

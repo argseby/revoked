@@ -264,6 +264,68 @@ abstract class _CredentialsStore with Store {
     }
   }
 
+  /// The held credentials bound to the identity [identityId].
+  List<Credential> boundTo(String identityId) => [
+    for (final c in credentials)
+      if (c.identity == identityId) c,
+  ];
+
+  /// Moves [credential] from the identity [from] to the identity [to]: its
+  /// issuer issues it again for [to] and revokes the copy bound to [from].
+  ///
+  /// Both signatures are made here, where both keys are: [from]'s key vouches
+  /// for [to], and [to]'s key answers the issuer's challenge, which the
+  /// person's own server fetches and relays. The voucher is built from what
+  /// this device knows; the server supplies only the nonce. Returns the
+  /// credential as kept now, and throws what refused it.
+  Future<Credential> reissue({
+    required Credential credential,
+    required Identity from,
+    required Identity to,
+  }) async {
+    final path =
+        '/api/credentials/${Uri.encodeComponent(credential.id)}/reissue';
+    final challenge = await _api.get(path, queryParams: {'identityId': to.id});
+    final nonce = challenge is Map<String, dynamic>
+        ? challenge['nonce'] as String? ?? ''
+        : '';
+    if (!HandshakeService.isNonce(nonce)) {
+      throw const UserFacingException('The server sent a malformed challenge.');
+    }
+    final voucher = await _crypto.signReissueVoucher(
+      identityId: from.id,
+      issuer: credential.issuer,
+      oldFingerprint: from.fingerprint.toLowerCase(),
+      newFingerprint: to.fingerprint.toLowerCase(),
+      nonce: nonce,
+    );
+    final signature = await _crypto.signMessage(
+      identityId: to.id,
+      message: nonce,
+    );
+    final data = await _api.post(
+      path,
+      body: {
+        'identityId': to.id,
+        'challengeNonce': nonce,
+        'challengeSignature': signature,
+        'voucher': voucher,
+      },
+    );
+    final kept = Credential.fromJson(data as Map<String, dynamic>);
+    runInAction(() {
+      final idx = credentials.indexWhere((c) => c.id == kept.id);
+      if (idx == -1) {
+        credentials.insert(0, kept);
+      } else {
+        credentials[idx] = kept;
+      }
+      verdicts.remove(kept.id);
+    });
+    unawaited(loadVerdict(kept.id));
+    return kept;
+  }
+
   @action
   void clearOffer() {
     offer = null;
