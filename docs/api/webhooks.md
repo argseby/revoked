@@ -98,6 +98,13 @@ loopback and private ranges refused unless the server runs with
 `ALLOW_PRIVATE_CALLBACKS=true`, the resolved address re-checked at connect
 time. See [Callbacks → Security](callbacks.md#security).
 
+On a server without `ALLOW_PRIVATE_CALLBACKS`, an endpoint at a loopback or
+private address is refused when it is saved, and a test sent to one fails as
+`blocked`. The app says so under the address as soon as one is typed, and on
+the page of an existing endpoint at such an address, since nothing will ever
+arrive there. `GET /api/webhooks/event-types` answers `privateCallbacks`, so a
+client can do the same.
+
 ## Verifying the signature
 
 Every delivery carries

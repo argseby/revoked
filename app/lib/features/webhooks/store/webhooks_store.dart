@@ -2,6 +2,7 @@ import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/models/webhook.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/utils/private_address.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
@@ -78,6 +79,17 @@ abstract class _WebhooksStore with Store {
   @observable
   String testType = 'link.revoked';
 
+  /// Whether the server delivers to local and private addresses. Assumed
+  /// until it says otherwise, so nothing warns before it has answered.
+  @observable
+  bool privateCallbacks = true;
+
+  /// Whether the server won't deliver to [url] at all.
+  bool unreachable(String url) => !privateCallbacks && isPrivateAddress(url);
+
+  @computed
+  bool get draftUnreachable => unreachable(draftUrl.text);
+
   @computed
   bool get canCreateDraft =>
       draftUrl.text.trim().isNotEmpty &&
@@ -114,6 +126,7 @@ abstract class _WebhooksStore with Store {
             ),
           );
         if (types != null) {
+          privateCallbacks = types['privateCallbacks'] as bool? ?? true;
           eventTypes.addAll(
             ((types['items'] as List<dynamic>?) ?? const []).map(
               (e) => WebhookEventType.fromJson(e as Map<String, dynamic>),

@@ -73,6 +73,16 @@ Future<void> openWebhookCreateSheet(BuildContext context) {
                         mono: true,
                       ),
                     ),
+                    if (store.draftUnreachable)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.sm,
+                          AppSpacing.xl,
+                          0,
+                        ),
+                        child: PrivateAddressNotice(),
+                      ),
                     const SizedBox(height: AppSpacing.md),
                     Padding(
                       padding: const EdgeInsets.symmetric(

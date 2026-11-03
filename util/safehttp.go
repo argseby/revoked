@@ -23,7 +23,9 @@ const AllowPrivateCallbacksEnv = "ALLOW_PRIVATE_CALLBACKS"
 // ErrCallbackURLBlocked is returned when a callback target is refused by policy.
 var ErrCallbackURLBlocked = errors.New("callback URL blocked by policy")
 
-func privateCallbacksAllowed() bool {
+// PrivateCallbacksAllowed reports whether the operator opened loopback and
+// private ranges to callbacks and webhooks.
+func PrivateCallbacksAllowed() bool {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv(AllowPrivateCallbacksEnv)))
 	return v == "1" || v == "true" || v == "yes"
 }
@@ -46,18 +48,18 @@ func isBlockedIP(ip net.IP) bool {
 	// public host it reaches this server's own admin API, on a LAN/dev box it
 	// is where the hook under test actually runs.
 	if ip.IsLoopback() {
-		return !privateCallbacksAllowed()
+		return !PrivateCallbacksAllowed()
 	}
 	// IPv4-mapped IPv6 (::ffff:127.0.0.1) must be judged on the mapped address.
 	if v4 := ip.To4(); v4 != nil {
 		ip = v4
 	}
 	if ip.IsPrivate() {
-		return !privateCallbacksAllowed()
+		return !PrivateCallbacksAllowed()
 	}
 	// IPv6 unique-local (fc00::/7) is the v6 equivalent of a private range.
 	if len(ip) == net.IPv6len && ip[0]&0xfe == 0xfc {
-		return !privateCallbacksAllowed()
+		return !PrivateCallbacksAllowed()
 	}
 	return false
 }

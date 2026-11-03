@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	"github.com/gavv/httpexpect/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -340,6 +341,17 @@ func TestWebhookValidation(t *testing.T) {
 		util.Errors.WebhookEventsInvalid.ErrorCode)
 	refused(map[string]any{"url": "https://example.com/hook", "events": []string{}},
 		util.Errors.WebhookEventsInvalid.ErrorCode)
+	t.Run("the app learns whether local addresses can receive anything", func(t *testing.T) {
+		types := func() *httpexpect.Object {
+			return api.E.GET("/api/webhooks/event-types").WithHeader("Authorization", token).
+				Expect().Status(http.StatusOK).JSON().Object()
+		}
+		t.Setenv(util.AllowPrivateCallbacksEnv, "")
+		types().Value("privateCallbacks").Boolean().IsFalse()
+		refused(map[string]any{"url": "http://127.0.0.1:47381/"}, util.Errors.WebhookUrlInvalid.ErrorCode)
+		t.Setenv(util.AllowPrivateCallbacksEnv, "true")
+		types().Value("privateCallbacks").Boolean().IsTrue()
+	})
 }
 
 // "*" leaves the noisy types out unless they are named.

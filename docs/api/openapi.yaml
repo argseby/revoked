@@ -2330,12 +2330,22 @@ paths:
       summary: List the event types
       description: |
         The catalogue an endpoint subscribes from. `noisy` types are left out of `"*"`.
+        `privateCallbacks` says whether this server delivers to loopback and
+        private addresses (`ALLOW_PRIVATE_CALLBACKS`); when it is `false`, an
+        endpoint at such an address is refused.
       security:
         - Session: []
         - ApiKey: []
       responses:
         "200":
           description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { type: object } }
+                  privateCallbacks: { type: boolean }
         "403":
           description: The caller lacks Manage webhooks (`webhook:manage`).
   /api/webhooks/endpoints:

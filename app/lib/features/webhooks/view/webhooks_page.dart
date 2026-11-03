@@ -14,6 +14,7 @@ import 'package:revoked_app/core/models/webhook.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -152,6 +153,25 @@ Widget? _stateBadge(WebhookEndpoint e) {
 
 /// One webhook: where it sends, what it hears, its signing secret, and the
 /// log of every delivery with a way to send each again.
+/// Said where a webhook points at this machine or a private network and the
+/// server won't deliver there, before anyone waits for one that never comes.
+class PrivateAddressNotice extends StatelessWidget {
+  const PrivateAddressNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppAlert(
+      tone: AppAlertTone.warning,
+      leading: Icon(AppIcons.exclamationTriangle),
+      title: Text('This server won’t deliver here'),
+      content: Text(
+        'It doesn’t send webhooks to local or private addresses. Whoever '
+        'runs the server can allow them with ALLOW_PRIVATE_CALLBACKS=true.',
+      ),
+    );
+  }
+}
+
 class WebhookEndpointPage extends StatefulWidget {
   final String endpointId;
 
@@ -337,6 +357,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
         subtitleMono: true,
       ),
       sections: [
+        if (Stores.webhooks.unreachable(e.url)) const PrivateAddressNotice(),
         if (!e.enabled && e.disabledReason == 'failing')
           AppListGroup(
             title: 'Turned off',
