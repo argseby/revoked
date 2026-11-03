@@ -25,9 +25,12 @@ the tool's origin:
   connection that was already live, without asking again and without
   renewing it.
 - `tool_connected` — a browser exchanged its code for a token.
-- `tool_read` — it read where its links stand. One entry per ten minutes of
+- `tool_read` — it read where its links, requests, attestations and checks
+  stand. One entry per ten minutes of
   use, not one per request.
 - `tool_revoked_link` — it revoked one of its links, named in the row.
+- `tool_closed_request`, `tool_revoked_attestation` — it closed one of its
+  requests, or revoked one of its attestations, named in the row.
 - `tool_permission_changed` — the owner allowed or stopped that.
 - `tool_paused`, `tool_resumed` — the owner paused it, or activated it again.
 - `tool_owner_disconnected` — the owner disconnected it, with whether its links

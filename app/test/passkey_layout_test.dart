@@ -10,11 +10,13 @@ import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/crypto/sealing.dart';
+import 'package:revoked_app/core/models/passkey.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/sealing/store/keys_store.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
+import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A device the list doesn't name, on an account whose passkey holds the key:
@@ -72,63 +74,17 @@ void main() {
     ];
   }
 
-  Future<GoRouter> signedIn(WidgetTester tester, Size size) async {
+  Future<GoRouter> signedIn(
+    WidgetTester tester,
+    Size size,
+    http.Client client,
+  ) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
-    final devices = listWithPasskey();
-    await Stores.init(
-      httpClient: MockClient((request) async {
-        final path = request.url.path;
-        if (path == '/api/server') {
-          return http.Response(
-            jsonEncode({
-              'sealing': {'records': true},
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        if (path == '/api/sealed/state') {
-          return http.Response(
-            jsonEncode({'devices': devices, 'workspaces': <Object>[]}),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        if (path.startsWith('/api/collections/')) {
-          // One record this device cannot read, which is what such a device
-          // has: it is why the person is here.
-          final items = path.endsWith('/records/records')
-              ? [
-                  {
-                    'id': 'record000000001',
-                    'key': 'smtp_password',
-                    'label': 'SMTP password',
-                    'type': 'text',
-                    'format': 'default',
-                    'user': user,
-                    'workspace': 'w1',
-                    'value': '',
-                    'sealed': true,
-                    'sealedValue': 'AQ',
-                    'sealedVersion': 1,
-                    'keyEpoch': 1,
-                    'keyWrap': 'AQ',
-                  },
-                ]
-              : <Object>[];
-          return http.Response(
-            jsonEncode({'items': items, 'totalItems': items.length}),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('{}', 404);
-      }),
-    );
+    await Stores.init(httpClient: client);
     runInAction(() => Stores.auth.currentUser = null);
     final router = AppRouter.create(Stores.auth);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -144,11 +100,127 @@ void main() {
     return router;
   }
 
+  http.Response json(Object body) => http.Response(
+    jsonEncode(body),
+    200,
+    headers: {'content-type': 'application/json'},
+  );
+
+  /// A server for a device the list does not name.
+  http.Client lockedServer() {
+    final devices = listWithPasskey();
+    return MockClient((request) async {
+      final path = request.url.path;
+      if (path == '/api/server') {
+        return http.Response(
+          jsonEncode({
+            'sealing': {'records': true},
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (path == '/api/sealed/state') {
+        return http.Response(
+          jsonEncode({'devices': devices, 'workspaces': <Object>[]}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (path.startsWith('/api/collections/')) {
+        // One record this device cannot read, which is what such a device
+        // has: it is why the person is here.
+        final items = path.endsWith('/records/records')
+            ? [
+                {
+                  'id': 'record000000001',
+                  'key': 'smtp_password',
+                  'label': 'SMTP password',
+                  'type': 'text',
+                  'format': 'default',
+                  'user': user,
+                  'workspace': 'w1',
+                  'value': '',
+                  'sealed': true,
+                  'sealedValue': 'AQ',
+                  'sealedVersion': 1,
+                  'keyEpoch': 1,
+                  'keyWrap': 'AQ',
+                },
+              ]
+            : <Object>[];
+        return http.Response(
+          jsonEncode({'items': items, 'totalItems': items.length}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{}', 404);
+    });
+  }
+
+  /// A server that keeps what a device sends it, for a device that sets
+  /// encryption up itself. [record] is served once the test has sealed one.
+  http.Client honestServer(Map<String, dynamic>? Function() record) {
+    final devices = <Map<String, dynamic>>[];
+    final epochs = <Map<String, dynamic>>[];
+    final wraps = <Map<String, dynamic>>[];
+    return MockClient((request) async {
+      final path = request.url.path;
+      final body = request.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(request.body) as Map<String, dynamic>;
+      if (path == '/api/server') {
+        return json({
+          'sealing': {'records': true},
+        });
+      }
+      if (path == '/api/sealed/state') {
+        return json({
+          'devices': devices,
+          'workspaces': epochs.isEmpty
+              ? <Object>[]
+              : [
+                  {'workspace': 'w1', 'epochs': epochs, 'wraps': wraps},
+                ],
+        });
+      }
+      if (path == '/api/sealed/devices') {
+        for (final e in body['entries'] as List<dynamic>) {
+          devices.add({...e as Map<String, dynamic>, 'user': user});
+        }
+        for (final w in body['wraps'] as List<dynamic>? ?? const []) {
+          wraps.add(w as Map<String, dynamic>);
+        }
+        return json({'ok': true});
+      }
+      if (path.endsWith('/epochs')) {
+        epochs.add({
+          'epoch': body['epoch'],
+          'priorWrap': body['priorWrap'],
+          'rotationDue': false,
+        });
+        for (final w in body['wraps'] as List<dynamic>) {
+          wraps.add(w as Map<String, dynamic>);
+        }
+        return json({'ok': true});
+      }
+      if (path.startsWith('/api/collections/')) {
+        final sealed = record();
+        final items = path.endsWith('/records/records') && sealed != null
+            ? [sealed]
+            : <Object>[];
+        return json({'items': items, 'totalItems': items.length});
+      }
+      return http.Response('{}', 404);
+    });
+  }
+
   for (final MapEntry(key: name, value: size) in sizes.entries) {
     testWidgets('a locked device is shown the way in, on a $name', (
       tester,
     ) async {
-      final router = await signedIn(tester, size);
+      final router = await signedIn(tester, size, lockedServer());
 
       router.go(AppRoutes.vault);
       await tester.pumpAndSettle();
@@ -174,6 +246,8 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'record');
       expect(find.text('You can’t read this on this device'), findsOneWidget);
       expect(find.text('Add this device'), findsOneWidget);
+      expect(find.text('Who can read this'), findsOneWidget);
+      expect(find.text('Chrome on Mac'), findsOneWidget);
 
       router.go(AppRoutes.settingsPage(SettingsPage.encryption.slug));
       await tester.pumpAndSettle();
@@ -182,5 +256,95 @@ void main() {
       expect(find.text('Sign in with your passkey'), findsOneWidget);
       expect(find.text('Add this device'), findsOneWidget);
     });
+  }
+  for (final MapEntry(key: name, value: size) in sizes.entries) {
+    testWidgets(
+      'a device that holds the key sees where its records open, on a $name',
+      (tester) async {
+        Map<String, dynamic>? sealed;
+        final router = await signedIn(tester, size, honestServer(() => sealed));
+        final keys = Stores.keys;
+        await keys.offerPasskeySignIn(
+          PasskeySignIn(
+            user: user,
+            credentialId: 'cred-1',
+            name: 'Chrome on Linux',
+            secret: Sealing.randomBytes(32),
+            asked: true,
+          ),
+        );
+        await keys.load();
+        keys.beginSetup();
+        final groups = keys.recoveryCode!.split('-');
+        keys.recoveryConfirm.text = groups.sublist(groups.length - 2).join('-');
+        expect(await keys.finishRecovery(workspace: 'w1'), isTrue);
+        expect(keys.status, SealingStatus.ready, reason: keys.errorMessage);
+        final payload = keys.sealValue(
+          workspace: 'w1',
+          record: 'record000000001',
+          recordKey: 'smtp_password',
+          version: 1,
+          value: 'hunter2',
+          label: 'SMTP password',
+        );
+        sealed = {
+          'id': 'record000000001',
+          'key': 'smtp_password',
+          'label': 'SMTP password',
+          'type': 'text',
+          'format': 'default',
+          'user': user,
+          'workspace': 'w1',
+          'value': '',
+          'sealed': true,
+          'sealedValue': payload.sealedValue,
+          'sealedVersion': 1,
+          'keyEpoch': payload.keyEpoch,
+          'keyWrap': payload.keyWrap,
+        };
+
+        router.go(AppRoutes.settingsPage(SettingsPage.encryption.slug));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'encryption settings');
+        expect(find.text('Where your encrypted records open'), findsOneWidget);
+        expect(find.text('Other people in your workspace'), findsOneWidget);
+        expect(find.textContaining('Chrome on Linux'), findsWidgets);
+        expect(find.text('Your passkey isn’t connected yet'), findsNothing);
+
+        router.go(AppRoutes.vault);
+        await tester.pumpAndSettle();
+        await Stores.vault.loadRecords();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'vault');
+        expect(find.text('hunter2'), findsOneWidget);
+
+        router.go(AppRoutes.recordDetailFor('record000000001'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'record');
+        expect(find.text('Who can read this'), findsOneWidget);
+        expect(find.text('This device'), findsOneWidget);
+        expect(find.text('Chrome on Linux'), findsOneWidget);
+
+        // The create sheet says where a new value will be readable before
+        // it is saved.
+        openRecordCreateSheet(
+          context: tester.element(find.byType(Scaffold).first),
+          store: Stores.vault,
+          authStore: Stores.auth,
+        );
+        await tester.pumpAndSettle();
+        Stores.vault.setRecordSealed(true);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'create sheet');
+        final note = find.text('Opens on your devices');
+        await tester.scrollUntilVisible(
+          note,
+          120,
+          scrollable: find.byType(Scrollable).last,
+        );
+        expect(note, findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'create sheet note');
+      },
+    );
   }
 }

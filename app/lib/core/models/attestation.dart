@@ -25,6 +25,9 @@ class Attestation {
   final String? revokedAt;
   final String? created;
 
+  /// The connected tool that proposed it, or empty.
+  final String connection;
+
   const Attestation({
     required this.id,
     required this.type,
@@ -39,6 +42,7 @@ class Attestation {
     this.issuedAt,
     this.revokedAt,
     this.created,
+    this.connection = '',
   });
 
   factory Attestation.fromJson(Map<String, dynamic> json) {
@@ -57,6 +61,7 @@ class Attestation {
       issuedAt: _date(json['issuedAt']),
       revokedAt: _date(json['revokedAt']),
       created: _date(json['created']),
+      connection: json['connection'] as String? ?? '',
     );
   }
 

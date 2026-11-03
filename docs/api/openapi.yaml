@@ -1584,12 +1584,15 @@ paths:
   /api/connection:
     get:
       tags: [Connections]
-      summary: The status of the tool's links
+      summary: The status of what the tool proposed
       description: |
-        The links the tool's proposals became — status, views, expiry. `url`
-        appears only on links the owner handed to the tool, and only while they
-        can be opened. A tool stores nothing here: `ref` and `label` are what it
-        set on the proposal.
+        The links, requests, attestations and attestation checks the tool's
+        proposals became. `url` appears only on links the owner handed to the
+        tool, and only while they can be opened. A request never carries its
+        address or its answers, and an attestation never its claims or offer
+        token. A check carries its verdict once answered, with the claims the
+        other person chose to show. A tool stores nothing here: `ref` and
+        `label` are what it set on the proposal.
       security:
         - Connection: []
       responses:
@@ -1630,6 +1633,64 @@ paths:
                         created: { type: string }
                         handedOver: { type: boolean }
                         url: { type: string, description: "Only when handed over and active." }
+                  requests:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        ref: { type: string }
+                        label: { type: string }
+                        status: { type: string, enum: [active, paused, revoked, expired, completed] }
+                        responseCount: { type: integer }
+                        maxResponses: { type: integer }
+                        expiresAt: { type: string }
+                        created: { type: string }
+                  attestations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        ref: { type: string }
+                        type: { type: string }
+                        label: { type: string }
+                        status: { type: string, enum: [offered, active, revoked] }
+                        subjectName: { type: string }
+                        subjectFingerprint: { type: string }
+                        subjectDomain: { type: string }
+                        expiresAt: { type: string }
+                        issuedAt: { type: string }
+                        created: { type: string }
+                  checks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        ref: { type: string }
+                        type: { type: string }
+                        status: { type: string, enum: [open, answered, expired] }
+                        expiresAt: { type: string }
+                        answeredAt: { type: string }
+                        created: { type: string }
+                        verdict:
+                          type: object
+                          description: Once answered. The same verdict as `POST /api/attestations/verify`, without its reason.
+                          properties:
+                            state: { type: string }
+                            issuer: { type: string }
+                            type: { type: string }
+                            claims: { type: object, additionalProperties: true }
+                            withheld: { type: integer }
+                            status: { type: string }
+                            holder:
+                              type: object
+                              properties:
+                                fingerprint: { type: string }
+                                domain: { type: string }
+                                state: { type: string }
+                                status: { type: string }
         "401":
           description: "`connection_unauthorized`, or `connection_expired` once the connection has lapsed."
         "403":
@@ -1672,6 +1733,55 @@ paths:
           description: "`connection_revoke_not_allowed`, or `connection_paused` while the owner has the tool paused."
         "404":
           description: Not a link of this tool.
+  /api/connection/requests/{id}/close:
+    post:
+      tags: [Connections]
+      summary: Close one of the tool's requests (the tool)
+      description: |
+        Stops a request the tool's proposal became from taking new answers.
+        The answers already given stay their responders' links. Only when the
+        owner allowed it (`allowRevoke`). Closing a closed request succeeds.
+      security:
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The request as the tool may see it, now `revoked`.
+        "401":
+          description: "`connection_unauthorized` or `connection_expired`."
+        "403":
+          description: "`connection_revoke_not_allowed`, or `connection_paused` while the owner has the tool paused."
+        "404":
+          description: Not a request of this tool.
+  /api/connection/attestations/{id}/revoke:
+    post:
+      tags: [Connections]
+      summary: Revoke one of the tool's attestations (the tool)
+      description: |
+        Revokes an attestation the tool proposed and the owner issued, or
+        withdraws its offer. Final: it reaches verifiers through the status
+        list, as when the owner revokes it. Only when the owner allowed it
+        (`allowRevoke`).
+      security:
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The attestation as the tool may see it, now `revoked`.
+        "401":
+          description: "`connection_unauthorized` or `connection_expired`."
+        "403":
+          description: "`connection_revoke_not_allowed`, or `connection_paused` while the owner has the tool paused."
+        "404":
+          description: Not an attestation of this tool.
   /api/connections/{id}/permissions:
     post:
       tags: [Connections]
@@ -2952,6 +3062,8 @@ paths:
                 issuers: { type: array, items: { type: string }, description: Attester domains accepted. }
                 claims: { type: array, items: { type: string }, description: Claims asked for. }
                 identityId: { type: string, description: The asker's identity, shown to the other person. }
+                connection: { type: string, description: "The connected tool whose proposal this check came from: one of the caller's own live connections. Lets the tool see the verdict." }
+                ref: { type: string, description: "The tool's own reference, up to 80 characters." }
       responses:
         "200":
           description: The check, and the query of the link that answers it.

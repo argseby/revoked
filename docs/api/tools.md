@@ -53,6 +53,25 @@ revoked://p?label=Wi-Fi%20for%20guests&keys=network_name,wifi_password&template=
 that includes a hidden record or a file is never handed to a tool, connected
 or not — such a link is copied by the owner.
 
+### Requests, attestations and checks
+
+A tool can propose three more things the same way. Each link opens the
+owner's own form, filled in; the owner completes it and saves. None takes a
+return address or a challenge: connect first (below), and whatever the owner
+saves joins the connection when it names the tool's `client`. Without a live
+connection it is saved all the same, and the tool learns nothing.
+
+| Link | Opens | Parameters |
+|---|---|---|
+| `revoked://pr` | The new-request form | `template` (required, a template name, up to 80), `label` (up to 120), `days` (1–365) |
+| `revoked://attest` | The attestation form | `type` (required), `for` (required, the subject's fingerprint), `claims` (comma-separated names); the tool's name goes in `name` |
+| `revoked://check` | The check form | `type`, `issuers` (comma-separated attester domains, up to 20), `claims` (up to 50) |
+
+All three take `client` and `ref` as a share proposal does; `pr` and
+`check` take `from` for the tool's name. A `ref` without a `client` is
+refused. The owner picks the request's identity, every value an attestation
+states, and to whom a check's code is shown.
+
 ## 2. The connection
 
 A connection is always the owner's decision, made in their app. The tool
@@ -142,8 +161,10 @@ anything else outside these endpoints can be read with it.
 
 | Endpoint | Does |
 |---|---|
-| `GET /api/connection` | The connection and the links its proposals became, newest first: `id`, `ref`, `label`, `status`, `viewCount`, `maxViews`, `expiresAt`, `created`, `handedOver`, and `url` — only on a handed-over, active link while the owner allows `allowHandOver`. |
+| `GET /api/connection` | The connection and what its proposals became, newest first. `links`: `id`, `ref`, `label`, `status`, `viewCount`, `maxViews`, `expiresAt`, `created`, `handedOver`, and `url` — only on a handed-over, active link while the owner allows `allowHandOver`. `requests`: `id`, `ref`, `label`, `status`, `responseCount`, `maxResponses`, `expiresAt`, `created` — never the address or the answers. `attestations`: `id`, `ref`, `type`, `label`, `status`, `subjectName`, `subjectFingerprint`, `subjectDomain`, `expiresAt`, `issuedAt`, `created` — never the claims or the offer token. `checks`: `id`, `ref`, `type`, `status`, `expiresAt`, `answeredAt`, `created`, and once answered a `verdict` with the claims the other person chose to show. |
 | `POST /api/connection/links/{id}/revoke` | Revokes one of those links, where the owner allowed `allowRevoke`. |
+| `POST /api/connection/requests/{id}/close` | Stops one of those requests taking answers, where the owner allowed `allowRevoke`. Answers already given stay their responders' links. |
+| `POST /api/connection/attestations/{id}/revoke` | Revokes one of those attestations, or withdraws its offer, where the owner allowed `allowRevoke`. Final, like any revocation. |
 | `DELETE /api/connection` | Disconnects the tool. The links remain the owner's. |
 
 ```bash
@@ -157,7 +178,8 @@ from the app.
 
 A `403` with `connection_paused` means the owner paused the tool. Keep the
 token: it works again once they activate the tool. Until then the tool can't
-connect another browser either, and the links it proposed are paused. The full
+connect another browser either, and the links and requests it proposed are
+paused. The full
 schemas are in the [Connections reference](reference/connections.md).
 
 ## A minimal tool

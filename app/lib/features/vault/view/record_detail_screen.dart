@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -139,7 +140,10 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           sections: [
             if (record.unsealedElsewhere) _unsealedElsewhereAlert(record),
             _valueSection(record),
-            if (!record.sealed) _sharedIn(context, record),
+            if (record.sealed)
+              _readableBy(record)
+            else
+              _sharedIn(context, record),
             _reminders(context, record),
           ],
           aside: [
@@ -390,6 +394,48 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       title: r.isFile ? 'File' : 'Value',
       trailing: const SizedBox.shrink(),
       children: rows,
+    );
+  }
+
+  /// An encrypted record is read by this person's devices and nothing else, so
+  /// the links section would be empty. This says who those devices are.
+  Widget _readableBy(models.Record r) {
+    final keys = Stores.keys;
+    final chain = keys.chain;
+    final devices = chain.live
+        .where((e) => e.kind == DeviceChainEntry.kindDevice)
+        .toList();
+    return AppListGroup(
+      title: 'Who can read this',
+      trailing: const SizedBox.shrink(),
+      footer: const Text(
+        'Not your server, not links, not other people in your workspace.',
+      ).muted.small,
+      children: chain.entries.isEmpty
+          ? [
+              const AppListRow(
+                icon: AppIcons.lock,
+                title: 'Your devices',
+                subtitle: 'Add this device to see which.',
+                showChevron: false,
+              ),
+            ]
+          : [
+              for (final d in devices)
+                AppListRow(
+                  icon: AppIcons.shieldLock,
+                  title: d.seq == keys.thisDeviceSeq ? 'This device' : d.label,
+                  subtitle: d.seq == keys.thisDeviceSeq ? d.label : null,
+                  showChevron: false,
+                ),
+              for (final p in chain.livePasskeys)
+                AppListRow(
+                  icon: AppIcons.key,
+                  title: p.label,
+                  subtitle: 'Passkey · any device you sign in to with it',
+                  showChevron: false,
+                ),
+            ],
     );
   }
 

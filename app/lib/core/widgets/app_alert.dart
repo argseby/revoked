@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 
+/// How an [AppAlert] reads. Colour is never the only signal: a toned alert
+/// carries its own icon and words.
+enum AppAlertTone { neutral, success, warning, danger }
+
 /// Inline alert banner. Replaces shadcn's `Alert` (Material has no inline
 /// alert widget). Renders an optional leading icon, a title and content using
-/// M3 container color roles. `destructive: true` switches to the error palette.
+/// M3 container color roles. `destructive: true` is [AppAlertTone.danger].
 class AppAlert extends StatelessWidget {
   final Widget? leading;
   final Widget? title;
   final Widget? content;
   final bool destructive;
+  final AppAlertTone tone;
 
   const AppAlert({
     super.key,
@@ -17,20 +23,35 @@ class AppAlert extends StatelessWidget {
     this.title,
     this.content,
     this.destructive = false,
+    this.tone = AppAlertTone.neutral,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final bg = destructive
-        ? scheme.errorContainer.withValues(alpha: 0.75)
-        : scheme.surfaceContainerHighest;
-    final fg = destructive
-        ? scheme.onErrorContainer.withValues(alpha: 0.8)
-        : scheme.onSurface;
-    final border = destructive
-        ? scheme.error.withValues(alpha: 0.4)
-        : scheme.outlineVariant;
+    final effective = destructive ? AppAlertTone.danger : tone;
+    final (bg, fg, border) = switch (effective) {
+      AppAlertTone.neutral => (
+        scheme.surfaceContainerHighest,
+        scheme.onSurface,
+        scheme.outlineVariant,
+      ),
+      AppAlertTone.danger => (
+        scheme.errorContainer.withValues(alpha: 0.75),
+        scheme.onErrorContainer.withValues(alpha: 0.8),
+        scheme.error.withValues(alpha: 0.4),
+      ),
+      AppAlertTone.success => (
+        scheme.successContainer,
+        scheme.success,
+        scheme.success.withValues(alpha: 0.4),
+      ),
+      AppAlertTone.warning => (
+        scheme.warningContainer,
+        scheme.warning,
+        scheme.warning.withValues(alpha: 0.4),
+      ),
+    };
 
     return Container(
       width: double.infinity,

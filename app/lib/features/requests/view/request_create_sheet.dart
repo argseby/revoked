@@ -10,6 +10,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/request.dart';
+import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -30,6 +31,7 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
+import 'package:revoked_app/core/widgets/tool_proposal_alert.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 
@@ -45,6 +47,7 @@ void openRequestCreateSheet({
   required RequestsStore store,
   required AuthStore authStore,
   DataRequest? editRequest,
+  RequestProposal? proposal,
 }) {
   showAppSheet(
     context: context,
@@ -53,6 +56,7 @@ void openRequestCreateSheet({
       store: store,
       authStore: authStore,
       editRequest: editRequest,
+      proposal: proposal,
     ),
   );
 }
@@ -69,12 +73,14 @@ class _RequestCreateForm extends StatefulWidget {
   final RequestsStore store;
   final AuthStore authStore;
   final DataRequest? editRequest;
+  final RequestProposal? proposal;
 
   const _RequestCreateForm({
     required this.parentContext,
     required this.store,
     required this.authStore,
     this.editRequest,
+    this.proposal,
   });
 
   @override
@@ -105,12 +111,36 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
             : null,
       );
     } else {
-      _store.startRequestDraft(slug: _randomSlug(6));
+      final proposal = widget.proposal;
+      final days = proposal?.days;
+      _store.startRequestDraft(
+        slug: _randomSlug(6),
+        label: proposal?.label ?? '',
+        expiresAt: days == null
+            ? null
+            : DateTime.now().add(Duration(days: days)),
+        proposal: proposal,
+      );
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       Stores.identities.loadIdentities();
-      Stores.templates.loadTemplates(widget.authStore.activeWorkspace ?? '');
+      await Stores.templates.loadTemplates(
+        widget.authStore.activeWorkspace ?? '',
+      );
+      _applyProposedTemplate();
     });
+  }
+
+  /// A tool names its template; the owner's own copy of it is found by name.
+  void _applyProposedTemplate() {
+    final name = widget.proposal?.template.toLowerCase();
+    if (name == null || !mounted || _store.draftTemplateId != null) return;
+    for (final t in Stores.templates.templates) {
+      if (t.name.toLowerCase() == name) {
+        _store.setDraftTemplate(t.id);
+        return;
+      }
+    }
   }
 
   String _randomSlug(int length) {
@@ -296,6 +326,11 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                   'Send a form and collect the answers. People sign in to '
                   'respond.',
                 ).muted.small,
+                if (widget.proposal case final p?
+                    when !p.proposer.isEmpty && widget.editRequest == null) ...[
+                  AppSpacing.gapSm,
+                  ToolProposalAlert(proposer: p.proposer),
+                ],
               ],
             ),
           ),

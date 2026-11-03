@@ -1,5 +1,7 @@
 import 'package:revoked_app/core/models/attestation_ask.dart';
+import 'package:revoked_app/core/models/check_proposal.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
+import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/models/share_proposal.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
@@ -155,6 +157,22 @@ class DeepLinks {
       return Uri(
         path: '/attestations',
         queryParameters: ask.toQuery(),
+      ).toString();
+    }
+    if (uri.scheme == scheme && uri.host == 'pr') {
+      final proposal = RequestProposal.fromQuery(uri.queryParameters);
+      if (proposal == null) return null;
+      return Uri(
+        path: '/requests',
+        queryParameters: {...proposal.toQuery(), 'propose': '1'},
+      ).toString();
+    }
+    if (uri.scheme == scheme && uri.host == 'check') {
+      final proposal = CheckProposal.fromQuery(uri.queryParameters);
+      if (proposal == null) return null;
+      return Uri(
+        path: '/attestations',
+        queryParameters: {...proposal.toQuery(), 'check': '1'},
       ).toString();
     }
     if (uri.scheme == scheme && (uri.host == 'p' || uri.host == 'propose')) {

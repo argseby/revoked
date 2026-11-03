@@ -3,7 +3,16 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
-enum AppBadgeVariant { outline, secondary, primary, destructive, sunken }
+/// [experimental] marks a feature still settling: a smaller, spaced-out pill
+/// in the brand tint, so it reads as a tag on the label, not a status.
+enum AppBadgeVariant {
+  outline,
+  secondary,
+  primary,
+  destructive,
+  sunken,
+  experimental,
+}
 
 /// The app's only tag. Every scrap of secondary information — a status, a
 /// view count, a type, a scope, a security flag — renders as one of these, so
@@ -34,6 +43,10 @@ class AppBadge extends StatelessWidget {
     this.mono = false,
   });
 
+  /// Uppercase and spaced out, a tag can sit under the small size and still
+  /// read; at the small size it would look like a second word of the label.
+  static const double _tagFontSize = 10;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -62,8 +75,12 @@ class AppBadge extends StatelessWidget {
         case AppBadgeVariant.sunken:
           bg = scheme.surfaceContainerHighest;
           fg = scheme.onSurfaceVariant;
+        case AppBadgeVariant.experimental:
+          bg = scheme.primaryContainer;
+          fg = scheme.onPrimaryContainer;
       }
     }
+    final tag = variant == AppBadgeVariant.experimental && accent == null;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -72,7 +89,7 @@ class AppBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: AppRadius.allMd,
+        borderRadius: tag ? AppRadius.allPill : AppRadius.allMd,
         border: border == null ? null : Border.all(color: border),
       ),
       child: Row(
@@ -84,12 +101,13 @@ class AppBadge extends StatelessWidget {
           ],
           Flexible(
             child: Text(
-              label,
+              tag ? label.toUpperCase() : label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: fg,
-                fontSize: AppTextSize.small,
+                fontSize: tag ? _tagFontSize : AppTextSize.small,
+                letterSpacing: tag ? 1 : null,
                 fontWeight: FontWeight.w500,
                 fontFamily: mono ? 'monospace' : null,
               ),

@@ -16,6 +16,9 @@ class AttestationCheck {
   final String? created;
   final CheckResult? result;
 
+  /// The connected tool that proposed it, or empty.
+  final String connection;
+
   const AttestationCheck({
     required this.id,
     required this.type,
@@ -26,6 +29,7 @@ class AttestationCheck {
     this.answeredAt,
     this.created,
     this.result,
+    this.connection = '',
   });
 
   factory AttestationCheck.fromJson(Map<String, dynamic> json) {
@@ -45,6 +49,7 @@ class AttestationCheck {
       result: result is Map<String, dynamic>
           ? CheckResult.fromJson(result)
           : null,
+      connection: json['connection'] as String? ?? '',
     );
   }
 

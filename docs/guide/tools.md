@@ -38,13 +38,37 @@ with exactly those. If any part of a proposal is broken, the whole thing is
 refused (*This link doesn't work*). The app never guesses what the tool
 meant.
 
+## Let a tool suggest a request or an attestation
+
+A tool can fill in more than shares for you. It can suggest:
+
+- a **request**, to collect answers from other people with one of your
+  templates. The app opens **New request** with the template, the title and
+  the end date filled in.
+- an **attestation**, to confirm something about someone in your domain's
+  name. The app opens **Confirm something about someone** with the kind and
+  the details to fill in. You set every value.
+- a **check**, to ask someone to show you an attestation. The app opens
+  **See someone's attestation** with what to ask for.
+
+Each form says **Proposed by …** at the top, with the tool's web address
+next to the name it gave itself. Check everything before you save. Nothing
+happens until you do.
+
+If you connected the tool, it can then follow what you saved: whether a
+request is still open and how many people answered, whether an attestation
+was accepted, and the result of a check, with what the person chose to
+show. It never sees the answers to a request or the values in an
+attestation.
+
 ## Connect a tool
 
 Once you confirm a proposal, the tool learns nothing more on its own. For
 that, you **Connect** it: as a step before the review, or separately, for
 example from the tool's settings. A connected tool can see what became of
 the links it proposed: active, paused, revoked or expired, and how often
-they were opened. It never sees what they contain, or anything else in
+they were opened. It can follow the requests, attestations and checks it
+suggested the same way. It never sees what they contain, or anything else in
 your vault.
 
 Two more permissions are your choice, per tool. Each one shows the reason
@@ -52,7 +76,7 @@ the tool gave for asking:
 
 | Permission | What it allows |
 |---|---|
-| **Revoke links it proposed** | The tool can end a link that came from its own proposal, for example when you delete the printed card it belongs to. It can end shares this way, but never create or read them. You're notified like for any other revocation. |
+| **End what it proposed** | The tool can end what came from its own proposals: revoke a link, for example when you delete the printed card it belongs to, close a request, or revoke an attestation. It can never create or read them. You're notified like for any other revocation. |
 | **Receive the links it proposed** | The finished link goes straight to the tool, so you don't have to copy it over. Links with a hidden record or a file are never handed over: copy those yourself. |
 
 ### Confirm on another device
@@ -70,20 +94,22 @@ one. It gets the same permissions as before, nothing more.
 ## Manage your connected tools
 
 **Settings → Connected tools** lists every tool: when you connected it,
-when it was last used, when the connection ends, and the links it
-proposed. There you can change its two permissions, or open or revoke each
-of its links.
+when it was last used, when the connection ends, and everything it
+proposed: its links, requests, attestations and checks. There you can
+change its two permissions, or open or revoke each of its links. Tap a
+request, an attestation or a check to open it where it lives.
 
 ### Take a break from a tool
 
-Not sure you still want it? Tap **Pause**. The tool can't do anything, and
-its links stop opening too. Tap **Activate** when you want it back, and
+Not sure you still want it? Tap **Pause**. The tool can't do anything, its
+links stop opening, and its requests stop taking answers. Tap **Activate** when you want it back, and
 everything works as before. Any link you paused yourself stays paused.
 
 ### Cut a tool off for good
 
-Tap **Disconnect** and the tool is cut off at once. Its links stay yours and
-keep working, unless you also tick **Revoke its links too**.
+Tap **Disconnect** and the tool is cut off at once. Its links and requests
+stay yours and keep working, unless you also tick **Revoke its links too**,
+which closes its requests as well. Attestations you issued stay as they are.
 
 A connection lasts **90 days** from the last time you confirmed it in the
 app. Only confirming it there again renews it; a tool can't keep itself

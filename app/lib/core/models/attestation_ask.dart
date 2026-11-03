@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/tool_client.dart';
+
 /// Someone asking for an attestation about one of their identities: which
 /// kind, which claims, and the identity it should be bound to.
 ///
@@ -5,6 +7,9 @@
 /// in the attester's form. Everything in it is the asker's wish, not a fact:
 /// the attester still decides every value, and the fingerprint only means the
 /// offer can be accepted by that identity alone.
+///
+/// A tool may send it on someone's behalf (`client`, `ref`); once the owner
+/// makes the offer, a tool they connected can follow it.
 class AttestationAsk {
   final String type;
   final List<String> claims;
@@ -13,11 +18,15 @@ class AttestationAsk {
   /// What the asker calls themselves. Unverified, so it only ever labels.
   final String name;
 
+  /// The tool that sent the ask, when one did. Its name is [name].
+  final ToolProposer proposer;
+
   const AttestationAsk({
     required this.type,
     required this.claims,
     required this.fingerprint,
     this.name = '',
+    this.proposer = ToolProposer.none,
   });
 
   static final _type = RegExp(r'^[\x21-\x7e]{1,255}$');
@@ -43,11 +52,16 @@ class AttestationAsk {
     }
     if (claims.length > 50 || !claims.every(_claim.hasMatch)) return null;
     final name = (q['name'] ?? '').trim();
+    final proposer = ToolProposer.fromQuery(q, nameKey: 'name');
+    final namesTool =
+        (q['client'] ?? '').isNotEmpty || (q['ref'] ?? '').isNotEmpty;
+    if (proposer == null && namesTool) return null;
     return AttestationAsk(
       type: type,
       claims: claims,
       fingerprint: fingerprint,
       name: name.length > 100 ? name.substring(0, 100) : name,
+      proposer: proposer ?? ToolProposer.none,
     );
   }
 
@@ -56,6 +70,8 @@ class AttestationAsk {
     if (claims.isNotEmpty) 'claims': claims.join(','),
     'for': fingerprint,
     if (name.isNotEmpty) 'name': name,
+    if (!proposer.isEmpty) 'client': proposer.client,
+    if (proposer.ref.isNotEmpty) 'ref': proposer.ref,
   };
 
   String get link => Uri(

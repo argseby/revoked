@@ -77,10 +77,14 @@ class ToolPermissions extends StatelessWidget {
           title: '$name can',
           trailing: quiet,
           children: [
-            row(AppIcons.check, 'Propose links for you to confirm'),
             row(
               AppIcons.check,
-              'See the status, views and expiry of links it proposed',
+              'Propose links, requests and attestations for you to confirm',
+            ),
+            row(
+              AppIcons.check,
+              'See how what it proposed is going, and what people showed '
+              'for its checks',
             ),
           ],
         ),
@@ -90,8 +94,10 @@ class ToolPermissions extends StatelessWidget {
           children: [
             choice(
               AppCheckRow(
-                label: 'Revoke links it proposed',
-                subtitle: 'It can’t create links or see what they contain.',
+                label: 'End what it proposed',
+                subtitle:
+                    'Revoke its links and attestations, and close its '
+                    'requests. It can’t create them or see what they contain.',
                 note: _reason(reasons.revoke),
                 value: allowRevoke,
                 onChanged: onAllowRevoke,

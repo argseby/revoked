@@ -105,6 +105,23 @@ func FetchRemoteGrants(domain string, items []GrantReadItem) ([]GrantReadResult,
 	return out.Items, nil
 }
 
+// updateRemoteGrant changes a grant's row from what it holds now. Saving writes
+// every column, and an event for a re-answer is sent before that answer lands,
+// so saving a copy read earlier would put back the token and keys the answer
+// just replaced and cut the requester off. change returns false to leave it.
+func updateRemoteGrant(app core.App, id string, change func(*core.Record) bool) error {
+	return app.RunInTransaction(func(tx core.App) error {
+		current, err := tx.FindRecordById(util.Coll.RemoteGrants, id)
+		if err != nil {
+			return err
+		}
+		if !change(current) {
+			return nil
+		}
+		return tx.Save(current)
+	})
+}
+
 // ResolveRemoteGrants reads remote grants for the requester, keyed by
 // remoteGrants id. Grants on the same server are read in batches, values kept
 // within their maxAge are reused without asking, and a kept value past its
@@ -174,8 +191,11 @@ func ResolveRemoteGrants(app core.App, grants []*core.Record) map[string]RemoteR
 				// statusAt is left alone: it orders events in the responder's
 				// server's clock, which this server's clock cannot stand in for.
 				if status != p.rec.GetString(f.Status) && slices.Contains(util.LinkStatuses, status) {
-					p.rec.Set(f.Status, status)
-					if err := app.Save(p.rec); err != nil {
+					err := updateRemoteGrant(app, p.rec.Id, func(current *core.Record) bool {
+						current.Set(f.Status, status)
+						return true
+					})
+					if err != nil {
 						app.Logger().Error("Failed to update remote grant status", "error", err, "grant", p.rec.Id)
 					}
 				}
@@ -203,14 +223,23 @@ func ApplyGrantEvents(app core.App, sender string, events []server.GrantEvent) i
 			continue
 		}
 		ForgetRemoteGrant(sender, ev.Grant)
-		if ev.At < int64(rec.GetInt(f.StatusAt)) {
+		previous, fresh := "", false
+		err = updateRemoteGrant(app, rec.Id, func(current *core.Record) bool {
+			rec = current
+			if ev.At < int64(current.GetInt(f.StatusAt)) {
+				return false
+			}
+			previous = current.GetString(f.Status)
+			current.Set(f.Status, ev.Status)
+			current.Set(f.StatusAt, ev.At)
+			fresh = true
+			return true
+		})
+		if err != nil {
+			app.Logger().Error("Failed to apply grant event", "error", err, "grant", rec.Id)
 			continue
 		}
-		previous := rec.GetString(f.Status)
-		rec.Set(f.Status, ev.Status)
-		rec.Set(f.StatusAt, ev.At)
-		if err := app.Save(rec); err != nil {
-			app.Logger().Error("Failed to apply grant event", "error", err, "grant", rec.Id)
+		if !fresh {
 			continue
 		}
 		applied++

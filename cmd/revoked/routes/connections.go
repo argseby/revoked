@@ -338,6 +338,18 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			for _, l := range links {
 				out = append(out, connectionLinkView(conn, l, root.Domain()))
 			}
+			requests, err := connectionRows(app, util.Coll.Requests, conn.Id, connectionRequestView)
+			if err != nil {
+				return re.InternalServerError("Failed to list requests", err)
+			}
+			attestations, err := connectionRows(app, util.Coll.Attestations, conn.Id, connectionAttestationView)
+			if err != nil {
+				return re.InternalServerError("Failed to list attestations", err)
+			}
+			checks, err := connectionRows(app, util.Coll.AttestationChecks, conn.Id, connectionCheckView)
+			if err != nil {
+				return re.InternalServerError("Failed to list checks", err)
+			}
 			return re.JSON(http.StatusOK, map[string]any{
 				"id":            conn.Id,
 				"clientId":      conn.GetString(util.Fields.Connection.ClientId),
@@ -346,6 +358,9 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				"allowRevoke":   conn.GetBool(util.Fields.Connection.AllowRevoke),
 				"allowHandOver": conn.GetBool(util.Fields.Connection.AllowHandOver),
 				"links":         out,
+				"requests":      requests,
+				"attestations":  attestations,
+				"checks":        checks,
 			})
 		})
 
@@ -372,6 +387,59 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				auditConnection(app, re, conn, auditToolRevokedLink, map[string]any{"link": link.Id})
 			}
 			return re.JSON(http.StatusOK, connectionLinkView(conn, link, root.Domain()))
+		})
+
+		// Closing a request stops new answers; the answers already given stay
+		// their responders' grants.
+		e.Router.POST("/api/connection/requests/{id}/close", func(re *core.RequestEvent) error {
+			conn, _, ok := connectionFromRequest(app, re)
+			if !ok {
+				return nil
+			}
+			if !conn.GetBool(util.Fields.Connection.AllowRevoke) {
+				return appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionRevokeNotAllowed)
+			}
+			f := util.Fields.Request
+			request, err := app.FindRecordById(util.Coll.Requests, re.Request.PathValue("id"))
+			if err != nil || request == nil || request.GetString(f.Connection) != conn.Id {
+				return re.NotFoundError("Request not found", nil)
+			}
+			if request.GetString(f.Status) != util.StatusRevoked {
+				request.Set(f.Status, util.StatusRevoked)
+				request.Set(f.HeldPaused, false)
+				if err := app.Save(request); err != nil {
+					return re.InternalServerError("Failed to close the request", err)
+				}
+				auditConnection(app, re, conn, auditToolClosedRequest, map[string]any{"request": request.Id})
+			}
+			return re.JSON(http.StatusOK, connectionRequestView(request))
+		})
+
+		// Revoking an attestation is final and reaches every verifier through
+		// the status list, exactly as when the owner revokes it.
+		e.Router.POST("/api/connection/attestations/{id}/revoke", func(re *core.RequestEvent) error {
+			conn, _, ok := connectionFromRequest(app, re)
+			if !ok {
+				return nil
+			}
+			if !conn.GetBool(util.Fields.Connection.AllowRevoke) {
+				return appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionRevokeNotAllowed)
+			}
+			f := util.Fields.Attestation
+			attestation, err := app.FindRecordById(util.Coll.Attestations, re.Request.PathValue("id"))
+			if err != nil || attestation == nil || attestation.GetString(f.Connection) != conn.Id {
+				return re.NotFoundError("Attestation not found", nil)
+			}
+			if attestation.GetString(f.Status) != util.StatusRevoked {
+				attestation.Set(f.Status, util.StatusRevoked)
+				attestation.Set(f.RevokedAt, types.NowDateTime())
+				attestation.Set(f.RevokedReason, util.RevocationManual)
+				if err := app.Save(attestation); err != nil {
+					return re.InternalServerError("Failed to revoke the attestation", err)
+				}
+				auditConnection(app, re, conn, auditToolRevokedAttestation, map[string]any{"attestation": attestation.Id})
+			}
+			return re.JSON(http.StatusOK, connectionAttestationView(attestation))
 		})
 
 		e.Router.POST("/api/connections/{id}/permissions", func(re *core.RequestEvent) error {
@@ -541,12 +609,14 @@ func connectionFromRequest(app core.App, re *core.RequestEvent) (conn *core.Reco
 // names it. An app older than the disconnect route still deletes through the
 // collection API, which records it as a delete.
 const (
-	auditToolAuthorized   = "tool_authorized"    // the owner connected or renewed it
-	auditToolBrowserAdded = "tool_browser_added" // the app let another browser in, the connection as it was
-	auditToolConnected    = "tool_connected"     // a browser exchanged its code
-	auditToolRead         = "tool_read"          // it read where its links stand
-	auditToolRevokedLink  = "tool_revoked_link"  // it revoked one of its links
-	auditToolDisconnected = "tool_disconnected"  // it disconnected itself
+	auditToolAuthorized         = "tool_authorized"          // the owner connected or renewed it
+	auditToolBrowserAdded       = "tool_browser_added"       // the app let another browser in, the connection as it was
+	auditToolConnected          = "tool_connected"           // a browser exchanged its code
+	auditToolRead               = "tool_read"                // it read where its links stand
+	auditToolRevokedLink        = "tool_revoked_link"        // it revoked one of its links
+	auditToolClosedRequest      = "tool_closed_request"      // it closed one of its requests
+	auditToolRevokedAttestation = "tool_revoked_attestation" // it revoked one of its attestations
+	auditToolDisconnected       = "tool_disconnected"        // it disconnected itself
 
 	auditToolPermissionChanged = "tool_permission_changed" // the owner changed what it may do
 	auditToolPaused            = "tool_paused"             // the owner paused it
@@ -642,4 +712,92 @@ func publicLinkURL(domain, slug string) string {
 		scheme = "http://"
 	}
 	return scheme + domain + "/s/" + slug
+}
+
+// connectionRows lists what a connection's proposals became in one
+// collection, newest first.
+func connectionRows(app core.App, coll, connID string, view func(*core.Record) map[string]any) ([]map[string]any, error) {
+	rows, err := app.FindRecordsByFilter(coll, "connection = {:conn}", "-created", 500, 0, dbx.Params{"conn": connID})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, view(r))
+	}
+	return out, nil
+}
+
+// connectionRequestView is where a request stands — never its slug, which
+// would let the tool answer it, nor the answers.
+func connectionRequestView(r *core.Record) map[string]any {
+	f := util.Fields.Request
+	status := r.GetString(f.Status)
+	expires := r.GetDateTime(f.ExpiresAt)
+	if status == util.StatusActive && !expires.IsZero() && expires.Time().Before(time.Now()) {
+		status = util.StatusExpired
+	}
+	return map[string]any{
+		"id":            r.Id,
+		"ref":           r.GetString(f.Ref),
+		"label":         r.GetString(f.Label),
+		"status":        status,
+		"responseCount": r.GetInt(f.ResponseCount),
+		"maxResponses":  r.GetInt(f.MaxResponses),
+		"expiresAt":     r.GetString(f.ExpiresAt),
+		"created":       r.GetString(f.Created),
+	}
+}
+
+// connectionAttestationView leaves out the claims and the offer token: the
+// values are the owner's statement, and the token would let the tool accept
+// the offer itself.
+func connectionAttestationView(r *core.Record) map[string]any {
+	f := util.Fields.Attestation
+	return map[string]any{
+		"id":                 r.Id,
+		"ref":                r.GetString(f.Ref),
+		"type":               r.GetString(f.Type),
+		"label":              r.GetString(f.Label),
+		"status":             r.GetString(f.Status),
+		"subjectName":        r.GetString(f.SubjectName),
+		"subjectFingerprint": r.GetString(f.SubjectFingerprint),
+		"subjectDomain":      r.GetString(f.SubjectDomain),
+		"expiresAt":          r.GetString(f.ExpiresAt),
+		"issuedAt":           r.GetString(f.IssuedAt),
+		"created":            r.GetString(f.Created),
+	}
+}
+
+// connectionCheckView is a check and, once answered, its verdict with the
+// claims the other person chose to show — never the nonce or the
+// presentation.
+func connectionCheckView(r *core.Record) map[string]any {
+	f := util.Fields.AttestationCheck
+	status := r.GetString(f.Status)
+	if status == util.CheckStatusOpen && !r.GetDateTime(f.ExpiresAt).Time().After(time.Now()) {
+		status = util.StatusExpired
+	}
+	view := map[string]any{
+		"id":         r.Id,
+		"ref":        r.GetString(f.Ref),
+		"type":       r.GetString(f.Type),
+		"status":     status,
+		"expiresAt":  r.GetString(f.ExpiresAt),
+		"answeredAt": r.GetString(f.AnsweredAt),
+		"created":    r.GetString(f.Created),
+	}
+	var verdict services.AttestationVerdict
+	if raw := r.GetString(f.Result); raw != "" && json.Unmarshal([]byte(raw), &verdict) == nil {
+		view["verdict"] = map[string]any{
+			"state":    verdict.State,
+			"issuer":   verdict.Issuer,
+			"type":     verdict.Type,
+			"claims":   verdict.Claims,
+			"withheld": verdict.Withheld,
+			"status":   verdict.Status,
+			"holder":   verdict.Holder,
+		}
+	}
+	return view
 }

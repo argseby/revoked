@@ -2,6 +2,7 @@ package tests
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +12,12 @@ import (
 	"time"
 
 	"revoked/cmd/revoked/server"
+	"revoked/cmd/revoked/services"
 	"revoked/tests/testutils"
 	"revoked/util"
+
+	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 // The suite runs one server, so it plays both sides: the requester's server
@@ -167,6 +172,53 @@ func (f remoteFixture) responderLink(t *testing.T, linkID string) map[string]any
 	t.Helper()
 	return f.api.Get(util.Coll.Links, linkID, f.responderToken).
 		Expect().Status(http.StatusOK).JSON().Object().Raw()
+}
+
+// An event about a re-answer is sent before that answer lands, so the two meet
+// on the requester's row. An event that saved the copy it read earlier put the
+// old token and keys back, and the requester could never read the answer.
+func TestGrantEventKeepsTheTokenOfAnAnswerLandingAtTheSameTime(t *testing.T) {
+	f := newRemoteFixture(t, nil)
+	_, app := testutils.SetupTestApp(t)
+	resp := f.answer(map[string]any{
+		"senderName": "Ada",
+		"data":       map[string]any{"email": "ada@example.com"},
+	})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("relay refused: %d %v", resp.StatusCode, decode(t, resp))
+	}
+	linkID := decode(t, resp)["linkId"].(string)
+
+	g := util.Fields.RemoteGrant
+	load := func() *core.Record {
+		rec, err := app.FindFirstRecordByFilter(util.Coll.RemoteGrants,
+			g.Domain+" = {:d} && "+g.Grant+" = {:g}", dbx.Params{"d": testDomain, "g": linkID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return rec
+	}
+	for i := range 300 {
+		token := fmt.Sprintf("token-%d", i)
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			services.ApplyGrantEvents(app, testDomain, []server.GrantEvent{{
+				Grant: linkID, Type: util.GrantEventChanged, Status: util.StatusActive,
+				At: time.Now().UnixMilli(),
+			}})
+		})
+		wg.Go(func() {
+			rec := load()
+			rec.Set(g.Token, token)
+			if err := app.Save(rec); err != nil {
+				t.Error(err)
+			}
+		})
+		wg.Wait()
+		if got := load().GetString(g.Token); got != token {
+			t.Fatalf("round %d: the answer's token was overwritten with %q", i, got)
+		}
+	}
 }
 
 func TestRemoteAnswerLivesOnTheRespondersServer(t *testing.T) {

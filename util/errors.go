@@ -117,6 +117,7 @@ var Errors = struct {
 	ConnectionPaused              AppError
 	LinkHandOverNotAllowed        AppError
 	LinkConnectionForeign         AppError
+	ConnectionForeign             AppError
 	PasskeyOriginInvalid          AppError
 	PasskeyRequestInvalid         AppError
 	PasskeyEmailInvalid           AppError
@@ -569,6 +570,10 @@ var Errors = struct {
 	LinkConnectionForeign: AppError{
 		ErrorCode: "link_connection_foreign",
 		ErrorText: "A link can only name one of your own connections, and keeps the one it was created with.",
+	},
+	ConnectionForeign: AppError{
+		ErrorCode: "connection_foreign",
+		ErrorText: "You can only pick one of your own connected tools, and it can’t change later.",
 	},
 	PasskeyOriginInvalid: AppError{
 		ErrorCode: "passkey_origin_invalid",

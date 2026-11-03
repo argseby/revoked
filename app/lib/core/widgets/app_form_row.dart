@@ -4,6 +4,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/widgets/app_animated_size.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -108,6 +109,9 @@ class AppFormToggleRow extends StatelessWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
 
+  /// A short tag after the label, such as "Alpha" on a feature still settling.
+  final String? badge;
+
   /// Aligns the row with a create drawer's other rows. Off when the toggle
   /// sits inside a container that already provides the padding.
   final bool inset;
@@ -119,6 +123,7 @@ class AppFormToggleRow extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.icon,
+    this.badge,
     this.inset = true,
   });
 
@@ -130,7 +135,15 @@ class AppFormToggleRow extends StatelessWidget {
           ? const EdgeInsets.symmetric(horizontal: AppSpacing.xl)
           : EdgeInsets.zero,
       leading: icon == null ? null : Icon(icon, color: scheme.onSurfaceVariant),
-      title: Text(label),
+      title: badge == null
+          ? Text(label)
+          : Row(
+              children: [
+                Flexible(child: Text(label)),
+                AppSpacing.gapSm,
+                AppBadge(label: badge!, variant: AppBadgeVariant.experimental),
+              ],
+            ),
       subtitle: Text(subtitle).muted.small,
       trailing: AppSwitch(value: value, onChanged: onChanged),
       onTap: onChanged == null ? null : () => onChanged!(!value),

@@ -4,10 +4,13 @@ import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
+import 'package:revoked_app/core/models/check_proposal.dart';
+import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/core/stores.dart';
 
 part 'attestation_checks_store.g.dart';
 
@@ -105,12 +108,18 @@ abstract class _AttestationChecksStore with Store {
 
   Timer? _poll;
 
+  /// The tool that proposed the check being made, when one did.
+  @observable
+  ToolProposer proposer = ToolProposer.none;
+
+  /// Starts the form empty, or filled in from a tool's [proposal].
   @action
-  void resetForm() {
+  void resetForm({CheckProposal? proposal}) {
     _stopWaiting();
-    typeController.clear();
-    issuersController.clear();
-    claimsController.clear();
+    typeController.text = proposal?.type ?? '';
+    issuersController.text = proposal?.issuers.join(', ') ?? '';
+    claimsController.text = proposal?.claims.join(', ') ?? '';
+    proposer = proposal?.proposer ?? ToolProposer.none;
     isCreating = false;
     createError = null;
     pending = null;
@@ -142,6 +151,9 @@ abstract class _AttestationChecksStore with Store {
     isCreating = true;
     createError = null;
     try {
+      final connection = await Stores.connections.liveConnectionIdFor(
+        proposer.client,
+      );
       final data = await _api.post(
         '/api/attestation-checks',
         body: {
@@ -149,6 +161,9 @@ abstract class _AttestationChecksStore with Store {
           'issuers': _split(issuersController.text.toLowerCase()),
           'claims': _split(claimsController.text),
           'identityId': ?identityId,
+          if (connection.isNotEmpty) 'connection': connection,
+          if (connection.isNotEmpty && proposer.ref.isNotEmpty)
+            'ref': proposer.ref,
         },
       );
       final map = data as Map<String, dynamic>;

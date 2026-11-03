@@ -178,3 +178,61 @@ class ConnectRequest {
     return s.length > maxName ? null : s;
   }
 }
+
+/// The tool a request, attestation or check was proposed by: its origin, the
+/// name it gives itself (a claim, shown as one) and its own reference for
+/// what it proposed. Empty when the link names no tool.
+///
+/// Once the owner creates the proposal, a tool they connected can follow it.
+/// Without a connection the tool learns nothing.
+class ToolProposer {
+  final String client;
+  final String name;
+  final String ref;
+
+  const ToolProposer({this.client = '', this.name = '', this.ref = ''});
+
+  static const none = ToolProposer();
+  static const maxName = 40;
+  static const maxRef = 80;
+
+  bool get isEmpty => client.isEmpty;
+
+  /// The host a person recognises the tool by.
+  String get host => client.isEmpty ? '' : Uri.parse(client).host;
+
+  /// What to call the tool: the name it gives itself, or its host.
+  String get label => name.isEmpty ? host : name;
+
+  /// Reads the tool from a link's query, its name from [nameKey]. Null when
+  /// any part is invalid; [none] when the link names no tool.
+  static ToolProposer? fromQuery(
+    Map<String, String> query, {
+    String nameKey = 'from',
+  }) {
+    final name = _line(query[nameKey], maxName);
+    final ref = _line(query['ref'], maxRef);
+    if (name == null || ref == null) return null;
+    final raw = query['client'] ?? '';
+    if (raw.isEmpty) {
+      return ref.isEmpty ? ToolProposer(name: name) : null;
+    }
+    final client = ToolClient.origin(raw);
+    if (client == null) return null;
+    return ToolProposer(client: client, name: name, ref: ref);
+  }
+
+  Map<String, String> toQuery({String nameKey = 'from'}) => {
+    if (name.isNotEmpty) nameKey: name,
+    if (client.isNotEmpty) 'client': client,
+    if (ref.isNotEmpty) 'ref': ref,
+  };
+
+  static String? _line(String? raw, int max) {
+    final s = (raw ?? '')
+        .replaceAll(RegExp(r'[\x00-\x1F\x7F]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return s.length > max ? null : s;
+  }
+}

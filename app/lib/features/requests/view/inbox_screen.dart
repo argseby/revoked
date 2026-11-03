@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
+import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
@@ -30,7 +31,10 @@ class InboxScreen extends StatefulWidget {
   /// 1 opens on Received, the links other people gave you.
   final int initialTab;
 
-  const InboxScreen({super.key, this.initialTab = 0});
+  /// A tool's proposal for a new request; opens the form filled in.
+  final RequestProposal? proposal;
+
+  const InboxScreen({super.key, this.initialTab = 0, this.proposal});
 
   @override
   State<InboxScreen> createState() => _InboxScreenState();
@@ -53,6 +57,19 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
       },
       defaultSort: 'created_desc',
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final proposal = widget.proposal;
+      if (proposal == null || !mounted) return;
+      // The proposal lives in the address only until it has filled in the
+      // form, so returning to the tab does not open it again.
+      context.go(AppRoutes.requests);
+      openRequestCreateSheet(
+        context: context,
+        store: Stores.requests,
+        authStore: Stores.auth,
+        proposal: proposal,
+      );
+    });
   }
 
   @override

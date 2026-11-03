@@ -48,7 +48,65 @@ func connectionLinks(app core.App, connectionID string) ([]*core.Record, error) 
 		dbx.HashExp{util.Fields.Link.Connection: connectionID})
 }
 
-// PauseConnection refuses the tool's tokens and holds the links it proposed.
+func connectionRequests(app core.App, connectionID string) ([]*core.Record, error) {
+	return app.FindAllRecords(util.Coll.Requests,
+		dbx.HashExp{util.Fields.Request.Connection: connectionID})
+}
+
+// holdRequest, releaseRequest and closeRequest are holdLink, releaseLink and
+// revokeLink for the requests a tool proposed.
+func holdRequest(app core.App, request *core.Record) error {
+	f := util.Fields.Request
+	if request.GetString(f.Status) != util.StatusActive {
+		return nil
+	}
+	request.Set(f.Status, util.StatusPaused)
+	request.Set(f.HeldPaused, true)
+	return app.Save(request)
+}
+
+func releaseRequest(app core.App, request *core.Record) error {
+	f := util.Fields.Request
+	if !request.GetBool(f.HeldPaused) {
+		return nil
+	}
+	if request.GetString(f.Status) == util.StatusPaused {
+		request.Set(f.Status, util.StatusActive)
+	}
+	request.Set(f.HeldPaused, false)
+	return app.Save(request)
+}
+
+func closeRequest(app core.App, request *core.Record, revoke bool) error {
+	f := util.Fields.Request
+	if revoke {
+		if request.GetString(f.Status) == util.StatusRevoked && !request.GetBool(f.HeldPaused) {
+			return nil
+		}
+		request.Set(f.Status, util.StatusRevoked)
+	} else if !request.GetBool(f.HeldPaused) {
+		return nil
+	}
+	request.Set(f.HeldPaused, false)
+	return app.Save(request)
+}
+
+// eachConnectionRequest applies fn to every request the tool proposed.
+func eachConnectionRequest(app core.App, connectionID string, fn func(core.App, *core.Record) error) error {
+	requests, err := connectionRequests(app, connectionID)
+	if err != nil {
+		return err
+	}
+	for _, r := range requests {
+		if err := fn(app, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PauseConnection refuses the tool's tokens and holds the links and requests
+// it proposed.
 func PauseConnection(app core.App, conn *core.Record) error {
 	return app.RunInTransaction(func(tx core.App) error {
 		conn.Set(util.Fields.Connection.Paused, true)
@@ -64,7 +122,7 @@ func PauseConnection(app core.App, conn *core.Record) error {
 				return err
 			}
 		}
-		return nil
+		return eachConnectionRequest(tx, conn.Id, holdRequest)
 	})
 }
 
@@ -85,12 +143,12 @@ func ResumeConnection(app core.App, conn *core.Record) error {
 				return err
 			}
 		}
-		return nil
+		return eachConnectionRequest(tx, conn.Id, releaseRequest)
 	})
 }
 
-// DisconnectConnection deletes the connection and its tokens. Its links are
-// revoked when revokeLinks is set. Otherwise they stay their owner's, and one
+// DisconnectConnection deletes the connection and its tokens. Its links and
+// requests are revoked when revokeLinks is set. Otherwise they stay their owner's, and one
 // held by a pause stays paused rather than waking up as the tool goes: it can
 // no longer be released by the tool, so it becomes an ordinary paused link.
 func DisconnectConnection(app core.App, conn *core.Record, revokeLinks bool) error {
@@ -111,6 +169,11 @@ func DisconnectConnection(app core.App, conn *core.Record, revokeLinks bool) err
 					return err
 				}
 			}
+		}
+		if err := eachConnectionRequest(tx, conn.Id, func(app core.App, r *core.Record) error {
+			return closeRequest(app, r, revokeLinks)
+		}); err != nil {
+			return err
 		}
 		return tx.Delete(conn)
 	})

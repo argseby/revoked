@@ -160,7 +160,8 @@ type identityFields struct {
 type requestFields struct {
 	Slug, Label, Status, Identity, Template, Password, ExpiresAt,
 	MaxResponses, ResponseCount, Identifier, CallbackUrl,
-	RequireHandshake, IdentityScope, AllowExtraFields, User, Workspace, Created, Updated string
+	RequireHandshake, IdentityScope, AllowExtraFields, User, Workspace,
+	Connection, Ref, ProposedBy, HeldPaused, Created, Updated string
 }
 
 // requestResponseFields describes the legacy `requestResponses` collection.
@@ -237,7 +238,7 @@ type attestationFields struct {
 	User, Workspace, Type, Label, Claims, Status, ExpiresAt,
 	OfferTokenHash, OfferExpiresAt,
 	SubjectFingerprint, SubjectDomain, SubjectName,
-	IssuedAt, RevokedAt, RevokedReason, Created, Updated string
+	IssuedAt, RevokedAt, RevokedReason, Connection, Ref, ProposedBy, Created, Updated string
 }
 
 type attestationStatusFields struct {
@@ -251,7 +252,7 @@ type credentialFields struct {
 
 type attestationCheckFields struct {
 	User, Identity, Type, Issuers, Claims, Nonce, Audience, Status,
-	ExpiresAt, Result, AnsweredAt, Created, Updated string
+	ExpiresAt, Result, AnsweredAt, Connection, Ref, ProposedBy, Created, Updated string
 }
 
 type signInFields struct {
@@ -537,6 +538,10 @@ var Fields = struct {
 		AllowExtraFields: "allowExtraFields",
 		User:             "user",
 		Workspace:        "workspace",
+		Connection:       "connection",
+		Ref:              "ref",
+		ProposedBy:       "proposedBy",
+		HeldPaused:       "heldPaused",
 		Created:          "created",
 		Updated:          "updated",
 	},
@@ -701,6 +706,9 @@ var Fields = struct {
 		IssuedAt:           "issuedAt",
 		RevokedAt:          "revokedAt",
 		RevokedReason:      "revokedReason",
+		Connection:         "connection",
+		Ref:                "ref",
+		ProposedBy:         "proposedBy",
 		Created:            "created",
 		Updated:            "updated",
 	},
@@ -736,6 +744,9 @@ var Fields = struct {
 		ExpiresAt:  "expiresAt",
 		Result:     "result",
 		AnsweredAt: "answeredAt",
+		Connection: "connection",
+		Ref:        "ref",
+		ProposedBy: "proposedBy",
 		Created:    "created",
 		Updated:    "updated",
 	},

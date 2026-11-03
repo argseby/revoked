@@ -13,7 +13,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A connected tool can be paused, activated again and disconnected, with or
-/// without its links.
+/// without its links, and its page shows everything its proposals became.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -23,6 +23,8 @@ void main() {
   late Map<String, dynamic> tool;
   late List<String> calls;
   late bool routesExist;
+  late bool withRows;
+  late bool filtersByTool;
 
   Future<http.Response> server(http.Request request) async {
     http.Response json(Object body, [int code = 200]) => http.Response(
@@ -64,6 +66,38 @@ void main() {
         ],
       });
     }
+    final fromTool =
+        request.url.queryParameters['filter'] == 'connection != ""';
+    final rows = <String, Map<String, dynamic>>{
+      '/api/collections/requests/records': {
+        'id': 'q1',
+        'slug': 'q_1',
+        'label': 'New starters',
+        'status': 'active',
+        'responseCount': 2,
+        'connection': 'c1',
+      },
+      '/api/collections/attestations/records': {
+        'id': 'a1',
+        'type': 'membership',
+        'status': 'offered',
+        'offerExpiresAt': '2099-01-01 00:00:00.000Z',
+        'connection': 'c1',
+      },
+      '/api/collections/attestationChecks/records': {
+        'id': 'k1',
+        'type': 'over_18',
+        'status': 'open',
+        'expiresAt': '2099-01-01 00:00:00.000Z',
+        'connection': 'c1',
+      },
+    };
+    if (fromTool && rows.containsKey(path)) {
+      if (!filtersByTool) return json({'message': 'Bad filter'}, 400);
+      return json({
+        'items': [if (withRows) rows[path]],
+      });
+    }
     if (path.startsWith('/api/collections/')) {
       return json({'items': [], 'page': 1, 'totalPages': 1});
     }
@@ -103,6 +137,48 @@ void main() {
     };
     calls = [];
     routesExist = true;
+    withRows = false;
+    filtersByTool = true;
+  });
+
+  testWidgets('its page lists the requests, attestations and checks it '
+      'proposed', (tester) async {
+    withRows = true;
+    await signedIn(tester);
+
+    expect(find.text('Requests from Flat tool'), findsOneWidget);
+    expect(find.text('New starters'), findsOneWidget);
+    expect(find.text('2 responses'), findsOneWidget);
+    expect(find.text('Attestations from Flat tool'), findsOneWidget);
+    expect(find.text('membership'), findsOneWidget);
+    expect(find.text('Offered'), findsOneWidget);
+    expect(find.text('Checks from Flat tool'), findsOneWidget);
+    expect(find.text('over_18'), findsOneWidget);
+    expect(find.text('Waiting'), findsOneWidget);
+
+    await tester.tap(find.text('Disconnect'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Its request stops taking answers.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a tool with only links shows no empty sections', (tester) async {
+    await signedIn(tester);
+
+    expect(find.text('Flat 1'), findsOneWidget);
+    expect(find.text('Requests from Flat tool'), findsNothing);
+    expect(find.text('Attestations from Flat tool'), findsNothing);
+    expect(find.text('Checks from Flat tool'), findsNothing);
+  });
+
+  testWidgets('an older server still shows the tool\'s links', (tester) async {
+    filtersByTool = false;
+    await signedIn(tester);
+
+    expect(find.text('Flat 1'), findsOneWidget);
+    expect(find.text('Requests from Flat tool'), findsNothing);
   });
 
   testWidgets('pausing says what stops, and activating brings it back', (

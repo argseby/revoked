@@ -307,18 +307,6 @@ class _CredentialSheet extends StatelessWidget {
 class IssuedAttestations extends StatelessWidget {
   const IssuedAttestations({super.key});
 
-  String _subtitle(Attestation a) {
-    if (a.isRevoked) {
-      return a.subject.isEmpty
-          ? 'Withdrawn before anyone accepted it'
-          : 'Revoked · ${a.subject}';
-    }
-    if (a.isOffered) {
-      return 'Offered · open until ${dayText(a.offerExpiresAt)}';
-    }
-    return 'Held by ${a.subject}';
-  }
-
   Future<void> _revoke(BuildContext context, Attestation a) async {
     final confirmed = await showAppDialog(
       context: context,
@@ -399,20 +387,6 @@ class IssuedAttestations extends StatelessWidget {
     );
   }
 
-  Widget? _badge(Attestation a) {
-    if (a.isRevoked) {
-      return const AppBadge(icon: AppIcons.shieldSlash, label: 'Revoked');
-    }
-    if (a.isOffered) {
-      return const AppBadge(
-        icon: AppIcons.hourglass,
-        label: 'Offered',
-        variant: AppBadgeVariant.outline,
-      );
-    }
-    return const AppBadge(icon: AppIcons.shieldCheck, label: 'Issued');
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = Stores.attestations;
@@ -471,8 +445,8 @@ class IssuedAttestations extends StatelessWidget {
                 AppListRow(
                   icon: AppIcons.shieldLock,
                   title: a.title,
-                  subtitle: _subtitle(a),
-                  trailing: _badge(a),
+                  subtitle: issuedAttestationSubtitle(a),
+                  trailing: issuedAttestationBadge(a),
                   onTap: () => _options(context, a),
                 ),
           ],
@@ -486,32 +460,6 @@ class IssuedAttestations extends StatelessWidget {
 /// showed.
 class CheckedAttestations extends StatelessWidget {
   const CheckedAttestations({super.key});
-
-  String _subtitle(AttestationCheck c) {
-    if (c.isAnswered) {
-      return 'Shown by ${c.result!.shownBy} · ${momentText(c.answeredAt)}';
-    }
-    if (c.isWaiting(DateTime.now())) {
-      return 'Waiting for an answer until ${momentText(c.expiresAt)}';
-    }
-    return 'Not answered · ${momentText(c.created)}';
-  }
-
-  Widget? _badge(BuildContext context, AttestationCheck c) {
-    if (c.isAnswered) return verdictBadge(context, c.result!.verdict);
-    if (c.isWaiting(DateTime.now())) {
-      return const AppBadge(
-        icon: AppIcons.hourglass,
-        label: 'Waiting',
-        variant: AppBadgeVariant.outline,
-      );
-    }
-    return const AppBadge(
-      icon: AppIcons.clock,
-      label: 'Not answered',
-      variant: AppBadgeVariant.outline,
-    );
-  }
 
   void _open(BuildContext context, AttestationCheck c) {
     showAppSheet(
@@ -600,12 +548,66 @@ class CheckedAttestations extends StatelessWidget {
             AppListRow(
               icon: AppIcons.shieldCheck,
               title: c.title,
-              subtitle: _subtitle(c),
-              trailing: _badge(context, c),
+              subtitle: checkSubtitle(c),
+              trailing: checkBadge(context, c),
               onTap: () => _open(context, c),
             ),
         ],
       ),
     );
   }
+}
+
+/// An issued attestation's one line in a list.
+String issuedAttestationSubtitle(Attestation a) {
+  if (a.isRevoked) {
+    return a.subject.isEmpty
+        ? 'Withdrawn before anyone accepted it'
+        : 'Revoked · ${a.subject}';
+  }
+  if (a.isOffered) {
+    return 'Offered · open until ${dayText(a.offerExpiresAt)}';
+  }
+  return 'Held by ${a.subject}';
+}
+
+Widget? issuedAttestationBadge(Attestation a) {
+  if (a.isRevoked) {
+    return const AppBadge(icon: AppIcons.shieldSlash, label: 'Revoked');
+  }
+  if (a.isOffered) {
+    return const AppBadge(
+      icon: AppIcons.hourglass,
+      label: 'Offered',
+      variant: AppBadgeVariant.outline,
+    );
+  }
+  return const AppBadge(icon: AppIcons.shieldCheck, label: 'Issued');
+}
+
+/// A check's one line in a list.
+String checkSubtitle(AttestationCheck c) {
+  if (c.isAnswered) {
+    return 'Shown by ${c.result!.shownBy} · ${momentText(c.answeredAt)}';
+  }
+  if (c.isWaiting(DateTime.now())) {
+    return 'Waiting for an answer until ${momentText(c.expiresAt)}';
+  }
+  return 'Not answered · ${momentText(c.created)}';
+}
+
+Widget? checkBadge(BuildContext context, AttestationCheck c) {
+  if (c.isAnswered) return verdictBadge(context, c.result!.verdict);
+  if (c.isWaiting(DateTime.now())) {
+    return const AppBadge(
+      icon: AppIcons.hourglass,
+      label: 'Waiting',
+      variant: AppBadgeVariant.outline,
+    );
+  }
+  return const AppBadge(
+    icon: AppIcons.clock,
+    label: 'Not answered',
+    variant: AppBadgeVariant.outline,
+  );
 }

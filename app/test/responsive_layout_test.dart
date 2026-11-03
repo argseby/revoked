@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/models/attestation.dart';
+import 'package:revoked_app/core/models/attestation_check.dart';
+import 'package:revoked_app/core/models/connection.dart';
+import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -12,6 +16,9 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
+import 'package:revoked_app/core/models/tool_client.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/tool_proposal_alert.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Every destination has to fit every window the app runs in: a small phone,
@@ -180,6 +187,82 @@ void main() {
         sizes['phone']!.height,
       );
     });
+  });
+
+  group('tool proposal notice', () {
+    for (final entry in sizes.entries) {
+      testWidgets('fits on a ${entry.key}', (tester) async {
+        tester.view.physicalSize = entry.value;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: Padding(
+                padding: EdgeInsets.all(AppSpacing.xl),
+                child: ToolProposalAlert(
+                  proposer: ToolProposer(
+                    client: 'https://a-rather-long-tool-name.example.com',
+                    name: 'A rather long assistant name, 40 chars',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  group('connected tool page', () {
+    for (final entry in sizes.entries) {
+      testWidgets('fits on a ${entry.key}', (tester) async {
+        final router = await signedIn(tester, entry.value);
+        const name = 'A rather long assistant name, 40 chars';
+        runInAction(() {
+          final store = Stores.connections;
+          store.connections.add(
+            Connection.fromJson({
+              'id': 'c1',
+              'clientId': 'https://a-rather-long-tool-name.example.com',
+              'clientName': name,
+              'expiresAt': '2099-01-01 00:00:00.000Z',
+            }),
+          );
+          store.requestsByConnection['c1'] = [
+            DataRequest.fromJson({
+              'id': 'q1',
+              'label': 'Applications for the flat on the third floor',
+              'status': 'active',
+              'maxResponses': 20,
+              'responseCount': 11,
+              'expiresAt': '2099-01-01 00:00:00.000Z',
+            }),
+          ];
+          store.attestationsByConnection['c1'] = [
+            Attestation.fromJson({
+              'id': 'a1',
+              'type': 'https://schemas.example.com/a-long-membership-type',
+              'status': 'revoked',
+              'subjectName': 'Somebody with a long name',
+            }),
+          ];
+          store.checksByConnection['c1'] = [
+            AttestationCheck.fromJson({
+              'id': 'k1',
+              'type': 'membership',
+              'status': 'open',
+              'expiresAt': '2099-01-01 00:00:00.000Z',
+            }),
+          ];
+        });
+        router.go(AppRoutes.connectedToolFor('c1'));
+        await tester.pumpAndSettle();
+        expect(find.text('Checks from $name'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 
   group('detail header', () {

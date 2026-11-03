@@ -3,6 +3,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
+import 'package:revoked_app/core/widgets/tool_proposal_alert.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -111,7 +112,11 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                   'Vouch for someone in your domain\'s name. They see every '
                   'detail before they accept.',
                 ).muted.small,
-                if (_store.draftAsk != null) ...[
+                if (_store.draftAsk case final ask?
+                    when !ask.proposer.isEmpty) ...[
+                  AppSpacing.gapSm,
+                  ToolProposalAlert(proposer: ask.proposer),
+                ] else if (_store.draftAsk != null) ...[
                   AppSpacing.gapSm,
                   const AppAlert(
                     leading: Icon(AppIcons.askFor),

@@ -15,6 +15,7 @@ with no guarantees for your data.
 | Consume a share someone sent you | [Shares](reference/shares.md) |
 | Collect data from other people | [Requests](reference/requests.md), then [Callbacks](callbacks.md) |
 | Build a tool that people share their data with | [Building a tool](tools.md) |
+| Let an AI assistant organise your shares without seeing them | [MCP server](mcp.md) |
 | Let people sign in to your service with their Revoked account | [Sign in with Revoked](sign-in.md) |
 | Check something a third party confirmed about a person, or confirm such things yourself | [Attestations](attestations.md) |
 | Verify who a share or request came from | [Trust chain](trust-chain.md) |

@@ -3,12 +3,15 @@ import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/record.dart';
 import 'package:revoked_app/core/models/request.dart';
+import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/models/request_template.dart';
+import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/core/stores.dart';
 
 part 'requests_store.g.dart';
 
@@ -61,6 +64,8 @@ class RequestsStore extends _RequestsStore with _$RequestsStore {
     bool requireHandshake = false,
     String identityScope = 'any',
     bool allowExtraFields = false,
+    String connection = '',
+    String ref = '',
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -84,6 +89,8 @@ class RequestsStore extends _RequestsStore with _$RequestsStore {
         'allowExtraFields': allowExtraFields,
         'user': user,
         'workspace': workspace,
+        if (connection.isNotEmpty) 'connection': connection,
+        if (connection.isNotEmpty && ref.isNotEmpty) 'ref': ref,
       },
     );
   }
@@ -276,6 +283,10 @@ abstract class _RequestsStore with Store {
   @action
   void setDraftIdentity(String? v) => draftIdentityId = v;
 
+  /// The tool's proposal the draft was filled in from, if it was.
+  @observable
+  RequestProposal? draftProposal;
+
   @action
   void setDraftTemplate(String? v) => draftTemplateId = v;
 
@@ -316,7 +327,9 @@ abstract class _RequestsStore with Store {
     String identityScope = 'any',
     bool allowExtraFields = false,
     DateTime? expiresAt,
+    RequestProposal? proposal,
   }) {
+    draftProposal = proposal;
     draftLabel.text = label;
     draftSlug.text = slug;
     draftPassword.clear();
@@ -447,6 +460,10 @@ abstract class _RequestsStore with Store {
     isLoading = true;
     errorMessage = null;
     try {
+      final proposer = draftProposal?.proposer ?? ToolProposer.none;
+      final connection = await Stores.connections.liveConnectionIdFor(
+        proposer.client,
+      );
       final req = await create(
         slug: slug,
         label: label,
@@ -462,6 +479,8 @@ abstract class _RequestsStore with Store {
         requireHandshake: requireHandshake,
         identityScope: identityScope,
         allowExtraFields: allowExtraFields,
+        connection: connection,
+        ref: proposer.ref,
       );
       requests.insert(0, req);
       return true;
@@ -715,6 +734,8 @@ abstract class _RequestsStore with Store {
     bool requireHandshake = false,
     String identityScope = 'any',
     bool allowExtraFields = false,
+    String connection = '',
+    String ref = '',
   }) async {
     final spec = RequestsStore.createRequestSpec(
       slug: slug,
@@ -732,6 +753,8 @@ abstract class _RequestsStore with Store {
       requireHandshake: requireHandshake,
       identityScope: identityScope,
       allowExtraFields: allowExtraFields,
+      connection: connection,
+      ref: ref,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return DataRequest.fromJson(data as Map<String, dynamic>);

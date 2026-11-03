@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/models/attestation_ask.dart';
+import 'package:revoked_app/core/models/check_proposal.dart';
+import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/models/share_proposal.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
@@ -535,13 +537,21 @@ class AppRouter {
             ),
             GoRoute(
               path: AppRoutes.requests,
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: InboxScreen(
-                  initialTab: state.uri.queryParameters['tab'] == 'received'
-                      ? 1
-                      : 0,
-                ),
-              ),
+              pageBuilder: (context, state) {
+                final query = state.uri.queryParameters;
+                final proposal = query['propose'] == '1'
+                    ? RequestProposal.fromQuery(query)
+                    : null;
+                return NoTransitionPage(
+                  child: InboxScreen(
+                    // A proposal is taken up when the screen starts, so one
+                    // that arrives while this tab is open needs a new screen.
+                    key: proposal == null ? null : ValueKey(state.uri),
+                    proposal: proposal,
+                    initialTab: query['tab'] == 'received' ? 1 : 0,
+                  ),
+                );
+              },
               routes: [
                 GoRoute(
                   path: ':id',
@@ -562,13 +572,22 @@ class AppRouter {
             GoRoute(
               path: AppRoutes.attestations,
               pageBuilder: (context, state) {
-                final ask = AttestationAsk.fromQuery(state.uri.queryParameters);
+                final query = state.uri.queryParameters;
+                final check = query['check'] == '1'
+                    ? CheckProposal.fromQuery(query)
+                    : null;
+                final ask = check == null
+                    ? AttestationAsk.fromQuery(query)
+                    : null;
                 return NoTransitionPage(
                   child: AttestationsScreen(
                     // An ask is taken up when the screen starts, so one that
                     // arrives while this tab is open needs a new screen.
-                    key: ask == null ? null : ValueKey(state.uri),
+                    key: ask == null && check == null
+                        ? null
+                        : ValueKey(state.uri),
                     ask: ask,
+                    check: check,
                     initialTab: switch (state.uri.queryParameters['tab']) {
                       'issued' => 1,
                       'checked' => 2,

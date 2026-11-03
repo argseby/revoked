@@ -213,6 +213,9 @@ abstract final class Stores {
       notifications.notifications.clear();
       connections.connections.clear();
       connections.linksByConnection.clear();
+      connections.requestsByConnection.clear();
+      connections.attestationsByConnection.clear();
+      connections.checksByConnection.clear();
       passkeys.passkeys.clear();
       apiKeys.apiKeys.clear();
       reminders.reminders.clear();

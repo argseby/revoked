@@ -28,6 +28,9 @@ class DataRequest {
   final bool allowExtraFields;
   final String user;
   final String workspace;
+
+  /// The connected tool that proposed it, or empty.
+  final String connection;
   final String? created;
   final String? updated;
 
@@ -49,6 +52,7 @@ class DataRequest {
     this.allowExtraFields = false,
     required this.user,
     required this.workspace,
+    this.connection = '',
     this.created,
     this.updated,
   });
@@ -75,6 +79,7 @@ class DataRequest {
       allowExtraFields: json['allowExtraFields'] as bool? ?? false,
       user: json['user'] as String? ?? '',
       workspace: json['workspace'] as String? ?? '',
+      connection: json['connection'] as String? ?? '',
       created: json['created'] as String?,
       updated: json['updated'] as String?,
     );

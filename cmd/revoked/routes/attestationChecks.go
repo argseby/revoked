@@ -2,6 +2,7 @@ package routes
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -69,6 +71,8 @@ func createAttestationCheck(app core.App, root *server.RootKey, re *core.Request
 		Issuers    []string `json:"issuers"`
 		Claims     []string `json:"claims"`
 		IdentityID string   `json:"identityId"`
+		Connection string   `json:"connection"`
+		Ref        string   `json:"ref"`
 	}
 	if err := re.BindBody(&body); err != nil {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.AttestationCheckInvalid)
@@ -127,7 +131,13 @@ func createAttestationCheck(app core.App, root *server.RootKey, re *core.Request
 	check.Set(f.Audience, audience)
 	check.Set(f.Status, util.CheckStatusOpen)
 	check.Set(f.ExpiresAt, expires)
+	check.Set(f.Connection, strings.TrimSpace(body.Connection))
+	check.Set(f.Ref, strings.TrimSpace(body.Ref))
 	if err := app.Save(check); err != nil {
+		var invalid validation.Errors
+		if errors.As(err, &invalid) {
+			return re.BadRequestError(util.Errors.AttestationCheckInvalid.ErrorText, invalid)
+		}
 		return re.InternalServerError("Failed to create the check", err)
 	}
 

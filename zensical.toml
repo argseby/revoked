@@ -52,6 +52,7 @@ nav = [
     "api/index.md",
     { "Authentication" = "api/authentication.md" },
     { "Building a tool" = "api/tools.md" },
+    { "MCP server" = "api/mcp.md" },
     { "Sign in with Revoked" = "api/sign-in.md" },
     { "Attestations" = "api/attestations.md" },
     { "Callbacks" = "api/callbacks.md" },

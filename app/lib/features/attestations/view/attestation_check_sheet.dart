@@ -6,6 +6,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
+import 'package:revoked_app/core/models/check_proposal.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -16,14 +17,18 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/widgets/tool_proposal_alert.dart';
 import 'package:revoked_app/features/attestations/claim_text.dart';
 import 'package:revoked_app/features/attestations/view/verdict_badge.dart';
 
 /// Asks someone to show an attestation: what kind, from which attesters,
 /// which claims. Once made, the same sheet shows the code to scan, waits for
 /// the answer, and shows what was shown.
-Future<void> openAttestationCheckSheet(BuildContext context) async {
-  Stores.attestationChecks.resetForm();
+Future<void> openAttestationCheckSheet(
+  BuildContext context, {
+  CheckProposal? proposal,
+}) async {
+  Stores.attestationChecks.resetForm(proposal: proposal);
   await showAppSheet(context: context, builder: (_) => const _CheckSheet());
   Stores.attestationChecks.closePending();
 }
@@ -81,6 +86,10 @@ class _Form extends StatelessWidget {
           'Ask someone to show you an attestation, like a membership. They '
           'choose what you see. You get a checked answer.',
         ).muted.small,
+        if (!store.proposer.isEmpty) ...[
+          AppSpacing.gapSm,
+          ToolProposalAlert(proposer: store.proposer),
+        ],
         AppSpacing.gapLg,
         AppTextField(
           controller: store.typeController,

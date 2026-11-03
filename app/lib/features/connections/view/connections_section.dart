@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/models/attestation.dart';
+import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -20,10 +23,13 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
+import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/attestations/view/attestations_section.dart';
 import 'package:revoked_app/features/connections/view/day_label.dart';
 import 'package:revoked_app/features/connections/view/sign_ins_section.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
+import 'package:revoked_app/features/requests/view/request_groups.dart';
 
 /// The tools connected to this workspace, one row each; a row opens the
 /// tool's own page, which answers "what can this tool do, and what has it
@@ -84,8 +90,9 @@ class ConnectionsList extends StatelessWidget {
               title: 'Connected tools',
               trailing: noTools ? const SizedBox.shrink() : null,
               footer: const Text(
-                'Tools you connect can propose links and follow their status. '
-                'They never read your vault.',
+                'Tools you connect can propose links, requests and '
+                'attestations, and follow how they’re going. They never read '
+                'your vault.',
               ),
               children: [
                 if (noTools)
@@ -97,10 +104,7 @@ class ConnectionsList extends StatelessWidget {
                   AppListRow(
                     icon: AppIcons.plug,
                     title: c.name,
-                    subtitle: _summary(
-                      c,
-                      store.linksByConnection[c.id] ?? const [],
-                    ),
+                    subtitle: _summary(c),
                     trailing: c.paused
                         ? const AppBadge(label: 'Paused')
                         : c.isExpired
@@ -117,16 +121,28 @@ class ConnectionsList extends StatelessWidget {
     );
   }
 
-  String _summary(Connection c, List<Link> links) {
-    final count = links.isEmpty
-        ? 'No links yet'
-        : '${links.length} ${links.length == 1 ? 'link' : 'links'}';
-    return '$count · last used ${dayLabel(c.lastUsedAt)}';
+  String _summary(Connection c) {
+    final store = Stores.connections;
+    String count(int n, String one, String many) => '$n ${n == 1 ? one : many}';
+    final links = store.linksByConnection[c.id]?.length ?? 0;
+    final requests = store.requestsByConnection[c.id]?.length ?? 0;
+    final attestations = store.attestationsByConnection[c.id]?.length ?? 0;
+    final checks = store.checksByConnection[c.id]?.length ?? 0;
+    final parts = [
+      if (links > 0) count(links, 'link', 'links'),
+      if (requests > 0) count(requests, 'request', 'requests'),
+      if (attestations > 0) count(attestations, 'attestation', 'attestations'),
+      if (checks > 0) count(checks, 'check', 'checks'),
+    ];
+    return [
+      if (parts.isEmpty) 'No links yet' else ...parts,
+      'last used ${dayLabel(c.lastUsedAt)}',
+    ].join(' · ');
   }
 }
 
-/// One connected tool: when it was connected, what it may do, the links it
-/// proposed, and the way to disconnect it.
+/// One connected tool: when it was connected, what it may do, what came of
+/// its proposals, and the way to disconnect it.
 class ConnectedToolPage extends StatefulWidget {
   final String connectionId;
 
@@ -170,6 +186,10 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     final live = (store.linksByConnection[connection.id] ?? const <Link>[])
         .where((l) => l.status == 'active' || l.status == 'paused')
         .length;
+    final open =
+        (store.requestsByConnection[connection.id] ?? const <DataRequest>[])
+            .where((r) => !isRequestClosed(r))
+            .length;
     runInAction(() => store.revokeLinksOnDisconnect = false);
     final ok = await showAppDialog(
       context: context,
@@ -179,14 +199,20 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
                 'activate or revoke them.'
           : 'It stops seeing its links. The links stay yours and keep working '
                 'until you revoke them, even ones you sent to it.',
-      content: live == 0
+      content: live == 0 && open == 0
           ? null
           : Observer(
               builder: (_) => AppCheckRow(
                 label: 'Revoke its links too',
-                subtitle:
+                subtitle: [
+                  if (live > 0)
                     'Nobody will be able to open '
-                    '${live == 1 ? 'this link' : 'these $live links'}.',
+                        '${live == 1 ? 'this link' : 'these $live links'}.',
+                  if (open > 0)
+                    open == 1
+                        ? 'Its request stops taking answers.'
+                        : 'Its $open requests stop taking answers.',
+                ].join(' '),
                 value: store.revokeLinksOnDisconnect,
                 onChanged: (v) =>
                     runInAction(() => store.revokeLinksOnDisconnect = v),
@@ -265,6 +291,12 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       );
     }
     final links = store.linksByConnection[connection.id] ?? const <Link>[];
+    final requests =
+        store.requestsByConnection[connection.id] ?? const <DataRequest>[];
+    final attestations =
+        store.attestationsByConnection[connection.id] ?? const <Attestation>[];
+    final checks =
+        store.checksByConnection[connection.id] ?? const <AttestationCheck>[];
 
     return AppDetailPage(
       header: AppDetailHeader(
@@ -331,6 +363,54 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
                 ]
               : [for (final link in links) _linkRow(link)],
         ),
+        if (requests.isNotEmpty)
+          AppListGroup(
+            title: 'Requests from ${connection.name}',
+            noun: 'requests',
+            previewCount: 5,
+            children: [
+              for (final r in requests)
+                AppListRow(
+                  icon: AppIcons.inboxFill,
+                  title: r.label,
+                  subtitle: requestSummary(r, 0, DateTime.now()),
+                  trailing: StatusLabel(r.status),
+                  onTap: () => context.go(AppRoutes.requestDetailFor(r.id)),
+                ),
+            ],
+          ),
+        if (attestations.isNotEmpty)
+          AppListGroup(
+            title: 'Attestations from ${connection.name}',
+            noun: 'attestations',
+            previewCount: 5,
+            children: [
+              for (final a in attestations)
+                AppListRow(
+                  icon: AppIcons.shieldLock,
+                  title: a.title,
+                  subtitle: issuedAttestationSubtitle(a),
+                  trailing: issuedAttestationBadge(a),
+                  onTap: () => context.go(AppRoutes.attestationsIssued),
+                ),
+            ],
+          ),
+        if (checks.isNotEmpty)
+          AppListGroup(
+            title: 'Checks from ${connection.name}',
+            noun: 'checks',
+            previewCount: 5,
+            children: [
+              for (final c in checks)
+                AppListRow(
+                  icon: AppIcons.shieldCheck,
+                  title: c.title,
+                  subtitle: checkSubtitle(c),
+                  trailing: checkBadge(context, c),
+                  onTap: () => context.go(AppRoutes.attestationsChecked),
+                ),
+            ],
+          ),
         AppDetailManage(
           actions: [
             if (connection.paused)

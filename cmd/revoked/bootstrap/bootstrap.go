@@ -35,6 +35,7 @@ func Bind(app core.App, root *server.RootKey) {
 	hooks.BindReminderHooks(app)
 	hooks.BindGrantHooks(app, root)
 	hooks.BindAttestationHooks(app)
+	hooks.BindConnectedHooks(app)
 	hooks.BindInviteHooks(app)
 	hooks.BindBookmarkHooks(app)
 	hooks.BindContactHooks(app)

@@ -3,10 +3,12 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
+import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/core/stores.dart';
 
 part 'attestations_store.g.dart';
 
@@ -256,6 +258,10 @@ abstract class _AttestationsStore with Store {
       }
       final days = int.tryParse(validDaysController.text.trim());
       final subject = subjectController.text.trim().toLowerCase();
+      final proposer = draftAsk?.proposer ?? ToolProposer.none;
+      final connection = await Stores.connections.liveConnectionIdFor(
+        proposer.client,
+      );
       final response = await _api.postWithHeaders(
         _basePath,
         body: {
@@ -268,6 +274,9 @@ abstract class _AttestationsStore with Store {
               if (!claim.isBlank) claim.trimmedName: claim.encoded,
           },
           if (subject.isNotEmpty) 'subjectFingerprint': subject,
+          if (connection.isNotEmpty) 'connection': connection,
+          if (connection.isNotEmpty && proposer.ref.isNotEmpty)
+            'ref': proposer.ref,
           if (days != null)
             'expiresAt': DateTime.now()
                 .toUtc()

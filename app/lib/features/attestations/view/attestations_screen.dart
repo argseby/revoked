@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
+import 'package:revoked_app/core/models/check_proposal.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/device_key_alert.dart';
+import 'package:revoked_app/features/attestations/view/attestation_check_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestations_section.dart';
 
@@ -20,10 +22,18 @@ import 'package:revoked_app/features/attestations/view/attestations_section.dart
 class AttestationsScreen extends StatefulWidget {
   final AttestationAsk? ask;
 
+  /// A tool's proposal to ask someone to show one; opens the check form.
+  final CheckProposal? check;
+
   /// 0 held, 1 issued, 2 checked.
   final int initialTab;
 
-  const AttestationsScreen({super.key, this.ask, this.initialTab = 0});
+  const AttestationsScreen({
+    super.key,
+    this.ask,
+    this.check,
+    this.initialTab = 0,
+  });
 
   @override
   State<AttestationsScreen> createState() => _AttestationsScreenState();
@@ -36,11 +46,16 @@ class _AttestationsScreenState extends State<AttestationsScreen>
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ask = widget.ask;
-      if (ask == null || !mounted) return;
+      final check = widget.check;
+      if ((ask == null && check == null) || !mounted) return;
       // The ask lives in the address only until it has filled in the form,
       // so returning to the tab does not open it again.
       context.go(AppRoutes.attestations);
-      showAttestationCreateSheet(context, ask: ask);
+      if (ask != null) {
+        showAttestationCreateSheet(context, ask: ask);
+      } else {
+        openAttestationCheckSheet(context, proposal: check);
+      }
     });
   }
 

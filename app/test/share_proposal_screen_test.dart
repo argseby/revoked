@@ -325,7 +325,7 @@ void main() {
       expect(find.text('Connect Mietunterlagen'), findsOneWidget);
       // The owner's own choices sit in their own section, ticked to start.
       expect(find.text('You decide'), findsOneWidget);
-      expect(find.text('Revoke links it proposed'), findsOneWidget);
+      expect(find.text('End what it proposed'), findsOneWidget);
       expect(find.text('Receive the links it proposed'), findsOneWidget);
       // The connection is decided first; the link is reviewed after it.
       expect(find.textContaining('will receive this link'), findsNothing);

@@ -428,19 +428,31 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     onChanged: (on) => _store.setRecordFormat(on ? 'hidden' : 'default'),
   );
 
-  Widget _sealedToggle() => RecordSealedToggle(
-    sealed: _store.recordSealed,
-    onChanged: (on) async {
-      if (!on) {
-        _store.setRecordSealed(false);
-        return;
-      }
-      final ready = await ensureSealingReady(
-        context,
-        widget.authStore.activeWorkspace ?? '',
-      );
-      if (ready) _store.setRecordSealed(true);
-    },
+  Widget _sealedToggle() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      RecordSealedToggle(
+        sealed: _store.recordSealed,
+        onChanged: (on) async {
+          if (!on) {
+            _store.setRecordSealed(false);
+            return;
+          }
+          final ready = await ensureSealingReady(
+            context,
+            widget.authStore.activeWorkspace ?? '',
+          );
+          if (ready) _store.setRecordSealed(true);
+        },
+      ),
+      if (_store.recordSealed)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+          child: SealedReadabilityNote(
+            workspace: widget.authStore.activeWorkspace ?? '',
+          ),
+        ),
+    ],
   );
 
   /// The value, entered the way its type asks: a yes/no is switched in the

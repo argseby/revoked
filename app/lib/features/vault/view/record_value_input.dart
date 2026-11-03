@@ -36,11 +36,7 @@ class RecordHiddenToggle extends StatelessWidget {
     return AppFormToggleRow(
       icon: inset ? AppIcons.eyeSlash : null,
       label: isFile ? 'Hide file name' : 'Hide value',
-      subtitle: isFile
-          ? 'Keep the name hidden until you reveal it. A file name can give '
-                'away what is inside.'
-          : 'Keep it hidden until you reveal it. Good for passwords and '
-                'anything nobody should read over your shoulder.',
+      subtitle: 'Shown only when you reveal it.',
       value: hidden,
       onChanged: onChanged,
       inset: inset,
@@ -65,10 +61,8 @@ class RecordSealedToggle extends StatelessWidget {
     return AppFormToggleRow(
       icon: AppIcons.lock,
       label: 'End-to-end encrypted',
-      subtitle:
-          'Not even your server can read the value, but it can read the name, so '
-          'keep secrets out of that. You can’t share it yet. If you lose your '
-          'devices and your recovery key, it’s gone.',
+      badge: 'Alpha',
+      subtitle: 'Only your devices can read it.',
       value: sealed,
       onChanged: onChanged,
     );

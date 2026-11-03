@@ -1,7 +1,10 @@
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/models/attestation.dart';
+import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 
@@ -10,8 +13,8 @@ part 'connections_store.g.dart';
 // ignore: library_private_types_in_public_api
 class ConnectionsStore = _ConnectionsStore with _$ConnectionsStore;
 
-/// The tools connected to the active workspace, and the links each one's
-/// proposals became.
+/// The tools connected to the active workspace, and the links, requests,
+/// attestations and checks each one's proposals became.
 abstract class _ConnectionsStore with Store {
   final ApiClient _api;
 
@@ -30,6 +33,18 @@ abstract class _ConnectionsStore with Store {
   @observable
   ObservableMap<String, List<Link>> linksByConnection =
       ObservableMap<String, List<Link>>();
+
+  @observable
+  ObservableMap<String, List<DataRequest>> requestsByConnection =
+      ObservableMap<String, List<DataRequest>>();
+
+  @observable
+  ObservableMap<String, List<Attestation>> attestationsByConnection =
+      ObservableMap<String, List<Attestation>>();
+
+  @observable
+  ObservableMap<String, List<AttestationCheck>> checksByConnection =
+      ObservableMap<String, List<AttestationCheck>>();
 
   @observable
   bool isLoading = false;
@@ -60,27 +75,67 @@ abstract class _ConnectionsStore with Store {
           .map((e) => Connection.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      final linkData = await _api.get(
-        _linksPath,
+      final [links, requests, attestations, checks] = await Future.wait([
+        _fromTools(AppConfig.linksCollection),
+        _fromTools(AppConfig.requestsCollection, optional: true),
+        _fromTools(AppConfig.attestationsCollection, optional: true),
+        _fromTools(AppConfig.attestationChecksCollection, optional: true),
+      ]);
+
+      connections = ObservableList.of(loaded);
+      linksByConnection = ObservableMap.of(
+        _byConnection(links, Link.fromJson, (l) => l.connection),
+      );
+      requestsByConnection = ObservableMap.of(
+        _byConnection(requests, DataRequest.fromJson, (r) => r.connection),
+      );
+      attestationsByConnection = ObservableMap.of(
+        _byConnection(attestations, Attestation.fromJson, (a) => a.connection),
+      );
+      checksByConnection = ObservableMap.of(
+        _byConnection(checks, AttestationCheck.fromJson, (c) => c.connection),
+      );
+    } catch (e) {
+      errorMessage = describeError(e);
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  /// The rows of [collection] that came from a tool. An [optional] one a
+  /// server older than this app can't filter by tool is left out, so the
+  /// tool's links still show.
+  Future<List<dynamic>> _fromTools(
+    String collection, {
+    bool optional = false,
+  }) async {
+    try {
+      final data = await _api.get(
+        '/api/collections/$collection/records',
         queryParams: {
           'filter': 'connection != ""',
           'sort': '-created',
           'perPage': '500',
         },
       );
-      final byConnection = <String, List<Link>>{};
-      for (final e in (linkData['items'] as List<dynamic>?) ?? []) {
-        final link = Link.fromJson(e as Map<String, dynamic>);
-        byConnection.putIfAbsent(link.connection, () => []).add(link);
-      }
-
-      connections = ObservableList.of(loaded);
-      linksByConnection = ObservableMap.of(byConnection);
-    } catch (e) {
-      errorMessage = describeError(e);
-    } finally {
-      isLoading = false;
+      return (data['items'] as List<dynamic>?) ?? const [];
+    } on ApiException {
+      if (optional) return const [];
+      rethrow;
     }
+  }
+
+  static Map<String, List<T>> _byConnection<T>(
+    List<dynamic> items,
+    T Function(Map<String, dynamic>) parse,
+    String Function(T) connection,
+  ) {
+    final out = <String, List<T>>{};
+    for (final e in items) {
+      final row = parse(e as Map<String, dynamic>);
+      out.putIfAbsent(connection(row), () => []).add(row);
+    }
+    return out;
   }
 
   /// The connection this workspace has with the tool at [origin], if any. A
@@ -101,6 +156,16 @@ abstract class _ConnectionsStore with Store {
     } catch (_) {
       return null;
     }
+  }
+
+  /// The id of the live connection of the tool at [origin], or empty when
+  /// there is none it could follow a new row through: not connected, lapsed
+  /// or paused.
+  Future<String> liveConnectionIdFor(String origin) async {
+    if (origin.isEmpty) return '';
+    final found = await findByClient(origin);
+    if (found == null || found.isExpired || found.paused) return '';
+    return found.id;
   }
 
   /// Connects the tool, or reuses its connection, and returns the one-time
@@ -169,6 +234,9 @@ abstract class _ConnectionsStore with Store {
       runInAction(() {
         connections.removeWhere((c) => c.id == id);
         linksByConnection.remove(id);
+        requestsByConnection.remove(id);
+        attestationsByConnection.remove(id);
+        checksByConnection.remove(id);
       });
       return true;
     } catch (e) {

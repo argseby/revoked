@@ -6,17 +6,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
@@ -697,6 +700,180 @@ class _PasskeyWayIn extends StatelessWidget {
   }
 }
 
+/// The one button that gets the passkey this session signed in with to hold
+/// the key, whatever that takes right now. Nothing when it can't be done here.
+class _PasskeyConnectButton extends StatelessWidget {
+  /// Beside a line of small text, the label is one word.
+  final bool compact;
+
+  const _PasskeyConnectButton({this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final keys = Stores.keys;
+    if (keys.passkeyWithoutSecret) return const SizedBox.shrink();
+    if (keys.canConnectPasskey) {
+      return AppButton(
+        icon: AppIcons.key,
+        label: compact ? 'Connect' : 'Connect your passkey',
+        style: AppButtonStyle.accent,
+        size: AppButtonSize.small,
+        busy: keys.isSaving,
+        onTap: keys.isSaving ? null : () => keys.connectPasskey(),
+      );
+    }
+    return AppButton(
+      icon: AppIcons.key,
+      label: compact ? 'Sign in with passkey' : 'Sign in with your passkey',
+      style: AppButtonStyle.accent,
+      size: AppButtonSize.small,
+      onTap: () => Stores.auth.beginSignIn(),
+    );
+  }
+}
+
+/// Under the encryption toggle: where the value will be readable once saved.
+/// One line, indented to the toggle's text, so it reads as part of the row.
+class SealedReadabilityNote extends StatelessWidget {
+  final String workspace;
+
+  const SealedReadabilityNote({super.key, required this.workspace});
+
+  /// A list tile's text starts after its icon and the gap beside it.
+  static const double _indent = AppSpacing.gigantic;
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (context) {
+        final keys = Stores.keys;
+        if (!keys.canSeal(workspace)) return const SizedBox.shrink();
+        final scheme = Theme.of(context).colorScheme;
+        final passkeys = keys.chain.livePasskeys;
+        final thisDevice =
+            keys.chain.bySeq(keys.thisDeviceSeq ?? 0)?.label ?? 'This device';
+        final Widget badge;
+        final String text;
+        Widget? action;
+        if (passkeys.isNotEmpty) {
+          badge = AppBadge(
+            icon: AppIcons.check,
+            label: 'Opens on your devices',
+            accent: scheme.success,
+          );
+          text =
+              '$thisDevice · passkey ${passkeys.map((e) => e.label).join(', ')}';
+        } else {
+          badge = AppBadge(
+            icon: AppIcons.exclamationTriangle,
+            label: 'This device only',
+            accent: scheme.warning,
+          );
+          text = keys.passkeyWithoutSecret
+              ? 'Your passkey can’t carry the key on this device'
+              : 'Connect your passkey to read it on your phone';
+          if (!keys.passkeyWithoutSecret) {
+            action = const _PasskeyConnectButton(compact: true);
+          }
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.sm, left: _indent),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [badge, Text(text).small.muted, ?action],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The question the settings page is really asked: on which devices do my
+/// encrypted records open, and who else can read them.
+class _WhereRecordsOpen extends StatelessWidget {
+  final KeysStore keys;
+  final List<DeviceChainEntry> passkeys;
+  final DeviceChainEntry? recovery;
+
+  const _WhereRecordsOpen({
+    required this.keys,
+    required this.passkeys,
+    required this.recovery,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final thisDevice = keys.chain.bySeq(keys.thisDeviceSeq ?? 0);
+    final names = passkeys.map((e) => e.label).join(', ');
+    Icon holds() => Icon(AppIcons.checkCircle, color: scheme.success);
+    Icon missing() => Icon(AppIcons.exclamationTriangle, color: scheme.warning);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppListGroup(
+          title: 'Where your encrypted records open',
+          trailing: const SizedBox.shrink(),
+          children: [
+            AppListRow(
+              leading: holds(),
+              title: thisDevice?.label ?? 'This device',
+              subtitle: 'This device · holds the key',
+              showChevron: false,
+            ),
+            AppListRow(
+              leading: passkeys.isEmpty ? missing() : holds(),
+              title: 'Your passkey',
+              subtitle: passkeys.isNotEmpty
+                  ? '$names · opens them on any device you sign in to with it'
+                  : keys.passkeyWithoutSecret
+                  ? 'Can’t carry the key on this device'
+                  : 'Not connected yet',
+              showChevron: false,
+            ),
+            AppListRow(
+              leading: recovery == null ? missing() : holds(),
+              title: 'Your recovery key',
+              subtitle: recovery == null
+                  ? 'None. Make one below, or losing your devices loses what '
+                        'you’ve encrypted.'
+                  : 'Saved · gets you back in if you lose everything',
+              showChevron: false,
+            ),
+            AppListRow(
+              leading: Icon(AppIcons.shieldSlash, color: scheme.outline),
+              title: 'Other people in your workspace',
+              subtitle: 'Can’t read them yet. They see a locked row.',
+              showChevron: false,
+            ),
+          ],
+        ),
+        if (passkeys.isEmpty && !keys.passkeyWithoutSecret) ...[
+          const SizedBox(height: AppSpacing.md),
+          AppAlert(
+            tone: AppAlertTone.warning,
+            leading: const Icon(AppIcons.exclamationTriangle),
+            title: const Text('Your passkey isn’t connected yet'),
+            content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'Until it is, a new device needs a code from this one to '
+                  'read your encrypted records.',
+                ),
+                SizedBox(height: AppSpacing.sm),
+                _PasskeyConnectButton(),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _Untrusted extends StatelessWidget {
   const _Untrusted();
 
@@ -873,11 +1050,11 @@ class _Devices extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.lg),
         ],
-        Text(
+        _WhereRecordsOpen(keys: keys, passkeys: passkeys, recovery: recovery),
+        const SizedBox(height: AppSpacing.lg),
+        const Text(
           'Only these devices can read what you encrypt. Not even your server '
-          'can. You can’t share an encrypted record yet.'
-          '${passkeys.isEmpty ? '' : ' Signing in with a passkey on this list '
-                    'unlocks them on a new device.'}',
+          'can. You can’t share an encrypted record yet.',
         ),
         const SizedBox(height: AppSpacing.lg),
         AppListGroup(
@@ -937,37 +1114,6 @@ class _Devices extends StatelessWidget {
         if (keys.passkeyError != null) ...[
           const SizedBox(height: AppSpacing.sm),
           AppErrorText(keys.passkeyError!),
-        ],
-        if (keys.canConnectPasskey) ...[
-          const SizedBox(height: AppSpacing.lg),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AppButton(
-              icon: AppIcons.key,
-              label: 'Connect your passkey',
-              style: AppButtonStyle.accent,
-              busy: keys.isSaving,
-              onTap: keys.isSaving ? null : () => keys.connectPasskey(),
-            ),
-          ),
-        ] else if (passkeys.isEmpty &&
-            keys.thisPasskeyCredentialId == null &&
-            !keys.passkeyWithoutSecret) ...[
-          const SizedBox(height: AppSpacing.lg),
-          const Text(
-            'Sign in again with your passkey, and it can unlock your records '
-            'on your next device.',
-          ).muted,
-          const SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AppButton(
-              icon: AppIcons.key,
-              label: 'Sign in with your passkey',
-              style: AppButtonStyle.accent,
-              onTap: () => Stores.auth.beginSignIn(),
-            ),
-          ),
         ],
         const SizedBox(height: AppSpacing.lg),
         Align(
