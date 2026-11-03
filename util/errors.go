@@ -176,6 +176,14 @@ var Errors = struct {
 	AttestationKeyUnsupported     AppError
 	AttestationIssueFailed        AppError
 	CredentialInvalid             AppError
+	CredentialNotFound            AppError
+	ReissueCredentialInvalid      AppError
+	ReissueCredentialExpired      AppError
+	ReissueCredentialRevoked      AppError
+	ReissueVoucherInvalid         AppError
+	ReissueIdentityMismatch       AppError
+	ReissueHolderRevoked          AppError
+	ReissueHolderUnconfirmed      AppError
 	PresentationInvalid           AppError
 	AttestationCheckInvalid       AppError
 	AttestationCheckNotFound      AppError
@@ -825,6 +833,38 @@ var Errors = struct {
 	CredentialInvalid: AppError{
 		ErrorCode: "credential_invalid",
 		ErrorText: "The credential the issuer returned did not verify, so it was not kept.",
+	},
+	CredentialNotFound: AppError{
+		ErrorCode: "credential_not_found",
+		ErrorText: "This credential does not exist.",
+	},
+	ReissueCredentialInvalid: AppError{
+		ErrorCode: "reissue_credential_invalid",
+		ErrorText: "This credential was not issued by this server, or cannot be read.",
+	},
+	ReissueCredentialExpired: AppError{
+		ErrorCode: "reissue_credential_expired",
+		ErrorText: "This credential has expired. An expired credential is not moved to a new identity.",
+	},
+	ReissueCredentialRevoked: AppError{
+		ErrorCode: "reissue_credential_revoked",
+		ErrorText: "This credential was revoked, or already moved to another identity.",
+	},
+	ReissueVoucherInvalid: AppError{
+		ErrorCode: "reissue_voucher_invalid",
+		ErrorText: "The key the credential is bound to did not vouch for the new identity.",
+	},
+	ReissueIdentityMismatch: AppError{
+		ErrorCode: "reissue_identity_mismatch",
+		ErrorText: "A credential moves only to another identity from the server that issued the current one.",
+	},
+	ReissueHolderRevoked: AppError{
+		ErrorCode: "reissue_holder_revoked",
+		ErrorText: "The identity this credential was issued to has been revoked. Its key no longer vouches for another.",
+	},
+	ReissueHolderUnconfirmed: AppError{
+		ErrorCode: "reissue_holder_unconfirmed",
+		ErrorText: "The server of the identity this credential was issued to could not confirm that it still stands.",
 	},
 	PresentationInvalid: AppError{
 		ErrorCode: "presentation_invalid",

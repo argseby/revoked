@@ -408,17 +408,20 @@ paths:
       summary: Issue a handshake nonce
       description: |
         Returns a single-use nonce to sign when a share or request requires a
-        proven identity, or when an attestation offer is accepted (scope
-        `attestation`, with the offer's token as the slug). The signature is
-        submitted with the resolve, the response or the claim; a spent nonce
-        is refused.
+        proven identity, when an attestation offer is accepted (scope
+        `attestation`, with the offer's token as the slug), or when a
+        credential is moved to another identity (scope `reissue`, with the
+        fingerprint of the identity it is bound to as the slug and the
+        identity it moves to as `identityId`). The signature is submitted
+        with the resolve, the response, the claim or the reissue; a spent
+        nonce is refused.
       security: []
       parameters:
         - name: scope
           in: path
           required: true
           description: Which kind of grant the challenge is for.
-          schema: { type: string, enum: [link, request, attestation] }
+          schema: { type: string, enum: [link, request, attestation, reissue] }
         - name: slug
           in: path
           required: true
@@ -3776,6 +3779,110 @@ paths:
         "400": { $ref: "#/components/responses/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /api/attestations/reissue:
+    post:
+      tags: [Attestations]
+      summary: Move a credential to the holder's new identity
+      description: |
+        Issues a credential this server issued again, for another identity
+        of its holder, and revokes the one it replaces. The caller is usually
+        the holder's own server, relaying for the app
+        (`POST /api/credentials/{id}/reissue` there). Nobody at the issuer
+        is asked: the key the credential is bound to authorizes the move.
+
+        The request carries the credential as issued (without a key
+        binding), the public half of the new identity, the new identity's
+        signature over a challenge from
+        `GET /api/challenges/reissue/{old fingerprint}?identityId=<new id>`,
+        and a voucher signed with the key in the credential's `cnf`.
+
+        This server checks, in this order: its own signature on the
+        credential, and that the credential is in date; that its position in
+        the status list is not revoked and the attestation still names this
+        holder; that the new identity comes from the same server as the old
+        one and is another identity; the voucher; the challenge, which is
+        spent here; the new identity with the server that issued it, as for a
+        claim; and that the old identity still stands there. Revoking the old
+        identity therefore ends its key's say: nothing bound to it can be
+        moved after that.
+
+        The new credential states the same claims and type, with the same
+        issue and expiry dates, bound to the new key, at a fresh position in
+        the status list. The old position is revoked in the same
+        transaction, and the attestation names the new identity as its
+        subject. A credential moves once; moving it to yet another identity
+        is refused with `reissue_credential_revoked`. Moving it again to the
+        identity it already moved to hands out the current credential once
+        more, so a lost answer is fetched by retrying.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential, identity, challengeNonce, challengeSignature, voucher]
+              properties:
+                credential:
+                  type: string
+                  description: "The credential as issued: `<issuer JWT>~<disclosure>~…~`."
+                identity:
+                  type: object
+                  description: The public half of the identity the credential moves to.
+                  properties:
+                    id: { type: string, description: The identity's id on its own server; the id the challenge was issued for. }
+                    name: { type: string }
+                    fingerprint: { type: string }
+                    certificate: { type: string }
+                    parentSignature: { type: string }
+                    domainAtIssue: { type: string }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string, description: The new identity key's signature over the nonce. }
+                voucher: { $ref: "#/components/schemas/ReissueVoucher" }
+      responses:
+        "200":
+          description: The new credential, with every disclosure.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credential: { type: string, description: "`<issuer JWT>~<disclosure>~…~`" }
+                  issuer: { type: string, description: The attesting domain. }
+        "400":
+          description: |
+            `reissue_credential_invalid` when the credential was not issued
+            here or cannot be read, `identity_required` without an identity.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401":
+          description: |
+            `reissue_voucher_invalid` when the voucher is missing, signed by
+            another key or states something else, `challenge_required`,
+            `challenge_invalid` or `signature_invalid`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: |
+            `reissue_identity_mismatch` when the new identity is the old one
+            or comes from another server, `remote_identity_invalid` or
+            `identity_revoked` for the new identity, `reissue_holder_revoked`
+            when the old identity was revoked, `reissue_holder_unconfirmed`
+            when its server could not confirm it.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "410":
+          description: |
+            `reissue_credential_revoked` when the credential was revoked or
+            already moved, `reissue_credential_expired` when it has expired.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /api/attestation-checks:
     post:
       tags: [Attestations]
@@ -3981,6 +4088,126 @@ paths:
         "401": { $ref: "#/components/responses/AppError" }
         "404": { $ref: "#/components/responses/NotFound" }
         "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/credentials/{id}/reissue:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: A credential the signed-in person keeps.
+        schema: { type: string }
+      - name: identityId
+        in: query
+        description: The identity it moves to, for `GET`. `POST` names it in the body.
+        schema: { type: string }
+    get:
+      tags: [Attestations]
+      summary: The issuer's challenge for moving a held credential
+      description: |
+        Fetches a challenge from the credential's issuer — this server when
+        it issued the credential — for moving it to `identityId`, another
+        active identity of the signed-in person. The app knows an issuer by
+        its domain only, so this server reaches it on the app's behalf.
+
+        The app signs the nonce with the new identity's key, and builds the
+        voucher itself from what it knows: the issuer, the two fingerprints
+        and this nonce. Nothing else is taken from the answer.
+      security:
+        - Session: []
+      responses:
+        "200":
+          description: A nonce to sign.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nonce: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403":
+          description: |
+            `identity_not_owned`, `identity_revoked` or
+            `reissue_identity_mismatch` for the identity it moves to.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "404":
+          description: "`credential_not_found`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: "`remote_unreachable` when the issuer could not be reached."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+    post:
+      tags: [Attestations]
+      summary: Move a held credential to another identity
+      description: |
+        Moves a credential the signed-in person keeps to another of their
+        identities, and keeps the replacement in place of the old copy. This
+        is what the app calls for each credential when an identity is
+        replaced.
+
+        Both signatures are made on the device: the voucher with the key of
+        the identity the credential is bound to, the challenge with the new
+        one. This server adds the credential and the new identity's public
+        half, calls the issuer (`POST /api/attestations/reissue`, on this
+        server or the issuer's), and checks what comes back as it checks an
+        accepted offer: the issuer signed it with a key tied to its domain,
+        and it is bound to the new key and identity. A refusal from the
+        issuer is passed on with its code; the credential then stays bound to
+        the old identity.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identityId, challengeNonce, challengeSignature, voucher]
+              properties:
+                identityId: { type: string, description: The identity it moves to. }
+                challengeNonce: { type: string }
+                challengeSignature: { type: string }
+                voucher: { $ref: "#/components/schemas/ReissueVoucher" }
+      responses:
+        "200":
+          description: The kept credential, as its `credentials` record, now bound to the new identity.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  issuer: { type: string, description: The attesting domain. }
+                  type: { type: string }
+                  identity: { type: string }
+                  credential: { type: string, description: The SD-JWT with every disclosure. }
+                  claims: { type: object, additionalProperties: true }
+                  issuedAt: { type: string }
+                  expiresAt: { type: string }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404":
+          description: "`credential_not_found`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "410": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502":
+          description: |
+            `remote_unreachable` when the issuer could not be reached,
+            `credential_invalid` when what it returned did not verify.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
 
   /api/collections/{collection}/records:
     parameters:
@@ -4223,6 +4450,28 @@ components:
           schema: { $ref: "#/components/schemas/AppError" }
 
   schemas:
+    ReissueVoucher:
+      type: object
+      description: |
+        The old identity key's word that another identity takes over a
+        credential. `payload` is the exact bytes signed, as base64url without
+        padding; they are this JSON, with `type` first:
+
+        ```json
+        { "type": "credential-reissue-v1", "issuer": "<issuer domain>",
+          "oldFingerprint": "<identity the credential is bound to>",
+          "newFingerprint": "<identity it moves to>", "nonce": "<the challenge>" }
+        ```
+
+        `signature` is made like a challenge signature, over the SHA-256 of
+        the payload bytes: base64 of PKCS#1 v1.5 for an RSA key, of ASN.1 DER
+        for an ECDSA P-256 key. It is checked under the key in the
+        credential's `cnf.jwk`. The type tag keeps a voucher apart from
+        everything else the identity key signs.
+      required: [payload, signature]
+      properties:
+        payload: { type: string }
+        signature: { type: string }
     AttestationVerdict:
       type: object
       description: |

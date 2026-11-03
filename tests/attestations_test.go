@@ -839,6 +839,9 @@ type fakePeer struct {
 	revoked    map[int]bool
 	identities map[string]string
 	published  []server.PublicJWK
+	// challenges are the reissue challenges handed out, by nonce: the
+	// fingerprint they were asked for and the identity they move to.
+	challenges map[string][2]string
 	// issue decides what the claim endpoint hands out.
 	issue func(holderKey server.PublicJWK, holder server.HolderRef) string
 }
@@ -860,7 +863,8 @@ func newFakePeer(t *testing.T) *fakePeer {
 	p := &fakePeer{
 		domain: domain, root: root, keys: keys,
 		revoked: map[int]bool{}, identities: map[string]string{},
-		published: []server.PublicJWK{keys.JWK()},
+		published:  []server.PublicJWK{keys.JWK()},
+		challenges: map[string][2]string{},
 	}
 	p.issue = func(holderKey server.PublicJWK, holder server.HolderRef) string {
 		return p.credential(t, p.keys, holderKey, holder, 3)
@@ -918,6 +922,78 @@ func newFakePeer(t *testing.T) *fakePeer {
 		writeJSON(w, map[string]any{"credential": p.issue(holderKey, server.HolderRef{
 			Fingerprint: body.Identity.Fingerprint, Domain: body.Identity.DomainAtIssue,
 		})})
+	})
+	mux.HandleFunc("GET /api/challenges/reissue/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		nonce := uuid.New().String() + uuid.New().String()
+		p.mu.Lock()
+		p.challenges[nonce] = [2]string{r.PathValue("slug"), r.URL.Query().Get("identityId")}
+		p.mu.Unlock()
+		writeJSON(w, map[string]any{"nonce": nonce})
+	})
+	// The checks a real issuer makes, on what the holder's server relays: the
+	// credential is its own, the challenge was handed out for this move, the
+	// key the credential names vouched for the new identity, and the new key
+	// signed the challenge. The old position is revoked, the new one fresh.
+	mux.HandleFunc("POST /api/attestations/reissue", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Credential string `json:"credential"`
+			Identity   struct {
+				ID            string `json:"id"`
+				Fingerprint   string `json:"fingerprint"`
+				Certificate   string `json:"certificate"`
+				DomainAtIssue string `json:"domainAtIssue"`
+			} `json:"identity"`
+			ChallengeNonce     string                `json:"challengeNonce"`
+			ChallengeSignature string                `json:"challengeSignature"`
+			Voucher            server.ReissueVoucher `json:"voucher"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		refuse := func(code string) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": code, "message": code})
+		}
+		parsed, err := server.ParseCredential(body.Credential)
+		if err != nil {
+			refuse("reissue_credential_invalid")
+			return
+		}
+		stated, err := server.VerifyCredential(parsed, p.keys.PublicKey(), time.Now())
+		if err != nil || stated.HolderKey == nil || stated.Status == nil {
+			refuse("reissue_credential_invalid")
+			return
+		}
+		p.mu.Lock()
+		asked, known := p.challenges[body.ChallengeNonce]
+		delete(p.challenges, body.ChallengeNonce)
+		p.mu.Unlock()
+		if !known || asked != [2]string{stated.Holder.Fingerprint, body.Identity.ID} {
+			refuse("challenge_invalid")
+			return
+		}
+		if err := server.VerifyReissueVoucher(body.Voucher, *stated.HolderKey, server.ReissueVoucherBody{
+			Issuer: p.domain, OldFingerprint: stated.Holder.Fingerprint,
+			NewFingerprint: body.Identity.Fingerprint, Nonce: body.ChallengeNonce,
+		}); err != nil {
+			refuse("reissue_voucher_invalid")
+			return
+		}
+		if util.VerifySignature(body.Identity.Certificate, body.ChallengeNonce, body.ChallengeSignature) != nil {
+			refuse("signature_invalid")
+			return
+		}
+		pub, err := util.PublicKeyFromPEM(body.Identity.Certificate)
+		if err != nil {
+			refuse("remote_identity_invalid")
+			return
+		}
+		newKey, _ := server.JWKFromPublicKey(pub)
+		p.mu.Lock()
+		p.revoked[stated.Status.Idx] = true
+		p.mu.Unlock()
+		writeJSON(w, map[string]any{"credential": p.credential(t, p.keys, newKey, server.HolderRef{
+			Fingerprint: body.Identity.Fingerprint, Domain: body.Identity.DomainAtIssue,
+		}, stated.Status.Idx+1)})
 	})
 	p.srv = httptest.NewServer(mux)
 	t.Cleanup(p.srv.Close)

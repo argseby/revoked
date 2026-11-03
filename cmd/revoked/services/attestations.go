@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -96,14 +97,58 @@ func statusListSize(count, highest int) int {
 }
 
 // AllocateAttestationStatus gives an attestation its position in the status
-// list: a free one picked at random, so that positions follow no order.
-// Called inside the transaction that issues the credential.
+// list: the one it already has, or a free one picked at random, so that
+// positions follow no order. Called inside the transaction that issues the
+// credential.
+//
+// An attestation moved to a new identity holds one position per credential
+// it was issued as, and only the newest is not revoked. That one is its
+// position; one whose every position is revoked keeps the last of them, so
+// nothing issued for it can read as valid.
 func AllocateAttestationStatus(app core.App, attestationID string) (int, error) {
 	f := util.Fields.AttestationStatus
-	if existing, err := app.FindFirstRecordByFilter(util.Coll.AttestationStatus,
-		f.Attestation+" = {:a}", dbx.Params{"a": attestationID}); err == nil && existing != nil {
-		return existing.GetInt(f.Idx), nil
+	rows, err := app.FindAllRecords(util.Coll.AttestationStatus, dbx.HashExp{f.Attestation: attestationID})
+	if err != nil {
+		return 0, err
 	}
+	for _, row := range rows {
+		if !row.GetBool(f.Revoked) {
+			return row.GetInt(f.Idx), nil
+		}
+	}
+	if len(rows) > 0 {
+		return rows[len(rows)-1].GetInt(f.Idx), nil
+	}
+	return allocateStatusPosition(app, attestationID)
+}
+
+// RenewAttestationStatus revokes every position an attestation holds and
+// gives it a fresh one: the credential it was issued as stops standing, and
+// the one issued in its place stands at a position nobody can link to it.
+// Called inside the transaction that reissues the credential.
+func RenewAttestationStatus(app core.App, attestationID string) (int, error) {
+	if err := RevokeAttestationStatus(app, attestationID); err != nil {
+		return 0, err
+	}
+	return allocateStatusPosition(app, attestationID)
+}
+
+// AttestationStatusAt is the position idx of the status list, or nil when
+// nothing was ever issued there.
+func AttestationStatusAt(app core.App, idx int) (*core.Record, error) {
+	row, err := app.FindFirstRecordByFilter(util.Coll.AttestationStatus,
+		util.Fields.AttestationStatus.Idx+" = {:i}", dbx.Params{"i": idx})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return row, nil
+}
+
+func allocateStatusPosition(app core.App, attestationID string) (int, error) {
+	f := util.Fields.AttestationStatus
 	col, err := app.FindCollectionByNameOrId(util.Coll.AttestationStatus)
 	if err != nil {
 		return 0, err
@@ -143,22 +188,27 @@ func AllocateAttestationStatus(app core.App, attestationID string) (int, error) 
 	return 0, errors.New("no free position in the status list")
 }
 
-// RevokeAttestationStatus sets an attestation's bit. An attestation that was
-// never issued has no position and nothing to revoke. The bit is never
-// cleared: a revocation has been published, and verifiers may have read it.
+// RevokeAttestationStatus sets the bit of every position an attestation
+// holds. An attestation that was never issued has no position and nothing to
+// revoke. A bit is never cleared: a revocation has been published, and
+// verifiers may have read it.
 func RevokeAttestationStatus(app core.App, attestationID string) error {
 	f := util.Fields.AttestationStatus
-	row, err := app.FindFirstRecordByFilter(util.Coll.AttestationStatus,
-		f.Attestation+" = {:a}", dbx.Params{"a": attestationID})
-	if err != nil || row == nil {
-		return nil
+	rows, err := app.FindAllRecords(util.Coll.AttestationStatus, dbx.HashExp{f.Attestation: attestationID})
+	if err != nil {
+		return err
 	}
-	if row.GetBool(f.Revoked) {
-		return nil
+	for _, row := range rows {
+		if row.GetBool(f.Revoked) {
+			continue
+		}
+		row.Set(f.Revoked, true)
+		row.Set(f.RevokedAt, types.NowDateTime())
+		if err := app.Save(row); err != nil {
+			return err
+		}
 	}
-	row.Set(f.Revoked, true)
-	row.Set(f.RevokedAt, types.NowDateTime())
-	return app.Save(row)
+	return nil
 }
 
 // AttestationStatusList builds the list this server publishes.
@@ -427,9 +477,9 @@ func credentialStatus(app core.App, root *server.RootKey, domain string, key *ec
 	}
 }
 
-// holderIdentityStatus asks the server of an identity whether it still
+// HolderIdentityStatus asks the server of an identity whether it still
 // stands behind it, as every other check of a foreign identity does.
-func holderIdentityStatus(app core.App, root *server.RootKey, holder server.HolderRef, now time.Time) HolderVerdict {
+func HolderIdentityStatus(app core.App, root *server.RootKey, holder server.HolderRef, now time.Time) HolderVerdict {
 	out := HolderVerdict{Fingerprint: holder.Fingerprint, Domain: holder.Domain, State: AttestationUnverified}
 	domain, ok := util.NormalizePeerDomain(holder.Domain)
 	if !ok || !server.ValidIdentityFingerprint(holder.Fingerprint) {
@@ -601,7 +651,7 @@ func VerifyPresentation(app core.App, root *server.RootKey, presentation string,
 	}
 
 	if stated.Holder.Fingerprint != "" || stated.Holder.Domain != "" {
-		holder := holderIdentityStatus(app, root, stated.Holder, now)
+		holder := HolderIdentityStatus(app, root, stated.Holder, now)
 		verdict.Holder = &holder
 		switch holder.State {
 		case AttestationVerified:

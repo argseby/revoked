@@ -105,7 +105,7 @@ func ChallengeRoute(app core.App) {
 			identityId := re.Request.URL.Query().Get("identityId")
 
 			switch scope {
-			case "link", "request", "attestation":
+			case "link", "request", "attestation", challengeScopeReissue:
 				if identityId == "" {
 					return re.BadRequestError("identityId is required for this scope", nil)
 				}

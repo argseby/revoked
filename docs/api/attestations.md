@@ -106,6 +106,89 @@ undone. A deleted attestation is revoked as well, as is every attestation of
 a deleted workspace: a credential is never left standing with nobody able to
 withdraw it.
 
+## Moving a credential to a new identity
+
+A credential is bound to one identity key, and revoking that identity ends
+the credential. When a person replaces an identity — after a device was lost,
+or for a fresh key — each credential is issued again for the new identity
+without anyone at the attester being involved. The old key authorizes the
+move: whoever holds it could present the credential anyway, and with a
+voucher it hands the credential over to one other identity, once.
+
+The app runs this for every credential bound to the identity being replaced,
+through the holder's own server:
+
+1. `GET /api/credentials/{id}/reissue?identityId=<new identity>` fetches a
+   challenge from the attester, which this server reaches on the app's
+   behalf.
+2. On the device, the old identity key signs the voucher and the new
+   identity key signs the challenge.
+3. `POST /api/credentials/{id}/reissue` hands both to the holder's server,
+   which adds the credential and the new identity's public half and calls the
+   attester's `POST /api/attestations/reissue`. What comes back is checked as
+   an accepted offer is, and replaces the kept copy.
+
+The voucher is a small JSON statement signed with the key in the
+credential's `cnf`. Like an
+[identity status](trust-chain.md#4-the-issuer-still-stands-behind-it), it travels as
+the exact bytes that were signed, base64url without padding, and its first
+field is a type tag that keeps it apart from anything else an identity key
+signs:
+
+```json
+{
+  "type": "credential-reissue-v1",
+  "issuer": "club.example",
+  "oldFingerprint": "<identity the credential is bound to>",
+  "newFingerprint": "<identity it moves to>",
+  "nonce": "<the attester's challenge>"
+}
+```
+
+```json
+{ "payload": "<base64url of the bytes above>", "signature": "<base64>" }
+```
+
+The signature is made like a challenge signature, over the SHA-256 of the
+payload bytes: PKCS#1 v1.5 for an RSA key, ASN.1 DER for an ECDSA P-256 key.
+
+The attester checks its own signature on the credential and that it is in
+date; that its position in the status list is not revoked and the
+attestation still names this holder; that the new identity is another one,
+from the server that issued the old one; the voucher; the challenge, which it
+spends; the new identity, with the server that issued it, as for a claim; and
+that the old identity still stands there.
+
+It then revokes the old credential's position and issues the replacement in
+the same transaction: the same claims and type, the same issue and expiry
+dates, bound to the new key, at a fresh position in the status list. The
+attestation names the new identity as its subject from then on, and an open
+offer can be accepted again by the new identity only.
+
+Three rules keep the hand-over from outliving its purpose:
+
+- **Revoking the old identity ends its key's say.** A move is refused once
+  the old identity was revoked, so revocation still ends every credential
+  bound to it. The app therefore moves the credentials first and revokes the
+  old identity last.
+- **The new identity comes from the same server.** A copy of the old key
+  cannot carry a credential off to an identity on a domain of the copier's
+  choosing.
+- **A credential moves once.** The old credential is revoked as the new one
+  is issued. Whoever moves it first holds it, and the holder learns of a
+  move they did not make when theirs is refused with
+  `reissue_credential_revoked`.
+
+Asking again to move the old credential to the identity it already moved to
+is not refused: the same voucher and challenge checks apply, and the current
+credential is handed out once more, at its current position. An answer lost
+on the way, or one the holder's server could not check at that moment, can
+therefore be fetched by retrying, as an accepted offer can be accepted again.
+
+The attester's refusal reaches the app with its code. An attester that
+cannot be reached leaves its credential on the old identity; the app offers
+to retry, or to revoke the old identity anyway, which ends that credential.
+
 ## Asking a person for an attestation
 
 A service asks through the person's app, with a link the app answers
@@ -219,6 +302,11 @@ never `verified`.
 - **A restored backup forgets later revocations.** As with identities, the
   status list is part of the database. Revocations made after the backup are
   lost with a restore of it.
+- **A copied identity key can move a credential.** Until the identity is
+  revoked, whoever holds a copy of its key can move a credential to another
+  identity of the same server, as its holder can. A lost device therefore
+  calls for replacing its identities promptly; a move made by someone else
+  shows as a refusal when the holder's own move is attempted.
 - **The verifier contacts the holder's server.** The identity's status is
   asked for at the domain that issued it, which thereby learns that a check
   took place and from which address. The attester learns nothing: its status

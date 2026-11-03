@@ -32,8 +32,11 @@ const maxOfferTokenLength = 128
 //	GET  /api/attestations/offers/{token}       what an offer states, before it is accepted
 //	POST /api/attestations/offers/{token}/claim accept it with a proven identity -> the credential
 //	POST /api/attestations/verify               a presentation -> a verdict
+//	POST /api/attestations/reissue              a credential, vouched over to a new identity -> its replacement
 //	POST /api/credentials/claim                 holder's app -> holder's server -> the issuer
 //	GET  /api/credentials/{id}/status           the holder's view of a credential they keep
+//	GET  /api/credentials/{id}/reissue          the issuer's challenge for moving it, relayed
+//	POST /api/credentials/{id}/reissue          holder's app -> holder's server -> the issuer
 //
 // An attestation is created through the collection API as an offer. Accepting
 // it is what issues the credential: the subject proves possession of an
@@ -108,8 +111,33 @@ func AttestationsRoute(app core.App, root *server.RootKey) {
 			return re.JSON(http.StatusOK, verdict)
 		})
 
+		e.Router.POST("/api/attestations/reissue", func(re *core.RequestEvent) error {
+			if !allowRequest(re, grantPeerLimiter, "") {
+				return rateLimitedResponse(re)
+			}
+			var body credentialReissue
+			_ = re.BindBody(&body)
+			credential, appErr, status := reissueCredential(app, root, body)
+			if appErr != nil {
+				return appErrorResponse(re, status, appErr)
+			}
+			re.Response.Header().Set("Cache-Control", "no-store")
+			return re.JSON(http.StatusOK, map[string]any{
+				"credential": credential,
+				"issuer":     root.Domain(),
+			})
+		})
+
 		e.Router.POST("/api/credentials/claim", func(re *core.RequestEvent) error {
 			return relayAttestationClaim(app, root, re)
+		})
+
+		e.Router.GET("/api/credentials/{id}/reissue", func(re *core.RequestEvent) error {
+			return relayReissueChallenge(app, root, re)
+		})
+
+		e.Router.POST("/api/credentials/{id}/reissue", func(re *core.RequestEvent) error {
+			return relayCredentialReissue(app, root, re)
 		})
 
 		e.Router.GET("/api/credentials/{id}/status", func(re *core.RequestEvent) error {
@@ -251,33 +279,15 @@ func claimAttestationOffer(app core.App, root *server.RootKey, token string, bod
 		return "", appErr, status
 	}
 	id := body.Identity
-	if id == nil {
-		return "", &util.Errors.IdentityRequired, http.StatusBadRequest
-	}
-	id.Fingerprint = strings.ToLower(strings.TrimSpace(id.Fingerprint))
-	domain, ok := util.NormalizePeerDomain(id.DomainAtIssue)
-	if !ok || !server.ValidIdentityFingerprint(id.Fingerprint) {
-		return "", &util.Errors.RemoteIdentityInvalid, http.StatusForbidden
-	}
-	id.DomainAtIssue = domain
-	sum := sha256.Sum256([]byte(id.Certificate))
-	if hex.EncodeToString(sum[:]) != id.Fingerprint {
-		return "", &util.Errors.RemoteIdentityInvalid, http.StatusForbidden
+	holderKey, appErr, status := checkPresentedIdentity(id)
+	if appErr != nil {
+		return "", appErr, status
 	}
 	if bound := offer.GetString(f.SubjectFingerprint); bound != "" && bound != id.Fingerprint {
 		if offer.GetString(f.Status) == util.StatusActive {
 			return "", &util.Errors.AttestationOfferClaimed, http.StatusGone
 		}
 		return "", &util.Errors.AttestationIdentityMismatch, http.StatusForbidden
-	}
-
-	holderPub, err := util.PublicKeyFromPEM(id.Certificate)
-	if err != nil {
-		return "", &util.Errors.RemoteIdentityInvalid, http.StatusForbidden
-	}
-	holderKey, err := server.JWKFromPublicKey(holderPub)
-	if err != nil {
-		return "", &util.Errors.AttestationKeyUnsupported, http.StatusBadRequest
 	}
 
 	if body.ChallengeNonce == "" || body.ChallengeSignature == "" {
@@ -383,6 +393,49 @@ func claimAttestationOffer(app core.App, root *server.RootKey, token string, bod
 	return credential, nil, http.StatusOK
 }
 
+// checkPresentedIdentity checks the shape of what an identity's server relayed
+// about it — a fingerprint that is the hash of its certificate, a domain —
+// and reads out of the certificate the key a credential is bound to. It
+// normalizes id in place. Nothing here says the identity stands; that is
+// [verifyIdentityChain], once the key has been proven.
+func checkPresentedIdentity(id *remoteIdentity) (server.PublicJWK, *util.AppError, int) {
+	if id == nil {
+		return server.PublicJWK{}, &util.Errors.IdentityRequired, http.StatusBadRequest
+	}
+	id.Fingerprint = strings.ToLower(strings.TrimSpace(id.Fingerprint))
+	domain, ok := util.NormalizePeerDomain(id.DomainAtIssue)
+	if !ok || !server.ValidIdentityFingerprint(id.Fingerprint) {
+		return server.PublicJWK{}, &util.Errors.RemoteIdentityInvalid, http.StatusForbidden
+	}
+	id.DomainAtIssue = domain
+	sum := sha256.Sum256([]byte(id.Certificate))
+	if hex.EncodeToString(sum[:]) != id.Fingerprint {
+		return server.PublicJWK{}, &util.Errors.RemoteIdentityInvalid, http.StatusForbidden
+	}
+	pub, err := util.PublicKeyFromPEM(id.Certificate)
+	if err != nil {
+		return server.PublicJWK{}, &util.Errors.RemoteIdentityInvalid, http.StatusForbidden
+	}
+	key, err := server.JWKFromPublicKey(pub)
+	if err != nil {
+		return server.PublicJWK{}, &util.Errors.AttestationKeyUnsupported, http.StatusBadRequest
+	}
+	return key, nil, http.StatusOK
+}
+
+// identityFromRecord is the public half of an identity kept here, as this
+// server relays it to an issuer.
+func identityFromRecord(rec *core.Record) *remoteIdentity {
+	return &remoteIdentity{
+		ID:              rec.Id,
+		Name:            rec.GetString(util.Fields.Identity.Name),
+		Fingerprint:     rec.GetString(util.Fields.Identity.Fingerprint),
+		Certificate:     rec.GetString(util.Fields.Identity.Certificate),
+		ParentSignature: rec.GetString(util.Fields.Identity.ParentSignature),
+		DomainAtIssue:   rec.GetString(util.Fields.Identity.DomainAtIssue),
+	}
+}
+
 // verifyIdentityChain checks that an identity which just proved its key still
 // stands: with this server's own records when it issued the identity, and
 // with the issuing server — DNS pin, root key, parent signature, current
@@ -456,14 +509,7 @@ func relayAttestationClaim(app core.App, root *server.RootKey, re *core.RequestE
 	if !services.IdentityIsActive(idRec) {
 		return appErrorResponse(re, http.StatusForbidden, &util.Errors.IdentityRevoked)
 	}
-	identity := &remoteIdentity{
-		ID:              idRec.Id,
-		Name:            idRec.GetString(util.Fields.Identity.Name),
-		Fingerprint:     idRec.GetString(util.Fields.Identity.Fingerprint),
-		Certificate:     idRec.GetString(util.Fields.Identity.Certificate),
-		ParentSignature: idRec.GetString(util.Fields.Identity.ParentSignature),
-		DomainAtIssue:   idRec.GetString(util.Fields.Identity.DomainAtIssue),
-	}
+	identity := identityFromRecord(idRec)
 	holderPub, err := util.PublicKeyFromPEM(identity.Certificate)
 	if err != nil {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.AttestationKeyUnsupported)
@@ -557,6 +603,16 @@ func saveCredential(app core.App, auth, identity *core.Record, issuer, credentia
 		rec.Set(f.Identity, identity.Id)
 		rec.Set(f.Issuer, issuer)
 	}
+	if err := writeCredential(app, rec, credential, stated); err != nil {
+		return nil, err
+	}
+	return rec, nil
+}
+
+// writeCredential puts a credential into its holder's row, with what it
+// states, and saves the row.
+func writeCredential(app core.App, rec *core.Record, credential string, stated server.CredentialVerification) error {
+	f := util.Fields.Credential
 	rec.Set(f.Type, stated.Type)
 	rec.Set(f.Credential, credential)
 	rec.Set(f.Claims, stated.Claims)
@@ -570,10 +626,7 @@ func saveCredential(app core.App, auth, identity *core.Record, issuer, credentia
 		at, _ := types.ParseDateTime(stated.ExpiresAt)
 		rec.Set(f.ExpiresAt, at)
 	}
-	if err := app.Save(rec); err != nil {
-		return nil, err
-	}
-	return rec, nil
+	return app.Save(rec)
 }
 
 // sameStatusRef reports whether a credential's status claim points at ref.
