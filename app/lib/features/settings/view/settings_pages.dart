@@ -32,6 +32,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
+import 'package:revoked_app/features/api_keys/view/api_keys_group.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
@@ -55,7 +56,6 @@ enum SettingsPage {
   invites('invites', 'Invites'),
   identities('identities', 'Identities'),
   connectedTools('connected-tools', 'Connected tools'),
-  // Listed with connected tools now; the address leads there.
   apiKeys('api-keys', 'API keys'),
   webhooks('webhooks', 'Webhooks'),
   templates('templates', 'Templates'),
@@ -144,11 +144,13 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.identities.loadIdentities();
         Stores.settings.ensureDomainChecked();
       case SettingsPage.connectedTools:
-      case SettingsPage.apiKeys:
         Stores.connections.load();
         Stores.signIns.loadIfDue();
+        Stores.invites.loadCatalogue();
+      case SettingsPage.apiKeys:
         Stores.apiKeys.loadApiKeys();
         Stores.invites.loadCatalogue();
+        Stores.vault.loadIfDue();
       case SettingsPage.webhooks:
         Stores.webhooks.loadIfDue();
       case SettingsPage.templates:
@@ -169,8 +171,8 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
           SettingsPage.members => const _MembersPage(),
           SettingsPage.invites => const _InvitesPage(),
           SettingsPage.identities => const _IdentitiesPage(),
-          SettingsPage.connectedTools ||
-          SettingsPage.apiKeys => const ConnectionsList(),
+          SettingsPage.connectedTools => const ConnectionsList(),
+          SettingsPage.apiKeys => const ApiKeysGroup(),
           SettingsPage.webhooks => const WebhooksList(),
           SettingsPage.templates => const _TemplatesPage(),
           SettingsPage.domain => const _DomainPage(),
