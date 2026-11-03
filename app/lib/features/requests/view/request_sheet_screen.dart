@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/router/app_router.dart';
@@ -251,8 +252,8 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
                 slug: slug,
                 title: key,
                 intro:
-                    'Use this value, or the whole response, anywhere. Pick a '
-                    'format and copy the address.',
+                    'This value, or the whole response, is available in '
+                    'several formats at the address below.',
                 keys: [key],
                 presetKey: key,
               ),
@@ -289,9 +290,8 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
               if (data.rows.isEmpty) {
                 return const AppEmptyState(
                   icon: AppIcons.cardList,
-                  title: 'No responses yet',
-                  subtitle:
-                      'Share the request. Each response shows up here as a row.',
+                  title: 'No responses',
+                  subtitle: 'Each response appears here as a row.',
                 );
               }
               return Padding(
@@ -305,16 +305,7 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
     );
   }
 
-  String _formatDate(String iso) {
-    if (iso.isEmpty) return '';
-    try {
-      final dt = DateTime.parse(iso).toLocal();
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return iso;
-    }
-  }
+  String _formatDate(String iso) => dayTimeOf(iso) ?? iso;
 }
 
 class _SheetData {

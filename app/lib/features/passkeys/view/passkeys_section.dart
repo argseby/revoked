@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/passkey.dart';
@@ -54,7 +55,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
       if (!mounted) return;
       AppToast.error(
         context,
-        'Couldn’t open the page',
+        'The page could not be opened',
         subtitle: Stores.passkeys.errorMessage,
       );
     }
@@ -66,7 +67,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
     if (link == null) {
       AppToast.error(
         context,
-        'Couldn’t make a link',
+        'The link could not be created',
         subtitle: Stores.passkeys.errorMessage,
       );
       return;
@@ -76,7 +77,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
     AppToast.success(
       context,
       'Link copied',
-      subtitle: 'Open it on the other device within 15 minutes. It works once.',
+      subtitle: 'Valid for one use within 15 minutes.',
     );
   }
 
@@ -85,8 +86,8 @@ class _PasskeysSectionState extends State<PasskeysSection>
       context: context,
       title: 'Remove ${passkey.title}?',
       message:
-          'You can’t sign in with it any more. It stays on that device until '
-          'you delete it there.',
+          'The passkey can no longer be used to sign in. It remains on the '
+          'device until deleted there.',
       confirmLabel: 'Remove',
       confirmIcon: AppIcons.trash,
       cancelLabel: 'Keep',
@@ -97,7 +98,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
       if (!mounted) return;
       AppToast.error(
         context,
-        'Couldn’t remove it',
+        'The passkey could not be removed',
         subtitle: Stores.passkeys.errorMessage,
       );
       return;
@@ -111,8 +112,8 @@ class _PasskeysSectionState extends State<PasskeysSection>
     if (!gone && mounted) {
       AppToast.error(
         context,
-        'It still holds your encryption key',
-        subtitle: 'Remove it under End-to-end encryption.',
+        'The passkey still holds the encryption key',
+        subtitle: 'It can be removed under End-to-end encryption.',
       );
     }
   }
@@ -127,8 +128,8 @@ class _PasskeysSectionState extends State<PasskeysSection>
           AppListGroup(
             title: 'Passkeys',
             footer: const Text(
-              'Sign in without a password. Add a passkey on every device you '
-              'use, so losing one never locks you out.',
+              'Passkeys allow sign-in without a password. A passkey on each '
+              'device prevents lockout when one is lost.',
             ),
             children: [
               if (store.isLoading && store.passkeys.isEmpty)
@@ -139,7 +140,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
               else if (store.passkeys.isEmpty)
                 AppDetailRow(
                   icon: AppIcons.info,
-                  label: store.errorMessage ?? 'No passkeys found.',
+                  label: store.errorMessage ?? 'No passkeys',
                 )
               else
                 for (final p in store.passkeys)
@@ -174,14 +175,14 @@ class _PasskeysSectionState extends State<PasskeysSection>
       title: p.title,
       subtitle:
           'Added ${_day(p.created)} · '
-          '${p.lastUsedAt == null ? 'not used yet' : 'last used ${_day(p.lastUsedAt)}'}',
+          '${p.lastUsedAt == null ? 'never used' : 'last used ${_day(p.lastUsedAt)}'}',
       onTap: () => showAppOptionsSheet(
         context: context,
         title: p.title,
         actions: [
           AppSheetAction(
             icon: AppIcons.trash,
-            label: only ? 'Remove (add another passkey first)' : 'Remove',
+            label: only ? 'Remove (requires another passkey)' : 'Remove',
             destructive: true,
             // The only one cannot go: there would be no way back in.
             enabled: !only,
@@ -193,10 +194,4 @@ class _PasskeysSectionState extends State<PasskeysSection>
   }
 }
 
-String _day(String? iso) {
-  if (iso == null) return '—';
-  final d = DateTime.tryParse(iso.replaceFirst(' ', 'T'))?.toLocal();
-  if (d == null) return '—';
-  return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
-}
+String _day(String? iso) => dayOf(iso) ?? '—';

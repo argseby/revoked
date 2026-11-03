@@ -843,7 +843,7 @@ abstract class _KeysStore with Store {
       final served = chain.bySeq(entry.seq);
       if (served == null || !_sameBytes(served.hash, entry.hash)) {
         throw const SealingException(
-          'Your server didn\'t save that change to your device list.',
+          'The server did not save the change to the device list.',
         );
       }
     }
@@ -1115,7 +1115,7 @@ abstract class _KeysStore with Store {
   Future<void> _enrollPasskey(PasskeySignIn p) async {
     if (!_trusted || p.credentialId.isEmpty) {
       throw const SealingException(
-        'This device can\'t change your device list right now.',
+        'This device cannot change the device list right now.',
       );
     }
     if (chain.livePasskey(p.credentialId) != null) return;
@@ -1341,7 +1341,7 @@ abstract class _KeysStore with Store {
         await _replaceRecovery(secret);
       } else {
         if (workspace.isEmpty) {
-          throw const SealingException('Choose a workspace first.');
+          throw const SealingException('No workspace is selected.');
         }
         await _firstSetup(secret);
         if (!_workspaces.containsKey(workspace) &&
@@ -1352,8 +1352,8 @@ abstract class _KeysStore with Store {
       await _refresh();
       if (_workspaces.values.any((held) => held.mustRotate)) {
         throw const SealingException(
-          'Your recovery key is saved, but your encryption key couldn\'t be '
-          'replaced. Check your connection and reload.',
+          'The recovery key was saved, but the encryption key could not be '
+          'replaced. Check the connection and reload.',
         );
       }
       cancelRecovery();
@@ -1410,7 +1410,8 @@ abstract class _KeysStore with Store {
     }
     if (status != SealingStatus.notSetUp) {
       throw const SealingException(
-        'This account already has encrypted records. Add this device instead.',
+        'This account already has encrypted records. This device can be added '
+        'instead.',
       );
     }
 
@@ -1474,7 +1475,7 @@ abstract class _KeysStore with Store {
     await _applyState(await _fetchState());
     if (status != SealingStatus.ready) {
       throw const SealingException(
-        'Your server didn\'t return what this device just saved.',
+        'The server did not return what this device saved.',
       );
     }
   }
@@ -1503,7 +1504,7 @@ abstract class _KeysStore with Store {
     await _applyState(await _fetchState());
     if (!_trusted) {
       throw const SealingException(
-        'This device can\'t change your device list right now.',
+        'This device cannot change the device list right now.',
       );
     }
     final device = _device!;
@@ -1607,7 +1608,7 @@ abstract class _KeysStore with Store {
     deviceConfirmation = null;
     final invite = DeviceInvite.tryParse(code);
     if (invite == null) {
-      errorMessage = 'That code isn\'t complete. Copy all of it and try again.';
+      errorMessage = 'The code is incomplete. The whole code must be copied.';
       return false;
     }
     isSaving = true;
@@ -1616,7 +1617,7 @@ abstract class _KeysStore with Store {
       // changed it, and an entry on a stale list would break it for everyone.
       await _refresh();
       if (!_trusted) {
-        errorMessage = 'This device can\'t change your device list right now.';
+        errorMessage = 'This device cannot change the device list right now.';
         return false;
       }
       final device = _device!;
@@ -1673,7 +1674,7 @@ abstract class _KeysStore with Store {
     errorMessage = null;
     final confirmation = DeviceConfirmation.tryParse(code);
     if (confirmation == null) {
-      errorMessage = 'That code isn\'t complete. Copy all of it and try again.';
+      errorMessage = 'The code is incomplete. The whole code must be copied.';
       return false;
     }
     isSaving = true;
@@ -1688,8 +1689,8 @@ abstract class _KeysStore with Store {
           seq == null ||
           entry.seq < seq) {
         errorMessage =
-            'That code doesn\'t match your device list. Don\'t trust this '
-            'list until you know why.';
+            'The code does not match the device list. The list should not be '
+            'trusted until the cause is known.';
         return false;
       }
       _pins
@@ -1754,8 +1755,8 @@ abstract class _KeysStore with Store {
       await _refresh();
       if (_workspaces.values.any((held) => !held.writable)) {
         errorMessage =
-            'The device is off your list, but your encryption key couldn\'t '
-            'be replaced. Check your connection and reload.';
+            'The device was removed from the list, but the encryption key '
+            'could not be replaced. Check the connection and reload.';
         return false;
       }
       return true;
@@ -1784,7 +1785,7 @@ abstract class _KeysStore with Store {
     errorMessage = null;
     final secret = RecoveryCode.decode(recoveryInput.text);
     if (secret == null) {
-      errorMessage = 'That recovery key isn\'t right. Check for a typo.';
+      errorMessage = 'The recovery key is incorrect. Check for typos.';
       return false;
     }
     isSaving = true;
@@ -1792,11 +1793,11 @@ abstract class _KeysStore with Store {
       await _readLocal();
       await _applyState(await _fetchState());
       if (status == SealingStatus.untrusted) {
-        errorMessage = 'Your device list changed. Check it before going on.';
+        errorMessage = 'The device list changed. Review it before continuing.';
         return false;
       }
       if (chainBroken || chain.entries.isEmpty) {
-        errorMessage = 'This device can\'t read your device list right now.';
+        errorMessage = 'This device cannot read the device list right now.';
         return false;
       }
       final hpke = RecoveryCode.hpkeKey(secret);
@@ -1805,7 +1806,7 @@ abstract class _KeysStore with Store {
       if (recovery == null ||
           !_sameBytes(recovery.hpkePublicKey, hpke.publicKey) ||
           !_sameBytes(recovery.signingPublicKey, signing.publicKey)) {
-        errorMessage = 'That recovery key doesn\'t belong to this account.';
+        errorMessage = 'The recovery key does not belong to this account.';
         return false;
       }
       final root = chain.entries.first.hash;
@@ -1814,7 +1815,7 @@ abstract class _KeysStore with Store {
         SealedFormats.recoveryAnchorPayload(_currentUser(), root),
         recovery.anchorSignature,
       )) {
-        errorMessage = 'That recovery key doesn\'t belong to this account.';
+        errorMessage = 'The recovery key does not belong to this account.';
         return false;
       }
 
@@ -1898,7 +1899,7 @@ abstract class _KeysStore with Store {
     final held = _workspaces[workspace];
     if (held == null || !held.writable || !_trusted) {
       throw const SealingException(
-        'This device can\'t encrypt in this workspace right now.',
+        'This device cannot encrypt in this workspace right now.',
       );
     }
     final epoch = held.currentEpoch;
@@ -2012,7 +2013,7 @@ abstract class _KeysStore with Store {
     final device = _device;
     final seq = thisDeviceSeq;
     if (!_trusted || device == null || seq == null) {
-      throw const SealingException('This device can\'t change that right now.');
+      throw const SealingException('This device cannot change that right now.');
     }
     return {
       'deviceSeq': seq,

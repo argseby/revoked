@@ -6,19 +6,21 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/feature.dart';
-import 'package:revoked_app/core/models/notification.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_chart.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/attention_card.dart';
-import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
+import 'package:revoked_app/core/widgets/tool_tag.dart';
 import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
@@ -27,10 +29,11 @@ import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 /// Where the app lands: what needs the person, and who can read their data.
 ///
-/// Each attention card counts one kind of thing and opens the list it
-/// counts. Below them, the recipients who can see something right now, the
-/// records others can read, and what happened lately. Someone new sees the
-/// three steps to a first link instead.
+/// Four counts on top, then attention cards, each counting one kind of thing
+/// and opening the list it counts. Below them, everything that can reach the
+/// vault right now: people through links, connected tools and API keys, and
+/// the records others can read. Someone new sees the three steps to a first
+/// link instead.
 class OverviewScreen extends StatefulWidget {
   const OverviewScreen({super.key});
 
@@ -51,6 +54,9 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
   void refresh() {
     Stores.shares.loadIfDue();
     Stores.vault.loadIfDue();
+    Stores.connections.load();
+    Stores.apiKeys.loadApiKeys();
+    Stores.webhooks.loadIfDue();
   }
 
   @override
@@ -70,18 +76,21 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           (shares.loadState.isFirstLoad && shares.shares.isEmpty) ||
           (vault.loadState.isFirstLoad && vault.records.isEmpty),
       skeleton: const AppListSkeleton(
-        group: 'Who can see your data',
+        group: 'Data access',
         rows: [
-          AppSkeletonRow('IBAN', '2 people can read this', icon: AppIcons.lock),
+          AppSkeletonRow('IBAN', 'Readable by 2 people', icon: AppIcons.lock),
           AppSkeletonRow(
             'Home address',
-            '1 person can read this',
+            'Readable by 1 person',
             icon: AppIcons.lock,
           ),
         ],
       ),
       builder: (context) {
-        if (vault.records.isEmpty && shares.shares.isEmpty) {
+        if (vault.records.isEmpty &&
+            shares.shares.isEmpty &&
+            Stores.connections.connections.isEmpty &&
+            Stores.apiKeys.apiKeys.isEmpty) {
           return const _FirstSteps();
         }
         return Observer(builder: _overview);
@@ -106,7 +115,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           icon: AppIcons.inboxFill,
           label: 'New answers',
           value: '$answers ${answers == 1 ? 'answer' : 'answers'}',
-          detail: 'To your requests',
+          detail: 'Responses to requests',
           onTap: () => context.go(AppRoutes.requests),
         ),
       if (soon.isNotEmpty)
@@ -117,7 +126,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           value: '${soon.length} ${soon.length == 1 ? 'link' : 'links'}',
           detail: soon.length == 1
               ? '${soon.first.label}: ${linkAttention(soon.first, now)!.reason}'
-              : 'Running out of time or views',
+              : 'Expiring or near the view limit',
           onTap: () => context.go(
             soon.length == 1
                 ? AppRoutes.shareDetailFor(soon.first.id)
@@ -130,10 +139,38 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           icon: AppIcons.pauseCircle,
           label: 'Paused',
           value: '$paused ${paused == 1 ? 'link' : 'links'}',
-          detail: 'Nobody can open them until you turn them back on',
+          detail: 'Unavailable until reactivated',
           onTap: () => context.go(AppRoutes.shared),
         ),
     ];
+
+    final failing = Stores.webhooks.endpoints.where((e) => e.isFailing).length;
+    if (failing > 0) {
+      cards.add(
+        AttentionCard(
+          tone: AttentionTone.warning,
+          icon: AppIcons.send,
+          label: 'Webhooks failing',
+          value: '$failing ${failing == 1 ? 'webhook' : 'webhooks'}',
+          detail: 'Deliveries are not getting through',
+          onTap: () => context.go(AppRoutes.webhooks),
+        ),
+      );
+    }
+    final keys = Stores.apiKeys.apiKeys;
+    final expiring = keys.where((k) => _endsWithinAWeek(k.expiresAt, now));
+    if (expiring.isNotEmpty) {
+      cards.add(
+        AttentionCard(
+          tone: AttentionTone.warning,
+          icon: AppIcons.key,
+          label: 'Keys expiring',
+          value: '${expiring.length} ${expiring.length == 1 ? 'key' : 'keys'}',
+          detail: 'Within the next seven days',
+          onTap: () => context.go(AppRoutes.apiKeys),
+        ),
+      );
+    }
 
     final recipients = groupByRecipient(
       links,
@@ -143,13 +180,42 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
       sections: Stores.vault.sections,
       records: Stores.vault.records,
     );
-    final recent = Stores.notifications.notifications.take(5).toList();
+    final tools = [
+      for (final c in Stores.connections.connections)
+        if (!c.isExpired) c,
+    ];
+    final active = links.where((l) => l.status == 'active').length;
 
     return AppPageBody(
       children: [
+        _Figures(
+          tiles: [
+            AppStatTile(
+              icon: AppIcons.link,
+              label: 'Active links',
+              value: '$active',
+            ),
+            AppStatTile(
+              icon: AppIcons.person,
+              label: 'People with access',
+              value: '${recipients.length}',
+            ),
+            AppStatTile(
+              icon: AppIcons.plug,
+              label: 'Connected tools',
+              value: '${tools.length}',
+            ),
+            AppStatTile(
+              icon: AppIcons.key,
+              label: 'API keys',
+              value: '${keys.length}',
+            ),
+          ],
+        ),
+        AppSpacing.gapLg,
         if (cards.isNotEmpty) ...[_Cards(cards: cards), AppSpacing.gapLg],
         AppListGroup(
-          title: 'Who can see your data',
+          title: 'People',
           noun: 'recipients',
           previewCount: 5,
           trailing: recipients.isEmpty
@@ -165,15 +231,73 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
               ? [
                   AppListRow(
                     icon: AppIcons.lock,
-                    title: 'Nobody',
-                    subtitle: 'You aren\'t sharing anything right now.',
+                    title: 'No recipients',
+                    subtitle: 'Nothing is currently shared.',
                   ),
                 ]
               : [for (final r in recipients) RecipientRow(r)],
         ),
+        if (tools.isNotEmpty)
+          AppListGroup(
+            title: 'Connected tools',
+            noun: 'tools',
+            previewCount: 5,
+            children: [
+              for (final c in tools)
+                AppListRow(
+                  icon: AppIcons.plug,
+                  title: c.name,
+                  subtitle: [
+                    _toolReach(c.allowVaultRead, c.reachedSections.length),
+                    _lastUsed(c.lastUsedAt),
+                  ].join(' · '),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (c.paused)
+                        const AppBadge(
+                          icon: AppIcons.pauseCircle,
+                          label: 'Paused',
+                        )
+                      else if (c.allowVaultRead)
+                        const AppBadge(
+                          icon: AppIcons.exclamationTriangle,
+                          label: 'Whole vault',
+                          variant: AppBadgeVariant.outline,
+                        ),
+                      AppSpacing.gapXxs,
+                      ToolIdChip(c.id),
+                    ],
+                  ),
+                  onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+                ),
+            ],
+          ),
+        if (keys.isNotEmpty)
+          AppListGroup(
+            title: 'API keys',
+            noun: 'keys',
+            previewCount: 5,
+            children: [
+              for (final k in keys)
+                AppListRow(
+                  icon: AppIcons.key,
+                  title: k.label,
+                  subtitle: [
+                    _toolReach(
+                      false,
+                      k.vaultAccess.isEmpty ? 0 : k.sections.length,
+                    ),
+                    _lastUsed(k.lastUsedAt),
+                    if (dayOf(k.expiresAt) case final day?) 'Expires $day',
+                  ].join(' · '),
+                  onTap: () => context.go(AppRoutes.apiKeys),
+                ),
+            ],
+          ),
         if (readable.isNotEmpty)
           AppListGroup(
-            title: 'What others can see',
+            title: 'Shared records',
             noun: 'records',
             previewCount: 5,
             children: [
@@ -188,14 +312,63 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
                 ),
             ],
           ),
-        if (recent.isNotEmpty)
-          AppListGroup(
-            title: 'Recent activity',
-            noun: 'notifications',
-            trailing: const SizedBox.shrink(),
-            children: [for (final n in recent) _ActivityRow(n)],
-          ),
       ],
+    );
+  }
+}
+
+String _toolReach(bool wholeVault, int sections) {
+  if (wholeVault) return 'Whole vault';
+  if (sections == 0) return 'No vault access';
+  return '$sections ${sections == 1 ? 'section' : 'sections'}';
+}
+
+String _lastUsed(String? at) {
+  final day = dayOf(at);
+  return day == null ? 'Never used' : 'Last used $day';
+}
+
+bool _endsWithinAWeek(String? at, DateTime now) {
+  final end = parseInstant(at);
+  return end != null &&
+      end.isAfter(now) &&
+      end.isBefore(now.add(const Duration(days: 7)));
+}
+
+/// The four counts, in a row where there is room and two by two on a phone.
+class _Figures extends StatelessWidget {
+  final List<Widget> tiles;
+
+  const _Figures({required this.tiles});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final columns = box.maxWidth < 520 ? 2 : tiles.length;
+        return Column(
+          children: [
+            for (var r = 0; r < tiles.length; r += columns) ...[
+              if (r > 0) AppSpacing.gapSm,
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (
+                      var i = r;
+                      i < r + columns && i < tiles.length;
+                      i++
+                    ) ...[
+                      if (i > r) AppSpacing.gapSm,
+                      Expanded(child: tiles[i]),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -233,22 +406,6 @@ class _Cards extends StatelessWidget {
   }
 }
 
-class _ActivityRow extends StatelessWidget {
-  final AppNotification notification;
-
-  const _ActivityRow(this.notification);
-
-  @override
-  Widget build(BuildContext context) {
-    return AppListRow(
-      icon: notification.read ? AppIcons.bell : AppIcons.recordCircleFill,
-      title: notification.title,
-      subtitle: notification.message,
-      onTap: () => openNotificationsSheet(context),
-    );
-  }
-}
-
 /// Someone new: an empty vault and no links. Three steps to a first link,
 /// the first already done by getting here.
 class _FirstSteps extends StatelessWidget {
@@ -262,32 +419,32 @@ class _FirstSteps extends StatelessWidget {
         const AppText('Welcome').header,
         AppSpacing.gapXxs,
         const Text(
-          'You\'re in. Get started with a short tour of the two things that '
-          'matter most: adding something to your vault and sharing it. It '
-          'takes a minute, and you can undo all of it.',
+          'A short tour covers the two core functions: storing data in the '
+          'vault and sharing it. It takes about a minute, and every change '
+          'can be undone.',
         ).muted,
         AppSpacing.gapLg,
         AppListGroup(
-          title: 'Getting started',
+          title: 'Setup',
           trailing: const SizedBox.shrink(),
           children: [
             AppListRow(
               leading: Center(
                 child: Icon(AppIcons.checkCircle, color: scheme.primary),
               ),
-              title: 'Create your account',
+              title: 'Create account',
               subtitle: 'Done',
             ),
             AppListRow(
               icon: AppIcons.key,
-              title: 'Add your first record',
-              subtitle: 'A name, an address or an IBAN',
+              title: 'Add a record',
+              subtitle: 'Such as a name, address or IBAN',
               onTap: () => openVaultCreateSheet(context),
             ),
             AppListRow(
               icon: AppIcons.link,
-              title: 'Share it, then take it back',
-              subtitle: 'Try it with your own data in a one-minute tour',
+              title: 'Share and revoke',
+              subtitle: 'One-minute tour with real data',
               onTap: () => context.go(AppRoutes.tour),
             ),
           ],

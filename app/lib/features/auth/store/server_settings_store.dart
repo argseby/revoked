@@ -109,7 +109,8 @@ abstract class _ServerSettingsStore with Store {
         _finish(
           reachable: false,
           message:
-              '$target answered with HTTP ${resp.statusCode}. Check the address.',
+              '$target responded with HTTP ${resp.statusCode}. The address may '
+              'be incorrect.',
         );
         return;
       }
@@ -121,7 +122,7 @@ abstract class _ServerSettingsStore with Store {
     } catch (_) {
       _finish(
         reachable: false,
-        message: 'Couldn\'t reach $target. Check the address.',
+        message: '$target could not be reached. The address may be incorrect.',
       );
     }
   }
@@ -215,7 +216,7 @@ abstract class _ServerSettingsStore with Store {
   void _refuseBlocked(String target) => _finish(
     reachable: false,
     message:
-        '${Uri.tryParse(target)?.host ?? target} is a known fake of '
+        '${Uri.tryParse(target)?.host ?? target} is a known impersonation of '
         'Revoked. The official server is ${AppConfig.officialServerHost}.',
   );
 

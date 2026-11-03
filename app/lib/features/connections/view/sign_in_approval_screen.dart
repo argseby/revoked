@@ -74,7 +74,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   String _message(Object e) => switch (e) {
     ApiException(:final message) when message.isNotEmpty => message,
     SignInApprovalException(:final message) => message,
-    _ => 'Something went wrong. Please try again.',
+    _ => 'The request could not be completed.',
   };
 
   Future<void> _open() async {
@@ -135,7 +135,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     } else {
       _error.value =
           Stores.settings.errorMessage ??
-          'Couldn’t switch workspace. Please try again.';
+          'The workspace could not be switched.';
     }
     if (mounted) _busy.value = false;
   }
@@ -222,10 +222,10 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                 context,
                 icon: AppIcons.checkCircle,
                 accent: Theme.of(context).colorScheme.success,
-                title: 'You’re signed in to ${r.clientHost}',
+                title: 'Signed in to ${r.clientHost}',
                 message:
-                    '${r.background ? 'Go back to the ${r.clientHost} page you started on. It carries on from there.' : '${r.clientHost} carries on in your browser.'} '
-                    '${_nameIsEntry || _links.value.values.any((id) => id.isNotEmpty) ? 'What you shared stays in your vault. To stop sharing, go to Settings → Connected tools.' : 'You’ll find this sign-in under Settings → Connected tools.'}',
+                    '${r.background ? 'The sign-in continues on the ${r.clientHost} page where it started.' : '${r.clientHost} continues in the browser.'} '
+                    '${_nameIsEntry || _links.value.values.any((id) => id.isNotEmpty) ? 'Shared data remains in the vault. Sharing can be ended under Settings → Connected tools.' : 'This sign-in is listed under Settings → Connected tools.'}',
               ),
               _Stage.declined => _finished(
                 context,
@@ -238,16 +238,17 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                 context,
                 icon: AppIcons.exclamationTriangle,
                 accent: Theme.of(context).colorScheme.error,
-                title: 'This sign-in can’t continue',
+                title: 'This sign-in cannot continue',
                 message:
-                    '${r.clientHost} asked for something Revoked doesn’t '
+                    '${r.clientHost} requested something Revoked does not '
                     'allow. Nothing was shared.',
               ),
               _Stage.paused => AppStatusMessage(
                 icon: AppIcons.pause,
                 accent: Theme.of(context).colorScheme.onSurfaceVariant,
-                title: 'You paused ${r.clientHost}',
-                message: 'Nothing was shared. Activate it to sign in.',
+                title: '${r.clientHost} is paused',
+                message:
+                    'Nothing was shared. Signing in requires activating it.',
                 actions: [
                   AppButton(
                     label: 'Open service',
@@ -269,9 +270,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                 context,
                 icon: AppIcons.exclamationTriangle,
                 accent: Theme.of(context).colorScheme.error,
-                title: 'Signing in didn’t work',
+                title: 'Sign-in failed',
                 message:
-                    '${_error.value ?? ''} Start signing in again on '
+                    '${_error.value ?? ''} The sign-in must be restarted on '
                     '${r.clientHost}.',
               ),
             },
@@ -282,9 +283,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     return AppStatusMessage(
       icon: AppIcons.exclamationTriangle,
       accent: Theme.of(context).colorScheme.error,
-      title: 'This link doesn’t work',
+      title: 'Invalid link',
       message:
-          'Revoked can’t continue this sign-in. Start again on the '
+          'This sign-in cannot continue. It must be restarted on the '
           'service.',
       actions: [
         AppButton(
@@ -384,9 +385,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     const slot = 'profile';
     return SignInPicker(
       heading: 'Your name',
-      preview: '${c.clientHost} will see you as',
+      preview: 'Shown to ${c.clientHost} as',
       nothing: 'No name',
-      newHint: 'Your new name',
+      newHint: 'New name',
       askedKey: 'name',
       allFit: true,
       selected: _nameChoice.value,
@@ -396,8 +397,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
       workspace: _workspaceName,
       busy: _busy.value,
       note: _nameIsEntry
-          ? 'Saved in your vault. Change it there, and ${c.clientHost} can '
-                'pick up the new name.'
+          ? 'Stored in the vault. Changes made there reach '
+                '${c.clientHost}.'
           : null,
       onChanged: (v) => _pick(slot, _nameChoice.value, v, (next) {
         _nameChoice.value = next;
@@ -419,9 +420,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     final section = 'Sign-in · ${c.clientHost}';
     return SignInPicker(
       heading: 'Your ${l.key.replaceAll('_', ' ')}',
-      preview: '${c.clientHost} will see',
+      preview: 'Shown to ${c.clientHost}',
       nothing: 'Nothing',
-      newHint: 'Your new value',
+      newHint: 'New value',
       askedKey: l.key,
       selected: choice,
       lastPick: _lastPicks[l.key],
@@ -430,9 +431,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
       workspace: _workspaceName,
       busy: _busy.value,
       note: choice == SignInPicker.newValue
-          ? 'Saved in your vault under $section.'
+          ? 'Stored in the vault under $section.'
           : l.match == null && picked != null && !picked.isFile
-          ? 'We’ll add an alias called “${l.key}” to your vault, under '
+          ? 'An alias “${l.key}” is added to the vault under '
                 '$section.'
           : null,
       onChanged: (v) => _pick(l.key, choice, v, (next) {
@@ -481,19 +482,19 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
             leading: const Icon(AppIcons.info),
             content: Text(
               c.newId
-                  ? 'You disconnected $host on ${dayLabel(c.disconnectedAt)}. It '
-                        'will see you as someone new. '
-                        '${c.scopes.isEmpty && c.links.isEmpty ? '' : 'What you share can still tell it who you are, so nothing is picked yet.'}'
-                  : 'You disconnected $host on ${dayLabel(c.disconnectedAt)}. If '
-                        'you sign in, it will know you as before.',
+                  ? '$host was disconnected on ${dayLabel(c.disconnectedAt)}. It '
+                        'sees this account as new. '
+                        '${c.scopes.isEmpty && c.links.isEmpty ? '' : 'Shared data could still identify the account, so nothing is preselected.'}'
+                  : '$host was disconnected on ${dayLabel(c.disconnectedAt)}. '
+                        'Signing in restores the previous account there.',
             ),
           ),
         AppListGroup(
-          title: 'Who is asking',
+          title: 'Requesting service',
           trailing: quiet,
           footer: const Text(
-            'Check the address. Only continue if you recognise it and just '
-            'started signing in there.',
+            'Continue only if the address is recognised and the sign-in was '
+            'just started there.',
           ),
           children: [
             AppDetailRow(icon: AppIcons.globe, label: 'Address', value: host),
@@ -505,13 +506,13 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
           ],
         ),
         AppListGroup(
-          title: '$host learns',
+          title: 'Disclosed to $host',
           trailing: c.links.isEmpty && asksName ? chip : quiet,
           children: [
             pad(
               AppCheckRow(
-                label: 'That it is you',
-                subtitle: 'Through an ID made just for $host.',
+                label: 'Account identity',
+                subtitle: 'Through an ID dedicated to $host',
                 value: true,
                 onChanged: null,
               ),
@@ -539,11 +540,11 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         ),
         if (c.links.isNotEmpty)
           AppListGroup(
-            title: '$host may read',
+            title: 'Readable by $host',
             trailing: chip,
             footer: Text(
-              'Shared entries stay in your vault. $host reads them from '
-              'there until you revoke them.',
+              'Shared entries remain in the vault. $host reads them there '
+              'until revoked.',
             ),
             children: [
               for (final l in c.links)
@@ -570,7 +571,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         );
     return AppActionBar(
       note: const Text(
-        'You confirm on this device. Nothing is shared until you do.',
+        'Nothing is shared until confirmed on this device.',
       ).muted.small,
       children: [
         AppButton(

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:revoked_app/core/design/motion.dart';
+import 'package:revoked_app/core/state/date_time_preferences.dart';
 import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
@@ -63,6 +64,25 @@ void main() {
     await tester.tap(find.byType(Switch));
     await tester.pump();
     expect(DisplayPreferences.reduceMotion, isTrue);
+  });
+
+  testWidgets('a clock choice shows on the page at once', (tester) async {
+    await DateTimePreferences.setClockStyle(ClockStyle.hours24);
+    await DateTimePreferences.setTimeZone('UTC');
+    addTearDown(() async {
+      await DateTimePreferences.setClockStyle(ClockStyle.automatic);
+      await DateTimePreferences.setTimeZone(null);
+    });
+    await pumpPage(tester);
+    expect(find.textContaining(RegExp(r'Current time: .*[AP]M')), findsNothing);
+
+    await tester.tap(find.text('12-hour'));
+    await tester.pump();
+    expect(DateTimePreferences.clockStyle, ClockStyle.hours12);
+    expect(
+      find.textContaining(RegExp(r'Current time: .*[AP]M')),
+      findsOneWidget,
+    );
   });
 
   group('across the app', () {

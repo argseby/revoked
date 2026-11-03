@@ -81,8 +81,20 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     // Access by record moved to the record pages and the Overview, and
     // links others gave you to Requests › Received.
     return AppTabs(
-      labels: const ['Links', 'By person'],
-      views: [_myLinks(context), const _ByPerson()],
+      tabs: [
+        AppTab(
+          label: 'Links',
+          icon: AppIcons.link,
+          description: 'Every share link, by status.',
+          view: _myLinks(context),
+        ),
+        const AppTab(
+          label: 'By person',
+          icon: AppIcons.person,
+          description: 'Shared access, grouped by recipient.',
+          view: _ByPerson(),
+        ),
+      ],
     );
   }
 
@@ -112,7 +124,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
       builder: (_) {
         if (store.shares.isEmpty && store.loadState.error != null) {
           return AppLoadError(
-            title: "Couldn't load your links",
+            title: 'Links could not be loaded',
             message: store.loadState.error!,
             onRetry: store.loadShares,
           );
@@ -134,29 +146,25 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
           );
           return AppEmptyState(
             icon: AppIcons.share,
-            title: 'Share your first record',
+            title: 'No links',
             subtitle:
-                'Share without giving it away. Send a link instead of a copy. '
-                'They always see the latest version, and you can take it back '
-                'any time.',
+                'Links share records without handing over a copy. Recipients '
+                'see the current version until the link is revoked.',
             example: const AppEmptyExample(
               title: 'Onboarding pack',
               detail: '3 records',
               badge: 'active',
             ),
             steps: const [
-              AppEmptyStep('Pick records or a section', 'From your vault'),
+              AppEmptyStep('Records or a section', 'From the vault'),
               AppEmptyStep(
-                'Choose who can open it',
-                'With a password, an identifier or a verified identity',
+                'Access control',
+                'Password, identifier or verified identity',
               ),
-              AppEmptyStep(
-                'Take it back any time',
-                'Pause it, let it expire or revoke it',
-              ),
+              AppEmptyStep('Revocation', 'Paused, expired or revoked'),
             ],
             notice: vaultEmpty
-                ? 'Your vault is empty. Add a record first, then share it.'
+                ? 'The vault is empty. Only existing records can be shared.'
                 : null,
             action: vaultEmpty
                 ? AppButton(
@@ -265,7 +273,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               ),
             ],
           ),
-          emptyMessage: nothingShown ? 'No links match your filters.' : null,
+          emptyMessage: nothingShown ? 'No links match the filters.' : null,
           groups: [
             group(LinkGroup.attention, 'Needs attention'),
             group(LinkGroup.active, 'Active'),
@@ -341,7 +349,7 @@ class _LinkRow extends StatelessWidget {
     }
 
     parts.add(
-      share.viewCount == 0 ? 'not viewed yet' : 'viewed ${share.viewCount}×',
+      share.viewCount == 0 ? 'not viewed' : 'viewed ${share.viewCount}×',
     );
     return parts.join(' · ');
   }
@@ -358,7 +366,7 @@ class _ByPerson extends StatelessWidget {
       loading: () =>
           Stores.shares.loadState.isFirstLoad && Stores.shares.shares.isEmpty,
       skeleton: const AppListSkeleton(
-        group: 'Can see your data',
+        group: 'With access',
         rows: [
           AppSkeletonRow(
             'Landlord',
@@ -382,10 +390,9 @@ class _ByPerson extends StatelessWidget {
         if (groups.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.lock,
-            title: 'Only you can see your data',
+            title: 'No recipients',
             subtitle:
-                'Share a record, and you see here who has it. Each person '
-                'shows up once, with everything they can see.',
+                'Each recipient is listed once, with everything they can see.',
             example: const AppEmptyExample(
               title: 'Landlord',
               detail: '2 links · 5 records',
@@ -393,16 +400,16 @@ class _ByPerson extends StatelessWidget {
             ),
             steps: const [
               AppEmptyStep(
-                'Name who the link is for',
+                'Recipient per link',
                 'A person, a company or a service',
               ),
               AppEmptyStep(
-                'See their links together',
-                'One row per person, however many links',
+                'Grouped links',
+                'One row per recipient, however many links',
               ),
               AppEmptyStep(
-                'Revoke to end their access',
-                'A revoked link stops working right away',
+                'Revocation',
+                'Revoked links stop working immediately',
               ),
             ],
             action: AppButton(
@@ -418,17 +425,16 @@ class _ByPerson extends StatelessWidget {
           groups: [
             if (current.isNotEmpty)
               AppListGroup(
-                title: 'Can see your data',
+                title: 'With access',
                 noun: 'recipients',
                 footer: const Text(
-                  'Grouped by link name. Paused links count until you '
-                  'revoke them.',
+                  'Grouped by link name. Paused links count until revoked.',
                 ),
                 children: [for (final links in current) RecipientRow(links)],
               ),
             if (former.isNotEmpty)
               AppListGroup(
-                title: 'No longer can',
+                title: 'Access ended',
                 noun: 'recipients',
                 collapsed: true,
                 children: [for (final links in former) RecipientRow(links)],

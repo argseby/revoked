@@ -26,7 +26,7 @@ Future<void> showQrSheet({
   required BuildContext context,
   required String title,
   required String link,
-  String message = 'Scan it with the Revoked app on another device.',
+  String message = 'Scan with the Revoked app on another device.',
   bool dismissible = true,
 }) {
   return showAppSheet(

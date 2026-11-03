@@ -86,7 +86,7 @@ void main() {
   AttestationsStore store() => Stores.attestations;
 
   test('a draft needs a type, and claims the server would accept', () {
-    expect(store().draftProblem, contains('what kind'));
+    expect(store().draftProblem, contains('kind is required'));
 
     store().typeController.text = 'two words';
     expect(store().draftProblem, contains('one word'));
@@ -101,12 +101,12 @@ void main() {
     final claim = store().draftClaims.single;
     claim.name.text = 'has space';
     claim.value.text = 'x';
-    expect(store().draftProblem, contains('Name each detail'));
+    expect(store().draftProblem, contains('Detail names'));
 
     claim.name.text = 'member_no';
     claim.kind = ClaimKind.number;
     claim.value.text = 'forty-two';
-    expect(store().draftProblem, contains('isn’t a number'));
+    expect(store().draftProblem, contains('is not a number'));
     claim.value.text = '42';
     expect(store().draftProblem, isNull);
 
@@ -182,10 +182,7 @@ void main() {
     store().typeController.text = 'membership';
     expect(await store().create(), isFalse);
     expect(store().createError?.code, 'attestations_disabled');
-    expect(
-      store().createError?.title,
-      'This server doesn\'t issue attestations',
-    );
+    expect(store().createError?.title, 'Attestations not available');
     expect(store().lastCreatedToken, isNull);
   });
 

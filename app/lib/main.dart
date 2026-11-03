@@ -11,6 +11,7 @@ import 'package:revoked_app/core/services/deep_link_service.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
+import 'package:revoked_app/core/state/date_time_preferences.dart';
 import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/utils/paste_link_shortcut.dart';
@@ -30,6 +31,7 @@ void main() async {
   unawaited(purgeOpenedFiles());
   await Stores.init();
   await DisplayPreferences.load();
+  await DateTimePreferences.load();
   runApp(const RevokedApp());
 }
 
@@ -77,7 +79,7 @@ class _RevokedAppState extends State<RevokedApp> {
     final ctx = AppRouter.rootNavigatorKey.currentContext;
     if (ctx == null || !ctx.mounted) return;
     if (adoption == ClipboardAdoption.adopted) {
-      AppToast.success(ctx, 'Link taken from your clipboard');
+      AppToast.success(ctx, 'Link pasted from the clipboard');
     }
     await openLinkSearchSheet(ctx);
   }

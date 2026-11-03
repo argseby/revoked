@@ -84,10 +84,13 @@ class SharedPlaceholder extends StatelessWidget {
           children: [
             Icon(AppIcons.link, size: 32, color: scheme.onSurfaceVariant),
             AppSpacing.gapMd,
-            const AppText('Choose a link', textAlign: TextAlign.center).header,
+            const AppText(
+              'No link selected',
+              textAlign: TextAlign.center,
+            ).header,
             AppSpacing.gapXs,
             const Text(
-              'See what it shares, how it is protected and who opened it.',
+              'Contents, protection and access history appear here.',
               textAlign: TextAlign.center,
             ).muted,
           ],

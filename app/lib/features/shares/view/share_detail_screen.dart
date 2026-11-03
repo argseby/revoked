@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/core/models/section.dart';
@@ -23,7 +24,6 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -246,12 +246,12 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         AppDetailRow(
           icon: AppIcons.info,
           label: total == 0
-              ? 'Nothing selected yet'
+              ? 'Nothing selected'
               : vault.isLoading
               ? 'Loading…'
               : vault.errorMessage != null
-              ? "Couldn't load your vault"
-              : '$total items no longer in your vault',
+              ? 'The vault could not be loaded'
+              : '$total items no longer in the vault',
         ),
       );
     }
@@ -265,7 +265,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
 
     final count = placed.length;
     return AppListGroup(
-      title: "What's shared · $count ${count == 1 ? 'record' : 'records'}",
+      title: 'Contents · $count ${count == 1 ? 'record' : 'records'}',
       previewCount: 12,
       noun: 'records',
       trailing: share.status == 'revoked'
@@ -303,12 +303,13 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     final sentence = switch (share.status) {
       'active' =>
         'Anyone with this link can see $what, always the latest '
-            'version. You can pause or revoke it any time.',
+            'version. Access can be paused or revoked.',
       'paused' =>
-        'This link is paused. Nobody can open it until you activate it '
+        'This link is paused and cannot be opened until it is activated '
             'again.',
-      'expired' => 'This link has expired. Nobody can open it anymore.',
-      _ => 'This link is revoked for good. You can make a new one from it.',
+      'expired' => 'This link has expired and can no longer be opened.',
+      _ =>
+        'This link is permanently revoked. A new link can be created from it.',
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -317,7 +318,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   }
 
   Widget _access(Link share) {
-    final expires = AppEntityCard.formatDate(share.expiresAt);
+    final expires = dayOf(share.expiresAt);
     return AppListGroup(
       title: 'Protection',
       trailing: const SizedBox.shrink(),
@@ -373,7 +374,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     } else if (share.isFromRequest) {
       origin = 'Answer to a request';
     } else {
-      origin = 'Made in the app';
+      origin = 'Created in the app';
     }
 
     return AppListGroup(
@@ -396,12 +397,12 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         AppDetailRow(
           icon: AppIcons.plus,
           label: 'Created',
-          value: AppEntityCard.formatDate(share.created) ?? '—',
+          value: dayOf(share.created) ?? '—',
         ),
         AppDetailRow(
           icon: AppIcons.pen,
           label: 'Last changed',
-          value: AppEntityCard.formatDate(share.updated) ?? '—',
+          value: dayOf(share.updated) ?? '—',
         ),
       ],
     );
@@ -456,8 +457,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       context: context,
       title: 'Revoke this link?',
       message:
-          "Nobody can open it again. You can't undo this, but you can make "
-          'a new link from it.',
+          'The link can no longer be opened. This cannot be undone, but a '
+          'new link can be created from it.',
       content: ApiPreview(
         spec: Stores.shares.updateShareSpec(share.id, const {
           'status': 'revoked',
@@ -481,7 +482,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Delete this link?',
-      message: "The link stops working right away. You can't undo this.",
+      message: 'The link stops working immediately. This cannot be undone.',
       content: ApiPreview(
         spec: Stores.shares.deleteShareSpec(share.id),
         title: 'API request · delete',
@@ -506,8 +507,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     slug: share.slug,
     title: share.label,
     intro:
-        'Use this link\'s data anywhere, always up to date. Pick a format '
-        'and copy the address.',
+        'This link\'s data is available in several formats, always up to '
+        'date.',
     gated: share.hasPassword,
     requireHandshake: share.requireHandshake,
     keys: _sharedKeys(share),

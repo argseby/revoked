@@ -86,22 +86,21 @@ abstract final class ResumeLocation {
     final path = Uri.tryParse(peek() ?? '')?.path;
     if (path == null || path.isEmpty) return null;
     if (path == '/p') {
-      return 'Afterwards, you continue with the link proposal you opened.';
+      return 'Continues afterwards with the opened link proposal.';
     }
     if (path == '/connect') {
-      return 'Afterwards, you continue connecting the tool you came from.';
+      return 'Continues afterwards with connecting the tool.';
     }
     if (path == '/signin') {
-      return 'Afterwards, you continue signing in to the service you came from.';
+      return 'Continues afterwards with signing in to the service.';
     }
     if (path == '/present') {
-      return 'Afterwards, you continue with the attestation a service asked '
-          'to see.';
+      return 'Continues afterwards with the attestation a service requested.';
     }
     if (path.startsWith('/a/')) {
-      return 'Afterwards, you continue with the attestation you were offered.';
+      return 'Continues afterwards with the offered attestation.';
     }
-    return 'Afterwards, you continue with the invite you opened.';
+    return 'Continues afterwards with the opened invite.';
   }
 
   static Future<void> _write() async {

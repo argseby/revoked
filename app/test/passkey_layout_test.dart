@@ -234,17 +234,17 @@ void main() {
         reason: Stores.keys.errorMessage,
       );
       expect(
-        find.text('Your encrypted records can’t be read on this device yet.'),
+        find.text('Encrypted records cannot be read on this device yet.'),
         findsOneWidget,
       );
       expect(find.text('Add this device'), findsWidgets);
 
-      expect(find.text('Can’t read on this device'), findsOneWidget);
+      expect(find.text('Not readable on this device'), findsOneWidget);
 
       router.go(AppRoutes.recordDetailFor('record000000001'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: 'record');
-      expect(find.text('You can’t read this on this device'), findsOneWidget);
+      expect(find.text('Not readable on this device'), findsOneWidget);
       expect(find.text('Add this device'), findsOneWidget);
       expect(find.text('Who can read this'), findsOneWidget);
       expect(find.text('Chrome on Mac'), findsOneWidget);
@@ -306,10 +306,10 @@ void main() {
         router.go(AppRoutes.settingsPage(SettingsPage.encryption.slug));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'encryption settings');
-        expect(find.text('Where your encrypted records open'), findsOneWidget);
+        expect(find.text('Where encrypted records open'), findsOneWidget);
         expect(find.text('Other people in your workspace'), findsOneWidget);
         expect(find.textContaining('Chrome on Linux'), findsWidgets);
-        expect(find.text('Your passkey isn’t connected yet'), findsNothing);
+        expect(find.text('Passkey not connected'), findsNothing);
 
         router.go(AppRoutes.vault);
         await tester.pumpAndSettle();

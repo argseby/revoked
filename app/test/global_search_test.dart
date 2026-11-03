@@ -148,7 +148,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'DE8937');
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Nothing called'), findsOneWidget);
+    expect(find.textContaining('No matches for'), findsOneWidget);
     expect(find.text('move_date'), findsNothing);
   });
 
@@ -159,6 +159,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('most recent 500'), findsOneWidget);
-    expect(find.textContaining('may be older ones'), findsOneWidget);
+    expect(find.textContaining('Older entries may exist'), findsOneWidget);
   });
 }

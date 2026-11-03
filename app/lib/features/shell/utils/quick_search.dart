@@ -21,8 +21,8 @@ enum QuickSearchKind {
   share('Link'),
   request('Request'),
   contact('Contact'),
-  credential('Attestation you hold'),
-  attestation('Attestation you issued'),
+  credential('Held attestation'),
+  attestation('Issued attestation'),
   bookmark('Saved link'),
   template('Template');
 

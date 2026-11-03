@@ -105,7 +105,7 @@ var Permissions = []Permission{
 	},
 	{
 		Key: PermIdentitiesManage, Label: "Manage identities",
-		Description: "Create and remove signing identities. Identities are what recipients verify a share or request against.",
+		Description: "Create and remove signing identities. Recipients verify shares and requests against them.",
 		Destructive: true,
 		Scopes:      []string{ScopeIdentityCreate, ScopeIdentityUpdate, ScopeIdentityDelete},
 	},
@@ -116,7 +116,7 @@ var Permissions = []Permission{
 	},
 	{
 		Key: PermAttestationsIssue, Label: "Issue attestations",
-		Description: "Sign statements about other people's identities in the name of this server's domain, and revoke them. Whoever trusts the domain trusts what is issued here.",
+		Description: "Sign and revoke statements about other identities in the name of this server's domain. Anything issued here carries the domain's trust.",
 		Destructive: true,
 		Scopes:      []string{ScopeAttestationCreate, ScopeAttestationUpdate, ScopeAttestationDelete, ScopeAttestationRead},
 	},
@@ -137,13 +137,13 @@ var Permissions = []Permission{
 	},
 	{
 		Key: PermMembersAdd, Label: "Invite members",
-		Description: "Invite people into this workspace and choose what they may do. Anyone with this can extend access to others.",
+		Description: "Invite people into this workspace and set their permissions. Holders can extend access to others.",
 		Destructive: true,
 		Scopes:      []string{ScopeWorkspaceMembersCreate, ScopeWorkspaceMembersRead},
 	},
 	{
 		Key: PermMembersRemove, Label: "Remove members",
-		Description: "Change what members may do, and remove them from the workspace.",
+		Description: "Change member permissions and remove members from the workspace.",
 		Destructive: true,
 		Scopes:      []string{ScopeWorkspaceMembersUpdate, ScopeWorkspaceMembersDelete, ScopeWorkspaceMembersRead},
 	},
@@ -155,7 +155,7 @@ var Permissions = []Permission{
 	},
 	{
 		Key: PermWebhooksManage, Label: "Manage webhooks",
-		Description: "Send this workspace's activity to other services, and see what was sent.",
+		Description: "Send workspace activity to other services and view what was sent.",
 		Scopes:      []string{ScopeWebhookManage},
 	},
 }

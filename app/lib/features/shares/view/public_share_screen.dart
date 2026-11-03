@@ -96,12 +96,12 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       AppToast.success(
         context,
         'Saved to Requests → Received',
-        subtitle: 'Tap Bookmarked to add it to a group.',
+        subtitle: 'Groups can be assigned from Bookmarked.',
       );
     } else {
       AppToast.error(
         context,
-        "Couldn't save this link",
+        'The link could not be saved.',
         subtitle: bookmarks.error?.description,
       );
     }
@@ -148,7 +148,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               : RequirementStatus.pending,
           description: _store.sharePassword.text.isNotEmpty
               ? 'Password entered.'
-              : 'Enter the password the sender gave you.',
+              : 'The password provided by the sender is required.',
         ),
       if (_requiresHandshake)
         RequirementItem(
@@ -162,12 +162,12 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               ? RequirementStatus.pending
               : RequirementStatus.blocked,
           description: _isForeign
-              ? "You can't verify your identity with another server yet."
+              ? 'Identities cannot yet be verified with another server.'
               : _store.shareIdentityId != null
               ? 'Identity selected.'
               : hasIdentities
-              ? 'Pick one of your identities to prove who you are.'
-              : 'You have no identity on this server yet.',
+              ? 'One of your identities is required.'
+              : 'No identity exists on this server.',
         ),
     ];
   }
@@ -183,8 +183,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           label: 'Sender identity',
           value: 'Unsigned',
           state: TrustCheckState.failed,
-          detail:
-              "The sender didn't sign this link, so you can't check who made it.",
+          detail: 'This link is not signed. Its sender cannot be verified.',
         ),
       ];
     }
@@ -235,7 +234,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           detail: Uri.tryParse('https://${widget.origin!}')?.host == domain
               ? null
               : 'This link points to a different server than the sender '
-                    'claims to be. Be careful.',
+                    'claims.',
         ),
     ];
   }
@@ -272,7 +271,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       _store.finishShareTrust(
         TrustVerdict.unverified(
           domain: domain,
-          reason: "We couldn't check the domain.",
+          reason: 'The domain could not be checked.',
         ),
       );
     }
@@ -406,7 +405,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       subtitle: data != null
           ? ['Shared link', 'read-only', if (stamped) 'watermarked'].join(' · ')
           : gated && protected
-          ? 'Protected link · unlock to see what was shared'
+          ? 'Protected link · unlock required'
           : 'Shared link',
       closeLabel: 'Close',
       onClose: () {
@@ -471,10 +470,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
               ? AppIcons.shieldSlash
               : AppIcons.clock,
           accent: theme.colorScheme.onSurfaceVariant,
-          title: 'This link no longer works',
+          title: 'Link unavailable',
           message:
-              '${msg.description} If you still need it, ask the person who '
-              'gave you the link.',
+              '${msg.description} A new link can be requested from the sender.',
         );
       }
       return AppStatusMessage(
@@ -527,7 +525,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       children: [
         _section('Sender', TrustPanel(checks: _shareTrustChecks())),
         _section(
-          'To open this link',
+          'Access requirements',
           RequirementList(items: _gateRequirements()),
         ),
         if (requiresPassword)
@@ -539,7 +537,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                 AppTextField(
                   controller: _store.sharePassword,
                   obscureText: true,
-                  hint: 'Enter the password the sender gave you',
+                  hint: 'Password provided by the sender',
                   onSubmitted: (_) => _unlock(),
                 ),
                 if (_store.sharePasswordHint != null) ...[
@@ -553,8 +551,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           const AppAlert(
             destructive: true,
             content: Text(
-              'This link is on another server. You can’t verify your '
-              'identity there yet.',
+              'This link is on another server. Identities cannot yet be '
+              'verified there.',
             ),
           )
         else if (_requiresHandshake)
@@ -617,7 +615,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           ),
         if (loose.isNotEmpty)
           AppListGroup(
-            title: sections.isEmpty ? 'Shared with you' : 'Other information',
+            title: sections.isEmpty ? 'Shared records' : 'Other records',
             noun: 'items',
             children: [for (final r in loose) row(r)],
           ),
@@ -625,7 +623,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.gigantic),
             child: Center(
-              child: const Text('There’s nothing in this link yet.').muted,
+              child: const Text('This link contains no records.').muted,
             ),
           ),
       ],
@@ -773,7 +771,7 @@ class _SharedRecordRow extends StatelessWidget {
       AppToast.error(
         context,
         'File unavailable',
-        subtitle: 'Open the link again to get a new download.',
+        subtitle: 'Reopening the link issues a new download.',
       );
       return null;
     }
@@ -790,11 +788,11 @@ class _SharedRecordRow extends StatelessWidget {
       final failure = Stores.shares.sharedFileFailure;
       AppToast.error(
         context,
-        failure?.title ?? 'Couldn’t load the file',
+        failure?.title ?? 'The file could not be loaded.',
         subtitle:
             failure?.description ??
-            'The download expired or was used already. Open the link '
-                'again to try once more.',
+            'The download has expired or was already used. Reopening '
+                'the link issues a new one.',
       );
     }
     return bytes;

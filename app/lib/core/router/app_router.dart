@@ -13,6 +13,7 @@ import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/feature_notice.dart';
+import 'package:revoked_app/features/notifications/view/notifications_page.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/attestations/view/attestation_offer_screen.dart';
 import 'package:revoked_app/features/attestations/view/attestations_screen.dart';
@@ -92,6 +93,9 @@ abstract class AppRoutes {
   /// The people this workspace sends to and asks from.
   static const contacts = '/contacts';
   static const settings = '/settings';
+
+  /// What happened that the person should know about.
+  static const notifications = '/notifications';
 
   /// Each settings topic is a page of its own under Settings.
   static String settingsPage(String slug) => '$settings/$slug';
@@ -634,6 +638,11 @@ class AppRouter {
                   ),
                 );
               },
+            ),
+            GoRoute(
+              path: AppRoutes.notifications,
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: NotificationsPage()),
             ),
             GoRoute(
               path: AppRoutes.settings,

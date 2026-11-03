@@ -52,7 +52,7 @@ void main() {
       ]) {
         expect(
           describeError(error),
-          'Check your connection, then try again.',
+          'Check the network connection and try again.',
           reason: '$error',
         );
       }

@@ -46,8 +46,10 @@ Future<bool> ensureSealingReady(BuildContext context, String workspace) async {
       if (keys.isLockedFor(workspace)) {
         AppToast.error(
           context,
-          'Someone else holds this workspace’s key',
-          subtitle: 'Only the person who turned on encryption here can use it.',
+          'Another account holds this workspace’s key',
+          subtitle:
+              'Only the account that turned on encryption here can use '
+              'it.',
         );
         return false;
       }
@@ -55,7 +57,7 @@ Future<bool> ensureSealingReady(BuildContext context, String workspace) async {
       if (!ok && context.mounted) {
         AppToast.error(
           context,
-          'Couldn’t turn on encryption',
+          'Encryption could not be turned on',
           subtitle: keys.errorMessage,
         );
       }
@@ -69,15 +71,15 @@ Future<bool> ensureSealingReady(BuildContext context, String workspace) async {
     case SealingStatus.untrusted:
       AppToast.error(
         context,
-        'Your device list changed',
-        subtitle: 'Check it in Settings before you encrypt anything.',
+        'The device list changed',
+        subtitle: 'Review it in Settings before encrypting anything.',
       );
       return false;
     case SealingStatus.unknown:
     case SealingStatus.unavailable:
       AppToast.error(
         context,
-        'Encryption isn’t available right now',
+        'Encryption is currently unavailable',
         subtitle: keys.errorMessage,
       );
       return false;
@@ -109,12 +111,12 @@ Future<bool?> openRecoveryKeySheet(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Save your recovery key').header,
+                const Text('New recovery key').header,
                 const SizedBox(height: AppSpacing.xs),
                 const Text(
-                  'This key gets you back in if you lose your devices. Nobody '
-                  'can reset it for you, not even whoever runs your server. '
-                  'Without it, you lose what you’ve encrypted.',
+                  'This key restores access if every device is lost. It '
+                  'cannot be reset, not even by the server operator. Without '
+                  'it, encrypted records are lost.',
                 ).muted,
                 const SizedBox(height: AppSpacing.lg),
                 AppText(code).mono.selectable,
@@ -127,12 +129,12 @@ Future<bool?> openRecoveryKeySheet(
                     Clipboard.setData(ClipboardData(text: code));
                     AppToast.success(
                       sheetContext,
-                      'Copied. Put it in your password manager.',
+                      'Copied. Store it in a password manager.',
                     );
                   },
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                const Text('Type the last two groups to confirm you saved it'),
+                const Text('Enter the last two groups to confirm it was saved'),
                 const SizedBox(height: AppSpacing.xs),
                 AppTextField(
                   controller: keys.recoveryConfirm,
@@ -210,9 +212,9 @@ Future<void> openAddThisDeviceSheet(BuildContext context) async {
                 const Text('Add this device').header,
                 const SizedBox(height: AppSpacing.xs),
                 const Text(
-                  'On a device that can already read your encrypted records, '
-                  'open Settings, End-to-end encryption, Add a device. Then '
-                  'scan this code or paste it there.',
+                  'Scan or paste this code on a device that can already read '
+                  'encrypted records, under Settings → End-to-end encryption '
+                  '→ Add a device.',
                 ).muted,
                 const SizedBox(height: AppSpacing.lg),
                 if (code.isNotEmpty) ...[
@@ -229,14 +231,15 @@ Future<void> openAddThisDeviceSheet(BuildContext context) async {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Check that the other device shows the same code: '
+                    'The other device must show the same code: '
                     '${keys.thisDeviceFingerprint ?? ''}',
                   ).muted.small,
                 ],
                 const SizedBox(height: AppSpacing.lg),
                 const Text(
-                  'Your other device then shows you a code back. Enter it here, '
-                  'so this device knows your device list is the real one.',
+                  'The other device then shows a confirmation code. Entering '
+                  'it here lets this device confirm the device list is '
+                  'genuine.',
                 ).muted,
                 const SizedBox(height: AppSpacing.sm),
                 AppTextField(
@@ -315,15 +318,15 @@ Future<void> _openAddAnotherDeviceSheet(BuildContext context) {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('One last step').header,
+                const Text('Confirmation code').header,
                 if (keys.errorMessage != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   AppErrorText(keys.errorMessage!),
                 ],
                 const SizedBox(height: AppSpacing.xs),
                 const Text(
-                  'Enter this code on your new device, so it knows your device '
-                  'list is the real one.',
+                  'Enter this code on the new device so it can confirm the '
+                  'device list is genuine.',
                 ).muted,
                 const SizedBox(height: AppSpacing.lg),
                 Center(child: AppQrCode(data: confirmation, size: 220)),
@@ -358,9 +361,8 @@ Future<void> _openAddAnotherDeviceSheet(BuildContext context) {
               const Text('Add a device').header,
               const SizedBox(height: AppSpacing.xs),
               const Text(
-                'Sign in on the new device and open Add this device. Then '
-                'paste its code here. It can read your encrypted records as '
-                'soon as you add it.',
+                'After sign-in, the new device shows its code under Add this '
+                'device. Once added here, it can read encrypted records.',
               ).muted,
               const SizedBox(height: AppSpacing.lg),
               AppTextField(
@@ -388,7 +390,7 @@ Future<void> _openAddAnotherDeviceSheet(BuildContext context) {
               if (fingerprint != null) ...[
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Check that the new device shows this too: $fingerprint',
+                  'The new device must show the same code: $fingerprint',
                 ).muted.small,
               ],
               if (keys.errorMessage != null) ...[
@@ -428,9 +430,9 @@ Future<void> _openRecoverySheet(BuildContext context) {
             const Text('Use your recovery key').header,
             const SizedBox(height: AppSpacing.xs),
             const Text(
-              'Enter the key you saved. This device can then read your '
-              'encrypted records. Your other devices come off your list, so '
-              'add them again afterwards.',
+              'With the recovery key, this device can read encrypted records. '
+              'All other devices are removed from the list and must be added '
+              'again.',
             ).muted,
             const SizedBox(height: AppSpacing.lg),
             AppTextField(
@@ -479,9 +481,9 @@ Future<void> _openStartOverSheet(BuildContext context) {
             const Text('Start over').header,
             const SizedBox(height: AppSpacing.xs),
             const Text(
-              'Only do this if you’ve lost every device and your recovery key. '
-              'It permanently deletes your encrypted records. Nobody can get '
-              'them back. Your other records aren’t affected.',
+              'Intended only for when every device and the recovery key are '
+              'lost. All encrypted records are permanently deleted and cannot '
+              'be recovered. Other records are not affected.',
             ).muted,
             const SizedBox(height: AppSpacing.lg),
             const Text('Type “${KeysStore.startOverPhrase}” to confirm'),
@@ -546,19 +548,17 @@ class SealingSection extends StatelessWidget {
         }
         return switch (keys.status) {
           SealingStatus.unknown => AppLoadError(
-            title: 'Couldn’t load your devices',
-            message:
-                keys.errorMessage ?? 'Couldn’t reach your server. Try again.',
+            title: 'The devices could not be loaded',
+            message: keys.errorMessage ?? 'The server could not be reached.',
             onRetry: keys.load,
           ),
           SealingStatus.unavailable => const _Message(
-            text: 'Your server doesn’t offer end-to-end encryption yet.',
+            text: 'This server does not offer end-to-end encryption yet.',
           ),
           SealingStatus.notSetUp => _Message(
             text:
-                'Encrypt the records that matter most, so only your devices '
-                'can read them. Not even your server can. You can’t share an '
-                'encrypted record yet.',
+                'Encrypted records are readable only on this account’s '
+                'devices, not by the server. They cannot be shared yet.',
             action: AppButton(
               icon: AppIcons.lock,
               label: 'Turn on',
@@ -609,23 +609,26 @@ class _NeedsThisDevice extends StatelessWidget {
             if (Stores.keys.removedFromList) ...[
               AppAlert(
                 destructive: true,
-                title: const Text('This device was removed from your list'),
+                title: const Text(
+                  'This device was removed from the device list',
+                ),
                 content: Text(
                   Stores.keys.chain.liveRecovery != null
-                      ? 'If you didn’t do that on another device, someone else may '
-                            'have access. Use your recovery key: it takes every '
-                            'other device off your list.'
-                      : 'If you didn’t do that on another device, someone else has '
-                            'access, and they’ve taken your recovery key off too. '
-                            'Sign out everywhere else from a device that’s still on '
-                            'your list. If you have none, you can only start over.',
+                      ? 'If this was not done from another device, someone '
+                            'else may have access. The recovery key removes '
+                            'every other device from the list.'
+                      : 'If this was not done from another device, someone '
+                            'else has access and has also removed the recovery '
+                            'key. Sign out everywhere else from a device still '
+                            'on the list. Without one, the only option is to '
+                            'start over.',
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
             ],
             const Text(
-              'You’ve encrypted records on another device. Add this one to read '
-              'them here.',
+              'Records were encrypted on another device. This device must be '
+              'added to read them.',
             ),
             if (Stores.keys.chain.livePasskeys.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -679,14 +682,14 @@ class _PasskeyWayIn extends StatelessWidget {
         final names = keys.chain.livePasskeys.map((e) => e.label).join(', ');
         if (keys.thisPasskeyCredentialId != null) {
           return const Text(
-            'The passkey you signed in with here doesn’t hold your key yet. Add '
-            'this device another way, and it will from then on.',
+            'The passkey used to sign in here does not hold the key yet. Once '
+            'this device is added another way, it will.',
           ).muted;
         }
         if (keys.passkeyWithoutSecret) {
           return Text(
-            'Your passkey can’t unlock them on this device. Signing in with '
-            '$names on a device that supports it would.',
+            'The passkey cannot unlock them on this device. Signing in with '
+            '$names on a supported device would.',
           ).muted;
         }
         return Column(
@@ -782,8 +785,8 @@ class SealedReadabilityNote extends StatelessWidget {
             accent: scheme.warning,
           );
           text = keys.passkeyWithoutSecret
-              ? 'Your passkey can’t carry the key on this device'
-              : 'Connect your passkey to read it on your phone';
+              ? 'The passkey cannot carry the key on this device'
+              : 'Readable on a phone once the passkey is connected';
           if (!keys.passkeyWithoutSecret) {
             action = const _PasskeyConnectButton(compact: true);
           }
@@ -829,7 +832,7 @@ class _WhereRecordsOpen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppListGroup(
-              title: 'Where your encrypted records open',
+              title: 'Where encrypted records open',
               trailing: const SizedBox.shrink(),
               children: [
                 AppListRow(
@@ -842,9 +845,9 @@ class _WhereRecordsOpen extends StatelessWidget {
                   leading: passkeys.isEmpty ? missing() : holds(),
                   title: 'Your passkey',
                   subtitle: passkeys.isNotEmpty
-                      ? '$names · opens them on any device you sign in to with it'
+                      ? '$names · opens them on any device signed in with it'
                       : keys.passkeyWithoutSecret
-                      ? 'Can’t carry the key on this device'
+                      ? 'Cannot carry the key on this device'
                       : 'Not connected yet',
                   showChevron: false,
                 ),
@@ -852,15 +855,15 @@ class _WhereRecordsOpen extends StatelessWidget {
                   leading: recovery == null ? missing() : holds(),
                   title: 'Your recovery key',
                   subtitle: recovery == null
-                      ? 'None. Make one below, or losing your devices loses what '
-                            'you’ve encrypted.'
-                      : 'Saved · gets you back in if you lose everything',
+                      ? 'None. Without one, losing every device loses all '
+                            'encrypted records.'
+                      : 'Saved · restores access if every device is lost',
                   showChevron: false,
                 ),
                 AppListRow(
                   leading: Icon(AppIcons.shieldSlash, color: scheme.outline),
                   title: 'Other people in your workspace',
-                  subtitle: 'Can’t read them yet. They see a locked row.',
+                  subtitle: 'Cannot read them yet. They see a locked row.',
                   showChevron: false,
                 ),
               ],
@@ -870,13 +873,13 @@ class _WhereRecordsOpen extends StatelessWidget {
               AppAlert(
                 tone: AppAlertTone.warning,
                 leading: const Icon(AppIcons.exclamationTriangle),
-                title: const Text('Your passkey isn’t connected yet'),
+                title: const Text('Passkey not connected'),
                 content: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
                     Text(
-                      'Until it is, a new device needs a code from this one to '
-                      'read your encrypted records.',
+                      'Until it is, a new device needs a code from this one '
+                      'to read encrypted records.',
                     ),
                     SizedBox(height: AppSpacing.sm),
                     _PasskeyConnectButton(),
@@ -901,11 +904,12 @@ class _Untrusted extends StatelessWidget {
       children: [
         AppAlert(
           destructive: true,
-          title: const Text('Your device list changed'),
+          title: const Text('The device list changed'),
           content: const Text(
-            'It no longer matches what this device remembers. If you didn’t '
-            'start over yourself, someone may have tampered with it, so this '
-            'device has stopped encrypting and sharing keys.',
+            'It no longer matches what this device recorded. Unless '
+            'encryption was started over from this account, it may have been '
+            'tampered with. This device has stopped encrypting and sharing '
+            'keys.',
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -930,9 +934,9 @@ class _Untrusted extends StatelessWidget {
                 context: context,
                 title: 'Rejoin from scratch?',
                 message:
-                    'This device stops trusting your old list. You’ll then need '
-                    'another device or your recovery key to get back in. Do '
-                    'this only if you started over yourself.',
+                    'This device stops trusting the old list. Another device '
+                    'or the recovery key is then required to regain access. '
+                    'Only appropriate after a deliberate start-over.',
                 confirmLabel: 'Rejoin',
                 confirmIcon: AppIcons.arrowClockwise,
                 destructive: true,
@@ -973,7 +977,7 @@ class _Devices extends StatelessWidget {
     if (!done) {
       AppToast.error(
         context,
-        'Couldn’t remove it',
+        'The device could not be removed',
         subtitle: Stores.keys.errorMessage,
       );
       return;
@@ -986,9 +990,9 @@ class _Devices extends StatelessWidget {
       context: context,
       title: 'Sign out everywhere else?',
       message:
-          'A lost device may still be signed in. It can’t read what you encrypt '
-          'from now on, but it can read your other records until you sign it '
-          'out. You’ll need to sign in again on your other devices.',
+          'A lost device may still be signed in. It cannot read anything '
+          'encrypted from now on, but it can read unencrypted records until '
+          'it is signed out. Other devices must sign in again.',
       confirmLabel: 'Sign out everywhere else',
       confirmIcon: AppIcons.lock,
       destructive: true,
@@ -997,11 +1001,11 @@ class _Devices extends StatelessWidget {
     final ok = await Stores.keys.signOutOtherSessions();
     if (!context.mounted) return;
     if (ok) {
-      AppToast.success(context, 'Your other sessions are signed out');
+      AppToast.success(context, 'Other sessions signed out');
     } else {
       AppToast.error(
         context,
-        'Couldn’t sign them out',
+        'The other sessions could not be signed out',
         subtitle: Stores.keys.errorMessage,
       );
     }
@@ -1023,11 +1027,9 @@ class _Devices extends StatelessWidget {
             if (keys.chainBroken) ...[
               AppAlert(
                 destructive: true,
-                title: const Text(
-                  'Something on your device list doesn’t check out',
-                ),
+                title: const Text('The device list failed verification'),
                 content: const Text(
-                  'This device still reads your records, but it has stopped '
+                  'This device can still read records, but has stopped '
                   'encrypting and sharing keys.',
                 ),
               ),
@@ -1036,7 +1038,7 @@ class _Devices extends StatelessWidget {
             if (keys.unreviewedEntries.isNotEmpty) ...[
               AppAlert(
                 destructive: true,
-                title: const Text('New on your list'),
+                title: const Text('New on the device list'),
                 content: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1061,10 +1063,10 @@ class _Devices extends StatelessWidget {
             if (keys.needsNewRecoveryKey) ...[
               AppAlert(
                 destructive: true,
-                title: const Text('You don’t have a recovery key'),
+                title: const Text('No recovery key'),
                 content: const Text(
-                  'If you lose your devices now, you lose what you’ve encrypted. '
-                  'Make a new key below.',
+                  'If every device is lost now, encrypted records are lost. A '
+                  'new key can be made below.',
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -1076,8 +1078,8 @@ class _Devices extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             const Text(
-              'Only these devices can read what you encrypt. Not even your server '
-              'can. You can’t share an encrypted record yet.',
+              'Only these devices can read encrypted records, not the server. '
+              'Encrypted records cannot be shared yet.',
             ),
             const SizedBox(height: AppSpacing.lg),
             AppListGroup(
@@ -1146,8 +1148,8 @@ class _Devices extends StatelessWidget {
                 AppButton(
                   icon: AppIcons.key,
                   label: keys.needsNewRecoveryKey
-                      ? 'Make a recovery key'
-                      : 'Replace your recovery key',
+                      ? 'Create recovery key'
+                      : 'Replace recovery key',
                   style: AppButtonStyle.accent,
                   onTap: () => openRecoveryKeySheet(context, replacing: true),
                 ),
@@ -1181,13 +1183,13 @@ class SealingAlarm extends StatelessWidget {
             keys.status == SealingStatus.needsConfirmation;
         final String? message = switch (keys) {
           _ when keys.status == SealingStatus.untrusted =>
-            'Your device list changed in a way this device can’t confirm.',
+            'The device list changed in a way this device cannot confirm.',
           _ when keys.removedFromList =>
-            'This device was removed from your device list.',
+            'This device was removed from the device list.',
           _ when locked =>
-            'Your encrypted records can’t be read on this device yet.',
+            'Encrypted records cannot be read on this device yet.',
           _ when keys.unreviewedEntries.isNotEmpty =>
-            'Something changed on your device list.',
+            'The device list changed.',
           _ => null,
         };
         if (message == null) return const SizedBox.shrink();

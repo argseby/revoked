@@ -58,6 +58,7 @@ abstract class AppIcons {
   static const IconData hourglass = Icons.hourglass_empty;
   static const IconData inboxFill = Icons.inbox;
   static const IconData info = Icons.info_outline;
+  static const IconData book = Icons.menu_book_outlined;
   static const IconData key = Icons.key_outlined;
   static const IconData keyOff = Icons.key_off_outlined;
   static const IconData attestation = Icons.verified_outlined;

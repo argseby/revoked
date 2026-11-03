@@ -53,9 +53,13 @@ class Connection {
   final String? lastUsedAt;
   final String? created;
 
+  /// The account that connected it, and so manages it.
+  final String user;
+
   const Connection({
     required this.id,
     required this.clientId,
+    this.user = '',
     this.clientName = '',
     this.allowRevoke = false,
     this.allowHandOver = false,
@@ -75,6 +79,17 @@ class Connection {
   /// The name to show: the claimed one, else the host it lives on.
   String get name =>
       clientName.isNotEmpty ? clientName : Uri.tryParse(clientId)?.host ?? '';
+
+  /// The first characters of its ID: two tools may share a name, never this.
+  String get shortId => shortIdOf(id);
+
+  /// The name with the short ID, for running text where no chip fits.
+  String get displayName => labelFor(name, id);
+
+  static String shortIdOf(String id) => id.length > 6 ? id.substring(0, 6) : id;
+
+  static String labelFor(String name, String id) =>
+      name.isEmpty ? shortIdOf(id) : '$name (${shortIdOf(id)})';
 
   /// The host, which is what the tool provably is.
   String get host => Uri.tryParse(clientId)?.host ?? clientId;
@@ -138,6 +153,7 @@ class Connection {
     return Connection(
       id: id,
       clientId: clientId,
+      user: user,
       clientName: clientName,
       allowRevoke: json['allowRevoke'] as bool? ?? allowRevoke,
       allowHandOver: json['allowHandOver'] as bool? ?? allowHandOver,
@@ -169,6 +185,7 @@ class Connection {
     return Connection(
       id: json['id'] as String,
       clientId: json['clientId'] as String? ?? '',
+      user: json['user'] as String? ?? '',
       clientName: json['clientName'] as String? ?? '',
       // An older server still stores the two choices as fields of their own.
       allowRevoke:

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -135,9 +136,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     if (!mounted) return;
     if (taken &&
         (widget.editShare == null || widget.editShare!.slug != input)) {
-      _store.setDraftSlugWarning(
-        'This address is already taken. Try another one.',
-      );
+      _store.setDraftSlugWarning('This address is already taken.');
     } else {
       _store.setDraftSlugWarning(null);
     }
@@ -226,7 +225,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       if (!ok) {
         AppToast.error(
           context,
-          "Couldn't update the link",
+          'The link could not be updated.',
           subtitle: Stores.shares.errorMessage,
         );
         return false;
@@ -256,7 +255,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     if (!ok) {
       AppToast.error(
         context,
-        "Couldn't create the link",
+        'The link could not be created.',
         subtitle: Stores.shares.errorMessage,
       );
       return false;
@@ -329,8 +328,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                 Text(title).header,
                 AppSpacing.gapXxs,
                 const Text(
-                  'Send a link instead of a copy. They see the latest '
-                  'version until it expires or you revoke it.',
+                  'Recipients see the latest version until the link expires '
+                  'or is revoked.',
                 ).muted.small,
               ],
             ),
@@ -411,9 +410,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     final fallback = _effectiveLabel;
     return AppFormField(
       label: 'Label',
-      explanation: 'The title the recipient sees.',
+      explanation: 'The title shown to the recipient.',
       note: _store.draftLabel.text.trim().isEmpty && fallback.isNotEmpty
-          ? 'Leave it empty to use $fallback.'
+          ? 'Defaults to $fallback.'
           : null,
       child: AppTextField(
         controller: _store.draftLabel,
@@ -424,7 +423,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
 
   Widget _buildSlugRow() => AppFormField(
     label: 'Link address',
-    explanation: 'The last part of your link\'s web address.',
+    explanation: 'The last part of the link\'s web address.',
     error: _store.draftSlugWarning,
     child: AppTextField(
       controller: _store.draftSlug,
@@ -438,7 +437,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           icon: AppIcons.arrowRepeat,
           style: AppButtonStyle.ghost,
           size: AppButtonSize.small,
-          tooltip: 'Make a random address',
+          tooltip: 'Generate a random address',
           showTooltip: false,
           onTap: () async {
             final s = _generateRandomSlug();
@@ -456,8 +455,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       label: 'Watermark',
       explanation:
           'Every image and PDF gets this text, the date and the link '
-          'tag${tag == null ? '' : ' (#$tag)'}. Other file types can\'t be '
-          'opened. Leave it empty for no watermark.',
+          'tag${tag == null ? '' : ' (#$tag)'}. Other file types cannot be '
+          'opened. Empty means no watermark.',
       child: AppTextField(
         controller: _store.draftWatermarkText,
         hint: 'Nur für Wohnungsbewerbung Musterstr. 5',
@@ -482,7 +481,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       child: AppPickerField(
         text: _store.draftExpiresAt == null
             ? 'Never'
-            : _formatDate(_store.draftExpiresAt!),
+            : formatCalendarDay(_store.draftExpiresAt!),
         isPlaceholder: _store.draftExpiresAt == null,
         opens: AppIcons.calendar,
         onClear: () => _store.setDraftExpiry(null),
@@ -497,13 +496,13 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     final removing = _store.draftRemovePassword;
     return AppFormField(
       label: 'Password',
-      explanation: 'People need this password to open the link.',
-      error: removing ? 'Removed when you save.' : null,
+      explanation: 'Required to open the link.',
+      error: removing ? 'Removed on save.' : null,
       note: !stored
           ? null
           : typed
           ? 'Replaces the current one.'
-          : 'Leave it empty to keep the current one.',
+          : 'Empty keeps the current one.',
       action: !stored
           ? null
           : removing
@@ -526,7 +525,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
             ),
       child: AppTextField(
         controller: _store.draftPassword,
-        hint: stored ? 'Leave blank to keep it' : 'Leave blank for no password',
+        hint: stored ? 'Unchanged when blank' : 'No password when blank',
         passwordToggle: true,
         onChanged: (v) {
           if (v.isNotEmpty) _store.setDraftRemovePassword(false);
@@ -550,8 +549,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Sign with one of your identities. Recipients can then check '
-            'that the link really comes from you.',
+            'A signature lets recipients verify the link\'s origin.',
           ).muted.small,
           AppSpacing.gapMd,
           IdentityPicker(
@@ -563,8 +561,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           AppFormToggleRow(
             label: 'Require a verified viewer',
             subtitle:
-                'Viewers must prove who they are with a verified identity '
-                'before they see anything.',
+                'Viewers must prove a verified identity before any content '
+                'is shown.',
             value: _store.draftRequireHandshake,
             onChanged: _store.setDraftHandshake,
             inset: false,
@@ -584,7 +582,4 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     );
     if (picked != null) _store.setDraftExpiry(picked);
   }
-
-  String _formatDate(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 }

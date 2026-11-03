@@ -89,7 +89,7 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 	if err != nil || link == nil {
 		if asPage {
 			return linkStatusPage(re, "Link not found",
-				"This link does not exist, or it never did.", http.StatusNotFound)
+				"This link does not exist.", http.StatusNotFound)
 		}
 		return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
 	}

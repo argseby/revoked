@@ -50,12 +50,12 @@ class _CreateSheet extends StatelessWidget {
             const Text('Add a contact').header,
             AppSpacing.gapXxs,
             const Text(
-              'Someone you send things to, or ask things from. You only need '
-              'their email address.',
+              'Contacts receive records and requests. Only an email address '
+              'is required.',
             ).muted.small,
             AppSpacing.gapLg,
             AppFormField(
-              label: 'Their name',
+              label: 'Name',
               inset: false,
               child: AppTextField(
                 controller: store.name,
@@ -75,7 +75,7 @@ class _CreateSheet extends StatelessWidget {
             ),
             AppSpacing.gapSm,
             AppFormField(
-              label: 'Their server (optional)',
+              label: 'Server (optional)',
               inset: false,
               child: AppTextField(
                 controller: store.peerDomain,
@@ -85,8 +85,8 @@ class _CreateSheet extends StatelessWidget {
             ),
             AppSpacing.gapXs,
             const Text(
-              'Fill in their server only if they run their own Revoked. '
-              'Nothing is checked until you verify them.',
+              'Only for contacts running their own Revoked server. Not '
+              'checked until the contact is verified.',
             ).muted.small,
             if (store.error != null) ...[
               AppSpacing.gapSm,

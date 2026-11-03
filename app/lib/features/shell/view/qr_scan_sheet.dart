@@ -78,7 +78,9 @@ class _QrScanSheetState extends State<_QrScanSheet> {
           children: [
             const Text('Scan a link').header,
             const SizedBox(height: AppSpacing.xxs),
-            const Text('Point the camera at a Revoked QR code.').muted.small,
+            const Text(
+              'Revoked QR codes are read through the camera.',
+            ).muted.small,
             const SizedBox(height: AppSpacing.lg),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),

@@ -21,9 +21,9 @@ class RoundTrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final stops = [
-      (isMobileDevice ? AppIcons.phone : AppIcons.computer, 'Here'),
+      (isMobileDevice ? AppIcons.phone : AppIcons.computer, 'App'),
       (AppIcons.globe, 'Browser'),
-      (AppIcons.boxArrowInRight, 'Back here'),
+      (AppIcons.boxArrowInRight, 'Return'),
     ];
 
     Widget stop(int i) {

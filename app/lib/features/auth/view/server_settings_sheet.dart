@@ -57,8 +57,8 @@ class ServerSettingsSheet extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xxs),
           const Text(
-            'Pick the server you use. Enter an address like '
-            '192.168.1.5:3000 or https://your-domain.com.',
+            'The server this app connects to, such as 192.168.1.5:3000 or '
+            'https://your-domain.com.',
           ).muted.small,
           const SizedBox(height: AppSpacing.lg),
           Row(

@@ -131,18 +131,18 @@ var show = function (n, on) { n.hidden = !on; };
 
 var STRINGS = {
   en: {
-    'lang.label': 'DE', 'title': 'Sign in to {0}', 'title.problem': 'Signing in cannot continue',
-    'lead': '{0} asks to sign you in with Revoked. You decide in the Revoked app what {0} learns.',
+    'lang.label': 'DE', 'title': 'Sign in to {0}', 'title.problem': 'Sign-in cannot continue',
+    'lead': '{0} requests sign-in with Revoked. What {0} receives is decided in the Revoked app.',
     'go': 'Open the Revoked app',
-    'note': 'Nothing happened? The Revoked app is needed to sign in. Install it on this device, then open this page again.',
-    'problem.client': 'This service did not identify itself correctly, so signing in cannot continue. Nothing was shared.'
+    'note': 'Sign-in requires the Revoked app on this device. Reload this page after installing it.',
+    'problem.client': 'This service did not identify itself correctly. Sign-in was stopped and nothing was shared.'
   },
   de: {
-    'lang.label': 'EN', 'title': 'Bei {0} anmelden', 'title.problem': 'Die Anmeldung kann nicht fortgesetzt werden',
-    'lead': '{0} möchte dich mit Revoked anmelden. In der Revoked-App entscheidest du, was {0} erfährt.',
+    'lang.label': 'EN', 'title': 'Bei {0} anmelden', 'title.problem': 'Anmeldung nicht möglich',
+    'lead': '{0} fordert eine Anmeldung mit Revoked an. Was {0} erhält, wird in der Revoked-App festgelegt.',
     'go': 'Revoked-App öffnen',
-    'note': 'Nichts passiert? Zum Anmelden wird die Revoked-App gebraucht. Installiere sie auf diesem Gerät und öffne diese Seite dann erneut.',
-    'problem.client': 'Dieser Dienst hat sich nicht korrekt ausgewiesen, daher kann die Anmeldung nicht fortgesetzt werden. Es wurde nichts geteilt.'
+    'note': 'Die Anmeldung erfordert die Revoked-App auf diesem Gerät. Nach der Installation diese Seite neu laden.',
+    'problem.client': 'Dieser Dienst hat sich nicht korrekt ausgewiesen. Die Anmeldung wurde abgebrochen, es wurde nichts geteilt.'
   }
 };
 var LANG_KEY = 'revoked.web.locale';

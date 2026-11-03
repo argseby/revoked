@@ -31,11 +31,11 @@ class FeatureNotice extends StatelessWidget {
     final ok = await store.turnOn(feature);
     if (!context.mounted) return;
     if (ok) {
-      AppToast.success(context, '${store.labelFor(feature)} is on.');
+      AppToast.success(context, '${store.labelFor(feature)} turned on');
     } else {
       AppToast.error(
         context,
-        store.error?.description ?? 'Couldn’t turn it on. Try again.',
+        store.error?.description ?? 'The feature could not be turned on.',
       );
     }
   }
@@ -55,8 +55,7 @@ class FeatureNotice extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'You turned this off, so it’s not in your navigation. '
-                      'Turn it on to keep it in reach.',
+                      'This feature is turned off and hidden from navigation.',
                     ).small,
                     AppSpacing.gapSm,
                     AppButton(
@@ -71,10 +70,9 @@ class FeatureNotice extends StatelessWidget {
               )
             : AppAlert(
                 leading: const Icon(AppIcons.shieldLock),
-                title: Text('$label isn’t available in this workspace'),
+                title: Text('$label not available in this workspace'),
                 content: const Text(
-                  'Ask whoever invited you to allow it. You can read this '
-                  'page, but not act on it.',
+                  'It must be allowed by a workspace admin. This page is read-only.',
                 ).small,
               );
         if (!padded) return alert;

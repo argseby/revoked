@@ -160,7 +160,7 @@ void main() {
   testWidgets('a vault entry can be the name for this service', (tester) async {
     await show(tester);
     await pick(tester, 'xXAdaXx');
-    expect(find.textContaining('Saved in your vault'), findsOneWidget);
+    expect(find.textContaining('Stored in the vault'), findsOneWidget);
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
 
@@ -174,7 +174,7 @@ void main() {
     await show(tester);
     expect(find.text('Ada Lovelace'), findsWidgets);
     expect(find.text('No name'), findsNothing);
-    expect(find.textContaining('Saved in your vault'), findsNothing);
+    expect(find.textContaining('Stored in the vault'), findsNothing);
   });
 
   testWidgets('a new name becomes an entry of its own, once confirmed', (
@@ -182,7 +182,7 @@ void main() {
   ) async {
     takenKeys = ['name_game_example'];
     await show(tester);
-    await tester.tap(find.widgetWithText(TextField, 'Your new name'));
+    await tester.tap(find.widgetWithText(TextField, 'New name'));
     await tester.pumpAndSettle();
 
     final signIn = find.widgetWithText(FilledButton, 'Sign in');
@@ -190,7 +190,7 @@ void main() {
     expect(created, isEmpty);
 
     await tester.enterText(
-      find.widgetWithText(TextField, 'Your new name'),
+      find.widgetWithText(TextField, 'New name'),
       ' xXAdaXx ',
     );
     await tester.pumpAndSettle();

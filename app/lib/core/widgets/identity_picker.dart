@@ -60,7 +60,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
         final ids = Stores.identities.identities;
         if (ids.isEmpty) {
           return const Text(
-            'No identity yet. Create one in Account to sign what you share.',
+            'No identities. Identities for signing are created in Account.',
           ).muted.small;
         }
         return Column(
@@ -79,9 +79,9 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 // A dimmed row that ignores taps looks broken; say which
                 // rule refused it.
                 disabledReason: id.isRevoked
-                    ? 'Revoked - it can no longer sign'
+                    ? 'Revoked - can no longer sign'
                     : !Stores.identities.hasLocalKey(id.id)
-                    ? '$keyElsewhereLabel - it can\'t sign here'
+                    ? '$keyElsewhereLabel - cannot sign here'
                     : widget.requireDomain != null &&
                           id.domainAtIssue != widget.requireDomain
                     ? 'Issued by another server - not accepted here'
@@ -102,7 +102,7 @@ class _IdentityPickerState extends State<IdentityPicker> {
                 selected: widget.selectedId == null,
                 enabled: true,
                 title: 'No signing identity',
-                subtitle: 'People can\'t check who sent it',
+                subtitle: 'The sender cannot be verified',
                 claim: null,
                 onTap: () => widget.onChanged(null),
               ),

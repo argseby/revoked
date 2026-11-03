@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
@@ -50,7 +51,7 @@ void openVaultCreateSheet(
                 const Text('Add to vault').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Add a detail, group records in a section, or fill in a '
+                  'A single record, a section of records, or the fields of a '
                   'template.',
                 ).muted.small,
               ],
@@ -59,15 +60,29 @@ void openVaultCreateSheet(
           Expanded(
             child: AppTabs(
               inset: AppSpacing.xl,
-              labels: const ['Record', 'Section', 'From template'],
               initialIndex: initialTab.index,
-              views: [
-                recordCreateForm(
-                  parentContext: context,
-                  initialType: recordType,
+              tabs: [
+                AppTab(
+                  label: 'Record',
+                  icon: AppIcons.key,
+                  description: 'A single value, such as an IBAN, or a file.',
+                  view: recordCreateForm(
+                    parentContext: context,
+                    initialType: recordType,
+                  ),
                 ),
-                sectionCreateForm(parentContext: context),
-                templateFillForm(parentContext: context),
+                AppTab(
+                  label: 'Section',
+                  icon: AppIcons.folder,
+                  description: 'Records grouped to be shared together.',
+                  view: sectionCreateForm(parentContext: context),
+                ),
+                AppTab(
+                  label: 'Template',
+                  icon: AppIcons.cardList,
+                  description: 'Several records in one step, from a template.',
+                  view: templateFillForm(parentContext: context),
+                ),
               ],
             ),
           ),

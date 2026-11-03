@@ -116,7 +116,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     }
     final exists = widget.store.records.any((r) => r.key == input);
     _store.setRecordKeyCheck(
-      warning: exists ? 'This key is taken. Pick another.' : null,
+      warning: exists ? 'This key is already in use.' : null,
       suggestion: exists ? _generateAlternativeKey(input) : null,
     );
   }
@@ -192,7 +192,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       if (widget.parentContext.mounted) {
         AppToast.error(
           widget.parentContext,
-          'Couldn\'t create the record',
+          'The record could not be created.',
           subtitle: widget.store.errorMessage,
         );
       }
@@ -258,8 +258,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   const SizedBox(height: AppSpacing.xxs),
                   Text(
                     isDup
-                        ? 'Copy this record under a new key. The value can stay the same.'
-                        : 'Add a detail to your vault.',
+                        ? 'Creates a copy of this record under a new key.'
+                        : 'Stores a single value in the vault.',
                   ).muted.small,
                 ],
               ),
@@ -336,10 +336,10 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   Widget _buildKeyField() => AppFormField(
     label: 'Key',
-    explanation: 'A short ID for templates, requests and scripts.',
+    explanation: 'Identifier for templates, requests and scripts',
     error: _store.recordKeyWarning,
     note: _store.recordKey.text.trim().isEmpty
-        ? 'Leave it empty to use $_effectiveKey.'
+        ? 'Defaults to $_effectiveKey when empty.'
         : null,
     action: _store.recordSuggestedKey == null
         ? null
@@ -377,7 +377,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
           ).muted.small
         : _store.recordSealed
         ? const Text(
-            'Your device encrypts this before sending it, so the request '
+            'The value is encrypted on this device before upload. The request '
             'carries only encrypted data.',
           ).muted.small
         : ApiPreview(

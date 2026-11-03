@@ -21,11 +21,11 @@ class DeviceKeyAlert extends StatelessWidget {
     final ok = await store.createIdentity(name: thisDeviceName);
     if (!context.mounted) return;
     if (ok) {
-      AppToast.success(context, 'This device can sign now');
+      AppToast.success(context, 'Identity created for this device');
     } else {
       AppToast.error(
         context,
-        'Couldn\'t create the identity',
+        'The identity could not be created',
         subtitle: store.errorMessage,
       );
     }
@@ -41,14 +41,12 @@ class DeviceKeyAlert extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: AppSpacing.md),
           child: AppAlert(
             leading: const Icon(AppIcons.keyOff),
-            title: const Text('No identity on this device yet'),
+            title: const Text('No identity on this device'),
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Your keys never leave the device that made them, so they '
-                  'can\'t sign here. Create an identity for this device to '
-                  'sign, and to accept or show attestations.',
+                  'Keys never leave the device that created them and cannot sign here. Signing and attestations on this device require an identity created here.',
                 ).small,
                 AppSpacing.gapSm,
                 AppButton(

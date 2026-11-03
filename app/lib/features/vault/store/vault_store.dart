@@ -607,7 +607,7 @@ abstract class _VaultStore with Store {
     }
     final max = _maxFileSize!;
     if (max < 0 || file.size <= max) return null;
-    return '${file.name} is ${formatBytes(file.size)}. This server takes '
+    return '${file.name} is ${formatBytes(file.size)}. This server accepts '
         'files up to ${formatBytes(max)}.';
   }
 
@@ -929,8 +929,8 @@ abstract class _VaultStore with Store {
         final current = existing.first;
         if (current.isLocked) {
           errorMessage =
-              'You already have an encrypted record called $key, and you '
-              'can\'t read it on this device.';
+              'An encrypted record named $key already exists and is not '
+              'readable on this device.';
           return false;
         }
         // Encrypted first and metadata after: the other order would write the
@@ -1119,7 +1119,7 @@ abstract class _VaultStore with Store {
         const inCiphertext = {'value', 'label', 'type', 'format'};
         if (current.isLocked) {
           if (updates.keys.any(inCiphertext.contains)) {
-            errorMessage = 'You can\'t change this record on this device.';
+            errorMessage = 'This record cannot be changed on this device.';
             return false;
           }
         } else {
@@ -1149,8 +1149,8 @@ abstract class _VaultStore with Store {
         // The server says this is plain, and this device knows it was encrypted.
         // Believing it would send the new value out in plaintext.
         errorMessage =
-            'This record was encrypted and now isn\'t. Open it and confirm '
-            'that was you before changing it.';
+            'This record is no longer encrypted. The change must be confirmed '
+            'on the record before it can be edited.';
         return false;
       }
       final spec = VaultStore.updateRecordSpec(id, remaining);

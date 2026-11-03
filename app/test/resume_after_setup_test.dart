@@ -121,7 +121,7 @@ void main() {
     router.go(proposal);
     await tester.pumpAndSettle();
     expect(find.byType(LoginScreen), findsOneWidget);
-    expect(find.text('Sign in or create an account first'), findsOneWidget);
+    expect(find.text('Sign-in required'), findsOneWidget);
 
     // Signed up: an account, no workspace yet.
     runInAction(

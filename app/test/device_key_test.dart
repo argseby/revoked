@@ -78,9 +78,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('No identity on this device yet'), findsOneWidget);
+    expect(find.text('No identity on this device'), findsOneWidget);
     expect(
-      find.text('Key on another device - it can\'t sign here'),
+      find.text('Key on another device - cannot sign here'),
       findsOneWidget,
     );
 
@@ -91,7 +91,7 @@ void main() {
     expect(created.single.containsKey('privateKey'), isFalse);
     expect(Stores.identities.hasLocalKey('here'), isTrue);
     expect(Stores.identities.keysElsewhere, isFalse);
-    expect(find.text('No identity on this device yet'), findsNothing);
+    expect(find.text('No identity on this device'), findsNothing);
   });
 
   test('an ask fills in the Attest form without its values', () {

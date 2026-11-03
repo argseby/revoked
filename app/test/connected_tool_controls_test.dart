@@ -206,7 +206,7 @@ void main() {
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('Its request stops taking answers.'),
+      find.textContaining('Its request stops accepting answers.'),
       findsOneWidget,
     );
   });
@@ -219,7 +219,7 @@ void main() {
     tool['allowVaultRead'] = true;
     await Stores.connections.load();
     await tester.pumpAndSettle();
-    expect(find.text('What reading your vault means'), findsOneWidget);
+    expect(find.text('Vault read access'), findsOneWidget);
     await tester.ensureVisible(find.text('Read vault'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Read vault'));
@@ -321,10 +321,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, ['pause {}']);
     expect(find.text('Paused'), findsOneWidget);
-    expect(
-      find.textContaining('can’t do anything while it’s paused'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('has no access while paused'), findsOneWidget);
 
     await tester.tap(find.text('Active'));
     await tester.pumpAndSettle();
@@ -391,6 +388,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(calls, isEmpty);
-    expect(find.text('Couldn’t disconnect'), findsOneWidget);
+    expect(find.text('The tool could not be disconnected'), findsOneWidget);
   });
 }

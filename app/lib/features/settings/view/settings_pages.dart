@@ -20,13 +20,13 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
+import 'package:revoked_app/core/widgets/app_inline_create.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/device_key_alert.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
-import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -231,11 +231,11 @@ class _WorkspacesPage extends StatelessWidget {
       context: context,
       title: 'Delete ${workspace.name}?',
       message:
-          'This deletes its records, files, templates, members and API keys. '
-          'Every share and request link from it stops working right away, '
-          'and its identities are revoked. You can’t undo this.',
+          'All records, files, templates, members and API keys are deleted. '
+          'Every share and request link stops working immediately, and all '
+          'identities are revoked. This cannot be undone.',
       confirmLabel: 'Delete workspace',
-      cancelLabel: 'Keep it',
+      cancelLabel: 'Cancel',
       destructive: true,
     );
     if (!confirmed || !context.mounted) return;
@@ -245,7 +245,7 @@ class _WorkspacesPage extends StatelessWidget {
       if (context.mounted) {
         AppToast.error(
           context,
-          'Couldn’t delete the workspace',
+          'The workspace could not be deleted',
           subtitle: settings.errorMessage,
         );
       }
@@ -271,7 +271,7 @@ class _WorkspacesPage extends StatelessWidget {
         if (!active)
           AppSheetAction(
             icon: AppIcons.arrowRight,
-            label: 'Switch to it',
+            label: 'Switch',
             onTap: () => Stores.workspaceContext.switchTo(
               userId: auth.userId,
               workspaceId: ws.id,
@@ -302,38 +302,21 @@ class _WorkspacesPage extends StatelessWidget {
     return Observer(
       builder: (_) {
         final activeId = Stores.auth.activeWorkspace ?? '';
-        return AppListGroup(
+        final list = AppListGroup(
           title: 'Workspaces',
-          footer: const Text('Keep work, home and clients apart.'),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _HeaderButton(
-                // Not the plus the New button carries: joining an existing
-                // workspace is not a second way to create one.
-                icon: AppIcons.key,
-                label: 'Join',
-                onTap: () => showInviteJoinSheet(context: context),
-              ),
-              AppSpacing.gapSm,
-              _HeaderButton(
-                icon: AppIcons.plus,
-                label: 'New',
-                onTap: () => showAppSheet(
-                  context: context,
-                  builder: (_) => const _CreateWorkspaceSheet(),
-                ),
-              ),
-            ],
+          footer: const Text('Separate spaces for records, members and keys.'),
+          trailing: _HeaderButton(
+            // Not a plus: joining an existing workspace is not a second way
+            // to create one.
+            icon: AppIcons.key,
+            label: 'Join',
+            onTap: () => showInviteJoinSheet(context: context),
           ),
           children: [
             if (settings.isLoading && settings.workspaces.isEmpty)
               const _LoadingRow()
             else if (settings.workspaces.isEmpty)
-              const AppDetailRow(
-                icon: AppIcons.info,
-                label: 'No workspaces yet. Create one to keep your data apart.',
-              )
+              const AppDetailRow(icon: AppIcons.info, label: 'No workspaces.')
             else
               for (final ws in settings.workspaces)
                 AppListRow(
@@ -348,6 +331,18 @@ class _WorkspacesPage extends StatelessWidget {
                       : null,
                   onTap: () => _options(context, ws, ws.id == activeId),
                 ),
+          ],
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppInlineCreate(
+              label: 'New workspace',
+              onOpen: Stores.settings.resetWorkspaceDraft,
+              form: (close) => _CreateWorkspaceSheet(onClose: close),
+            ),
+            AppSpacing.gapLg,
+            list,
           ],
         );
       },
@@ -367,12 +362,7 @@ class _MembersPage extends StatelessWidget {
     Stores.invites.loadCatalogue();
   }
 
-  Future<void> _invite(BuildContext context) async {
-    final ws = Stores.auth.activeWorkspace ?? '';
-    if (ws.isEmpty) return;
-    await showInviteCreateSheet(context: context, workspaceId: ws);
-    if (context.mounted) await Stores.invites.load(ws);
-  }
+  void _invite(BuildContext context) => context.go(SettingsPage.invites.route);
 
   Future<void> _remove(
     BuildContext context,
@@ -383,7 +373,7 @@ class _MembersPage extends StatelessWidget {
       context: context,
       title: member.isSelf ? 'Leave workspace?' : 'Remove member?',
       message: member.isSelf
-          ? 'You lose access to this workspace.'
+          ? 'Access to this workspace ends.'
           : '${member.email} loses access to this workspace.',
       confirmLabel: member.isSelf ? 'Leave' : 'Remove',
       confirmIcon: member.isSelf ? AppIcons.boxArrowLeft : AppIcons.trash,
@@ -397,13 +387,13 @@ class _MembersPage extends StatelessWidget {
     if (ok) {
       AppToast.success(
         context,
-        member.isSelf ? 'You left the workspace.' : 'Member removed.',
+        member.isSelf ? 'Workspace left.' : 'Member removed.',
       );
       if (member.isSelf) await Stores.auth.initialize();
     } else {
       AppToast.error(
         context,
-        store.error?.description ?? 'Couldn’t remove the member. Try again.',
+        store.error?.description ?? 'The member could not be removed.',
       );
     }
   }
@@ -424,7 +414,7 @@ class _MembersPage extends StatelessWidget {
         final total = store.catalogue.length;
         return AppListGroup(
           title: 'Members',
-          footer: const Text('Who has access, and what they can do.'),
+          footer: const Text('Members and their permissions.'),
           trailing: store.canManageMembers
               ? _HeaderButton(
                   icon: AppIcons.personPlus,
@@ -438,7 +428,7 @@ class _MembersPage extends StatelessWidget {
             else if (store.members.isEmpty)
               const AppDetailRow(
                 icon: AppIcons.info,
-                label: 'No members yet. Invite someone to work with you here.',
+                label: 'No other members.',
               )
             else
               for (final member in store.members)
@@ -501,14 +491,18 @@ class _MembersPage extends StatelessWidget {
 class _InvitesPage extends StatelessWidget {
   const _InvitesPage();
 
-  Future<void> _create(BuildContext context) async {
+  Widget _create() {
     final ws = Stores.auth.activeWorkspace ?? '';
-    if (ws.isEmpty) {
-      AppToast.error(context, 'Select a workspace first.');
-      return;
-    }
-    await showInviteCreateSheet(context: context, workspaceId: ws);
-    if (context.mounted) await Stores.invites.load(ws);
+    return AppInlineCreate(
+      label: 'New invite',
+      form: (close) => InviteCreateForm(
+        workspaceId: ws,
+        onClose: () {
+          close();
+          if (ws.isNotEmpty) Stores.invites.load(ws);
+        },
+      ),
+    );
   }
 
   /// Withdrawing cannot be undone — the key stops working for whoever holds
@@ -518,10 +512,11 @@ class _InvitesPage extends StatelessWidget {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Withdraw invite?',
-      message: 'The key for $label stops working. Nobody can join with it.',
+      message:
+          'The key for $label stops working and can no longer be used to join.',
       confirmLabel: 'Withdraw',
       confirmIcon: AppIcons.xCircle,
-      cancelLabel: 'Keep it',
+      cancelLabel: 'Cancel',
       destructive: true,
     );
     if (!confirmed || !context.mounted) return;
@@ -534,13 +529,20 @@ class _InvitesPage extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        store.error?.description ?? 'Couldn’t withdraw the invite. Try again.',
+        store.error?.description ?? 'The invite could not be withdrawn.',
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [_create(), AppSpacing.gapLg, _list(context)],
+    );
+  }
+
+  Widget _list(BuildContext context) {
     final store = Stores.invites;
     return Observer(
       builder: (_) {
@@ -549,41 +551,25 @@ class _InvitesPage extends StatelessWidget {
         if (open.isEmpty && !store.isLoading) {
           return AppEmptyState(
             icon: AppIcons.personPlus,
-            title: 'Work together in this workspace',
+            title: 'No pending invites',
             subtitle:
-                'Send someone an invite key. They join with the permissions '
-                'you choose, and nothing more.',
+                'Invite keys add members to this workspace with the selected '
+                'permissions only.',
             example: const AppEmptyExample(
               title: 'Accountant',
               detail: '3 of 16 permissions · valid 7 days',
               badge: 'open',
             ),
             steps: const [
-              AppEmptyStep(
-                'Choose what they can do',
-                'Read records, answer requests, and so on',
-              ),
-              AppEmptyStep('Hand them the key', 'As a link or a QR code'),
-              AppEmptyStep(
-                'Withdraw it if unused',
-                'You can take it back until someone uses it',
-              ),
+              AppEmptyStep('Permissions', 'Records, requests and more'),
+              AppEmptyStep('Key', 'Delivered as a link or QR code'),
+              AppEmptyStep('Withdrawal', 'Possible until the key is used'),
             ],
-            action: AppButton(
-              icon: AppIcons.plus,
-              label: 'New invite',
-              onTap: () => _create(context),
-            ),
           );
         }
         return AppListGroup(
           title: 'Pending invites',
-          footer: const Text('Keys you sent that nobody has used yet.'),
-          trailing: _HeaderButton(
-            icon: AppIcons.plus,
-            label: 'New',
-            onTap: () => _create(context),
-          ),
+          footer: const Text('Invite keys not yet used.'),
           children: [
             if (store.isLoading && open.isEmpty)
               const _LoadingRow()
@@ -635,14 +621,14 @@ class _IdentitiesPage extends StatelessWidget {
       context: context,
       title: 'Revoke ${identity.name}?',
       message:
-          'Nobody can trust it any more. Anyone who checks it, here or on '
-          'another server, learns this within the hour. Links and requests '
-          'it signed keep working, but no longer show as verified. Its key is '
-          'erased from this device.\n\n'
-          'You can’t undo this. Create a new identity to sign again.',
+          'The identity is no longer trusted. Checks here and on other '
+          'servers reflect this within the hour. Links and requests it '
+          'signed keep working but are no longer shown as verified. Its key '
+          'is erased from this device.\n\n'
+          'This cannot be undone. Signing again requires a new identity.',
       confirmLabel: 'Revoke',
       confirmIcon: AppIcons.xCircle,
-      cancelLabel: 'Keep it',
+      cancelLabel: 'Cancel',
       destructive: true,
     );
     if (!confirmed || !context.mounted) return;
@@ -654,7 +640,7 @@ class _IdentitiesPage extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Couldn’t revoke the identity',
+        'The identity could not be revoked',
         subtitle: store.errorMessage,
       );
     }
@@ -669,7 +655,7 @@ class _IdentitiesPage extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Couldn’t set primary identity',
+        'The primary identity could not be set',
         subtitle: store.errorMessage,
       );
     }
@@ -732,49 +718,35 @@ class _IdentitiesPage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const DeviceKeyAlert(),
+          AppInlineCreate(
+            label: 'New identity',
+            onOpen: Stores.settings.resetIdentityDraft,
+            form: (close) => _CreateIdentitySheet(onClose: close),
+          ),
+          AppSpacing.gapLg,
           if (store.identities.isEmpty && !store.isLoading)
             AppEmptyState(
               icon: AppIcons.personBoundingBox,
-              title: 'Prove it’s really you',
+              title: 'No identities',
               subtitle:
-                  'Your identity lets people check that a link or answer '
-                  'came from you. Its key stays on this device.',
+                  'An identity signs links and responses so recipients can '
+                  'verify their origin. Its key stays on this device.',
               example: const AppEmptyExample(
                 title: 'Laptop',
                 detail: 'Primary · 3fa2c1…',
                 badge: 'verified',
               ),
               steps: const [
-                AppEmptyStep('Create one on this device', 'It takes a second'),
-                AppEmptyStep(
-                  'Sign what you share and answer',
-                  'People see it really came from you',
-                ),
-                AppEmptyStep(
-                  'Revoke it if a device is lost',
-                  'Anyone who checks it learns this',
-                ),
+                AppEmptyStep('Key pair', 'Generated on this device'),
+                AppEmptyStep('Signature', 'Attached to shares and responses'),
+                AppEmptyStep('Revocation', 'Visible to every verifier'),
               ],
-              action: AppButton(
-                icon: AppIcons.plus,
-                label: 'New identity',
-                onTap: () => showAppSheet(
-                  context: context,
-                  builder: (_) => const _CreateIdentitySheet(),
-                ),
-              ),
             )
           else
             AppListGroup(
               title: 'Identities',
-              footer: const Text('Prove that what you send comes from you.'),
-              trailing: _HeaderButton(
-                icon: AppIcons.plus,
-                label: 'New',
-                onTap: () => showAppSheet(
-                  context: context,
-                  builder: (_) => const _CreateIdentitySheet(),
-                ),
+              footer: const Text(
+                'Signing identities for shares and responses.',
               ),
               children: [
                 if (store.isLoading && store.identities.isEmpty)
@@ -872,23 +844,21 @@ class _TemplatesPage extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            AppInlineCreate(
+              label: 'New template',
+              form: (close) => TemplateCreateForm(onClose: close),
+            ),
+            AppSpacing.gapLg,
             AppListGroup(
-              title: 'Your templates',
-              footer: const Text(
-                'Set up what a request asks for once, then reuse it.',
-              ),
-              trailing: _HeaderButton(
-                icon: AppIcons.plus,
-                label: 'New',
-                onTap: () => openTemplateEditorSheet(context),
-              ),
+              title: 'Workspace templates',
+              footer: const Text('Reusable field sets for requests.'),
               children: [
                 if (loading)
                   const _LoadingRow()
                 else if (own.isEmpty)
                   const AppDetailRow(
                     icon: AppIcons.info,
-                    label: 'No templates of your own yet.',
+                    label: 'No custom templates.',
                   )
                 else
                   for (final t in own) _row(context, t),
@@ -929,8 +899,8 @@ class _DomainPage extends StatelessWidget {
             title: 'DNS check',
             trailing: const SizedBox.shrink(),
             footer: const Text(
-              'Run this after you add the _revoked DNS record. It confirms '
-              'people can check that what you send comes from your domain.',
+              'Verifies the _revoked DNS record, which lets recipients confirm '
+              'that shares and responses originate from this domain.',
             ),
             children: [
               if (store.domainVerdict != null)
@@ -942,7 +912,7 @@ class _DomainPage extends StatelessWidget {
                 const AppDetailRow(
                   icon: AppIcons.server,
                   label: 'Status',
-                  value: 'Not checked yet',
+                  value: 'Not checked',
                 ),
             ],
           ),
@@ -973,7 +943,9 @@ String _slugify(String s) =>
     s.toLowerCase().replaceAll(' ', '-').replaceAll(RegExp(r'[^a-z0-9\-]'), '');
 
 class _CreateWorkspaceSheet extends StatefulWidget {
-  const _CreateWorkspaceSheet();
+  final VoidCallback onClose;
+
+  const _CreateWorkspaceSheet({required this.onClose});
 
   @override
   State<_CreateWorkspaceSheet> createState() => _CreateWorkspaceSheetState();
@@ -1007,11 +979,11 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
     if (ok) {
       await auth.initialize();
       if (!mounted) return;
-      Navigator.of(context).pop();
       AppToast.success(context, 'Workspace created');
+      widget.onClose();
     } else {
       settings.setSubmitting(false);
-      AppToast.error(context, 'Couldn’t create workspace');
+      AppToast.error(context, 'The workspace could not be created');
     }
   }
 
@@ -1034,7 +1006,9 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
         children: [
           const Text('New workspace').header,
           const SizedBox(height: AppSpacing.xs),
-          const Text('Keep personal, team and client data apart.').muted.small,
+          const Text(
+            'Separate records, members and keys by context.',
+          ).muted.small,
           const SizedBox(height: AppSpacing.lg),
           const Text('Name').small,
           const SizedBox(height: AppSpacing.xs),
@@ -1067,7 +1041,7 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
                   style: AppButtonStyle.accent,
                   onTap: Stores.settings.isSubmittingDrawer
                       ? null
-                      : () => Navigator.of(context).pop(),
+                      : widget.onClose,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -1088,7 +1062,9 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
 }
 
 class _CreateIdentitySheet extends StatefulWidget {
-  const _CreateIdentitySheet();
+  final VoidCallback onClose;
+
+  const _CreateIdentitySheet({required this.onClose});
 
   @override
   State<_CreateIdentitySheet> createState() => _CreateIdentitySheetState();
@@ -1104,11 +1080,11 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
     );
     if (!mounted) return;
     if (ok) {
-      Navigator.of(context).pop();
       AppToast.success(context, 'Identity created');
+      widget.onClose();
     } else {
       Stores.settings.setSubmitting(false);
-      AppToast.error(context, 'Couldn’t create identity');
+      AppToast.error(context, 'The identity could not be created');
     }
   }
 
@@ -1132,8 +1108,8 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
           const Text('New identity').header,
           const SizedBox(height: AppSpacing.xs),
           const Text(
-            'Let people check that what you share came from you. Its key stays '
-            'on this device.',
+            'Signs shares and responses so recipients can verify their '
+            'origin. Its key stays on this device.',
           ).muted.small,
           const SizedBox(height: AppSpacing.lg),
           const Text('Profile name').small,
@@ -1144,8 +1120,8 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
           ),
           const SizedBox(height: AppSpacing.sm),
           AppFormToggleRow(
-            label: 'Make it your primary identity',
-            subtitle: 'Used by default when you sign shares or requests.',
+            label: 'Primary identity',
+            subtitle: 'Used by default to sign shares and requests.',
             value: Stores.settings.identityIsPrimary,
             onChanged: Stores.settings.setIdentityPrimary,
             inset: false,
@@ -1159,7 +1135,7 @@ class _CreateIdentitySheetState extends State<_CreateIdentitySheet> {
                   style: AppButtonStyle.accent,
                   onTap: Stores.settings.isSubmittingDrawer
                       ? null
-                      : () => Navigator.of(context).pop(),
+                      : widget.onClose,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),

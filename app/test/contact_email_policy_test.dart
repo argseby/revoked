@@ -146,7 +146,7 @@ void main() {
     await open(tester);
     await tester.tap(find.text('Ada Lovelace'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Send them something'));
+    await tester.tap(find.text('Send records'));
     await tester.pumpAndSettle();
   }
 
@@ -157,7 +157,7 @@ void main() {
     await openSend(tester);
 
     expect(
-      find.textContaining('you\u2019ll get a link to pass on'),
+      find.textContaining('The link is returned for manual delivery'),
       findsOneWidget,
     );
   });
@@ -169,7 +169,7 @@ void main() {
     contacts = [emailOnly()];
     await openSend(tester);
 
-    expect(find.textContaining('gets an email with the link'), findsOneWidget);
+    expect(find.textContaining('receives the link by email'), findsOneWidget);
   });
 
   testWidgets('an address outside the policy is told so before the tap', (
@@ -180,7 +180,7 @@ void main() {
     await openSend(tester);
 
     expect(
-      find.textContaining('you\u2019ll get a link to pass on'),
+      find.textContaining('The link is returned for manual delivery'),
       findsOneWidget,
     );
     // The button still works: the grant is minted and the slug comes back.
@@ -201,7 +201,7 @@ void main() {
     await openSend(tester);
 
     expect(
-      find.textContaining('lands in Ada Lovelace\u2019s app'),
+      find.textContaining('Delivered to Ada Lovelace\u2019s app'),
       findsOneWidget,
     );
   });
@@ -215,11 +215,11 @@ void main() {
     await open(tester);
     await tester.tap(find.text('Ada Lovelace'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Ask them for something'));
+    await tester.tap(find.text('Request data'));
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('needs an account here to answer'),
+      find.textContaining('needs an account here to respond'),
       findsOneWidget,
     );
   });

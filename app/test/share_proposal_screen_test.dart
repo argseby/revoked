@@ -379,7 +379,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Connect Mietunterlagen'), findsOneWidget);
       expect(
-        find.text('No access to your vault, your links or your account.'),
+        find.text('No access to the vault, links or the account.'),
         findsOneWidget,
       );
       // The tool's reason is quoted as its own words; unticking is respected.
@@ -433,7 +433,7 @@ void main() {
       expect(authorized.single['poll'], true);
       expect(authorized.single.containsKey('reuse'), isFalse);
       expect(launched, isEmpty);
-      expect(find.textContaining('carries on from there'), findsOneWidget);
+      expect(find.textContaining('continues in the browser'), findsOneWidget);
       expect(find.text('Back to Mietunterlagen'), findsNothing);
 
       // Reading the vault is offered when the tool asks, explained, and off
@@ -464,7 +464,7 @@ void main() {
 
       await askForVault();
       expect(find.text('Read vault'), findsOneWidget);
-      expect(find.text('What reading your vault means'), findsOneWidget);
+      expect(find.text('Vault read access'), findsOneWidget);
       expect(
         find.text('Assistant says: “To answer your questions”'),
         findsOneWidget,
@@ -479,10 +479,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Read vault'));
       await tester.pumpAndSettle();
-      expect(
-        find.text('No access to your links or your account.'),
-        findsOneWidget,
-      );
+      expect(find.text('No access to links or the account.'), findsOneWidget);
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
@@ -491,7 +488,7 @@ void main() {
       // A page collecting its own answer is never offered it.
       await askForVault(poll: watched);
       expect(find.text('Read vault'), findsNothing);
-      expect(find.text('What reading your vault means'), findsNothing);
+      expect(find.text('Vault read access'), findsNothing);
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();

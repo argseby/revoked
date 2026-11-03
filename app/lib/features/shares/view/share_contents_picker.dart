@@ -78,8 +78,8 @@ Future<void> openShareContentsPicker(
                     const Text('What to share').header,
                     AppSpacing.gapXxs,
                     const Text(
-                      'They always see the latest version. Share a section, '
-                      'and records you add to it later are shared too.',
+                      'Recipients always see the latest version. Records added '
+                      'to a shared section later are shared too.',
                     ).muted.small,
                   ],
                 ),
@@ -98,8 +98,8 @@ Future<void> openShareContentsPicker(
                           vertical: AppSpacing.lg,
                         ),
                         child: const Text(
-                          'Your vault is empty. Add a record first, then '
-                          'share it.',
+                          'The vault is empty. Only existing records can be '
+                          'shared.',
                         ).muted,
                       ),
                     if (vault.sections.isNotEmpty) ...[
@@ -198,7 +198,7 @@ class ShareContentsRow extends StatelessWidget {
           inset: inset,
           child: AppPickerField(
             leading: AppIcons.safe,
-            text: summary.isEmpty ? 'Pick from your vault' : summary,
+            text: summary.isEmpty ? 'Select from the vault' : summary,
             isPlaceholder: summary.isEmpty,
             onTap: () => openShareContentsPicker(
               context,

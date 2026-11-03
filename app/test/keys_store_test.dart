@@ -1569,7 +1569,7 @@ void main() {
       final second = await _addDevice(server, first);
       server.dropEntries = true;
       expect(await first.removeDevice(second.thisDeviceSeq!), isFalse);
-      expect(first.errorMessage, contains('didn\'t save'));
+      expect(first.errorMessage, contains('did not save'));
     });
 
     test('a dropped recovery replacement is reported, not believed', () async {
@@ -1579,7 +1579,7 @@ void main() {
       first.beginRecoveryReplacement();
       _typeBack(first);
       expect(await first.finishRecovery(workspace: _workspace), isFalse);
-      expect(first.errorMessage, contains('didn\'t save'));
+      expect(first.errorMessage, contains('did not save'));
     });
 
     // Reproduced in review: restore gave a pre-removal key a fresh number, so it

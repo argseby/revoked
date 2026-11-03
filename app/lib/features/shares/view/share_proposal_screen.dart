@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
@@ -296,8 +297,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       context: context,
       title: 'Delete ${item.title}?',
       message:
-          'It’s removed from your vault and from every link that shares it. '
-          'You can’t undo this.',
+          'It is removed from the vault and from every link that shares it. '
+          'This cannot be undone.',
       confirmLabel: 'Delete',
       destructive: true,
     );
@@ -307,7 +308,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     if (!ok) {
       AppToast.error(
         context,
-        'Couldn’t delete ${item.title}',
+        '${item.title} could not be deleted.',
         subtitle: Stores.vault.errorMessage,
       );
       return;
@@ -414,7 +415,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       if (grant == null) {
         _submitting.value = false;
         _submitError.value =
-            Stores.connections.errorMessage ?? 'Couldn’t connect ${p.from}';
+            Stores.connections.errorMessage ??
+            '${p.from} could not be connected.';
         return;
       }
       // A page that collects its answer itself is handed no code.
@@ -457,7 +459,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       if (handOver && p.redirect.isNotEmpty && !_polls) await _backToTool();
     } else {
       _submitError.value =
-          Stores.shares.errorMessage ?? 'Couldn’t create the link';
+          Stores.shares.errorMessage ?? 'The link could not be created.';
     }
   }
 
@@ -506,13 +508,13 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     if (p == null) {
       subtitle = null;
     } else if (connecting) {
-      subtitle = 'Step 1 of 2 · then you review the link';
+      subtitle = 'Step 1 of 2 · link review follows';
     } else {
       subtitle = [
         if (deciding && _hasConnectStep) 'Step 2 of 2',
         p.from.isEmpty ? 'Link proposal' : 'Link proposal from ${p.from}',
         if (days != null)
-          'expires ${_formatDate(DateTime.now().add(Duration(days: days)))}',
+          'expires ${formatCalendarDay(DateTime.now().add(Duration(days: days)))}',
       ].join(' · ');
     }
     return AppFlowScaffold(
@@ -544,10 +546,10 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       return AppStatusMessage(
         icon: AppIcons.exclamationTriangle,
         accent: Theme.of(context).colorScheme.error,
-        title: 'This link doesn’t work',
+        title: 'Invalid link proposal',
         message:
-            'Revoked can’t create a link from it. Ask the tool that made it '
-            'for a new one.',
+            'No link can be created from it. A new proposal must come from '
+            'the tool that made it.',
         actions: [
           AppButton(
             label: 'Back to the app',
@@ -573,16 +575,13 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     return AppStatusMessage(
       icon: AppIcons.checkCircle,
       accent: Theme.of(context).colorScheme.success,
-      title: 'Your link is ready',
+      title: 'Link created',
       message: _handedOver
-          ? '$_toolName has the link for ${p.label} and can show or send it '
-                'for you. '
-                '${_polls ? 'You can return to your browser; it carries on '
-                          'by itself. ' : ''}'
-                'You can see when it’s opened, or revoke it, under Shares.'
-          : 'Send it to the recipient of ${p.label}. Only you have the link; '
-                '$_toolName doesn’t. You can see when it’s opened, or revoke '
-                'it, under Shares.',
+          ? '$_toolName has the link for ${p.label} and can show or send it. '
+                '${_polls ? 'The browser page continues on its own. ' : ''}'
+                'Views and revocation are under Shares.'
+          : '$_toolName does not have the link for ${p.label}. Views and '
+                'revocation are under Shares.',
       actions: [
         AppButton(
           label: 'Send link',
@@ -627,11 +626,11 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       bottomPadding: AppSpacing.xxl,
       children: [
         AppListGroup(
-          title: 'Who is asking',
+          title: 'Requesting tool',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'Any tool can pick its own name. Check the address, and only '
-            'continue if you recognise it.',
+            'Tool names are chosen by the tool itself. The address is the '
+            'reliable identifier.',
           ),
           children: [
             AppDetailRow(
@@ -647,9 +646,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           trailing: const SizedBox.shrink(),
           footer: Text(
             connecting
-                ? 'Next, you review the link ${p.from} proposes.'
-                : 'Next, you review the link. ${p.from} won’t learn anything '
-                      'about it.',
+                ? 'The proposed link is reviewed next.'
+                : 'The link is reviewed next. ${p.from} learns nothing about it.',
           ),
           children: [
             if (_canConnect)
@@ -657,8 +655,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 AppCheckRow(
                   label: 'Connect ${p.from}',
                   subtitle:
-                      'It can then see the status of links it proposes. It '
-                      'can never read your vault.',
+                      'Access to the status of proposed links only. The vault '
+                      'stays unreadable.',
                   value: connecting,
                   onChanged: (v) => _connectNow.value = v,
                 ),
@@ -666,10 +664,10 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             if (_canJoin)
               choice(
                 AppCheckRow(
-                  label: 'Let this browser in',
+                  label: 'Connect this browser',
                   subtitle:
-                      'It isn’t connected in the browser you came from yet. '
-                      'It gets the same permissions you gave it before.',
+                      'Not yet connected in the originating browser. The existing '
+                      'permissions apply.',
                   value: connecting,
                   onChanged: (v) => _connectNow.value = v,
                 ),
@@ -716,14 +714,14 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     final connected = _connection.value != null;
     final String outcome;
     if (!_toolAttached) {
-      outcome = '${p.from} won’t learn anything about this link.';
+      outcome = '${p.from} will learn nothing about this link.';
     } else if (!_canHandOver) {
       outcome =
           '${p.from} will see this link’s status, but not the link itself.';
     } else if (_sensitiveSelected) {
       outcome =
           '${p.from} will see this link’s status, but not the link itself: '
-          'it contains documents or hidden values, so only you can send it.';
+          'it contains documents or hidden values, so it is not handed over.';
     } else {
       outcome =
           '${p.from} will receive this link and can show, copy or open it.';
@@ -732,7 +730,9 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     if (connected && !_canJoin) {
       status = 'Connected';
     } else if (_connectNow.value) {
-      status = _canJoin ? 'This browser will be let in' : 'Will be connected';
+      status = _canJoin
+          ? 'This browser will be connected'
+          : 'Will be connected';
     } else {
       status = 'Not connected';
     }
@@ -787,12 +787,11 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       bottomPadding: AppSpacing.xxl,
       children: [
         AppListGroup(
-          title: 'What the link will contain · $selected of ${items.length}',
+          title: 'Link contents · $selected of ${items.length}',
           trailing: const SizedBox.shrink(),
           footer: missing > 0
               ? const Text(
-                  'Add what’s missing right here. It’s saved to your vault '
-                  'for next time.',
+                  'Missing entries can be added here and are saved to the vault.',
                 )
               : null,
           children: [
@@ -812,8 +811,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             title: 'Watermark',
             trailing: const SizedBox.shrink(),
             footer: const Text(
-              'Every file in the link carries this text, so you can trace '
-              'any copy back to it.',
+              'Every file in the link carries this text, so any copy can be '
+              'traced back to it.',
             ),
             children: [
               AppDetailRow(
@@ -836,8 +835,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 ),
                 child: AppCheckRow(
                   label: 'Sign as ${identity.name}',
-                  subtitle:
-                      'The recipient can check that the link comes from you.',
+                  subtitle: 'Recipients can verify the link’s origin.',
                   value: _sign.value,
                   onChanged: (v) => _sign.value = v,
                 ),
@@ -883,9 +881,6 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       ],
     );
   }
-
-  String _formatDate(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
   Widget _itemRow(BuildContext context, _Item item) {
     final r = item.record;
@@ -946,7 +941,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                       if (unstampable) ...[
                         AppSpacing.gapSm,
                         const AppBadge(
-                          label: 'Can’t be stamped',
+                          label: 'Cannot be stamped',
                           variant: AppBadgeVariant.destructive,
                         ),
                       ] else if (_isHidden(r)) ...[
@@ -1031,7 +1026,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 Text(item.title),
                 DefaultTextStyle.merge(
                   style: TextStyle(color: scheme.warning),
-                  child: const Text('Not in your vault yet').small,
+                  child: const Text('Not in the vault').small,
                 ),
               ],
             ),

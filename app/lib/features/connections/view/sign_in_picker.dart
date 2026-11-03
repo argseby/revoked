@@ -234,7 +234,7 @@ class SignInPicker extends StatelessWidget {
           detail: [
             if (selected == newValue) 'New value',
             if (picked != null && picked.value.isNotEmpty) picked.title,
-            if (selected.isEmpty) 'You can still sign in.',
+            if (selected.isEmpty) 'Sign-in works without it',
             if (selected.isNotEmpty && workspace != null) workspace!,
           ].join(' · '),
           on: selected.isNotEmpty,
@@ -267,8 +267,8 @@ class SignInPicker extends StatelessWidget {
           AppSpacing.gapSm,
           _Row(
             leading: const Icon(AppIcons.folder),
-            primary: 'Browse your vault',
-            secondary: '${choices.length} to choose from',
+            primary: 'Browse vault',
+            secondary: '${choices.length} available',
             trailing: const Icon(AppIcons.chevronRight),
             onTap: busy ? null : () => _openBrowser(context),
           ),
@@ -534,12 +534,12 @@ class _SignInVaultBrowserState extends State<SignInVaultBrowser> {
         if (found.isEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text('Nothing in this workspace matches.').small.muted,
+            child: Text('No matches in this workspace.').small.muted,
           ),
         _Row(
           leading: const Icon(AppIcons.plus),
           primary: 'Create “$query”',
-          secondary: 'Save it as a new value',
+          secondary: 'Saved as a new value',
           onTap: d.busy
               ? null
               : () {
@@ -614,7 +614,7 @@ class _SignInVaultBrowserState extends State<SignInVaultBrowser> {
                   if (inFolder) ...[
                     AppButton(
                       icon: AppIcons.arrowLeft,
-                      tooltip: 'Back to your vault',
+                      tooltip: 'Back to vault',
                       style: AppButtonStyle.accent,
                       size: AppButtonSize.small,
                       onTap: () {
@@ -645,7 +645,7 @@ class _SignInVaultBrowserState extends State<SignInVaultBrowser> {
               AppSpacing.gapMd,
               AppTextField(
                 controller: Stores.signInApproval.browseQuery,
-                hint: 'Search your vault',
+                hint: 'Search vault',
                 leading: const Icon(AppIcons.search),
                 onChanged: (_) => _showAll.value = false,
               ),

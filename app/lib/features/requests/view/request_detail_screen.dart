@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
@@ -17,7 +18,6 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
@@ -245,8 +245,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
     return AppListGroup(
       title: template == null
-          ? "What's asked"
-          : "What's asked · ${template.name} · $fieldCount",
+          ? 'Fields'
+          : 'Fields · ${template.name} · $fieldCount',
       previewCount: 6,
       trailing: const SizedBox.shrink(),
       children: rows,
@@ -265,7 +265,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         ),
         AppDetailRow(
           icon: AppIcons.shieldCheck,
-          label: 'Who can answer',
+          label: 'Respondents',
           value: _audience(request),
         ),
         if (request.requireHandshake)
@@ -286,7 +286,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         AppDetailRow(
           icon: AppIcons.clock,
           label: 'Expires',
-          value: AppEntityCard.formatDate(request.expiresAt) ?? 'Never',
+          value: dayOf(request.expiresAt) ?? 'Never',
         ),
         AppDetailRow(
           icon: AppIcons.collection,
@@ -322,12 +322,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         AppDetailRow(
           icon: AppIcons.plus,
           label: 'Created',
-          value: AppEntityCard.formatDate(request.created) ?? '—',
+          value: dayOf(request.created) ?? '—',
         ),
         AppDetailRow(
           icon: AppIcons.pen,
           label: 'Last changed',
-          value: AppEntityCard.formatDate(request.updated) ?? '—',
+          value: dayOf(request.updated) ?? '—',
         ),
       ],
     );
@@ -363,10 +363,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     final store = Stores.requests;
     final confirmed = await showAppDialog(
       context: context,
-      title: 'Revoke request?',
+      title: 'Revoke this request?',
       message:
-          'The link stops working right away and takes no new responses. '
-          'You keep the responses you already have.',
+          'The link stops working immediately and accepts no new '
+          'responses. Existing responses are kept.',
       content: ApiPreview(
         spec: RequestsStore.updateRequestSpec(req.id, const {
           'status': 'revoked',
@@ -387,7 +387,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     } else {
       AppToast.error(
         context,
-        "Couldn't revoke the request",
+        'The request could not be revoked.',
         subtitle: store.errorMessage,
       );
     }
@@ -397,10 +397,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     final store = Stores.requests;
     final confirmed = await showAppDialog(
       context: context,
-      title: 'Delete request?',
+      title: 'Delete this request?',
       message:
-          'The request and its responses are deleted for good. You can\'t '
-          'undo this.',
+          'The request and its responses are deleted permanently. This '
+          'cannot be undone.',
       content: ApiPreview(
         spec: RequestsStore.deleteRequestSpec(req.id),
         title: 'API request · delete',
@@ -419,7 +419,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     } else {
       AppToast.error(
         context,
-        "Couldn't delete the request",
+        'The request could not be deleted.',
         subtitle: store.errorMessage,
       );
     }

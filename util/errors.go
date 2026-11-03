@@ -200,27 +200,27 @@ var Errors = struct {
 	},
 	WorkspaceMemberLimitReached: AppError{
 		ErrorCode: "workspace_member_limit_reached",
-		ErrorText: "This workspace reached the maximum number of members.",
+		ErrorText: "This workspace has reached the maximum number of members.",
 	},
 	FailedToCreateWorkspaceMember: AppError{
 		ErrorCode: "failed_to_create_workspace_member",
-		ErrorText: "Failed to add user to workspace.",
+		ErrorText: "The user could not be added to the workspace.",
 	},
 	ValidationFieldRestricted: AppError{
 		ErrorCode: "validation_insufficient_permissions",
-		ErrorText: "You do not have permission to modify this field.",
+		ErrorText: "Modifying this field is not permitted.",
 	},
 	ValidationFieldRequired: AppError{
 		ErrorCode: "validation_required",
-		ErrorText: "Missing required value.",
+		ErrorText: "A required value is missing.",
 	},
 	NotAuthorized: AppError{
 		ErrorCode: "not_authorized",
-		ErrorText: "You do not have the permission for this request.",
+		ErrorText: "This request is not permitted.",
 	},
 	NotAuthenticated: AppError{
 		ErrorCode: "not_authenticated",
-		ErrorText: "You are not authenticated.",
+		ErrorText: "Authentication is required.",
 	},
 	FailedToCreateRecord: AppError{
 		ErrorCode: "failed_to_create_record",
@@ -232,7 +232,7 @@ var Errors = struct {
 	},
 	WorkspaceLimitReached: AppError{
 		ErrorCode: "workspace_limit_reached",
-		ErrorText: "You have reached the maximum number of workspaces.",
+		ErrorText: "The maximum number of workspaces has been reached.",
 	},
 	WorkspaceNotFound: AppError{
 		ErrorCode: "workspace_not_found",
@@ -252,7 +252,7 @@ var Errors = struct {
 	},
 	ActiveWorkspaceMismatch: AppError{
 		ErrorCode: "active_workspace_mismatch",
-		ErrorText: "The selected workspace does not match your active workspace.",
+		ErrorText: "The selected workspace does not match the active workspace.",
 	},
 	LinkNotFound: AppError{
 		ErrorCode: "link_not_found",
@@ -268,7 +268,7 @@ var Errors = struct {
 	},
 	LinkPaused: AppError{
 		ErrorCode: "link_paused",
-		ErrorText: "This link is paused by its owner and is temporarily unavailable.",
+		ErrorText: "This link is paused and temporarily unavailable.",
 	},
 	LinkMaxViewsReached: AppError{
 		ErrorCode: "link_max_views_reached",
@@ -308,11 +308,11 @@ var Errors = struct {
 	},
 	FileDownloadInvalid: AppError{
 		ErrorCode: "file_download_invalid",
-		ErrorText: "The download token is invalid or expired. Reopen the link to request a new one.",
+		ErrorText: "The download token is invalid or expired. Reopening the link issues a new one.",
 	},
 	FileNotWatermarkable: AppError{
 		ErrorCode: "file_not_watermarkable",
-		ErrorText: "This share stamps its files, and this file cannot be stamped, so it is not served.",
+		ErrorText: "This share stamps its files. This file cannot be stamped and is not served.",
 	},
 	ApplicationNeedsWatermark: AppError{
 		ErrorCode: "application_needs_watermark",
@@ -344,7 +344,7 @@ var Errors = struct {
 	},
 	RequestPaused: AppError{
 		ErrorCode: "request_paused",
-		ErrorText: "This request is paused by its owner and is temporarily unavailable.",
+		ErrorText: "This request is paused and temporarily unavailable.",
 	},
 	RequestCompleted: AppError{
 		ErrorCode: "request_completed",
@@ -376,7 +376,7 @@ var Errors = struct {
 	},
 	HandshakeFailed: AppError{
 		ErrorCode: "handshake_failed",
-		ErrorText: "The handshake could not be completed. Please try again.",
+		ErrorText: "The handshake could not be completed.",
 	},
 	IdentityNotFound: AppError{
 		ErrorCode: "identity_not_found",
@@ -392,27 +392,27 @@ var Errors = struct {
 	},
 	IdentityNotOwned: AppError{
 		ErrorCode: "identity_not_owned",
-		ErrorText: "The selected identity does not belong to your workspace.",
+		ErrorText: "The selected identity does not belong to this workspace.",
 	},
 	BookmarkGroupNotOwned: AppError{
 		ErrorCode: "bookmark_group_not_owned",
-		ErrorText: "A selected group is not one of yours.",
+		ErrorText: "A selected group does not belong to this account.",
 	},
 	ContactRouteMissing: AppError{
 		ErrorCode: "contact_route_missing",
-		ErrorText: "A contact needs a way to reach someone: an account, a server or an email address.",
+		ErrorText: "A contact requires an account, a server or an email address.",
 	},
 	ContactNotFound: AppError{
 		ErrorCode: "contact_not_found",
-		ErrorText: "That contact does not exist.",
+		ErrorText: "Contact not found.",
 	},
 	ContactNothingToSend: AppError{
 		ErrorCode: "contact_nothing_to_send",
-		ErrorText: "Choose at least one entry to send.",
+		ErrorText: "At least one entry must be selected.",
 	},
 	TemplateNotOwned: AppError{
 		ErrorCode: "template_not_owned",
-		ErrorText: "The selected template does not belong to your workspace.",
+		ErrorText: "The selected template does not belong to this workspace.",
 	},
 	IdentityRevoked: AppError{
 		ErrorCode: "identity_revoked",
@@ -424,7 +424,7 @@ var Errors = struct {
 	},
 	InviteInviterLostAccess: AppError{
 		ErrorCode: "invite_inviter_lost_access",
-		ErrorText: "Whoever created this invite can no longer invite people to this workspace.",
+		ErrorText: "The creator of this invite can no longer invite members to this workspace.",
 	},
 	SignupsDisabled: AppError{
 		ErrorCode: "signups_disabled",
@@ -448,11 +448,11 @@ var Errors = struct {
 	},
 	ApiKeyNotPermitted: AppError{
 		ErrorCode: "api_key_not_permitted",
-		ErrorText: "API keys cannot perform this action; use a user session.",
+		ErrorText: "This action requires a user session; API keys are not accepted.",
 	},
 	AccessDenied: AppError{
 		ErrorCode: "access_denied",
-		ErrorText: "You are not allowed to perform this action on this record.",
+		ErrorText: "This action is not permitted on this record.",
 	},
 	MissingActiveWorkspace: AppError{
 		ErrorCode: "missing_active_workspace",
@@ -460,7 +460,7 @@ var Errors = struct {
 	},
 	NotWorkspaceMember: AppError{
 		ErrorCode: "not_workspace_member",
-		ErrorText: "You are not a member of this workspace.",
+		ErrorText: "This account is not a member of this workspace.",
 	},
 	NotWorkspaceAdmin: AppError{
 		ErrorCode: "not_workspace_admin",
@@ -472,11 +472,11 @@ var Errors = struct {
 	},
 	MissingPermission: AppError{
 		ErrorCode: "missing_permission",
-		ErrorText: "Your access to this workspace does not include this action.",
+		ErrorText: "Workspace access does not include this action.",
 	},
 	PermissionEscalation: AppError{
 		ErrorCode: "permission_escalation",
-		ErrorText: "You cannot grant access you do not hold yourself.",
+		ErrorText: "Access beyond the granter's own cannot be granted.",
 	},
 	LastAdminProtected: AppError{
 		ErrorCode: "last_admin_protected",
@@ -504,7 +504,7 @@ var Errors = struct {
 	},
 	AlreadyWorkspaceMember: AppError{
 		ErrorCode: "already_workspace_member",
-		ErrorText: "You already have access to this workspace.",
+		ErrorText: "This account already has access to this workspace.",
 	},
 	InvalidCertificate: AppError{
 		ErrorCode: "invalid_certificate",
@@ -544,15 +544,15 @@ var Errors = struct {
 	},
 	RateLimited: AppError{
 		ErrorCode: "rate_limited",
-		ErrorText: "Too many attempts. Please wait a moment and try again.",
+		ErrorText: "Too many attempts. Retry after a short delay.",
 	},
 	ApiKeyVaultScope: AppError{
 		ErrorCode: "api_key_vault_scope",
-		ErrorText: "An API key reaches the vault only through sections chosen for it. Choose at least one.",
+		ErrorText: "API keys reach the vault only through assigned sections. At least one section is required.",
 	},
 	ConnectionClientInvalid: AppError{
 		ErrorCode: "connection_client_invalid",
-		ErrorText: "A tool is identified by an https origin (or http on localhost), and nothing else.",
+		ErrorText: "A tool must be identified by an https origin (or http on localhost).",
 	},
 	ConnectionRedirectInvalid: AppError{
 		ErrorCode: "connection_redirect_invalid",
@@ -572,11 +572,11 @@ var Errors = struct {
 	},
 	ConnectionExpired: AppError{
 		ErrorCode: "connection_expired",
-		ErrorText: "This connection has expired. Connect the tool again from the app.",
+		ErrorText: "This connection has expired. The tool must be reconnected from the app.",
 	},
 	ConnectionNotConnected: AppError{
 		ErrorCode: "connection_not_connected",
-		ErrorText: "This tool has no live connection to reuse. Connect it from the app.",
+		ErrorText: "This tool has no active connection to reuse. Connections are made from the app.",
 	},
 	ConnectionRevokeNotAllowed: AppError{
 		ErrorCode: "connection_revoke_not_allowed",
@@ -584,19 +584,19 @@ var Errors = struct {
 	},
 	ConnectionPaused: AppError{
 		ErrorCode: "connection_paused",
-		ErrorText: "The owner has paused this tool. It works again once they activate it.",
+		ErrorText: "This tool is paused by the owner and works again once reactivated.",
 	},
 	ConnectionVaultNotAllowed: AppError{
 		ErrorCode: "connection_vault_not_allowed",
-		ErrorText: "The owner has not allowed this tool to read their vault.",
+		ErrorText: "The owner has not allowed this tool to read the vault.",
 	},
 	ConnectionVaultPolled: AppError{
 		ErrorCode: "connection_vault_polled",
-		ErrorText: "Vault access needs the answer sent to the tool's own address. A tool that collects it by polling can't read the vault.",
+		ErrorText: "Vault access requires the answer to be sent to the tool's own address. Tools that poll for it cannot read the vault.",
 	},
 	ConnectionVaultReconnect: AppError{
 		ErrorCode: "connection_vault_reconnect",
-		ErrorText: "To let a tool read your vault, connect it again from the tool.",
+		ErrorText: "Vault read access requires reconnecting from the tool.",
 	},
 	ConnectionNotPermitted: AppError{
 		ErrorCode: "connection_not_permitted",
@@ -604,11 +604,11 @@ var Errors = struct {
 	},
 	ConnectionPolled: AppError{
 		ErrorCode: "connection_polled",
-		ErrorText: "This needs the answer sent to the tool's own address. A tool that collects it by polling can't do this.",
+		ErrorText: "This action requires the answer to be sent to the tool's own address. Tools that poll for it cannot perform it.",
 	},
 	ConnectionPermissionInvalid: AppError{
 		ErrorCode: "connection_permission_invalid",
-		ErrorText: "A connected tool can't be given this permission.",
+		ErrorText: "This permission cannot be granted to a connected tool.",
 	},
 	VaultNotAllowed: AppError{
 		ErrorCode: "vault_not_allowed",
@@ -620,15 +620,15 @@ var Errors = struct {
 	},
 	VaultSectionNotWritable: AppError{
 		ErrorCode: "vault_section_not_writable",
-		ErrorText: "This key or tool can't write to that section.",
+		ErrorText: "This key or tool cannot write to that section.",
 	},
 	VaultSectionInvalid: AppError{
 		ErrorCode: "vault_section_invalid",
-		ErrorText: "A chosen section isn't in this workspace.",
+		ErrorText: "A selected section is not in this workspace.",
 	},
 	VaultStorageExceeded: AppError{
 		ErrorCode: "vault_storage_exceeded",
-		ErrorText: "This key or tool has used all the room it may use in the vault.",
+		ErrorText: "This key or tool has reached its vault storage limit.",
 	},
 	VaultKeyTaken: AppError{
 		ErrorCode: "vault_key_taken",
@@ -640,11 +640,11 @@ var Errors = struct {
 	},
 	LinkConnectionForeign: AppError{
 		ErrorCode: "link_connection_foreign",
-		ErrorText: "A link can only name one of your own connections, and keeps the one it was created with.",
+		ErrorText: "A link can only name a connection of the same account, and keeps the one it was created with.",
 	},
 	ConnectionForeign: AppError{
 		ErrorCode: "connection_foreign",
-		ErrorText: "You can only pick one of your own connected tools, and it can’t change later.",
+		ErrorText: "Only a connected tool of the same account can be selected, and it cannot be changed later.",
 	},
 	PasskeyOriginInvalid: AppError{
 		ErrorCode: "passkey_origin_invalid",
@@ -656,19 +656,19 @@ var Errors = struct {
 	},
 	PasskeyEmailInvalid: AppError{
 		ErrorCode: "passkey_email_invalid",
-		ErrorText: "Enter a valid email address.",
+		ErrorText: "The email address is invalid.",
 	},
 	PasskeyEmailTaken: AppError{
 		ErrorCode: "passkey_email_taken",
-		ErrorText: "An account with this email address already exists. Sign in instead.",
+		ErrorText: "An account with this email address already exists.",
 	},
 	PasskeyTicketInvalid: AppError{
 		ErrorCode: "passkey_ticket_invalid",
-		ErrorText: "This link is unknown, already used, or has expired. Ask for a new one.",
+		ErrorText: "This link is unknown, already used, or expired.",
 	},
 	PasskeyCeremonyInvalid: AppError{
 		ErrorCode: "passkey_ceremony_invalid",
-		ErrorText: "This attempt took too long or was already finished. Start again.",
+		ErrorText: "This attempt timed out or was already completed.",
 	},
 	PasskeyVerificationFailed: AppError{
 		ErrorCode: "passkey_verification_failed",
@@ -684,31 +684,31 @@ var Errors = struct {
 	},
 	PasskeyLast: AppError{
 		ErrorCode: "passkey_last",
-		ErrorText: "This is your only passkey. Add another before removing it, or you could not sign in again.",
+		ErrorText: "The only passkey on an account cannot be removed. Another passkey must be added first.",
 	},
 	EmailVerificationOff: AppError{
 		ErrorCode: "email_verification_off",
-		ErrorText: "This server does not confirm email addresses. Create the account directly.",
+		ErrorText: "This server does not confirm email addresses. Accounts are created directly.",
 	},
 	EmailVerificationRequired: AppError{
 		ErrorCode: "email_verification_required",
-		ErrorText: "Confirm your email address with the code we sent before creating the account.",
+		ErrorText: "The email address must be confirmed with the code sent to it before the account is created.",
 	},
 	EmailCodeInvalid: AppError{
 		ErrorCode: "email_code_invalid",
-		ErrorText: "This code is wrong, expired, or was tried too often. Request a new one.",
+		ErrorText: "This code is wrong, expired, or was tried too often.",
 	},
 	EmailCodeTooSoon: AppError{
 		ErrorCode: "email_code_too_soon",
-		ErrorText: "A code was just sent to this address. Wait a minute before asking for another.",
+		ErrorText: "A code was just sent to this address. Another can be requested after a minute.",
 	},
 	EmailSendFailed: AppError{
 		ErrorCode: "email_send_failed",
-		ErrorText: "The confirmation email could not be sent. Try again later.",
+		ErrorText: "The confirmation email could not be sent.",
 	},
 	ReminderRecordMissing: AppError{
 		ErrorCode: "reminder_record_missing",
-		ErrorText: "The entry this reminder is for does not exist, or is not in a workspace you belong to.",
+		ErrorText: "The reminder's entry does not exist or is not in an accessible workspace.",
 	},
 	ReminderWatchMissing: AppError{
 		ErrorCode: "reminder_watch_missing",
@@ -716,7 +716,7 @@ var Errors = struct {
 	},
 	ReminderDueRequired: AppError{
 		ErrorCode: "reminder_due_required",
-		ErrorText: "Pick when to be reminded.",
+		ErrorText: "A reminder date is required.",
 	},
 	ReminderKindInvalid: AppError{
 		ErrorCode: "reminder_kind_invalid",
@@ -732,7 +732,7 @@ var Errors = struct {
 	},
 	RemoteUnreachable: AppError{
 		ErrorCode: "remote_unreachable",
-		ErrorText: "The other server could not be reached. Try again later.",
+		ErrorText: "The other server could not be reached.",
 	},
 	RemoteGrantUnresolvable: AppError{
 		ErrorCode: "remote_grant_unresolvable",
@@ -748,31 +748,31 @@ var Errors = struct {
 	},
 	PeerKeyUnavailable: AppError{
 		ErrorCode: "peer_key_unavailable",
-		ErrorText: "The sending server's key could not be checked. Try again later.",
+		ErrorText: "The sending server's key could not be checked.",
 	},
 	OIDCRequestInvalid: AppError{
 		ErrorCode: "oidc_request_invalid",
-		ErrorText: "This sign-in has expired or was already used. Start it again from the service.",
+		ErrorText: "This sign-in has expired or was already used. It must be restarted from the service.",
 	},
 	OIDCLinkRecordInvalid: AppError{
 		ErrorCode: "oidc_link_record_invalid",
-		ErrorText: "An entry chosen to share is not one of yours.",
+		ErrorText: "A selected entry does not belong to this account.",
 	},
 	OIDCNameInvalid: AppError{
 		ErrorCode: "oidc_name_invalid",
-		ErrorText: "That name can't be used. Choose another one.",
+		ErrorText: "This name cannot be used.",
 	},
 	OIDCSignInPaused: AppError{
 		ErrorCode: "oidc_sign_in_paused",
-		ErrorText: "You paused this service. Activate it to sign in.",
+		ErrorText: "This service is paused. Signing in requires reactivating it.",
 	},
 	AttestationsDisabled: AppError{
 		ErrorCode: "attestations_disabled",
-		ErrorText: "This server does not issue attestations. Its operator decides whether it speaks for its domain.",
+		ErrorText: "This server does not issue attestations. Issuing is enabled by its operator.",
 	},
 	AttestationTypeInvalid: AppError{
 		ErrorCode: "attestation_type_invalid",
-		ErrorText: "An attestation needs a type: up to 255 characters, without spaces.",
+		ErrorText: "An attestation requires a type of up to 255 characters, without spaces.",
 	},
 	AttestationClaimsInvalid: AppError{
 		ErrorCode: "attestation_claims_invalid",
@@ -784,15 +784,15 @@ var Errors = struct {
 	},
 	AttestationSubjectInvalid: AppError{
 		ErrorCode: "attestation_subject_invalid",
-		ErrorText: "The identity an offer is made for is named by its fingerprint: 64 hexadecimal characters.",
+		ErrorText: "An offer names its identity by a fingerprint of 64 hexadecimal characters.",
 	},
 	AttestationImmutable: AppError{
 		ErrorCode: "attestation_immutable",
-		ErrorText: "What an attestation states cannot be changed once it exists. Revoke it and issue a new one.",
+		ErrorText: "An attestation's statement cannot be changed once issued. It can be revoked and reissued.",
 	},
 	AttestationExpiryInvalid: AppError{
 		ErrorCode: "attestation_expiry_invalid",
-		ErrorText: "A date an attestation or its offer ends on lies in the future.",
+		ErrorText: "The end date of an attestation or offer must be in the future.",
 	},
 	AttestationOfferNotFound: AppError{
 		ErrorCode: "attestation_offer_not_found",
@@ -800,11 +800,11 @@ var Errors = struct {
 	},
 	AttestationOfferExpired: AppError{
 		ErrorCode: "attestation_offer_expired",
-		ErrorText: "This offer has expired. Ask its issuer for a new one.",
+		ErrorText: "This offer has expired.",
 	},
 	AttestationOfferClaimed: AppError{
 		ErrorCode: "attestation_offer_claimed",
-		ErrorText: "This offer was already accepted. An offer works once.",
+		ErrorText: "This offer was already accepted. Offers can be accepted once.",
 	},
 	AttestationOfferRevoked: AppError{
 		ErrorCode: "attestation_offer_revoked",
@@ -820,7 +820,7 @@ var Errors = struct {
 	},
 	AttestationIssueFailed: AppError{
 		ErrorCode: "attestation_issue_failed",
-		ErrorText: "The credential could not be issued. Try again later.",
+		ErrorText: "The credential could not be issued.",
 	},
 	CredentialInvalid: AppError{
 		ErrorCode: "credential_invalid",
@@ -836,15 +836,15 @@ var Errors = struct {
 	},
 	AttestationCheckNotFound: AppError{
 		ErrorCode: "attestation_check_not_found",
-		ErrorText: "This check does not exist. Check that the link was copied in full.",
+		ErrorText: "This check does not exist. The link may be incomplete.",
 	},
 	AttestationCheckClosed: AppError{
 		ErrorCode: "attestation_check_closed",
-		ErrorText: "This check was already answered or has run out. Ask for a new one.",
+		ErrorText: "This check was already answered or has expired.",
 	},
 	SealedFieldsRestricted: AppError{
 		ErrorCode: "sealed_fields_restricted",
-		ErrorText: "This entry is end-to-end encrypted. Update your app to change it.",
+		ErrorText: "This entry is end-to-end encrypted. Changing it requires a newer app version.",
 	},
 	SealedInvalid: AppError{
 		ErrorCode: "sealed_invalid",
@@ -852,47 +852,47 @@ var Errors = struct {
 	},
 	SealedVersionConflict: AppError{
 		ErrorCode: "sealed_version_conflict",
-		ErrorText: "Another device changed this first. Reload and try again.",
+		ErrorText: "This was changed on another device first. Reload and retry.",
 	},
 	SealedEpochStale: AppError{
 		ErrorCode: "sealed_epoch_stale",
-		ErrorText: "This workspace's encryption key has changed. Reload and try again.",
+		ErrorText: "This workspace's encryption key has changed. Reload and retry.",
 	},
 	SealedKeyMissing: AppError{
 		ErrorCode: "sealed_key_missing",
-		ErrorText: "You don't hold the encryption key for this workspace.",
+		ErrorText: "The encryption key for this workspace is not available.",
 	},
 	SealedRecordUnsupported: AppError{
 		ErrorCode: "sealed_record_unsupported",
-		ErrorText: "End-to-end encrypted entries can't be used here yet.",
+		ErrorText: "End-to-end encrypted entries are not supported here yet.",
 	},
 	SealedLinksAffected: AppError{
 		ErrorCode: "sealed_links_affected",
-		ErrorText: "Links share this entry, and they'd stop showing it once it's encrypted.",
+		ErrorText: "This entry is shared by links, which would stop showing it once encrypted.",
 	},
 	WebhookNotFound: AppError{
 		ErrorCode: "webhook_not_found",
-		ErrorText: "This webhook doesn't exist in your workspace.",
+		ErrorText: "Webhook not found.",
 	},
 	WebhookDeliveryNotFound: AppError{
 		ErrorCode: "webhook_delivery_not_found",
-		ErrorText: "This delivery doesn't exist in your workspace.",
+		ErrorText: "Delivery not found.",
 	},
 	WebhookUrlInvalid: AppError{
 		ErrorCode: "webhook_url_invalid",
-		ErrorText: "Use a full http:// or https:// address this server is allowed to reach.",
+		ErrorText: "A full http:// or https:// address reachable by this server is required.",
 	},
 	WebhookEventsInvalid: AppError{
 		ErrorCode: "webhook_events_invalid",
-		ErrorText: "Pick at least one event, using names from the event list.",
+		ErrorText: "At least one event from the event list is required.",
 	},
 	WebhookLimitReached: AppError{
 		ErrorCode: "webhook_limit_reached",
-		ErrorText: "This workspace has as many webhooks as it can hold. Remove one first.",
+		ErrorText: "This workspace has reached its webhook limit.",
 	},
 	WebhookDisabled: AppError{
 		ErrorCode: "webhook_disabled",
-		ErrorText: "This webhook is turned off. Turn it on to send to it.",
+		ErrorText: "This webhook is disabled.",
 	},
 }
 

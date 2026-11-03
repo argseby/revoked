@@ -114,7 +114,7 @@ void main() {
 
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('From template'));
+    await tester.tap(find.text('Template'));
     await tester.pumpAndSettle();
     expect(find.text('1 of 6 filled'), findsOneWidget);
 

@@ -15,7 +15,6 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
-import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/permission_check_row.dart';
@@ -26,26 +25,21 @@ import 'package:revoked_app/features/settings/view/features_page.dart';
 ///
 /// Permissions come from the backend catalogue rather than a local copy, so the
 /// list always matches what the server will actually enforce.
-Future<void> showInviteCreateSheet({
-  required BuildContext context,
-  required String workspaceId,
-}) {
-  return showAppSheet(
-    context: context,
-    builder: (_) => _InviteCreateSheet(workspaceId: workspaceId),
-  );
-}
-
-class _InviteCreateSheet extends StatefulWidget {
+class InviteCreateForm extends StatefulWidget {
   final String workspaceId;
+  final VoidCallback onClose;
 
-  const _InviteCreateSheet({required this.workspaceId});
+  const InviteCreateForm({
+    super.key,
+    required this.workspaceId,
+    required this.onClose,
+  });
 
   @override
-  State<_InviteCreateSheet> createState() => _InviteCreateSheetState();
+  State<InviteCreateForm> createState() => _InviteCreateSheetState();
 }
 
-class _InviteCreateSheetState extends State<_InviteCreateSheet> {
+class _InviteCreateSheetState extends State<InviteCreateForm> {
   InvitesStore get _store => Stores.invites;
 
   @override
@@ -65,7 +59,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
   Future<void> _submit() async {
     final store = Stores.invites;
     if (_store.draftPermissions.isEmpty) {
-      AppToast.error(context, 'Choose at least one permission.');
+      AppToast.error(context, 'At least one permission is required.');
       return;
     }
 
@@ -87,7 +81,7 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
       final err = store.error;
       AppToast.error(
         context,
-        err?.description ?? 'Couldn’t create the invite. Try again.',
+        err?.description ?? 'The invite could not be created.',
       );
       return;
     }
@@ -96,12 +90,12 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
     if (token == null) {
       AppToast.error(
         context,
-        'The invite was made, but its key didn’t arrive. Withdraw it and make a new one.',
+        'The invite was created, but its key was not returned. The invite should be withdrawn and recreated.',
       );
       return;
     }
-    Navigator.of(context).pop();
     await _showTokenDialog(context, token);
+    widget.onClose();
   }
 
   @override
@@ -114,200 +108,186 @@ class _InviteCreateSheetState extends State<_InviteCreateSheet> {
   Widget _build(BuildContext context) {
     final store = Stores.invites;
 
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Invite someone').header,
-                const SizedBox(height: AppSpacing.xxs),
-                const Text(
-                  'They see exactly what they can do before they accept.',
-                ).muted.small,
-              ],
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.xxs,
+            AppSpacing.xl,
+            AppSpacing.md,
           ),
-          const AppDivider(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('New invite').header,
+              const SizedBox(height: AppSpacing.xxs),
+              const Text(
+                'The granted permissions are shown to the invitee before acceptance.',
+              ).muted.small,
+            ],
+          ),
+        ),
+        const AppDivider(),
 
-          Flexible(
-            child: SingleChildScrollView(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AppFormSectionHeader('Who'),
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.screenH(context),
+              ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppFormSectionHeader('Who'),
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenH(context),
-                    ),
-                    child: Column(
-                      children: [
-                        AppFormField(
-                          label: 'Name this invite',
-                          inset: false,
-                          child: AppTextField(
-                            controller: _store.labelController,
-                            hint: 'Accountant',
-                          ),
-                        ),
-                        AppSpacing.gapSm,
-                        AppFormField(
-                          label: 'Lock to an email (optional)',
-                          inset: false,
-                          child: AppTextField(
-                            controller: _store.emailController,
-                            hint: 'name@example.com',
-                          ),
-                        ),
-                      ],
+                  AppFormField(
+                    label: 'Label',
+                    inset: false,
+                    child: AppTextField(
+                      controller: _store.labelController,
+                      hint: 'Accountant',
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xl,
-                      AppSpacing.sm,
-                      AppSpacing.xl,
-                      0,
+                  AppSpacing.gapSm,
+                  AppFormField(
+                    label: 'Restrict to email (optional)',
+                    inset: false,
+                    child: AppTextField(
+                      controller: _store.emailController,
+                      hint: 'name@example.com',
                     ),
-                    child: Text(
-                      'Then a forwarded key won’t work for anyone else.',
-                    ).muted.small,
                   ),
-
-                  AppFormToggleRow(
-                    icon: AppIcons.key,
-                    label: 'Single use',
-                    subtitle: 'The key stops working once someone joins.',
-                    value: _store.draftSingleUse,
-                    onChanged: _store.setDraftSingleUse,
-                  ),
-
-                  const AppFormSectionHeader('What they can do'),
-                  _Presets(store: _store),
-                  AppFormAdvanced(
-                    summary: 'Each permission, and what they see',
-                    // A draft no preset describes is only readable in here.
-                    initiallyOpen: _store.draftPreset == null,
-                    children: [
-                      const AppFormSectionHeader('Permissions'),
-                      if (store.catalogue.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(AppSpacing.xl),
-                          child: Text('Loading permissions…'),
-                        )
-                      else
-                        for (final p in store.catalogue)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.xl,
-                            ),
-                            child: PermissionCheckRow(
-                              permission: p,
-                              selected: _store.draftPermissions.contains(p.key),
-                              onChanged: (on) =>
-                                  _store.toggleDraftPermission(p.key, on),
-                            ),
-                          ),
-                      const AppFormSectionHeader('What they see at first'),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.xl,
-                          0,
-                          AppSpacing.xl,
-                          AppSpacing.xs,
-                        ),
-                        child: const Text(
-                          'Only for someone who hasn’t chosen yet. They can '
-                          'change it any time under Settings → Features.',
-                        ).muted.small,
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                        ),
-                        child: FeatureRows(
-                          draft: _store.draftFeatures,
-                          onChanged: (feature, on) =>
-                              _store.toggleDraftFeature(feature.key, on),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  if (_store.draftPermissions.isNotEmpty &&
-                      store.catalogue.any(
-                        (p) =>
-                            p.destructive &&
-                            _store.draftPermissions.contains(p.key),
-                      ))
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl,
-                        AppSpacing.md,
-                        AppSpacing.xl,
-                        0,
-                      ),
-                      child: AppAlert(
-                        destructive: true,
-                        title: const Text(
-                          'This invite gives control over access',
-                        ),
-                        content: Text(
-                          'Whoever joins with it can change who else gets in.',
-                        ).small,
-                      ),
-                    ),
-
-                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
             ),
-          ),
-          const AppDivider(),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.md,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.sm,
+                AppSpacing.xl,
+                0,
+              ),
+              child: Text(
+                'A forwarded key is then rejected for any other account.',
+              ).muted.small,
             ),
-            child: Row(
+
+            AppFormToggleRow(
+              icon: AppIcons.key,
+              label: 'Single use',
+              subtitle: 'The key expires after the first join.',
+              value: _store.draftSingleUse,
+              onChanged: _store.setDraftSingleUse,
+            ),
+
+            const AppFormSectionHeader('Access'),
+            _Presets(store: _store),
+            AppFormAdvanced(
+              summary: 'Permissions and initial features',
+              // A draft no preset describes is only readable in here.
+              initiallyOpen: _store.draftPreset == null,
               children: [
-                AppButton(
-                  label: 'Cancel',
-                  style: AppButtonStyle.accent,
-                  onTap: _store.isCreating
-                      ? null
-                      : () => Navigator.of(context).pop(),
+                const AppFormSectionHeader('Permissions'),
+                if (store.catalogue.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(AppSpacing.xl),
+                    child: Text('Loading permissions…'),
+                  )
+                else
+                  for (final p in store.catalogue)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xl,
+                      ),
+                      child: PermissionCheckRow(
+                        permission: p,
+                        selected: _store.draftPermissions.contains(p.key),
+                        onChanged: (on) =>
+                            _store.toggleDraftPermission(p.key, on),
+                      ),
+                    ),
+                const AppFormSectionHeader('Initial features'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    0,
+                    AppSpacing.xl,
+                    AppSpacing.xs,
+                  ),
+                  child: const Text(
+                    'Applies only to members without their own selection. '
+                    'Adjustable later under Settings → Features.',
+                  ).muted.small,
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppButton(
-                    icon: AppIcons.plus,
-                    label: 'Create invite',
-                    busy: _store.isCreating,
-                    onTap: _store.isCreating ? null : _submit,
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
+                  child: FeatureRows(
+                    draft: _store.draftFeatures,
+                    onChanged: (feature, on) =>
+                        _store.toggleDraftFeature(feature.key, on),
                   ),
                 ),
               ],
             ),
+
+            if (_store.draftPermissions.isNotEmpty &&
+                store.catalogue.any(
+                  (p) =>
+                      p.destructive && _store.draftPermissions.contains(p.key),
+                ))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.md,
+                  AppSpacing.xl,
+                  0,
+                ),
+                child: AppAlert(
+                  destructive: true,
+                  title: const Text('This invite grants access control'),
+                  content: Text(
+                    'Members joining with it can manage workspace access.',
+                  ).small,
+                ),
+              ),
+
+            const SizedBox(height: AppSpacing.lg),
+          ],
+        ),
+        const AppDivider(),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.md,
+            AppSpacing.xl,
+            AppSpacing.md,
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              AppButton(
+                label: 'Cancel',
+                style: AppButtonStyle.accent,
+                onTap: _store.isCreating ? null : widget.onClose,
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppButton(
+                  icon: AppIcons.plus,
+                  label: 'Create invite',
+                  busy: _store.isCreating,
+                  onTap: _store.isCreating ? null : _submit,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -359,9 +339,8 @@ Future<void> _showTokenDialog(BuildContext context, String token) async {
   final link = DeepLinks.invite(token, origin: Stores.api.originAuthority);
   final copy = await showAppDialog(
     context: context,
-    title: 'Share this key',
-    message:
-        'You see this only once. Copy it now — you can’t get it back later.',
+    title: 'Invite key',
+    message: 'The key is shown once and cannot be retrieved later.',
     content: SelectableText(link),
     confirmLabel: 'Copy key',
     confirmIcon: AppIcons.copy,

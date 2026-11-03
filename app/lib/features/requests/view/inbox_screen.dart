@@ -83,9 +83,21 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     // Your requests, and what others gave you (saved links). Answers to a
     // request are on that request's page.
     return AppTabs(
-      labels: const ['Your requests', 'Received'],
       initialIndex: widget.initialTab,
-      views: [_yourRequests(context), const BookmarksTab()],
+      tabs: [
+        AppTab(
+          label: 'Your requests',
+          icon: AppIcons.send,
+          description: 'Requests sent to others, with their responses.',
+          view: _yourRequests(context),
+        ),
+        const AppTab(
+          label: 'Received',
+          icon: AppIcons.inboxFill,
+          description: 'Requests and links received from others.',
+          view: BookmarksTab(),
+        ),
+      ],
     );
   }
 
@@ -116,7 +128,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
       builder: (_) {
         if (reqStore.requests.isEmpty && reqStore.loadState.error != null) {
           return AppLoadError(
-            title: "Couldn't load your requests",
+            title: 'Requests could not be loaded',
             message: reqStore.loadState.error!,
             onRetry: reqStore.loadRequests,
           );
@@ -125,11 +137,10 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
         if (reqStore.requests.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.inboxFill,
-            title: 'Send your first request',
+            title: 'No requests',
             subtitle:
-                'Ask people for their details. Send a form, and their answers '
-                'stay up to date. They keep control and can withdraw them '
-                'whenever they want.',
+                'Requests collect details from others through a form. Answers '
+                'stay current and can be withdrawn by the respondent.',
             example: const AppEmptyExample(
               title: 'Tenant details',
               detail: '4 fields',
@@ -137,17 +148,14 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
             ),
             steps: const [
               AppEmptyStep(
-                'Choose what to ask for',
-                'With a template: a name, an address or a file',
+                'Fields',
+                'Defined by a template: a name, an address or a file',
               ),
               AppEmptyStep(
-                'Send the form as a link',
-                'Only to verified identities, if you like',
+                'Link',
+                'Optionally restricted to verified identities',
               ),
-              AppEmptyStep(
-                'See every response in one place',
-                'As a list or a spreadsheet',
-              ),
+              AppEmptyStep('Responses', 'Listed or shown as a spreadsheet'),
             ],
             action: AppButton(
               icon: AppIcons.plus,
@@ -241,7 +249,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
               ),
             ],
           ),
-          emptyMessage: nothingShown ? 'No requests match your filters.' : null,
+          emptyMessage: nothingShown ? 'No requests match the filters.' : null,
           groups: [
             group(RequestGroup.fresh, 'New responses'),
             group(RequestGroup.open, 'Open'),

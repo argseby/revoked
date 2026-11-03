@@ -110,7 +110,7 @@ class SignInApproval {
       }
       if (!confirmed) {
         throw const SignInApprovalException(
-          'Confirm on this device to sign in.',
+          'Sign-in requires confirmation on this device.',
         );
       }
       final saved = newName.isEmpty ? null : await _saveName(consent, newName);
@@ -149,7 +149,7 @@ class SignInApproval {
       base: 'name_${host.length > 80 ? host.substring(0, 80) : host}',
       value: value,
       label: 'Name on ${c.clientHost}',
-      failure: 'Couldn’t save your name. Please try again.',
+      failure: 'The name could not be saved.',
     );
   }
 
@@ -160,7 +160,7 @@ class SignInApproval {
     base: key,
     value: value,
     label: key,
-    failure: 'Couldn’t save your new value. Please try again.',
+    failure: 'The new value could not be saved.',
   );
 
   Future<SignInNameOption> _saveEntry({
@@ -233,8 +233,8 @@ class SignInApproval {
       if (key != null && key.isNotEmpty) return id;
     }
     throw const SignInApprovalException(
-      'This device has no identity yet. Approve the sign-in on the device '
-      'where you set up Revoked, or create an identity here first.',
+      'This device has no identity. The sign-in can be approved on the '
+      'device where Revoked was set up, or after creating an identity here.',
     );
   }
 }

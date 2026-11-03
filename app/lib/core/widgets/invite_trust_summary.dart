@@ -38,7 +38,7 @@ class InviteTrustSummary extends StatelessWidget {
               children: [
                 AppSpinner(),
                 SizedBox(width: AppSpacing.sm),
-                Text('Checking this server\'s domain…'),
+                Text('Checking the server domain…'),
               ],
             ),
           );
@@ -58,10 +58,9 @@ class InviteTrustSummary extends StatelessWidget {
               AppAlert(
                 destructive: true,
                 leading: const Icon(AppIcons.shieldSlash, size: 18),
-                title: const Text('The inviter can\'t invite anymore'),
+                title: const Text('Inviter can no longer invite'),
                 content: const Text(
-                  'Whoever made this invite can no longer add people to this '
-                  'workspace, so it won\'t work.',
+                  'The creator of this invite can no longer add members to this workspace. The invite will not work.',
                 ).small,
               ),
             ],
@@ -70,10 +69,9 @@ class InviteTrustSummary extends StatelessWidget {
               AppAlert(
                 destructive: true,
                 leading: const Icon(AppIcons.shieldSlash, size: 18),
-                title: const Text('The inviter\'s identity was revoked'),
+                title: const Text('Inviter identity revoked'),
                 content: const Text(
-                  'The server withdrew it. It no longer speaks for this '
-                  'domain.',
+                  'The server withdrew this identity. It no longer speaks for this domain.',
                 ).small,
               ),
             ],
@@ -98,20 +96,15 @@ class _InviterLine extends StatelessWidget {
     final domain = inviter.serverDomain;
 
     if (!_domainProven) {
-      return 'Nobody has confirmed that this server really is $domain, so '
-          'this address is only its own claim. Anyone can run a server and '
-          'claim any address.';
+      return 'This server has not been confirmed as $domain, so this address is only a claim. Any server can claim any address.';
     }
     if (inviter.emailMatchesServer) {
-      return 'This address is on $domain, and $domain is verified. Whoever '
-          'owns that domain owns its email.';
+      return 'This address is on $domain, and $domain is verified. The owner of that domain controls its email.';
     }
     if (inviter.emailDomain.isEmpty) {
-      return '$domain is verified, but it can\'t vouch for this address.';
+      return '$domain is verified, but cannot vouch for this address.';
     }
-    return 'This address is at ${inviter.emailDomain}, not $domain. The '
-        'server is verified, but it doesn\'t own ${inviter.emailDomain}, so '
-        'it can\'t vouch for the address.';
+    return 'This address is at ${inviter.emailDomain}, not $domain. The server is verified but does not own ${inviter.emailDomain}, so it cannot vouch for the address.';
   }
 
   @override

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/utils/people.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
@@ -14,6 +16,7 @@ import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/tool_tag.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -62,28 +65,25 @@ class ConnectionsList extends StatelessWidget {
             children: [
               AppEmptyState(
                 icon: AppIcons.plug,
-                title: 'Let tools help, without opening your vault',
+                title: 'No connected tools',
                 subtitle:
-                    'A tool, like an application form, asks to connect when '
-                    'you use it. It proposes links for you to confirm. It '
-                    'sees only the sections you choose.',
+                    'Tools such as application forms request a connection when '
+                    'used. They propose links for confirmation and see only '
+                    'the selected sections.',
                 example: const AppEmptyExample(
                   title: 'Flat application',
                   detail: '2 links · last used today',
                   badge: 'connected',
                 ),
                 steps: const [
+                  AppEmptyStep('Connection request', 'Approved in the app'),
                   AppEmptyStep(
-                    'A tool asks to connect',
-                    'You approve it in the app',
+                    'Proposed links',
+                    'Nothing shared until confirmed',
                   ),
                   AppEmptyStep(
-                    'It proposes links',
-                    'Nothing is shared until you confirm',
-                  ),
-                  AppEmptyStep(
-                    'Disconnect it any time',
-                    'Revoke its links too, if you like',
+                    'Disconnection',
+                    'Optional revocation of its links',
                   ),
                 ],
                 learnMoreLabel: 'How tools connect',
@@ -99,9 +99,9 @@ class ConnectionsList extends StatelessWidget {
               title: 'Connected tools',
               trailing: noTools ? const SizedBox.shrink() : null,
               footer: const Text(
-                'Tools you connect can propose links, requests and '
-                'attestations, and follow how they’re going. They see only '
-                'the sections you choose.',
+                'Connected tools can propose links, requests and '
+                'attestations and track their status. They see only the '
+                'selected sections.',
               ),
               children: [
                 if (noTools)
@@ -114,11 +114,17 @@ class ConnectionsList extends StatelessWidget {
                     icon: AppIcons.plug,
                     title: c.name,
                     subtitle: _summary(c),
-                    trailing: c.paused
-                        ? const AppBadge(label: 'Paused')
-                        : c.isExpired
-                        ? const AppBadge(label: 'Expired')
-                        : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (c.paused)
+                          const AppBadge(label: 'Paused')
+                        else if (c.isExpired)
+                          const AppBadge(label: 'Expired'),
+                        AppSpacing.gapXxs,
+                        ToolIdChip(c.id),
+                      ],
+                    ),
                     onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
                   ),
               ],
@@ -219,12 +225,12 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     runInAction(() => store.revokeLinksOnDisconnect = false);
     final ok = await showAppDialog(
       context: context,
-      title: 'Disconnect ${connection.name}?',
+      title: 'Disconnect ${connection.displayName}?',
       message: connection.paused
-          ? 'It stops seeing its links. Its paused links stay paused until you '
-                'activate or revoke them.'
-          : 'It stops seeing its links. The links stay yours and keep working '
-                'until you revoke them, even ones you sent to it.',
+          ? 'The tool loses access to its links. Paused links stay paused until '
+                'activated or revoked.'
+          : 'The tool loses access to its links. The links remain active '
+                'until revoked, including those sent to it.',
       content: live == 0 && open == 0
           ? null
           : Observer(
@@ -232,12 +238,12 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
                 label: 'Revoke its links too',
                 subtitle: [
                   if (live > 0)
-                    'Nobody will be able to open '
-                        '${live == 1 ? 'this link' : 'these $live links'}.',
+                    '${live == 1 ? 'This link' : 'These $live links'} can no '
+                        'longer be opened.',
                   if (open > 0)
                     open == 1
-                        ? 'Its request stops taking answers.'
-                        : 'Its $open requests stop taking answers.',
+                        ? 'Its request stops accepting answers.'
+                        : 'Its $open requests stop accepting answers.',
                 ].join(' '),
                 value: store.revokeLinksOnDisconnect,
                 onChanged: (v) =>
@@ -255,7 +261,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     } else if (mounted) {
       AppToast.error(
         context,
-        'Couldn’t disconnect',
+        'The tool could not be disconnected',
         subtitle: Stores.connections.errorMessage,
       );
     }
@@ -269,7 +275,9 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     if (!ok && mounted) {
       AppToast.error(
         context,
-        paused ? 'Couldn’t pause' : 'Couldn’t activate',
+        paused
+            ? 'The tool could not be paused'
+            : 'The tool could not be activated',
         subtitle: store.errorMessage,
       );
     }
@@ -280,9 +288,9 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       context: context,
       title: 'Revoke ${link.label}?',
       message: link.handedOver
-          ? 'The tool has this link. Revoke it to take it back. Nobody will '
-                'be able to open it.'
-          : 'Nobody will be able to open this link.',
+          ? 'The tool holds this link. Once revoked, it can no longer be '
+                'opened.'
+          : 'The link can no longer be opened.',
       confirmLabel: 'Revoke',
       confirmIcon: AppIcons.linkSlash,
       cancelLabel: 'Keep',
@@ -297,7 +305,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     if (await change || !mounted) return;
     AppToast.error(
       context,
-      'Couldn’t change it',
+      'The change could not be saved',
       subtitle: Stores.connections.errorMessage,
     );
   }
@@ -329,8 +337,8 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       title: 'Vault sections',
       trailing: const SizedBox.shrink(),
       footer: const Text(
-        'It reads every record in the sections that are on. It changes only '
-        'what it added to its own.',
+        'The tool reads every record in enabled sections. It changes only '
+        'records it added to its own section.',
       ),
       children: [
         AppFormToggleRow(
@@ -385,7 +393,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       return AppEmptyState(
         icon: AppIcons.plug,
         title: 'Tool not found',
-        subtitle: 'It may have been disconnected.',
+        subtitle: 'The tool may have been disconnected.',
         action: AppButton(
           icon: AppIcons.arrowLeft,
           label: 'Back to tools',
@@ -418,16 +426,32 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
           trailing: const SizedBox.shrink(),
           footer: connection.paused
               ? Text(
-                  '${connection.name} can’t do anything while it’s paused. Its '
-                  'links are paused too.',
+                  '${connection.name} has no access while paused. Its links are '
+                  'paused too.',
                 )
               : connection.isExpired
               ? const Text(
-                  'This connection expired. Connect again from the tool to '
-                  'renew it.',
+                  'This connection has expired. It is renewed by connecting '
+                  'again from the tool.',
                 )
               : null,
           children: [
+            AppDetailRow(
+              icon: AppIcons.hash,
+              label: 'ID',
+              value: connection.id,
+              valueMono: true,
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: connection.id));
+                AppToast.success(context, 'ID copied');
+              },
+            ),
+            if (memberEmail(connection.user) case final email?)
+              AppDetailRow(
+                icon: AppIcons.person,
+                label: 'Connected by',
+                value: email,
+              ),
             AppDetailRow(
               icon: AppIcons.calendar,
               label: 'Connected',
@@ -490,7 +514,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
               ? const [
                   AppDetailRow(
                     icon: AppIcons.info,
-                    label: 'No links from this tool yet',
+                    label: 'No links from this tool',
                   ),
                 ]
               : [for (final link in links) _linkRow(link)],

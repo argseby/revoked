@@ -44,14 +44,28 @@ void openTemplateEditorSheet(
   );
 }
 
+/// The new-template form, shown in place on the templates page.
+class TemplateCreateForm extends StatelessWidget {
+  final VoidCallback onClose;
+
+  const TemplateCreateForm({super.key, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) => _TemplateEditorSheet(
+    templatesStore: Stores.templates,
+    authStore: Stores.auth,
+    onClose: onClose,
+  );
+}
+
 /// Delete with the standard confirmation; shared with the settings list.
 Future<void> confirmDeleteTemplate(BuildContext context, String id) async {
   final confirmed = await showAppDialog(
     context: context,
     title: 'Delete template',
     message:
-        'Delete this template for good? Requests you already made from it '
-        'keep working.',
+        'The template is deleted permanently. Existing requests based on '
+        'it remain active.',
     confirmLabel: 'Delete',
     destructive: true,
   );
@@ -72,10 +86,14 @@ class _TemplateEditorSheet extends StatefulWidget {
   final AuthStore authStore;
   final Template? initialTemplate;
 
+  /// Set when the editor sits in the page rather than a drawer.
+  final VoidCallback? onClose;
+
   const _TemplateEditorSheet({
     required this.templatesStore,
     required this.authStore,
     this.initialTemplate,
+    this.onClose,
   });
 
   @override
@@ -86,6 +104,10 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   TemplatesStore get _store => Stores.templates;
 
   bool get _isEdit => widget.initialTemplate != null;
+
+  bool get _inline => widget.onClose != null;
+
+  void _close() => _inline ? widget.onClose!() : Navigator.of(context).pop();
 
   @override
   void initState() {
@@ -196,16 +218,16 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         _store.setJsonError('Schema must be a JSON object ({ ... }).');
         AppToast.error(
           context,
-          'That schema isn\'t valid',
-          subtitle: 'It must be a JSON object',
+          'Invalid schema',
+          subtitle: 'A JSON object is required',
         );
         return null;
       }
       return decoded;
     } catch (e) {
-      const hint = 'Check it for a missing bracket, comma or quote.';
+      const hint = 'A bracket, comma or quote may be missing.';
       _store.setJsonError(hint);
-      AppToast.error(context, 'That JSON isn\'t valid', subtitle: hint);
+      AppToast.error(context, 'Invalid JSON', subtitle: hint);
       return null;
     }
   }
@@ -213,7 +235,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   Future<void> _save() async {
     final name = _store.editorName.text.trim();
     if (name.isEmpty) {
-      AppToast.error(context, 'Give the template a name');
+      AppToast.error(context, 'A template name is required');
       return;
     }
 
@@ -247,7 +269,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
     if (!mounted) return;
 
     if (ok) {
-      Navigator.of(context).pop();
+      _close();
       AppToast.success(
         context,
         _isEdit ? 'Template updated' : 'Template created',
@@ -257,8 +279,8 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
       AppToast.error(
         context,
         _isEdit
-            ? 'Couldn\'t save the template'
-            : 'Couldn\'t create the template',
+            ? 'The template could not be saved'
+            : 'The template could not be created',
         subtitle: widget.templatesStore.errorMessage,
       );
     }
@@ -308,115 +330,123 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 
   Widget _build(BuildContext context) {
     _store.editorRevision; // touch: draft edits are otherwise unobservable
-    return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
+    const fieldsPadding = EdgeInsets.fromLTRB(
+      AppSpacing.xl,
+      AppSpacing.lg,
+      AppSpacing.xl,
+      AppSpacing.sm,
+    );
+    final fields = <Widget>[
+      const Text('Template name').small,
+      const SizedBox(height: AppSpacing.xs),
+      AppTextField(
+        controller: _store.editorName,
+        hint: 'e.g. AWS Project Setup',
+        onChanged: (_) => _store.touchEditor(),
       ),
-      child: Column(
-        crossAxisAlignment: .start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
+      const SizedBox(height: AppSpacing.lg),
+
+      _buildModeToggle(),
+      const SizedBox(height: AppSpacing.lg),
+
+      if ((_store.editorIsJsonMode
+              ? _TemplateEditMode.json
+              : _TemplateEditMode.visual) ==
+          _TemplateEditMode.visual)
+        _buildVisualEditor()
+      else
+        _buildJsonEditor(),
+
+      DetailGate(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: AppSpacing.xl),
+            const Text('Developer').small,
+            const SizedBox(height: AppSpacing.sm),
+            ApiPreview(
+              spec: _buildSpec(),
+              title: 'API request · ${_isEdit ? 'update' : 'create'}',
             ),
+          ],
+        ),
+      ),
+    ];
+    return Column(
+      crossAxisAlignment: .start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.xxs,
+            AppSpacing.xl,
+            AppSpacing.md,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_isEdit ? 'Edit template' : 'New template').header,
+              const SizedBox(height: AppSpacing.xxs),
+              const Text(
+                'Fields requested from respondents. Editable visually or '
+                'as JSON.',
+              ).muted.small,
+            ],
+          ),
+        ),
+        const AppDivider(),
+
+        if (_inline)
+          Padding(
+            padding: fieldsPadding,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_isEdit ? 'Edit template' : 'New template').header,
-                const SizedBox(height: AppSpacing.xxs),
-                const Text(
-                  'Choose what people fill in when they answer. Build it here '
-                  'or edit the JSON.',
-                ).muted.small,
-              ],
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: fields,
             ),
-          ),
-          const AppDivider(),
-
-          Flexible(
+          )
+        else
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.lg,
-                AppSpacing.xl,
-                AppSpacing.sm,
+              shrinkWrap: true,
+              padding: fieldsPadding,
+              children: fields,
+            ),
+          ),
+        const AppDivider(),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.md,
+            AppSpacing.xl,
+            AppSpacing.md,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  label: 'Cancel',
+                  onTap: _store.isSubmittingTemplate ? null : _close,
+                  style: AppButtonStyle.accent,
+                ),
               ),
-              children: [
-                const Text('Template name').small,
-                const SizedBox(height: AppSpacing.xs),
-                AppTextField(
-                  controller: _store.editorName,
-                  hint: 'e.g. AWS Project Setup',
-                  onChanged: (_) => _store.touchEditor(),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: AppButton(
+                  icon: _isEdit ? AppIcons.check : AppIcons.plus,
+                  label: _isEdit ? 'Save changes' : 'Create template',
+                  busy: _store.isSubmittingTemplate,
+                  onTap: _save,
                 ),
-                const SizedBox(height: AppSpacing.lg),
-
-                _buildModeToggle(),
-                const SizedBox(height: AppSpacing.lg),
-
-                if ((_store.editorIsJsonMode
-                        ? _TemplateEditMode.json
-                        : _TemplateEditMode.visual) ==
-                    _TemplateEditMode.visual)
-                  _buildVisualEditor()
-                else
-                  _buildJsonEditor(),
-
-                DetailGate(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: AppSpacing.xl),
-                      const Text('Developer').small,
-                      const SizedBox(height: AppSpacing.sm),
-                      ApiPreview(
-                        spec: _buildSpec(),
-                        title: 'API request · ${_isEdit ? 'update' : 'create'}',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const AppDivider(),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: 'Cancel',
-                    onTap: _store.isSubmittingTemplate
-                        ? null
-                        : () => Navigator.of(context).pop(),
-                    style: AppButtonStyle.accent,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppButton(
-                    icon: _isEdit ? AppIcons.check : AppIcons.plus,
-                    label: _isEdit ? 'Save changes' : 'Create template',
-                    busy: _store.isSubmittingTemplate,
-                    onTap: _save,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -452,11 +482,11 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
           ],
         ),
         const SizedBox(height: AppSpacing.xxs),
-        const Text('Each field is one thing you ask for.').muted.small,
+        const Text('Each field requests one value.').muted.small,
         const SizedBox(height: AppSpacing.sm),
 
         if (_store.rootFields.isEmpty)
-          _buildEmptyHint('No fields yet. Add one below.')
+          _buildEmptyHint('No fields.')
         else
           ...List.generate(
             _store.rootFields.length,
@@ -490,7 +520,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         ),
         const SizedBox(height: AppSpacing.xxs),
         const Text(
-          'Group fields under a name, like "Database credentials".',
+          'Named groups of fields, such as "Database credentials".',
         ).muted.small,
         const SizedBox(height: AppSpacing.sm),
 
@@ -551,7 +581,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         ),
         const SizedBox(height: AppSpacing.xs),
         const Text(
-          'Your changes carry over when you switch back to Visual.',
+          'Changes are kept when switching back to Visual.',
         ).muted.small,
         const SizedBox(height: AppSpacing.sm),
         AppTextField(

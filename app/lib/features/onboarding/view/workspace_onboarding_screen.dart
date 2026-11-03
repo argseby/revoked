@@ -55,7 +55,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
 
   void _continueToFeatures() {
     if (_store.nameController.text.trim().isEmpty) {
-      _store.fail('Give your workspace a name.');
+      _store.fail('A workspace name is required.');
       return;
     }
     _store.askFeatures(Stores.features.on);
@@ -64,7 +64,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   Future<void> _createWorkspace() async {
     final name = _store.nameController.text.trim();
     if (name.isEmpty) {
-      _store.fail('Give your workspace a name.');
+      _store.fail('A workspace name is required.');
       return;
     }
 
@@ -84,8 +84,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     );
     if (!ok) {
       _store.stopBusy(
-        Stores.settings.errorMessage ??
-            'Couldn\'t create your workspace. Try again.',
+        Stores.settings.errorMessage ?? 'The workspace could not be created.',
       );
       return;
     }
@@ -116,7 +115,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
 
   Future<void> _joinWorkspace() async {
     if (_token.isEmpty) {
-      _store.fail('Paste the invite key you were given.');
+      _store.fail('An invite key is required.');
       return;
     }
 
@@ -142,7 +141,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     await Stores.workspaceContext.reload();
     if (mounted) {
       final next = ResumeLocation.take();
-      if (next == null) AppToast.success(context, 'You\'re in.');
+      if (next == null) AppToast.success(context, 'Setup complete');
       context.go(next ?? AppRoutes.overview);
     }
     _store.finish();
@@ -175,7 +174,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                     header: true,
                     child: AppText(
                       choosing
-                          ? 'What will you use this for?'
+                          ? 'Features'
                           : creating
                           ? 'Your name'
                           : 'Join a workspace',
@@ -185,20 +184,20 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                   AppSpacing.gapSm,
                   AppText(
                     choosing
-                        ? 'Tick what you want to see. You can change this '
-                              'any time under Settings → Features.'
+                        ? 'Selected features appear in the app. They can be '
+                              'changed later under Settings → Features.'
                         : creating
-                        ? 'People see this name when you share with them or '
-                              'ask them for something.'
-                        : 'Paste your invite key. You\'ll see who sent it and '
-                              'what it lets you do before you join.',
+                        ? 'This name is shown to recipients of shares and '
+                              'requests.'
+                        : 'The sender and the granted permissions are shown '
+                              'before joining.',
                     textAlign: TextAlign.center,
                   ).muted,
                   AppSpacing.gapXl,
                   if (next != null) ...[
                     AppAlert(
                       leading: const Icon(AppIcons.info),
-                      title: const Text('One step left'),
+                      title: const Text('One step remaining'),
                       content: Text(next).small,
                     ),
                     AppSpacing.gapMd,
@@ -206,7 +205,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                   if (_store.error != null) ...[
                     AppAlert(
                       destructive: true,
-                      title: const Text('That didn\'t work'),
+                      title: const Text('Setup failed'),
                       content: Text(_store.error!).small,
                     ),
                     AppSpacing.gapMd,
@@ -236,7 +235,9 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
       ),
     ),
     AppSpacing.gapXxs,
-    const Text('Taken from your email. You can change it later.').muted.small,
+    const Text(
+      'Derived from the email address. It can be changed later.',
+    ).muted.small,
     AppSpacing.gapLg,
     if (_renaming.value)
       AppFormField(
@@ -269,7 +270,9 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
         ],
       ),
     AppSpacing.gapXxs,
-    const Text('Your vault, links and requests live here.').muted.small,
+    const Text(
+      'The workspace holds the vault, links and requests.',
+    ).muted.small,
     AppSpacing.gapXl,
     AppButton(
       icon: AppIcons.arrowRight,

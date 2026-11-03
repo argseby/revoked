@@ -46,15 +46,15 @@ class ClaimDraft {
   String? get problem {
     if (isBlank) return null;
     if (!_name.hasMatch(trimmedName)) {
-      return 'Name each detail with letters, digits and underscores. Start '
+      return 'Detail names use letters, digits and underscores, and start '
           'with a letter.';
     }
     switch (kind) {
       case ClaimKind.text:
-        if (value.text.trim().isEmpty) return 'Give each detail a value.';
+        if (value.text.trim().isEmpty) return 'Every detail needs a value.';
       case ClaimKind.number:
         if (num.tryParse(value.text.trim()) == null) {
-          return '“${value.text.trim()}” isn’t a number.';
+          return '“${value.text.trim()}” is not a number.';
         }
       case ClaimKind.yesNo:
         break;
@@ -216,9 +216,9 @@ abstract class _AttestationsStore with Store {
   @computed
   String? get draftProblem {
     final type = typeController.text.trim();
-    if (type.isEmpty) return 'Say what kind it is, for example membership.';
+    if (type.isEmpty) return 'A kind is required, for example membership.';
     if (!_type.hasMatch(type)) {
-      return 'Use one word for the kind, for example membership.';
+      return 'The kind must be one word, for example membership.';
     }
     final names = <String>{};
     for (final claim in draftClaims) {
@@ -226,16 +226,16 @@ abstract class _AttestationsStore with Store {
       if (problem != null) return problem;
       if (claim.isBlank) continue;
       if (!names.add(claim.trimmedName)) {
-        return 'You added “${claim.trimmedName}” twice. Remove one.';
+        return '“${claim.trimmedName}” appears twice.';
       }
     }
     final subject = subjectController.text.trim().toLowerCase();
     if (subject.isNotEmpty && !_fingerprint.hasMatch(subject)) {
-      return 'Paste the full fingerprint: 64 characters, 0–9 and a–f.';
+      return 'A fingerprint is 64 characters, 0–9 and a–f.';
     }
     final days = validDaysController.text.trim();
     if (days.isNotEmpty && (int.tryParse(days) ?? 0) < 1) {
-      return 'Enter a number of days, or leave it empty.';
+      return 'Validity must be a number of days, or empty.';
     }
     return null;
   }
@@ -254,7 +254,7 @@ abstract class _AttestationsStore with Store {
           user.isEmpty ||
           workspace == null ||
           workspace.isEmpty) {
-        throw UserFacingException('Sign in and open a workspace first.');
+        throw UserFacingException('No workspace is open.');
       }
       final days = int.tryParse(validDaysController.text.trim());
       final subject = subjectController.text.trim().toLowerCase();

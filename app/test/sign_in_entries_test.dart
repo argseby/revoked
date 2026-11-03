@@ -198,7 +198,7 @@ void main() {
   }
 
   Future<void> typeNew(WidgetTester tester, String text) async {
-    final field = find.widgetWithText(TextField, 'Your new value');
+    final field = find.widgetWithText(TextField, 'New value');
     await tester.scrollUntilVisible(
       field,
       100,
@@ -279,7 +279,7 @@ void main() {
     await show(tester);
     expect(find.textContaining('alias'), findsNothing);
     await tapText(tester, 'xXAdaXx');
-    expect(find.textContaining('alias called “showdown_name”'), findsOneWidget);
+    expect(find.textContaining('alias “showdown_name”'), findsOneWidget);
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
 
@@ -330,7 +330,7 @@ void main() {
     testWidgets('goes in folders, a few at a time', (tester) async {
       await show(tester);
       expect(find.text('Value 1'), findsNothing);
-      await tapText(tester, 'Browse your vault');
+      await tapText(tester, 'Browse vault');
 
       expect(find.text('Gaming'), findsOneWidget);
       expect(find.text('20 entries'), findsOneWidget);
@@ -350,7 +350,7 @@ void main() {
 
       await tester.tap(find.text('Value 20'));
       await tester.pumpAndSettle();
-      expect(find.text('Browse your vault'), findsOneWidget);
+      expect(find.text('Browse vault'), findsOneWidget);
       expect(find.text('Value 20'), findsWidgets);
       await tester.tap(find.text('Sign in'));
       await tester.pumpAndSettle();
@@ -361,19 +361,19 @@ void main() {
 
     testWidgets('a folder can be left again', (tester) async {
       await show(tester);
-      await tapText(tester, 'Browse your vault');
+      await tapText(tester, 'Browse vault');
       await tester.tap(find.text('Gaming'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Back to your vault'));
+      await tester.tap(find.byTooltip('Back to vault'));
       await tester.pumpAndSettle();
       expect(find.text('20 entries'), findsOneWidget);
     });
 
     testWidgets('search looks in every folder and says where', (tester) async {
       await show(tester);
-      await tapText(tester, 'Browse your vault');
+      await tapText(tester, 'Browse vault');
       await tester.enterText(
-        find.widgetWithText(TextField, 'Search your vault'),
+        find.widgetWithText(TextField, 'Search vault'),
         'Value 21',
       );
       await tester.pumpAndSettle();
@@ -385,9 +385,9 @@ void main() {
       tester,
     ) async {
       await show(tester);
-      await tapText(tester, 'Browse your vault');
+      await tapText(tester, 'Browse vault');
       await tester.enterText(
-        find.widgetWithText(TextField, 'Search your vault'),
+        find.widgetWithText(TextField, 'Search vault'),
         'Ada',
       );
       await tester.pumpAndSettle();
@@ -463,7 +463,7 @@ void main() {
           },
       ];
       await showBoth(tester);
-      await tapText(tester, 'Browse your vault');
+      await tapText(tester, 'Browse vault');
       await tester.tap(find.byTooltip('Switch workspace').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Work').last);
@@ -477,7 +477,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(workspace, 'w2');
-      expect(find.text('Search your vault'), findsOneWidget);
+      expect(find.text('Search vault'), findsOneWidget);
       expect(find.text('Not in a section'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
@@ -494,7 +494,7 @@ void main() {
       ) async {
         await showBoth(tester, size: size);
         await typeNew(tester, 'Ada');
-        await tapText(tester, 'Browse your vault');
+        await tapText(tester, 'Browse vault');
         expect(tester.takeException(), isNull);
       });
     }

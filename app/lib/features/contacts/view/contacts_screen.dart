@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -41,8 +42,8 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       loading: () => store.loadState.isFirstLoad && store.contacts.isEmpty,
       skeleton: const AppListSkeleton(
         intro:
-            'Send something to someone, or ask them for something. They keep '
-            'what you send until you revoke it.',
+            'Contacts receive records and requests directly. Sent records '
+            'stay accessible until revoked.',
         rows: [
           AppSkeletonRow(
             'Ada Lovelace',
@@ -67,7 +68,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
         if (store.contacts.isEmpty) {
           if (failure != null) {
             return AppLoadError(
-              title: 'Couldn’t load your contacts',
+              title: 'Contacts could not be loaded',
               message: failure,
               onRetry: store.load,
             );
@@ -81,8 +82,8 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
               AppSpacing.gapLg,
             ],
             const Text(
-              'Send something to someone, or ask them for something. They '
-              'keep what you send until you revoke it.',
+              'Contacts receive records and requests directly. Sent records '
+              'stay accessible until revoked.',
             ).muted.small,
             AppSpacing.gapMd,
             AppListCard(
@@ -110,21 +111,21 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
 
   Widget _empty(BuildContext context) => AppEmptyState(
     icon: AppIcons.personPlus,
-    title: 'Keep the people you deal with',
+    title: 'No contacts',
     subtitle:
-        'Add someone once, then send them a detail or ask them for one '
-        'whenever you need to — no link to copy, no attachment to chase.',
+        'Contacts receive records and requests directly, without links to '
+        'copy or attachments to send.',
     example: const AppEmptyExample(
       title: 'Ada Lovelace',
       detail: 'ada@example.com · on this server',
     ),
     steps: const [
-      AppEmptyStep('Add them', 'Their name and their email address'),
+      AppEmptyStep('Contact', 'Name and email address'),
       AppEmptyStep(
-        'Send or ask',
-        'It lands in their app if they have an account here',
+        'Delivery',
+        'Directly to the app for contacts with an account here',
       ),
-      AppEmptyStep('Revoke any time', 'What you sent stops working at once'),
+      AppEmptyStep('Revocation', 'Sent records stop working immediately'),
     ],
     action: AppButton(
       icon: AppIcons.personPlus,
@@ -148,15 +149,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
     ].join(' · ');
   }
 
-  String _day(String iso) {
-    try {
-      final d = DateTime.parse(iso).toLocal();
-      final m = d.month.toString().padLeft(2, '0');
-      return '${d.year}-$m-${d.day.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return iso;
-    }
-  }
+  String _day(String iso) => dayOf(iso) ?? iso;
 
   void _options(BuildContext context, Contact c) {
     showAppOptionsSheet(
@@ -166,12 +159,12 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       actions: [
         AppSheetAction(
           icon: AppIcons.send,
-          label: 'Send them something',
+          label: 'Send records',
           onTap: () => openSendToContactSheet(context, c),
         ),
         AppSheetAction(
           icon: AppIcons.askFor,
-          label: 'Ask them for something',
+          label: 'Request data',
           onTap: () => openAskContactSheet(context, c),
         ),
         AppSheetAction(
@@ -203,7 +196,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
     if (!context.mounted || ok) return;
     AppToast.error(
       context,
-      'Couldn’t rename them',
+      'The contact could not be renamed.',
       subtitle: store.error?.description,
     );
   }
@@ -213,8 +206,8 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       context: context,
       title: 'Remove ${c.name}?',
       message:
-          'They leave your contacts. Anything you already sent them keeps '
-          'working until you revoke it.',
+          'The contact is removed. Anything already sent keeps working '
+          'until revoked.',
       confirmLabel: 'Remove',
       confirmIcon: AppIcons.trash,
       cancelLabel: 'Keep',
@@ -229,7 +222,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
     } else {
       AppToast.error(
         context,
-        'Couldn’t remove them',
+        'The contact could not be removed.',
         subtitle: store.error?.description,
       );
     }

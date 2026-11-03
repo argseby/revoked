@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/connection.dart';
+
 /// Represents a record from the PocketBase `records` collection.
 ///
 /// Two row shapes share this collection:
@@ -185,7 +187,10 @@ class Record {
   bool get isWrittenByTool => writtenBy.isNotEmpty;
 
   /// What to call whoever wrote it, when that was not the owner.
-  String get writerName => writtenByName.isNotEmpty ? writtenByName : writtenBy;
+  /// The name of the tool or key that wrote it; its ID goes in a chip.
+  String get writerName => writtenByName.isNotEmpty
+      ? writtenByName
+      : Connection.shortIdOf(writtenBy);
 
   /// Encrypted, and this device can't read it.
   bool get isLocked => sealed && !opened;

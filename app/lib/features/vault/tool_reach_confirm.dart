@@ -23,24 +23,24 @@ Future<bool> confirmToolsReach(
       context: context,
       title: 'Add $recordName to $sectionName?',
       message:
-          'We couldn’t check which connected tools can read $sectionName. '
-          'Any that can will read this record too.',
+          'Connected tools with access to $sectionName could not be checked. '
+          'Any such tool will also read this record.',
       confirmLabel: 'Add to section',
       confirmIcon: AppIcons.plus,
     );
   }
-  final named = [for (final t in tools) '${t.name} (${t.host})'];
+  final named = [for (final t in tools) '${t.name} (${t.shortId}, ${t.host})'];
   final who = named.length == 1
       ? named.first
       : '${named.sublist(0, named.length - 1).join(', ')} and ${named.last}';
   return showAppDialog(
     context: context,
     title: tools.length == 1
-        ? 'Let ${tools.first.name} read $recordName?'
-        : 'Let ${tools.length} tools read $recordName?',
+        ? 'Allow ${tools.first.displayName} to read $recordName?'
+        : 'Allow ${tools.length} tools to read $recordName?',
     message:
-        '$who can read every record in $sectionName. Remove the record from '
-        'the section to stop that.',
+        '$who can read every record in $sectionName. Removing the record from '
+        'the section ends that access.',
     confirmLabel: 'Add to section',
     confirmIcon: AppIcons.plus,
   );

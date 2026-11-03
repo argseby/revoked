@@ -244,7 +244,7 @@ func requireAttestationRead(app core.App, re *core.RequestEvent, workspaceId str
 	return router.NewApiError(http.StatusForbidden, "Not permitted to read attestations.", validation.Errors{
 		util.Fields.WorkspaceMember.Permissions: validation.NewError(
 			util.Errors.MissingPermission.ErrorCode,
-			"Your access to this workspace does not include: "+util.ScopeAttestationRead+".",
+			"Workspace access does not include: "+util.ScopeAttestationRead+".",
 		),
 	})
 }

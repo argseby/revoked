@@ -383,7 +383,7 @@ void main() {
 
       await tester.tap(find.text('Turn on'));
       await tester.pumpAndSettle();
-      expect(find.text('Save your recovery key'), findsOneWidget);
+      expect(find.text('New recovery key'), findsOneWidget);
 
       final code = Stores.keys.recoveryCode!;
       expect(find.text(code), findsOneWidget);
@@ -422,12 +422,12 @@ void main() {
         () => Stores.keys.unreviewedEntries.add(Stores.keys.chain.live.first),
       );
       await _pumpSection(tester);
-      expect(find.text('New on your list'), findsOneWidget);
+      expect(find.text('New on the device list'), findsOneWidget);
 
       await tester.tap(find.text('That was me'));
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
-      expect(find.text('New on your list'), findsNothing);
+      expect(find.text('New on the device list'), findsNothing);
     });
 
     testWidgets('a device not on the list can join or recover', (tester) async {

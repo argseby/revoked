@@ -23,22 +23,22 @@ var appPageCopy = map[string]appPageText{
 	"en": {
 		Lang:      "en",
 		Title:     "Open the app",
-		Lead:      "Tap Open to start Revoked on this phone.",
+		Lead:      "Continue in the Revoked app on this device.",
 		Open:      "Open Revoked",
-		NoApp:     "No app yet?",
+		NoApp:     "App not installed?",
 		AppStore:  "Get it on the App Store",
 		PlayStore: "Get it on Google Play",
-		Server:    "Your server",
+		Server:    "Server",
 	},
 	"de": {
 		Lang:      "de",
 		Title:     "App öffnen",
-		Lead:      "Tippe auf Öffnen, um Revoked auf diesem Handy zu starten.",
+		Lead:      "Weiter in der Revoked-App auf diesem Gerät.",
 		Open:      "Revoked öffnen",
-		NoApp:     "Noch keine App?",
+		NoApp:     "App nicht installiert?",
 		AppStore:  "Im App Store laden",
 		PlayStore: "Bei Google Play laden",
-		Server:    "Dein Server",
+		Server:    "Server",
 	},
 }
 

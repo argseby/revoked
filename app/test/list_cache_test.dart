@@ -139,12 +139,12 @@ void main() {
     await tester.pump();
 
     expect(find.byType(AppSkeleton), findsOneWidget);
-    expect(find.text('Keep the people you deal with'), findsNothing);
+    expect(find.text('No contacts'), findsNothing);
 
     hold!.complete();
     await tester.pumpAndSettle();
     expect(find.byType(AppSkeleton), findsNothing);
-    expect(find.text('Keep the people you deal with'), findsOneWidget);
+    expect(find.text('No contacts'), findsOneWidget);
   });
 
   testWidgets('an empty list that has loaded shows no skeleton next time', (
@@ -161,7 +161,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.byType(AppSkeleton), findsNothing);
-    expect(find.text('Keep the people you deal with'), findsOneWidget);
+    expect(find.text('No contacts'), findsOneWidget);
     hold!.complete();
     await tester.pumpAndSettle();
   });
@@ -177,7 +177,7 @@ void main() {
 
     expect(find.text('Ada'), findsOneWidget);
     expect(
-      find.text('Couldn’t refresh. You’re seeing what you last loaded.'),
+      find.text('Refresh failed. Showing the last loaded data.'),
       findsOneWidget,
     );
 
@@ -194,7 +194,7 @@ void main() {
     status = 500;
     await visit(tester, router, AppRoutes.contacts);
     expect(find.byType(AppSkeleton), findsNothing);
-    expect(find.text('Couldn’t load your contacts'), findsOneWidget);
+    expect(find.text('Contacts could not be loaded'), findsOneWidget);
   });
 
   testWidgets('signing out forgets what the account could read', (

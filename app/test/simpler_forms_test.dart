@@ -78,7 +78,7 @@ void main() {
     await tester.tap(find.text('Advanced'));
     await tester.pumpAndSettle();
     expect(find.text('Key'), findsOneWidget);
-    expect(find.text('Leave it empty to use record.'), findsOneWidget);
+    expect(find.text('Defaults to record when empty.'), findsOneWidget);
   });
 
   void openRecord(BuildContext context) => openRecordCreateSheet(
@@ -129,7 +129,7 @@ void main() {
     );
 
     expect(find.text('What to share'), findsOneWidget);
-    expect(find.text('Leave it empty to use Company name.'), findsOneWidget);
+    expect(find.text('Defaults to Company name.'), findsOneWidget);
     // A new link lapses by itself unless told otherwise.
     expect(find.text('Never'), findsNothing);
     expect(find.text('URL slug'), findsNothing);
@@ -139,7 +139,7 @@ void main() {
   testWidgets('a link sharing nothing cannot be created', (tester) async {
     await open(tester, (context) => openShareCreateSheet(context: context));
 
-    expect(find.text('Pick from your vault'), findsOneWidget);
+    expect(find.text('Select from the vault'), findsOneWidget);
     expect(button(tester, 'Create link').onTap, isNull);
   });
 
@@ -153,7 +153,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Pick the fields to ask for'), findsOneWidget);
+    expect(find.text('No template selected'), findsOneWidget);
     expect(button(tester, 'Create request').onTap, isNull);
   });
 }

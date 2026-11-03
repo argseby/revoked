@@ -127,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (next != null) ...[
         AppAlert(
           leading: const Icon(AppIcons.info),
-          title: const Text('Sign in or create an account first'),
+          title: const Text('Sign-in required'),
           content: Text(next),
         ),
         AppSpacing.gapXl,
@@ -136,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AppAlert(
           destructive: true,
           leading: const Icon(AppIcons.exclamation),
-          title: const Text('That didn\'t work'),
+          title: const Text('Sign-in failed'),
           content: Text(error),
         ),
         AppSpacing.gapXl,
@@ -186,10 +186,10 @@ class _LoginScreenState extends State<LoginScreen> {
         extra: const [
           AppAlert(
             leading: Icon(AppIcons.info),
-            title: Text('This server isn\'t taking new accounts'),
+            title: Text('Registration is closed on this server'),
             content: Text(
-              'Ask the person who runs it for an invite. Or sign in if you '
-              'have an account.',
+              'New accounts require an invite from the operator. Existing '
+              'accounts can sign in.',
             ),
           ),
         ],
@@ -214,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         AppButton(
           icon: AppIcons.key,
-          label: 'I have an account',
+          label: 'Sign in',
           style: AppButtonStyle.accent,
           busy: busy,
           onTap: () => Stores.auth.beginSignIn(),
@@ -228,10 +228,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _usePhone() {
     return _screen(
       top: AppQrCode(data: '${Stores.api.baseUrl}/app'),
-      title: 'Better on your phone',
+      title: 'Set up on a phone',
       body:
-          'Scan the code with your phone. Your passkey then lives on the '
-          'phone you always have with you.',
+          'Scanning the code continues setup on a phone. The passkey is then '
+          'stored on that phone.',
       actions: [
         AppButton(
           icon: AppIcons.computer,
@@ -249,8 +249,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _aboutBrowser(bool busy) {
     return _screen(
       top: const RoundTrip(at: 0),
-      title: 'Next: your browser',
-      body: 'Set up your account in your browser, then come back here.',
+      title: 'Browser setup',
+      body: 'Account setup continues in the browser and returns here.',
       extra: const [
         Wrap(
           alignment: WrapAlignment.center,
@@ -278,10 +278,10 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _waiting(bool busy, bool signup) {
     return _screen(
       top: const RoundTrip(at: 1),
-      title: 'Continue in your browser',
+      title: 'Waiting for the browser',
       body: signup
-          ? 'Come back here when you\'re done.'
-          : 'Use your passkey there, then come back here.',
+          ? 'This screen continues once setup in the browser is finished.'
+          : 'This screen continues once the passkey is used in the browser.',
       live: true,
       actions: [
         AppButton(

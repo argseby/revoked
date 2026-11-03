@@ -79,7 +79,7 @@ class AppRefreshFailed extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppListBanner(
       icon: AppIcons.exclamation,
-      message: 'Couldn’t refresh. You’re seeing what you last loaded.',
+      message: 'Refresh failed. Showing the last loaded data.',
       action: AppButton(
         icon: AppIcons.arrowClockwise,
         label: 'Retry',

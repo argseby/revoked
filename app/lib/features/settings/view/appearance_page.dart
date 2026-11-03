@@ -4,13 +4,17 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/state/date_time_preferences.dart';
 import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/utils/dates.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
+import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/ledger_header.dart';
 
-/// Theme, text size and motion — the settings that decide whether the app
+/// Theme, text size, motion and how dates read — the settings that decide whether the app
 /// is comfortable to read and use at all.
 ///
 /// Each choice shows its effect right below it, so nobody has to leave the
@@ -47,9 +51,10 @@ class AppearancePage extends StatelessWidget {
             ],
           ),
           AppSpacing.gapXs,
-          const Text(
-            'System matches your device and changes with it.',
-          ).small.muted,
+          const Text('System follows the device setting.').small.muted,
+
+          const LedgerHeader('Dates and times'),
+          const _DatesAndTimes(),
 
           const LedgerHeader('Text size'),
           _TextSize(scale: DisplayPreferences.textScale),
@@ -63,8 +68,8 @@ class AppearancePage extends StatelessWidget {
                   children: [
                     const Text('Reduce motion'),
                     const Text(
-                      'Turns off fades and slides. Always on if your device '
-                      'asks for less motion.',
+                      'Disables fades and slides. Always on when the device '
+                      'requests reduced motion.',
                     ).small.muted,
                   ],
                 ),
@@ -102,7 +107,7 @@ class _TextSize extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(child: Text('Text size in this app')),
+            const Expanded(child: Text('App text size')),
             AppText(percent, bold: true),
           ],
         ),
@@ -116,8 +121,88 @@ class _TextSize extends StatelessWidget {
           onChanged: (v) => DisplayPreferences.setTextScale(scales[v.round()]),
         ),
         const Text(
-          'Adds to your device\'s text size. At 100%, the app matches your '
+          'Scales the device text size. At 100%, the app matches the '
           'device.',
+        ).small.muted,
+      ],
+    );
+  }
+}
+
+/// Date format, clock and time zone. Each starts on Automatic, which follows
+/// the device's region and time zone.
+class _DatesAndTimes extends StatelessWidget {
+  const _DatesAndTimes();
+
+  /// The automatic zone in the time zone list: a name no real zone has.
+  static const _deviceZone = '';
+
+  @override
+  Widget build(BuildContext context) => Observer(builder: _build);
+
+  Widget _build(BuildContext context) {
+    final now = DateTime.now();
+    final sample = DateTime(now.year, 12, 31);
+    String example(DateStyle style) => writeDay(sample, style);
+    final offset = now.timeZoneOffset;
+    final sign = offset.isNegative ? '-' : '+';
+    final hours = offset.inHours.abs().toString().padLeft(2, '0');
+    final minutes = (offset.inMinutes.abs() % 60).toString().padLeft(2, '0');
+    final deviceZone = 'This device (UTC$sign$hours:$minutes)';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppFormField(
+          label: 'Date format',
+          inset: false,
+          child: AppSelect<DateStyle>(
+            value: DateTimePreferences.dateStyle,
+            onChanged: (v) {
+              if (v != null) DateTimePreferences.setDateStyle(v);
+            },
+            items: [
+              AppSelectItem(
+                DateStyle.automatic,
+                Text(
+                  'Automatic · ${example(DateTimePreferences.automaticDateStyle)}',
+                ),
+              ),
+              for (final style in DateStyle.values.skip(1))
+                AppSelectItem(style, Text(example(style))),
+            ],
+          ),
+        ),
+        AppSpacing.gapMd,
+        const Text('Clock'),
+        AppSpacing.gapXs,
+        AppSegmented<ClockStyle>(
+          value: DateTimePreferences.clockStyle,
+          onChanged: DateTimePreferences.setClockStyle,
+          items: const [
+            AppSegmentedItem(value: ClockStyle.automatic, label: 'Automatic'),
+            AppSegmentedItem(value: ClockStyle.hours24, label: '24-hour'),
+            AppSegmentedItem(value: ClockStyle.hours12, label: '12-hour'),
+          ],
+        ),
+        AppSpacing.gapMd,
+        AppFormField(
+          label: 'Time zone',
+          inset: false,
+          child: AppSelect<String>(
+            value: DateTimePreferences.timeZone?.name ?? _deviceZone,
+            onChanged: (v) =>
+                DateTimePreferences.setTimeZone(v == _deviceZone ? null : v),
+            items: [
+              AppSelectItem(_deviceZone, Text(deviceZone)),
+              for (final name in DateTimePreferences.timeZoneNames)
+                AppSelectItem(name, Text(name.replaceAll('_', ' '))),
+            ],
+          ),
+        ),
+        AppSpacing.gapXs,
+        Text('Current time: ${formatDayTime(now)}.').small.muted,
+        const Text(
+          'Automatic follows the device region and time zone.',
         ).small.muted,
       ],
     );

@@ -118,14 +118,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Stores.passkeys.passkeys.length,
                 'passkey',
                 'passkeys',
-                'How you sign in',
+                'No passkeys',
               ),
             ),
             if (Stores.keys.isAvailable)
               _page(
                 SettingsPage.encryption,
                 AppIcons.lock,
-                'Only your devices can read what you encrypt',
+                'End-to-end encryption',
               ),
           ],
         ),
@@ -140,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Stores.settings.workspaces.length,
                 'workspace',
                 'workspaces',
-                'Keep your data in separate spaces',
+                'Separate spaces for records and links',
               ),
             ),
             _page(
@@ -171,7 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Stores.identities.identities.length,
                   'identity',
                   'identities',
-                  'Prove it’s really you',
+                  'Verifiable identities',
                 ),
               ),
             if (features.visible(Feature.tools))
@@ -194,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Stores.apiKeys.apiKeys.length,
                   'key',
                   'keys',
-                  'Let your scripts use Revoked',
+                  'Programmatic access',
                 ),
               ),
             if (features.visible(Feature.developer))
@@ -205,7 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Stores.webhooks.endpoints.length,
                   'webhook',
                   'webhooks',
-                  'Tell your server when something changes',
+                  'Event notifications over HTTP',
                 ),
               ),
             if (features.visible(Feature.requests))
@@ -214,15 +214,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 AppIcons.cardList,
                 _count(
                   ownTemplates,
-                  'template of your own',
-                  'templates of your own',
-                  'Reuse requests you send often',
+                  'custom template',
+                  'custom templates',
+                  'Reusable request forms',
                 ),
               ),
             _page(
               SettingsPage.domain,
               AppIcons.server,
-              verdict == null ? 'Prove this domain is yours' : verdict.domain,
+              verdict == null ? 'Domain verification' : verdict.domain,
             ),
           ],
         ),
@@ -230,14 +230,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'About',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'Bug reports are public. Never paste a record value, a link or a '
-            'private key into one.',
+            'Bug reports are public. Record values, links and private keys '
+            'must never be included.',
           ),
           children: [
             AppListRow(
               icon: AppIcons.play,
               title: 'Take the tour',
-              subtitle: 'Records, links and revoking, in one minute',
+              subtitle: 'Records, links and revocation in one minute',
               onTap: () => context.go(AppRoutes.tour),
             ),
             const _UrlRow(
@@ -261,9 +261,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Session',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'Your data stays on the server when you log out. Log back in any '
-            'time to pick up where you left off. To switch servers, log out '
-            'first.',
+            'Data stays on the server after logging out. Switching servers '
+            'requires logging out first.',
           ),
           children: [
             AppDetailRow(
@@ -311,7 +310,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       for (final f in store.ordered)
         if (store.visible(f)) store.labelFor(f),
     ];
-    if (on.length == 1) return 'Only the vault';
+    if (on.length == 1) return 'Vault only';
     return '${on.sublist(0, on.length - 1).join(', ')} and ${on.last}';
   }
 
@@ -324,13 +323,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _confirmDeleteAccount() async {
     final confirmed = await showAppDialog(
       context: context,
-      title: 'Delete your account?',
+      title: 'Delete this account?',
       message:
-          'This deletes your workspaces, records and identities. Every share '
-          'and request link you made stops working right away. You can’t '
-          'undo this.',
+          'All workspaces, records and identities are deleted. Every share '
+          'and request link stops working immediately. This cannot be '
+          'undone.',
       confirmLabel: 'Delete account',
-      cancelLabel: 'Keep it',
+      cancelLabel: 'Cancel',
       destructive: true,
     );
     if (!confirmed || !mounted) return;
@@ -338,7 +337,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!await Stores.auth.deleteAccount() && mounted) {
       AppToast.error(
         context,
-        'Couldn’t delete your account',
+        'The account could not be deleted.',
         subtitle: Stores.auth.errorMessage,
       );
     }
@@ -351,7 +350,7 @@ Future<void> confirmLogout(BuildContext context) async {
   final confirmed = await showAppDialog(
     context: context,
     title: 'Log out?',
-    message: 'Everything stays on the server. Log back in any time.',
+    message: 'All data stays on the server.',
     confirmLabel: 'Log out',
     confirmIcon: AppIcons.boxArrowLeft,
   );
@@ -419,7 +418,7 @@ class _UrlRow extends StatelessWidget {
           mode: LaunchMode.externalApplication,
         );
         if (!ok && context.mounted) {
-          AppToast.error(context, 'Couldn’t open $url');
+          AppToast.error(context, '$url could not be opened');
         }
       },
     );

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/models/identity_status_assertion.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
@@ -436,7 +437,7 @@ class DomainVerificationService {
     if (body.isRevoked) {
       final when = body.revokedAt == null
           ? ''
-          : ' on ${body.revokedAt!.toLocal().toString().split('.').first}';
+          : ' on ${formatDayTime(body.revokedAt!)}';
       return TrustVerdict.revoked(
         domain: claimedDomain,
         reason:

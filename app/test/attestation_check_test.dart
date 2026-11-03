@@ -116,7 +116,7 @@ void main() {
     expect(created.single['type'], 'membership');
     expect(created.single['issuers'], ['club.test']);
     expect(created.single['claims'], ['member_since']);
-    expect(find.text('Show this to them'), findsOneWidget);
+    expect(find.text('Check code'), findsOneWidget);
     expect(find.byType(AppQrCode), findsOneWidget);
     expect(
       Stores.attestationChecks.pendingLink,
@@ -127,7 +127,7 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
     await tester.pump();
 
-    expect(find.text('What they showed'), findsWidgets);
+    expect(find.text('Shown details'), findsWidgets);
     expect(find.text('Verified'), findsOneWidget);
     expect(find.text('2021'), findsOneWidget);
     expect(find.text('2 details'), findsOneWidget);

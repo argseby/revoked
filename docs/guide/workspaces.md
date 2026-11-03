@@ -1,60 +1,59 @@
 # Workspaces & members
 
-A workspace keeps your things together: vault, shares, requests,
-templates, identities and members. You create or join your first one when
-you sign up. You can belong to up to ten, and switch between them under
+A workspace groups a vault, shares, requests, templates, identities and
+members. The first workspace is created or joined at sign-up. An account
+can belong to up to ten workspaces and switch between them under
 **Settings → Workspaces**.
 
-## Choose what each member can do
+## Member permissions
 
-You decide exactly what each person may do. When you invite someone or
-edit a member, tick the permissions they need. Editing a member also shows
-which parts of the app they have turned on. Most areas have one to view
-and one to manage: vault, collected data, shares, requests, templates and
-identities. Attestations can be viewed and issued, and members can be
-viewed, invited and removed. **Manage workspace** covers renaming and
-deleting it.
+Permissions are set per member, by ticking them when inviting or editing a
+member. Editing a member also shows which parts of the app that member has
+enabled. Most areas have one permission to view and one to manage: vault,
+collected data, shares, requests, templates and identities. Attestations
+can be viewed and issued; members can be viewed, invited and removed.
+**Manage workspace** covers renaming and deleting the workspace.
 
-Some permissions are marked as sensitive, because they can hand out access
-or lock others out: **Manage identities**, **Issue attestations**,
+Some permissions are marked as sensitive, because they can grant access or
+lock others out: **Manage identities**, **Issue attestations**,
 **Invite members**, **Remove members** and **Manage workspace**.
 
-Anyone who can invite is an **admin**. You don't assign that separately.
-A workspace always keeps at least one member who can both invite and
-remove, so nobody can lock it for good.
+Any member who can invite is an **admin**; the role is not assigned
+separately. A workspace always retains at least one member who can both
+invite and remove, so it cannot be locked permanently.
 
-## Invite someone
+## Invites
 
-Create an invite under **Settings → Invites** and send the key any way you
-like. Pick what kind of member they are: **Vault only**, **Vault and
-sharing** or **Everything**. Each one sets the permissions and the parts of
-the app they see at first. Open **Advanced** to tick each permission
-yourself, and to choose what they see.
+**New invite** under **Settings → Invites** creates a key, which can be
+sent through any channel. The member type sets the initial permissions and
+visible parts of the app: **Vault only**, **Vault and sharing** or
+**Everything**. **Advanced** allows each permission and each visible part
+to be chosen individually.
 
-What they see is their own choice from then on, under
-**Settings → Features**; the invite only fills it in for someone who hasn't
-chosen yet. Hiding a part of the app never takes a permission away, and
-turning one on never grants one. The invite carries the permissions you
-picked. You can narrow it further:
+After joining, the visible parts are the member's own choice, under
+**Settings → Features**; the invite only presets them for a member who has
+not chosen yet. Hiding a part of the app never removes a permission, and
+showing one never grants one. The invite carries the selected permissions
+and can be restricted further:
 
-- **Lock to an email**: only that account can accept it.
+- **Restrict to email**: only that account can accept it.
 - **Single use**: the key stops working once someone joins. Otherwise it
-  works until you withdraw it or it expires.
+  remains valid until withdrawn or expired.
 
-To join, paste the key. Before you accept, the app shows what it can
-actually prove about who invited you, with the same
-[check](identities.md#check-who-sent-something) you get for shares. You're
-notified when someone accepts an invite you sent.
+An invite is accepted by pasting the key. Before acceptance, the app shows
+what it can prove about the inviter, using the same
+[sender check](identities.md#check-who-sent-something) as for shares. The
+inviter is notified when an invite is accepted.
 
-## Leave, remove or delete
+## Leaving, removal and deletion
 
-When a member leaves or is removed, the identities they used in this
-workspace are revoked at the same moment. Their shares and answers stop
-showing as verified for this workspace right away.
+When a member leaves or is removed, the identities they used in the
+workspace are revoked at the same moment. Their shares and responses
+immediately stop showing as verified for this workspace.
 
 Deleting a workspace deletes everything in it and revokes its identities.
-Anyone who checks an old share afterwards still gets a clear "revoked",
-not silence. Deleting your account does the same for everything you own.
+Checking an old share afterwards still returns a clear "revoked", not
+silence. Deleting an account does the same for everything it owns.
 Neither can be undone.
 
 A workspace holds at most 50 members.

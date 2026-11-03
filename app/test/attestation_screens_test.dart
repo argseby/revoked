@@ -230,7 +230,7 @@ void main() {
       isTrue,
     );
 
-    expect(find.text('It’s yours now'), findsOneWidget);
+    expect(find.text('Attestation accepted'), findsOneWidget);
     expect(Stores.credentials.credentials.single.id, 'c1');
   });
 
@@ -240,8 +240,8 @@ void main() {
     await tester.tap(find.text('Accept'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Made for another identity'), findsOneWidget);
-    expect(find.text('It’s yours now'), findsNothing);
+    expect(find.text('Issued to another identity'), findsOneWidget);
+    expect(find.text('Attestation accepted'), findsNothing);
     expect(find.text('Accept'), findsOneWidget);
   });
 
@@ -366,14 +366,14 @@ void main() {
       'type': 'verified_adult',
     })!;
     await open(tester, PresentationScreen(request: other));
-    expect(find.text('No attestation fits'), findsOneWidget);
+    expect(find.text('No matching attestation'), findsOneWidget);
     expect(find.text('Show it'), findsNothing);
     expect(presented, isEmpty);
   });
 
   testWidgets('a malformed request is named as one', (tester) async {
     await open(tester, const PresentationScreen(request: null));
-    expect(find.text('This link doesn’t work'), findsOneWidget);
+    expect(find.text('Invalid link'), findsOneWidget);
     expect(presented, isEmpty);
   });
 
@@ -389,8 +389,8 @@ void main() {
     );
     // This server's operator did not switch issuing on, and the tab says so
     // in place of a list, with nothing to start.
-    expect(find.textContaining('doesn’t issue attestations'), findsOneWidget);
-    expect(find.text('Confirm something'), findsNothing);
+    expect(find.textContaining('does not issue attestations'), findsOneWidget);
+    expect(find.text('Issue attestation'), findsNothing);
 
     await open(
       tester,

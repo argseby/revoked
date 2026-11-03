@@ -25,7 +25,7 @@ class _Unlock implements DeviceUnlock {
 
 /// A link that arrives has to show up. The router keeps a page alive for as
 /// long as its route stays the same, so a second sign-in used to sit unseen
-/// behind the first one's "You're signed in".
+/// behind the first one's "Signed in to …".
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -120,7 +120,7 @@ void main() {
   Future<void> approve(WidgetTester tester) async {
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('You’re signed in'), findsOneWidget);
+    expect(find.textContaining('Signed in to'), findsOneWidget);
   }
 
   setUp(() async {
@@ -147,7 +147,7 @@ void main() {
     await open(tester, router, signIn('other.example'));
     expect(opened, ['https://game.example', 'https://other.example']);
     expect(find.text('Sign in to other.example'), findsOneWidget);
-    expect(find.textContaining('You’re signed in'), findsNothing);
+    expect(find.textContaining('Signed in to'), findsNothing);
   });
 
   testWidgets('the same sign-in asked for again starts over', (tester) async {
@@ -215,6 +215,6 @@ void main() {
     runInAction(() => Stores.auth.currentUser = signedIn('w2'));
     await tester.pumpAndSettle();
     expect(opened, ['https://game.example']);
-    expect(find.textContaining('You’re signed in'), findsOneWidget);
+    expect(find.textContaining('Signed in to'), findsOneWidget);
   });
 }

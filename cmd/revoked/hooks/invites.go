@@ -143,7 +143,7 @@ func normalizePermissionGrant(app core.App, e *core.RecordRequestEvent, field, w
 			return validation.Errors{
 				field: validation.NewError(
 					util.Errors.PermissionEscalation.ErrorCode,
-					"You cannot grant access you do not hold yourself: "+missing[0]+".",
+					"Access beyond the granter's own cannot be granted: "+missing[0]+".",
 				),
 			}
 		}

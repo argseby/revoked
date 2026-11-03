@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -84,8 +85,8 @@ class _Form extends StatelessWidget {
         const Text('See someone\'s attestation').header,
         AppSpacing.gapXxs,
         const Text(
-          'Ask someone to show you an attestation, like a membership. They '
-          'choose what you see. You get a checked answer.',
+          'Requests an attestation, such as a membership, from its holder. '
+          'The holder selects the details. The answer is verified on arrival.',
         ).muted.small,
         if (!store.proposer.isEmpty) ...[
           AppSpacing.gapSm,
@@ -93,7 +94,7 @@ class _Form extends StatelessWidget {
         ],
         AppSpacing.gapLg,
         AppFormField(
-          label: 'What kind (optional)',
+          label: 'Kind (optional)',
           inset: false,
           child: AppTextField(
             controller: store.typeController,
@@ -113,7 +114,7 @@ class _Form extends StatelessWidget {
         ),
         AppSpacing.gapSm,
         AppFormField(
-          label: 'Details you need (optional)',
+          label: 'Details (optional)',
           inset: false,
           child: AppTextField(
             controller: store.claimsController,
@@ -171,20 +172,20 @@ class _HandOver extends StatelessWidget {
       children: [
         Text(
           answered
-              ? 'What they showed'
+              ? 'Check answered'
               : waiting
-              ? 'Show this to them'
-              : 'No answer in time',
+              ? 'Check code'
+              : 'Check expired',
         ).header,
         AppSpacing.gapXxs,
         if (answered)
           const Text(
-            'Checked the moment it arrived. This is how it stood then.',
+            'Verified on arrival. Reflects the state at that time.',
           ).muted.small
         else if (waiting) ...[
           const Text(
-            'They scan it with Revoked or open the link. It works once, for '
-            'ten minutes.',
+            'Scanned with Revoked or opened as a link. Valid once, for ten '
+            'minutes.',
           ).muted.small,
           AppSpacing.gapLg,
           if (link != null) Center(child: AppQrCode(data: link!, size: 220)),
@@ -197,15 +198,15 @@ class _HandOver extends StatelessWidget {
               Flexible(
                 child: Text(
                   'Waiting for an answer until '
-                  '${momentText(check.expiresAt).split(' ').last}',
+                  '${timeOf(check.expiresAt) ?? '—'}',
                 ).muted.small,
               ),
             ],
           ),
         ] else
           const Text(
-            'No one answered within ten minutes. Create a new check to try '
-            'again.',
+            'No answer was received within ten minutes. A new check is '
+            'required.',
           ).muted.small,
         if (answered) ...[AppSpacing.gapLg, CheckResultView(check: check)],
         AppSpacing.gapLg,
@@ -263,7 +264,7 @@ class CheckResultView extends StatelessWidget {
             ),
             AppDetailRow(
               icon: AppIcons.tag,
-              label: 'What',
+              label: 'Kind',
               value: result.type.isEmpty ? check.title : result.type,
             ),
             AppDetailRow(
@@ -288,14 +289,14 @@ class CheckResultView extends StatelessWidget {
           Text(verdict.reason).muted.small,
         ],
         AppSpacing.gapMd,
-        const Text('What they showed'),
+        const Text('Shown details'),
         AppSpacing.gapSm,
         AppListCard(
           children: [
             if (result.claims.isEmpty)
               const AppDetailRow(
                 icon: AppIcons.info,
-                label: 'Nothing beyond what kind it is.',
+                label: 'No details beyond the kind.',
               )
             else
               for (final e in result.claims.entries)

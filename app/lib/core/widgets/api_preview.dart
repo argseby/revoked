@@ -54,8 +54,7 @@ class ApiPreviewSection extends StatelessWidget {
                       : Padding(
                           padding: const EdgeInsets.only(top: AppSpacing.sm),
                           child: const Text(
-                            'You need an API key to send this yourself. '
-                            'Create one in Settings → API keys.',
+                            'Sending this request requires an API key. Keys are managed in Settings → API keys.',
                           ).muted.small,
                         ),
                 ),

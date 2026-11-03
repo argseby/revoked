@@ -1,73 +1,74 @@
 # Vault
 
-Your vault is where your information lives. Everything you share points
-back here. Change a value once, and every share of it shows the new value
-right away.
+The vault holds the workspace's information, and every share points back
+to it. A value changed once is shown in its new form by every share of it
+immediately.
 
-## Add a record {#records}
+## Records {#records}
 
-A record is one piece of information, with a label and a value. Pick a type
-so the app shows and checks the value the right way:
+A record is a single piece of information with a label and a value. Its
+type determines how the value is displayed and validated:
 
-| Type | Use it for |
+| Type | Use |
 |---|---|
-| Text | Anything written (the default) |
+| Text | Free text (the default) |
 | Number | A number |
 | Link | A web address |
 | Yes/no | A yes-or-no answer |
-| Date and time | A date, with its time |
+| Date and time | A date with its time |
 | File | A document or an image |
 
-A value can be up to 1000 characters long. Files have their own limits.
+Values are limited to 1000 characters. Files have separate limits.
 
-Each record also gets a key, made from its label: `Steuer-ID (privat)`
-becomes `steuer_id_privat`. Templates, requests and scripts find your
-records by their key. To pick your own, open **Advanced**.
+Each record also has a key, derived from its label: `Steuer-ID (privat)`
+becomes `steuer_id_privat`. Templates, requests and scripts locate records
+by key. A custom key can be set under **Advanced**.
 
-### Hide what's sensitive
+### Hidden records
 
-Mark a record **Hidden**, and the app masks its value until you reveal it.
-Use it for passwords, tokens, anything you don't want read over your
-shoulder. On a file, hiding masks the file name.
+A record marked **Hidden** has its value masked until revealed. This suits
+passwords, tokens and other values that should not be readable on screen.
+On a file record, the file name is masked.
 
 ### Files
 
-A file record holds one upload. You can swap in a new version later, and
-rename what people see when they download it. The name is only a label.
-Whether you can upload, and how much, is up to
-[whoever runs your server](../installation/env.md#files).
+A file record holds one upload. The file can be replaced with a new
+version, and the name shown on download can be changed; the name is only a
+label. Whether uploads are allowed, and their size limit, is set by the
+[server operator](../installation/env.md#files).
 
 ### Aliases
 
-Someone asks for `iban`, but you saved it as `bank_account`? Add an alias.
-It points at your existing record and always shows its current value. They
-get the key they asked for, and your data stays in one place.
+An alias makes an existing record available under a second key, for
+example when a request asks for `iban` but the record is stored as
+`bank_account`. The alias always shows the record's current value, so the
+data stays in one place.
 
-### Get reminded
+### Reminders {#get-reminded}
 
-A record can remind you about itself. Open it and add a reminder:
+A record can carry reminders, added from the record itself:
 
-- **On a date**: in a week, a month, a year, or on a day you pick. Handy for
-  a passport that needs renewing or a contract to cancel.
-- **On a change**: the first time this record's value changes, or another
-  record's in the same workspace. For an alias, a change to the record it
-  points at counts.
+- **On a date**: in a week, a month, a year, or on a chosen day, for
+  example for a passport renewal or a contract's notice period.
+- **On a change**: the first time this record's value changes, or that of
+  another record in the same workspace. For an alias, a change to the
+  record it points to counts.
 
-The reminder lands in your notifications, with your note. It names the
-record but never shows its value. Each reminder goes off once; add it again
-from the record to hear about the next time too. Reminders are yours alone.
-Other members of the workspace don't see them.
+A reminder appears in notifications with its note. It names the record but
+never shows its value. Each reminder fires once; to be reminded again, it
+is added again from the record. Reminders are private to the member who set
+them and are not visible to other members of the workspace.
 
-## Group records into sections
+## Sections {#group-records-into-sections}
 
-A section groups records that belong together, like "Banking" or
-"Onboarding pack". You can rename it, duplicate it, and **share it as one**.
-A shared section always shows what's in it today: add a record later, and
-everyone with the link sees it too.
+A section groups related records, such as "Banking" or "Onboarding pack".
+Sections can be renamed, duplicated and shared as one. A shared section
+always reflects its current contents: a record added later becomes visible
+to everyone with the link.
 
-## Start from a template
+## Creating records from a template {#start-from-a-template}
 
-**New → From a template** creates a whole set of sections and records in
-one go. Handy when every client or project needs the same setup. Templates
-also decide what a [request](requests.md) asks for. To build your own, see
-[Templates](templates.md).
+**New → From a template** creates a complete set of sections and records
+in one step, which suits setups that every client or project needs.
+Templates also define what a [request](requests.md) asks for. Custom
+templates are described in [Templates](templates.md).

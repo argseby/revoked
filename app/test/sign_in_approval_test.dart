@@ -196,7 +196,7 @@ void main() {
     expect(launched, isEmpty, reason: 'deciding happens here, not there');
     expect(find.text('Sign in to game.example'), findsOneWidget);
     expect(find.text('Your name'), findsOneWidget);
-    expect(find.text('game.example will see you as'), findsOneWidget);
+    expect(find.text('Shown to game.example as'), findsOneWidget);
     expect(find.text('Ada Lovelace'), findsWidgets);
     expect(find.text('Your email address'), findsOneWidget);
     expect(find.text('Your phone'), findsOneWidget);
@@ -230,9 +230,11 @@ void main() {
     );
     expect(prompt.asked, ['Sign in to game.example']);
     expect(launched, [approved]);
-    expect(find.text('You’re signed in to game.example'), findsOneWidget);
+    expect(find.text('Signed in to game.example'), findsOneWidget);
     expect(
-      find.textContaining('To stop sharing, go to Settings → Connected tools.'),
+      find.textContaining(
+        'Sharing can be ended under Settings → Connected tools.',
+      ),
       findsOneWidget,
     );
   });
@@ -250,11 +252,11 @@ void main() {
     expect(decisions.single['links'], isEmpty);
     expect(
       find.textContaining(
-        'You’ll find this sign-in under Settings → Connected tools.',
+        'This sign-in is listed under Settings → Connected tools.',
       ),
       findsOneWidget,
     );
-    expect(find.textContaining('To stop sharing'), findsNothing);
+    expect(find.textContaining('Sharing can be ended'), findsNothing);
   });
 
   testWidgets('declining signs nothing and tells the service', (tester) async {
@@ -278,7 +280,7 @@ void main() {
     await show(tester);
     expect(decisions, isEmpty);
     expect(launched, [refusal]);
-    expect(find.text('This sign-in can’t continue'), findsOneWidget);
+    expect(find.text('This sign-in cannot continue'), findsOneWidget);
   });
 
   testWidgets('a paused service is refused unasked, and says how to undo it', (
@@ -288,7 +290,7 @@ void main() {
     await show(tester);
     expect(decisions, isEmpty);
     expect(launched, [denied]);
-    expect(find.text('You paused game.example'), findsOneWidget);
+    expect(find.text('game.example is paused'), findsOneWidget);
     expect(find.text('Open service'), findsOneWidget);
   });
 
@@ -297,7 +299,7 @@ void main() {
   ) async {
     disconnected = {'at': '2026-11-02 10:00:00.000Z', 'newId': true};
     await show(tester);
-    expect(find.textContaining('see you as someone new'), findsOneWidget);
+    expect(find.textContaining('sees this account as new'), findsOneWidget);
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
@@ -311,7 +313,10 @@ void main() {
   ) async {
     disconnected = {'at': '2026-11-02 10:00:00.000Z', 'newId': false};
     await show(tester);
-    expect(find.textContaining('know you as before'), findsOneWidget);
+    expect(
+      find.textContaining('restores the previous account'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
@@ -331,7 +336,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(delivered, [approved]);
     expect(launched, isEmpty, reason: 'no browser in between');
-    expect(find.textContaining('carries on from there'), findsOneWidget);
+    expect(find.textContaining('page where it started'), findsOneWidget);
   });
 
   testWidgets('a waiting service declined hears it from the app too', (

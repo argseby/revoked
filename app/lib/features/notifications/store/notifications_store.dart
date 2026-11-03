@@ -11,6 +11,16 @@ part 'notifications_store.g.dart';
 
 /// Owner-side in-app notifications.
 // ignore: library_private_types_in_public_api
+/// Which notifications the page lists.
+enum NotificationFilter { all, unread, attention }
+
+/// The notification types that need a person to act on them.
+const notificationProblemTypes = {
+  'callback_failed',
+  'email_undelivered',
+  'sealing_reset',
+};
+
 class NotificationsStore = _NotificationsStore with _$NotificationsStore;
 
 abstract class _NotificationsStore with Store {
@@ -35,6 +45,25 @@ abstract class _NotificationsStore with Store {
   /// when the first notification arrives.
   @computed
   int get unreadCount => notifications.where((n) => !n.read).length;
+
+  /// What the notifications page lists: everything, the unread, or what
+  /// needs a person to act — a callback that failed, an email that bounced,
+  /// encryption that was reset.
+  @observable
+  NotificationFilter filter = NotificationFilter.all;
+
+  @action
+  void setFilter(NotificationFilter value) => filter = value;
+
+  @computed
+  List<AppNotification> get shown => switch (filter) {
+    NotificationFilter.all => notifications.toList(),
+    NotificationFilter.unread => notifications.where((n) => !n.read).toList(),
+    NotificationFilter.attention =>
+      notifications
+          .where((n) => notificationProblemTypes.contains(n.type))
+          .toList(),
+  };
 
   /// The server's type for "someone answered your request".
   static const _requestResponse = 'request_response';

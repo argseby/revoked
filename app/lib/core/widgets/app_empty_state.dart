@@ -194,7 +194,7 @@ class AppEmptyState extends StatelessWidget {
           mode: LaunchMode.externalApplication,
         );
         if (!ok && context.mounted) {
-          AppToast.error(context, 'Couldn\'t open $learnMoreUrl');
+          AppToast.error(context, '$learnMoreUrl could not be opened');
         }
       },
     );

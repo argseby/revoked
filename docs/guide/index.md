@@ -1,78 +1,85 @@
 # Using the app
 
-Revoked runs on desktop and Android. If you haven't installed it yet,
-[start here](../installation/app.md).
+Revoked runs on desktop and Android. Installation is covered in
+[Installing the app](../installation/app.md).
 
-The app looks for a server on your own computer first. To use another one,
-tap the server on the login screen and enter its address. **Test** checks
-that it answers, and **Save** keeps it.
+By default, the app connects to a server on the local computer. Another
+server is selected by tapping the server on the login screen and entering
+its address. **Test** checks that the server responds, and **Save** stores
+it.
 
-Just want to try it? Enter `https://api.revoked.link`, the official server.
-It's experimental and for testing, with no guarantees for your data, so keep
-nothing there you can't lose.
+The official server, `https://api.revoked.link`, is available for
+evaluation. It is experimental and intended for testing only, with no
+guarantees for stored data.
 
-## Get started {#first-start}
+## First start {#first-start}
 
-Sign in. If you don't have a workspace yet, the app helps you set one up:
+After sign-in, an account without a workspace is guided through setting
+one up:
 
-- **Create your own.** It's already filled in for you. The workspace is
-  called *Personal*, and your name comes from your email address
-  (`max.mustermann@…` becomes *Max Mustermann*). Change either one, then
-  press **Continue**. People who get your shares and requests will see this
+- **Create your own.** The form is prefilled: the workspace is named
+  *Personal*, and the display name is derived from the email address
+  (`max.mustermann@…` becomes *Max Mustermann*). Both can be changed
+  before pressing **Continue**. Recipients of shares and requests see this
   name.
-- **Join someone else's.** Choose **Use an invite key** and paste the key
-  they sent you.
+- **Join someone else's.** **Use an invite key** accepts a key sent by a
+  member of that workspace.
 
-Creating your own workspace then asks **What will you use this for?** Tick
-what you want to see: sharing, requests, identities and attestations,
-contacts, connected tools. The vault is always there. Untick what you won't
-use and it stays out of your way. Change your mind any time under
+Creating a workspace is followed by **Features**, which
+selects the visible features: sharing, requests, identities and
+attestations, contacts, connected tools. The vault is always present.
+Unselected features stay hidden and can be enabled later under
 **Settings → Features**.
 
-Did you arrive through a link? It might be a tool's
-[link proposal](tools.md), a request to connect a tool, or a workspace
-invite. The app keeps it while you sign up, and opens it when you're done.
-You don't have to click it again.
+A link that opened the app before sign-in, such as a tool's
+[link proposal](tools.md), a request to connect a tool or a workspace
+invite, is kept through sign-up and opened once setup is complete. It does
+not need to be opened again.
 
-Your vault, shares, requests, templates and identities all live in a
+Vault, shares, requests, templates and identities all belong to a
 workspace. See [Workspaces & members](workspaces.md).
 
-## Find your way around
+## Navigation
 
-**New** starts anything: a record, a file, a share link, a request, an
-attestation. The sidebar takes you to the rest. On a phone, use the bar
-along the bottom: it holds four places, and the rest sit under **More**
-with **Settings**.
+**New**, at the top of the sidebar, creates any item: a record, a file, a
+share link, a request, an attestation. On a phone it floats in the corner,
+and the bottom bar holds four destinations, with the rest under **More**
+beside **Settings**. Pages such as **API keys** or **Webhooks** create
+their items in place, without a drawer.
 
-You only see the parts you turned on under **Settings → Features**, and
-only those your workspace lets you use. Turn **Developer** on there to see
-the API request behind every form. A link to something you turned off still
-opens, and offers to turn it back on.
+Only features enabled under **Settings → Features**, and permitted by the
+workspace, are shown. Enabling **Developer** there shows the API request
+behind every form. A link to a disabled feature still opens and offers to
+enable it.
 
-| Where | What you do there | Learn more |
+| Where | Purpose | Details |
 |---|---|---|
-| **Vault** | Keep your records, files and sections | [Vault](vault.md) |
-| **Shares** | Send links to your records, and see how often they were opened | [Sharing](sharing.md) |
-| **Requests** | Ask people for information and read their answers. Shares you saved from others wait under **Received**. | [Requests](requests.md), [Read the answers](requests.md#reading-what-came-back) |
-| **Attestations** | Keep what others confirm about you, confirm things about others, and check what others show you | [Attestations](attestations.md) |
-| **Settings** | Features, workspaces, members, invites, identities, connected tools, API keys, templates and your domain check | [Workspaces & members](workspaces.md), [Identities & trust](identities.md), [Tools & link proposals](tools.md), [Your AI assistant](assistant.md), [Templates](templates.md) |
+| **Overview** | Counts, items needing attention, and everything that can read the vault | [Overview](overview.md) |
+| **Vault** | Records, files and sections | [Vault](vault.md) |
+| **Shares** | Links to records, with view counts | [Sharing](sharing.md) |
+| **Requests** | Requests for information and their responses. Shares saved from others are listed under **Received**. | [Requests](requests.md), [Responses](requests.md#reading-what-came-back) |
+| **Attestations** | Attestations held, issued to others, and checked | [Attestations](attestations.md) |
+| **Contacts** | People and services that records are sent to or requested from | [Contacts](contacts.md) |
+| **Notifications** | Events since the last visit, filtered by unread or needing attention | [Notifications](notifications.md) |
+| **Settings** | Features, workspaces, members, invites, identities, connected tools, API keys, templates and domain verification | [Workspaces & members](workspaces.md), [Identities & trust](identities.md), [Tools & link proposals](tools.md), [Your AI assistant](assistant.md), [Templates](templates.md), [Appearance](appearance.md), [Features](features.md), [Passkeys](passkeys.md), [End-to-end encryption](encryption.md) |
 
-## Open a link someone sent you
+## Opening a received link
 
-Shares and requests arrive as `revoked://` links. Click one, and the app
-opens right on it. That's on purpose: an app link leaves a scammer no web
-page to imitate.
+Shares and requests arrive as `revoked://` links, which open the app
+directly on the item. This is deliberate: an app link leaves no web page
+for a phisher to imitate.
 
-You can also press **Ctrl+V** in the app with a link on your clipboard, or
-choose **New → Open or scan a link**. The app checks the sender before it
-opens anything.
+A link on the clipboard can also be opened with **Ctrl+V** in the app, or
+through **New → Open or scan a link**. The sender is verified before
+anything opens.
 
-Two more kinds of link open the app: an offer of an
-[attestation](attestations.md) (`revoked://a/…`), and a service asking to
-see one (`revoked://present`).
+Two further kinds of link open the app: an
+[attestation](attestations.md) offer (`revoked://a/…`), and a service's
+request to see one (`revoked://present`).
 
-## Catch up on what happened
+## Notifications
 
-The bell collects what happened while you were away: new answers, links
-that expired or reached their view limit, accepted invites, failed
-callbacks, and your [reminders](vault.md#get-reminded).
+**Notifications** lists recent events: new responses, links that expired
+or reached their view limit, accepted invites, failed callbacks, and
+[reminders](vault.md#get-reminded). It opens from the sidebar or the bell,
+and can be narrowed to **Unread** or **Needs attention**.

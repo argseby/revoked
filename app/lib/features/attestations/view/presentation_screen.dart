@@ -168,10 +168,10 @@ class _PresentationScreenState extends State<PresentationScreen> {
     return AppStatusMessage(
       icon: AppIcons.exclamationTriangle,
       accent: Theme.of(context).colorScheme.error,
-      title: 'This link doesn’t work',
+      title: 'Invalid link',
       message:
-          'Revoked can’t answer it. Go back to the service that sent it and '
-          'start again.',
+          'This request cannot be answered. A new one must be started from '
+          'the service that sent it.',
       actions: [
         AppButton(
           label: 'Back to the app',
@@ -187,11 +187,11 @@ class _PresentationScreenState extends State<PresentationScreen> {
     final from = r.issuers.isEmpty ? '' : ' from ${r.issuers.join(' or ')}';
     return AppStatusMessage(
       icon: AppIcons.info,
-      title: 'No attestation fits',
+      title: 'No matching attestation',
       message:
           '${r.clientHost} asks for '
-          '${r.type.isEmpty ? 'an attestation' : '“${r.type}”'}$from. You '
-          'don’t have one that fits. Nothing was shown.',
+          '${r.type.isEmpty ? 'an attestation' : '“${r.type}”'}$from. No held '
+          'attestation matches. Nothing was shown.',
       actions: [
         AppButton(
           label: 'Back to the app',
@@ -210,8 +210,8 @@ class _PresentationScreenState extends State<PresentationScreen> {
       accent: Theme.of(context).colorScheme.success,
       title: 'Shown to ${r.clientHost}',
       message:
-          'They saw the details you ticked and nothing else. What you sent '
-          'works for this request only.',
+          'Only the selected details were shown. The presentation is valid '
+          'for this request only.',
       actions: [
         if (next != null)
           AppButton(
@@ -254,11 +254,10 @@ class _PresentationScreenState extends State<PresentationScreen> {
           AppSpacing.gapMd,
         ],
         AppListGroup(
-          title: 'Who is asking',
+          title: 'Requester',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'Check the address. Only continue if it’s the service you '
-            'expected.',
+            'Continue only if this address belongs to the expected service.',
           ),
           children: [
             if (Stores.credentials.askerName case final String name)
@@ -307,7 +306,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
           ],
         ),
         AppListGroup(
-          title: 'Which attestation',
+          title: 'Attestation',
           trailing: const SizedBox.shrink(),
           children: [
             for (final c in fitting)
@@ -316,7 +315,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
                 title: c.type,
                 subtitle: Stores.identities.hasLocalKey(c.identity)
                     ? 'From ${c.issuer} · held by ${_identityName(c)}'
-                    : 'From ${c.issuer} · ${_identityName(c)} lives on '
+                    : 'From ${c.issuer} · ${_identityName(c)} is on '
                           'another device',
                 showChevron: false,
                 trailing: c.id == _selected.value
@@ -328,12 +327,12 @@ class _PresentationScreenState extends State<PresentationScreen> {
         ),
         if (credential != null)
           AppListGroup(
-            title: 'What is shown',
+            title: 'Shown details',
             trailing: const SizedBox.shrink(),
             footer: const Text(
-              'Untick a detail to keep it back. They learn there is more, not '
-              'what. Who confirmed it, its kind and your identity are always '
-              'shown.',
+              'Unselected details are withheld. The recipient learns that '
+              'more exist, not what they are. The issuer, the kind and the '
+              'identity are always shown.',
             ),
             children: [
               Padding(
@@ -346,7 +345,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
                   children: [
                     if (credential.disclosures.isEmpty)
                       const Text(
-                        'This attestation says nothing beyond its kind.',
+                        'This attestation has no details beyond its kind.',
                       ).muted.small,
                     for (final d in credential.disclosures)
                       AppCheckRow(
@@ -370,7 +369,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
         if (error != null)
           AppAlert(
             destructive: true,
-            title: const Text('Couldn’t show the attestation'),
+            title: const Text('The attestation could not be shown'),
             content: Text(error).small,
           ),
       ],
@@ -383,11 +382,11 @@ class _PresentationScreenState extends State<PresentationScreen> {
     return AppActionBar(
       note: Text(
         count == 0
-            ? '${r.clientHost} sees that you have this attestation, and none '
-                  'of its details.'
+            ? '${r.clientHost} sees that this identity holds the attestation, '
+                  'and none of its details.'
             : '${r.clientHost} sees $count '
                   '${count == 1 ? 'detail' : 'details'} of this attestation, '
-                  'and that it’s yours.',
+                  'and that it belongs to this identity.',
       ).muted.small,
       children: [
         AppButton(

@@ -89,7 +89,7 @@ abstract class _SettingsStore with Store {
       if (domain.isEmpty) {
         store.finishDomainCheck(
           error:
-              'This server has no domain to check. Ask whoever runs it to set one.',
+              'This server has no domain configured. Its operator can set one.',
         );
         return;
       }
@@ -136,6 +136,20 @@ abstract class _SettingsStore with Store {
 
   @action
   void setSubmitting(bool value) => isSubmittingDrawer = value;
+
+  @action
+  void resetWorkspaceDraft() {
+    workspaceName.clear();
+    workspaceSlug.clear();
+    isSubmittingDrawer = false;
+  }
+
+  @action
+  void resetIdentityDraft() {
+    identityName.clear();
+    identityIsPrimary = false;
+    isSubmittingDrawer = false;
+  }
 
   @observable
   bool isLoading = false;

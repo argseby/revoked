@@ -71,9 +71,7 @@ class CryptoService {
     final pem = await loadPrivateKey(identityId);
     if (pem == null || pem.isEmpty) {
       throw UserFacingException(
-        'This identity\'s key is on another device. A key stays on the '
-        'device that created it; create an identity here to sign from '
-        'this one.',
+        'This identity\'s key is on another device. Keys never leave the device that created them; signing here requires an identity created on this device.',
       );
     }
     return signWithPrivateKey(privateKeyPem: pem, message: message);

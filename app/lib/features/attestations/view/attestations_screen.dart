@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/models/check_proposal.dart';
@@ -80,16 +81,35 @@ class _AttestationsScreenState extends State<AttestationsScreen>
         Expanded(
           child: Observer(
             builder: (_) => AppTabs(
-              labels: [
-                _counted('Held', Stores.credentials.credentials.length),
-                _counted('Issued', Stores.attestations.attestations.length),
-                _counted('Checked', Stores.attestationChecks.checks.length),
-              ],
               initialIndex: widget.initialTab,
-              views: const [
-                HeldAttestations(),
-                IssuedAttestations(),
-                CheckedAttestations(),
+              tabs: [
+                AppTab(
+                  label: _counted(
+                    'Held',
+                    Stores.credentials.credentials.length,
+                  ),
+                  icon: AppIcons.safe,
+                  description: 'Attestations issued to you.',
+                  view: const HeldAttestations(),
+                ),
+                AppTab(
+                  label: _counted(
+                    'Issued',
+                    Stores.attestations.attestations.length,
+                  ),
+                  icon: AppIcons.attestation,
+                  description: 'Attestations issued by this workspace.',
+                  view: const IssuedAttestations(),
+                ),
+                AppTab(
+                  label: _counted(
+                    'Checked',
+                    Stores.attestationChecks.checks.length,
+                  ),
+                  icon: AppIcons.shieldCheck,
+                  description: 'Attestations from others, and their checks.',
+                  view: const CheckedAttestations(),
+                ),
               ],
             ),
           ),

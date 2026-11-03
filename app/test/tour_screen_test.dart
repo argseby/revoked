@@ -36,11 +36,11 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Wi-Fi password'), findsOneWidget);
       for (final title in [
-        'Add something to share',
-        'Make a link',
-        'See what they see',
+        'Add a record',
+        'Create a link',
+        'Recipient view',
         'Change the value',
-        'Take it back',
+        'Revoke the link',
       ]) {
         expect(find.text(title), findsOneWidget);
       }

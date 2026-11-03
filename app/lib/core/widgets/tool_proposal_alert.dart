@@ -17,9 +17,7 @@ class ToolProposalAlert extends StatelessWidget {
       leading: const Icon(AppIcons.askFor),
       title: Text('Proposed by ${proposer.label}'),
       content: Text(
-        'It came from ${proposer.host}, and any tool can pick its own name. '
-        'Check every detail before you save. If you connected this tool, it '
-        'can follow what happens next.',
+        'Sent from ${proposer.host}. Tools choose their own names, so every detail should be checked before saving. A connected tool can follow what happens next.',
       ),
     );
   }

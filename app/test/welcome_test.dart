@@ -75,13 +75,13 @@ void main() {
     await show(tester, const LoginScreen());
     expect(find.text('Revoked'), findsOneWidget);
     expect(find.text('Create account'), findsOneWidget);
-    expect(find.text('I have an account'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
   });
 
   testWidgets('a closed server offers only signing in', (tester) async {
     signups = {'open': false, 'verifyEmail': false};
     await show(tester, const LoginScreen());
-    expect(find.text('This server isn\'t taking new accounts'), findsOneWidget);
+    expect(find.text('Registration is closed on this server'), findsOneWidget);
     expect(find.text('Create account'), findsNothing);
     expect(find.text('Sign in'), findsOneWidget);
   });
@@ -94,13 +94,13 @@ void main() {
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
     expect(launched, isEmpty);
-    expect(find.text('Next: your browser'), findsOneWidget);
+    expect(find.text('Browser setup'), findsOneWidget);
     expect(find.byType(RoundTrip), findsOneWidget);
 
     await tester.tap(find.text('Open browser'));
     await tester.pumpAndSettle();
     expect(launched.single.queryParameters['mode'], 'signup');
-    expect(find.text('Continue in your browser'), findsOneWidget);
+    expect(find.text('Waiting for the browser'), findsOneWidget);
 
     // It used to reopen the page on signing in.
     await tester.tap(find.text('Open browser again'));
@@ -118,13 +118,13 @@ void main() {
     await show(tester, const LoginScreen());
     await tester.tap(find.text('Create account'));
     await tester.pumpAndSettle();
-    expect(find.text('Better on your phone'), findsOneWidget);
+    expect(find.text('Set up on a phone'), findsOneWidget);
     final qr = tester.widget<AppQrCode>(find.byType(AppQrCode));
     expect(qr.data, endsWith('/app'));
 
     await tester.tap(find.text('Continue on this computer'));
     await tester.pumpAndSettle();
-    expect(find.text('Next: your browser'), findsOneWidget);
+    expect(find.text('Browser setup'), findsOneWidget);
     expect(launched, isEmpty);
 
     await tester.tap(find.text('Back'));

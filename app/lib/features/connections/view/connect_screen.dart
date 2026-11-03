@@ -238,7 +238,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
     _busy.value = false;
     if (grant == null) {
       _error.value =
-          Stores.connections.errorMessage ?? 'Couldn’t connect ${r.name}';
+          Stores.connections.errorMessage ?? '${r.name} could not be connected';
       return;
     }
     _reused.value = _joining.value;
@@ -284,7 +284,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       subtitle: !consenting
           ? null
           : joining
-          ? 'Another browser wants to use this connection'
+          ? 'Access requested by another browser'
           : Uri.parse(r.client).host,
       closeLabel: consenting ? 'Decline and go back' : 'Back to the app',
       onClose: () => consenting || paused
@@ -308,8 +308,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
     return AppStatusMessage(
       icon: AppIcons.exclamationTriangle,
       accent: Theme.of(context).colorScheme.error,
-      title: 'This link doesn’t work',
-      message: 'Revoked can’t connect this tool. Ask the tool for a new link.',
+      title: 'Invalid link',
+      message:
+          'This tool cannot be connected. A new link is required from the tool.',
       actions: [
         AppButton(
           label: 'Back to the app',
@@ -325,8 +326,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
     return AppStatusMessage(
       icon: AppIcons.pause,
       accent: Theme.of(context).colorScheme.onSurfaceVariant,
-      title: 'You paused ${r.name}',
-      message: 'Activate it to use it again.',
+      title: '${r.name} is paused',
+      message: 'The tool can be used again after activation.',
       actions: [
         AppButton(
           label: 'Open tool',
@@ -353,11 +354,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
           ? '${r.name} was already connected'
           : '${r.name} is connected',
       message:
-          '${_reused.value ? 'This browser can use it too, with the same '
+          '${_reused.value ? 'This browser has access too, with the same '
                     'permissions as before. ' : ''}'
-          '${_polls ? 'Go back to your browser. ${r.name} carries on from '
-                    'there. ' : ''}'
-          'Review or disconnect it any time in Settings → Workspace → '
+          '${_polls ? '${r.name} continues in the browser. ' : ''}'
+          'Connections are managed under Settings → Workspace → '
           'Connected tools.',
       actions: [
         if (!_polls)
@@ -383,8 +383,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
   /// The address is the one fact here the tool can't choose; its name is a
   /// claim, so the owner is pointed at the address.
   Widget _requester(ConnectRequest r) => Text(
-    'Any tool can pick its own name. Only continue if you recognise '
-    '${Uri.parse(r.client).host}.',
+    'Tool names are chosen by the tool. Continue only if '
+    '${Uri.parse(r.client).host} is recognised.',
   ).muted.small;
 
   Widget _consent(BuildContext context, ConnectRequest r) {
@@ -439,9 +439,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
     return AppActionBar(
       note: Text(
         _joining.value
-            ? 'This browser gets the same permissions you gave before.'
-            : 'Nothing is shared until you approve it. You can disconnect '
-                  'any time.',
+            ? 'This browser receives the same permissions as before.'
+            : 'Nothing is shared until approved. Connected tools can be '
+                  'disconnected later.',
       ).muted.small,
       children: [
         AppButton(
@@ -451,7 +451,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
           onTap: busy ? null : () => _decline(context),
         ),
         AppButton(
-          label: _joining.value ? 'Let this browser in' : 'Connect',
+          label: _joining.value ? 'Allow this browser' : 'Connect',
           icon: AppIcons.link,
           busy: busy,
           onTap: busy ? null : _connect,

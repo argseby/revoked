@@ -38,7 +38,7 @@ class RecordHiddenToggle extends StatelessWidget {
     return AppFormToggleRow(
       icon: inset ? AppIcons.eyeSlash : null,
       label: isFile ? 'Hide file name' : 'Hide value',
-      subtitle: 'Shown only when you reveal it.',
+      subtitle: 'Masked until revealed',
       value: hidden,
       onChanged: onChanged,
       inset: inset,
@@ -64,7 +64,7 @@ class RecordSealedToggle extends StatelessWidget {
       icon: AppIcons.lock,
       label: 'End-to-end encrypted',
       badge: 'Alpha',
-      subtitle: 'Only your devices can read it.',
+      subtitle: 'Readable only on this account\'s devices',
       value: sealed,
       onChanged: onChanged,
     );

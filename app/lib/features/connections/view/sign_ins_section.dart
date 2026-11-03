@@ -38,16 +38,16 @@ class SignInServicesGroup extends StatelessWidget {
           final error = store.loadState.error;
           if (error == null) return const SizedBox.shrink();
           return AppLoadError(
-            title: 'Couldn’t load your sign-ins',
+            title: 'Sign-ins could not be loaded',
             message: error,
             onRetry: store.load,
           );
         }
         return AppListGroup(
-          title: 'Services you signed in to',
+          title: 'Signed-in services',
           footer: const Text(
-            'Each service gets an ID made just for it, and only what you '
-            'agreed to share.',
+            'Each service receives a dedicated ID and only the data approved '
+            'for it.',
           ),
           children: [
             for (final s in store.services)
@@ -72,7 +72,7 @@ class SignInServicesGroup extends StatelessWidget {
     final link = Stores.signIns.links[s.link];
     return [
       if (!s.isDisconnected && link != null && link.status == 'active')
-        'Sharing entries',
+        'Entries shared',
       'last signed in ${dayLabel(s.lastSignInAt)}',
     ].join(' · ');
   }
@@ -126,8 +126,8 @@ class _SignInServicePageState extends State<SignInServicePage> {
       context: context,
       title: 'Revoke ${link.label}?',
       message:
-          '${service.host} can’t read these entries any more. Nobody will be '
-          'able to open this link.',
+          '${service.host} loses access to these entries. The link can no '
+          'longer be opened.',
       confirmLabel: 'Revoke',
       confirmIcon: AppIcons.linkSlash,
       cancelLabel: 'Keep',
@@ -137,7 +137,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
     if (!await Stores.signIns.revokeLink(link) && mounted) {
       AppToast.error(
         context,
-        'Couldn’t revoke',
+        'The link could not be revoked',
         subtitle: Stores.signIns.errorMessage,
       );
     }
@@ -156,8 +156,8 @@ class _SignInServicePageState extends State<SignInServicePage> {
       context: context,
       title: 'Disconnect ${service.host}?',
       message:
-          'It can’t read your entries any more. It can’t sign you in unless you '
-          'approve it again. You may stay signed in there until you sign out.',
+          'The service loses access to shared entries. Signing in again '
+          'requires new approval. Existing sessions there are not ended.',
       content: Observer(
         builder: (_) => AppCheckRow(
           label: 'Get a new ID',
@@ -172,7 +172,10 @@ class _SignInServicePageState extends State<SignInServicePage> {
       destructive: true,
     );
     if (!ok || !mounted) return;
-    await _report('Couldn’t disconnect', await store.disconnect(service));
+    await _report(
+      'The service could not be disconnected',
+      await store.disconnect(service),
+    );
   }
 
   Future<void> _getNewId(SignInService service) async {
@@ -188,24 +191,27 @@ class _SignInServicePageState extends State<SignInServicePage> {
     );
     if (!ok || !mounted) return;
     runInAction(() => store.newIdOnDisconnect = true);
-    await _report('Couldn’t get a new ID', await store.disconnect(service));
+    await _report(
+      'A new ID could not be issued',
+      await store.disconnect(service),
+    );
   }
 
   static const _newIdWarning =
-      'If you come back, it sees you as someone new. You can’t get your old '
-      'account there back.';
+      'The next sign-in appears as a new account. The previous account there '
+      'cannot be recovered.';
 
   String _signInFooter(SignInService service) {
     final host = service.host;
     if (service.isDisconnected) {
-      return '${service.newIdOnReturn ? 'If you sign in again, $host sees you as someone new.' : 'If you sign in again, $host knows you as before.'} '
-          'You may still be signed in there. To sign out, go to $host.';
+      return '${service.newIdOnReturn ? 'A new sign-in appears to $host as a new account.' : 'A new sign-in appears to $host as the same account.'} '
+          'Existing sessions are ended on $host itself.';
     }
     if (service.isPaused) {
-      return 'You can’t sign in to $host while it’s paused. To sign out, go to '
-          '$host.';
+      return 'Sign-in to $host is unavailable while paused. Sessions are ended on '
+          '$host itself.';
     }
-    return 'To sign out, go to $host.';
+    return 'Sessions are ended on $host itself.';
   }
 
   Widget? _manage(SignInService service) {
@@ -226,7 +232,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
       );
     }
     return AppDetailManage(
-      note: 'This doesn’t sign you out of ${service.host}.',
+      note: 'Existing sessions on ${service.host} are not ended.',
       actions: [
         if (service.isPaused)
           AppButton(
@@ -236,7 +242,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
             onTap: busy
                 ? null
                 : () async => _report(
-                    'Couldn’t activate',
+                    'The service could not be activated',
                     await store.activate(service),
                   ),
           )
@@ -248,8 +254,10 @@ class _SignInServicePageState extends State<SignInServicePage> {
             busy: busy,
             onTap: busy
                 ? null
-                : () async =>
-                      _report('Couldn’t pause', await store.pause(service)),
+                : () async => _report(
+                    'The service could not be paused',
+                    await store.pause(service),
+                  ),
           ),
         AppButton(
           label: 'Disconnect',
@@ -276,7 +284,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
           icons: 0,
           sections: [
             AppSkeletonGroup('Sign-in', rows: 2),
-            AppSkeletonGroup('Learned', rows: 2),
+            AppSkeletonGroup('Disclosed', rows: 2),
             AppSkeletonGroup('Shared entries', rows: 1),
           ],
         );
@@ -284,7 +292,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
       final error = store.loadState.error;
       if (error != null) {
         return AppLoadError(
-          title: 'Couldn’t load this sign-in',
+          title: 'The sign-in could not be loaded',
           message: error,
           onRetry: store.load,
         );
@@ -292,7 +300,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
       return AppEmptyState(
         icon: AppIcons.globe,
         title: 'Sign-in not found',
-        subtitle: 'This account has no sign-in here.',
+        subtitle: 'No such sign-in exists for this account.',
         action: AppButton(
           icon: AppIcons.arrowLeft,
           label: 'Back to tools',
@@ -341,18 +349,20 @@ class _SignInServicePageState extends State<SignInServicePage> {
           ],
         ),
         AppListGroup(
-          title: '$host learned',
+          title: 'Disclosed to $host',
           trailing: quiet,
-          footer: Text('$host may have saved these. Only it can delete them.'),
+          footer: Text(
+            '$host may retain this data. It can be deleted only on $host.',
+          ),
           children: [
-            const AppDetailRow(icon: AppIcons.check, label: 'That it is you'),
+            const AppDetailRow(icon: AppIcons.check, label: 'Account identity'),
             for (final s in service.scopes)
               if (s == 'profile' && service.nameRecord.isNotEmpty)
                 AppListRow(
                   icon: AppIcons.check,
                   title: signInScopeLabels[s] ?? s,
                   subtitle: service.name.isEmpty
-                      ? 'In your vault'
+                      ? 'Stored in the vault'
                       : service.name,
                   onTap: () =>
                       context.go(AppRoutes.recordDetailFor(service.nameRecord)),
@@ -376,11 +386,11 @@ class _SignInServicePageState extends State<SignInServicePage> {
               AppDetailRow(
                 icon: AppIcons.info,
                 label: service.isDisconnected && service.link.isEmpty
-                    ? 'Nothing is shared any more'
+                    ? 'Sharing ended'
                     : service.link.isEmpty
-                    ? 'You didn’t share any entries'
-                    : 'Shared from another workspace. Switch workspace to see '
-                          'it.',
+                    ? 'No entries shared'
+                    : 'Shared from another workspace. Visible only in that '
+                          'workspace.',
               ),
           ],
         ),
@@ -391,11 +401,11 @@ class _SignInServicePageState extends State<SignInServicePage> {
 
   Widget? _sharedFooter(String host, Link link) => switch (link.status) {
     'active' => Text(
-      'Shared entries stay in your vault. $host reads them from there until '
-      'you revoke them.',
+      'Shared entries remain in the vault. $host reads them there until '
+      'revoked.',
     ),
-    'paused' => Text('$host can’t read these entries while they’re paused.'),
-    'revoked' => Text('$host can’t read these entries any more.'),
+    'paused' => Text('$host cannot read these entries while paused.'),
+    'revoked' => Text('$host can no longer read these entries.'),
     _ => null,
   };
 

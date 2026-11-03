@@ -13,6 +13,9 @@ import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/tool_tag.dart';
+import 'package:revoked_app/core/utils/people.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
@@ -21,7 +24,6 @@ import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -77,6 +79,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ShellSlots.action.claim(_primaryAction);
+      // Which tool keeps or reads a section is said on the section itself.
+      if (Stores.connections.connections.isEmpty) Stores.connections.load();
       if (widget.editingShareId != null || widget.shareFilterId != null) {
         Stores.shares.loadShares();
       }
@@ -137,36 +141,32 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           final failure = store.loadState.error;
           if (failure != null) {
             return AppLoadError(
-              title: 'Couldn\'t load your vault',
+              title: 'The vault could not be loaded',
               message: failure,
               onRetry: store.loadRecords,
             );
           }
           return AppEmptyState(
             icon: AppIcons.safe,
-            title: 'Keep what you share in one place',
+            title: 'No records',
             subtitle:
-                'Add a detail once, like an IBAN or a password, and share it '
-                'as often as you like. Change it here and everyone you shared '
-                'it with sees the update.',
+                'A record holds a single value, such as an IBAN or a password. '
+                'Changes apply to every link that shares it.',
             example: const AppEmptyExample(
               title: 'IBAN',
               detail: 'DE89 •••• •••• 3000',
               badge: 'hidden',
             ),
             steps: const [
-              AppEmptyStep('Record', 'One detail, hidden if you like'),
-              AppEmptyStep('Section', 'Records you share together'),
-              AppEmptyStep(
-                'Link',
-                'Shows the latest value until you revoke it',
-              ),
+              AppEmptyStep('Record', 'A single value, optionally hidden'),
+              AppEmptyStep('Section', 'Records shared together'),
+              AppEmptyStep('Link', 'Shows the current value until revoked'),
             ],
             // New here, the tour shows the whole loop with real data; the
             // forms are one tap further.
             action: AppButton(
               icon: AppIcons.play,
-              label: 'Take the 1-minute tour',
+              label: 'Take the tour',
               onTap: () => context.go(AppRoutes.tour),
             ),
             secondaryAction: Wrap(
@@ -267,13 +267,13 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               AppListBanner(
                 icon: AppIcons.plusSlashMinus,
                 message:
-                    'Editing "${_sectionName(section)}". Tick the records '
-                    'that belong in it.',
+                    'Editing "${_sectionName(section)}". Ticked records belong '
+                    'to it.',
               ),
             ],
             filters: chips,
             emptyMessage: records.isEmpty
-                ? 'No records match your filters.'
+                ? 'No records match the filters.'
                 : null,
             groups: [
               AppListGroup(
@@ -361,12 +361,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           for (final (section, sectionRecords) in visibleSections)
             AppListGroup(
               key: ValueKey('${section.id}-$filter'),
-              title: section.isSignIn
-                  ? 'Sign-in · ${_sectionName(section)}'
-                  : section.isRequested
-                  ? '${_sectionName(section)} · requested by '
-                        '${section.requestedBy}'
-                  : _sectionName(section),
+              title: _sectionName(section),
               noun: 'records',
               previewCount: 5,
               trailing: shareEdit != null
@@ -376,14 +371,16 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                           _toggleShareSection(shareEdit, section, on),
                     )
                   : _sectionMenu(context, section, sectionRecords.length),
-              children: sectionRecords.isEmpty
-                  ? const [
-                      AppDetailRow(
-                        icon: AppIcons.info,
-                        label: 'No records in this section yet',
-                      ),
-                    ]
-                  : [for (final r in sectionRecords) row(r)],
+              children: [
+                ...?_sectionSource(context, section),
+                if (sectionRecords.isEmpty)
+                  const AppDetailRow(
+                    icon: AppIcons.info,
+                    label: 'No records in this section',
+                  )
+                else
+                  for (final r in sectionRecords) row(r),
+              ],
             ),
           if (unsorted.isNotEmpty)
             AppListGroup(
@@ -416,12 +413,12 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               AppListBanner(
                 icon: AppIcons.plusSlashMinus,
                 message:
-                    'Choose what "${shareEdit.label}" shares. Tick whole '
-                    'sections or single records.',
+                    'Editing what "${shareEdit.label}" shares. Whole sections '
+                    'or single records can be ticked.',
               ),
           ],
           filters: chips,
-          emptyMessage: groups.isEmpty ? 'Nothing matches your filters.' : null,
+          emptyMessage: groups.isEmpty ? 'Nothing matches the filters.' : null,
           groups: groups,
         );
       },
@@ -501,7 +498,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
   /// One line of the value, masked while the record is hidden.
   String _preview(models.Record r) {
-    if (r.isLocked) return 'Can’t read on this device';
+    if (r.isLocked) return 'Not readable on this device';
     final hidden = r.isHidden && !Stores.vault.isRevealed(r.id);
     if (r.isFile) {
       final name = hidden ? '••••••••' : r.displayName;
@@ -519,6 +516,34 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     return value.isEmpty ? '—' : value;
   }
 
+  /// Where a section comes from and who else reaches it, as rows at the top
+  /// of its group: the tool that keeps it, the tools that read it, the
+  /// service it was made for at sign-in, or who asked for it. Each opens the
+  /// thing it names. Null for a section that is simply the person's own.
+  List<Widget>? _sectionSource(BuildContext context, Section section) {
+    final rows = <Widget>[];
+    if (section.isSignIn) {
+      rows.add(
+        AppListRow(
+          icon: AppIcons.globe,
+          title: 'From signing in to ${section.requestedBy}',
+          subtitle: 'Shared with this service at sign-in',
+          onTap: () => _openSignInService(context, section),
+        ),
+      );
+    } else if (section.isRequested) {
+      rows.add(
+        AppListRow(
+          icon: AppIcons.inboxFill,
+          title: 'Requested by ${section.requestedBy}',
+          subtitle: 'Sent in response to the request',
+          onTap: () => context.go(AppRoutes.requestsReceived),
+        ),
+      );
+    }
+    return rows.isEmpty ? null : rows;
+  }
+
   /// Goes to the service this section's entries were made for, or to the list
   /// of services when its row is gone.
   Future<void> _openSignInService(BuildContext context, Section section) async {
@@ -533,12 +558,71 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     context.go(AppRoutes.settingsPage(SettingsPage.connectedTools.slug));
   }
 
+  /// The tools behind a section, as chips in its header: the one that keeps
+  /// it, and those that may read it. Each opens the tool's page.
+  List<Widget> _toolChips(BuildContext context, Section section) {
+    final connections = Stores.connections.connections;
+    final chips = <Widget>[];
+    for (final c in connections) {
+      if (c.section != section.id) continue;
+      final email = memberEmail(c.user);
+      chips.add(
+        ToolIdChip(
+          c.id,
+          icon: AppIcons.plug,
+          label: c.sectionOff ? '${c.shortId} · off' : null,
+          tooltip: [
+            'Kept by ${c.name}',
+            c.sectionOff
+                ? 'Switched off for this section'
+                : c.vaultAccess == 'read'
+                ? 'Read access'
+                : 'Adds records and changes only its own',
+            if (email != null) 'Connected by $email',
+          ].join(' · '),
+          onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+        ),
+      );
+    }
+    final readers = [
+      for (final c in connections)
+        if (c.section != section.id && c.reaches(section.id)) c,
+    ];
+    if (readers.length == 1) {
+      final c = readers.single;
+      chips.add(
+        ToolIdChip(
+          c.id,
+          icon: AppIcons.eye,
+          tooltip: 'Read by ${c.name}',
+          onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+        ),
+      );
+    } else if (readers.length > 1) {
+      chips.add(
+        ToolIdChip(
+          '',
+          icon: AppIcons.eye,
+          label: '${readers.length} tools',
+          tooltip: 'Read by ${readers.length} tools',
+          onTap: () => context.go(
+            AppRoutes.settingsPage(SettingsPage.connectedTools.slug),
+          ),
+        ),
+      );
+    }
+    return [
+      for (final chip in chips) ...[chip, AppSpacing.gapXs],
+    ];
+  }
+
   Widget _sectionMenu(BuildContext context, Section section, int shown) {
     final store = Stores.vault;
     final access = Stores.shares.linksForSection(section.id);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        ..._toolChips(context, section),
         AppText('${section.records.length}').small.muted,
         AppSpacing.gapXs,
         AppMenuButton(
@@ -622,7 +706,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     if (ok && mounted) {
       AppToast.success(
         context,
-        selected ? 'Added record to section' : 'Removed record from section',
+        selected ? 'Record added to section' : 'Record removed from section',
       );
     }
   }
@@ -643,8 +727,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       AppToast.success(
         context,
         selected
-            ? 'Added record to the share'
-            : 'Removed record from the share',
+            ? 'Record added to the share'
+            : 'Record removed from the share',
       );
     }
   }
@@ -683,7 +767,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Delete section',
-      message: 'You can\'t undo this. The records in it stay in your vault.',
+      message: 'The records in it stay in the vault. This cannot be undone.',
       content: ApiPreview(
         spec: VaultStore.deleteSectionSpec(id),
         title: 'API request · delete',

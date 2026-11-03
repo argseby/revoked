@@ -86,9 +86,7 @@ void openRecordEditSheet(
                       children: [
                         const Text('Edit record').header,
                         const SizedBox(height: AppSpacing.xxs),
-                        const Text(
-                          'Change the name, key or value.',
-                        ).muted.small,
+                        const Text('Label, key and value').muted.small,
                       ],
                     ),
                   ),
@@ -104,7 +102,7 @@ void openRecordEditSheet(
                             ctx,
                             'Label',
                             isRequired: true,
-                            explanation: 'The name you see for this record.',
+                            explanation: 'Display name for this record',
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           AppTextField(
@@ -116,7 +114,7 @@ void openRecordEditSheet(
                             ctx,
                             'Key',
                             isRequired: true,
-                            explanation: 'A short ID for links and templates.',
+                            explanation: 'Identifier for links and templates',
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Container(
@@ -139,9 +137,9 @@ void openRecordEditSheet(
                             ctx,
                             'Type',
                             explanation: isFile
-                                ? 'A file stays a file. To store something '
-                                      'else, add a new record.'
-                                : 'What kind of value this is.',
+                                ? 'The type of a file record cannot be '
+                                      'changed.'
+                                : 'Kind of value stored',
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           if (isFile)
@@ -162,8 +160,8 @@ void openRecordEditSheet(
                               'File name',
                               isRequired: true,
                               explanation:
-                                  'The name people see when they download '
-                                  'it. The file itself doesn\'t change.',
+                                  'The name used for downloads. The file '
+                                  'itself is unchanged.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             AppTextField(
@@ -181,8 +179,8 @@ void openRecordEditSheet(
                               ctx,
                               'File',
                               explanation:
-                                  'Replace it and everyone with an open link '
-                                  'gets the new file.',
+                                  'A replacement is served to every open '
+                                  'link.',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Row(
@@ -230,8 +228,8 @@ void openRecordEditSheet(
                               'Value',
                               isRequired: true,
                               explanation:
-                                  'The detail itself, like a password or an '
-                                  'IBAN.',
+                                  'The stored value, such as a password or '
+                                  'an IBAN',
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             RecordValueField(

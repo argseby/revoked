@@ -191,7 +191,7 @@ abstract class _CredentialsStore with Store {
       // A failed check is an unverified server, not the absence of an opinion.
       verdict = TrustVerdict.unverified(
         domain: domain,
-        reason: 'We couldn’t check this domain.',
+        reason: 'This domain could not be checked.',
       );
     }
     runInAction(() {
@@ -220,7 +220,7 @@ abstract class _CredentialsStore with Store {
       if (foreign && base == null) {
         throw ApiException(
           0,
-          'This link points to an invalid server. Ask for a new one.',
+          'This link points to an invalid server. A new link is required.',
           code: 'invalid_origin',
         );
       }
@@ -251,7 +251,7 @@ abstract class _CredentialsStore with Store {
     } on StateError catch (e) {
       // The identity's key is not on this device.
       offerError = AppErrorMessage(
-        title: 'This identity lives on another device',
+        title: 'This identity is on another device',
         description: e.message,
         code: '',
       );
@@ -331,7 +331,7 @@ abstract class _CredentialsStore with Store {
       presentError = e.message;
       return const PresentationOutcome(delivered: false);
     } on FormatException catch (e) {
-      presentError = 'This attestation can’t be shown: ${e.message}.';
+      presentError = 'This attestation cannot be shown: ${e.message}.';
       return const PresentationOutcome(delivered: false);
     } catch (e) {
       presentError = AppErrorMessage.fromException(e).description;
@@ -424,18 +424,18 @@ abstract class _CredentialsStore with Store {
   String? get askProblem {
     final type = askTypeController.text.trim();
     if (type.isEmpty) {
-      return 'Say what kind, for example membership.';
+      return 'A kind is required, for example membership.';
     }
     if (!_askType.hasMatch(type)) {
-      return 'Use one word for the kind, for example membership.';
+      return 'The kind must be one word, for example membership.';
     }
     for (final claim in AttestationAsk.splitClaims(askClaimsController.text)) {
       if (!_askClaim.hasMatch(claim)) {
-        return '“$claim” won’t work as a name. Use letters, digits and '
+        return '“$claim” is not a valid name. Names use letters, digits and '
             'underscores, and start with a letter.';
       }
     }
-    if (askIdentityId == null) return 'Choose which identity it’s for.';
+    if (askIdentityId == null) return 'An identity is required.';
     return null;
   }
 

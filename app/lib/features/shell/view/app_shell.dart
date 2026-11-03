@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -15,13 +16,15 @@ import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_search_field.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/feature_notice.dart';
-import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
+import 'package:revoked_app/features/shell/utils/docs_links.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/features/shell/view/new_picker.dart';
 
 /// One of the shell's places, keyed by its root in `AppRoutes.allDestinations`.
@@ -71,9 +74,10 @@ const _phoneBarDestinations = 4;
 /// The frame around every signed-in screen.
 ///
 /// The same destinations at every width: a bottom bar with More on a phone, a
-/// rail on a mid-sized window and a sidebar on a wide one. One "New" button
-/// opens the picker for everything that can be created; search and the
-/// account menu are reachable from every layout.
+/// rail on a mid-sized window and a sidebar on a wide one. One "New" button,
+/// in the navigation or floating on a phone, opens the picker for everything
+/// that can be created; search and the account menu are reachable from every
+/// layout.
 class AppShell extends StatefulWidget {
   final Widget child;
 
@@ -122,6 +126,11 @@ class _AppShellState extends State<AppShell> {
       context: context,
       title: 'More',
       actions: [
+        AppSheetAction(
+          icon: AppIcons.plus,
+          label: 'Create something new',
+          onTap: () => _openNew(AppRoutes.rootOf(_lastRoot)),
+        ),
         for (var i = _phoneBarDestinations; i < shown.length; i++)
           AppSheetAction(
             icon: shown[i].icon,
@@ -154,9 +163,14 @@ class _AppShellState extends State<AppShell> {
 
   /// The screen's own title, or the place's name while it has none.
   Widget _title(String? root) {
-    final fallback = root == null
-        ? 'Settings'
-        : _places.firstWhere((d) => d.route == root).label;
+    final onNotifications = GoRouterState.of(
+      context,
+    ).uri.path.startsWith(AppRoutes.notifications);
+    final fallback = root != null
+        ? _places.firstWhere((d) => d.route == root).label
+        : onNotifications
+        ? 'Notifications'
+        : 'Settings';
     return Observer(
       builder: (context) =>
           ShellSlots.title.builder?.call(context) ??
@@ -220,12 +234,17 @@ class _AppShellState extends State<AppShell> {
           if (SheetTracker.anyOpen || destination == null || isSubPage) {
             return const SizedBox.shrink();
           }
+          // The page's own action when it has one; the general New stays
+          // under More.
+          final action = pageActionFor(root);
           return FloatingActionButton.extended(
             heroTag: 'shell-new',
-            tooltip: 'Create something new',
-            onPressed: () => _openNew(root),
+            tooltip: action?.label ?? 'Create something new',
+            onPressed: () => action == null
+                ? _openNew(root)
+                : startNew(context, action.kind),
             icon: const Icon(AppIcons.plus, size: 18),
-            label: const Text('New'),
+            label: Text(action?.label ?? 'New'),
           );
         },
       ),
@@ -247,6 +266,7 @@ class _AppShellState extends State<AppShell> {
         title: _title(root),
         actions: [
           _slot(ShellSlots.action),
+          _DocsButton(path: path),
           AppButton(
             icon: AppIcons.search,
             style: AppButtonStyle.ghost,
@@ -315,7 +335,12 @@ class _AppShellState extends State<AppShell> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (sidebar)
-            _Sidebar(shown: shown, destination: destination, onSelect: _go)
+            _Sidebar(
+              shown: shown,
+              destination: destination,
+              onSelect: _go,
+              onNew: () => _openNew(root),
+            )
           else
             NavigationRail(
               selectedIndex: destination,
@@ -323,9 +348,19 @@ class _AppShellState extends State<AppShell> {
               labelType: NavigationRailLabelType.all,
               // A phone on its side is this wide but too short for every place.
               scrollable: true,
-              leading: const Padding(
-                padding: EdgeInsets.only(bottom: AppSpacing.md),
-                child: AccountMenu(),
+              leading: Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: Column(
+                  children: [
+                    const AccountMenu(),
+                    AppSpacing.gapSm,
+                    AppButton(
+                      icon: AppIcons.plus,
+                      tooltip: 'Create something new (N)',
+                      onTap: () => _openNew(root),
+                    ),
+                  ],
+                ),
               ),
               destinations: [
                 for (final d in shown)
@@ -343,28 +378,32 @@ class _AppShellState extends State<AppShell> {
                 title: _title(root),
                 actions: [
                   _slot(ShellSlots.action),
+                  _DocsButton(path: path),
                   if (!sidebar) const _NotificationBell(),
-                  // Search sits beside New because those two are what a
-                  // person reaches for from any screen: find a thing, or make
-                  // one. The sidebar carries its own, so it is not repeated.
+                  // The sidebar carries its own search, so it is not repeated.
                   if (!sidebar)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(left: AppSpacing.xs),
                       child: SizedBox(
-                        width: _searchTriggerWidth,
+                        // Shrinks on a narrow rail so the title keeps room.
+                        width: (MediaQuery.sizeOf(context).width * 0.3).clamp(
+                          160,
+                          _searchTriggerWidth,
+                        ),
                         child: _SearchField(),
                       ),
                     ),
-                  // The one primary action, rightmost on every wide layout.
-                  if (destination != null)
+                  if (pageActionFor(root) case final action?)
                     Padding(
                       padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      // On the rail the bar is too narrow for a title, the
+                      // search pill and a labelled button together.
                       child: AppButton(
                         icon: AppIcons.plus,
-                        label: 'New',
+                        label: sidebar ? action.label : null,
+                        tooltip: action.label,
                         size: AppButtonSize.small,
-                        tooltip: 'Create something new (N)',
-                        onTap: () => _openNew(root),
+                        onTap: () => startNew(context, action.kind),
                       ),
                     ),
                   SizedBox(width: AppSpacing.screenH(context)),
@@ -385,11 +424,13 @@ class _Sidebar extends StatelessWidget {
   final List<_Destination> shown;
   final int? destination;
   final ValueChanged<int> onSelect;
+  final VoidCallback onNew;
 
   const _Sidebar({
     required this.shown,
     required this.destination,
     required this.onSelect,
+    required this.onNew,
   });
 
   /// The places as a tree: what is built on the vault hangs under it on a
@@ -442,9 +483,9 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onSettings = GoRouterState.of(
-      context,
-    ).uri.path.startsWith(AppRoutes.settings);
+    final path = GoRouterState.of(context).uri.path;
+    final onSettings = path.startsWith(AppRoutes.settings);
+    final onNotifications = path.startsWith(AppRoutes.notifications);
     return SizedBox(
       width: width,
       child: SafeArea(
@@ -456,6 +497,13 @@ class _Sidebar extends StatelessWidget {
             children: [
               const AccountMenu(expanded: true),
               AppSpacing.gapSm,
+              AppButton(
+                icon: AppIcons.plus,
+                label: 'New',
+                tooltip: 'Create something new (N)',
+                onTap: onNew,
+              ),
+              AppSpacing.gapXs,
               const _SearchField(),
               AppSpacing.gapMd,
               Semantics(
@@ -474,6 +522,7 @@ class _Sidebar extends StatelessWidget {
                   return _SidebarItem(
                     icon: AppIcons.bell,
                     label: 'Notifications',
+                    selected: onNotifications,
                     semanticsLabel: unread > 0
                         ? 'Notifications, $unread unread'
                         : 'Notifications',
@@ -483,7 +532,7 @@ class _Sidebar extends StatelessWidget {
                             variant: AppBadgeVariant.primary,
                           )
                         : null,
-                    onTap: () => openNotificationsSheet(context),
+                    onTap: () => context.go(AppRoutes.notifications),
                   );
                 },
               ),
@@ -502,7 +551,7 @@ class _Sidebar extends StatelessWidget {
 }
 
 /// How much room the trigger takes in a top bar — enough for the hint, but
-/// not so much that it crowds New on a mid-sized window.
+/// not so much that it crowds the bar on a mid-sized window.
 const double _searchTriggerWidth = 240;
 
 /// Opens the search and link drawer. `/` and Ctrl+K open it too.
@@ -606,7 +655,7 @@ class _NotificationBell extends StatelessWidget {
               tooltip: unread > 0
                   ? 'Notifications, $unread unread'
                   : 'Notifications',
-              onTap: () => openNotificationsSheet(context),
+              onTap: () => context.go(AppRoutes.notifications),
             ),
             if (unread > 0)
               Positioned(
@@ -624,6 +673,36 @@ class _NotificationBell extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Opens the documentation page for wherever the person is.
+class _DocsButton extends StatelessWidget {
+  final String path;
+
+  const _DocsButton({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    final url = docsUrlFor(path);
+    if (url == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.xs),
+      child: AppButton(
+        icon: AppIcons.book,
+        style: AppButtonStyle.ghost,
+        tooltip: 'Documentation',
+        onTap: () async {
+          final ok = await launchUrl(
+            Uri.parse(url),
+            mode: LaunchMode.externalApplication,
+          );
+          if (!ok && context.mounted) {
+            AppToast.error(context, '$url could not be opened');
+          }
+        },
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/models/sign_in_service.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
@@ -149,11 +150,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No tools connected'), findsOneWidget);
-    expect(find.text('Services you signed in to'), findsOneWidget);
+    expect(find.text('Signed-in services'), findsOneWidget);
     expect(find.text('game.example'), findsOneWidget);
     expect(find.text('shop.example:8443'), findsOneWidget);
     expect(
-      find.text('Sharing entries · last signed in 2026-11-01'),
+      find.text(
+        'Entries shared · last signed in ${dayOf('2026-11-01 10:00:00.000Z')}',
+      ),
       findsOneWidget,
     );
   });
@@ -167,11 +170,8 @@ void main() {
     router.go(AppRoutes.connectedTools);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Let tools help, without opening your vault'),
-      findsOneWidget,
-    );
-    expect(find.text('Services you signed in to'), findsNothing);
+    expect(find.text('No connected tools'), findsOneWidget);
+    expect(find.text('Signed-in services'), findsNothing);
   });
 
   testWidgets('a server without the list shows the page as before', (
@@ -182,10 +182,7 @@ void main() {
     router.go(AppRoutes.connectedTools);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Let tools help, without opening your vault'),
-      findsOneWidget,
-    );
+    expect(find.text('No connected tools'), findsOneWidget);
     expect(Stores.signIns.loadState.error, isNull);
   });
 
@@ -197,7 +194,7 @@ void main() {
     router.go(AppRoutes.connectedTools);
     await tester.pumpAndSettle();
 
-    expect(find.text('Couldn’t load your sign-ins'), findsOneWidget);
+    expect(find.text('Sign-ins could not be loaded'), findsOneWidget);
   });
 
   testWidgets('a service shows what it learned, and its link can be revoked', (
@@ -207,8 +204,11 @@ void main() {
     router.go(AppRoutes.signInServiceFor('s1'));
     await tester.pumpAndSettle();
 
-    expect(find.text('To sign out, go to game.example.'), findsOneWidget);
-    expect(find.text('That it is you'), findsOneWidget);
+    expect(
+      find.text('Sessions are ended on game.example itself.'),
+      findsOneWidget,
+    );
+    expect(find.text('Account identity'), findsOneWidget);
     expect(find.text('Your email address'), findsOneWidget);
     expect(find.text('Your name'), findsNothing);
     expect(find.text('active · 2 entries'), findsOneWidget);
@@ -223,7 +223,7 @@ void main() {
     expect(revoked, ['l1']);
     expect(find.text('revoked · 2 entries'), findsOneWidget);
     expect(
-      find.text('game.example can’t read these entries any more.'),
+      find.text('game.example can no longer read these entries.'),
       findsOneWidget,
     );
   });
@@ -234,14 +234,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('This doesn’t sign you out of game.example.'),
+      find.text('Existing sessions on game.example are not ended.'),
       findsOneWidget,
     );
     await tester.tap(find.text('Pause'));
     await tester.pumpAndSettle();
     expect(controls, ['pause {}']);
     expect(find.text('Paused'), findsOneWidget);
-    expect(find.textContaining('while it’s paused'), findsOneWidget);
+    expect(find.textContaining('unavailable while paused'), findsOneWidget);
 
     await tester.tap(find.text('Activate'));
     await tester.pumpAndSettle();
@@ -267,7 +267,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(controls, ['disconnect {"newId":false}']);
-    expect(find.textContaining('knows you as before'), findsOneWidget);
+    expect(
+      find.textContaining('to game.example as the same account'),
+      findsOneWidget,
+    );
     expect(find.text('Pause'), findsNothing);
     expect(find.text('Disconnect'), findsNothing);
 
@@ -279,7 +282,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(controls.last, 'disconnect {"newId":true}');
-    expect(find.textContaining('sees you as someone new'), findsOneWidget);
+    expect(
+      find.textContaining('to game.example as a new account'),
+      findsOneWidget,
+    );
     expect(find.text('Get a new ID'), findsNothing);
   });
 
@@ -320,14 +326,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Disconnected'), findsOneWidget);
     expect(
-      find.text('Sharing entries · last signed in 2026-11-01'),
+      find.text(
+        'Entries shared · last signed in ${dayOf('2026-11-01 10:00:00.000Z')}',
+      ),
       findsNothing,
     );
 
     router.go(AppRoutes.signInServiceFor('s1'));
     await tester.pumpAndSettle();
-    expect(find.text('Nothing is shared any more'), findsOneWidget);
-    expect(find.text('You didn’t share any entries'), findsNothing);
+    expect(find.text('Sharing ended'), findsOneWidget);
+    expect(find.text('No entries shared'), findsNothing);
   });
 
   testWidgets('a service shows the name it gets, and where to change it', (
@@ -367,7 +375,7 @@ void main() {
     router.go(AppRoutes.signInServiceFor('s2'));
     await tester.pumpAndSettle();
 
-    expect(find.text('You didn’t share any entries'), findsOneWidget);
+    expect(find.text('No entries shared'), findsOneWidget);
     expect(find.text('Open link'), findsNothing);
   });
 
@@ -380,7 +388,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Shared from another workspace. Switch workspace to see it.'),
+      find.text(
+        'Shared from another workspace. Visible only in that workspace.',
+      ),
       findsOneWidget,
     );
   });

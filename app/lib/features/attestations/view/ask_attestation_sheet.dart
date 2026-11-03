@@ -43,11 +43,11 @@ class _AskSheet extends StatelessWidget {
     if (!root.mounted) return;
     await showQrSheet(
       context: root,
-      title: 'Send this to whoever confirms it',
+      title: 'Link for the issuer',
       link: ask.link,
       message:
-          'They open it in Revoked and fill in what they confirm. They send '
-          'you a link back. Open it to accept with ${identity!.name}.',
+          'The issuer opens it in Revoked and fills in the details. The offer '
+          'link they return is accepted with ${identity!.name}.',
     );
   }
 
@@ -75,12 +75,12 @@ class _AskSheet extends StatelessWidget {
                 const Text('Ask for an attestation').header,
                 AppSpacing.gapXxs,
                 const Text(
-                  'Ask a club, an employer or anyone else to confirm '
-                  'something about you. You get a link to pass on yourself.',
+                  'A club, an employer or another issuer confirms a fact '
+                  'about an identity. The link is not sent automatically.',
                 ).muted.small,
                 AppSpacing.gapLg,
                 AppFormField(
-                  label: 'What kind',
+                  label: 'Kind',
                   inset: false,
                   child: AppTextField(
                     controller: store.askTypeController,
@@ -90,7 +90,7 @@ class _AskSheet extends StatelessWidget {
                 ),
                 AppSpacing.gapSm,
                 AppFormField(
-                  label: 'What they should confirm (optional)',
+                  label: 'Details (optional)',
                   inset: false,
                   child: AppTextField(
                     controller: store.askClaimsController,
@@ -100,7 +100,7 @@ class _AskSheet extends StatelessWidget {
                 ),
                 AppSpacing.gapLg,
                 AppFormField(
-                  label: 'For your identity',
+                  label: 'Your identity',
                   inset: false,
                   child: IdentityPicker(
                     selectedId: store.askIdentityId,

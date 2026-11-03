@@ -128,7 +128,7 @@ void main() {
     contacts = [];
     await open(tester);
 
-    expect(find.text('Keep the people you deal with'), findsOneWidget);
+    expect(find.text('No contacts'), findsOneWidget);
     expect(find.text('Add a contact'), findsOneWidget);
   });
 
@@ -148,7 +148,7 @@ void main() {
 
     await tester.tap(find.text('Ada Lovelace'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Send them something'));
+    await tester.tap(find.text('Send records'));
     await tester.pumpAndSettle();
 
     expect(find.text('Send to Ada Lovelace'), findsOneWidget);
@@ -158,7 +158,7 @@ void main() {
     // Nothing picked yet, so the button is still refusing.
     expect(Stores.contacts.canSend, isFalse);
 
-    await tester.tap(find.text('Pick from your vault'));
+    await tester.tap(find.text('Select from the vault'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('IBAN'));
     await tester.pumpAndSettle();
@@ -176,7 +176,7 @@ void main() {
       'label': 'My bank details',
     });
     // It reached their app, so there is no link to pass on.
-    expect(find.textContaining('Give this to'), findsNothing);
+    expect(find.textContaining('Link for'), findsNothing);
   });
 
   testWidgets('a contact with no account here gets the link to pass on', (
@@ -187,11 +187,11 @@ void main() {
 
     await tester.tap(find.text('Ada Lovelace'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Send them something'));
+    await tester.tap(find.text('Send records'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'My number');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pick from your vault'));
+    await tester.tap(find.text('Select from the vault'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('IBAN'));
     await tester.pumpAndSettle();
@@ -200,8 +200,8 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Send'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Give this to Ada Lovelace'), findsOneWidget);
-    expect(find.textContaining('no account here yet'), findsOneWidget);
+    expect(find.textContaining('Link for Ada Lovelace'), findsOneWidget);
+    expect(find.textContaining('has no account here. The link is delivered'), findsOneWidget);
   });
 
   testWidgets('asking is signed with an identity of this workspace', (
@@ -211,10 +211,10 @@ void main() {
 
     await tester.tap(find.text('Ada Lovelace'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Ask them for something'));
+    await tester.tap(find.text('Request data'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ask Ada Lovelace for something'), findsOneWidget);
+    expect(find.text('Request from Ada Lovelace'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, 'Your new address');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Ask'));

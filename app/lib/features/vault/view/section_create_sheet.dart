@@ -112,7 +112,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       return;
     }
     _store.setSectionKeyCheck(
-      warning: 'This key is taken. Pick another.',
+      warning: 'This key is already in use.',
       suggestion: _generateAlternativeKey(input),
     );
   }
@@ -153,7 +153,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       if (widget.parentContext.mounted) {
         AppToast.error(
           widget.parentContext,
-          'Couldn\'t create the section',
+          'The section could not be created.',
           subtitle: _store.errorMessage,
         );
       }
@@ -191,8 +191,8 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
             _SheetHeader(
               title: isDup ? 'Duplicate section' : 'New section',
               description: isDup
-                  ? 'Copy this section under a new key.'
-                  : 'Keep records that belong together in one place.',
+                  ? 'Creates a copy of this section under a new key.'
+                  : 'Groups related records.',
             ),
             const AppDivider(),
           ],
@@ -231,13 +231,13 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
 
   Widget _buildNameRow() => AppFormField(
     label: 'Name',
-    explanation: 'The name you see for this section.',
+    explanation: 'Display name for this section',
     child: AppTextField(controller: _store.sectionName, hint: 'My Section'),
   );
 
   Widget _buildKeyRow() => AppFormField(
     label: 'Key',
-    explanation: 'A short ID for links and templates.',
+    explanation: 'Identifier for links and templates',
     error: _store.sectionKeyWarning,
     action: _store.sectionSuggestedKey == null
         ? null
@@ -293,7 +293,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
       if (widget.parentContext.mounted) {
         AppToast.error(
           widget.parentContext,
-          'Couldn\'t rename the section',
+          'The section could not be renamed.',
           subtitle: _store.errorMessage,
         );
       }
@@ -324,7 +324,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
         children: [
           const _SheetHeader(
             title: 'Rename section',
-            description: 'Give this section a new name.',
+            description: 'A new display name for this section.',
           ),
           const AppDivider(),
           Flexible(
@@ -335,7 +335,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
                 const AppFormSectionHeader('Details'),
                 AppFormField(
                   label: 'Name',
-                  explanation: 'The name you see for this section.',
+                  explanation: 'Display name for this section',
                   child: AppTextField(
                     controller: _store.renameSectionName,
                     hint: 'My Section',

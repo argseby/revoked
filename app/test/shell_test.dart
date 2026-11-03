@@ -164,11 +164,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('By person'));
       await tester.pumpAndSettle();
-      expect(find.text('Only you can see your data'), findsOneWidget);
+      expect(find.text('No recipients'), findsOneWidget);
 
       router.go(AppRoutes.shareDetailFor('l1'));
       await tester.pumpAndSettle();
-      expect(find.text('Only you can see your data'), findsOneWidget);
+      expect(find.text('No recipients'), findsOneWidget);
     });
 
     testWidgets('phone: the link alone, with a way back', (tester) async {
@@ -199,8 +199,14 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
-    expect(find.text('New'), findsOneWidget);
-    // Search sits beside New: the two things reached from any screen.
+    // The rail carries New as an icon under the account.
+    expect(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.byTooltip('Create something new (N)'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Search or paste link'), findsOneWidget);
   });
 
@@ -218,9 +224,9 @@ void main() {
     tester,
   ) async {
     // One pixel over the breakpoint is where the bar is tightest: a rail, a
-    // title, the bell, the search pill and New. An overflow here throws.
+    // title, the bell and the search pill. An overflow here throws.
     await signedIn(tester, size: const Size(601, 800));
-    expect(find.text('New'), findsOneWidget);
+    expect(find.byTooltip('Create something new (N)'), findsOneWidget);
     expect(find.text('Search or paste link'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -248,12 +254,16 @@ void main() {
     expect(location(router), AppRoutes.vault);
   });
 
-  testWidgets('settings is not one of the four, and offers no New', (
+  testWidgets('New sits in the sidebar, not the top bar, on every page', (
     tester,
   ) async {
     final router = await signedIn(tester, size: const Size(1200, 800));
     router.go(AppRoutes.settings);
     await tester.pumpAndSettle();
-    expect(find.text('New'), findsNothing);
+    expect(find.text('New'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('New')),
+      findsNothing,
+    );
   });
 }

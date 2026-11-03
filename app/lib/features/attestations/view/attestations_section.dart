@@ -72,7 +72,7 @@ class _TabList extends StatelessWidget {
         if (children.isEmpty) {
           if (failure != null) {
             return AppLoadError(
-              title: 'Couldn’t load this list',
+              title: 'The list could not be loaded',
               message: failure,
               onRetry: onRetry,
             );
@@ -108,32 +108,25 @@ class HeldAttestations extends StatelessWidget {
     return Observer(
       builder: (_) => _TabList(
         intro:
-            'What others confirmed about you. Nobody sees one unless you '
-            'choose to show it, detail by detail.',
+            'Attestations confirmed by others. Nothing is shown unless '
+            'selected, detail by detail.',
         state: store.loadState,
         onRetry: store.load,
         empty: AppEmptyState(
           icon: AppIcons.attestation,
-          title: 'Prove what others confirm about you',
+          title: 'No attestations held',
           subtitle:
-              'Get a club, an employer or a verification service to confirm '
-              'something about you. Keep it here. Show only the details you '
-              'choose.',
+              'Facts confirmed by a club, an employer or a verification '
+              'service. Only selected details are ever shown.',
           example: const AppEmptyExample(
             title: 'membership',
             detail: 'From chess-club.org · member_since: 2021',
             badge: 'Verified',
           ),
           steps: const [
-            AppEmptyStep(
-              'Ask for one',
-              'New → Attestation about you gives you a link to send',
-            ),
-            AppEmptyStep('Accept their offer', 'It belongs to your identity'),
-            AppEmptyStep(
-              'Show it when asked',
-              'You choose which details they see',
-            ),
+            AppEmptyStep('Request', 'A link from New → Attestation about you'),
+            AppEmptyStep('Acceptance', 'Bound to one identity'),
+            AppEmptyStep('Presentation', 'Selected details only'),
           ],
           action: AppButton(
             icon: AppIcons.askFor,
@@ -194,8 +187,8 @@ class _CredentialSheet extends StatelessWidget {
       context: context,
       title: 'Remove this attestation?',
       message:
-          'It disappears from your list. ${credential.issuer} still stands '
-          'behind it and can offer it again.',
+          'It is removed from this list. ${credential.issuer} has not revoked '
+          'it and can offer it again.',
       confirmLabel: 'Remove',
       confirmIcon: AppIcons.trash,
       cancelLabel: 'Keep',
@@ -210,7 +203,7 @@ class _CredentialSheet extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Couldn’t remove it',
+        'The attestation could not be removed',
         subtitle: Stores.credentials.errorMessage,
       );
     }
@@ -273,14 +266,14 @@ class _CredentialSheet extends StatelessWidget {
                   Text(verdict.reason).muted.small,
                 ],
                 AppSpacing.gapMd,
-                const Text('What it confirms'),
+                const Text('Details'),
                 AppSpacing.gapSm,
                 AppListCard(
                   children: [
                     if (claims.isEmpty)
                       const AppDetailRow(
                         icon: AppIcons.info,
-                        label: 'Nothing beyond what kind it is.',
+                        label: 'No details beyond the kind.',
                       )
                     else
                       for (final d in claims)
@@ -312,10 +305,9 @@ class IssuedAttestations extends StatelessWidget {
       context: context,
       title: a.isOffered ? 'Withdraw this offer?' : 'Revoke ${a.title}?',
       message: a.isOffered
-          ? 'Its link stops working. Nobody has accepted it yet.'
-          : 'You stop standing behind it. Anyone who checks it learns this '
-                'within minutes.\n\n'
-                'You can’t undo this. You can issue a new one instead.',
+          ? 'The link stops working. The offer has not been accepted.'
+          : 'Anyone who checks it sees the revocation within minutes.\n\nThis '
+                'cannot be undone. A new attestation can be issued instead.',
       confirmLabel: a.isOffered ? 'Withdraw' : 'Revoke',
       confirmIcon: AppIcons.xCircle,
       cancelLabel: 'Keep it',
@@ -332,7 +324,7 @@ class IssuedAttestations extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        'Couldn’t revoke it',
+        'The attestation could not be revoked',
         subtitle: Stores.attestations.error?.description,
       );
     }
@@ -343,9 +335,9 @@ class IssuedAttestations extends StatelessWidget {
       context: context,
       title: 'Delete ${a.title}?',
       message: a.isActive
-          ? 'It leaves your list and is revoked too, so nobody can keep '
-                'using it.'
-          : 'It leaves your list.',
+          ? 'It is removed from this list and revoked, so it can no longer be '
+                'used.'
+          : 'It is removed from this list.',
       confirmLabel: 'Delete',
       confirmIcon: AppIcons.trash,
       cancelLabel: 'Keep it',
@@ -356,7 +348,7 @@ class IssuedAttestations extends StatelessWidget {
     if (!context.mounted || ok) return;
     AppToast.error(
       context,
-      'Couldn’t delete it',
+      'The attestation could not be deleted',
       subtitle: Stores.attestations.error?.description,
     );
   }
@@ -395,25 +387,26 @@ class IssuedAttestations extends StatelessWidget {
         final off = store.issuingAllowed == false;
         return _TabList(
           intro:
-              'What this workspace confirmed about others, in your domain\'s '
-              'name. Anyone who trusts your domain can trust these.',
+              'Attestations issued by this workspace in its domain’s name. '
+              'Anyone who trusts the domain can rely on them.',
           state: store.loadState,
           onRetry: store.load,
           empty: off
               ? const AppEmptyState(
                   icon: AppIcons.attestation,
-                  title: 'This server doesn’t issue attestations',
+                  title: 'This server does not issue attestations',
                   subtitle:
-                      'Whoever runs it has turned this off. You can still '
-                      'keep and show attestations from others.',
+                      'Issuing has been turned off by the operator. '
+                      'Attestations from other issuers can still be held and '
+                      'shown.',
                 )
               : AppEmptyState(
                   icon: AppIcons.attestation,
-                  title: 'Vouch for the people you know',
+                  title: 'No attestations issued',
                   subtitle:
-                      'Confirm a membership, a role or a fact about someone, '
-                      'in your domain\'s name. They keep it and show it '
-                      'wherever they need it.',
+                      'A membership, a role or another fact about someone, '
+                      'confirmed in the domain’s name. The recipient holds it '
+                      'and can show it anywhere.',
                   example: const AppEmptyExample(
                     title: 'Membership 2026 — Ada',
                     detail: 'membership · member_since: 2021',
@@ -421,21 +414,18 @@ class IssuedAttestations extends StatelessWidget {
                   ),
                   steps: const [
                     AppEmptyStep(
-                      'Write what you confirm',
+                      'Details',
                       'A kind and its details, such as member_since',
                     ),
+                    AppEmptyStep('Offer', 'A code or a link, shown once'),
                     AppEmptyStep(
-                      'Send them the offer',
-                      'A code to scan or a link. You see it once',
-                    ),
-                    AppEmptyStep(
-                      'Revoke it if it stops being true',
-                      'Anyone who checks it learns within minutes',
+                      'Revocation',
+                      'Visible to every check within minutes',
                     ),
                   ],
                   action: AppButton(
                     icon: AppIcons.attestation,
-                    label: 'Confirm something',
+                    label: 'Issue attestation',
                     onTap: () => showAttestationCreateSheet(context),
                   ),
                 ),
@@ -480,9 +470,8 @@ class CheckedAttestations extends StatelessWidget {
             AppSpacing.gapXxs,
             Text(
               c.isAnswered
-                  ? 'Checked the moment it arrived. This is how it stood '
-                        'then.'
-                  : 'Nobody answered this check.',
+                  ? 'Verified on arrival. Reflects the state at that time.'
+                  : 'This check was not answered.',
             ).muted.small,
             if (c.isAnswered) ...[AppSpacing.gapLg, CheckResultView(check: c)],
             AppSpacing.gapLg,
@@ -508,16 +497,16 @@ class CheckedAttestations extends StatelessWidget {
     return Observer(
       builder: (_) => _TabList(
         intro:
-            'What people showed you when you asked. Each answer is how it '
-            'stood at that moment.',
+            'Attestations shown by others in answer to a check. Each answer '
+            'reflects the state at that moment.',
         state: store.loadState,
         onRetry: store.load,
         empty: AppEmptyState(
           icon: AppIcons.shieldCheck,
-          title: 'Check what others say about themselves',
+          title: 'No checks',
           subtitle:
-              'Ask someone to show you what a club or an employer confirmed '
-              'about them. You see right away whether it holds up.',
+              'A check asks someone to show an attestation from a club or an '
+              'employer. The answer is verified on arrival.',
           example: const AppEmptyExample(
             title: 'membership',
             detail: 'Shown by 3fa2c1… · member_since: 2021',
@@ -525,16 +514,13 @@ class CheckedAttestations extends StatelessWidget {
           ),
           steps: const [
             AppEmptyStep(
-              'Ask them to show one',
-              'New → See someone\'s attestation gives you a code to scan',
+              'Request',
+              'A code from New → See someone\'s attestation',
             ),
+            AppEmptyStep('Selection', 'Made by the holder on their own device'),
             AppEmptyStep(
-              'They choose what to show',
-              'Detail by detail, on their own device',
-            ),
-            AppEmptyStep(
-              'You get a checked answer',
-              'Who confirmed it, whether it still holds, and that it\'s theirs',
+              'Verified answer',
+              'Issuer, current validity and proof of ownership',
             ),
           ],
           action: AppButton(
@@ -562,7 +548,7 @@ class CheckedAttestations extends StatelessWidget {
 String issuedAttestationSubtitle(Attestation a) {
   if (a.isRevoked) {
     return a.subject.isEmpty
-        ? 'Withdrawn before anyone accepted it'
+        ? 'Withdrawn before acceptance'
         : 'Revoked · ${a.subject}';
   }
   if (a.isOffered) {

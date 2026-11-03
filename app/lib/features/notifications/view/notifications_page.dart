@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
@@ -9,166 +10,125 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/notification.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
-import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
-import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
+import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
+import 'package:revoked_app/features/notifications/store/notifications_store.dart';
 
-void openNotificationsSheet(BuildContext context) {
-  Stores.notifications.load();
-  showAppSheet(
-    context: context,
-    dismissible: true,
-    builder: (context) => const NotificationsSheet(),
-  );
-}
-
-/// Sizes to its content: a fixed height left the bottom of the full-height
-/// side panel empty, and the bottom sheet already caps how tall it may grow.
-class NotificationsSheet extends StatelessWidget {
-  const NotificationsSheet({super.key});
+/// Notifications as a place of their own: what happened, grouped by day,
+/// with filters for the unread and for what needs you to act, and the
+/// clean-up actions beside them.
+class NotificationsPage extends StatelessWidget {
+  const NotificationsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final store = Stores.notifications;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _Header(),
-        Observer(
-          builder: (_) => store.errorMessage == null
-              ? const SizedBox.shrink()
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.xl,
-                    0,
-                    AppSpacing.xl,
-                    AppSpacing.sm,
+    return Observer(
+      builder: (context) {
+        if (store.isLoading && store.notifications.isEmpty) {
+          return const AppListSkeleton();
+        }
+        final shown = store.shown;
+        final groups = groupNotificationsByDay(shown, displayNow());
+        return AppPageBody(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: AppFilterChips<NotificationFilter>(
+                    options: [
+                      AppFilterOption(
+                        value: NotificationFilter.all,
+                        label: 'All',
+                        count: store.notifications.length,
+                      ),
+                      AppFilterOption(
+                        value: NotificationFilter.unread,
+                        label: 'Unread',
+                        count: store.unreadCount,
+                      ),
+                      AppFilterOption(
+                        value: NotificationFilter.attention,
+                        label: 'Needs attention',
+                        count: store.notifications
+                            .where(
+                              (n) => notificationProblemTypes.contains(n.type),
+                            )
+                            .length,
+                      ),
+                    ],
+                    selected: store.filter,
+                    onSelected: store.setFilter,
                   ),
-                  child: AppErrorText(store.errorMessage!),
                 ),
-        ),
-        const AppDivider(),
-        Flexible(
-          child: Observer(
-            builder: (context) {
-              if (store.isLoading && store.notifications.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(AppSpacing.lg),
-                  child: AppListSkeleton(),
-                );
-              }
-              if (store.notifications.isEmpty) {
-                return SingleChildScrollView(
-                  child: AppEmptyState(
-                    icon: AppIcons.bellSlash,
-                    title: 'No notifications',
-                    subtitle: 'You\'re all caught up.',
-                  ),
-                );
-              }
-              final groups = groupNotificationsByDay(
-                store.notifications,
-                DateTime.now(),
-              );
-              return ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
+                const _Actions(),
+              ],
+            ),
+            if (store.errorMessage != null) AppErrorText(store.errorMessage!),
+            if (shown.isEmpty)
+              AppEmptyState(
+                icon: AppIcons.bellSlash,
+                title: switch (store.filter) {
+                  NotificationFilter.all => 'No notifications',
+                  NotificationFilter.unread => 'No unread notifications',
+                  NotificationFilter.attention => 'Nothing needs attention',
+                },
+                subtitle: 'New notifications appear here.',
+              )
+            else
+              for (final (label, items) in groups)
+                AppListGroup(
+                  title: label,
+                  trailing: const SizedBox.shrink(),
+                  children: [for (final n in items) _NotificationRow(n)],
                 ),
-                children: [
-                  for (final (label, items) in groups)
-                    AppListGroup(
-                      title: label,
-                      trailing: const SizedBox.shrink(),
-                      children: [for (final n in items) _NotificationRow(n)],
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header();
+/// Marking everything read and clearing what was read, beside the filters.
+class _Actions extends StatelessWidget {
+  const _Actions();
 
   @override
   Widget build(BuildContext context) {
     final store = Stores.notifications;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.md,
-        AppSpacing.md,
-      ),
-      child: Observer(
-        builder: (context) {
-          final unread = store.unreadCount;
-          final read = store.readCount;
-          return Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    const Flexible(
-                      child: AppText(
-                        'Notifications',
-                        header: true,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (unread > 0) ...[
-                      AppSpacing.gapSm,
-                      AppBadge(
-                        label: '$unread new',
-                        variant: AppBadgeVariant.primary,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              AppMenuButton(
-                icon: AppIcons.threeDots,
-                tooltip: 'More',
-                style: AppButtonStyle.ghost,
-                chevron: false,
-                items: [
-                  AppMenuItem(
-                    label: 'Mark all as read',
-                    icon: AppIcons.check,
-                    onSelected: unread > 0 ? store.markAllRead : null,
-                  ),
-                  AppMenuItem(
-                    label: read == 1
-                        ? 'Delete 1 read notification'
-                        : 'Delete $read read notifications',
-                    icon: AppIcons.trash,
-                    destructive: true,
-                    onSelected: read > 0 ? () => _clearRead(context) : null,
-                  ),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
+    return Observer(
+      builder: (context) {
+        final unread = store.unreadCount;
+        final read = store.readCount;
+        return AppMenuButton(
+          icon: AppIcons.threeDots,
+          tooltip: 'More',
+          style: AppButtonStyle.ghost,
+          chevron: false,
+          items: [
+            AppMenuItem(
+              label: 'Mark all as read',
+              icon: AppIcons.check,
+              onSelected: unread > 0 ? store.markAllRead : null,
+            ),
+            AppMenuItem(
+              label: read == 1
+                  ? 'Delete 1 read notification'
+                  : 'Delete $read read notifications',
+              icon: AppIcons.trash,
+              destructive: true,
+              onSelected: read > 0 ? () => _clearRead(context) : null,
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -177,7 +137,7 @@ class _Header extends StatelessWidget {
     final ok = await showAppDialog(
       context: context,
       title: 'Delete read notifications?',
-      message: 'Unread ones stay.',
+      message: 'Unread notifications are kept.',
       confirmLabel: 'Delete',
       destructive: true,
     );
@@ -196,8 +156,9 @@ class _NotificationRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final store = Stores.notifications;
     final unread = !n.read;
-    final problem = _problemTypes.contains(n.type);
-    final created = DateTime.tryParse(n.created ?? '')?.toLocal();
+    final problem = notificationProblemTypes.contains(n.type);
+    final at = parseInstant(n.created);
+    final created = at == null ? null : inDisplayZone(at);
     final message = n.message ?? '';
 
     final (Color tile, Color glyph) = problem
@@ -247,7 +208,7 @@ class _NotificationRow extends StatelessWidget {
                     if (created != null) ...[
                       AppSpacing.gapSm,
                       AppText(
-                        notificationTimeAgo(created, DateTime.now()),
+                        notificationTimeAgo(created, displayNow()),
                         maxLines: 1,
                       ).small.muted,
                     ],
@@ -358,14 +319,8 @@ void Function(BuildContext)? _opener(AppNotification n) {
     _ => null,
   };
   if (route == null) return null;
-  return (context) {
-    final router = GoRouter.of(context);
-    Navigator.of(context).pop();
-    router.go(route);
-  };
+  return (context) => GoRouter.of(context).go(route);
 }
-
-const _problemTypes = {'callback_failed', 'email_undelivered', 'sealing_reset'};
 
 IconData _iconFor(String type) => switch (type) {
   'request_response' => AppIcons.inboxFill,
@@ -428,7 +383,8 @@ List<(String, List<AppNotification>)> groupNotificationsByDay(
   final buckets = [for (final _ in labels) <AppNotification>[]];
   final today = _day(now);
   for (final n in items) {
-    final t = DateTime.tryParse(n.created ?? '')?.toLocal();
+    final at = parseInstant(n.created);
+    final t = at == null ? null : inDisplayZone(at);
     final days = t == null ? 7 : today.difference(_day(t)).inDays;
     final i = days <= 0
         ? 0

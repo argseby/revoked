@@ -17,7 +17,7 @@ class SplashScreen extends StatelessWidget {
           children: [
             AppSpinner(large: true),
             SizedBox(height: AppSpacing.lg),
-            Text('Restoring your session…'),
+            Text('Restoring session…'),
           ],
         ),
       ),

@@ -60,14 +60,14 @@ Future<void> openAskContactSheet(BuildContext context, Contact contact) async {
 /// can always fall back on.
 String _reachLine(Contact contact, {required bool isAsk}) {
   final name = contact.name;
-  if (contact.isHere) return 'It lands in $name\u2019s app.';
+  if (contact.isHere) return 'Delivered to $name\u2019s app.';
   final reason = Stores.contacts.emailReason(contact, isAsk: isAsk);
-  if (reason == null) return '$name gets an email with the link.';
+  if (reason == null) return '$name receives the link by email.';
   if (isAsk && !Stores.contacts.signupsOpen) {
-    return '$name needs an account here to answer. '
-        'You\u2019ll get a link to pass on.';
+    return '$name needs an account here to respond. '
+        'The link is returned for manual delivery.';
   }
-  return '$name has no account here, so you\u2019ll get a link to pass on.';
+  return '$name has no account here. The link is returned for manual delivery.';
 }
 
 /// What happened to a grant, told once and the same way for both sheets: it
@@ -86,8 +86,8 @@ Future<void> _reportOutcome(
     AppToast.success(
       root,
       grant.isRequest
-          ? 'Asked ${contact.name} — it is in their app'
-          : 'Sent to ${contact.name} — it is in their app',
+          ? 'Request delivered to ${contact.name}'
+          : 'Delivered to ${contact.name}',
     );
     return;
   }
@@ -104,17 +104,17 @@ Future<void> _reportOutcome(
   await showQrSheet(
     context: root,
     title: grant.isRequest
-        ? 'Send this to ${contact.name}'
-        : 'Give this to ${contact.name}',
+        ? 'Request link for ${contact.name}'
+        : 'Link for ${contact.name}',
     link: link,
     message: askNeedsAccount
-        ? '${contact.name} needs an account on this server to answer. Send '
-              'them this link, or ask whoever runs the server to add them.'
+        ? '${contact.name} needs an account on this server to respond. '
+              'Accounts can be added by the server operator.'
         : grant.isRequest
-        ? '${contact.name} has no account here yet, so send them this link '
-              'yourself. They open it in Revoked to answer.'
-        : '${contact.name} has no account here yet, so send them this link '
-              'yourself. You can revoke it whenever you like.',
+        ? '${contact.name} has no account here. The link is delivered '
+              'manually and opened in Revoked to respond.'
+        : '${contact.name} has no account here. The link is delivered '
+              'manually and remains revocable.',
   );
 }
 
@@ -151,8 +151,8 @@ class _SendSheet extends StatelessWidget {
               Text('Send to ${contact.name}').header,
               AppSpacing.gapXxs,
               const Text(
-                'They always see the latest version, and you can revoke it '
-                'whenever you like.',
+                'The recipient always sees the latest version. Access can be '
+                'revoked.',
               ).muted.small,
               AppSpacing.gapXxs,
               Text(_reachLine(contact, isAsk: false)).muted.small,
@@ -162,7 +162,7 @@ class _SendSheet extends StatelessWidget {
                 inset: false,
                 child: AppTextField(
                   controller: store.grantLabel,
-                  hint: 'My bank details',
+                  hint: 'Bank details',
                   autofocus: true,
                 ),
               ),
@@ -237,11 +237,11 @@ class _AskSheet extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Ask ${contact.name} for something').header,
+                Text('Request from ${contact.name}').header,
                 AppSpacing.gapXxs,
                 const Text(
-                  'What comes back stays theirs: they can change it or take '
-                  'it away, and you always see the latest.',
+                  'Responses stay under the contact\u2019s control and always '
+                  'show the latest version.',
                 ).muted.small,
                 AppSpacing.gapXxs,
                 Text(_reachLine(contact, isAsk: true)).muted.small,
@@ -251,7 +251,7 @@ class _AskSheet extends StatelessWidget {
                   inset: false,
                   child: AppTextField(
                     controller: store.grantLabel,
-                    hint: 'Your new address',
+                    hint: 'New address',
                     autofocus: true,
                   ),
                 ),
@@ -261,7 +261,7 @@ class _AskSheet extends StatelessWidget {
                   inset: false,
                   child: AppSelect<String>(
                     value: store.askTemplateId,
-                    placeholder: 'None — they add their own fields',
+                    placeholder: 'None — respondents add their own fields',
                     onChanged: store.setAskTemplate,
                     items: [
                       for (final t in templates)

@@ -78,20 +78,6 @@ class AppEntityCard extends StatefulWidget {
     this.expandedBody,
   });
 
-  /// Formats an ISO timestamp as `YYYY-MM-DD`, or null when absent/invalid —
-  /// so every card shows the date the same way.
-  static String? formatDate(String? iso) {
-    if (iso == null || iso.isEmpty) return null;
-    try {
-      final dt = DateTime.parse(iso).toLocal();
-      final m = dt.month.toString().padLeft(2, '0');
-      final d = dt.day.toString().padLeft(2, '0');
-      return '${dt.year}-$m-$d';
-    } catch (_) {
-      return null;
-    }
-  }
-
   @override
   State<AppEntityCard> createState() => _AppEntityCardState();
 }

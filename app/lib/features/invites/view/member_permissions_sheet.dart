@@ -94,12 +94,12 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
     if (!ok) {
       AppToast.error(
         context,
-        store.error?.description ?? 'Couldn’t update permissions. Try again.',
+        store.error?.description ?? 'The permissions could not be updated.',
       );
       return;
     }
     Navigator.of(context).pop(true);
-    AppToast.success(context, 'Permissions updated.');
+    AppToast.success(context, 'Permissions updated');
   }
 
   @override
@@ -133,7 +133,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
               children: [
                 Text(widget.member.email).header,
                 const SizedBox(height: AppSpacing.xxs),
-                const Text('Choose what they can do here.').muted.small,
+                const Text('Member permissions in this workspace').muted.small,
               ],
             ),
           ),
@@ -155,9 +155,11 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                       ),
                       child: AppAlert(
                         destructive: true,
-                        title: const Text('Someone must be able to invite'),
+                        title: const Text(
+                          'At least one member must be able to invite',
+                        ),
                         content: Text(
-                          'They’re the only one who can invite others. Let someone else invite first.',
+                          'This member is the only one who can invite others. Another member needs this permission first.',
                         ).small,
                       ),
                     ),
@@ -178,7 +180,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                       ),
                     ),
 
-                  const AppFormSectionHeader('What they see'),
+                  const AppFormSectionHeader('Visible features'),
                   AppTile(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.xl,
@@ -186,13 +188,13 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                     ),
                     title: Text(_featuresOn()),
                     subtitle: const Text(
-                      'Their own choice, under Settings → Features. A '
-                      'permission they hold still works with the feature off.',
+                      'Chosen by each member under Settings → Features. Held '
+                      'permissions still apply with a feature off.',
                     ).muted.small,
                   ),
 
                   if (_beyondCaller.isNotEmpty) ...[
-                    const AppFormSectionHeader('Given by someone else'),
+                    const AppFormSectionHeader('Granted by another member'),
                     for (final permission in _beyondCaller)
                       AppTile(
                         padding: const EdgeInsets.symmetric(
@@ -201,7 +203,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                         ),
                         title: Text(permission.label),
                         subtitle: Text(
-                          'You can’t change this because you don’t have it yourself.',
+                          'Only members holding this permission can change it.',
                         ).muted.small,
                       ),
                   ],

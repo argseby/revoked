@@ -55,7 +55,7 @@ Future<void> openLinkSearchSheet(BuildContext context) async {
   // moment a revoked:// link on it is almost certainly why we were opened.
   final adoption = await store.adoptClipboardLink();
   if (adoption == ClipboardAdoption.adopted && context.mounted) {
-    AppToast.success(context, 'Link taken from your clipboard');
+    AppToast.success(context, 'Link pasted from the clipboard');
   }
   if (!context.mounted) {
     store.isDrawerOpen = false;
@@ -142,7 +142,7 @@ class LinkSearchSheet extends StatelessWidget {
   void _open(BuildContext context) {
     final resolved = _resolve();
     if (resolved == null) {
-      AppToast.error(context, 'Enter a link path like s/<slug> or r/<slug>');
+      AppToast.error(context, 'Links take the form s/<slug> or r/<slug>.');
       return;
     }
     // Capture the router before popping — the sheet's context is gone after.
@@ -158,7 +158,7 @@ class LinkSearchSheet extends StatelessWidget {
   Future<void> _verify(BuildContext context) async {
     final resolved = _resolve();
     if (resolved == null) {
-      AppToast.error(context, 'Enter a link path like s/<slug> or r/<slug>');
+      AppToast.error(context, 'Links take the form s/<slug> or r/<slug>.');
       return;
     }
 
@@ -213,7 +213,7 @@ class LinkSearchSheet extends StatelessWidget {
         );
         verdict = TrustVerdict.unverified(
           domain: '',
-          reason: 'Share links have no domain to check. This one is active.',
+          reason: 'Share links carry no domain to check. This link is active.',
         );
       }
       _store.finishVerifying(verdict);
@@ -249,11 +249,10 @@ class LinkSearchSheet extends StatelessWidget {
             const Text('Search or open a link').header,
             const SizedBox(height: AppSpacing.xxs),
             const Text(
-              'Find anything by name — records, links, requests, contacts '
-              'and the rest — or paste a link someone sent you. Hidden '
-              'values are never searched. Use Verify to check the sender '
-              'before you open it. Press / or Ctrl + K to search, Ctrl + V '
-              'to paste, from anywhere in the app.',
+              'Searches records, links, requests, contacts and more by name, '
+              'or opens a pasted link. Hidden values are never searched. '
+              'Verify checks the sender before a link is opened. Shortcuts: '
+              '/ or Ctrl + K to search, Ctrl + V to paste.',
             ).muted.small,
             const SizedBox(height: AppSpacing.lg),
             _buildField(context, scheme),
@@ -265,7 +264,7 @@ class LinkSearchSheet extends StatelessWidget {
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: const Text(
-                      'Link taken from your clipboard',
+                      'Link pasted from the clipboard',
                     ).muted.small,
                   ),
                 ],
@@ -288,8 +287,8 @@ class LinkSearchSheet extends StatelessWidget {
                   Expanded(
                     child: Text(
                       Stores.api.isOwnOrigin(origin)
-                          ? 'Lives on your server ($origin)'
-                          : 'Lives on another server: $origin',
+                          ? 'Hosted on this server ($origin)'
+                          : 'Hosted on another server: $origin',
                     ).muted.small,
                   ),
                 ],
@@ -378,8 +377,8 @@ class LinkSearchSheet extends StatelessWidget {
               Uri.tryParse('https://${resolved.origin!}')?.host ==
                   verdict.domain
               ? null
-              : 'This link points to a different server than the sender '
-                    'claims to be. Be careful.',
+              : 'This link points to a different server than the one the '
+                    'sender claims.',
         ),
     ];
   }
@@ -484,7 +483,7 @@ class _SearchResults extends StatelessWidget {
       return Semantics(
         liveRegion: true,
         child: Text(
-          'Nothing called "$query". Search looks at names, not values.',
+          'No matches for "$query". Only names are searched, not values.',
         ).muted.small,
       );
     }
@@ -519,7 +518,7 @@ class _SearchResults extends StatelessWidget {
           AppSpacing.gapSm,
           Text(
             'Searched the most recent ${AppConfig.listPageSize} '
-            '${capped.join(' and ')}. There may be older ones.',
+            '${capped.join(' and ')}. Older entries may exist.',
           ).muted.small,
         ],
       ],

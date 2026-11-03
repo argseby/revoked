@@ -192,8 +192,8 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
               _Note(
                 icon: AppIcons.shieldLock,
                 text:
-                    'This link needs a verified identity, so these web '
-                    "addresses won't work. Share it in the app instead.",
+                    'This link requires a verified identity, so these web '
+                    'addresses do not work. It can be shared in the app instead.',
               ),
             ],
 
@@ -284,7 +284,7 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
         AppSpacing.gapXs,
         AppTextField(
           controller: _passwordCtrl,
-          hint: 'Type it to get a ready-to-use URL',
+          hint: 'Included in the generated URL',
           passwordToggle: true,
         ),
       ],
@@ -293,20 +293,16 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
 
   String _footnote() {
     final parts = <String>[
-      'Get the latest data anywhere, without the app or a token. Revoke the '
-          'link and every address stops working at once.',
+      'These addresses serve the current data without the app or a token. Revoking the link disables every address immediately.',
     ];
     if (widget.target.gated) {
       parts.add(
-        'The password becomes part of the address, so it ends up in server '
-        'logs and browser history. Use this only for data that isn\'t '
-        'sensitive.',
+        'The password becomes part of the address and appears in server logs and browser history. Suitable only for non-sensitive data.',
       );
     }
     if (_format == _Format.contacts && !widget.target.gated) {
       parts.add(
-        'For CardDAV, add a contacts account with that address as the '
-        'server. Any username and password work.',
+        'For CardDAV, the address is used as the server of a contacts account. Any username and password are accepted.',
       );
     }
     return parts.join(' ');

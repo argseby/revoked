@@ -153,7 +153,9 @@ abstract class _IdentitiesStore with Store {
           user.isEmpty ||
           workspace == null ||
           workspace.isEmpty) {
-        throw UserFacingException('Sign in and open a workspace first.');
+        throw UserFacingException(
+          'A signed-in account and an open workspace are required.',
+        );
       }
 
       final generated = _crypto.generateIdentity(commonName: name);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -13,6 +14,8 @@ import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/tool_tag.dart';
+import 'package:revoked_app/core/utils/people.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
@@ -21,7 +24,6 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
@@ -119,7 +121,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           return AppEmptyState(
             icon: AppIcons.safe,
             title: 'Record not found',
-            subtitle: 'It may have been deleted.',
+            subtitle: 'The record may have been deleted.',
             action: AppButton(
               icon: AppIcons.arrowLeft,
               label: 'Back to vault',
@@ -153,7 +155,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   ? null
                   : '$openAccess open '
                         '${openAccess == 1 ? 'link shows' : 'links show'} '
-                        'this record. Delete it and it disappears from '
+                        'this record. Deleting it removes it from '
                         '${openAccess == 1 ? 'that link' : 'them'}. The '
                         '${openAccess == 1 ? 'link stays' : 'links stay'} '
                         'open.',
@@ -273,11 +275,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     if (outcome == SealOutcome.linksAffected) {
       final go = await showAppDialog(
         context: context,
-        title: 'Take this record off your links?',
+        title: 'Remove this record from links?',
         message:
-            'Your links can’t show an encrypted record, so it comes off them. '
-            'If it’s in a section you’ve shared, it comes back there only if '
-            'you stop encrypting it.',
+            'Links cannot show an encrypted record, so it is removed from them. '
+            'In a shared section, it reappears only if encryption is turned '
+            'off.',
         confirmLabel: 'Encrypt',
         confirmIcon: AppIcons.lock,
       );
@@ -290,16 +292,16 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         context: context,
         title: 'Encrypted',
         message:
-            'Your server can’t read this any more. It may still have the old '
-            'value in its backups, so change this secret if it really matters.',
-        confirmLabel: 'Got it',
+            'The server can no longer read this value. Its backups may still hold '
+            'the old value. Sensitive secrets should be rotated.',
+        confirmLabel: 'OK',
         confirmIcon: AppIcons.check,
         cancelLabel: null,
       );
     } else if (outcome == SealOutcome.failed) {
       AppToast.error(
         context,
-        'Couldn’t encrypt it',
+        'The record could not be encrypted.',
         subtitle: Stores.vault.errorMessage,
       );
     }
@@ -310,8 +312,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       context: context,
       title: 'Stop encrypting this record?',
       message:
-          'Your server will be able to read it again. Any section link that '
-          'includes it will show it again too.',
+          'The server will be able to read it again. Section links that '
+          'include it will show it again.',
       confirmLabel: 'Stop encrypting',
       confirmIcon: AppIcons.lock,
       destructive: true,
@@ -321,7 +323,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     if (!ok && mounted) {
       AppToast.error(
         context,
-        'Couldn’t change it',
+        'Encryption could not be turned off.',
         subtitle: Stores.vault.errorMessage,
       );
     }
@@ -334,13 +336,13 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'If you didn’t stop encrypting it on another device, don’t trust '
-          'this value. It may not be yours.',
+          'If encryption was not turned off on another device, this value '
+          'should not be trusted.',
         ),
         const SizedBox(height: AppSpacing.sm),
         AppButton(
           icon: AppIcons.check,
-          label: 'It was me',
+          label: 'Confirm change',
           style: AppButtonStyle.accent,
           size: AppButtonSize.small,
           onTap: () => Stores.vault.acceptUnsealedRecord(r.id),
@@ -375,7 +377,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         _ValueRow(
           icon: RecordTypeUtils.icon(r.type),
           text: r.isLocked
-              ? 'You can’t read this on this device'
+              ? 'Not readable on this device'
               : (value.isEmpty ? '—' : value),
           masked: r.isHidden && !r.isLocked ? hidden : null,
           onToggle: r.isLocked ? null : toggle,
@@ -411,14 +413,14 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       title: 'Who can read this',
       trailing: const SizedBox.shrink(),
       footer: const Text(
-        'Not your server, not links, not other people in your workspace.',
+        'Not readable by the server, links or other workspace members.',
       ).muted.small,
       children: chain.entries.isEmpty
           ? [
               const AppListRow(
                 icon: AppIcons.lock,
                 title: 'Your devices',
-                subtitle: 'Add this device to see which.',
+                subtitle: 'Listed once this device is added',
                 showChevron: false,
               ),
             ]
@@ -434,7 +436,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 AppListRow(
                   icon: AppIcons.key,
                   title: p.label,
-                  subtitle: 'Passkey · any device you sign in to with it',
+                  subtitle: 'Passkey · any device signed in with it',
                   showChevron: false,
                 ),
             ],
@@ -486,7 +488,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                   AppListRow(
                     icon: AppIcons.lock,
                     title: 'Only you',
-                    subtitle: 'You haven\'t shared this with anyone.',
+                    subtitle: 'Not shared through any link',
                     onTap: () =>
                         openShareCreateSheet(context: context, records: [r.id]),
                     trailing: const AppBadge(
@@ -563,10 +565,10 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       context: context,
       title: n == 1 ? 'Revoke this link?' : 'Revoke all $n links?',
       message:
-          'Nobody can see ${_name(r)} through '
-          '${n == 1 ? 'it' : 'them'} anymore. Everything else '
-          '${n == 1 ? 'the link shares' : 'these links share'} goes too. '
-          'You can\'t undo this. The record stays in your vault.',
+          '${_name(r)} is no longer visible through '
+          '${n == 1 ? 'it' : 'them'}, and neither is anything else '
+          '${n == 1 ? 'the link shares' : 'these links share'}. '
+          'The record stays in the vault. This cannot be undone.',
       confirmLabel: n == 1 ? 'Revoke' : 'Revoke all',
       confirmIcon: AppIcons.xCircle,
       destructive: true,
@@ -585,7 +587,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     } else {
       AppToast.error(
         context,
-        'Couldn\'t revoke $failed of $n links. Try again.',
+        '$failed of $n links could not be revoked.',
         subtitle: Stores.shares.errorMessage,
       );
     }
@@ -613,7 +615,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               AppDetailRow(
                 icon: AppIcons.bell,
                 label:
-                    'No reminders yet. Get one on a date or when this changes.',
+                    'No reminders. A reminder can be set for a date or the next change.',
               ),
             ]
           : [
@@ -629,7 +631,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       if (rem.hasFired)
                         AppButton(
                           icon: AppIcons.arrowClockwise,
-                          tooltip: 'Remind me again',
+                          tooltip: 'Remind again',
                           style: AppButtonStyle.ghost,
                           size: AppButtonSize.small,
                           onTap: () => _rearmReminder(context, rem),
@@ -669,11 +671,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     final ok = await Stores.reminders.rearm(rem.id);
     if (!context.mounted) return;
     if (ok) {
-      AppToast.success(context, 'You\'ll be reminded at the next change');
+      AppToast.success(context, 'Reminder set for the next change');
     } else {
       AppToast.error(
         context,
-        'Couldn\'t update the reminder',
+        'The reminder could not be updated.',
         subtitle: Stores.reminders.error?.description,
       );
     }
@@ -684,7 +686,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     if (!context.mounted || ok) return;
     AppToast.error(
       context,
-      'Couldn\'t delete the reminder',
+      'The reminder could not be deleted.',
       subtitle: Stores.reminders.error?.description,
     );
   }
@@ -706,18 +708,48 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             label: 'Requested by',
             value: r.requestedBy ?? '',
           ),
+        if (r.isWrittenByTool)
+          AppDetailRow(
+            icon: AppIcons.plug,
+            label: 'Added by',
+            value: r.writerName,
+            badge: ToolIdChip(r.writtenBy),
+            onTap: () => _openWriter(r),
+          ),
+        if (r.isWrittenByTool)
+          if (memberEmail(r.user) case final email?)
+            AppDetailRow(
+              icon: AppIcons.person,
+              label: 'Connected by',
+              value: email,
+            ),
         AppDetailRow(
           icon: AppIcons.plus,
           label: 'Created',
-          value: AppEntityCard.formatDate(r.created) ?? '—',
+          value: dayTimeOf(r.created) ?? '—',
         ),
         AppDetailRow(
           icon: AppIcons.pen,
           label: 'Last changed',
-          value: AppEntityCard.formatDate(r.updated) ?? '—',
+          value: dayTimeOf(r.updated) ?? '—',
         ),
       ],
     );
+  }
+
+  /// Opens the tool that wrote the record, or the API keys when a key did.
+  Future<void> _openWriter(models.Record r) async {
+    if (Stores.connections.connections.isEmpty) {
+      await Stores.connections.load();
+    }
+    if (!mounted) return;
+    for (final c in Stores.connections.connections) {
+      if (c.id == r.writtenBy) {
+        context.go(AppRoutes.connectedToolFor(c.id));
+        return;
+      }
+    }
+    context.go(AppRoutes.apiKeys);
   }
 
   /// Images and text open in the app from memory; anything else goes to the
@@ -728,7 +760,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     if (bytes == null) {
       AppToast.error(
         context,
-        'Couldn\'t open the file',
+        'The file could not be opened.',
         subtitle: Stores.vault.errorMessage,
       );
       return;
@@ -747,7 +779,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       if (mounted) {
         AppToast.error(
           context,
-          'Couldn\'t download the file',
+          'The file could not be downloaded.',
           subtitle: Stores.vault.errorMessage,
         );
       }
@@ -766,8 +798,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       context: context,
       title: 'Delete record',
       message:
-          'You can\'t undo this. It disappears from every link that shows '
-          'it. The links stay open.',
+          'The record is removed from every link that shows it. The links '
+          'stay open. This cannot be undone.',
       content: ApiPreview(
         spec: VaultStore.deleteRecordSpec(r.id),
         title: 'API request · delete',

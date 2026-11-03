@@ -7,7 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:revoked_app/core/models/notification.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
+import 'package:revoked_app/features/notifications/store/notifications_store.dart';
+import 'package:revoked_app/features/notifications/view/notifications_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -56,7 +57,7 @@ void main() {
     expect(groups.map((g) => g.$2.single.id), ['a', 'b', 'c']);
   });
 
-  group('the sheet', () {
+  group('the page', () {
     late List<String> deleted;
 
     Future<void> open(WidgetTester tester, Size size, int count) async {
@@ -84,20 +85,9 @@ void main() {
         }),
       );
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => Center(
-                child: ElevatedButton(
-                  onPressed: () => openNotificationsSheet(context),
-                  child: const Text('open'),
-                ),
-              ),
-            ),
-          ),
-        ),
+        const MaterialApp(home: Scaffold(body: NotificationsPage())),
       );
-      await tester.tap(find.text('open'));
+      await Stores.notifications.load();
       await tester.pumpAndSettle();
     }
 
@@ -117,12 +107,16 @@ void main() {
       });
     }
 
-    testWidgets('fills the side panel instead of stopping at 70%', (
-      tester,
-    ) async {
-      await open(tester, sizes['desktop']!, 20);
-      final list = tester.getRect(find.byType(ListView));
-      expect(list.bottom, greaterThan(sizes['desktop']!.height * 0.9));
+    testWidgets('filters to the unread and to what needs you', (tester) async {
+      await open(tester, sizes['desktop']!, 4);
+      await tester.tap(find.text('Unread 2'));
+      await tester.pumpAndSettle();
+      expect(find.text('Notification n0'), findsOneWidget);
+      expect(find.text('Notification n1'), findsNothing);
+      await tester.tap(find.text('Needs attention 0'));
+      await tester.pumpAndSettle();
+      expect(find.text('Nothing needs attention'), findsOneWidget);
+      Stores.notifications.setFilter(NotificationFilter.all);
     });
 
     testWidgets('deletes one notification from its menu', (tester) async {

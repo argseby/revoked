@@ -70,7 +70,8 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
     if (token == null || token.isEmpty) {
       AppToast.error(
         context,
-        'Your offer was made, but its link didn’t arrive. Withdraw it and make a new one.',
+        'The offer was created, but its link was not returned. Withdraw it '
+        'and create a new one.',
       );
       return;
     }
@@ -106,11 +107,11 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Confirm something about someone').header,
+                const Text('Issue an attestation').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Vouch for someone in your domain\'s name. They see every '
-                  'detail before they accept.',
+                  'Issued in the name of this workspace’s domain. The '
+                  'recipient reviews every detail before accepting.',
                 ).muted.small,
                 if (_store.draftAsk case final ask?
                     when !ask.proposer.isEmpty) ...[
@@ -122,8 +123,8 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                     leading: Icon(AppIcons.askFor),
                     title: Text('Filled in from a request'),
                     content: Text(
-                      'Someone asked you for this. Check who sent it. Then '
-                      'fill in only values you stand behind.',
+                      'Verify who sent the request. Enter only values that '
+                      'can be confirmed.',
                     ),
                   ),
                 ],
@@ -137,7 +138,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const AppFormSectionHeader('What kind'),
+                  const AppFormSectionHeader('Attestation'),
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenH(context),
@@ -155,7 +156,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                         ),
                         AppSpacing.gapSm,
                         AppFormField(
-                          label: 'Name in your list (optional)',
+                          label: 'Label (optional)',
                           inset: false,
                           child: AppTextField(
                             controller: _store.labelController,
@@ -165,7 +166,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                       ],
                     ),
                   ),
-                  const AppFormSectionHeader('What you confirm'),
+                  const AppFormSectionHeader('Details'),
                   for (final claim in _store.draftClaims)
                     _ClaimRow(
                       key: ObjectKey(claim),
@@ -187,7 +188,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                       ),
                     ),
                   ),
-                  const AppFormSectionHeader('Who gets it, and for how long'),
+                  const AppFormSectionHeader('Recipient and validity'),
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: AppSpacing.screenH(context),
@@ -196,28 +197,27 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         AppFormField(
-                          label: 'Only for this identity (optional)',
+                          label: 'Recipient fingerprint (optional)',
                           inset: false,
                           child: AppTextField(
                             controller: _store.subjectController,
-                            hint: 'Their fingerprint, 64 characters',
+                            hint: '64-character fingerprint',
                             mono: true,
                           ),
                         ),
                         AppSpacing.gapXs,
                         const Text(
-                          'Leave it empty and whoever opens the link first can '
-                          'accept it. Add a fingerprint and only that identity '
-                          'can.',
+                          'Without a fingerprint, the first identity to open '
+                          'the link can accept it. With one, only that '
+                          'identity can.',
                         ).muted.small,
                         AppSpacing.gapSm,
                         AppFormField(
-                          label: 'Valid for, in days (optional)',
+                          label: 'Validity in days (optional)',
                           inset: false,
                           child: AppTextField(
                             controller: _store.validDaysController,
-                            hint:
-                                'Leave empty to keep it valid until you revoke it',
+                            hint: 'Empty means valid until revoked',
                             keyboardType: TextInputType.number,
                           ),
                         ),
@@ -368,11 +368,11 @@ class _ClaimRow extends StatelessWidget {
 Future<void> _showLinkDialog(BuildContext context, String token) {
   return showQrSheet(
     context: context,
-    title: 'Your offer is ready',
+    title: 'Offer created',
     link: DeepLinks.attestation(token, origin: Stores.api.originAuthority),
     message:
-        'Let them scan this, or send them the link. You see it only once, so '
-        'copy it before you close this.',
+        'The code can be scanned or the link sent. It is shown once and '
+        'cannot be retrieved later.',
     dismissible: false,
   );
 }

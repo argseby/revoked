@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_inline_create.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
@@ -16,12 +17,33 @@ class ApiKeysGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppInlineCreate(
+          label: 'New API key',
+          starts: apiKeyStarts(),
+          onOpen: prepareApiKeyDraft,
+          form: (close) => ApiKeyCreateForm(onClose: close),
+        ),
+        AppSpacing.gapLg,
+        const _Keys(),
+      ],
+    );
+  }
+}
+
+class _Keys extends StatelessWidget {
+  const _Keys();
+
+  @override
+  Widget build(BuildContext context) {
     final store = Stores.apiKeys;
     return Observer(
       builder: (_) {
         if (store.errorMessage != null && store.apiKeys.isEmpty) {
           return AppLoadError(
-            title: 'Couldn’t load API keys',
+            title: 'API keys could not be loaded',
             message: store.errorMessage!,
             onRetry: store.loadApiKeys,
           );
@@ -29,44 +51,27 @@ class ApiKeysGroup extends StatelessWidget {
         if (store.apiKeys.isEmpty && !store.isLoading) {
           return AppEmptyState(
             icon: AppIcons.key,
-            title: 'Connect your own scripts',
+            title: 'No API keys',
             subtitle:
-                'Give your scripts and integrations a key to this workspace. '
-                'It does only what you allow, and reaches only the sections '
-                'you choose.',
+                'API keys provide programmatic access to this workspace, '
+                'limited to the granted permissions and sections.',
             steps: const [
-              AppEmptyStep(
-                'Name it and choose what it can do',
-                'Only what it needs',
-              ),
-              AppEmptyStep('Copy the key', 'You see it only once'),
-              AppEmptyStep('Revoke it any time', 'It stops working right away'),
+              AppEmptyStep('Permissions', 'Scoped to the required access'),
+              AppEmptyStep('Key', 'Shown once at creation'),
+              AppEmptyStep('Revocation', 'Takes effect immediately'),
             ],
-            action: AppButton(
-              icon: AppIcons.plus,
-              label: 'New API key',
-              onTap: () => openApiKeyCreateSheet(context),
-            ),
           );
         }
         return AppListGroup(
           title: 'API keys',
           footer: const Text(
-            'Keys for your scripts. A key reaches only the sections you '
-            'choose.',
-          ),
-          trailing: AppButton(
-            icon: AppIcons.plus,
-            label: 'New',
-            style: AppButtonStyle.accent,
-            size: AppButtonSize.small,
-            onTap: () => openApiKeyCreateSheet(context),
+            'Programmatic access, limited to the selected sections.',
           ),
           children: [
             if (store.isLoading && store.apiKeys.isEmpty)
               const AppListSkeleton(embedded: true)
             else if (store.apiKeys.isEmpty)
-              const AppDetailRow(icon: AppIcons.key, label: 'No API keys yet')
+              const AppDetailRow(icon: AppIcons.key, label: 'No API keys')
             else
               for (final key in store.apiKeys) ApiKeyRow(apiKey: key),
           ],

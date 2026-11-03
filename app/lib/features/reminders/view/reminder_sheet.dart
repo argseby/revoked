@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -51,12 +52,8 @@ DateTime reminderPresetDate(ReminderPreset preset, DateTime from) {
   }
 }
 
-/// "2026-10-09", the way dates read everywhere else in the app.
-String formatReminderDay(DateTime dt) {
-  final m = dt.month.toString().padLeft(2, '0');
-  final d = dt.day.toString().padLeft(2, '0');
-  return '${dt.year}-$m-$d';
-}
+/// A reminder is for a day on this device's calendar, not an instant.
+String formatReminderDay(DateTime dt) => formatCalendarDay(dt);
 
 /// One line saying what a reminder waits for. [nameOf] names an entry by id.
 String describeReminder(
@@ -135,7 +132,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
     if (!ok) {
       AppToast.error(
         context,
-        store.error?.title ?? 'Couldn\'t add the reminder',
+        store.error?.title ?? 'The reminder could not be added.',
         subtitle: store.error?.description,
       );
       return;
@@ -168,8 +165,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                   const Text('New reminder').header,
                   const SizedBox(height: AppSpacing.xxs),
                   Text(
-                    'For ${_name(widget.record)}. Only you see it, in your '
-                    'notifications.',
+                    'For ${_name(widget.record)}. Private to this account.',
                   ).muted.small,
                 ],
               ),
@@ -180,7 +176,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const AppFormSectionHeader('Remind me'),
+                    const AppFormSectionHeader('Trigger'),
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.xl,
@@ -282,7 +278,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
       ),
       AppSpacing.gapSm,
       AppFormField(
-        label: 'Reminds you on',
+        label: 'Due date',
         child: AppPickerField(
           text: due == null ? 'Pick a date' : formatReminderDay(due),
           isPlaceholder: due == null,
@@ -300,7 +296,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
             (a, b) => _name(a).toLowerCase().compareTo(_name(b).toLowerCase()),
           );
     return [
-      const AppFormSectionHeader('When this changes'),
+      const AppFormSectionHeader('Watched entry'),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
         child: AppSelect<String>(
@@ -324,8 +320,8 @@ class _ReminderSheetState extends State<_ReminderSheet> {
           0,
         ),
         child: const Text(
-          'You get one notification the first time anyone changes it. It '
-          'never shows the value.',
+          'One notification is sent the first time anyone changes it. The '
+          'value is never shown.',
         ).muted.small,
       ),
     ];

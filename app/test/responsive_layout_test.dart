@@ -19,7 +19,6 @@ import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
-import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
@@ -528,19 +527,19 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('new key sheet with sections fits on a ${entry.key}', (
+      testWidgets('new key form with sections fits on a ${entry.key}', (
         tester,
       ) async {
         final router = await signedIn(tester, entry.value);
-        router.go(AppRoutes.connectedTools);
+        router.go(AppRoutes.apiKeys);
         await tester.pumpAndSettle();
-        final context = tester.element(find.byType(Scaffold).first);
-        openApiKeyCreateSheet(context);
+        await tester.ensureVisible(find.text('Custom'));
+        await tester.tap(find.text('Custom'));
         await tester.pumpAndSettle();
         withAccessFixtures();
         runInAction(() => Stores.apiKeys.toggleDraftScope('vault:write', true));
         await tester.pumpAndSettle();
-        expect(find.text('Sections it can reach'), findsOneWidget);
+        expect(find.text('Sections', skipOffstage: false), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
 

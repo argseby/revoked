@@ -62,7 +62,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
       if (!mounted) return;
       AppToast.success(
         context,
-        'You joined ${Stores.invites.acceptPreview?.workspaceName ?? 'the workspace'}.',
+        'Joined ${Stores.invites.acceptPreview?.workspaceName ?? 'the workspace'}',
       );
       context.go(AppRoutes.overview);
     } catch (e) {
@@ -100,12 +100,12 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 AppSpacing.gapLg,
-                const Text('This invite belongs to another server').header,
+                const Text('Invite from another server').header,
                 AppSpacing.gapSm,
                 Text(
-                  'It’s from ${widget.origin}, but you’re signed in to '
-                  '${Stores.api.originAuthority}. Switch servers on the '
-                  'sign-in screen, then open the invite again.',
+                  'The invite is from ${widget.origin}, while this session is on '
+                  '${Stores.api.originAuthority}. The server can be changed on '
+                  'the sign-in screen before the invite is opened again.',
                   textAlign: TextAlign.center,
                 ).muted.small,
               ],
@@ -183,7 +183,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
         InviteTrustSummary(preview: preview),
 
         AppSpacing.gapLg,
-        Text('You will be able to'),
+        Text('Permissions'),
         AppSpacing.gapSm,
 
         ...preview.permissions.map(
@@ -232,11 +232,11 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
           AppSpacing.gapSm,
           Text(
             features.isEmpty
-                ? 'You start with the vault alone. Turn on more any time '
-                      'under Settings → Features.'
-                : 'You start with the vault and '
-                      '${features.map((f) => f.label).join(', ')}. Change '
-                      'that any time under Settings → Features.',
+                ? 'Members start with the vault only. More features can be '
+                      'enabled under Settings → Features.'
+                : 'Members start with the vault and '
+                      '${features.map((f) => f.label).join(', ')}. Features '
+                      'can be changed under Settings → Features.',
           ).muted.small,
         ],
 
@@ -244,9 +244,9 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
           AppSpacing.gapMd,
           AppAlert(
             destructive: true,
-            title: const Text('This invite lets you control access'),
+            title: const Text('This invite grants access control'),
             content: Text(
-              'You could change who else gets into this workspace.',
+              'This permission allows changing who can join this workspace.',
             ).small,
           ),
         ],
@@ -254,8 +254,8 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
         AppSpacing.gapLg,
         if (!signedIn)
           AppAlert(
-            title: const Text('Sign in to accept'),
-            content: Text('The workspace needs to know who joined.').small,
+            title: const Text('Sign-in required'),
+            content: Text('The workspace records which account joined.').small,
           ),
         AppSpacing.gapMd,
         AppButton(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -19,6 +20,7 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_inline_create.dart';
 import 'package:revoked_app/core/widgets/app_chart.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -44,6 +46,26 @@ class WebhooksList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppInlineCreate(
+          label: 'New webhook',
+          onOpen: prepareWebhookDraft,
+          form: (close) => WebhookCreateForm(onClose: close),
+        ),
+        AppSpacing.gapLg,
+        const _Endpoints(),
+      ],
+    );
+  }
+}
+
+class _Endpoints extends StatelessWidget {
+  const _Endpoints();
+
+  @override
+  Widget build(BuildContext context) {
     final store = Stores.webhooks;
     return Observer(
       builder: (_) {
@@ -52,7 +74,7 @@ class WebhooksList extends StatelessWidget {
         }
         if (store.endpoints.isEmpty && store.loadState.error != null) {
           return AppLoadError(
-            title: 'Couldn’t load webhooks',
+            title: 'Webhooks could not be loaded',
             message: store.loadState.error!,
             onRetry: store.load,
           );
@@ -60,26 +82,21 @@ class WebhooksList extends StatelessWidget {
         if (store.endpoints.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.send,
-            title: 'Hear about changes the moment they happen',
+            title: 'No webhooks',
             subtitle:
-                'Your server gets a message when a share is opened or '
-                'revoked, a request is answered, or a record changes. No '
-                'asking every few minutes.',
+                'Webhooks deliver event notifications over HTTP when a share '
+                'is opened or revoked, a request is answered, or a record '
+                'changes. Polling is not required.',
             example: const AppEmptyExample(
               title: 'crm.example.com',
               detail: 'All events · 42 delivered today',
               badge: 'on',
             ),
             steps: const [
-              AppEmptyStep('Add your server’s address', 'Pick what it hears'),
-              AppEmptyStep('Check the signature', 'Only you can send it'),
-              AppEmptyStep('See every delivery', 'Send any of them again'),
+              AppEmptyStep('Endpoint', 'Subscribed to selected events'),
+              AppEmptyStep('Signature', 'Verifies the sender'),
+              AppEmptyStep('Deliveries', 'Logged and resendable'),
             ],
-            action: AppButton(
-              icon: AppIcons.plus,
-              label: 'New webhook',
-              onTap: () => openWebhookCreateSheet(context),
-            ),
             learnMoreLabel: 'How webhooks work',
             learnMoreUrl: '${AppConfig.docsUrl}/api/webhooks/',
           );
@@ -87,15 +104,8 @@ class WebhooksList extends StatelessWidget {
         return AppListGroup(
           title: 'Webhooks',
           footer: const Text(
-            'Messages never carry your records. Your server reads what it '
-            'needs with an API key.',
-          ),
-          trailing: AppButton(
-            icon: AppIcons.plus,
-            label: 'New',
-            style: AppButtonStyle.accent,
-            size: AppButtonSize.small,
-            onTap: () => openWebhookCreateSheet(context),
+            'Messages never contain record values. Records are read '
+            'separately with an API key.',
           ),
           children: [
             for (final e in store.endpoints)
@@ -186,10 +196,11 @@ class PrivateAddressNotice extends StatelessWidget {
     return const AppAlert(
       tone: AppAlertTone.warning,
       leading: Icon(AppIcons.exclamationTriangle),
-      title: Text('This server won’t deliver here'),
+      title: Text('Delivery to this address is blocked'),
       content: Text(
-        'It doesn’t send webhooks to local or private addresses. Whoever '
-        'runs the server can allow them with ALLOW_PRIVATE_CALLBACKS=true.',
+        'Webhooks are not delivered to local or private addresses. '
+        'The server operator can allow them with '
+        'ALLOW_PRIVATE_CALLBACKS=true.',
       ),
     );
   }
@@ -242,7 +253,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     if (secret == null) {
       AppToast.error(
         context,
-        'Couldn’t show the secret',
+        'The secret could not be shown',
         subtitle: Stores.webhooks.errorMessage,
       );
       return;
@@ -251,18 +262,16 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
       context,
       secret,
       title: 'Signing secret',
-      message: 'Your server uses it to check that a message came from here.',
+      message: 'Used by the receiving server to verify each message.',
     );
   }
 
   Future<void> _rotate(WebhookEndpoint e) async {
     final ok = await showAppDialog(
       context: context,
-      title: 'Make a new secret?',
-      message:
-          'The old one keeps working for 24 hours, so you have time to '
-          'switch your server over.',
-      confirmLabel: 'Make new secret',
+      title: 'Rotate the signing secret?',
+      message: 'The previous secret remains valid for 24 hours.',
+      confirmLabel: 'Rotate secret',
       confirmIcon: AppIcons.arrowRepeat,
       cancelLabel: 'Keep',
     );
@@ -272,7 +281,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     if (secret == null) {
       AppToast.error(
         context,
-        'Couldn’t make a new secret',
+        'The secret could not be rotated',
         subtitle: Stores.webhooks.errorMessage,
       );
       return;
@@ -280,8 +289,8 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     await showWebhookSecretDialog(
       context,
       secret,
-      title: 'Your new secret',
-      message: 'Put it on your server within 24 hours.',
+      title: 'New signing secret',
+      message: 'The previous secret expires in 24 hours.',
     );
   }
 
@@ -290,7 +299,9 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     if (!await store.setEnabled(e.id, enabled) && mounted) {
       AppToast.error(
         context,
-        enabled ? 'Couldn’t turn it on' : 'Couldn’t turn it off',
+        enabled
+            ? 'The webhook could not be enabled'
+            : 'The webhook could not be disabled',
         subtitle: store.errorMessage,
       );
     }
@@ -301,13 +312,13 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     final n = await store.resendFailed(e.id);
     if (!mounted) return;
     if (n == null) {
-      AppToast.error(context, 'Couldn’t resend', subtitle: store.errorMessage);
+      AppToast.error(context, 'Resend failed', subtitle: store.errorMessage);
     } else if (n == 0) {
-      AppToast.success(context, 'Nothing failed in the last day');
+      AppToast.success(context, 'No failed deliveries in the last day');
     } else {
       AppToast.success(
         context,
-        n == 1 ? 'Sending 1 message again' : 'Sending $n messages again',
+        n == 1 ? 'Resending 1 message' : 'Resending $n messages',
       );
     }
   }
@@ -316,8 +327,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     final ok = await showAppDialog(
       context: context,
       title: 'Delete this webhook?',
-      message:
-          'Nothing more is sent to ${e.host}, and its delivery log goes too.',
+      message: 'Delivery to ${e.host} stops and the delivery log is deleted.',
       confirmLabel: 'Delete',
       confirmIcon: AppIcons.trash,
       cancelLabel: 'Keep',
@@ -329,7 +339,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
     } else if (mounted) {
       AppToast.error(
         context,
-        'Couldn’t delete',
+        'The webhook could not be deleted',
         subtitle: Stores.webhooks.errorMessage,
       );
     }
@@ -345,10 +355,9 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
   /// A bucket's start as the time axis shows it: the time of day, with the
   /// weekday once the range spans days.
   static String _when(DateTime start, String range) {
-    final t = start.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    final time = '${two(t.hour)}:${two(t.minute)}';
-    return range == '7d' ? '${_weekdays[t.weekday - 1]} $time' : time;
+    final time = formatTime(start);
+    if (range != '7d') return time;
+    return '${_weekdays[inDisplayZone(start).weekday - 1]} $time';
   }
 
   static String _ms(double ms) =>
@@ -378,8 +387,8 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
       footer: e.isFailing
           ? Text(
               'Failing since ${dayLabel(e.failingSince?.toIso8601String())}. '
-              'Failed messages are tried again for about a day and a half. '
-              'After three days without success the webhook turns itself off.',
+              'Failed messages are retried for about 36 hours. '
+              'The webhook is disabled after three days without success.',
             )
           : null,
       children: [
@@ -477,7 +486,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
                   ('2xx', '2xx'),
                   ('4xx', '4xx'),
                   ('5xx', '5xx'),
-                  ('none', 'No answer'),
+                  ('none', 'No response'),
                 ])
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -582,19 +591,19 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
             title: 'Turned off',
             trailing: const SizedBox.shrink(),
             footer: const Text(
-              'Nothing reached this address for three days. Fix your server, '
-              'turn the webhook back on, then resend what it missed.',
+              'No delivery succeeded for three days. Once the endpoint is '
+              'fixed, the webhook can be re-enabled and missed messages resent.',
             ),
             children: const [],
           ),
         _activity(e),
         AppListGroup(
-          title: 'What it hears',
+          title: 'Events',
           trailing: const SizedBox.shrink(),
           footer: e.sendsEverything
               ? const Text(
-                  'Every event, except share opens and record edits. Those '
-                  'are frequent, so they are sent only when picked by name.',
+                  'All events except share opens and record edits, which are '
+                  'frequent and sent only when selected individually.',
                 )
               : null,
           children: [
@@ -614,8 +623,8 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
           title: 'Signing secret',
           trailing: const SizedBox.shrink(),
           footer: const Text(
-            'Every message carries a Revoked-Signature header made with this '
-            'secret. Check it before you trust the message.',
+            'Every message carries a Revoked-Signature header computed with '
+            'this secret. Messages should be verified before use.',
           ),
           children: [
             AppDetailRow(
@@ -625,7 +634,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
             ),
             AppDetailRow(
               icon: AppIcons.arrowRepeat,
-              label: 'Make a new secret',
+              label: 'Rotate secret',
               onTap: store.isChanging ? null : () => _rotate(e),
             ),
           ],
@@ -690,7 +699,7 @@ class _TestEvent extends StatelessWidget {
     if (delivery == null) {
       AppToast.error(
         context,
-        'Couldn’t send the test',
+        'The test could not be sent',
         subtitle: store.errorMessage,
       );
       return;
@@ -699,7 +708,7 @@ class _TestEvent extends StatelessWidget {
       AppToast.success(
         context,
         'Delivered',
-        subtitle: 'Your server answered ${delivery.lastStatus}.',
+        subtitle: 'The endpoint responded ${delivery.lastStatus}.',
       );
     } else {
       AppToast.error(context, 'Not delivered', subtitle: _outcome(delivery));
@@ -713,8 +722,8 @@ class _TestEvent extends StatelessWidget {
       title: 'Send a test',
       trailing: const SizedBox.shrink(),
       footer: const Text(
-        'A sample with "test": true, so your server can tell it from a '
-        'real one.',
+        'A sample event marked "test": true, distinguishable from '
+        'real events.',
       ),
       children: [
         Padding(
@@ -830,8 +839,8 @@ class _DeliveryLog extends StatelessWidget {
                   AppDetailRow(
                     icon: AppIcons.info,
                     label: store.filter == DeliveryFilter.all
-                        ? 'Nothing sent yet'
-                        : 'Nothing here',
+                        ? 'No deliveries'
+                        : 'No matching deliveries',
                   )
                 else
                   for (final d in rows)
@@ -865,19 +874,14 @@ String _deliveryLine(WebhookDelivery d) => [
 
 String _when(DateTime? t) {
   if (t == null) return '';
-  final now = DateTime.now();
-  final hm =
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-  if (t.year == now.year && t.month == now.month && t.day == now.day) {
-    return hm;
-  }
-  return '${dayLabel(t.toIso8601String())} $hm';
+  final day = formatDay(t);
+  return day == formatDay(DateTime.now()) ? formatTime(t) : formatDayTime(t);
 }
 
 String _outcome(WebhookDelivery d) {
   if (d.lastError.isNotEmpty && d.lastStatus == 0) return d.lastError;
-  if (d.lastStatus > 0) return 'Your server answered ${d.lastStatus}.';
-  return 'It wasn’t sent yet.';
+  if (d.lastStatus > 0) return 'The endpoint responded ${d.lastStatus}.';
+  return 'Not sent yet.';
 }
 
 /// Shows a secret once, with a way to copy it.
@@ -969,8 +973,8 @@ Future<void> openWebhookDeliverySheet(
                       if (d.attemptLog.isEmpty)
                         Text(
                           d.status == 'pending'
-                              ? 'Not tried yet.'
-                              : 'No tries were recorded.',
+                              ? 'No attempts yet.'
+                              : 'No attempts recorded.',
                         ).muted
                       else
                         for (final a in d.attemptLog) ...[
@@ -1033,7 +1037,7 @@ Future<void> _resend(BuildContext context, WebhookDelivery d) async {
   final fresh = await store.resend(d);
   if (!context.mounted) return;
   if (fresh == null) {
-    AppToast.error(context, 'Couldn’t resend', subtitle: store.errorMessage);
+    AppToast.error(context, 'Resend failed', subtitle: store.errorMessage);
   } else if (fresh.attemptLog.isNotEmpty && fresh.attemptLog.first.ok) {
     AppToast.success(context, 'Delivered');
   } else {

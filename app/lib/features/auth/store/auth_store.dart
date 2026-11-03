@@ -165,7 +165,7 @@ abstract class _AuthStore with Store {
     final opened = await _openBrowser(page).catchError((Object _) => false);
     runInAction(() {
       isAwaitingBrowser = opened;
-      if (!opened) errorMessage = 'Couldn\'t open your browser. Try again.';
+      if (!opened) errorMessage = 'The browser could not be opened.';
     });
     return opened;
   }
@@ -214,7 +214,7 @@ abstract class _AuthStore with Store {
         DateTime.now().difference(startedAt) > _pendingTtl) {
       runInAction(() {
         isAwaitingBrowser = false;
-        errorMessage = 'That sign-in took too long. Try again.';
+        errorMessage = 'The sign-in timed out.';
       });
       return false;
     }
@@ -366,8 +366,9 @@ abstract class _AuthStore with Store {
       return true;
     } on ApiException catch (e) {
       errorMessage = e.code == AppErrorCode.lastAdminProtected
-          ? 'You\'re the last person who can manage a shared workspace. '
-                'Hand it over or remove the other members first.'
+          ? 'This account is the last administrator of a shared workspace. '
+                'Administration must be handed over, or the other members '
+                'removed, first.'
           : e.message;
       return false;
     } finally {
@@ -430,6 +431,6 @@ abstract class _AuthStore with Store {
     await _api.clearAuthState();
     onLoggedOut?.call();
     currentUser = null;
-    errorMessage = 'Your session expired. Sign in again.';
+    errorMessage = 'The session has expired.';
   }
 }

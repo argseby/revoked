@@ -98,14 +98,12 @@ class ToolPermissions extends StatelessWidget {
       'shares:manage' => (
         AppIcons.share,
         label('Manage shares'),
-        showVault && allowVaultRead
-            ? 'Within your vault'
-            : 'Within its section',
+        showVault && allowVaultRead ? 'Across the vault' : 'Within its section',
       ),
       'requests:manage' => (
         AppIcons.askFor,
         label('Manage requests'),
-        'In your name',
+        'On the owner’s behalf',
       ),
       'attestations:issue' => (
         AppIcons.shieldCheck,
@@ -118,12 +116,12 @@ class ToolPermissions extends StatelessWidget {
 
   String get _noAccess {
     if (showVault && allowVaultRead) {
-      return 'No access to your links or your account.';
+      return 'No access to links or the account.';
     }
     if (ownSection) {
-      return 'No access to the rest of your vault, your links or your account.';
+      return 'No access to the rest of the vault, links or the account.';
     }
-    return 'No access to your vault, your links or your account.';
+    return 'No access to the vault, links or the account.';
   }
 
   @override
@@ -180,9 +178,7 @@ class ToolPermissions extends StatelessWidget {
                 ],
               ),
               AppSpacing.gapXs,
-              const Text(
-                'The connection ends after 90 days unless you connect again.',
-              ),
+              const Text('Connections expire after 90 days unless renewed.'),
             ],
           ),
           children: [
@@ -278,10 +274,9 @@ class SectionAccessChoice extends StatelessWidget {
           AppSpacing.gapSm,
           Text(
             write
-                ? 'It can add records here, and change or delete the ones it '
-                      'added. Records you add stay as they are.'
-                : 'It sees what you put here. It can’t add, change or delete '
-                      'anything.',
+                ? 'The tool can add records here and change or delete its own. '
+                      'Other records are left unchanged.'
+                : 'Read-only access to the records in this section.',
           ).muted.small,
         ],
       ),
@@ -301,24 +296,24 @@ class VaultReadNotice extends StatelessWidget {
     return AppAlert(
       tone: AppAlertTone.warning,
       leading: const Icon(AppIcons.exclamationTriangle),
-      title: const Text('What reading your vault means'),
+      title: const Text('Vault read access'),
       content: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$name sees the value of any record it opens.'),
+          Text('$name can see the value of any record it opens.'),
           const SizedBox(height: AppSpacing.sm),
           const Text(
-            'What it sees leaves Revoked. Revoking or disconnecting later '
-            'can’t take it back.',
+            'Values it reads leave Revoked. Revoking or disconnecting later '
+            'cannot recall them.',
           ),
           const SizedBox(height: AppSpacing.sm),
           const Text(
-            'If it’s an AI assistant, the company that runs the AI gets what '
-            'it sees, too.',
+            'For an AI assistant, the provider running the model receives '
+            'these values too.',
           ),
           const SizedBox(height: AppSpacing.sm),
           const Text(
-            'Only allow this for an assistant you started yourself, on this '
+            'Intended only for an assistant started by the owner on this '
             'device.',
           ),
         ],
@@ -343,8 +338,8 @@ class ToolCheckCode extends StatelessWidget {
       title: 'Check code',
       trailing: const SizedBox.shrink(),
       footer: Text(
-        'Must match the code on the $name page. If it doesn’t, or you didn’t '
-        'just ask for this in a browser, decline.',
+        'Must match the code on the $name page. Decline if it differs, or '
+        'if no request was just made in a browser.',
       ),
       children: [
         Padding(

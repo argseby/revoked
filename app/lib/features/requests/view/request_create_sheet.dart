@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
@@ -152,7 +153,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       return;
     }
     if (input.length < 6) {
-      _store.setDraftSlugCheck(warning: 'Use at least 6 characters.');
+      _store.setDraftSlugCheck(warning: 'At least 6 characters are required.');
       return;
     }
     _store.setCheckingSlug(true);
@@ -162,7 +163,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       final alt = await widget.store.generateAlternativeSlug(input);
       if (!mounted) return;
       _store.setDraftSlugCheck(
-        warning: 'This address is already taken. Try another one.',
+        warning: 'This address is already taken.',
         suggestion: alt,
       );
       _store.setCheckingSlug(false);
@@ -226,7 +227,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       }
       AppToast.error(
         context,
-        "Couldn't update the request",
+        'The request could not be updated.',
         subtitle: widget.store.errorMessage,
       );
       return false;
@@ -263,7 +264,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     }
     AppToast.error(
       context,
-      "Couldn't create the request",
+      'The request could not be created.',
       subtitle: widget.store.errorMessage,
     );
     return false;
@@ -320,8 +321,8 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                 ).header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Send a form and collect the answers. People sign in to '
-                  'respond.',
+                  'Requests collect answers through a form. Responding '
+                  'requires an account.',
                 ).muted.small,
                 if (widget.proposal case final p?
                     when !p.proposer.isEmpty && widget.editRequest == null) ...[
@@ -342,16 +343,15 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   shrinkWrap: true,
                   children: [
-                    const AppFormSectionHeader('What to ask for'),
+                    const AppFormSectionHeader('Fields'),
                     _buildTemplateRow(),
                     AppFormToggleRow(
                       icon: AppIcons.plus,
                       label: 'Allow extra fields',
                       subtitle: _store.draftTemplateId == null
-                          ? 'People add their own fields. Without a '
-                                'template, this is the only way to ask '
-                                'for anything.'
-                          : 'People can add fields beyond the template.',
+                          ? 'Respondents add their own fields. Required '
+                                'when no template is selected.'
+                          : 'Respondents may add fields beyond the template.',
                       value: _store.draftAllowExtraFields,
                       onChanged: _store.setDraftAllowExtraFields,
                     ),
@@ -371,12 +371,12 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                       children: [
                         _buildSlugRow(),
                         if (_store.draftIdentityId != null) _buildIdentityRow(),
-                        const AppFormSectionHeader('Who can respond'),
+                        const AppFormSectionHeader('Respondents'),
                         AppFormToggleRow(
                           icon: AppIcons.shieldCheck,
                           label: 'Require a verified identity',
                           subtitle:
-                              'People must prove who they are with a verified identity.',
+                              'Respondents prove who they are with a verified identity.',
                           value: _store.draftRequireHandshake,
                           onChanged: _store.setDraftHandshake,
                         ),
@@ -494,9 +494,9 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   Widget _buildTitleRow() => AppFormField(
     label: 'Title',
-    explanation: 'The heading people see on the form.',
+    explanation: 'The heading shown on the form.',
     note: _store.draftLabel.text.trim().isEmpty && _effectiveLabel.isNotEmpty
-        ? 'Leave it empty to use $_effectiveLabel.'
+        ? 'Defaults to $_effectiveLabel when empty.'
         : null,
     child: AppTextField(
       controller: _store.draftLabel,
@@ -540,7 +540,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     if (Stores.identities.identities.isEmpty) {
       return AppFormField(
         label: 'Your identity',
-        error: 'Create an identity in Settings first.',
+        error: 'An identity is required. Identities are managed in Settings.',
         child: Align(
           alignment: Alignment.centerLeft,
           child: AppButton(
@@ -567,8 +567,8 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'Sign with one of your identities. People can then check that '
-            'the request really comes from you.',
+            'The request is signed with this identity, so respondents can '
+            'verify its origin.',
           ).muted.small,
           AppSpacing.gapMd,
           IdentityPicker(
@@ -585,11 +585,11 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     return AppFormField(
       label: 'Template',
       note: name == null && _store.draftAllowExtraFields
-          ? 'None — people add their own fields.'
+          ? 'None — respondents add their own fields.'
           : null,
       child: AppPickerField(
         leading: AppIcons.cardList,
-        text: name ?? 'Pick the fields to ask for',
+        text: name ?? 'No template selected',
         isPlaceholder: name == null,
         onClear: () => _store.setDraftTemplate(null),
         onTap: _pickTemplate,
@@ -599,10 +599,10 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   Widget _buildPasswordRow() => AppFormField(
     label: 'Password',
-    explanation: 'People need this password to respond.',
+    explanation: 'Required to respond.',
     child: AppTextField(
       controller: _store.draftPassword,
-      hint: 'Leave blank for no password',
+      hint: 'No password',
       passwordToggle: true,
     ),
   );
@@ -658,8 +658,8 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
   Widget _buildIdentifierRow() => AppFormField(
     label: 'Identifier',
     explanation:
-        'Give this to the person you ask. They enter it to respond, and '
-        'their response is tied to it. The link alone is not enough.',
+        'Entered by the respondent to respond; each response is tied to '
+        'it. The link alone is not sufficient.',
     child: AppTextField(
       controller: _store.draftIdentifier,
       hint: 'INV-2024-0093',
@@ -684,29 +684,29 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       mode = 'One person only';
       reach = '1 ↔ 1';
       desc =
-          'Only the person with the identifier can respond, and they must '
-          'prove who they are with a verified identity. The safest option.';
+          'Only the holder of the identifier can respond, with a verified '
+          'identity. The most restrictive option.';
     } else if (hs) {
       icon = AppIcons.shieldCheck;
       mode = 'Verified identities';
       reach = 'Verified';
       desc =
-          'Anyone with a verified identity can respond. You always know who '
-          'answered.';
+          'Anyone with a verified identity can respond. Every response is '
+          'attributed.';
     } else if (hasIdentifier) {
       icon = AppIcons.tag;
       mode = 'People with the identifier';
       reach = 'By identifier';
       desc =
-          'Only people you give the identifier to can respond. Each response '
-          'is tied to its identifier.';
+          'Only holders of the identifier can respond. Each response is tied '
+          'to its identifier.';
     } else {
       icon = AppIcons.globe;
       mode = 'Anyone signed in';
       reach = 'Many → one';
       desc =
-          'Anyone with the link can respond once they sign in. Best for '
-          'asking many people.';
+          'Anyone with the link can respond after signing in. Suited to '
+          'large audiences.';
     }
 
     return Container(
@@ -743,7 +743,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
                   rootOnly
-                      ? '$desc Only identities from this server count.'
+                      ? '$desc Only identities from this server are accepted.'
                       : desc,
                 ).muted.small,
               ],
@@ -771,7 +771,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       child: AppPickerField(
         text: _store.draftExpiresAt == null
             ? 'Never'
-            : _formatDate(_store.draftExpiresAt!),
+            : formatCalendarDay(_store.draftExpiresAt!),
         isPlaceholder: _store.draftExpiresAt == null,
         opens: AppIcons.calendar,
         onClear: () => _store.setDraftExpiry(null),
@@ -833,19 +833,18 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     // back, and each has a different fix.
     final title = switch (result.code) {
       CallbackTestResult.codeBlocked => 'Address not allowed',
-      CallbackTestResult.codeUnreachable => "Couldn't reach the address",
-      CallbackTestResult.codeStatus => 'The address refused it',
-      CallbackTestResult.codeApi => "Couldn't ask the server to send it",
+      CallbackTestResult.codeUnreachable => 'Address unreachable',
+      CallbackTestResult.codeStatus => 'Rejected by the address',
+      CallbackTestResult.codeApi => 'Test could not be requested',
       _ => 'Callback failed',
     };
     final hint = switch (result.code) {
       CallbackTestResult.codeBlocked =>
-        'Local and private addresses are blocked by default. To use one on '
-            'this machine or your network, run the server with '
-            'ALLOW_PRIVATE_CALLBACKS=true.',
+        'Local and private addresses are blocked by default. They are '
+            'allowed when the server runs with ALLOW_PRIVATE_CALLBACKS=true.',
       CallbackTestResult.codeApi =>
-        'Your server may be too old to send test callbacks. Update it and '
-            'try again.',
+        'The server may predate test callbacks. Test callbacks require an '
+            'updated server.',
       _ => result.detail,
     };
     AppToast.error(context, title, subtitle: hint);
@@ -871,13 +870,13 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                     AppSpacing.xl,
                     AppSpacing.sm,
                   ),
-                  child: Text('Choose a template').header,
+                  child: Text('Template').header,
                 ),
                 AppTile(
                   padding: _pickerRowPadding,
                   title: const Text('None'),
                   subtitle: const Text(
-                    'People add their own fields. This turns on extra '
+                    'Respondents add their own fields. Enables extra '
                     'fields.',
                   ).muted.small,
                   trailing: _store.draftTemplateId == null
@@ -1010,7 +1009,4 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     }
     return n;
   }
-
-  String _formatDate(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 }

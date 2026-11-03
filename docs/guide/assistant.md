@@ -1,45 +1,47 @@
 # Your AI assistant
 
-Let your AI assistant do the busywork. Ask it in plain words to share your
-address with your landlord, collect a tax ID from a colleague, or check which
-of your links were opened. It prepares everything, and you confirm in the
-Revoked app.
+An AI assistant can prepare Revoked actions from plain-language
+instructions: sharing an address with a landlord, collecting a tax ID from
+a colleague, or checking which links were opened. The assistant prepares
+each action, and the action is confirmed in the Revoked app.
 
-By default your assistant never sees your values. It names what to share,
-and you fill in and save. It can also [keep notes for
-you](#let-it-keep-notes-for-you) in a section of its own. If you want it to
-answer questions about your whole vault, you can [let it read your
-vault](#let-it-read-your-vault).
+By default the assistant never sees values. It names what to share; values
+are filled in and saved in the app. It can also
+[keep notes](#let-it-keep-notes-for-you) in a section of its own and, if
+permitted, [read the vault](#let-it-read-your-vault) to answer questions
+about it.
 
-## What you need
+## Requirements
 
-- The Revoked app, signed in to your account.
-- An AI app that supports MCP, such as Claude Code or Claude Desktop.
+- The Revoked app, signed in.
+- An AI application that supports MCP, such as Claude Code or Claude
+  Desktop.
 - The Revoked assistant program, `revoked-mcp`, on the same computer as the
-  AI app.
+  AI application.
 
-## Set it up once
+## Setup
 
-### Get the program
+### Building the program
 
-Build it from the Revoked source code. You need [Go](https://go.dev/dl/):
+`revoked-mcp` is built from the Revoked source code and requires
+[Go](https://go.dev/dl/):
 
 ```bash
 go build -o ~/.local/bin/revoked-mcp ./cmd/revoked-mcp
 ```
 
-### Add it to your AI app
+### Adding it to the AI application
 
-Use the address of the server your Revoked app is signed in to. If it's a
-different server, your assistant works for a different account.
+The server address must be the one the Revoked app is signed in to. A
+different server means a different account.
 
-In **Claude Code**, run:
+In **Claude Code**:
 
 ```bash
 claude mcp add revoked -e REVOKED_SERVER=https://api.revoked.link -- ~/.local/bin/revoked-mcp
 ```
 
-In **Claude Desktop**, open **Settings → Developer → Edit Config** and add:
+In **Claude Desktop**, under **Settings → Developer → Edit Config**:
 
 ```json
 {
@@ -52,27 +54,29 @@ In **Claude Desktop**, open **Settings → Developer → Edit Config** and add:
 }
 ```
 
-Then start a new chat, or restart the app. Running your own server on this
-computer? Use `http://localhost:3000` as the address.
+The change takes effect in a new chat or after restarting the application.
+For a server running on the same computer, the address is
+`http://localhost:3000`.
 
-### Connect it to your account
+### Connecting to the account
 
-Your AI app may already list Revoked as connected. That only means the
-program is running. Your account still has to say yes:
+The AI application may list Revoked as connected as soon as the program
+runs. The account still has to approve the connection:
 
-1. Ask your assistant: *“Connect to Revoked.”*
-2. The Revoked app opens with **Connect AI assistant**, and your
-   assistant tells you a short code, such as `83C-047`.
-3. Check that the app shows the same code. If it doesn't, press **Decline**.
-4. Choose what it may do, then press **Connect**.
-5. Ask your assistant: *“Check the Revoked connection.”*
+1. Ask the assistant: *“Connect to Revoked.”*
+2. The Revoked app opens with **Connect AI assistant**, and the assistant
+   reports a short code, such as `83C-047`.
+3. Confirm that the app shows the same code. If it does not, press
+   **Decline**.
+4. Select the permissions, then press **Connect**.
+5. Ask the assistant: *“Check the Revoked connection.”*
 
-You only do this once. The connection lasts 90 days, and connecting again
-renews it.
+This is a one-time step. The connection lasts 90 days, and connecting
+again renews it.
 
-## Ask it things
+## Example instructions
 
-Talk to it as you would to a person:
+Instructions are given in plain language:
 
 - *“Share my email and phone number with Sam for a week.”*
 - *“Ask Alex for their tax ID with my bank details template.”*
@@ -80,80 +84,84 @@ Talk to it as you would to a person:
 - *“Has anyone answered my request yet?”*
 - *“End the link I made for Sam.”*
 
-Each time it prepares something, the Revoked app opens with everything
-filled in. Check it, fill in anything missing, and save. Nothing happens
-until you do.
+Each prepared action opens the Revoked app with everything filled in.
+Nothing happens until it is checked, completed and saved there.
 
-Your assistant only keeps track of what it prepared. Links and requests you
-made yourself stay out of its sight.
+The assistant tracks only what it prepared. Links and requests created
+directly in the app are not visible to it.
 
-## Let it keep notes for you
+## Notes section {#let-it-keep-notes-for-you}
 
-Want your assistant to remember a packing list, or keep a draft until
-you're ready? Give it a section of its own:
+The assistant can keep data such as a packing list or a draft in a section
+of its own:
 
-1. Ask your assistant: *“Connect to Revoked with a section of your own.”*
+1. Ask the assistant: *“Connect to Revoked with a section of your own.”*
 2. The Revoked app shows **Vault section** with the name of the new
    section. Leave it on and press **Connect**.
-3. Ask it to save something. It shows up in your vault, marked **Added by**
-   and your assistant's name.
+3. Items the assistant saves appear in the vault, marked **Added by** and
+   the assistant's name.
 
-It sees only that section, and only changes what it added. Want it to share
-or ask for something on its own, without you confirming each time? Ask it to
-*“connect with permission to create shares and requests”*. As with your
-vault, this needs the Revoked app on the same computer.
+It sees only that section and changes only what it added. To let it create
+shares and requests without confirming each one, ask it to
+*“connect with permission to create shares and requests”*. As with vault
+access, this requires the Revoked app on the same computer.
 
-## Let it read your vault
+## Vault access {#let-it-read-your-vault}
 
-Want to ask *“What's my IBAN?”* or *“Fill in this form from my vault”*? Your
-assistant has to read your vault for that. You decide:
+Questions such as *“What's my IBAN?”* or *“Fill in this form from my
+vault”* require read access to the vault, which is granted explicitly:
 
-1. Ask your assistant: *“Connect to Revoked with vault access.”*
-2. The Revoked app shows **Read vault**. It's off.
-3. Read **What reading your vault means**. Turn it on only if you agree.
-4. Press **Connect**. A browser tab opens and says your assistant is
-   connected. You can close it.
+1. Ask the assistant: *“Connect to Revoked with vault access.”*
+2. The Revoked app shows **Read vault**, off by default.
+3. Read **Vault read access**, and turn the switch on only if
+   its terms are acceptable.
+4. Press **Connect**. A browser tab opens to confirm the connection and can
+   be closed.
 
-Before you turn it on, know what it means:
+Enabling it has these consequences:
 
-- Your assistant sees the value of any record it opens.
-- What it sees leaves Revoked. Revoking or disconnecting later can’t take
+- The assistant sees the value of any record it opens.
+- What it sees leaves Revoked. Revoking or disconnecting later cannot take
   it back.
-- If it's an AI assistant, the company that runs the AI gets what it sees,
-  too.
-- It can't change or delete anything you added to your vault.
+- For an AI assistant, the company that runs the AI also receives what it
+  sees.
+- It cannot change or delete records the owner added to the vault.
 - Encrypted records stay hidden from it.
 
-This only works when the Revoked app runs on the same computer as your
-assistant. That way, a connect link from someone else can never get into
-your vault.
+Vault access works only when the Revoked app runs on the same computer as
+the assistant, so a connect link from someone else can never reach the
+vault.
 
-**Changed your mind?** Open **Settings → Connected tools**, pick your
-assistant, and turn off **Read vault**. It stops reading at once. To turn
-it on again, ask your assistant to connect with vault access.
+To withdraw access, open **Settings → Connected tools**, select the
+assistant, and turn off **Read vault**. Reading stops immediately.
+Enabling it again requires connecting with vault access.
 
-## What it can never do
+## Limits
 
-- Save, send or publish anything without you.
-- Change or delete records you added to your vault.
-- See your account, or the links and requests you made yourself.
-- Read your vault, unless you turned on **Read vault**.
+The assistant cannot:
 
-## Take a break or stop
+- save, send or publish anything without confirmation,
+- change or delete records the owner added to the vault,
+- see the account, or links and requests created directly in the app,
+- read the vault unless **Read vault** is on.
 
-Open **Settings → Connected tools** and pick your assistant:
+## Pausing and disconnecting
 
-- Turn off **Active** to stop it for now. Turn it on to bring it back.
-- **Disconnect** cuts it off for good. What it prepared stays yours.
+Under **Settings → Connected tools**, select the assistant:
 
-To use it again after disconnecting, ask it to connect.
+- Turning off **Active** suspends it; turning it on restores it.
+- **Disconnect** ends the connection permanently. What it prepared stays in
+  the workspace.
 
-## Something isn't working
+After disconnecting, the assistant must connect again before it can be
+used.
 
-| What you see | What to do |
+## Troubleshooting
+
+| Symptom | Resolution |
 |---|---|
-| Nothing opens when it prepares something | Your computer doesn't open `revoked://` links. Ask your assistant for the link, and open it in the Revoked app yourself. |
-| The codes don't match | Press **Decline**. Then ask your assistant to connect again. |
-| It says it isn't connected | Ask it to connect. A connection ends after 90 days, or when you disconnect it. |
-| It can't read your vault | Ask it to connect with vault access, with the Revoked app on the same computer. |
-| It can't reach your server | Check the address you gave it. It must be the server your app is signed in to. |
+| Nothing opens when it prepares something | The computer does not handle `revoked://` links. Ask the assistant for the link and open it in the Revoked app manually. |
+| The codes don't match | Press **Decline**, then ask the assistant to connect again. |
+| It says it isn't connected | Ask it to connect. A connection ends after 90 days, or when it is disconnected. |
+| It can't read the vault | Ask it to connect with vault access, with the Revoked app running on the same computer. |
+| It can't reach the server | Check the configured address. It must be the server the app is signed in to. |

@@ -1,241 +1,256 @@
 # Tools & link proposals
 
-Some tools need your data: an emergency-card maker, an application form,
-someone else's service. With a **link proposal**, the tool asks for the
-records it needs, and you create the share yourself, on your own server.
-The tool only ever names keys, never values, and it never gets into your
-vault unless you let it read it.
+Some tools need data from the vault: an emergency-card generator, an
+application form, a third-party service. With a **link proposal**, the tool
+names the records it needs, and the owner creates the share on their own
+server. The tool only ever names keys, never values, and has no access to
+the vault unless reading is explicitly allowed.
 
-A [request](requests.md) works the other way round: the person who wants
-the data sends you a form, and you fill it in.
+A [request](requests.md) works in the opposite direction: the party that
+wants the data sends a form, and the owner fills it in.
 
 | | Request | Link proposal |
 |---|---|---|
-| Who starts it | The person who wants the data | A tool, for the person who has the data |
-| Where the data ends up | In the requester's workspace, with that request's answers | In a share in the owner's workspace, under **Shares** |
-| What the other side keeps | The answers: typed, or linked to your vault so you can take them back | At most the link, and only once you hand it over |
+| Who starts it | The party that wants the data | A tool, on behalf of the data owner |
+| Where the data ends up | In the requester's workspace, with that request's responses | In a share in the owner's workspace, under **Shares** |
+| What the other side keeps | The responses: typed, or linked to the responder's vault so they can be revoked | At most the link, and only once it is handed over |
 
 [Notfallkarte](notfallkarte.md) is a complete example: a web page that
-turns a proposal into an emergency card for your wallet.
+turns a proposal into a wallet-sized emergency card.
 
-## Review what a tool asks for
+## Reviewing a proposal
 
 A proposal opens the app on **Link proposal from …**. The name after
-*from* is what the tool calls itself, so treat it as a claim. Next to it is
-the tool's web address. That's what really identifies it.
+*from* is the tool's self-declared name and is only a claim. The tool's
+web address is shown beside it; that is what actually identifies it.
 
-You see every record the share would include, found in your vault by the
-keys the tool named. Missing some? Fill them in right there. A proposal can
-name a [template](templates.md) for its keys, which gives each one a label
-and an input. What you enter is saved to your vault like any other record.
+The review lists every record the share would include, located in the
+vault by the keys the tool named. Missing records can be filled in
+directly. A proposal can name a [template](templates.md) for its keys,
+which gives each one a label and an input. Entered values are saved to the
+vault like any other record.
 
-Nothing is created until you press **Continue**. **Decline** takes you back
-to the tool without sharing anything.
+Nothing is created until **Continue** is pressed. **Decline** returns to
+the tool without sharing anything.
 
 A proposal can also set the share's options: an expiry in days, a
-watermark text, or that it's a rental application. The share is created
-with exactly those. If any part of a proposal is broken, the whole thing is
-refused (*This link doesn't work*). The app never guesses what the tool
-meant.
+watermark text, or the rental-application type. The share is created with
+exactly those. If any part of a proposal is malformed, the whole proposal
+is refused (*This link doesn't work*); the app never guesses the tool's
+intent.
 
-## Let a tool suggest a request or an attestation
+## Proposed requests, attestations and checks
 
-A tool can fill in more than shares for you. It can suggest:
+Besides shares, a tool can propose:
 
-- a **request**, to collect answers from other people with one of your
-  templates. The app opens **New request** with the template, the title and
-  the end date filled in.
-- an **attestation**, to confirm something about someone in your domain's
-  name. The app opens **Confirm something about someone** with the kind and
-  the details to fill in. You set every value.
-- a **check**, to ask someone to show you an attestation. The app opens
-  **See someone's attestation** with what to ask for.
+- a **request**, to collect responses from others with one of the
+  workspace's templates. The app opens **New request** with the template,
+  the title and the end date filled in.
+- an **attestation**, to confirm something about someone in the domain's
+  name. The app opens **Issue an attestation** with the kind and
+  the details to fill in. Every value is set by the owner.
+- a **check**, to ask someone to present an attestation. The app opens
+  **See someone's attestation** with the requested criteria.
 
-Each form says **Proposed by …** at the top, with the tool's web address
-next to the name it gave itself. Check everything before you save. Nothing
-happens until you do.
+Each form shows **Proposed by …** at the top, with the tool's web address
+beside its self-declared name. Nothing happens until the form is saved.
 
-If you connected the tool, it can then follow what you saved: whether a
-request is still open and how many people answered, whether an attestation
-was accepted, and the result of a check, with what the person chose to
-show. It never sees the answers to a request or the values in an
+A connected tool can then follow what was saved: whether a request is
+still open and how many responses it has, whether an attestation was
+accepted, and the result of a check, including what the person chose to
+disclose. It never sees the responses to a request or the values in an
 attestation.
 
-## Connect a tool
+## Connecting a tool
 
-Once you confirm a proposal, the tool learns nothing more on its own. For
-that, you **Connect** it: as a step before the review, or separately, for
-example from the tool's settings. A connected tool can see what became of
-the links it proposed: active, paused, revoked or expired, and how often
-they were opened. It can follow the requests, attestations and checks it
-suggested the same way. It never sees what they contain, or anything else in
-your vault, unless you give it a section or let it read your vault.
+A confirmed proposal tells the tool nothing further on its own. For that,
+the tool is connected with **Connect**: as a step before the review, or
+separately, for example from the tool's settings. A connected tool can see
+the status of the links it proposed (active, paused, revoked or expired)
+and how often they were opened. It can follow the requests, attestations
+and checks it proposed the same way. It never sees their contents or
+anything else in the vault, unless it is given a section or allowed to
+read the vault.
 
-Everything else is a switch, per tool. Under the switches the app shows the
-reason the tool gave for asking:
+All further access is controlled by switches, per tool. The reason the
+tool gave for asking is shown beneath the switches:
 
-| Switch | What it allows |
+| Switch | Effect |
 |---|---|
-| **Vault section** | The tool gets a section of your vault, named after it, to keep what it saves for you. Pick **Read**, and it only sees what you put there. Pick **Manage**, and it can also add records, and change or delete the ones it added. It can't see the rest of your vault. |
-| **Manage shares** | The tool shares what is in its section without asking you each time. You see every share in the app, and can stop it. |
-| **Manage requests** | The tool sends requests in your name without asking you each time. Only when you confirm on this device, never with a code. |
-| **Revoke its links** | The tool can revoke the links and requests it proposed, for example when you throw away the printed card. You're notified like for any other revocation. |
-| **Receive links** | When you create a link it proposed, the tool gets it, so you don't copy it over. Links with files or hidden values you always send yourself. |
-| **Read vault** | Only when the tool asks, and off until you turn it on. The tool can see the values of your records, but not your encrypted ones, and it can't change anything. What it sees can't be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) explains what to weigh. |
+| **Vault section** | The tool receives a vault section named after it, for storing its data. With **Read**, it sees only what is placed there. With **Manage**, it can also add records, and change or delete the ones it added. It cannot see the rest of the vault. |
+| **Manage shares** | The tool shares the contents of its section without per-share confirmation. Every share is visible in the app and can be stopped. |
+| **Manage requests** | The tool sends requests in the owner's name without per-request confirmation. Available only when confirmed on this device, never with a code. |
+| **Revoke its links** | The tool can revoke the links and requests it proposed, for example when a printed card is discarded. A notification is sent as for any other revocation. |
+| **Receive links** | When a proposed link is created, the tool receives it directly instead of it being copied over. Links with files or hidden values are always handed over manually. |
+| **Read vault** | Available only when the tool asks for it, and off by default. The tool can read record values, except encrypted records, and cannot change anything. What it has read cannot be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) describes the trade-offs. |
 
-Switches marked **Sensitive** let the tool do something you can't take
-back: hand out links, ask people for data in your name, or read your whole
-vault. Turn them on only for a tool you trust with that.
+Switches marked **Sensitive** allow actions that cannot be reversed:
+handing out links, requesting data in the owner's name, or reading the
+whole vault. They are intended only for tools trusted with that.
 
-### Confirm on another device
+### Confirming on another device
 
-To answer a tool, the app opens the tool's page again in your default
-browser. That may not be the browser you started in. A tool that already
-knows your server can avoid this by picking up the answer itself. It then
-shows a short code such as `83C-047` on its page, and the app shows the
-same code before anything is connected. Continue only if both match. The
-original tab then carries on, even if you confirmed on your phone.
+To answer a tool, the app reopens the tool's page in the default browser,
+which may differ from the browser where the flow began. A tool that
+already knows the server can avoid this by collecting the answer itself.
+It then shows a short code such as `83C-047` on its page, and the app
+shows the same code before anything is connected. The connection should
+proceed only if both match. The original tab then continues, even when
+confirmation happened on a phone.
 
-Already connected in one browser? **Let this browser in** admits another
-one. It gets the same permissions as before, nothing more.
+For a tool already connected in one browser, **Allow this browser** admits
+another one, with the same permissions and nothing more.
 
-## Give a tool its own section
+## Tool sections
 
-A tool that keeps things for you, like a packing list or a game save, can
-keep them in your vault instead of on its own servers. Leave **Vault
-section** on when you connect it. The app shows the name of the section it
-will get:
+A tool that stores data, such as a packing list or a game save, can keep
+it in the vault instead of on its own servers. **Vault section** stays on
+when connecting, and the app shows the name of the section the tool will
+receive:
 
-- Everything it saves there is yours. You see it in your vault, marked
-  **Added by** and the tool's name.
-- It can change only what it added. Records you put in its section are
-  yours, and it can only read them.
-- The section stays in your vault when you disconnect the tool. Turn
-  **Vault section** off later, and the tool can't use it any more. Turn it
-  on again, and it gets the same section back.
+- Everything the tool saves there belongs to the vault owner and appears
+  in the vault, marked **Added by** and the tool's name.
+- The tool can change only what it added. Records the owner places in its
+  section remain the owner's, and the tool can only read them.
+- The section stays in the vault after the tool is disconnected. Turning
+  **Vault section** off later removes the tool's access; turning it on
+  again restores the same section.
 
-Putting one of your records into a section a tool can read lets the tool
-read it. The app asks first, and names the tool. Tap **Add to section** only
-if that's what you want. To take it back, remove the record from the
-section.
+Placing a record in a section a tool can read gives the tool read access
+to it. The app asks first and names the tool; **Add to section** confirms.
+Removing the record from the section withdraws the access.
 
-Want a tool to read more? Open it under **Settings → Connected tools**. In
-**Vault sections**, every section of yours has a switch: turn one on and the
-tool can read it, turn it off and it can't any more. The section stays in
-your vault either way. Its own section comes first, marked **Its own**.
+Further sections are granted under **Settings → Connected tools**. In
+**Vault sections**, each section has a switch: on grants read access, off
+removes it. The section stays in the vault either way. The tool's own
+section is listed first, marked **Its own**.
 
-## Give your scripts a key
+## API keys for scripts
 
-Your own scripts, like one that keeps a record up to date, use an **API
-key** instead. You'll find them under **Settings → Developer → API keys**.
-Tap **New API key** (**New** once you have one), tick what the key may do,
-and, if it should use your vault, pick the **Sections it can reach**. The
-key reaches only those.
-You see the key once: copy it then. To stop a key, revoke it in the same
-list.
+Scripts, such as one that keeps a record up to date, authenticate with an
+**API key** instead. Keys are managed under
+**Settings → Developer → API keys**. A key starts from a preset under
+**New API key**, such as **Keep records current**; its permissions
+are then ticked and, for vault access, the **Sections** are
+selected. The key reaches only those sections. A key is shown once at
+creation and cannot be retrieved later. Revoking it in the same list
+disables it.
 
-## Manage your connected tools
+## Managing connected tools
 
-**Settings → Connected tools** lists every tool: when you connected it,
-when it was last used, when the connection ends, and everything it
-proposed: its links, requests, attestations and checks. There you can
-change its permissions and sections, or open or revoke each of its links. **Read your
-vault** shows only while it's on. You can turn it off there. To turn it on
-again, the tool has to ask when it connects. Tap a
-request, an attestation or a check to open it where it lives.
+**Settings → Connected tools** lists every tool by name and a short ID,
+the first six characters of its full **ID**. Two tools of the same name, such
+as two AI assistants, are told apart by this ID. In the vault, a section
+header carries a chip for each tool behind it: a plug for the tool that
+keeps the section, marked "off" while its access is switched off, and an eye
+for a tool that may read it. Hovering over a chip shows the tool's name and
+access; selecting it opens the tool's page. Tools name
+themselves when they connect, so a name alone does not identify one. A tool's page shows the full ID and **Connected by**, the
+account that connected it. The list also shows each tool's connection date,
+last use, connection expiry, and everything it proposed: links, requests,
+attestations and checks. Its permissions and sections can be changed
+there, and each of its links opened or revoked. **Read your vault** appears
+only while enabled and can be turned off there; turning it on again
+requires the tool to ask when it connects. A request, attestation or check
+opens where it lives in the app.
 
-### Take a break from a tool
+### Pausing a tool
 
-Not sure you still want it? Turn off **Active**. The tool can't do anything,
-its links stop opening, and its requests stop taking answers. Turn it back
-on when you want it back, and everything works as before. Any link you paused yourself stays paused.
+Turning off **Active** suspends the tool: it can do nothing, its links stop
+opening, and its requests stop accepting responses. Turning it back on
+restores everything as before. Links paused manually stay paused.
 
-### Cut a tool off for good
+### Disconnecting a tool
 
-Tap **Disconnect** and the tool is cut off at once. Its links and requests
-stay yours and keep working, unless you also tick **Revoke its links too**,
-which closes its requests as well. Attestations you issued stay as they are.
+**Disconnect** cuts the tool off immediately. Its links and requests remain
+with the owner and keep working, unless **Revoke its links too** is also
+ticked, which closes its requests as well. Issued attestations are not
+affected.
 
-A connection lasts **90 days** from the last time you confirmed it in the
-app. Only confirming it there again renews it; a tool can't keep itself
-alive. Everything a tool does (connecting, reading, revoking,
-disconnecting) is recorded in the audit log under its web address.
+A connection lasts **90 days** from its last confirmation in the app. Only
+confirming it there again renews it; a tool cannot keep itself alive.
+Every tool action (connecting, reading, revoking, disconnecting) is
+recorded in the audit log under the tool's web address.
 
-## See where you signed in
+## Sign-in services
 
-Signed in to a game or a shop with Revoked? Find it again under
-**Settings → Connected tools**, in **Services you signed in to**. Each
-service shows when you first and last signed in, what it learned about you,
-and any entries you shared.
+Services signed in to with Revoked, such as a game or a shop, are listed
+under **Settings → Connected tools**, in **Signed-in services**.
+Each service shows the first and last sign-in, what it learned about the
+account, and any shared entries.
 
-To stop a service reading your entries, tap its link under **Shared entries**
-and choose **Revoke**. It can't read them from then on.
+To stop a service reading an entry, open its link under
+**Shared entries** and choose **Revoke**. The service can no longer read
+it.
 
-### Pause a service
+### Pausing a service
 
-Tap **Pause** and you can't sign in to that service with Revoked. It can't read
-your entries either. Tap **Activate** to undo it, and the service knows you as
-before.
+**Pause** blocks signing in to that service with Revoked, and blocks the
+service from reading entries. **Activate** reverses this, and the service
+recognises the account as before.
 
-### Disconnect a service
+### Disconnecting a service
 
-Done with a service? Tap **Disconnect**. It can't read your entries any more,
-and you can only sign in there again by approving it in the app.
+**Disconnect** stops the service from reading entries. Signing in there
+again requires a new approval in the app.
 
-### Come back as someone new
+### New service ID
 
-When you disconnect, tick **Get a new ID** and the service sees you as someone
-new if you ever come back. If you've already disconnected, the same button is
-on the service's page.
+Ticking **Get a new ID** on disconnect makes the service treat any later
+sign-in as a new user. After disconnecting, the same button is available on
+the service's page.
 
-Think before you tick it. You can't get your old account there back, along with
-anything saved in it, like game progress. Not sure? Use **Pause** instead.
+This cannot be reversed: the previous account at the service, and anything
+saved in it such as game progress, cannot be recovered. **Pause** is the
+reversible alternative.
 
-When you come back, the app shows you what the service is asking for, with
-nothing picked. Your email, your name or your identity can still tell the service
-who you are, so share them only if you don't mind that.
+On a later sign-in, the app shows what the service asks for, with nothing
+preselected. An email address, a name or an identity can still reveal the
+person behind the account, so these are best shared only where that is
+acceptable.
 
-## Choose your name for each service
+## Names per service
 
-When a service asks for your name, you decide which one it gets. You can use
-a game name in one place and your real name in another. The top of **Your name**
-shows what the service will see.
+When a service asks for a name, the name it receives is chosen per
+service: a game name in one place, a legal name in another. The top of
+**Your name** shows what the service will see.
 
-Tap one of your identities or vault entries to use it. Want a new name just for
-that service? Type it in **Your new name**. Don't want to share one? Turn off the
-switch, and you can still sign in.
+Selecting one of the identities or vault entries uses it. A new name for
+that service alone is entered in **New name**. Turning off the switch
+shares no name; sign-in still works.
 
-Using a vault entry? Change the entry, and the service can pick up the new
-name. Some services only update it the next time you sign in. Your choice is
-remembered, and you can change it at your next sign-in. Either way, the
-service knows you by the same ID, unless you ask for a new one.
+When a vault entry is used, changes to the entry can reach the service;
+some services update it only at the next sign-in. The choice is remembered
+and can be changed at the next sign-in. Either way, the service keeps the
+same ID unless a new one is requested.
 
-## Choose what a service reads
+## Entries a service reads
 
-A service can ask for something from your vault, like a game asking for a
-player name. The app shows what the service will see, and you decide:
+A service can ask for something from the vault, such as a game asking for
+a player name. The app shows what the service will see, and the value
+comes from one of the following:
 
-- Tap one of the entries suggested for you.
-- Not there? Tap **Browse your vault**, open a section and pick an entry. Or use
-  **Search your vault** to look through every section.
-- Type in **Your new value** to save a new entry and share that.
-- Turn off the switch to keep it to yourself. You can still sign in.
+- one of the suggested entries,
+- **Browse vault**, to open a section and pick an entry, or
+  **Search vault**, to search every section,
+- **New value**, which saves a new entry and shares it,
+- nothing, by turning off the switch. Sign-in still works.
 
-Pick an entry with a different key, and the app adds an alias to your vault, so
-it's ready next time.
+Picking an entry with a different key adds an alias to the vault for next
+time.
 
-Your entries come from the workspace you're in. Have more than one? Tap the
-workspace name on the same screen to switch. New entries are saved there too,
-and the app stays in that workspace afterwards.
+Entries come from the current workspace. With several workspaces, tapping
+the workspace name on the same screen switches it. New entries are saved
+there, and the app stays in that workspace afterwards.
 
-Anything added for a service goes in its own section of your vault, named after
-the service, like **Sign-in · showdown.example**. So you can always see what a
-service asked you to add. To go to that service, open the section's menu and
-choose **Open service**. Entries you already had stay where they are.
+Anything added for a service goes into its own vault section, named after
+the service, such as **Sign-in · showdown.example**, so it remains visible
+what a service caused to be added. **Open service** in the section's menu
+opens the service. Existing entries stay where they are.
 
-## Sign out of a service
+## Signing out of a service
 
-The service keeps its own login, so sign out there. **Pause** and
-**Disconnect** don't do that for you, so you may stay signed in until you do.
-It may also have saved what it learned, like your email address, and only the
-service can delete that.
+The service maintains its own session, so signing out happens there.
+**Pause** and **Disconnect** do not end that session. The service may also
+have retained what it learned, such as an email address; only the service
+can delete that.

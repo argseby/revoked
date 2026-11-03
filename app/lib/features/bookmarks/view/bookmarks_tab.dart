@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -15,7 +16,6 @@ import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -35,7 +35,7 @@ class BookmarksTab extends StatelessWidget {
     final create = await showAppEditSheet(
       context: context,
       title: 'New group',
-      description: 'Collect bookmarks under a name, like a playlist.',
+      description: 'Groups collect bookmarks under a name.',
       controller: store.groupName,
       hint: 'e.g. Read later',
       doneLabel: 'Create',
@@ -45,7 +45,7 @@ class BookmarksTab extends StatelessWidget {
     if (!ok && store.error != null && context.mounted) {
       AppToast.error(
         context,
-        "Couldn't create the group",
+        'The group could not be created.',
         subtitle: store.error?.description,
       );
     }
@@ -83,15 +83,15 @@ class BookmarksTab extends StatelessWidget {
         if (store.bookmarks.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.bookmark,
-            title: 'Keep links others send you',
+            title: 'No bookmarks',
             subtitle:
-                'Save a link and find it here again. A bookmark is a '
-                'shortcut, not a copy. Passwords and identity checks still '
-                'apply, and a revoked link stays closed.',
+                'Bookmarks are shortcuts to links from others, not copies. '
+                'Passwords and identity checks still apply, and revoked links '
+                'stay closed.',
             steps: const [
-              AppEmptyStep('Open a link', 'One someone sent you'),
-              AppEmptyStep('Tap Bookmark', 'On the open link'),
-              AppEmptyStep('Find it here', 'In groups, if you like'),
+              AppEmptyStep('Received link', 'Opened from a message'),
+              AppEmptyStep('Bookmark', 'Saved from the open link'),
+              AppEmptyStep('Bookmarks list', 'Optionally sorted into groups'),
             ],
             action: AppButton(
               icon: AppIcons.link,
@@ -155,7 +155,7 @@ class _GroupCard extends StatelessWidget {
     if (!ok && store.error != null && context.mounted) {
       AppToast.error(
         context,
-        "Couldn't rename the group",
+        'The group could not be renamed.',
         subtitle: store.error?.description,
       );
     }
@@ -165,7 +165,7 @@ class _GroupCard extends StatelessWidget {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Delete "${group.name}"?',
-      message: 'Only the group is deleted. Its bookmarks stay.',
+      message: 'Only the group is deleted. Its bookmarks are kept.',
       confirmLabel: 'Delete group',
       destructive: true,
     );
@@ -175,7 +175,7 @@ class _GroupCard extends StatelessWidget {
     if (!ok && context.mounted) {
       AppToast.error(
         context,
-        "Couldn't delete the group",
+        'The group could not be deleted.',
         subtitle: store.error?.description,
       );
     }
@@ -218,7 +218,7 @@ class _GroupCard extends StatelessWidget {
           ? const [
               AppDetailRow(
                 icon: AppIcons.info,
-                label: 'No bookmarks in this group yet',
+                label: 'No bookmarks in this group',
               ),
             ]
           : [for (final bookmark in members) _BookmarkRow(bookmark: bookmark)],
@@ -246,7 +246,7 @@ class _BookmarkRow extends StatelessWidget {
     if (!ok && context.mounted) {
       AppToast.error(
         context,
-        "Couldn't rename the bookmark",
+        'The bookmark could not be renamed.',
         subtitle: store.error?.description,
       );
     }
@@ -256,7 +256,7 @@ class _BookmarkRow extends StatelessWidget {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Remove bookmark?',
-      message: 'Only your bookmark goes. The link itself keeps working.',
+      message: 'Only the bookmark is removed. The link itself keeps working.',
       confirmLabel: 'Remove',
       destructive: true,
     );
@@ -269,7 +269,7 @@ class _BookmarkRow extends StatelessWidget {
     } else {
       AppToast.error(
         context,
-        "Couldn't remove the bookmark",
+        'The bookmark could not be removed.',
         subtitle: store.error?.description,
       );
     }
@@ -278,13 +278,13 @@ class _BookmarkRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ownServer = Stores.api.isOwnOrigin(bookmark.origin);
-    final saved = AppEntityCard.formatDate(bookmark.created);
+    final saved = dayOf(bookmark.created);
     final asks = bookmark.kind == BookmarkKind.request;
     return AppListRow(
       icon: asks ? AppIcons.askFor : AppIcons.bookmark,
       title: bookmark.title,
       subtitle: [
-        asks ? 'Waiting for your answer' : null,
+        asks ? 'Awaiting response' : null,
         ownServer ? 'This server' : bookmark.origin,
         if (saved != null) 'saved $saved',
       ].nonNulls.join(' · '),

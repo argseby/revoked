@@ -144,7 +144,7 @@ func servePublicPage(app core.App, re *core.RequestEvent, root *server.RootKey, 
 	return writeText(re, "text/html", buf.String())
 }
 
-var pageTemplate = template.Must(template.New("page").Funcs(brandFuncs).Parse(`{{define "heading"}}{{if eq .Purpose "application"}}Bewerbung{{if .Label}} · {{.Label}}{{end}}{{else if .Label}}{{.Label}}{{else}}Shared Items{{end}}{{end}}<!doctype html>
+var pageTemplate = template.Must(template.New("page").Funcs(brandFuncs).Parse(`{{define "heading"}}{{if eq .Purpose "application"}}Bewerbung{{if .Label}} · {{.Label}}{{end}}{{else if .Label}}{{.Label}}{{else}}Shared items{{end}}{{end}}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -565,9 +565,9 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 </span>
 </div>
 {{if .SharerPrint}}<div class="fact-note mono">Key fingerprint {{.SharerPrint}}</div>{{end}}
-{{if .SharerRevoked}}<div class="fact-note bad-t">{{.Domain}} has withdrawn this sender's identity. The link was signed while the identity was still valid, but the domain no longer stands behind it.</div>
-{{else if not .SharerName}}<div class="fact-note warn-t">This link isn't signed by a named person, so anyone with access to {{.Domain}} could have created it.</div>
-{{else}}<div class="fact-note">This is the name the server reports for the sender. A browser can't confirm it on its own; <a href="{{.AppLink}}">open the link in the Revoked app</a> to verify the sender's signature.</div>{{end}}
+{{if .SharerRevoked}}<div class="fact-note bad-t">{{.Domain}} has withdrawn this sender's identity. The link was signed while the identity was valid; the domain no longer vouches for it.</div>
+{{else if not .SharerName}}<div class="fact-note warn-t">This link is not signed by a named person. Anyone with access to {{.Domain}} could have created it.</div>
+{{else}}<div class="fact-note">This name is reported by the server and cannot be confirmed by a browser. The sender's signature is verified in <a href="{{.AppLink}}">the Revoked app</a>.</div>{{end}}
 </div>
 </section>
 
@@ -577,7 +577,7 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <i data-i="lock" data-s="22"></i>
 <div>
 <strong>This link opens in the Revoked app</strong>
-It's protected by {{if .RequireHandshake}}a verified identity{{else}}a password{{end}}. The app confirms the server's identity before it sends anything, so your credentials only reach the genuine server. Please don't enter passwords or other secrets on a web page hosted by the sender, as it could have been altered.
+It is protected by {{if .RequireHandshake}}a verified identity{{else}}a password{{end}}. The app confirms the server's identity before sending anything, so credentials reach only the genuine server. Passwords and other secrets should not be entered on a web page hosted by the sender, as it could have been altered.
 </div>
 </div>
 <a href="{{.AppLink}}" class="big"><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt="">Open in the Revoked app</a>
@@ -592,8 +592,8 @@ It's protected by {{if .RequireHandshake}}a verified identity{{else}}a password{
 <div class="callout" id="gate-callout">
 <i data-i="alert" data-s="22"></i>
 <div>
-<strong id="gate-t">Make sure you trust the sender</strong>
-<span id="gate-d">This page is served directly from the sender's own server. Please review the details above before you open the shared information.</span>
+<strong id="gate-t">Sender verification</strong>
+<span id="gate-d">This page is served directly from the sender's own server. The details above should be reviewed before the shared information is opened.</span>
 </div>
 </div>
 {{/* Held until the sender check has an answer, so nobody opens the data before
@@ -606,9 +606,9 @@ It's protected by {{if .RequireHandshake}}a verified identity{{else}}a password{
 {{end}}
 
 <details class="card about">
-<summary>What is this page?</summary>
-<p>{{if .SharerName}}{{.SharerName}}{{else}}The sender{{end}} shares this information through Revoked. It is read from the sender's vault each time the page is opened, so it shows the current values, not a copy made when the link was sent.</p>
-<p>The sender can pause or revoke the link at any time. After that it stops working. Anything copied or downloaded from here stays with whoever saved it.</p>
+<summary>About this page</summary>
+<p>{{if .SharerName}}{{.SharerName}}{{else}}The sender{{end}} shares this information through Revoked. Values are read from the sender's vault each time the page is opened, not copied when the link was sent.</p>
+<p>The sender can pause or revoke the link, after which it stops working. Copied or downloaded content remains with whoever saved it.</p>
 <p><a href="https://revoked.link" target="_blank" rel="noopener noreferrer">More about Revoked</a></p>
 </details>
 
@@ -768,17 +768,17 @@ local: ['', 'Local']
 
 function verdictFor(server) {
 if (server === 'spoofed') return ['bad', 'Possible impersonation',
-'The key used by this server doesn\'t match the one published for ' + domain + '. Someone may be impersonating it, so please don\'t rely on anything shown on this page.'];
-if (server === 'unverified') return ['bad', 'Server couldn\'t be verified',
-domain + ' doesn\'t publish a DNS record that confirms its identity, so there\'s no way to tell whether this page comes from the genuine server.'];
+'The key used by this server does not match the one published for ' + domain + '. The server may be impersonated; nothing on this page should be relied on.'];
+if (server === 'unverified') return ['bad', 'Server not verified',
+domain + ' publishes no DNS record confirming its identity, so the origin of this page cannot be confirmed.'];
 if (signer === 'withdrawn') return ['bad', 'Sender no longer trusted',
 domain + ' has withdrawn the identity that signed this link.'];
 if (server === 'local') return [signer === 'none' ? 'warn' : 'neutral', 'Local server',
-'This page is served from a local or private address, so it can\'t be checked against public DNS records.' +
-(signer === 'none' ? ' The link also isn\'t signed by a named person.' : '')];
+'This page is served from a local or private address and cannot be checked against public DNS records.' +
+(signer === 'none' ? ' The link is also not signed by a named person.' : '')];
 if (signer === 'none') return ['warn', 'Server verified, sender unknown',
-'You\'re connected to the genuine ' + domain + ' server, but no named person has signed this link.'];
-return ['ok', 'Server verified', 'The key used by ' + domain + ' matches the one published in its DNS records, so you\'re connected to the genuine server.'];
+'The connection is to the genuine ' + domain + ' server, but no named person has signed this link.'];
+return ['ok', 'Server verified', 'The key used by ' + domain + ' matches the one published in its DNS records. The connection is to the genuine server.'];
 }
 
 function setServer(server, title) {
@@ -809,7 +809,7 @@ if (bad && senderPill) {
 senderFact.classList.add('is-bad');
 senderPill.className = 'pill bad';
 senderPill.textContent = 'Unconfirmed';
-senderPill.title = 'This name comes from a server that failed verification, so it can\'t be relied on.';
+senderPill.title = 'This name comes from a server that failed verification and cannot be relied on.';
 var senderName = senderFact.querySelector('.fact-name');
 if (!senderName.querySelector('svg')) senderName.insertBefore(svg('alert', 15), senderName.firstChild);
 }
@@ -828,7 +828,7 @@ var reveal = document.getElementById('reveal');
 if (reveal) {
 reveal.disabled = false;
 reveal.classList.remove('loading');
-document.getElementById('reveal-t').textContent = 'Yes, I trust the sender';
+document.getElementById('reveal-t').textContent = 'Trust and open';
 }
 
 // A failed check turns the gate's warning from a caution into a stop.
@@ -836,7 +836,7 @@ var callout = document.getElementById('gate-callout');
 if (callout && v[0] === 'bad') {
 callout.classList.add('bad');
 document.getElementById('gate-t').textContent = 'Proceed with caution';
-document.getElementById('gate-d').textContent = "The sender couldn't be verified. Only continue if you know for certain who sent you this link.";
+document.getElementById('gate-d').textContent = "The sender could not be verified. Continue only if the sender of this link is known for certain.";
 }
 }
 
@@ -847,7 +847,7 @@ var isLocal = d === '' || d === 'localhost' || d.indexOf('.') === -1 ||
 d.indexOf(':') !== -1 || /^\d+\.\d+\.\d+\.\d+$/.test(d) ||
 /\.(localhost|local|test|internal)$/i.test(d);
 if (isLocal) {
-setServer('local', 'DNS verification isn\'t available for local or private addresses.');
+setServer('local', 'DNS verification is not available for local or private addresses.');
 return;
 }
 var name = '_revoked.' + d;
@@ -868,7 +868,7 @@ var m = /k=sha256\/([a-f0-9]{64})/i.exec(txt);
 if (m) {
 done = true;
 if (m[1].toLowerCase() === String(pin).toLowerCase()) setServer('ok');
-else setServer('spoofed', 'This server\'s key doesn\'t match the one published in its DNS records.');
+else setServer('spoofed', 'This server\'s key does not match the one published in its DNS records.');
 return;
 }
 }
@@ -988,7 +988,7 @@ b.classList.remove('done');
 b.textContent = '';
 b.appendChild(svg('copy'));
 }, 1500);
-}, function() { toast('Your browser blocked copying. Please select the text and copy it manually.'); });
+}, function() { toast('Copying was blocked by the browser. The text can be selected and copied manually.'); });
 });
 return b;
 }
@@ -1070,13 +1070,13 @@ b.appendChild(el('span', 'spin'));
 b.lastChild.style.display = 'block';
 fetch(fileURL(r)).then(function(res) {
 if (!res.ok) {
-return res.json().then(function(j) { throw new Error((j && j.message) || 'This file couldn\'t be loaded.'); },
-function() { throw new Error('This file couldn\'t be loaded.'); });
+return res.json().then(function(j) { throw new Error((j && j.message) || 'This file could not be loaded.'); },
+function() { throw new Error('This file could not be loaded.'); });
 }
 return res.blob();
 }).then(function(blob) {
 var ext = stampedTypes[blob.type];
-if (!ext) throw new Error('This file couldn\'t be loaded.');
+if (!ext) throw new Error('This file could not be loaded.');
 var url = URL.createObjectURL(blob);
 var preview = el('div', 'preview');
 if (blob.type === 'application/pdf') {
@@ -1160,8 +1160,8 @@ var u = '/api/public/links/' + encodeURIComponent(slug) + '/archive?dl=' + encod
 fetch(u).then(function(res) {
 if (!res.ok) {
 return res.json().then(function(j) { return j; }, function() { return {}; }).then(function(j) {
-var msg = (j && j.message) || 'The archive couldn\'t be downloaded. Please try again.';
-if (res.status === 401) msg = 'This download link has expired or has already been used. Reload the page to get a new one.';
+var msg = (j && j.message) || 'The archive could not be downloaded.';
+if (res.status === 401) msg = 'This download link has expired or was already used. Reloading the page issues a new one.';
 show(label, 'download');
 report(msg);
 });
@@ -1181,7 +1181,7 @@ toast('Archive downloaded');
 }).catch(function() {
 b.disabled = false;
 show(label, 'download');
-report('The server couldn\'t be reached. Please check your connection and try again.');
+report('The server could not be reached.');
 });
 });
 return b;
@@ -1279,14 +1279,14 @@ out.appendChild(sec);
 });
 
 if (looseRecords.length > 0) {
-var loose = makeSection(isApplication ? 'Further details' : (sections.length ? 'Other information' : 'Shared with you'), looseRecords.length, 'item');
+var loose = makeSection(isApplication ? 'Further details' : (sections.length ? 'Other information' : 'Shared information'), looseRecords.length, 'item');
 looseRecords.forEach(function(r) { loose.card.appendChild(renderRecordItem(r)); });
 out.appendChild(loose);
 }
 
 if (!rootRecords.length && !sections.length) {
 var emptyCard = el('div', 'card sec');
-emptyCard.appendChild(el('div', 'empty', 'This link doesn\'t contain any information yet.'));
+emptyCard.appendChild(el('div', 'empty', 'This link contains no information yet.'));
 out.appendChild(emptyCard);
 }
 
@@ -1328,7 +1328,7 @@ if (!res.ok) {
 gate.textContent = '';
 var c = el('div', 'callout bad');
 c.appendChild(svg('alert', 22));
-c.appendChild(el('div', '', (res.body && res.body.message) || 'This link is no longer available. The sender may have revoked it, or it may have expired.'));
+c.appendChild(el('div', '', (res.body && res.body.message) || 'This link is no longer available. It may have been revoked or expired.'));
 gate.appendChild(c);
 return;
 }
@@ -1343,10 +1343,10 @@ render(res.body);
 .catch(function() {
 btn.disabled = false;
 btn.classList.remove('loading');
-document.getElementById('reveal-t').textContent = 'Try again';
+document.getElementById('reveal-t').textContent = 'Retry';
 var n = document.getElementById('capnote');
 n.style.color = 'var(--bad)';
-n.textContent = 'The server couldn\'t be reached. Please check your connection and try again.';
+n.textContent = 'The server could not be reached.';
 });
 });
 }

@@ -24,16 +24,14 @@ abstract final class TrustCopy {
   static const checking = 'Checking…';
 
   static const allGood = 'Verified';
-  static const allGoodDetail = 'Every check passed. Safe to continue.';
+  static const allGoodDetail = 'All checks passed.';
   static const problem = 'Not verified';
   static const problemDetail =
-      'Something didn\'t check out. Only continue if you already trust '
-      'whoever sent you this link.';
+      'One or more checks failed. Continue only if the sender of this link is already trusted.';
   static const spoofedDetail =
-      'It claims a domain it doesn\'t belong to. Do not send anything.';
+      'It claims a domain it does not belong to. Do not send anything.';
   static const revokedDetail =
-      'The domain has withdrawn this identity. Whoever holds it no longer '
-      'speaks for that domain.';
+      'The domain has withdrawn this identity. Its holder no longer speaks for that domain.';
 }
 
 /// Outcome of one verification step.

@@ -97,8 +97,8 @@ void main() {
   ) async {
     final result = await ask(tester);
     expect(filters.single, 'section = "s1" || sections ~ "s1"');
-    expect(find.text('Let Flat tool read IBAN?'), findsOneWidget);
-    expect(find.textContaining('Flat tool (tool.example)'), findsOneWidget);
+    expect(find.text('Allow Flat tool (c1) to read IBAN?'), findsOneWidget);
+    expect(find.textContaining('Flat tool (c1, tool.example)'), findsOneWidget);
     expect(result, isNull);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Add to section'));
@@ -114,7 +114,7 @@ void main() {
   ) async {
     tools.single['vaultAccess'] = '';
     expect(await ask(tester), isTrue);
-    expect(find.text('Let Flat tool read IBAN?'), findsNothing);
+    expect(find.text('Allow Flat tool (c1) to read IBAN?'), findsNothing);
   });
 
   testWidgets('when the tools can\'t be checked, it still asks', (

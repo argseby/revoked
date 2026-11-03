@@ -69,15 +69,12 @@ class SystemDeviceUnlock implements DeviceUnlock {
         case LocalAuthExceptionCode.noBiometricsEnrolled:
         case LocalAuthExceptionCode.noBiometricHardware:
           throw const DeviceUnlockException(
-            'This device has no screen lock. Set up a PIN, password, '
-            'fingerprint or face unlock in the system settings, then try '
-            'again.',
+            'This device has no screen lock. A PIN, password, fingerprint or face unlock must be set up in the system settings.',
           );
         case LocalAuthExceptionCode.temporaryLockout:
         case LocalAuthExceptionCode.biometricLockout:
           throw const DeviceUnlockException(
-            'Too many attempts. Unlock the device with its PIN or password, '
-            'then try again.',
+            'Too many attempts. The device must be unlocked with its PIN or password first.',
           );
         default:
           throw const DeviceUnlockException(_couldNotAsk);
@@ -89,5 +86,5 @@ class SystemDeviceUnlock implements DeviceUnlock {
   }
 
   static const _couldNotAsk =
-      'This device could not ask for your fingerprint, face or PIN. Try again.';
+      'This device could not request fingerprint, face or PIN confirmation.';
 }

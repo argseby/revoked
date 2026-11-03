@@ -268,8 +268,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         TrustVerdict.unverified(
           domain: _serverDomain,
           reason:
-              'We couldn\'t check the requester\'s domain. Nothing confirms '
-              'this request comes from who it claims to be.',
+              'The requester\'s domain could not be checked. The origin of '
+              'this request is unconfirmed.',
         );
   }
 
@@ -310,7 +310,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       // an unverified identity, not the absence of an opinion.
       verdict = TrustVerdict.unverified(
         domain: domain,
-        reason: "We couldn't check the domain.",
+        reason: 'The domain could not be checked.',
       );
     }
     if (!mounted) return;
@@ -355,7 +355,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           label: 'Server',
           value: 'local server',
           state: TrustCheckState.verified,
-          detail: 'A local test server. There is no public domain to check.',
+          detail: 'Local test server. No public domain to check.',
         ),
       ];
     }
@@ -408,8 +408,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           detail:
               Uri.tryParse('https://${widget.origin!}')?.host == _serverDomain
               ? null
-              : 'This link points to a different server than the sender '
-                    'claims to be. Be careful.',
+              : 'This link points to a different server than the one the '
+                    'sender claims.',
         ),
     ];
   }
@@ -490,19 +490,18 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     }
 
     if (_requiresPassword && _store.responderPassword.text.trim().isEmpty) {
-      runInAction(() => _store.publicFormError = 'Enter the password.');
+      runInAction(() => _store.publicFormError = 'A password is required.');
       return;
     }
     if (_hasIdentifier && _store.responderIdentifier.text.trim().isEmpty) {
-      runInAction(() => _store.publicFormError = 'Enter the identifier.');
+      runInAction(() => _store.publicFormError = 'An identifier is required.');
       return;
     }
     if (_requireHandshake && !_selectedIdentityQualifies()) {
       runInAction(
         () => _store.publicFormError =
             'This request only accepts identities from '
-            '${_serverDomain.isEmpty ? 'this server' : _serverDomain}. '
-            'Pick a different identity.',
+            '${_serverDomain.isEmpty ? 'this server' : _serverDomain}.',
       );
       return;
     }
@@ -516,8 +515,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       final ctrl = _templateCtrls[item.key];
       if (ctrl?.text.trim().isEmpty ?? true) {
         runInAction(
-          () => _store.publicFormError =
-              'Fill in "${item.label}". It’s required.',
+          () => _store.publicFormError = '"${item.label}" is required.',
         );
         return;
       }
@@ -530,8 +528,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       if (!_keyPattern.hasMatch(k)) {
         runInAction(
           () => _store.publicFormError =
-              'Use only lowercase letters, digits, _ or - in the field name '
-              '"$k".',
+              'Field names may contain only lowercase letters, digits, _ and '
+              '-: "$k".',
         );
         return;
       }
@@ -577,7 +575,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         if (identityId == null || identityId.isEmpty) {
           runInAction(() {
             _store.publicFormError =
-                'Sign in and create an identity to respond.';
+                'Responding requires a signed-in account with an identity.';
             _store.isSubmittingPublic = false;
           });
           return;
@@ -752,8 +750,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   Widget _submitBar() {
     return AppActionBar(
       note: const Text(
-        'Only the requester sees your answers. You can take them back any '
-        'time.',
+        'Answers are visible only to the requester and can be withdrawn '
+        'later.',
       ).muted.small,
       children: [
         if (_verificationPending)
@@ -799,8 +797,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       return _buildTerminal(
         theme,
         const AppErrorMessage(
-          title: 'Couldn’t load the request',
-          description: 'Try again in a moment.',
+          title: 'The request could not be loaded',
+          description: 'The service may be temporarily unavailable.',
           code: '',
         ),
       );
@@ -819,17 +817,17 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
   Widget _buildAccountGate(ThemeData theme) {
     return AppStatusMessage(
       icon: AppIcons.personBoundingBox,
-      title: 'Sign in to answer',
+      title: 'Sign-in required',
       message: _isForeign
-          ? 'This request comes from ${widget.origin}. Your answer stays in '
-                'your own account, so you can update or take it back any '
-                'time. An account on any revoked server works. No account '
-                'yet? Create one on the sign-in page, or ask whoever runs the '
-                'server if sign-ups are closed.'
-          : 'Your answer stays in your account, so you can update or take '
-                'it back any time. No account yet? Create one on the sign-in '
-                'page, or ask whoever runs this server if sign-ups are '
-                'closed.',
+          ? 'This request comes from ${widget.origin}. Responses are kept '
+                'in the respondent\'s own account, where they can be updated '
+                'or withdrawn. An account on any revoked server is accepted. '
+                'Accounts are created on the sign-in page, or by the server '
+                'operator when sign-ups are closed.'
+          : 'Responses are kept in the respondent\'s own account, where '
+                'they can be updated or withdrawn. Accounts are created on '
+                'the sign-in page, or by the server operator when sign-ups '
+                'are closed.',
       actions: [
         AppButton(
           icon: AppIcons.boxArrowInRight,
@@ -861,10 +859,10 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     return AppStatusMessage(
       icon: AppIcons.checkCircle,
       accent: theme.colorScheme.success,
-      title: 'Your response was sent',
+      title: 'Response sent',
       message:
-          'The requester has been told. Your answer is in your account, '
-          'where you can update or revoke it any time.',
+          'The requester has been notified. The response is kept in this '
+          'account, where it can be updated or revoked.',
       actions: [
         AppButton(
           icon: AppIcons.check,
@@ -922,10 +920,10 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               ? RequirementStatus.ready
               : RequirementStatus.blocked,
           description: hasIdentities
-              ? 'Your response is signed with your identity. The requester '
-                    'knows it came from you.'
-              : 'You don’t have an identity yet. Create one under Account '
-                    'before you respond.',
+              ? 'The response is signed with the selected identity, so '
+                    'the requester can attribute it.'
+              : 'No identity exists yet. Identities are created under '
+                    'Account.',
         ),
       if (_requireHandshake && _identityScope == 'from_root')
         RequirementItem(
@@ -937,9 +935,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               ? RequirementStatus.ready
               : RequirementStatus.blocked,
           description: hasRootIdentity
-              ? 'One of your identities comes from that server.'
-              : 'None of your identities comes from that server. This '
-                    'request can’t accept them.',
+              ? 'An identity from that server is available.'
+              : 'No identity from that server is available. Other '
+                    'identities are not accepted.',
         ),
       if (_hasIdentifier)
         RequirementItem(
@@ -949,9 +947,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               ? RequirementStatus.ready
               : RequirementStatus.pending,
           description: _store.responderIdentifier.text.trim().isNotEmpty
-              ? 'Entered. It’s checked when you send.'
-              : 'Enter the identifier the requester gave you, exactly as '
-                    'written.',
+              ? 'Entered. Checked on submission.'
+              : 'Issued by the requester; must match exactly.',
         ),
       if (_requiresPassword)
         RequirementItem(
@@ -961,8 +958,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               ? RequirementStatus.ready
               : RequirementStatus.pending,
           description: _store.responderPassword.text.isNotEmpty
-              ? 'Entered. It’s checked when you send.'
-              : 'Enter the password the requester gave you.',
+              ? 'Entered. Checked on submission.'
+              : 'Issued by the requester.',
         ),
     ];
 
@@ -971,13 +968,13 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       children: [
         _section('Requester', [TrustPanel(checks: _trustChecks())]),
         if (requirements.isNotEmpty)
-          _section('To respond', [RequirementList(items: requirements)]),
+          _section('Requirements', [RequirementList(items: requirements)]),
         if (_store.publicExistingLink != null)
           AppListGroup(
-            title: 'Your earlier answer',
+            title: 'Existing response',
             trailing: const SizedBox.shrink(),
             footer: const Text(
-              'Send it again to update it. You won’t create a second one.',
+              'Sending again updates it. No second response is created.',
             ),
             children: [
               Padding(
@@ -990,7 +987,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
                       color: theme.colorScheme.primary,
                     ),
                     AppSpacing.gapMd,
-                    const Expanded(child: Text('You already answered this')),
+                    const Expanded(child: Text('Response already submitted')),
                     AppButton(
                       icon: AppIcons.xCircle,
                       label: 'Revoke response',
@@ -1031,12 +1028,12 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             children: [cell(_buildIdentityPicker(theme))],
           ),
         AppListGroup(
-          title: 'About you',
+          title: 'Respondent',
           trailing: const SizedBox.shrink(),
           children: [
             cell(
               _field(
-                'Your name',
+                'Name',
                 optional: true,
                 child: AppTextField(
                   controller: _store.responderName,
@@ -1048,7 +1045,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         ),
         if (templateRecords.isNotEmpty)
           AppListGroup(
-            title: 'What they ask for',
+            title: 'Requested fields',
             children: [
               for (final item in templateRecords)
                 cell(_buildTemplateField(theme, item)),
@@ -1056,7 +1053,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           ),
         if (_allowExtraFields)
           AppListGroup(
-            title: 'Anything else',
+            title: 'Additional fields',
             trailing: const SizedBox.shrink(),
             children: [cell(_extraFieldRows())],
           ),
@@ -1143,7 +1140,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           alignment: Alignment.centerLeft,
           child: AppButton(
             icon: AppIcons.plus,
-            label: 'Add another field',
+            label: 'Add field',
             style: AppButtonStyle.accent,
             size: AppButtonSize.small,
             onTap: () {
@@ -1168,7 +1165,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             child: AppTextField(
               controller: _store.responderPassword,
               obscureText: true,
-              hint: 'Password the requester gave you',
+              hint: 'Issued by the requester',
             ),
           ),
         if (_requiresPassword && _hasIdentifier)
@@ -1178,7 +1175,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             'Identifier',
             child: AppTextField(
               controller: _store.responderIdentifier,
-              hint: 'Identifier the requester gave you',
+              hint: 'Issued by the requester',
             ),
           ),
       ],
@@ -1198,10 +1195,10 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     if (id == null) return;
     final confirmed = await showAppDialog(
       context: context,
-      title: 'Revoke your response?',
+      title: 'Revoke this response?',
       message:
-          'The requester loses access to your answers right away. You can '
-          'respond again later.',
+          'The requester loses access to the answers immediately. A new '
+          'response can be sent later.',
       confirmLabel: 'Revoke',
       confirmIcon: AppIcons.xCircle,
       destructive: true,
@@ -1211,12 +1208,12 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       await Stores.requests.revokeMyLink(id);
       if (!mounted) return;
       runInAction(() => _store.publicExistingLink = null);
-      AppToast.success(context, 'Your response was revoked');
+      AppToast.success(context, 'Response revoked');
     } catch (e) {
       if (!mounted) return;
       AppToast.error(
         context,
-        "Couldn't revoke your response",
+        'The response could not be revoked.',
         subtitle: describeError(e),
       );
     }
@@ -1233,8 +1230,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       iconColor: Theme.of(context).colorScheme.error,
       message: verdict.reason,
       content: const Text(
-        'Nobody has verified the requester\'s domain. Only continue if you '
-        'know and trust them some other way.',
+        'The requester\'s domain is unverified. Sending is advisable only '
+        'when the requester is trusted by other means.',
       ).muted.small,
       confirmLabel: 'Send anyway',
       confirmIcon: AppIcons.send,
@@ -1267,8 +1264,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: const Text(
-                'This request needs a verified identity. Create one in '
-                'Account → Identities.',
+                'This request requires a verified identity. Identities are '
+                'managed in Account → Identities.',
               ).muted.small,
             ),
           ],
@@ -1367,9 +1364,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
             keyboardType: item.type == 'number'
                 ? TextInputType.number
                 : TextInputType.text,
-            hint: item.required
-                ? 'Required value'
-                : 'Optional — leave it empty to skip',
+            hint: item.required ? 'Required value' : 'Optional',
           ),
           // Only offer the vault picker for keys you DON'T already hold —
           // you can't alias a different record onto a key you have.
@@ -1422,8 +1417,8 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
                 const SizedBox(height: 1),
                 Text(
                   aliased
-                      ? 'Uses "${linked.key}" from your vault'
-                      : 'Linked from your vault',
+                      ? 'Uses "${linked.key}" from the vault'
+                      : 'Linked from the vault',
                 ).muted.small,
               ],
             ),
@@ -1473,7 +1468,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text('Not shared. The requester sees it empty.').muted.small,
+            child: Text('Not shared. Sent to the requester empty.').muted.small,
           ),
           AppButton(
             icon: AppIcons.share,
@@ -1540,14 +1535,14 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
               Text('Use a record for "${item.label}"').header,
               const SizedBox(height: AppSpacing.xxs),
               const Text(
-                'Pick one of your records. Your data stays in one place, and '
-                'the requester always sees the latest version.',
+                'A linked record stays in one place, and the requester always '
+                'sees its latest version.',
               ).muted.small,
               const SizedBox(height: AppSpacing.md),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 360),
                 child: _store.responderVault.isEmpty
-                    ? const Text('Your vault is empty.').muted.small
+                    ? const Text('No records in the vault.').muted.small
                     : ListView(
                         shrinkWrap: true,
                         children: [

@@ -43,12 +43,12 @@ class _AccessOverviewState extends State<AccessOverview> with RefreshOnEntry {
           (shares.loadState.isFirstLoad && shares.shares.isEmpty) ||
           (vault.loadState.isFirstLoad && vault.records.isEmpty),
       skeleton: const AppListSkeleton(
-        group: 'Who can see your data',
+        group: 'Shared with others',
         rows: [
-          AppSkeletonRow('IBAN', '2 people can read this', icon: AppIcons.lock),
+          AppSkeletonRow('IBAN', 'Readable by 2 people', icon: AppIcons.lock),
           AppSkeletonRow(
             'Home address',
-            '1 person can read this',
+            'Readable by 1 person',
             icon: AppIcons.lock,
           ),
         ],
@@ -62,8 +62,9 @@ class _AccessOverviewState extends State<AccessOverview> with RefreshOnEntry {
         if (rows.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.lock,
-            title: 'Only you can see your data',
-            subtitle: 'When you share a record, you see here who can read it.',
+            title: 'No shared records',
+            subtitle:
+                'Shared records are listed here with everyone who can read them.',
             example: const AppEmptyExample(
               title: 'IBAN',
               detail: 'Landlord · Employer',
@@ -71,17 +72,14 @@ class _AccessOverviewState extends State<AccessOverview> with RefreshOnEntry {
             ),
             steps: const [
               AppEmptyStep(
-                'See each shared record once',
+                'One row per record',
                 'With every link that shares it',
               ),
               AppEmptyStep(
-                'Open a record to see who has it',
+                'Access per record',
                 'Links, request answers and tools',
               ),
-              AppEmptyStep(
-                'Revoke access in one place',
-                'No need to go through each link',
-              ),
+              AppEmptyStep('Central revocation', 'Without opening each link'),
             ],
           );
         }
@@ -95,10 +93,10 @@ class _AccessOverviewState extends State<AccessOverview> with RefreshOnEntry {
             AppListGroup(
               title: 'Shared with others',
               footer: Text(
-                'Others can read ${rows.length} '
-                '${rows.length == 1 ? 'record' : 'records'} through '
-                '${linkIds.length} open ${linkIds.length == 1 ? 'link' : 'links'}. '
-                'Open a record to see who has it and take it back.',
+                '${rows.length} ${rows.length == 1 ? 'record' : 'records'} '
+                'readable through ${linkIds.length} open '
+                '${linkIds.length == 1 ? 'link' : 'links'}. '
+                'Access is reviewed and revoked per record.',
               ).muted.small,
               children: [
                 for (final (record, access) in rows)

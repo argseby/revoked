@@ -69,7 +69,7 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
       if (!mounted) return;
       final name = store.acceptPreview?.workspaceName ?? 'the workspace';
       Navigator.of(context).pop();
-      AppToast.success(context, 'You joined $name.');
+      AppToast.success(context, 'Joined $name');
     } catch (e) {
       if (!mounted) return;
       final err = AppErrorMessage.fromException(e);
@@ -108,8 +108,8 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
                 const Text('Join a workspace').header,
                 const SizedBox(height: AppSpacing.xxs),
                 const Text(
-                  'Paste the key you were given. You see what it lets you do '
-                  'before you join.',
+                  'The permissions an invite key grants are shown before '
+                  'joining.',
                 ).muted.small,
               ],
             ),
@@ -171,7 +171,7 @@ class _InviteJoinSheetState extends State<_InviteJoinSheet> {
                             Text(preview.label).muted.small,
                           ],
                           AppSpacing.gapSm,
-                          const Text('You will be able to').muted.small,
+                          const Text('Permissions').muted.small,
                           AppSpacing.gapXxs,
                           for (final permission in preview.permissions)
                             Padding(

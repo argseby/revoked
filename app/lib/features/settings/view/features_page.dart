@@ -31,12 +31,12 @@ class FeaturesPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AppListGroup(
-              title: 'What you see',
+              title: 'Visible features',
               trailing: const SizedBox.shrink(),
               footer: const Text(
-                'Turn off what you don’t use, and it leaves your navigation. '
-                'A link to it still opens, and offers to turn it back on. '
-                'This changes what you see, never what you may do.',
+                'Turned-off features leave the navigation. Links to them still '
+                'open and offer to turn them back on. This affects visibility '
+                'only, never permissions.',
               ),
               children: [
                 if (failed != null)
@@ -74,7 +74,7 @@ class FeatureRows extends StatelessWidget {
         final rows = <Widget>[
           const AppCheckRow(
             label: 'Vault',
-            subtitle: 'Your records, files and sections. Always on.',
+            subtitle: 'Records, files and sections. Always on.',
             value: true,
             onChanged: null,
           ),
@@ -111,7 +111,7 @@ class FeatureRows extends StatelessWidget {
               if (store.catalogue.isEmpty && store.loadState.isFirstLoad)
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  child: const Text('Loading the list…').muted.small,
+                  child: const Text('Loading…').muted.small,
                 ),
             ],
           ),
@@ -128,7 +128,7 @@ Future<void> _save(BuildContext context, Feature feature, bool on) async {
   if (!ok && context.mounted) {
     AppToast.error(
       context,
-      store.error?.description ?? 'Couldn’t save that. Try again.',
+      store.error?.description ?? 'The change could not be saved.',
     );
   }
 }

@@ -15,11 +15,11 @@ import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 /// Where a new thing goes, which is what the picker groups by.
 enum NewGroup {
-  vault('In your vault'),
-  people('People you deal with'),
-  give('Give to someone'),
-  ask('Ask someone'),
-  received('Received a link?');
+  vault('Vault'),
+  people('Contacts'),
+  give('Sharing'),
+  ask('Requests'),
+  received('Received links');
 
   const NewGroup(this.title);
   final String title;
@@ -31,35 +31,35 @@ enum NewKind {
     NewGroup.vault,
     AppIcons.key,
     'Record',
-    'A single detail, like a name or an IBAN.',
+    'A single value, such as a name or an IBAN.',
     'r',
   ),
   file(
     NewGroup.vault,
     AppIcons.fileEarmark,
     'File',
-    'A document, like an ID card or a payslip.',
+    'A document, such as an ID card or a payslip.',
     'f',
   ),
   template(
     NewGroup.vault,
     AppIcons.cardList,
     'From a template',
-    'Fill in several records at once.',
+    'Several records filled in at once.',
     't',
   ),
   section(
     NewGroup.vault,
     AppIcons.folder,
     'Section',
-    'Group records you always share together.',
+    'Records grouped to be shared together.',
     's',
   ),
   contact(
     NewGroup.people,
     AppIcons.personPlus,
     'Contact',
-    'Someone to send things to, or ask things from.',
+    'A recipient of records and requests.',
     'p',
     feature: Feature.contacts,
   ),
@@ -67,7 +67,7 @@ enum NewKind {
     NewGroup.give,
     AppIcons.link,
     'Share link',
-    'Let someone see your records until you revoke it.',
+    'Access to records until revoked.',
     'l',
     feature: Feature.sharing,
   ),
@@ -75,7 +75,7 @@ enum NewKind {
     NewGroup.give,
     AppIcons.attestation,
     'Attestation',
-    'Confirm something about someone, in this server\'s name.',
+    'A confirmation about someone, issued in this server\'s name.',
     'a',
     feature: Feature.attestations,
   ),
@@ -83,7 +83,7 @@ enum NewKind {
     NewGroup.ask,
     AppIcons.inboxFill,
     'Request',
-    'Ask someone to fill in their details.',
+    'A form that collects details from others.',
     'q',
     feature: Feature.requests,
   ),
@@ -91,7 +91,7 @@ enum NewKind {
     NewGroup.ask,
     AppIcons.askFor,
     'Attestation about you',
-    'Ask a club or an employer to confirm something about you.',
+    'A confirmation requested from a club or an employer.',
     'k',
     feature: Feature.attestations,
   ),
@@ -99,7 +99,7 @@ enum NewKind {
     NewGroup.ask,
     AppIcons.shieldCheck,
     'See someone\'s attestation',
-    'Ask to see one, like a membership, and check it.',
+    'Verification of an attestation, such as a membership.',
     'c',
     feature: Feature.attestations,
   ),
@@ -107,7 +107,7 @@ enum NewKind {
     NewGroup.received,
     AppIcons.qrCode,
     'Open or scan a link',
-    'Paste or scan what someone sent you. We check the sender first.',
+    'A pasted or scanned link, opened after the sender is checked.',
     'o',
   );
 
@@ -153,6 +153,26 @@ enum NewKind {
     };
     return wanted.isAvailable ? wanted : NewKind.record;
   }
+}
+
+/// A page's own create button: what it starts and what it says.
+typedef PageAction = ({NewKind kind, String label});
+
+/// The create button a destination shows beside the general New, or null on
+/// a page that makes nothing of its own (the overview).
+PageAction? pageActionFor(String? destination) {
+  final PageAction? action = switch (destination) {
+    AppRoutes.vault => (kind: NewKind.record, label: 'Add to vault'),
+    AppRoutes.shared => (kind: NewKind.link, label: 'New link'),
+    AppRoutes.requests => (kind: NewKind.request, label: 'New request'),
+    AppRoutes.attestations => (
+      kind: NewKind.attestation,
+      label: 'New attestation',
+    ),
+    AppRoutes.contacts => (kind: NewKind.contact, label: 'New contact'),
+    _ => null,
+  };
+  return action != null && action.kind.isAvailable ? action : null;
 }
 
 /// Opens the form that already exists for [kind].

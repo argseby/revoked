@@ -145,7 +145,7 @@ Future<bool> fillTemplateFieldInteractively({
     context: context,
     title: field.title,
     description: field.reason.isEmpty
-        ? 'Saved to your vault as ${field.key}.'
+        ? 'Saved to the vault as ${field.key}.'
         : field.reason,
     controller: store.fillValue,
     hint: 'Value',
@@ -194,7 +194,7 @@ Future<bool> _fillFile(
   } else if (store.errorMessage != null) {
     AppToast.error(
       toastContext,
-      'Couldn\'t save ${field.title}',
+      '${field.title} could not be saved',
       subtitle: store.errorMessage,
     );
   }
@@ -246,7 +246,7 @@ Future<bool> _fillBoolean(
             AppSpacing.gapXxs,
             Text(
               field.reason.isEmpty
-                  ? 'Saved to your vault as ${field.key}.'
+                  ? 'Saved to the vault as ${field.key}.'
                   : field.reason,
             ).muted.small,
             AppSpacing.gapLg,
@@ -310,7 +310,7 @@ Future<bool> _save(
   } else {
     AppToast.error(
       toastContext,
-      'Couldn\'t save ${field.title}',
+      '${field.title} could not be saved',
       subtitle: store.errorMessage,
     );
   }
@@ -378,9 +378,9 @@ class _FileFieldDrawer extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
                   attached != null
-                      ? 'Attached: $attached. Pick another to replace it.'
+                      ? 'Attached: $attached. Choosing another file replaces it.'
                       : (field.reason.isEmpty
-                            ? 'Saved to your vault as ${field.key}.'
+                            ? 'Saved to the vault as ${field.key}.'
                             : field.reason),
                 ).muted.small,
               ],

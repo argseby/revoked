@@ -1,72 +1,74 @@
 # Requests
 
-A request asks other people for information. You send a link, they fill it
-in, and the answers arrive sorted the way you asked. When someone answers
-from their own vault, you get a link to their data, not a copy. They keep
-it up to date, and they can take it back.
+A request collects information from other people. A link is sent,
+recipients fill it in, and the responses arrive structured as requested. A
+response given from the responder's vault arrives as a link to their data,
+not a copy: the responder keeps it current and can revoke it.
 
-Want it the other way round, with a tool asking for records someone already
-has? That's a [link proposal](tools.md). A request brings answers into
-your workspace. A proposal creates a share in the owner's workspace.
+For the reverse direction, a tool asking for records someone already
+holds, see [link proposals](tools.md). A request brings responses into the
+requester's workspace. A proposal creates a share in the owner's
+workspace.
 
-## Ask for what you need
+## Creating a request
 
-Choose **New → Request** and pick a [template](templates.md). Its fields
-are what people are asked to fill in. No template? Then switch on **Allow
-extra fields**, so people add fields of their own. A request has to ask for
-something. Leave the title empty, and it takes the template's name.
+**New → Request** creates a request from a [template](templates.md), whose
+fields define what is asked. Without a template, **Allow extra fields**
+lets respondents add fields of their own. A request must ask for
+something. An empty title defaults to the template's name.
 
-Once it's created, you get the link and a short message to send with it.
-The message tells people they answer in the Revoked app.
+After creation, the link is shown together with a short message to send
+with it, which explains that responses are given in the Revoked app.
 
-These options sit under **Advanced**:
+The following options are under **Advanced**:
 
-**Who can respond**
+**Respondents**
 
-- **Require a verified identity.** People have to prove who they are with
-  an identity before they answer. Accept **Any** identity, or **This server
-  only**, which means your own.
-- **Identifier.** Something you tell the person yourself, such as a
-  customer number or a case number. They have to enter it, so you know whose
-  answer it is.
-- **Password.** The simplest lock. Tell it to them yourself, too.
+- **Require a verified identity.** Respondents must prove who they are with
+  an identity before answering. **Any** accepts any identity; **This server
+  only** accepts only identities from the requester's own server.
+- **Identifier.** A value passed to the respondent separately, such as a
+  customer or case number. It must be entered to respond, which ties each
+  response to a known person.
+- **Password.** The simplest restriction, also passed on separately.
 
 **Limits and callback**
 
-- **Max responses** and **Expires at** close the request on their own.
-- A **Callback URL** sends every answer to your own system as it arrives.
-  See [Callbacks](../api/callbacks.md).
+- **Max responses** and **Expires at** close the request automatically.
+- A **Callback URL** forwards each response to an external system as it
+  arrives. See [Callbacks](../api/callbacks.md).
 
-## Answer a request
+## Responding to a request
 
-You need a Revoked account to answer. Your answer is kept in your own
-workspace, so you can change it or take it back later.
+Responding requires a Revoked account. The response is kept in the
+responder's own workspace, where it can be changed or revoked later.
 
-For each field, choose **Use a record** or **Use a different value**. A
-record is the better choice: the answer stays yours. The person who asked
-always sees its current value, and you can withdraw it any time, just like a
-[share](sharing.md). **Revoke response** takes your answer back.
+Each field is answered with **Use a record** or **Use a different value**.
+A record is preferable: the response stays under the responder's control,
+the requester always sees its current value, and it can be withdrawn at
+any time, like a [share](sharing.md). **Revoke response** withdraws a
+response.
 
-Before you send anything, the app checks who is asking. If the request's
-claim contradicts its domain, it's blocked: it's a fake. If the sender
-can't be confirmed, you have to say you want to go ahead. Answering again
-later updates your answer instead of adding a second one.
+Before anything is sent, the app verifies the requester. A request whose
+claim contradicts its domain is blocked as forged. A request whose sender
+cannot be confirmed requires explicit confirmation to proceed. Responding
+again later updates the existing response instead of adding a second one.
 
-Requests from other Revoked servers work the same way. You answer from
-your own account, and your answer stays on your own server. The other
-server fetches it from there each time it's needed. Revoke it at home, and
-it's revoked for them too.
+Requests from other Revoked servers work the same way. The response is
+given from the responder's own account and stays on the responder's
+server; the requesting server fetches it from there each time it is
+needed. Revoking it at the source revokes it for the requester as well.
 
-## Read the answers {#reading-what-came-back}
+## Responses {#reading-what-came-back}
 
-Open a request and press **View responses**. Switch between **List** and
-**Sheet**: the sheet shows one row per person and one column per field.
+**View responses** on a request lists its responses, either as a **List**
+or as a **Sheet** with one row per respondent and one column per field.
 
-Each answer shows whether it was typed or links to the person's vault. A
-linked answer also shows whether it still works or was revoked. If an
-answer lives on another server and that server can't be reached, you see
-no values, never an old copy. To keep an answer, press **Open in Vault**.
-Revoking the request stops new answers.
+Each response shows whether it was typed or links to the respondent's
+vault. A linked response also shows whether it is still active or was
+revoked. If a response lives on another server that cannot be reached, no
+values are shown, never a stale copy. **Open in Vault** keeps a response.
+Revoking the request stops new responses.
 
-You get a notification when an answer arrives, when the request is full or
-expires, and when a callback fails.
+Notifications are sent when a response arrives, when the request is full
+or expires, and when a callback fails.

@@ -95,7 +95,7 @@ class _TourScreenState extends State<TourScreen> {
       _error.value =
           Stores.vault.errorMessage ??
           Stores.shares.errorMessage ??
-          'Something went wrong. Try again.';
+          'The step could not be completed.';
     }
   }
 
@@ -168,7 +168,7 @@ class _TourScreenState extends State<TourScreen> {
       Uri.parse(_webUrl),
       mode: LaunchMode.externalApplication,
     );
-    if (!ok && mounted) AppToast.error(context, 'Couldn\'t open $_webUrl');
+    if (!ok && mounted) AppToast.error(context, '$_webUrl could not be opened');
   }
 
   @override
@@ -186,11 +186,11 @@ class _TourScreenState extends State<TourScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Share something, then take it back').header,
+                const Text('Sharing and revoking').header,
                 AppSpacing.gapXs,
                 const Text(
-                  'You\'ll use real data in your vault. You can delete all of '
-                  'it at the end.',
+                  'The tour uses real data in the vault. All of it can be '
+                  'deleted at the end.',
                 ).muted,
                 AppSpacing.gapXl,
                 for (final s in TourStep.values)
@@ -265,29 +265,28 @@ class _TourScreenState extends State<TourScreen> {
 
   (String, String) _copy(TourStep s) => switch (s) {
     TourStep.record => (
-      'Add something to share',
-      'Start with something you\'d hand out, like a Wi-Fi password. It stays '
-          'in your vault until you share it.',
+      'Add a record',
+      'Values such as a Wi-Fi password remain in the vault until they are '
+          'shared.',
     ),
     TourStep.link => (
-      'Make a link',
-      'Anyone with this link can see the value, and you stay in control of '
-          'it. This one stops working tomorrow on its own.',
+      'Create a link',
+      'Anyone with the link can see the value while the link is active. This '
+          'link expires tomorrow.',
     ),
     TourStep.open => (
-      'See what they see',
-      'This is what the person you send the link to sees. Close it to come '
-          'back here.',
+      'Recipient view',
+      'The page a link recipient sees. Closing it returns to the tour.',
     ),
     TourStep.change => (
       'Change the value',
-      'Change the value in your vault. Everyone with the link sees the new '
-          'one. No need to send anything again.',
+      'Changes in the vault reach everyone with the link. Nothing needs to '
+          'be sent again.',
     ),
     TourStep.revoke => (
-      'Take it back',
-      'Revoke the link and it stops working right away. The value stays in '
-          'your vault.',
+      'Revoke the link',
+      'A revoked link stops working immediately. The value remains in the '
+          'vault.',
     ),
     TourStep.done => ('', ''),
   };
@@ -357,7 +356,7 @@ class _TourScreenState extends State<TourScreen> {
       case TourStep.change:
         if (_changed.value) {
           return [
-            const Text('Saved. They now see the new value.'),
+            const Text('Saved. Recipients now see the new value.'),
             AppSpacing.gapMd,
             Wrap(
               spacing: AppSpacing.sm,
@@ -430,12 +429,12 @@ class _TourScreenState extends State<TourScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('That\'s it').header,
+          const Text('Tour complete').header,
           AppSpacing.gapXs,
           const Text(
-            'They only ever had a link, never your data. They always saw the '
-            'latest value, and lost access the moment you revoked it. Anyone '
-            'who opens the link now sees that it was revoked.',
+            'Recipients held only a link, never the data itself. They saw the '
+            'latest value and lost access on revocation. The link now shows '
+            'that it was revoked.',
           ).muted,
           AppSpacing.gapMd,
           Align(
@@ -461,7 +460,7 @@ class _TourScreenState extends State<TourScreen> {
               ),
               AppButton(
                 icon: AppIcons.safe,
-                label: 'Keep it',
+                label: 'Keep data',
                 onTap: () => context.go(AppRoutes.vault),
               ),
             ],
@@ -502,7 +501,7 @@ class _UrlBox extends StatelessWidget {
             size: AppButtonSize.small,
             onTap: () async {
               await Clipboard.setData(ClipboardData(text: url));
-              if (context.mounted) AppToast.success(context, 'Copied link');
+              if (context.mounted) AppToast.success(context, 'Link copied');
             },
           ),
         ],

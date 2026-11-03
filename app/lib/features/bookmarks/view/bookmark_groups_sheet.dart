@@ -48,7 +48,7 @@ class _BookmarkGroupsSheet extends StatelessWidget {
     if (!ok && parentContext.mounted) {
       AppToast.error(
         parentContext,
-        "Couldn't update the group",
+        'The group could not be updated.',
         subtitle: store.error?.description,
       );
     }
@@ -63,7 +63,7 @@ class _BookmarkGroupsSheet extends StatelessWidget {
     if (!ok && store.error != null && parentContext.mounted) {
       AppToast.error(
         parentContext,
-        "Couldn't create the group",
+        'The group could not be created.',
         subtitle: store.error?.description,
       );
     }
@@ -79,7 +79,7 @@ class _BookmarkGroupsSheet extends StatelessWidget {
     } else {
       AppToast.error(
         parentContext,
-        "Couldn't remove the bookmark",
+        'The bookmark could not be removed.',
         subtitle: store.error?.description,
       );
     }
@@ -115,7 +115,7 @@ class _BookmarkGroupsSheet extends StatelessWidget {
           Text(bookmark.title).muted.small,
           AppSpacing.gapLg,
           if (store.groups.isEmpty)
-            const Text('No groups yet. Name one below.').muted.small
+            const Text('No groups').muted.small
           else
             Flexible(
               child: ListView(

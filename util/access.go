@@ -215,7 +215,7 @@ func (s AccessSpec) diagnoseUser(app core.App, subj AccessSubject, errs validati
 		} else if !hasScopeValue(permissions, s.Scope) {
 			errs[Fields.WorkspaceMember.Permissions] = validation.NewError(
 				Errors.MissingPermission.ErrorCode,
-				"Your access to this workspace does not include: "+s.Scope+".",
+				"Workspace access does not include: "+s.Scope+".",
 			)
 		}
 	case AccessWorkspaceSelf, AccessWorkspaceSplitOrigin:
@@ -227,7 +227,7 @@ func (s AccessSpec) diagnoseUser(app core.App, subj AccessSubject, errs validati
 		if want := s.requiredScope(subj); !hasScopeValue(permissions, want) {
 			errs[Fields.WorkspaceMember.Permissions] = validation.NewError(
 				Errors.MissingPermission.ErrorCode,
-				"Your access to this workspace does not include: "+want+".",
+				"Workspace access does not include: "+want+".",
 			)
 		}
 	}
