@@ -14,6 +14,7 @@ import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/share_proposal.dart';
@@ -532,6 +533,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           : connecting
           ? _connectDecision(context)
           : _decision(context, p),
+      feature: Feature.sharing,
       body: _buildBody(context),
     );
   }

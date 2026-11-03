@@ -10,6 +10,7 @@ import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/credential.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
@@ -150,6 +151,7 @@ class _PresentationScreenState extends State<PresentationScreen> {
       closeLabel: deciding ? 'Decline and go back' : 'Back to the app',
       onClose: _leave,
       bottomBar: deciding ? _decision(context, r) : null,
+      feature: Feature.attestations,
       body: r == null
           ? _invalid(context)
           : loading

@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/models/feature.dart';
+import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_check_sheet.dart';
@@ -59,6 +61,7 @@ enum NewKind {
     'Contact',
     'Someone to send things to, or ask things from.',
     'p',
+    feature: Feature.contacts,
   ),
   link(
     NewGroup.give,
@@ -66,6 +69,7 @@ enum NewKind {
     'Share link',
     'Let someone see your records until you revoke it.',
     'l',
+    feature: Feature.sharing,
   ),
   attestation(
     NewGroup.give,
@@ -73,6 +77,7 @@ enum NewKind {
     'Attestation',
     'Confirm something about someone, in this server\'s name.',
     'a',
+    feature: Feature.attestations,
   ),
   request(
     NewGroup.ask,
@@ -80,6 +85,7 @@ enum NewKind {
     'Request',
     'Ask someone to fill in their details.',
     'q',
+    feature: Feature.requests,
   ),
   askAttestation(
     NewGroup.ask,
@@ -87,6 +93,7 @@ enum NewKind {
     'Attestation about you',
     'Ask a club or an employer to confirm something about you.',
     'k',
+    feature: Feature.attestations,
   ),
   checkAttestation(
     NewGroup.ask,
@@ -94,6 +101,7 @@ enum NewKind {
     'See someone\'s attestation',
     'Ask to see one, like a membership, and check it.',
     'c',
+    feature: Feature.attestations,
   ),
   openLink(
     NewGroup.received,
@@ -103,7 +111,14 @@ enum NewKind {
     'o',
   );
 
-  const NewKind(this.group, this.icon, this.label, this.description, this.key);
+  const NewKind(
+    this.group,
+    this.icon,
+    this.label,
+    this.description,
+    this.key, {
+    this.feature,
+  });
 
   final NewGroup group;
   final IconData icon;
@@ -113,16 +128,31 @@ enum NewKind {
   /// Pressed while the picker is open, picks this row.
   final String key;
 
+  /// The feature this row belongs to; null for what every account has.
+  final Feature? feature;
+
+  /// Whether the person has this row's feature on and may use it.
+  bool get isAvailable => feature == null || Stores.features.visible(feature!);
+
+  /// The rows on offer right now, in their fixed order.
+  static List<NewKind> get available => [
+    for (final kind in values)
+      if (kind.isAvailable) kind,
+  ];
+
   /// The row the picker starts on for the shell destination it was opened
-  /// from (index into `AppRoutes.destinations`). The list itself never
+  /// from (a root of `AppRoutes.allDestinations`). The list itself never
   /// reorders, so each row stays where people learned it.
-  static NewKind firstFor(int? destination) => switch (destination) {
-    2 => NewKind.link,
-    3 => NewKind.request,
-    4 => NewKind.attestation,
-    5 => NewKind.contact,
-    _ => NewKind.record,
-  };
+  static NewKind firstFor(String? destination) {
+    final wanted = switch (destination) {
+      AppRoutes.shared => NewKind.link,
+      AppRoutes.requests => NewKind.request,
+      AppRoutes.attestations => NewKind.attestation,
+      AppRoutes.contacts => NewKind.contact,
+      _ => NewKind.record,
+    };
+    return wanted.isAvailable ? wanted : NewKind.record;
+  }
 }
 
 /// Opens the form that already exists for [kind].

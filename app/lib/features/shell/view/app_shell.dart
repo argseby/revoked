@@ -18,13 +18,15 @@ import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
+import 'package:revoked_app/core/widgets/feature_notice.dart';
 import 'package:revoked_app/features/notifications/view/notifications_sheet.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 import 'package:revoked_app/features/shell/view/new_picker.dart';
 
-/// One of the shell's places, in the order of `AppRoutes.destinations`.
+/// One of the shell's places, keyed by its root in `AppRoutes.allDestinations`.
 class _Destination {
+  final String route;
   final IconData icon;
   final String label;
 
@@ -32,21 +34,38 @@ class _Destination {
   /// sidebar hangs these under it; the narrower bars stay flat.
   final bool underVault;
 
-  const _Destination(this.icon, this.label, {this.underVault = false});
+  const _Destination(
+    this.route,
+    this.icon,
+    this.label, {
+    this.underVault = false,
+  });
 }
 
-const _destinations = [
-  _Destination(AppIcons.dashboard, 'Overview'),
-  _Destination(AppIcons.safe, 'Vault'),
-  _Destination(AppIcons.share, 'Shares', underVault: true),
-  _Destination(AppIcons.inboxFill, 'Requests', underVault: true),
-  _Destination(AppIcons.attestation, 'Attestations'),
-  _Destination(AppIcons.person, 'Contacts'),
+const _places = [
+  _Destination(AppRoutes.overview, AppIcons.dashboard, 'Overview'),
+  _Destination(AppRoutes.vault, AppIcons.safe, 'Vault'),
+  _Destination(AppRoutes.shared, AppIcons.share, 'Shares', underVault: true),
+  _Destination(
+    AppRoutes.requests,
+    AppIcons.inboxFill,
+    'Requests',
+    underVault: true,
+  ),
+  _Destination(AppRoutes.attestations, AppIcons.attestation, 'Attestations'),
+  _Destination(AppRoutes.contacts, AppIcons.person, 'Contacts'),
 ];
 
-/// How many of [_destinations] a phone's bottom bar shows; the rest sit behind
-/// More. A sixth tab leaves under 64 pixels each on a small phone, where longer
-/// labels break mid-word.
+/// The places the person has on, in their fixed order: a feature turned off
+/// takes its tab away and the rest close up without changing places.
+List<_Destination> _shownDestinations() => [
+  for (final root in AppRoutes.destinations)
+    _places.firstWhere((d) => d.route == root),
+];
+
+/// How many of the shown destinations a phone's bottom bar holds; the rest sit
+/// behind More. A sixth tab leaves under 64 pixels each on a small phone,
+/// where longer labels break mid-word.
 const _phoneBarDestinations = 4;
 
 /// The frame around every signed-in screen.
@@ -67,15 +86,23 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   /// The destination last shown, so the bottom bar still has one to sit on
   /// while Settings is open.
-  int _lastDestination = 0;
+  String _lastRoot = AppRoutes.vault;
 
   @override
   void initState() {
     super.initState();
-    // Notifications power the bell, which is visible on every screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Notifications power the bell, which is visible on every screen.
       Stores.notifications.load();
       Stores.notifications.startPolling();
+      // Which tabs show is the person's choice crossed with what the
+      // workspace lets them do: the catalogue names the permission each
+      // feature needs, and the roster says which of those they hold.
+      Stores.features.loadIfDue();
+      final ws = Stores.auth.activeWorkspace ?? '';
+      if (ws.isNotEmpty && Stores.invites.members.isEmpty) {
+        Stores.invites.loadMembers(ws);
+      }
     });
   }
 
@@ -87,18 +114,18 @@ class _AppShellState extends State<AppShell> {
 
   void _go(int index) => context.go(AppRoutes.destinations[index]);
 
-  void _openNew(int? destination) =>
-      openNewPicker(context, destination: destination);
+  void _openNew(String? root) => openNewPicker(context, destination: root);
 
   void _openMore() {
+    final shown = _shownDestinations();
     showAppOptionsSheet(
       context: context,
       title: 'More',
       actions: [
-        for (var i = _phoneBarDestinations; i < _destinations.length; i++)
+        for (var i = _phoneBarDestinations; i < shown.length; i++)
           AppSheetAction(
-            icon: _destinations[i].icon,
-            label: _destinations[i].label,
+            icon: shown[i].icon,
+            label: shown[i].label,
             onTap: () => _go(i),
           ),
         AppSheetAction(
@@ -125,11 +152,11 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  /// The screen's own title, or the destination's name while it has none.
-  Widget _title(int? destination) {
-    final fallback = destination == null
+  /// The screen's own title, or the place's name while it has none.
+  Widget _title(String? root) {
+    final fallback = root == null
         ? 'Settings'
-        : _destinations[destination].label;
+        : _places.firstWhere((d) => d.route == root).label;
     return Observer(
       builder: (context) =>
           ShellSlots.title.builder?.call(context) ??
@@ -137,26 +164,53 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  /// The screen, with a word above it when it belongs to a feature the
+  /// person has off: a link or an old bookmark still opens the page, and
+  /// the notice is what keeps that from being a dead end.
+  Widget _body(String path) {
+    final feature = featureForLocation(path);
+    if (feature == null) return widget.child;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FeatureNotice(feature),
+        Expanded(child: widget.child),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Which places show follows the feature store, so the frame is reactive.
+    return Observer(builder: _build);
+  }
+
+  Widget _build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
+    final root = AppRoutes.rootOf(path);
     final destination = AppRoutes.destinationOf(path);
-    if (destination != null) _lastDestination = destination;
+    if (destination != null) _lastRoot = root!;
     final width = MediaQuery.sizeOf(context).width;
     if (width < AppSpacing.narrowWidth) {
-      final isSubPage =
-          path !=
-          (destination == null
-              ? AppRoutes.settings
-              : AppRoutes.destinations[destination]);
-      return _narrow(destination, isSubPage: isSubPage);
+      final isSubPage = path != (root ?? AppRoutes.settings);
+      return _narrow(root, destination, path, isSubPage: isSubPage);
     }
-    return _wide(destination, sidebar: width >= AppSpacing.wideWidth);
+    return _wide(
+      root,
+      destination,
+      path,
+      sidebar: width >= AppSpacing.wideWidth,
+    );
   }
 
   /// A sub-page's back arrow is its way out, so it needs no avatar beside it,
   /// and leaves the title that room.
-  Widget _narrow(int? destination, {required bool isSubPage}) {
+  Widget _narrow(
+    String? root,
+    int? destination,
+    String path, {
+    required bool isSubPage,
+  }) {
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
       // Yields while any sheet is up, so it never overlaps a sheet's actions,
@@ -169,7 +223,7 @@ class _AppShellState extends State<AppShell> {
           return FloatingActionButton.extended(
             heroTag: 'shell-new',
             tooltip: 'Create something new',
-            onPressed: () => _openNew(destination),
+            onPressed: () => _openNew(root),
             icon: const Icon(AppIcons.plus),
             label: const Text('New'),
           );
@@ -190,7 +244,7 @@ class _AppShellState extends State<AppShell> {
                 child: Center(child: AccountMenu()),
               ),
         titleSpacing: isSubPage ? AppSpacing.lg : AppSpacing.xs,
-        title: _title(destination),
+        title: _title(root),
         actions: [
           _slot(ShellSlots.action),
           AppButton(
@@ -204,21 +258,21 @@ class _AppShellState extends State<AppShell> {
           AppSpacing.gapXs,
         ],
       ),
-      body: widget.child,
+      body: _body(path),
       bottomNavigationBar: _bottomBar(destination),
     );
   }
 
   Widget _bottomBar(int? destination) {
+    final shown = _shownDestinations();
+    final onBar = shown.take(_phoneBarDestinations).toList();
+    // A place past the bar, or one the person hid, shows More as current.
+    final resting = destination ?? AppRoutes.destinationOf(_lastRoot) ?? 0;
     final bar = NavigationBar(
-      selectedIndex: min(
-        destination ?? _lastDestination,
-        _phoneBarDestinations,
-      ),
-      onDestinationSelected: (i) =>
-          i == _phoneBarDestinations ? _openMore() : _go(i),
+      selectedIndex: min(resting, onBar.length),
+      onDestinationSelected: (i) => i == onBar.length ? _openMore() : _go(i),
       destinations: [
-        for (final d in _destinations.take(_phoneBarDestinations))
+        for (final d in onBar)
           NavigationDestination(icon: Icon(d.icon), label: d.label),
         const NavigationDestination(
           icon: Icon(AppIcons.threeDots),
@@ -248,14 +302,20 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  Widget _wide(int? destination, {required bool sidebar}) {
+  Widget _wide(
+    String? root,
+    int? destination,
+    String path, {
+    required bool sidebar,
+  }) {
     final scheme = Theme.of(context).colorScheme;
+    final shown = _shownDestinations();
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (sidebar)
-            _Sidebar(destination: destination, onSelect: _go)
+            _Sidebar(shown: shown, destination: destination, onSelect: _go)
           else
             NavigationRail(
               selectedIndex: destination,
@@ -268,7 +328,7 @@ class _AppShellState extends State<AppShell> {
                 child: AccountMenu(),
               ),
               destinations: [
-                for (final d in _destinations)
+                for (final d in shown)
                   NavigationRailDestination(
                     icon: Icon(d.icon),
                     label: Text(d.label),
@@ -280,7 +340,7 @@ class _AppShellState extends State<AppShell> {
             child: Scaffold(
               appBar: AppBar(
                 titleSpacing: AppSpacing.screenH(context),
-                title: _title(destination),
+                title: _title(root),
                 actions: [
                   _slot(ShellSlots.action),
                   if (!sidebar) const _NotificationBell(),
@@ -303,13 +363,13 @@ class _AppShellState extends State<AppShell> {
                         icon: AppIcons.plus,
                         label: 'New',
                         tooltip: 'Create something new (N)',
-                        onTap: () => _openNew(destination),
+                        onTap: () => _openNew(root),
                       ),
                     ),
                   SizedBox(width: AppSpacing.screenH(context)),
                 ],
               ),
-              body: widget.child,
+              body: _body(path),
             ),
           ),
         ],
@@ -321,10 +381,15 @@ class _AppShellState extends State<AppShell> {
 /// The wide layout's navigation: the workspace and account on top, search,
 /// the destinations, and notifications and settings at the bottom.
 class _Sidebar extends StatelessWidget {
+  final List<_Destination> shown;
   final int? destination;
   final ValueChanged<int> onSelect;
 
-  const _Sidebar({required this.destination, required this.onSelect});
+  const _Sidebar({
+    required this.shown,
+    required this.destination,
+    required this.onSelect,
+  });
 
   /// The places as a tree: what is built on the vault hangs under it on a
   /// hairline, and what is not (attestations belong to identities, not
@@ -332,24 +397,20 @@ class _Sidebar extends StatelessWidget {
   List<Widget> _navigation(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     Widget item(int i) => _SidebarItem(
-      icon: _destinations[i].icon,
-      label: _destinations[i].label,
+      icon: shown[i].icon,
+      label: shown[i].label,
       selected: destination == i,
       onTap: () => onSelect(i),
     );
     final children = <Widget>[];
-    for (var i = 0; i < _destinations.length; i++) {
-      if (_destinations[i].underVault) continue;
-      if (i > 0 && _destinations[i - 1].underVault) {
+    for (var i = 0; i < shown.length; i++) {
+      if (shown[i].underVault) continue;
+      if (i > 0 && shown[i - 1].underVault) {
         children.add(AppSpacing.gapMd);
       }
       children.add(item(i));
       final nested = <int>[];
-      for (
-        var j = i + 1;
-        j < _destinations.length && _destinations[j].underVault;
-        j++
-      ) {
+      for (var j = i + 1; j < shown.length && shown[j].underVault; j++) {
         nested.add(j);
       }
       if (nested.isEmpty) continue;

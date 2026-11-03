@@ -31,6 +31,7 @@ import 'package:revoked_app/features/passkeys/store/passkeys_store.dart';
 import 'package:revoked_app/features/reminders/store/reminders_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/sealing/store/keys_store.dart';
+import 'package:revoked_app/features/settings/store/features_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
@@ -70,6 +71,7 @@ abstract final class Stores {
   static late NotificationsStore notifications;
   static late RemindersStore reminders;
   static late SettingsStore settings;
+  static late FeaturesStore features;
   static late InvitesStore invites;
   static late ServerSettingsStore serverSettings;
   static late LinkSearchStore linkSearch;
@@ -146,6 +148,12 @@ abstract final class Stores {
     reminders = RemindersStore(api);
     settings = SettingsStore(api);
     invites = InvitesStore(api, domainVerification);
+    features = FeaturesStore(
+      api,
+      user: () => auth.currentUser,
+      userChanged: auth.replaceUser,
+      members: () => invites.members,
+    );
     serverSettings = ServerSettingsStore(api);
     linkSearch = LinkSearchStore();
     onboarding = OnboardingStore();
@@ -167,6 +175,7 @@ abstract final class Stores {
     attestations.loadState,
     attestationChecks.loadState,
     signIns.loadState,
+    features.loadState,
   ];
 
   /// Makes every cached list fetch again the next time a screen asks for it.

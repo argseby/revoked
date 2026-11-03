@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:revoked_app/core/utils/shell_shortcuts.dart';
 import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/features/shell/view/new_picker.dart';
@@ -10,11 +16,20 @@ import 'package:revoked_app/features/shell/view/new_picker.dart';
 /// is, and answer the keyboard; the shell's own keys must never take a letter
 /// typed into a field.
 void main() {
+  // Which rows are offered follows the feature store.
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    await Stores.init(
+      httpClient: MockClient((_) async => http.Response('{}', 404)),
+    );
+  });
+
   test('starts on the row that fits the destination', () {
-    expect(NewKind.firstFor(0), NewKind.record);
-    expect(NewKind.firstFor(1), NewKind.record);
-    expect(NewKind.firstFor(2), NewKind.link);
-    expect(NewKind.firstFor(3), NewKind.request);
+    expect(NewKind.firstFor(AppRoutes.overview), NewKind.record);
+    expect(NewKind.firstFor(AppRoutes.vault), NewKind.record);
+    expect(NewKind.firstFor(AppRoutes.shared), NewKind.link);
+    expect(NewKind.firstFor(AppRoutes.requests), NewKind.request);
     expect(NewKind.firstFor(null), NewKind.record);
   });
 

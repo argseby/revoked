@@ -32,7 +32,7 @@ import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/core/widgets/redacted_value.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
-import 'package:revoked_app/core/state/display_preferences.dart';
+import 'package:revoked_app/core/models/feature.dart';
 
 /// One link, opened from the Links list: what it shares, who can open it, where
 /// it came from, and the actions that end it.
@@ -165,7 +165,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       ),
     };
 
-    final full = DisplayPreferences.detailLevel == DetailLevel.full;
+    final full = Stores.features.visible(Feature.developer);
     return AppDetailHeader(
       badges: [
         StatusLabel(status),
@@ -355,8 +355,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
               ? share.watermarkText.trim()
               : share.label,
         ),
-        if (share.watermark &&
-            DisplayPreferences.detailLevel == DetailLevel.full)
+        if (share.watermark && Stores.features.visible(Feature.developer))
           AppDetailRow(
             icon: AppIcons.hash,
             label: 'Watermark tag',

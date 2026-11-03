@@ -1,13 +1,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
-import 'package:revoked_app/core/state/display_preferences.dart';
+import 'package:revoked_app/core/models/feature.dart';
+import 'package:revoked_app/core/stores.dart';
 
-/// Shows [child] only at the Full detail level; at Essentials it shows
-/// [essentials], or nothing.
+/// Shows [child] while the Developer feature is on; otherwise [essentials],
+/// or nothing.
 ///
 /// For what an expert wants and a newcomer is better off without: a link's
-/// slug and formats, a key's fingerprint, the reason behind a verdict.
+/// slug and formats, a key's fingerprint, the request behind a form.
 /// Nothing needed to decide or act may sit behind it.
 class DetailGate extends StatelessWidget {
   final Widget child;
@@ -18,7 +19,7 @@ class DetailGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Observer(
-      builder: (_) => DisplayPreferences.detailLevel == DetailLevel.full
+      builder: (_) => Stores.features.visible(Feature.developer)
           ? child
           : (essentials ?? const SizedBox.shrink()),
     );

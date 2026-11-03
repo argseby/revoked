@@ -24,6 +24,15 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('destinationOf', () {
+    // Which places show follows the feature store.
+    setUpAll(() async {
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      await Stores.init(
+        httpClient: MockClient((_) async => http.Response('{}', 404)),
+      );
+    });
+
     test('maps each path to its destination', () {
       expect(AppRoutes.destinationOf('/overview'), 0);
       expect(AppRoutes.destinationOf('/vault'), 1);

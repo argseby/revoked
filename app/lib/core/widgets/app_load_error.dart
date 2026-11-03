@@ -9,8 +9,9 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 /// Shown in place of a list that failed to load. Sits at the top of the empty
 /// space, where the content would have started — a failure centred in the
 /// viewport reads as a state of the whole app rather than of this list. Filling
-/// a screen it keeps the screen's edges; inside a scrolling page, which has its
-/// own, it only keeps clear of what is above and below it.
+/// a screen it keeps the screen's edges and scrolls when the window is too
+/// short for it; inside a scrolling page, which has its own, it only keeps
+/// clear of what is above and below it.
 class AppLoadError extends StatelessWidget {
   final String title;
   final String message;
@@ -27,10 +28,9 @@ class AppLoadError extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final side = constraints.hasBoundedHeight
-            ? AppSpacing.screenH(context)
-            : 0.0;
-        return Padding(
+        final bounded = constraints.hasBoundedHeight;
+        final side = bounded ? AppSpacing.screenH(context) : 0.0;
+        final body = Padding(
           padding: EdgeInsets.fromLTRB(
             side,
             AppSpacing.lg,
@@ -62,6 +62,7 @@ class AppLoadError extends StatelessWidget {
             ),
           ),
         );
+        return bounded ? SingleChildScrollView(child: body) : body;
       },
     );
   }

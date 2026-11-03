@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -28,7 +29,11 @@ void main() {
     'desktop': Size(1280, 800),
   };
 
-  Future<GoRouter> signedIn(WidgetTester tester, Size size) async {
+  Future<GoRouter> signedIn(
+    WidgetTester tester,
+    Size size, {
+    List<String>? features,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -46,20 +51,64 @@ void main() {
         'id': 'u1',
         'email': 'ada@example.com',
         'activeWorkspace': 'w1',
+        'features': ?features,
       }),
     );
     await tester.pumpAndSettle();
     return router;
   }
 
+  /// Every place, shown or hidden: a hidden one still opens from a link, with
+  /// a notice above it, and has to fit with that notice too.
+  Future<void> visitEverywhere(
+    WidgetTester tester,
+    GoRouter router,
+    String reason,
+  ) async {
+    for (final destination in [
+      ...AppRoutes.allDestinations,
+      AppRoutes.settings,
+      AppRoutes.settingsPage(SettingsPage.features.slug),
+    ]) {
+      router.go(destination);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$destination $reason');
+    }
+  }
+
   for (final MapEntry(key: name, value: size) in sizes.entries) {
     testWidgets('every destination fits a $name', (tester) async {
       final router = await signedIn(tester, size);
-      for (final destination in AppRoutes.destinations) {
-        router.go(destination);
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull, reason: destination);
-      }
+      await visitEverywhere(tester, router, 'with everything on');
+    });
+
+    /// Each feature off in turn takes a tab away; the rest close up.
+    for (final off in Feature.values) {
+      testWidgets('every destination fits a $name with ${off.key} off', (
+        tester,
+      ) async {
+        final router = await signedIn(
+          tester,
+          size,
+          features: [
+            for (final f in Feature.values)
+              if (f != off) f.key,
+          ],
+        );
+        expect(
+          AppRoutes.destinations.length,
+          lessThanOrEqualTo(AppRoutes.allDestinations.length),
+        );
+        await visitEverywhere(tester, router, 'with ${off.key} off');
+      });
+    }
+
+    testWidgets('every destination fits a $name with only the vault', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size, features: const []);
+      expect(AppRoutes.destinations, [AppRoutes.vault]);
+      await visitEverywhere(tester, router, 'with only the vault');
     });
   }
 
@@ -101,6 +150,25 @@ void main() {
       router.go(AppRoutes.attestations);
       await tester.pumpAndSettle();
       expect(bar(tester).selectedIndex, bar(tester).destinations.length - 1);
+    });
+
+    testWidgets('a feature turned off takes its tab away; the rest close up', (
+      tester,
+    ) async {
+      await signedIn(
+        tester,
+        sizes['phone']!,
+        features: ['requests', 'attestations', 'contacts'],
+      );
+      final labels = [
+        for (final d in bar(tester).destinations)
+          (d as NavigationDestination).label,
+      ];
+      expect(labels, ['Vault', 'Requests', 'Attestations', 'Contacts', 'More']);
+      // Settings still waits under More, however few tabs there are.
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings'), findsOneWidget);
     });
   });
 
