@@ -200,18 +200,38 @@ class ToolPermissions extends StatelessWidget {
                     AppSpacing.md,
                     0,
                     AppSpacing.md,
-                    AppSpacing.sm,
+                    AppSpacing.md,
                   ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: AppSegmented<bool>(
-                      value: sectionWrite,
-                      items: const [
-                        AppSegmentedItem(value: false, label: 'Read'),
-                        AppSegmentedItem(value: true, label: 'Manage'),
-                      ],
-                      onChanged: (v) => onSectionWrite?.call(v),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AppSegmented<bool>(
+                        expand: true,
+                        value: sectionWrite,
+                        items: const [
+                          AppSegmentedItem(
+                            value: false,
+                            icon: AppIcons.eye,
+                            label: 'Read',
+                          ),
+                          AppSegmentedItem(
+                            value: true,
+                            icon: AppIcons.pencil,
+                            label: 'Manage',
+                          ),
+                        ],
+                        onChanged: (v) => onSectionWrite?.call(v),
+                      ),
+                      AppSpacing.gapSm,
+                      Text(
+                        sectionWrite
+                            ? 'It can add records here, and change or delete '
+                                  'the ones it added. Records you add stay '
+                                  'as they are.'
+                            : 'It sees what you put here. It can’t add, '
+                                  'change or delete anything.',
+                      ).muted.small,
+                    ],
                   ),
                 ),
             ],

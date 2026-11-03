@@ -76,7 +76,7 @@ reason the tool gave for asking:
 
 | Switch | What it allows |
 |---|---|
-| **Vault section** | The tool gets a section of your vault, named after it, to keep what it saves for you. Pick **Read** or **Manage**. It can't see the rest of your vault. |
+| **Vault section** | The tool gets a section of your vault, named after it, to keep what it saves for you. Pick **Read**, and it only sees what you put there. Pick **Manage**, and it can also add records, and change or delete the ones it added. It can't see the rest of your vault. |
 | **Manage shares** | The tool shares what is in its section without asking you each time. You see every share in the app, and can stop it. |
 | **Manage requests** | The tool sends requests in your name without asking you each time. Only when you confirm on this device, never with a code. |
 | **Revoke its links** | The tool can revoke the links and requests it proposed, for example when you throw away the printed card. You're notified like for any other revocation. |
