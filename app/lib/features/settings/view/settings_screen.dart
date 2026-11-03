@@ -42,6 +42,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Stores.identities.loadIdentities();
       Stores.settings.ensureDomainChecked();
       Stores.apiKeys.loadApiKeys();
+      if (Stores.features.visible(Feature.developer)) {
+        Stores.webhooks.loadIfDue();
+      }
       Stores.passkeys.load();
       Stores.keys.ensureLoaded();
       Stores.connections.load();
@@ -192,6 +195,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'key',
                   'keys',
                   'Let your scripts use Revoked',
+                ),
+              ),
+            if (features.visible(Feature.developer))
+              _page(
+                SettingsPage.webhooks,
+                AppIcons.send,
+                _count(
+                  Stores.webhooks.endpoints.length,
+                  'webhook',
+                  'webhooks',
+                  'Tell your server when something changes',
                 ),
               ),
             if (features.visible(Feature.requests))

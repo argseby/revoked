@@ -66,6 +66,12 @@ tags:
       The vault. Records hold the values that shares resolve at read time.
   - name: Grants
     description: Shares and requests as owned resources.
+  - name: Webhooks
+    description: |
+      A workspace's webhook endpoints, the events they hear about, and every
+      delivery and attempt, with resend, replay and test. Events name what
+      changed and never carry a value. See the [Webhooks guide](../webhooks.md)
+      for the event catalogue and signature check.
   - name: Contacts
     description: |
       Handing a grant to a counterparty the workspace keeps in its address
@@ -2060,6 +2066,247 @@ paths:
           description: "`status` and `newIdOnReturn` as they now stand."
         "404":
           description: Not one of your sign-ins.
+  /api/webhooks/event-types:
+    get:
+      tags: [Webhooks]
+      summary: List the event types
+      description: |
+        The catalogue an endpoint subscribes from. `noisy` types are left out of `"*"`.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/endpoints:
+    get:
+      tags: [Webhooks]
+      summary: List webhook endpoints
+      description: |
+        Every endpoint in the active workspace, with the last day's `stats`. Never includes the secret.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+    post:
+      tags: [Webhooks]
+      summary: Create a webhook endpoint
+      description: |
+        `events` defaults to `["*"]`. The answer carries the signing `secret`.
+      security:
+        - Session: []
+        - ApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, example: "https://example.com/hooks/revoked" }
+                description: { type: string }
+                events: { type: array, items: { type: string }, example: ["*"] }
+                enabled: { type: boolean }
+      responses:
+        "201":
+          description: The endpoint, with `secret`.
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/endpoints/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Webhooks]
+      summary: Get a webhook endpoint
+      description: |
+        One endpoint, with the last day's `stats`.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+    patch:
+      tags: [Webhooks]
+      summary: Change a webhook endpoint
+      description: |
+        Any of `url`, `description`, `events`, `enabled`. Turning it on clears the failing clock.
+      security:
+        - Session: []
+        - ApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, example: "https://example.com/hooks/revoked" }
+                description: { type: string }
+                events: { type: array, items: { type: string }, example: ["*"] }
+                enabled: { type: boolean }
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+    delete:
+      tags: [Webhooks]
+      summary: Delete a webhook endpoint
+      description: |
+        Deletes the endpoint and its delivery log.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "204":
+          description: Deleted.
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/endpoints/{id}/secret:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Webhooks]
+      summary: Show the signing secret
+      description: |
+        The current secret, for setting up the receiving side.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/endpoints/{id}/rotate-secret:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Webhooks]
+      summary: Rotate the signing secret
+      description: |
+        A new secret. The previous one keeps signing alongside it for 24 hours.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/endpoints/{id}/test:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Webhooks]
+      summary: Send a test event
+      description: |
+        Sends one sample of `type` now, once, marked `test: true`, and answers with the delivery.
+      security:
+        - Session: []
+        - ApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type: { type: string, example: link.revoked }
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/endpoints/{id}/replay:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Webhooks]
+      summary: Resend failed deliveries
+      description: |
+        Queues every failed delivery since `since` (RFC 3339, default 24 hours ago) again. Answers `{ queued }`.
+      security:
+        - Session: []
+        - ApiKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                since: { type: string, format: date-time }
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/events:
+    get:
+      tags: [Webhooks]
+      summary: List events
+      description: |
+        The workspace's events, newest first. Filter with `type`; page with `page` and `perPage`.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/deliveries:
+    get:
+      tags: [Webhooks]
+      summary: List deliveries
+      description: |
+        Newest first. Filter with `endpoint`, `status` (`pending`, `succeeded`, `failed`), `type` or `event`.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/deliveries/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Webhooks]
+      summary: Get a delivery
+      description: |
+        The delivery with its `payload` and `attemptLog`: each attempt's status, response body (first 2 KB), error and duration.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/deliveries/{id}/resend:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [Webhooks]
+      summary: Resend a delivery
+      description: |
+        Tries it once more now. Success marks it delivered; failure leaves the automatic retries unchanged.
+      security:
+        - Session: []
+        - ApiKey: []
+      responses:
+        "200":
+          description: OK
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
   /api/requests/callback-test:
     post:
       tags: [Grants]

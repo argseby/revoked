@@ -107,6 +107,13 @@ abstract class AppErrorCode {
   static const sealedVersionConflict = 'sealed_version_conflict';
   static const sealedEpochStale = 'sealed_epoch_stale';
   static const sealedKeyMissing = 'sealed_key_missing';
+
+  static const webhookNotFound = 'webhook_not_found';
+  static const webhookDeliveryNotFound = 'webhook_delivery_not_found';
+  static const webhookUrlInvalid = 'webhook_url_invalid';
+  static const webhookEventsInvalid = 'webhook_events_invalid';
+  static const webhookLimitReached = 'webhook_limit_reached';
+  static const webhookDisabled = 'webhook_disabled';
   static const sealedRecordUnsupported = 'sealed_record_unsupported';
   static const sealedLinksAffected = 'sealed_links_affected';
 }

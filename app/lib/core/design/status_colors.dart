@@ -46,6 +46,10 @@ abstract class StatusColors {
         return 'Expired';
       case 'completed':
         return 'Completed';
+      case 'succeeded':
+        return 'Delivered';
+      case 'pending':
+        return 'Waiting';
       default:
         if (status.isEmpty) return 'Unknown';
         return status[0].toUpperCase() + status.substring(1);
@@ -58,11 +62,15 @@ abstract class StatusColors {
     switch (status) {
       case 'active':
       case 'completed':
+      case 'succeeded':
         return AppIcons.checkCircle;
       case 'paused':
         return AppIcons.pauseCircle;
+      case 'pending':
+        return AppIcons.hourglass;
       case 'revoked':
       case 'expired':
+      case 'failed':
         return AppIcons.xCircle;
       default:
         return AppIcons.circle;
@@ -76,9 +84,13 @@ abstract class StatusColors {
       case 'paused':
         return theme.colorScheme.warning;
       case 'completed':
+      case 'succeeded':
         return theme.colorScheme.success;
+      case 'pending':
+        return theme.colorScheme.warning;
       case 'revoked':
       case 'expired':
+      case 'failed':
         return theme.colorScheme.error;
       default:
         return theme.colorScheme.onSurfaceVariant;

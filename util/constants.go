@@ -77,6 +77,8 @@ const (
 	NotificationContactAsk   = "contact_ask"
 	// The sender hears that the email carrying their grant never arrived.
 	NotificationEmailUndelivered = "email_undelivered"
+	// A webhook endpoint was switched off after days of failed deliveries.
+	NotificationWebhookDisabled = "webhook_disabled"
 
 	// A check waits open until it is answered once, or its time runs out.
 	CheckStatusOpen     = "open"
@@ -198,6 +200,7 @@ var NotificationTypes = []string{
 	NotificationContactShare,
 	NotificationContactAsk,
 	NotificationEmailUndelivered,
+	NotificationWebhookDisabled,
 }
 
 // BookmarkKinds lists what a bookmark may point at.

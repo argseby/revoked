@@ -14,6 +14,7 @@ with no guarantees for your data.
 | Read or write vault data | [Records](reference/records.md) |
 | Consume a share someone sent you | [Shares](reference/shares.md) |
 | Collect data from other people | [Requests](reference/requests.md), then [Callbacks](callbacks.md) |
+| Hear about changes the moment they happen | [Webhooks](webhooks.md) |
 | Build a tool that people share their data with | [Building a tool](tools.md) |
 | Let an AI assistant organise your shares without seeing them | [MCP server](mcp.md) |
 | Let people sign in to your service with their Revoked account | [Sign in with Revoked](sign-in.md) |

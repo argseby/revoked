@@ -112,6 +112,12 @@ func ClaimLinkView(app core.App, link *core.Record) (views int, revokedByLimit b
 			DispatchGrantEvents(app, []*core.Record{link}, util.GrantEventExpired, util.StatusRevoked)
 		}
 	}
+	EmitLinkWebhook(app, link, util.WebhookLinkViewed, map[string]any{"views": views})
+	if revokedByLimit {
+		limit := map[string]any{"reason": "max_views"}
+		EmitLinkWebhook(app, link, util.WebhookLinkExpired, limit)
+		EmitResponseWebhook(app, link, util.WebhookResponseExpired, limit)
+	}
 	return views, revokedByLimit, nil
 }
 

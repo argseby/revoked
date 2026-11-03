@@ -87,7 +87,7 @@ these blank and create the superuser yourself.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `ALLOW_PRIVATE_CALLBACKS` | `false` | Lets user-supplied [callback URLs](../api/callbacks.md) point at loopback and private ranges. On a public host that lets users make your server call into private networks (server-side request forgery). Turn it on only for a LAN-only or development install. Link-local (cloud metadata), multicast and `0.0.0.0` stay blocked regardless. |
+| `ALLOW_PRIVATE_CALLBACKS` | `false` | Lets user-supplied [callback](../api/callbacks.md) and [webhook](../api/webhooks.md) URLs point at loopback and private ranges. On a public host that lets users make your server call into private networks (server-side request forgery). Turn it on only for a LAN-only or development install. Link-local (cloud metadata), multicast and `0.0.0.0` stay blocked regardless. |
 | `PEER_OVERRIDES` | empty | Other Revoked servers to reach at a fixed address instead of `https://<domain>`, as `a.example=http://127.0.0.1:8091,b.example=http://127.0.0.1:8092`. Your server takes a listed server's root key from that address without checking DNS, so you're vouching for every entry. Use it for two development instances or a closed network. Keep it empty on a public host. Loopback and private addresses also need `ALLOW_PRIVATE_CALLBACKS`. |
 
 ## Grants between servers
@@ -124,6 +124,7 @@ change needs a restart. `0` turns a limiter off.
 | `RATELIMIT_SIGNUP_EMAILS` | `10` | Signup confirmation codes mailed, per IP, per hour. Each address also gets at most one code a minute and five an hour, whoever asks. |
 | `RATELIMIT_GRANT_REQUESTS` | `300` | Calls between servers — grant reads, grant events and accepted answers — and calls to the OpenID Connect token and userinfo endpoints, per IP, per minute. Also answers to requests on other servers, per account. One read carries up to 100 grants. |
 | `RATELIMIT_SUBMISSIONS` | `60` | Answers to requests, per account, per hour. Each answer notifies the request's owner and may call their callback URL. |
+| `RATELIMIT_WEBHOOK_SENDS` | `30` | Webhook tests and resends, per caller, per minute. Each one is a request to an address the caller chose. |
 | `RATELIMIT_GRANT_EMAILS` | `5` | Links emailed to one address, per hour, whoever sends them. This is the only cap protecting someone who isn't using your server, so it is counted in the database rather than in memory: it holds even if you run more than one instance. |
 | `RATELIMIT_WORKSPACE_EMAILS` | `30` | Links emailed by one workspace, per hour. Guards your own sending quota and reputation, which the per-account cap does not once a workspace invites members. In memory, so more than one instance multiplies it. |
 
