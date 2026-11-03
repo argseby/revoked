@@ -33,21 +33,22 @@ abstract final class AppPalette {
   static const lightDangerContainer = Color(0xFFFCE4E1);
   static const lightDangerFill = Color(0xFFC62828);
 
-  // Dark.
-  static const darkPage = Color(0xFF0A0A0A);
-  static const darkSurface = Color(0xFF0A0A0A);
-  static const darkCard = Color(0xFF141414);
-  static const darkCardHigh = Color(0xFF1A1A1A);
-  static const darkCardHighest = Color(0xFF1C1C1C);
-  static const darkInk = Color(0xFFFAFAFA);
-  static const darkOnInk = Color(0xFF0A0A0A);
-  static const darkSecondaryText = Color(0xFFA3A3A3);
-  static const darkControlBorder = Color(0xFF737373);
-  static const darkDivider = Color(0xFF262626);
-  static const darkBrand = Color(0xFFFAFAFA);
-  static const darkOnBrand = Color(0xFF0A0A0A);
-  static const darkBrandContainer = Color(0xFF262626);
-  static const darkOnBrandContainer = Color(0xFFFAFAFA);
+  // Dark: a lifted charcoal rather than black, and off-white rather than
+  // white, so text doesn't glare and the card and divider steps stay visible.
+  static const darkPage = Color(0xFF171717);
+  static const darkSurface = Color(0xFF171717);
+  static const darkCard = Color(0xFF1F1F1F);
+  static const darkCardHigh = Color(0xFF262626);
+  static const darkCardHighest = Color(0xFF2A2A2A);
+  static const darkInk = Color(0xFFEDEDED);
+  static const darkOnInk = Color(0xFF171717);
+  static const darkSecondaryText = Color(0xFFADADAD);
+  static const darkControlBorder = Color(0xFF808080);
+  static const darkDivider = Color(0xFF333333);
+  static const darkBrand = Color(0xFFEDEDED);
+  static const darkOnBrand = Color(0xFF171717);
+  static const darkBrandContainer = Color(0xFF333333);
+  static const darkOnBrandContainer = Color(0xFFEDEDED);
   static const darkSuccess = Color(0xFF8ED5B1);
   static const darkSuccessContainer = Color(0xFF12352A);
   static const darkWarning = Color(0xFFF2C24B);
