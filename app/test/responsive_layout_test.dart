@@ -456,8 +456,8 @@ void main() {
         });
         router.go(AppRoutes.connectedToolFor('c1'));
         await tester.pumpAndSettle();
-        expect(find.text('Sections $name can read'), findsOneWidget);
-        expect(find.text('Vault section'), findsOneWidget);
+        expect(find.text('Vault sections'), findsOneWidget);
+        expect(find.text('Its own'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

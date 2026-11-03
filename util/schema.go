@@ -205,7 +205,7 @@ type bookmarkGroupFields struct {
 
 type connectionFields struct {
 	User, Workspace, ClientId, ClientName, AllowVaultRead,
-	Scopes, VaultAccess, Section, Sections, Paused, ExpiresAt, LastUsedAt, Created, Updated string
+	Scopes, VaultAccess, Section, SectionOff, Sections, Paused, ExpiresAt, LastUsedAt, Created, Updated string
 }
 
 type connectionTokenFields struct {
@@ -660,6 +660,7 @@ var Fields = struct {
 		Scopes:         "scopes",
 		VaultAccess:    "vaultAccess",
 		Section:        "section",
+		SectionOff:     "sectionOff",
 		Sections:       "sections",
 		Paused:         "paused",
 		ExpiresAt:      "expiresAt",

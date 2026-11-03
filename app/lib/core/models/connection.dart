@@ -33,6 +33,9 @@ class Connection {
   /// Its own section, where it keeps what it writes. Empty when it has none.
   final String section;
 
+  /// Whether the owner switched its own section off, keeping it to give back.
+  final bool sectionOff;
+
   /// Sections the owner added, which it may read and never change.
   final List<String> sections;
 
@@ -59,6 +62,7 @@ class Connection {
     this.allowVaultRead = false,
     this.scopes = const [],
     this.vaultAccess = '',
+    this.sectionOff = false,
     this.section = '',
     this.sections = const [],
     this.permissions,
@@ -77,7 +81,8 @@ class Connection {
 
   /// Whether the tool may use its own section: the owner can take that away
   /// and keep the section, ready to give back.
-  bool get hasOwnSection => section.isNotEmpty && vaultAccess.isNotEmpty;
+  bool get hasOwnSection =>
+      section.isNotEmpty && !sectionOff && vaultAccess.isNotEmpty;
 
   /// Whether the tool's tokens have stopped working.
   bool get isExpired {
@@ -100,7 +105,7 @@ class Connection {
 
   /// Every section it reaches: its own first.
   List<String> get reachedSections => [
-    if (section.isNotEmpty) section,
+    if (section.isNotEmpty && !sectionOff) section,
     for (final s in sections)
       if (s != section) s,
   ];
@@ -140,6 +145,7 @@ class Connection {
       scopes: scopes,
       vaultAccess: json['vaultAccess'] as String? ?? vaultAccess,
       section: json['section'] as String? ?? section,
+      sectionOff: json['sectionOff'] as bool? ?? sectionOff,
       sections: list('sections') ?? sections,
       permissions: list('permissions') ?? permissions,
       paused: paused,
@@ -173,6 +179,7 @@ class Connection {
       scopes: scopes,
       vaultAccess: json['vaultAccess'] as String? ?? '',
       section: json['section'] as String? ?? '',
+      sectionOff: json['sectionOff'] as bool? ?? false,
       sections: list('sections'),
       paused: json['paused'] as bool? ?? false,
       expiresAt: date('expiresAt'),

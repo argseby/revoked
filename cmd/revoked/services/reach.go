@@ -57,7 +57,7 @@ func ConnectionCredential(conn, token *core.Record) Credential {
 	if c.Name == "" {
 		c.Name = conn.GetString(f.ClientId)
 	}
-	if own := conn.GetString(f.Section); own != "" {
+	if own := conn.GetString(f.Section); own != "" && !conn.GetBool(f.SectionOff) {
 		c.Sections = append(c.Sections, own)
 		c.Writable = append(c.Writable, own)
 	}

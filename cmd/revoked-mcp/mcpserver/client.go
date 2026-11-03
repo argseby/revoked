@@ -100,8 +100,10 @@ type Connection struct {
 	AllowRevoke bool     `json:"allowRevoke"`
 	Permissions []string `json:"permissions"`
 	VaultAccess string   `json:"vaultAccess"`
-	// Section is the assistant's own section in the owner's vault, if it has one.
-	Section string `json:"section"`
+	// Section is the assistant's own section in the owner's vault, if it has
+	// one; SectionOff is set while the owner has switched it off.
+	Section    string `json:"section"`
+	SectionOff bool   `json:"sectionOff"`
 	// VaultReadable is whether this token may read the vault: the owner
 	// allowed it, and the answer came back to this machine, not by polling.
 	VaultReadable bool          `json:"vaultReadable"`
@@ -113,7 +115,9 @@ type Connection struct {
 
 // hasSection reports whether the assistant may use its own section: the
 // owner can take that away and keep the section.
-func (c *Connection) hasSection() bool { return c.Section != "" && c.VaultAccess != "" }
+func (c *Connection) hasSection() bool {
+	return c.Section != "" && !c.SectionOff && c.VaultAccess != ""
+}
 
 type savedConnection struct {
 	Server string `json:"server"`

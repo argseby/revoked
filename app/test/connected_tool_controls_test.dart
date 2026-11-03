@@ -251,22 +251,22 @@ void main() {
     await Stores.vault.loadRecords();
     await tester.pumpAndSettle();
 
-    expect(find.text('Vault section'), findsOneWidget);
+    expect(find.text('Its own'), findsOneWidget);
     await tester.ensureVisible(find.text('Read'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Read'));
     await tester.pumpAndSettle();
     expect(calls.last, 'permissions {"permissions":["vault:read"]}');
 
-    await tester.ensureVisible(find.text('Vault section'));
+    await tester.ensureVisible(find.text('Its own'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Vault section'));
+    await tester.tap(find.text('Its own'));
     await tester.pumpAndSettle();
     expect(calls.last, 'permissions {"section":false}');
   });
 
-  testWidgets('its own section and the ones you added are listed, and one '
-      'you added can be taken away', (tester) async {
+  testWidgets('every section has a switch, its own first, and one you '
+      'added can be switched off', (tester) async {
     tool['vaultAccess'] = 'write';
     tool['section'] = 's1';
     tool['sections'] = ['s2'];
@@ -274,19 +274,23 @@ void main() {
     await Stores.vault.loadRecords();
     await tester.pumpAndSettle();
 
-    expect(find.text('Sections Flat tool can read'), findsOneWidget);
-    expect(find.text('Its own section · 0 records'), findsOneWidget);
-    expect(find.text('You added it · 0 records'), findsOneWidget);
+    expect(find.text('Vault sections'), findsOneWidget);
+    expect(find.text('Its own'), findsOneWidget);
+    expect(find.text('Manage · 0 records'), findsOneWidget);
+    expect(find.text('Read · 0 records'), findsOneWidget);
+    expect(find.text('Travel'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Documents'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Documents'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Remove'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Remove').hitTestable());
-    await tester.pumpAndSettle();
     expect(calls, ['permissions {"sections":[]}']);
+
+    await tester.ensureVisible(find.text('Travel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Travel'));
+    await tester.pumpAndSettle();
+    expect(calls.last, 'permissions {"sections":["s3"]}');
   });
 
   testWidgets('a tool with only links shows no empty sections', (tester) async {
@@ -311,7 +315,9 @@ void main() {
   ) async {
     await signedIn(tester);
 
-    await tester.tap(find.text('Pause'));
+    await tester.ensureVisible(find.text('Active'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Active'));
     await tester.pumpAndSettle();
     expect(calls, ['pause {}']);
     expect(find.text('Paused'), findsOneWidget);
@@ -320,7 +326,7 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.text('Activate'));
+    await tester.tap(find.text('Active'));
     await tester.pumpAndSettle();
     expect(calls.last, 'resume {}');
     expect(find.text('Paused'), findsNothing);

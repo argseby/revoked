@@ -87,14 +87,13 @@ func applyConnectionGrant(app core.App, conn *core.Record, g connectionGrant, gr
 	}
 	// Its own section is somewhere to keep things: asking for it asks to
 	// read and write there, unless the owner said read only. Taking it away
-	// takes the tool's vault access and keeps the section, so giving it back
-	// brings the same section, with what is in it.
+	// switches the section off and keeps it, so giving it back brings the
+	// same section, with what is in it, and the sections the owner added
+	// stay readable meanwhile.
 	if g.Section != nil {
+		conn.Set(f.SectionOff, !*g.Section)
 		if *g.Section && access == "" {
 			access = util.VaultAccessWrite
-		}
-		if !*g.Section {
-			access = ""
 		}
 	}
 	if g.Sections != nil {
@@ -112,6 +111,10 @@ func applyConnectionGrant(app core.App, conn *core.Record, g connectionGrant, gr
 			}
 		}
 		conn.Set(f.Sections, ids)
+		// Adding a section is letting the tool read it.
+		if len(ids) > 0 && access == "" {
+			access = util.VaultAccessRead
+		}
 	}
 	conn.Set(f.Scopes, scopes)
 	conn.Set(f.VaultAccess, access)
@@ -199,6 +202,7 @@ func connectionGrantView(conn, token *core.Record) map[string]any {
 		"permissions":    util.HeldPermissions(scopes, conn.GetString(f.VaultAccess)),
 		"vaultAccess":    conn.GetString(f.VaultAccess),
 		"section":        conn.GetString(f.Section),
+		"sectionOff":     conn.GetBool(f.SectionOff),
 		"sections":       conn.GetStringSlice(f.Sections),
 		"allowRevoke":    util.HasAllScopes(scopes, util.ConnectionEndScopes),
 		"allowHandOver":  slices.Contains(scopes, util.ConnectionHandOverScope),
