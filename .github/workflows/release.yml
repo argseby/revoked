@@ -170,6 +170,26 @@ jobs:
           done
           (cd mcp && sha256sum revoked-mcp-* > revoked-mcp-sha256.txt)
 
+      # What installed apps compare themselves against, at a URL that always
+      # names the newest published release. A release without app changes
+      # ships no app builds, so the newest app is carried over from the last
+      # file, or is the previous tag before the first one existed.
+      - name: Write version.json
+        if: steps.bump.outputs.bump != 'none'
+        env:
+          NEW: ${{ steps.version.outputs.new_version }}
+          LATEST: ${{ steps.latest_tag.outputs.tag }}
+          APP_CHANGED: ${{ steps.app.outputs.changed }}
+          REPO: ${{ github.repository }}
+        run: |
+          APP="$NEW"
+          if [ "$APP_CHANGED" != "true" ]; then
+            APP=$(curl -fsL "https://github.com/$REPO/releases/latest/download/version.json" | jq -r '.app // empty' || true)
+            [ -n "$APP" ] || APP="$LATEST"
+          fi
+          jq -n --arg server "$NEW" --arg app "$APP" '{server: $server, app: $app}' > mcp/version.json
+          cat mcp/version.json
+
       - name: Tag release
         if: steps.bump.outputs.bump != 'none'
         run: |

@@ -15,7 +15,7 @@ in. A change is saved as soon as a box is ticked or cleared.
 | **Identities and attestations** | Identities, and what others confirm about the account | Yes |
 | **Contacts** | The people the workspace sends to and requests from; see [Contacts](contacts.md) | Yes |
 | **Connected tools** | Other apps and services using records, and signing in with Revoked | Yes |
-| **Developer** | API keys, webhooks, and technical detail | No |
+| **Developer** | API keys, webhooks, the AI assistant setup, and technical detail | Yes |
 
 The **Vault** cannot be turned off; every other part depends on it.
 
@@ -39,15 +39,15 @@ A new account chooses its features during setup. An account that joins
 through an [invite](workspaces.md#invites) starts with the features the
 invite selected, under **Initial features**: **Vault only** shows the vault
 alone, **Vault and sharing** adds **Sharing**, and **Everything** turns on
-every feature except **Developer**. The invite presets the list only for an
+every feature. The invite presets the list only for an
 account that has not chosen yet. Any later change made here takes
 precedence.
 
 ## Developer
 
-**Developer** is off by default and is meant for scripting against the API.
-Turning it on adds **API keys** and **Webhooks** under Settings, and shows
-technical detail elsewhere in the app, such as a share's slug and the API
-request behind a form. Nothing needed to decide or act is hidden while it
-is off. API keys are described in
+**Developer** is on by default and is meant for scripting against the API.
+It adds **API keys**, **Webhooks** and **AI assistant (MCP)** under
+Settings, and shows technical detail elsewhere in the app, such as a share's
+slug and the API request behind a form. Nothing needed to decide or act is
+hidden while it is off. API keys are described in
 [Tools & link proposals](tools.md#api-keys-for-scripts).

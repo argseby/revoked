@@ -16,11 +16,11 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
@@ -29,7 +29,7 @@ import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 
 /// Opens the template editor drawer - create when [initialTemplate] is null,
-/// edit otherwise. Opened from the Templates settings page.
+/// edit otherwise.
 void openTemplateEditorSheet(
   BuildContext context, {
   Template? initialTemplate,
@@ -41,20 +41,6 @@ void openTemplateEditorSheet(
       authStore: Stores.auth,
       initialTemplate: initialTemplate,
     ),
-  );
-}
-
-/// The new-template form, shown in place on the templates page.
-class TemplateCreateForm extends StatelessWidget {
-  final VoidCallback onClose;
-
-  const TemplateCreateForm({super.key, required this.onClose});
-
-  @override
-  Widget build(BuildContext context) => _TemplateEditorSheet(
-    templatesStore: Stores.templates,
-    authStore: Stores.auth,
-    onClose: onClose,
   );
 }
 
@@ -86,14 +72,10 @@ class _TemplateEditorSheet extends StatefulWidget {
   final AuthStore authStore;
   final Template? initialTemplate;
 
-  /// Set when the editor sits in the page rather than a drawer.
-  final VoidCallback? onClose;
-
   const _TemplateEditorSheet({
     required this.templatesStore,
     required this.authStore,
     this.initialTemplate,
-    this.onClose,
   });
 
   @override
@@ -105,9 +87,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 
   bool get _isEdit => widget.initialTemplate != null;
 
-  bool get _inline => widget.onClose != null;
-
-  void _close() => _inline ? widget.onClose!() : Navigator.of(context).pop();
+  void _close() => Navigator.of(context).pop();
 
   @override
   void initState() {
@@ -397,25 +377,16 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         ),
         const AppDivider(),
 
-        if (_inline)
-          Padding(
-            padding: fieldsPadding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: fields,
-            ),
-          )
-        else
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.7,
-            ),
-            child: ListView(
-              shrinkWrap: true,
-              padding: fieldsPadding,
-              children: fields,
-            ),
+        ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
           ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: fieldsPadding,
+            children: fields,
+          ),
+        ),
         const AppDivider(),
 
         Padding(
@@ -494,6 +465,7 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: _FieldEditorCard(
                 field: _store.rootFields[i],
+                number: i + 1,
                 onRemove: () => _store.removeRootField(i),
                 onChanged: _store.touchEditor,
               ),
@@ -613,11 +585,15 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 /// Editable card for a single field (record): label, key, type, required.
 class _FieldEditorCard extends StatelessWidget {
   final TemplateFieldDraft field;
+
+  /// Its place in the list, counted from 1: the card's only heading.
+  final int number;
   final VoidCallback onRemove;
   final VoidCallback onChanged;
 
   const _FieldEditorCard({
     required this.field,
+    required this.number,
     required this.onRemove,
     required this.onChanged,
   });
@@ -631,63 +607,77 @@ class _FieldEditorCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(
-                child: AppTextField(
-                  controller: field.labelCtrl,
-                  hint: 'Label (e.g. DB Host)',
-                  onChanged: (_) => onChanged(),
-                ),
-              ),
+              Expanded(child: Text('Field $number').small.muted),
               AppButton(
                 icon: AppIcons.trash,
-                tooltip: 'Remove field',
-                style: AppButtonStyle.destructive,
+                label: 'Remove',
+                // Accent, not destructive: nothing is lost until the
+                // template is saved.
+                style: AppButtonStyle.accent,
                 size: AppButtonSize.small,
                 onTap: onRemove,
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          AppTextField(
-            controller: field.keyCtrl,
-            hint: 'Key (e.g. db_host)',
-            mono: true,
-            onChanged: (_) => onChanged(),
+          AppSpacing.gapSm,
+          AppFormField(
+            label: 'Label',
+            inset: false,
+            child: AppTextField(
+              controller: field.labelCtrl,
+              hint: 'Database host',
+              onChanged: (_) => onChanged(),
+            ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: AppSelect<String>(
-                  value: field.type,
-                  items: RecordTypeUtils.supportedTypes
-                      .map((t) => AppSelectItem<String>(t, Text(t)))
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) {
-                      field.type = v;
-                      onChanged();
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    const Text('Required').small,
-                    AppSwitch(
-                      value: field.required,
-                      onChanged: (v) {
-                        field.required = v;
-                        onChanged();
-                      },
+          AppSpacing.gapMd,
+          AppFormField(
+            label: 'Key',
+            inset: false,
+            child: AppTextField(
+              controller: field.keyCtrl,
+              hint: 'db_host',
+              mono: true,
+              onChanged: (_) => onChanged(),
+            ),
+          ),
+          AppSpacing.gapMd,
+          AppFormField(
+            label: 'Type',
+            inset: false,
+            child: AppSelect<String>(
+              value: field.type,
+              items: [
+                for (final t in RecordTypeUtils.supportedTypes)
+                  AppSelectItem<String>(
+                    t,
+                    Row(
+                      children: [
+                        Icon(RecordTypeUtils.icon(t), size: 16),
+                        AppSpacing.gapSm,
+                        Text(RecordTypeUtils.label(t)),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+              ],
+              onChanged: (v) {
+                if (v != null) {
+                  field.type = v;
+                  onChanged();
+                }
+              },
+            ),
+          ),
+          AppSpacing.gapMd,
+          const AppDivider(),
+          AppFormToggleRow(
+            label: 'Required',
+            subtitle: 'A response cannot be sent without it',
+            value: field.required,
+            inset: false,
+            onChanged: (v) {
+              field.required = v;
+              onChanged();
+            },
           ),
         ],
       ),
@@ -758,6 +748,7 @@ class _SectionEditorCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                 child: _FieldEditorCard(
                   field: section.fields[i],
+                  number: i + 1,
                   onRemove: () {
                     section.fields.removeAt(i).dispose();
                     onChanged();

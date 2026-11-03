@@ -533,6 +533,8 @@ void main() {
         final router = await signedIn(tester, entry.value);
         router.go(AppRoutes.apiKeys);
         await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('New API key'));
+        await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Custom'));
         await tester.tap(find.text('Custom'));
         await tester.pumpAndSettle();

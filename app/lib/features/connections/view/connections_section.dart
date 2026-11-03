@@ -455,17 +455,17 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
             AppDetailRow(
               icon: AppIcons.calendar,
               label: 'Connected',
-              value: dayLabel(connection.created),
+              value: dayTimeLabel(connection.created),
             ),
             AppDetailRow(
               icon: AppIcons.clock,
               label: 'Last used',
-              value: dayLabel(connection.lastUsedAt),
+              value: dayTimeLabel(connection.lastUsedAt),
             ),
             AppDetailRow(
               icon: AppIcons.hourglass,
               label: connection.isExpired ? 'Expired' : 'Expires',
-              value: dayLabel(connection.expiresAt),
+              value: dayTimeLabel(connection.expiresAt),
             ),
             if (!connection.isExpired)
               AppFormToggleRow(

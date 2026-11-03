@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/request_proposal.dart';
@@ -170,7 +171,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
               icon: AppIcons.fileText,
               label: 'Templates',
               style: AppButtonStyle.accent,
-              onTap: () => context.go(AppRoutes.templates),
+              onTap: () => goReturning(context, AppRoutes.templates),
             ),
             learnMoreLabel: 'How requests work',
             learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',

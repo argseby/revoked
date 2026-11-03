@@ -3,6 +3,7 @@
 Download the app from the [latest release](https://github.com/argseby/revoked/releases/latest).
 Every release has native builds for **Linux**, **Windows** and **Android**,
 built by CI from the tagged commit.
+Settings shows **App update available** when a newer release exists.
 
 On the desktop, you have one manual step: register the `revoked://` link
 scheme. Shares and requests travel as `revoked://` links, so there's no web

@@ -12,6 +12,16 @@ class RecordTypeUtils {
     'file',
   ];
 
+  /// The name a type is offered under.
+  static String label(String type) => switch (type) {
+    'number' => 'Number',
+    'url' => 'Web address',
+    'boolean' => 'Yes or no',
+    'datetime' => 'Date and time',
+    'file' => 'File',
+    _ => 'Text',
+  };
+
   /// The glyph for a type, so a type reads the same wherever it is offered.
   static IconData icon(String type) {
     switch (type) {

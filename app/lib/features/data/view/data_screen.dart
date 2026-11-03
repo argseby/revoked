@@ -476,7 +476,11 @@ class _DataScreenState extends State<DataScreen> {
                         : 'Signed by ${item.identityName} (${item.identityDomain})',
                   ),
                 if (item.created.isNotEmpty)
-                  _kv(context, 'Received', _formatDate(item.created)),
+                  _kv(
+                    context,
+                    'Received',
+                    dayTimeOf(item.created) ?? item.created,
+                  ),
                 if (pullSlug != null) ...[
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(

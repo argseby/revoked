@@ -70,6 +70,22 @@ Every setting is in the [.env reference](env.md).
 Once the server runs, give people [the app](app.md), or send them straight to
 the desktop and Android downloads.
 
+## Upgrade {#upgrade}
+
+Every release publishes a new image. The app's settings show **Server update
+available** once the server runs an older release than the newest one.
+
+With `REVOKED_IMAGE` left at `:latest`:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+With a pinned release, change the tag in `REVOKED_IMAGE` and run
+`docker compose up -d`; the new tag is pulled on the way. `pb_data` carries
+over, and migrations run when the server starts. [Back it up](backups.md)
+first.
+
 ## Portainer
 
 Use a **git-backed** stack with the compose path `docker-compose.yml`, and put

@@ -106,11 +106,11 @@ void main() {
     runInAction(() => Stores.auth.currentUser = user());
   });
 
-  test('a fresh account sees the defaults, with Developer off', () async {
+  test('a fresh account sees the defaults the server serves', () async {
     final store = Stores.features;
     expect(store.hasChosen, isFalse);
     expect(store.visible(Feature.sharing), isTrue);
-    expect(store.visible(Feature.developer), isFalse);
+    expect(store.visible(Feature.developer), isTrue);
 
     await store.load();
     expect(store.catalogue.map((f) => f.key), [
@@ -199,7 +199,7 @@ void main() {
       expect(store.loadState.error, isNotNull);
       expect(store.ordered, Feature.values);
       expect(store.visible(Feature.contacts), isTrue);
-      expect(store.visible(Feature.developer), isFalse);
+      expect(store.visible(Feature.developer), isTrue);
     },
   );
 }

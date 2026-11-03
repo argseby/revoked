@@ -12,7 +12,7 @@ enum Feature {
   attestations('attestations', 'Identities and attestations', defaultOn: true),
   contacts('contacts', 'Contacts', defaultOn: true),
   tools('tools', 'Connected tools', defaultOn: true),
-  developer('developer', 'Developer', defaultOn: false);
+  developer('developer', 'Developer', defaultOn: true);
 
   const Feature(this.key, this.fallbackLabel, {required this.defaultOn});
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -445,7 +446,7 @@ class _FirstSteps extends StatelessWidget {
               icon: AppIcons.link,
               title: 'Share and revoke',
               subtitle: 'One-minute tour with real data',
-              onTap: () => context.go(AppRoutes.tour),
+              onTap: () => goReturning(context, AppRoutes.tour),
             ),
           ],
         ),

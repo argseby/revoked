@@ -11,6 +11,7 @@ import 'package:revoked_app/features/contacts/view/contact_create_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
+import 'package:revoked_app/features/templates/view/templates_screen.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 /// Where a new thing goes, which is what the picker groups by.
@@ -155,13 +156,27 @@ enum NewKind {
   }
 }
 
-/// A page's own create button: what it starts and what it says.
-typedef PageAction = ({NewKind kind, String label});
+/// A page's own create button: what it says and what it opens.
+typedef PageAction = ({String label, void Function(BuildContext) start});
 
-/// The create button a destination shows beside the general New, or null on
-/// a page that makes nothing of its own (the overview).
-PageAction? pageActionFor(String? destination) {
-  final PageAction? action = switch (destination) {
+/// The create button of a sub-page that makes something other than its
+/// destination does: Templates sits under the vault and creates templates.
+PageAction? subPageActionFor(String path) {
+  if (path == AppRoutes.templates &&
+      Stores.features.visible(Feature.requests)) {
+    return (label: 'New template', start: (c) => openTemplateEditorSheet(c));
+  }
+  return null;
+}
+
+/// The create button the page at [path] shows beside the general New, or null
+/// on a page that makes nothing of its own (the overview). A destination's
+/// sub-pages share its button unless [subPageActionFor] names their own.
+PageAction? pageActionFor(String path) {
+  if (subPageActionFor(path) case final own?) return own;
+  final ({NewKind kind, String label})? action = switch (AppRoutes.rootOf(
+    path,
+  )) {
     AppRoutes.vault => (kind: NewKind.record, label: 'Add to vault'),
     AppRoutes.shared => (kind: NewKind.link, label: 'New link'),
     AppRoutes.requests => (kind: NewKind.request, label: 'New request'),
@@ -172,7 +187,8 @@ PageAction? pageActionFor(String? destination) {
     AppRoutes.contacts => (kind: NewKind.contact, label: 'New contact'),
     _ => null,
   };
-  return action != null && action.kind.isAvailable ? action : null;
+  if (action == null || !action.kind.isAvailable) return null;
+  return (label: action.label, start: (c) => startNew(c, action.kind));
 }
 
 /// Opens the form that already exists for [kind].

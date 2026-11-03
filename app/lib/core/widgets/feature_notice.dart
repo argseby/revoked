@@ -109,6 +109,8 @@ Feature? featureForLocation(String location) {
   if (under(AppRoutes.connectedTools) || under('/settings/signed-in')) {
     return Feature.tools;
   }
-  if (under(AppRoutes.apiKeys)) return Feature.developer;
+  if (under(AppRoutes.apiKeys) || under(AppRoutes.settingsPage('mcp'))) {
+    return Feature.developer;
+  }
   return null;
 }

@@ -318,7 +318,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   }
 
   Widget _access(Link share) {
-    final expires = dayOf(share.expiresAt);
+    final expires = dayTimeOf(share.expiresAt);
     return AppListGroup(
       title: 'Protection',
       trailing: const SizedBox.shrink(),
@@ -397,12 +397,12 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         AppDetailRow(
           icon: AppIcons.plus,
           label: 'Created',
-          value: dayOf(share.created) ?? '—',
+          value: dayTimeOf(share.created) ?? '—',
         ),
         AppDetailRow(
           icon: AppIcons.pen,
           label: 'Last changed',
-          value: dayOf(share.updated) ?? '—',
+          value: dayTimeOf(share.updated) ?? '—',
         ),
       ],
     );

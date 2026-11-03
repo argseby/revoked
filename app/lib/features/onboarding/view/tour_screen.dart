@@ -6,6 +6,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -76,8 +77,10 @@ class _TourScreenState extends State<TourScreen> {
     super.dispose();
   }
 
-  Widget _title(BuildContext context) =>
-      AppBarTitle(title: 'Tour', onBack: () => context.go(AppRoutes.vault));
+  Widget _title(BuildContext context) => AppBarTitle(
+    title: 'Tour',
+    onBack: () => goBack(this.context, AppRoutes.vault),
+  );
 
   String get _webUrl => '${Stores.api.baseUrl}/s/${_link.value?.slug ?? ''}';
 

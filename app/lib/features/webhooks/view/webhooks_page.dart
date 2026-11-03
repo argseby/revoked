@@ -46,23 +46,19 @@ class WebhooksList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppInlineCreate(
-          label: 'New webhook',
-          onOpen: prepareWebhookDraft,
-          form: (close) => WebhookCreateForm(onClose: close),
-        ),
-        AppSpacing.gapLg,
-        const _Endpoints(),
-      ],
+    return AppInlineCreate(
+      label: 'New webhook',
+      onOpen: prepareWebhookDraft,
+      form: (close) => WebhookCreateForm(onClose: close),
+      builder: (create) => _Endpoints(create: create),
     );
   }
 }
 
 class _Endpoints extends StatelessWidget {
-  const _Endpoints();
+  final AppCreateTrigger? create;
+
+  const _Endpoints({required this.create});
 
   @override
   Widget build(BuildContext context) {
@@ -73,10 +69,16 @@ class _Endpoints extends StatelessWidget {
           return const AppListSkeleton();
         }
         if (store.endpoints.isEmpty && store.loadState.error != null) {
-          return AppLoadError(
-            title: 'Webhooks could not be loaded',
-            message: store.loadState.error!,
-            onRetry: store.load,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppListHeader(title: 'Webhooks', trailing: create?.header),
+              AppLoadError(
+                title: 'Webhooks could not be loaded',
+                message: store.loadState.error!,
+                onRetry: store.load,
+              ),
+            ],
           );
         }
         if (store.endpoints.isEmpty) {
@@ -97,12 +99,14 @@ class _Endpoints extends StatelessWidget {
               AppEmptyStep('Signature', 'Verifies the sender'),
               AppEmptyStep('Deliveries', 'Logged and resendable'),
             ],
+            action: create?.button,
             learnMoreLabel: 'How webhooks work',
             learnMoreUrl: '${AppConfig.docsUrl}/api/webhooks/',
           );
         }
         return AppListGroup(
           title: 'Webhooks',
+          trailing: create?.header,
           footer: const Text(
             'Messages never contain record values. Records are read '
             'separately with an API key.',
@@ -386,7 +390,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
       ),
       footer: e.isFailing
           ? Text(
-              'Failing since ${dayLabel(e.failingSince?.toIso8601String())}. '
+              'Failing since ${dayTimeLabel(e.failingSince?.toIso8601String())}. '
               'Failed messages are retried for about 36 hours. '
               'The webhook is disabled after three days without success.',
             )

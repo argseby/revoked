@@ -482,10 +482,10 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
             leading: const Icon(AppIcons.info),
             content: Text(
               c.newId
-                  ? '$host was disconnected on ${dayLabel(c.disconnectedAt)}. It '
+                  ? '$host was disconnected on ${dayTimeLabel(c.disconnectedAt)}. It '
                         'sees this account as new. '
                         '${c.scopes.isEmpty && c.links.isEmpty ? '' : 'Shared data could still identify the account, so nothing is preselected.'}'
-                  : '$host was disconnected on ${dayLabel(c.disconnectedAt)}. '
+                  : '$host was disconnected on ${dayTimeLabel(c.disconnectedAt)}. '
                         'Signing in restores the previous account there.',
             ),
           ),

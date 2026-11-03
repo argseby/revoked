@@ -231,18 +231,19 @@ class _AppShellState extends State<AppShell> {
       // and on a detail page, where it would sit on the page's own controls.
       floatingActionButton: Observer(
         builder: (_) {
-          if (SheetTracker.anyOpen || destination == null || isSubPage) {
+          if (SheetTracker.anyOpen ||
+              destination == null ||
+              (isSubPage && subPageActionFor(path) == null)) {
             return const SizedBox.shrink();
           }
           // The page's own action when it has one; the general New stays
           // under More.
-          final action = pageActionFor(root);
+          final action = pageActionFor(path);
           return FloatingActionButton.extended(
             heroTag: 'shell-new',
             tooltip: action?.label ?? 'Create something new',
-            onPressed: () => action == null
-                ? _openNew(root)
-                : startNew(context, action.kind),
+            onPressed: () =>
+                action == null ? _openNew(root) : action.start(context),
             icon: const Icon(AppIcons.plus, size: 18),
             label: Text(action?.label ?? 'New'),
           );
@@ -393,7 +394,7 @@ class _AppShellState extends State<AppShell> {
                         child: _SearchField(),
                       ),
                     ),
-                  if (pageActionFor(root) case final action?)
+                  if (pageActionFor(path) case final action?)
                     Padding(
                       padding: const EdgeInsets.only(left: AppSpacing.xs),
                       // On the rail the bar is too narrow for a title, the
@@ -403,7 +404,7 @@ class _AppShellState extends State<AppShell> {
                         label: sidebar ? action.label : null,
                         tooltip: action.label,
                         size: AppButtonSize.small,
-                        onTap: () => startNew(context, action.kind),
+                        onTap: () => action.start(context),
                       ),
                     ),
                   SizedBox(width: AppSpacing.screenH(context)),

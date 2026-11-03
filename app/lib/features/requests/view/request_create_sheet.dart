@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -901,7 +902,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                       onTap: () {
                         Navigator.of(sheetCtx).pop();
                         Navigator.of(context).pop();
-                        context.go(AppRoutes.templates);
+                        goReturning(context, AppRoutes.templates);
                       },
                       style: AppButtonStyle.accent,
                     ),

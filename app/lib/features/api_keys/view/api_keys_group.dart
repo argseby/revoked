@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/widgets/app_inline_create.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -17,24 +16,20 @@ class ApiKeysGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppInlineCreate(
-          label: 'New API key',
-          starts: apiKeyStarts(),
-          onOpen: prepareApiKeyDraft,
-          form: (close) => ApiKeyCreateForm(onClose: close),
-        ),
-        AppSpacing.gapLg,
-        const _Keys(),
-      ],
+    return AppInlineCreate(
+      label: 'New API key',
+      starts: apiKeyStarts(),
+      onOpen: prepareApiKeyDraft,
+      form: (close) => ApiKeyCreateForm(onClose: close),
+      builder: (create) => _Keys(create: create),
     );
   }
 }
 
 class _Keys extends StatelessWidget {
-  const _Keys();
+  final AppCreateTrigger? create;
+
+  const _Keys({required this.create});
 
   @override
   Widget build(BuildContext context) {
@@ -42,10 +37,16 @@ class _Keys extends StatelessWidget {
     return Observer(
       builder: (_) {
         if (store.errorMessage != null && store.apiKeys.isEmpty) {
-          return AppLoadError(
-            title: 'API keys could not be loaded',
-            message: store.errorMessage!,
-            onRetry: store.loadApiKeys,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppListHeader(title: 'API keys', trailing: create?.header),
+              AppLoadError(
+                title: 'API keys could not be loaded',
+                message: store.errorMessage!,
+                onRetry: store.loadApiKeys,
+              ),
+            ],
           );
         }
         if (store.apiKeys.isEmpty && !store.isLoading) {
@@ -60,10 +61,12 @@ class _Keys extends StatelessWidget {
               AppEmptyStep('Key', 'Shown once at creation'),
               AppEmptyStep('Revocation', 'Takes effect immediately'),
             ],
+            action: create?.button,
           );
         }
         return AppListGroup(
           title: 'API keys',
+          trailing: create?.header,
           footer: const Text(
             'Programmatic access, limited to the selected sections.',
           ),

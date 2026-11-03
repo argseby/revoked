@@ -286,7 +286,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         AppDetailRow(
           icon: AppIcons.clock,
           label: 'Expires',
-          value: dayOf(request.expiresAt) ?? 'Never',
+          value: dayTimeOf(request.expiresAt) ?? 'Never',
         ),
         AppDetailRow(
           icon: AppIcons.collection,
@@ -322,12 +322,12 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         AppDetailRow(
           icon: AppIcons.plus,
           label: 'Created',
-          value: dayOf(request.created) ?? '—',
+          value: dayTimeOf(request.created) ?? '—',
         ),
         AppDetailRow(
           icon: AppIcons.pen,
           label: 'Last changed',
-          value: dayOf(request.updated) ?? '—',
+          value: dayTimeOf(request.updated) ?? '—',
         ),
       ],
     );

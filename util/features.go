@@ -68,7 +68,7 @@ var Features = []Feature{
 	{
 		Key: FeatureDeveloper, Label: "Developer",
 		Description: "API keys, and the request behind every form.",
-		DefaultOn:   false,
+		DefaultOn:   true,
 	},
 }
 
@@ -111,7 +111,7 @@ var FeaturePresets = []FeaturePreset{
 			PermContactsRead, PermContactsManage,
 			PermMembersRead,
 		},
-		Features: []string{FeatureSharing, FeatureRequests, FeatureAttestations, FeatureContacts, FeatureTools},
+		Features: []string{FeatureSharing, FeatureRequests, FeatureAttestations, FeatureContacts, FeatureTools, FeatureDeveloper},
 	},
 }
 

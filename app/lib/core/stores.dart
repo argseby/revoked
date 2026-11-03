@@ -33,6 +33,7 @@ import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/sealing/store/keys_store.dart';
 import 'package:revoked_app/features/settings/store/features_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
+import 'package:revoked_app/features/settings/store/updates_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
@@ -76,6 +77,7 @@ abstract final class Stores {
   static late FeaturesStore features;
   static late InvitesStore invites;
   static late ServerSettingsStore serverSettings;
+  static late UpdatesStore updates;
   static late LinkSearchStore linkSearch;
   static late OnboardingStore onboarding;
 
@@ -158,6 +160,10 @@ abstract final class Stores {
       members: () => invites.members,
     );
     serverSettings = ServerSettingsStore(api);
+    updates = UpdatesStore(
+      httpClient: httpClient,
+      serverVersion: () => serverSettings.serverVersion,
+    );
     linkSearch = LinkSearchStore();
     onboarding = OnboardingStore();
 

@@ -333,18 +333,18 @@ class _SignInServicePageState extends State<SignInServicePage> {
             AppDetailRow(
               icon: AppIcons.calendar,
               label: 'First signed in',
-              value: dayLabel(service.created),
+              value: dayTimeLabel(service.created),
             ),
             AppDetailRow(
               icon: AppIcons.clock,
               label: 'Last signed in',
-              value: dayLabel(service.lastSignInAt),
+              value: dayTimeLabel(service.lastSignInAt),
             ),
             if (service.isDisconnected)
               AppDetailRow(
                 icon: AppIcons.linkSlash,
                 label: 'Disconnected',
-                value: dayLabel(service.disconnectedAt),
+                value: dayTimeLabel(service.disconnectedAt),
               ),
           ],
         ),

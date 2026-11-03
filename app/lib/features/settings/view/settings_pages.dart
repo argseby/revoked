@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -42,6 +43,7 @@ import 'package:revoked_app/features/templates/view/templates_screen.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/settings/view/appearance_page.dart';
 import 'package:revoked_app/features/settings/view/features_page.dart';
+import 'package:revoked_app/features/settings/view/mcp_page.dart';
 import 'package:revoked_app/features/webhooks/view/webhooks_page.dart';
 
 /// The settings topics, each a page of its own under Settings — opened from
@@ -57,6 +59,7 @@ enum SettingsPage {
   identities('identities', 'Identities'),
   connectedTools('connected-tools', 'Connected tools'),
   apiKeys('api-keys', 'API keys'),
+  mcp('mcp', 'AI assistant (MCP)'),
   webhooks('webhooks', 'Webhooks'),
   templates('templates', 'Templates'),
   domain('domain', 'Domain verification');
@@ -107,11 +110,8 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
 
   Widget _title(BuildContext context) => AppBarTitle(
     title: widget.page.title,
-    onBack: () => context.go(
-      widget.page == SettingsPage.templates
-          ? AppRoutes.vault
-          : AppRoutes.settings,
-    ),
+    // The page's own context: the bar's knows nothing of how it was opened.
+    onBack: () => goBack(this.context, AppRoutes.settings),
   );
 
   void _load() {
@@ -122,6 +122,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
       case SettingsPage.appearance:
       case SettingsPage.passkeys:
       case SettingsPage.domain:
+      case SettingsPage.mcp:
         // Load themselves.
         break;
       case SettingsPage.features:
@@ -173,6 +174,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
           SettingsPage.identities => const _IdentitiesPage(),
           SettingsPage.connectedTools => const ConnectionsList(),
           SettingsPage.apiKeys => const ApiKeysGroup(),
+          SettingsPage.mcp => const McpPage(),
           SettingsPage.webhooks => const WebhooksList(),
           SettingsPage.templates => const _TemplatesPage(),
           SettingsPage.domain => const _DomainPage(),
@@ -299,53 +301,54 @@ class _WorkspacesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = Stores.settings;
-    return Observer(
-      builder: (_) {
-        final activeId = Stores.auth.activeWorkspace ?? '';
-        final list = AppListGroup(
-          title: 'Workspaces',
-          footer: const Text('Separate spaces for records, members and keys.'),
-          trailing: _HeaderButton(
-            // Not a plus: joining an existing workspace is not a second way
-            // to create one.
-            icon: AppIcons.key,
-            label: 'Join',
-            onTap: () => showInviteJoinSheet(context: context),
-          ),
-          children: [
-            if (settings.isLoading && settings.workspaces.isEmpty)
-              const _LoadingRow()
-            else if (settings.workspaces.isEmpty)
-              const AppDetailRow(icon: AppIcons.info, label: 'No workspaces.')
-            else
-              for (final ws in settings.workspaces)
-                AppListRow(
-                  icon: AppIcons.personWorkspace,
-                  title: ws.name,
-                  subtitle: ws.slug,
-                  trailing: ws.id == activeId
-                      ? const AppBadge(
-                          label: 'Active',
-                          variant: AppBadgeVariant.primary,
-                        )
-                      : null,
-                  onTap: () => _options(context, ws, ws.id == activeId),
-                ),
-          ],
-        );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppInlineCreate(
-              label: 'New workspace',
-              onOpen: Stores.settings.resetWorkspaceDraft,
-              form: (close) => _CreateWorkspaceSheet(onClose: close),
+    return AppInlineCreate(
+      label: 'New workspace',
+      onOpen: Stores.settings.resetWorkspaceDraft,
+      form: (close) => _CreateWorkspaceSheet(onClose: close),
+      builder: (create) => Observer(
+        builder: (_) {
+          final activeId = Stores.auth.activeWorkspace ?? '';
+          return AppListGroup(
+            title: 'Workspaces',
+            footer: const Text(
+              'Separate spaces for records, members and keys.',
             ),
-            AppSpacing.gapLg,
-            list,
-          ],
-        );
-      },
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _HeaderButton(
+                  // Not a plus: joining an existing workspace is not a second
+                  // way to create one.
+                  icon: AppIcons.key,
+                  label: 'Join',
+                  onTap: () => showInviteJoinSheet(context: context),
+                ),
+                if (create != null) ...[AppSpacing.gapSm, create.header],
+              ],
+            ),
+            children: [
+              if (settings.isLoading && settings.workspaces.isEmpty)
+                const _LoadingRow()
+              else if (settings.workspaces.isEmpty)
+                const AppDetailRow(icon: AppIcons.info, label: 'No workspaces.')
+              else
+                for (final ws in settings.workspaces)
+                  AppListRow(
+                    icon: AppIcons.personWorkspace,
+                    title: ws.name,
+                    subtitle: ws.slug,
+                    trailing: ws.id == activeId
+                        ? const AppBadge(
+                            label: 'Active',
+                            variant: AppBadgeVariant.primary,
+                          )
+                        : null,
+                    onTap: () => _options(context, ws, ws.id == activeId),
+                  ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -491,20 +494,6 @@ class _MembersPage extends StatelessWidget {
 class _InvitesPage extends StatelessWidget {
   const _InvitesPage();
 
-  Widget _create() {
-    final ws = Stores.auth.activeWorkspace ?? '';
-    return AppInlineCreate(
-      label: 'New invite',
-      form: (close) => InviteCreateForm(
-        workspaceId: ws,
-        onClose: () {
-          close();
-          if (ws.isNotEmpty) Stores.invites.load(ws);
-        },
-      ),
-    );
-  }
-
   /// Withdrawing cannot be undone — the key stops working for whoever holds
   /// it — so it asks first.
   Future<void> _withdraw(BuildContext context, Invite invite) async {
@@ -536,13 +525,21 @@ class _InvitesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [_create(), AppSpacing.gapLg, _list(context)],
+    final ws = Stores.auth.activeWorkspace ?? '';
+    return AppInlineCreate(
+      label: 'New invite',
+      form: (close) => InviteCreateForm(
+        workspaceId: ws,
+        onClose: () {
+          close();
+          if (ws.isNotEmpty) Stores.invites.load(ws);
+        },
+      ),
+      builder: (create) => _list(context, create),
     );
   }
 
-  Widget _list(BuildContext context) {
+  Widget _list(BuildContext context, AppCreateTrigger? create) {
     final store = Stores.invites;
     return Observer(
       builder: (_) {
@@ -555,6 +552,7 @@ class _InvitesPage extends StatelessWidget {
             subtitle:
                 'Invite keys add members to this workspace with the selected '
                 'permissions only.',
+            action: create?.button,
             example: const AppEmptyExample(
               title: 'Accountant',
               detail: '3 of 16 permissions · valid 7 days',
@@ -569,6 +567,7 @@ class _InvitesPage extends StatelessWidget {
         }
         return AppListGroup(
           title: 'Pending invites',
+          trailing: create?.header,
           footer: const Text('Invite keys not yet used.'),
           children: [
             if (store.isLoading && open.isEmpty)
@@ -712,78 +711,84 @@ class _IdentitiesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const DeviceKeyAlert(),
+        AppInlineCreate(
+          label: 'New identity',
+          onOpen: Stores.settings.resetIdentityDraft,
+          form: (close) => _CreateIdentitySheet(onClose: close),
+          builder: (create) => Observer(builder: (_) => _list(context, create)),
+        ),
+      ],
+    );
+  }
+
+  Widget _list(BuildContext context, AppCreateTrigger? create) {
     final store = Stores.identities;
-    return Observer(
-      builder: (_) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const DeviceKeyAlert(),
-          AppInlineCreate(
-            label: 'New identity',
-            onOpen: Stores.settings.resetIdentityDraft,
-            form: (close) => _CreateIdentitySheet(onClose: close),
-          ),
-          AppSpacing.gapLg,
-          if (store.identities.isEmpty && !store.isLoading)
-            AppEmptyState(
-              icon: AppIcons.personBoundingBox,
-              title: 'No identities',
-              subtitle:
-                  'An identity signs links and responses so recipients can '
-                  'verify their origin. Its key stays on this device.',
-              example: const AppEmptyExample(
-                title: 'Laptop',
-                detail: 'Primary · 3fa2c1…',
-                badge: 'verified',
-              ),
-              steps: const [
-                AppEmptyStep('Key pair', 'Generated on this device'),
-                AppEmptyStep('Signature', 'Attached to shares and responses'),
-                AppEmptyStep('Revocation', 'Visible to every verifier'),
-              ],
-            )
-          else
-            AppListGroup(
-              title: 'Identities',
-              footer: const Text(
-                'Signing identities for shares and responses.',
-              ),
-              children: [
-                if (store.isLoading && store.identities.isEmpty)
-                  const _LoadingRow()
-                else
-                  for (final id in store.identities)
-                    AppListRow(
-                      icon: AppIcons.personBoundingBox,
-                      title: id.name,
-                      subtitle: id.isPrimary
-                          ? 'Primary · ${id.shortFingerprint}'
-                          : id.shortFingerprint,
-                      // A revoked identity proves nothing, so its domain claim is
-                      // moot; otherwise the claim is stated the one way it may be.
-                      trailing: id.isRevoked
-                          ? const AppBadge(
-                              icon: AppIcons.shieldSlash,
-                              label: 'Revoked',
-                            )
-                          : store.keysChecked && !store.hasLocalKey(id.id)
-                          ? const AppBadge(
-                              icon: AppIcons.keyOff,
-                              label: keyElsewhereLabel,
-                              variant: AppBadgeVariant.outline,
-                            )
-                          : id.domainAtIssue.isNotEmpty
-                          ? TrustClaimBadge(
-                              domain: id.domainAtIssue,
-                              state: _claimState(id.domainAtIssue),
-                            )
-                          : null,
-                      onTap: () => _options(context, id),
-                    ),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (store.identities.isEmpty && !store.isLoading)
+          AppEmptyState(
+            icon: AppIcons.personBoundingBox,
+            title: 'No identities',
+            subtitle:
+                'An identity signs links and responses so recipients can '
+                'verify their origin. Its key stays on this device.',
+            action: create?.button,
+            example: const AppEmptyExample(
+              title: 'Laptop',
+              detail: 'Primary · 3fa2c1…',
+              badge: 'verified',
             ),
-        ],
-      ),
+            steps: const [
+              AppEmptyStep('Key pair', 'Generated on this device'),
+              AppEmptyStep('Signature', 'Attached to shares and responses'),
+              AppEmptyStep('Revocation', 'Visible to every verifier'),
+            ],
+          )
+        else
+          AppListGroup(
+            title: 'Identities',
+            trailing: create?.header,
+            footer: const Text('Signing identities for shares and responses.'),
+            children: [
+              if (store.isLoading && store.identities.isEmpty)
+                const _LoadingRow()
+              else
+                for (final id in store.identities)
+                  AppListRow(
+                    icon: AppIcons.personBoundingBox,
+                    title: id.name,
+                    subtitle: id.isPrimary
+                        ? 'Primary · ${id.shortFingerprint}'
+                        : id.shortFingerprint,
+                    // A revoked identity proves nothing, so its domain claim is
+                    // moot; otherwise the claim is stated the one way it may be.
+                    trailing: id.isRevoked
+                        ? const AppBadge(
+                            icon: AppIcons.shieldSlash,
+                            label: 'Revoked',
+                          )
+                        : store.keysChecked && !store.hasLocalKey(id.id)
+                        ? const AppBadge(
+                            icon: AppIcons.keyOff,
+                            label: keyElsewhereLabel,
+                            variant: AppBadgeVariant.outline,
+                          )
+                        : id.domainAtIssue.isNotEmpty
+                        ? TrustClaimBadge(
+                            domain: id.domainAtIssue,
+                            state: _claimState(id.domainAtIssue),
+                          )
+                        : null,
+                    onTap: () => _options(context, id),
+                  ),
+            ],
+          ),
+      ],
     );
   }
 }
@@ -844,11 +849,6 @@ class _TemplatesPage extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppInlineCreate(
-              label: 'New template',
-              form: (close) => TemplateCreateForm(onClose: close),
-            ),
-            AppSpacing.gapLg,
             AppListGroup(
               title: 'Workspace templates',
               footer: const Text('Reusable field sets for requests.'),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/feature.dart';
@@ -51,6 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Stores.signIns.loadIfDue();
       Stores.credentials.load();
       Stores.serverSettings.loadServerVersion();
+      Stores.updates.checkIfDue();
       Stores.features.loadIfDue();
       if (ws.isNotEmpty) {
         Stores.invites.load(ws);
@@ -85,7 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       icon: icon,
       title: page.title,
       subtitle: subtitle,
-      onTap: () => context.go(page.route),
+      onTap: () => goReturning(context, page.route),
     );
   }
 
@@ -208,6 +210,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Event notifications over HTTP',
                 ),
               ),
+            if (features.visible(Feature.developer))
+              _page(
+                SettingsPage.mcp,
+                AppIcons.stars,
+                'Setup for AI applications',
+              ),
             if (features.visible(Feature.requests))
               _page(
                 SettingsPage.templates,
@@ -238,7 +246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: AppIcons.play,
               title: 'Take the tour',
               subtitle: 'Records, links and revocation in one minute',
-              onTap: () => context.go(AppRoutes.tour),
+              onTap: () => goReturning(context, AppRoutes.tour),
             ),
             const _UrlRow(
               icon: AppIcons.code,
@@ -279,6 +287,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : null,
             ),
             const _VersionRow(),
+            // Nothing shows while both are current or the check has no answer.
+            if (Stores.updates.appUpdate)
+              _UrlRow(
+                icon: AppIcons.download,
+                title: 'App update available',
+                subtitle:
+                    '${Stores.updates.latestApp} · downloads on the release '
+                    'page',
+                url: AppConfig.latestReleaseUrl,
+              ),
+            if (Stores.updates.serverUpdate)
+              _UrlRow(
+                icon: AppIcons.server,
+                title: 'Server update available',
+                subtitle:
+                    '${Stores.updates.latestServer} · installed by the server '
+                    'operator',
+                url: '${AppConfig.docsUrl}/installation/#upgrade',
+              ),
           ],
         ),
         AppDetailManage(
@@ -404,14 +431,22 @@ class _UrlRow extends StatelessWidget {
   final String title;
   final String url;
 
-  const _UrlRow({required this.icon, required this.title, required this.url});
+  /// What the row says under its title; the address itself by default.
+  final String? subtitle;
+
+  const _UrlRow({
+    required this.icon,
+    required this.title,
+    required this.url,
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     return AppListRow(
       icon: icon,
       title: title,
-      subtitle: url,
+      subtitle: subtitle ?? url,
       onTap: () async {
         final ok = await launchUrl(
           Uri.parse(url),

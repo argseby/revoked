@@ -157,7 +157,7 @@ class RecordTypeChoice extends StatelessWidget {
         if (detected != null)
           AppButton(
             icon: AppIcons.stars,
-            label: 'Auto: ${detected!.toUpperCase()}',
+            label: 'Auto: ${RecordTypeUtils.label(detected!)}',
             style: AppButtonStyle.accent,
             size: AppButtonSize.small,
             onTap: () => onPicked(detected!),
@@ -166,7 +166,7 @@ class RecordTypeChoice extends StatelessWidget {
           if (includeFile || type != 'file')
             AppButton(
               icon: RecordTypeUtils.icon(type),
-              label: type.toUpperCase(),
+              label: RecordTypeUtils.label(type),
               size: AppButtonSize.small,
               style: selected == type
                   ? AppButtonStyle.primary

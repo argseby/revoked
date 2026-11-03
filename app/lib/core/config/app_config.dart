@@ -58,6 +58,12 @@ class AppConfig {
     defaultValue: 'dev',
   );
 
+  /// The newest published releases of the app and the server, attached to
+  /// every release; `latest` always names the newest one.
+  static const String latestVersionUrl =
+      '$repoUrl/releases/latest/download/version.json';
+  static const String latestReleaseUrl = '$repoUrl/releases/latest';
+
   /// The server the project itself runs.
   static const String officialServerHost = 'api.revoked.link';
   static const String officialDomain = 'revoked.link';

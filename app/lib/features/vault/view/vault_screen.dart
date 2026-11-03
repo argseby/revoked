@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -167,7 +168,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             action: AppButton(
               icon: AppIcons.play,
               label: 'Take the tour',
-              onTap: () => context.go(AppRoutes.tour),
+              onTap: () => goReturning(context, AppRoutes.tour),
             ),
             secondaryAction: Wrap(
               spacing: AppSpacing.sm,

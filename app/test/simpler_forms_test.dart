@@ -91,9 +91,9 @@ void main() {
     tester,
   ) async {
     await open(tester, openRecord);
-    await tester.tap(find.text('BOOLEAN'));
+    await tester.tap(find.text('Yes or no'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('TEXT'));
+    await tester.tap(find.text('Text'));
     await tester.pumpAndSettle();
 
     expect(Stores.vault.recordValue.text, isEmpty);
@@ -104,7 +104,7 @@ void main() {
     tester,
   ) async {
     await open(tester, openRecord);
-    await tester.tap(find.text('FILE'));
+    await tester.tap(find.text('File'));
     await tester.pumpAndSettle();
     expect(find.text('Choose a file'), findsOneWidget);
 
