@@ -80,24 +80,24 @@ class _AskSheet extends StatelessWidget {
                 ).muted.small,
                 AppSpacing.gapLg,
                 AppFormField(
-label: 'What kind',
-inset: false,
-child: AppTextField(
-controller: store.askTypeController,
-hint: 'membership',
-mono: true,
-),
-),
+                  label: 'What kind',
+                  inset: false,
+                  child: AppTextField(
+                    controller: store.askTypeController,
+                    hint: 'membership',
+                    mono: true,
+                  ),
+                ),
                 AppSpacing.gapSm,
                 AppFormField(
-label: 'What they should confirm (optional)',
-inset: false,
-child: AppTextField(
-controller: store.askClaimsController,
-hint: 'member_since, board',
-mono: true,
-),
-),
+                  label: 'What they should confirm (optional)',
+                  inset: false,
+                  child: AppTextField(
+                    controller: store.askClaimsController,
+                    hint: 'member_since, board',
+                    mono: true,
+                  ),
+                ),
                 AppSpacing.gapLg,
                 AppFormField(
                   label: 'For your identity',
@@ -116,10 +116,10 @@ mono: true,
                 Row(
                   children: [
                     AppButton(
-                        label: 'Cancel',
-                        style: AppButtonStyle.accent,
-                        onTap: () => Navigator.of(context).pop(),
-                      ),
+                      label: 'Cancel',
+                      style: AppButtonStyle.accent,
+                      onTap: () => Navigator.of(context).pop(),
+                    ),
                     AppSpacing.gapMd,
                     Expanded(
                       child: AppButton(

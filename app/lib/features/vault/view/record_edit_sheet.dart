@@ -112,7 +112,6 @@ void openRecordEditSheet(
                             hint: 'My Secret',
                           ),
                           const SizedBox(height: AppSpacing.lg),
-
                           _fieldLabel(
                             ctx,
                             'Key',
@@ -136,7 +135,6 @@ void openRecordEditSheet(
                             child: Text(record.key).mono.muted.small,
                           ),
                           const SizedBox(height: AppSpacing.lg),
-
                           _fieldLabel(
                             ctx,
                             'Type',
@@ -158,7 +156,6 @@ void openRecordEditSheet(
                               onPicked: pickType,
                             ),
                           const SizedBox(height: AppSpacing.lg),
-
                           if (isFile) ...[
                             _fieldLabel(
                               ctx,
@@ -180,7 +177,6 @@ void openRecordEditSheet(
                               inset: false,
                             ),
                             const SizedBox(height: AppSpacing.lg),
-
                             _fieldLabel(
                               ctx,
                               'File',
@@ -255,7 +251,6 @@ void openRecordEditSheet(
                             ),
                           ],
                           const SizedBox(height: AppSpacing.xl),
-
                           if (store.errorMessage != null) ...[
                             AppAlert(
                               destructive: true,
@@ -265,7 +260,6 @@ void openRecordEditSheet(
                             ),
                             const SizedBox(height: AppSpacing.lg),
                           ],
-
                           if (isFile)
                             const Text(
                               'Renaming is a normal record update; replacing '
@@ -298,12 +292,12 @@ void openRecordEditSheet(
                     child: Row(
                       children: [
                         AppButton(
-                            label: 'Cancel',
-                            onTap: store.isSubmittingEditRecord
-                                ? null
-                                : () => Navigator.of(sheetContext).pop(),
-                            style: AppButtonStyle.accent,
-                          ),
+                          label: 'Cancel',
+                          onTap: store.isSubmittingEditRecord
+                              ? null
+                              : () => Navigator.of(sheetContext).pop(),
+                          style: AppButtonStyle.accent,
+                        ),
                         const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: AppButton(

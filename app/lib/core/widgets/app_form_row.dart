@@ -3,6 +3,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/widgets/app_animated_size.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -11,97 +12,86 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 
-/// A tappable settings-style summary row used by the create drawers.
-///
-/// Shows an icon, a label, and the field's current value underneath. Tapping
-/// opens a focused editor (sub-sheet, picker, date picker, …). Optional fields
-/// can pass [onClear] to expose a clear (×) affordance once a value is set.
-class AppFormRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  /// The summary text shown under the label (current value, or a placeholder
-  /// like "Not set" / "Required").
-  final String valueText;
-
-  /// When true [valueText] is a placeholder (renders muted; clear is hidden).
+/// A value chosen rather than typed — from a list, a calendar, a switch —
+/// drawn in the same frame as a text field, so a form's inputs line up. Goes
+/// inside an [AppFormField], which carries its label.
+class AppPickerField extends StatelessWidget {
+  /// The current choice, or what to choose when [isPlaceholder].
+  final String text;
   final bool isPlaceholder;
+  final VoidCallback onTap;
+  final IconData? leading;
 
-  /// When true [valueText] renders in the error color.
-  final bool isError;
+  /// What tapping opens: [AppIcons.chevronDown] for a list, a calendar for a
+  /// date. Null when the field changes in place, as a switch does.
+  final IconData? opens;
 
-  /// If provided (and a value is set), shows a clear button before the chevron.
+  /// Shown once a value is set, for a field that may be left empty.
   final VoidCallback? onClear;
 
-  /// Controls that act on the value in place, after the clear button — a
-  /// switch, or the eye that masks a record's value.
+  /// Controls acting on the value in place, such as a switch.
   final List<Widget> trailing;
 
-  /// A row whose value is changed in place rather than in a sub-sheet drops
-  /// the chevron.
-  final bool showChevron;
-
-  final VoidCallback onTap;
-
-  const AppFormRow({
+  const AppPickerField({
     super.key,
-    required this.icon,
-    required this.label,
-    required this.valueText,
+    required this.text,
     required this.onTap,
     this.isPlaceholder = false,
-    this.isError = false,
+    this.leading,
+    this.opens = AppIcons.chevronDown,
     this.onClear,
     this.trailing = const [],
-    this.showChevron = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final showClear = onClear != null && !isPlaceholder;
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      leading: Icon(icon, color: scheme.onSurfaceVariant),
-      title: Text(label),
-      subtitle: Text(
-        valueText,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: isError
-              ? scheme.error
-              : (isPlaceholder ? scheme.onSurfaceVariant : scheme.onSurface),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppRadius.allMd,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          prefixIcon: leading == null ? null : Icon(leading),
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onClear != null && !isPlaceholder)
+                AppButton(
+                  icon: AppIcons.x,
+                  style: AppButtonStyle.ghost,
+                  size: AppButtonSize.small,
+                  tooltip: 'Clear',
+                  showTooltip: false,
+                  onTap: onClear,
+                ),
+              ...trailing,
+              if (opens != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                  ),
+                  child: Icon(opens, color: scheme.onSurfaceVariant),
+                ),
+            ],
+          ),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: isPlaceholder
+              ? TextStyle(color: scheme.onSurfaceVariant)
+              : null,
         ),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showClear)
-            AppButton(
-              icon: AppIcons.x,
-              style: AppButtonStyle.accent,
-              tooltip: 'Clear',
-              onTap: onClear,
-            ),
-          for (final t in trailing) ...[AppSpacing.gapXs, t],
-          if (showChevron)
-            Icon(
-              AppIcons.chevronRight,
-              size: 20,
-              color: scheme.onSurfaceVariant,
-            ),
-        ],
-      ),
-      onTap: onTap,
     );
   }
 }
 
 /// A field filled in where it stands: its label, the input, and under it
 /// whatever is wrong with the value, else a note. Anything typed belongs here
-/// rather than behind an [AppFormRow], which costs a tap to open and one to
-/// close; [AppFormRow] is for choosing from a list or a calendar.
+/// rather than behind a row that opens a sheet to type in, which costs a tap
+/// to open and one to close. A choice from a list is an [AppPickerField].
 class AppFormField extends StatelessWidget {
   final String label;
 
@@ -172,7 +162,7 @@ class AppFormField extends StatelessWidget {
 }
 
 /// A boolean setting rendered as a row with a trailing switch — no sub-sheet.
-/// Companion to [AppFormRow]; the app's only labelled toggle.
+/// The app's only labelled toggle.
 class AppFormToggleRow extends StatelessWidget {
   /// Omitted for a toggle inside already-labelled content, where a second
   /// glyph would just be noise.

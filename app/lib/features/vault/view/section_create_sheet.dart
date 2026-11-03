@@ -196,7 +196,6 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
             ),
             const AppDivider(),
           ],
-
           Flexible(
             fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
             child: ListView(
@@ -206,7 +205,6 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                 const AppFormSectionHeader('Details'),
                 _buildNameRow(),
                 _buildKeyRow(),
-
                 ApiPreviewSection(
                   spec: VaultStore.createSectionSpec(
                     key: _store.sectionKey.text.trim(),
@@ -220,7 +218,6 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
             ),
           ),
           const AppDivider(),
-
           _SheetFooter(
             busy: _store.isSubmittingSection,
             confirmLabel: isDup ? 'Duplicate section' : 'Create section',
@@ -330,7 +327,6 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
             description: 'Give this section a new name.',
           ),
           const AppDivider(),
-
           Flexible(
             child: ListView(
               shrinkWrap: true,
@@ -349,7 +345,6 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
                     },
                   ),
                 ),
-
                 ApiPreviewSection(
                   spec: VaultStore.updateSectionSpec(widget.section.id, {
                     'name': name,
@@ -359,7 +354,6 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
             ),
           ),
           const AppDivider(),
-
           _SheetFooter(
             busy: _store.isRenamingSection,
             confirmLabel: 'Save',
@@ -426,10 +420,10 @@ class _SheetFooter extends StatelessWidget {
       child: Row(
         children: [
           AppButton(
-              label: 'Cancel',
-              style: AppButtonStyle.accent,
-              onTap: busy ? null : () => Navigator.of(context).pop(),
-            ),
+            label: 'Cancel',
+            style: AppButtonStyle.accent,
+            onTap: busy ? null : () => Navigator.of(context).pop(),
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: AppButton(

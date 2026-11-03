@@ -158,14 +158,14 @@ class _SendSheet extends StatelessWidget {
               Text(_reachLine(contact, isAsk: false)).muted.small,
               AppSpacing.gapLg,
               AppFormField(
-label: 'Label',
-inset: false,
-child: AppTextField(
-controller: store.grantLabel,
-hint: 'My bank details',
-autofocus: true,
-),
-),
+                label: 'Label',
+                inset: false,
+                child: AppTextField(
+                  controller: store.grantLabel,
+                  hint: 'My bank details',
+                  autofocus: true,
+                ),
+              ),
               AppSpacing.gapSm,
               ShareContentsRow(
                 records: store.draftRecords,
@@ -182,10 +182,10 @@ autofocus: true,
               Row(
                 children: [
                   AppButton(
-                      label: 'Cancel',
-                      style: AppButtonStyle.accent,
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
+                    label: 'Cancel',
+                    style: AppButtonStyle.accent,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
                   AppSpacing.gapMd,
                   Expanded(
                     child: AppButton(
@@ -247,14 +247,14 @@ class _AskSheet extends StatelessWidget {
                 Text(_reachLine(contact, isAsk: true)).muted.small,
                 AppSpacing.gapLg,
                 AppFormField(
-label: 'Title',
-inset: false,
-child: AppTextField(
-controller: store.grantLabel,
-hint: 'Your new address',
-autofocus: true,
-),
-),
+                  label: 'Title',
+                  inset: false,
+                  child: AppTextField(
+                    controller: store.grantLabel,
+                    hint: 'Your new address',
+                    autofocus: true,
+                  ),
+                ),
                 AppSpacing.gapSm,
                 AppFormField(
                   label: 'Template',
@@ -286,10 +286,10 @@ autofocus: true,
                 Row(
                   children: [
                     AppButton(
-                        label: 'Cancel',
-                        style: AppButtonStyle.accent,
-                        onTap: () => Navigator.of(context).pop(),
-                      ),
+                      label: 'Cancel',
+                      style: AppButtonStyle.accent,
+                      onTap: () => Navigator.of(context).pop(),
+                    ),
                     AppSpacing.gapMd,
                     Expanded(
                       child: AppButton(
