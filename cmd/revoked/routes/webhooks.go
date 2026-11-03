@@ -36,7 +36,13 @@ func WebhooksRoute(app core.App) {
 			if _, ok := webhookWorkspace(app, re); !ok {
 				return nil
 			}
-			return re.JSON(http.StatusOK, map[string]any{"items": util.WebhookEventTypes})
+			// Whether this server delivers to loopback and private addresses, so
+			// the app can say so before someone waits for a webhook that never
+			// comes. Only someone who manages webhooks gets to know.
+			return re.JSON(http.StatusOK, map[string]any{
+				"items":            util.WebhookEventTypes,
+				"privateCallbacks": util.PrivateCallbacksAllowed(),
+			})
 		})
 		e.Router.GET("/api/webhooks/endpoints", func(re *core.RequestEvent) error { return listWebhookEndpoints(app, re) })
 		e.Router.POST("/api/webhooks/endpoints", func(re *core.RequestEvent) error { return createWebhookEndpoint(app, re) })
