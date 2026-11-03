@@ -6,22 +6,14 @@ import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
-import 'package:revoked_app/core/widgets/app_checkbox.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 
-/// What a connected tool may do — the same groups on the connect screen, on a
-/// proposal that connects, and under Connected tools, so what the owner agreed
-/// to is what they later read:
-///
-///  * what every connected tool can do (nothing to choose),
-///  * its own section of the vault, and whether it may add there,
-///  * what it may do with what it suggested,
-///  * what it may do on its own, without asking each time,
-///  * the whole vault, only when the tool asked for it,
-///  * what no tool can ever do.
-///
-/// Each choice carries the tool's own reason in italics.
+/// What a connected tool may do, as one list of switches — the same on the
+/// connect screen, on a proposal that connects, and under Connected tools, so
+/// what the owner agreed to is what they later read. The tool's own reasons
+/// and what it can never reach sit under the list.
 class ToolPermissions extends StatelessWidget {
   final String name;
 
@@ -92,265 +84,167 @@ class ToolPermissions extends StatelessWidget {
     'attestations:issue',
   ];
 
-  /// What each of those means for a tool, in place of the catalogue's words,
-  /// which are about a member.
-  static (IconData, String, String) _wording(InvitePermission p) =>
-      switch (p.key) {
-        'shares:manage' => (
-          AppIcons.share,
-          'Share what it can read',
-          'You see every share in the app, and can stop it.',
-        ),
-        'requests:manage' => (
-          AppIcons.askFor,
-          'Ask people for data in your name',
-          'You see every request in the app. Only when you confirm on this '
-              'device, never with a code.',
-        ),
-        _ => (AppIcons.shieldCheck, p.label, p.description),
-      };
+  /// The icon, label and line for a permission, said for a tool rather than
+  /// a member. The label falls back to the catalogue's own name for a key
+  /// the catalogue hasn't served yet, never the raw key.
+  (IconData, String, String) _detail(InvitePermission p) {
+    String label(String fallback) => p.label == p.key ? fallback : p.label;
+    return switch (p.key) {
+      'shares:manage' => (
+        AppIcons.share,
+        label('Manage shares'),
+        showVault && allowVaultRead
+            ? 'Within your vault'
+            : 'Within its section',
+      ),
+      'requests:manage' => (
+        AppIcons.askFor,
+        label('Manage requests'),
+        'In your name',
+      ),
+      'attestations:issue' => (
+        AppIcons.shieldCheck,
+        label('Issue attestations'),
+        'Attestations it proposed',
+      ),
+      _ => (AppIcons.shieldCheck, p.label, p.description),
+    };
+  }
 
-  String? _reason(String reason) =>
-      reason.isEmpty ? null : '$name says: “$reason”';
-
-  Widget _sectionDetail(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    if (!ownSection) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          0,
-          AppSpacing.md,
-          AppSpacing.sm,
-        ),
-        child: const Text(
-          'Nothing in your vault is shared with it.',
-        ).muted.small,
-      );
+  String get _noAccess {
+    if (showVault && allowVaultRead) {
+      return 'No access to your links or your account.';
     }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        0,
-        AppSpacing.md,
-        AppSpacing.md,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                sectionIsNew ? AppIcons.folderPlus : AppIcons.folder,
-                size: 18,
-                color: scheme.onSurfaceVariant,
-              ),
-              AppSpacing.gapSm,
-              Expanded(
-                child: Text(
-                  sectionIsNew
-                      ? 'New section: $sectionName'
-                      : 'Section: $sectionName',
-                ).small,
-              ),
-            ],
-          ),
-          AppSpacing.gapSm,
-          AppSegmented<bool>(
-            value: sectionWrite,
-            items: const [
-              AppSegmentedItem(value: false, label: 'It can read'),
-              AppSegmentedItem(value: true, label: 'Read and add'),
-            ],
-            onChanged: (v) => onSectionWrite?.call(v),
-          ),
-          AppSpacing.gapXs,
-          Text(
-            sectionWrite
-                ? 'It adds records and changes only the ones it added. What '
-                      'you put in the section stays yours.'
-                : 'It only reads what is in the section. You add the records.',
-          ).muted.small,
-        ],
-      ),
-    );
+    if (showSection && ownSection) {
+      return 'No access to the rest of your vault, your links or your account.';
+    }
+    return 'No access to your vault, your links or your account.';
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    Widget row(IconData icon, String text, {bool allowed = true}) => Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm + 2,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            size: 18,
-            color: allowed ? scheme.primary : scheme.onSurfaceVariant,
-          ),
-          AppSpacing.gapMd,
-          Expanded(child: allowed ? Text(text) : Text(text).muted),
-        ],
+    Widget toggle({
+      required IconData icon,
+      required String label,
+      required String subtitle,
+      required bool value,
+      required ValueChanged<bool>? onChanged,
+    }) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: AppFormToggleRow(
+        icon: icon,
+        label: label,
+        subtitle: subtitle,
+        value: value,
+        onChanged: onChanged,
+        inset: false,
       ),
     );
-    Widget choice(AppCheckRow check) => Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: AppSpacing.xs,
-      ),
-      child: check,
-    );
-    const quiet = SizedBox.shrink();
     final own = [
       for (final key in onItsOwn)
         for (final p in permissions)
           if (p.key == key) p,
     ];
+    final said = [
+      reasons.section,
+      reasons.permissions,
+      reasons.revoke,
+      reasons.links,
+      if (showVault) reasons.vault,
+    ].where((r) => r.isNotEmpty);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppListGroup(
-          title: '$name can',
-          trailing: quiet,
-          children: [
-            row(
-              AppIcons.check,
-              'Suggest links, requests and attestations for you to confirm',
-            ),
-            row(
-              AppIcons.check,
-              'See how what it suggested is going, and what people showed '
-              'for its checks',
-            ),
-          ],
-        ),
-        if (showSection)
-          AppListGroup(
-            title: 'Its own section in your vault',
-            trailing: quiet,
+          title: 'Permissions',
+          trailing: const SizedBox.shrink(),
+          footer: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              choice(
-                AppCheckRow(
-                  icon: AppIcons.folderPlus,
-                  label: 'Give it a section',
-                  subtitle:
-                      'It keeps what it saves for you there. It can’t see the '
-                      'rest of your vault.',
-                  note: _reason(reasons.section),
-                  value: ownSection,
-                  onChanged: onOwnSection,
-                ),
+              for (final reason in said) ...[
+                Text('$name says: “$reason”').muted.small.italic,
+                AppSpacing.gapXs,
+              ],
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(AppIcons.lock, size: 16),
+                  AppSpacing.gapSm,
+                  Expanded(child: Text(_noAccess)),
+                ],
               ),
-              _sectionDetail(context),
+              AppSpacing.gapXs,
+              const Text(
+                'The connection ends after 90 days unless you connect again.',
+              ),
             ],
           ),
-        AppListGroup(
-          title: 'What it suggests',
-          trailing: quiet,
           children: [
-            choice(
-              AppCheckRow(
-                icon: AppIcons.xCircle,
-                label: 'Let it end what it suggested',
-                subtitle:
-                    'It can turn off a share or request that came from it, '
-                    'like when you throw away the printed card.',
-                note: _reason(reasons.revoke),
-                value: allowRevoke,
-                onChanged: onAllowRevoke,
+            if (showSection) ...[
+              toggle(
+                icon: sectionIsNew ? AppIcons.folderPlus : AppIcons.folder,
+                label: 'Vault section',
+                subtitle: sectionIsNew ? '$sectionName · new' : sectionName,
+                value: ownSection,
+                onChanged: onOwnSection,
               ),
-            ),
-            choice(
-              AppCheckRow(
-                icon: AppIcons.send,
-                label: 'Send it the finished link',
-                subtitle:
-                    'When you create a share it suggested, the tool gets the '
-                    'link, so you don’t copy it over. Links with files or '
-                    'hidden values you always send yourself.',
-                note: _reason(reasons.links),
-                value: allowHandOver,
-                onChanged: onAllowHandOver,
-              ),
-            ),
-          ],
-        ),
-        if (own.isNotEmpty)
-          AppListGroup(
-            title: 'On its own, without asking you',
-            trailing: quiet,
-            children: [
-              for (final (i, p) in own.indexed)
-                choice(
-                  AppCheckRow(
-                    icon: _wording(p).$1,
-                    label: _wording(p).$2,
-                    subtitle: _wording(p).$3,
-                    note: i == 0 ? _reason(reasons.permissions) : null,
-                    value: granted.contains(p.key),
-                    onChanged: onPermission == null
-                        ? null
-                        : (v) => onPermission!(p.key, v),
+              if (ownSection)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    0,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: AppSegmented<bool>(
+                      value: sectionWrite,
+                      items: const [
+                        AppSegmentedItem(value: false, label: 'Read'),
+                        AppSegmentedItem(value: true, label: 'Manage'),
+                      ],
+                      onChanged: (v) => onSectionWrite?.call(v),
+                    ),
                   ),
                 ),
             ],
-          ),
-        if (showVault) ...[
-          AppListGroup(
-            title: 'Your whole vault',
-            trailing: quiet,
-            children: [
-              choice(
-                AppCheckRow(
-                  icon: AppIcons.safe,
-                  label: 'Read your vault',
-                  subtitle:
-                      'See the values of your records, to answer your '
-                      'questions. Encrypted records stay hidden.',
-                  note: _reason(reasons.vault),
-                  value: allowVaultRead,
-                  onChanged: onAllowVaultRead,
-                ),
+            for (final p in own)
+              toggle(
+                icon: _detail(p).$1,
+                label: _detail(p).$2,
+                subtitle: _detail(p).$3,
+                value: granted.contains(p.key),
+                onChanged: onPermission == null
+                    ? null
+                    : (v) => onPermission!(p.key, v),
               ),
-            ],
-          ),
-          VaultReadNotice(name: name),
-          AppSpacing.gapLg,
-        ],
-        AppListGroup(
-          title: '$name can never',
-          trailing: quiet,
-          footer: const Text(
-            'The connection ends after 90 days unless you connect again.',
-          ),
-          children: [
-            if (!(showVault && allowVaultRead))
-              row(AppIcons.x, 'See the rest of your vault', allowed: false),
-            row(
-              AppIcons.x,
-              ownSection || (showVault && allowVaultRead)
-                  ? 'Change records you added'
-                  : 'Change your vault',
-              allowed: false,
+            toggle(
+              icon: AppIcons.linkSlash,
+              label: 'Revoke its links',
+              subtitle: 'Links and requests it proposed',
+              value: allowRevoke,
+              onChanged: onAllowRevoke,
             ),
-            row(
-              AppIcons.x,
-              'See your other links or your account',
-              allowed: false,
+            toggle(
+              icon: AppIcons.send,
+              label: 'Receive links',
+              subtitle: 'Links it proposed, once created',
+              value: allowHandOver,
+              onChanged: onAllowHandOver,
             ),
-            if (!granted.contains('shares:manage'))
-              row(
-                AppIcons.x,
-                'Publish a link without your consent',
-                allowed: false,
+            if (showVault)
+              toggle(
+                icon: AppIcons.safe,
+                label: 'Read vault',
+                subtitle: 'Every record except encrypted ones',
+                value: allowVaultRead,
+                onChanged: onAllowVaultRead,
               ),
           ],
         ),
+        if (showVault) ...[VaultReadNotice(name: name), AppSpacing.gapLg],
       ],
     );
   }
@@ -406,32 +300,21 @@ class ToolCheckCode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return AppListGroup(
-      title: 'Check the code',
+      title: 'Check code',
       trailing: const SizedBox.shrink(),
-      footer: const Text(
-        'Only continue if both codes match. If you didn’t just ask for this '
-        'in a browser, decline.',
+      footer: Text(
+        'Must match the code on the $name page. If it doesn’t, or you didn’t '
+        'just ask for this in a browser, decline.',
       ),
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            children: [
-              Icon(AppIcons.shieldCheck, size: 20, color: scheme.primary),
-              AppSpacing.gapMd,
-              Expanded(
-                child: Text(
-                  'The $name page you came from shows this code',
-                ).muted.small,
-              ),
-              AppSpacing.gapMd,
-              DefaultTextStyle.merge(
-                style: const TextStyle(letterSpacing: 1.5),
-                child: Text(Pkce.checkCode(challenge)).header.mono,
-              ),
-            ],
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+          child: Center(
+            child: DefaultTextStyle.merge(
+              style: const TextStyle(letterSpacing: 3),
+              child: Text(Pkce.checkCode(challenge)).header.mono.selectable,
+            ),
           ),
         ),
       ],

@@ -55,7 +55,7 @@ for an assistant they don't run. Two things don't protect against that:
 
 What such a connection gets is still bounded: the status of what was
 proposed through it, the verdicts of its checks, and — only if the owner
-ticked **Let it end what it suggested** — ending those. Never a value, never the
+turned on **Revoke its links** — ending those. Never a value, never the
 vault. Approve an assistant only if you started it yourself.
 
 Vault access is the one permission that phishing must not reach, so it is

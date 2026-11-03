@@ -71,17 +71,17 @@ they were opened. It can follow the requests, attestations and checks it
 suggested the same way. It never sees what they contain, or anything else in
 your vault, unless you give it a section or let it read your vault.
 
-Everything else is your choice, per tool. The app groups it, and shows the
+Everything else is a switch, per tool. Under the switches the app shows the
 reason the tool gave for asking:
 
-| Choice | What it allows |
+| Switch | What it allows |
 |---|---|
-| **Give it a section** | The tool gets a section of your vault, named after it, to keep what it saves for you. Pick **It can read** or **Read and add**. It can't see the rest of your vault. |
-| **Let it end what it suggested** | The tool can turn off a share or request that came from it, like when you throw away the printed card. You're notified like for any other revocation. |
-| **Send it the finished link** | When you create a share it suggested, the link goes straight to the tool, so you don't copy it over. Links with files or hidden values you always send yourself. |
-| **Share what it can read** | The tool shares records it can read without asking you each time. You see every share in the app, and can stop it. |
-| **Ask people for data in your name** | The tool sends requests without asking you each time. Only when you confirm on this device, never with a code. |
-| **Read your vault** | Only when the tool asks, and off until you turn it on. The tool can see the values of your records, but not your encrypted ones, and it can't change anything. What it sees can't be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) explains what to weigh. |
+| **Vault section** | The tool gets a section of your vault, named after it, to keep what it saves for you. Pick **Read** or **Manage**. It can't see the rest of your vault. |
+| **Manage shares** | The tool shares what is in its section without asking you each time. You see every share in the app, and can stop it. |
+| **Manage requests** | The tool sends requests in your name without asking you each time. Only when you confirm on this device, never with a code. |
+| **Revoke its links** | The tool can revoke the links and requests it proposed, for example when you throw away the printed card. You're notified like for any other revocation. |
+| **Receive links** | When you create a link it proposed, the tool gets it, so you don't copy it over. Links with files or hidden values you always send yourself. |
+| **Read vault** | Only when the tool asks, and off until you turn it on. The tool can see the values of your records, but not your encrypted ones, and it can't change anything. What it sees can't be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) explains what to weigh. |
 
 ### Confirm on another device
 
@@ -98,17 +98,17 @@ one. It gets the same permissions as before, nothing more.
 ## Give a tool its own section
 
 A tool that keeps things for you, like a packing list or a game save, can
-keep them in your vault instead of on its own servers. Leave **Give it a
-section** ticked when you connect it. The app shows the name of the section
-it will get:
+keep them in your vault instead of on its own servers. Leave **Vault
+section** on when you connect it. The app shows the name of the section it
+will get:
 
 - Everything it saves there is yours. You see it in your vault, marked
   **Added by** and the tool's name.
 - It can change only what it added. Records you put in its section are
   yours, and it can only read them.
-- The section stays in your vault when you disconnect the tool. Untick
-  **Give it a section** later, and the tool can't use it any more. Tick it
-  again, and it gets the same section back.
+- The section stays in your vault when you disconnect the tool. Turn
+  **Vault section** off later, and the tool can't use it any more. Turn it
+  on again, and it gets the same section back.
 
 Putting one of your records into a section a tool can read lets the tool
 read it. The app asks first, and names the tool. Tap **Add to section** only

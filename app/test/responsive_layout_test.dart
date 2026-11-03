@@ -457,7 +457,7 @@ void main() {
         router.go(AppRoutes.connectedToolFor('c1'));
         await tester.pumpAndSettle();
         expect(find.text('Sections $name can read'), findsOneWidget);
-        expect(find.text('Give it a section'), findsOneWidget);
+        expect(find.text('Vault section'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
@@ -538,8 +538,8 @@ void main() {
             ).toString(),
           );
           await tester.pumpAndSettle();
-          expect(find.text('Give it a section'), findsOneWidget);
-          expect(find.text('Read and add'), findsOneWidget);
+          expect(find.text('Vault section'), findsOneWidget);
+          expect(find.text('Manage'), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );
