@@ -59,7 +59,7 @@ Scripts do not sign in; they use an API key.
 
 ## API keys
 
-Create one in the app under **Settings → Connected tools → API keys**, or over the API by
+Create one in the app under **Settings → Developer → API keys**, or over the API by
 creating an `apiKeys` record with a session token. The token is minted
 server-side either way and returned exactly once — in the app as the
 plaintext you copy, over the API in the `X-Plain-Token` response header. The

@@ -20,7 +20,7 @@ Configuration (environment):
                       your vault chosen for it - say a new, empty "Steam"
                       section. The key reaches only that section: the
                       records it writes land there, and it sees nothing else.
-                      (Settings -> Connected tools -> API keys in the app)
+                      (Settings -> Developer -> API keys in the app)
     REVOKED_WORKSPACE_ID  Only needed before the key has made its first share -
                       the script reads the workspace id off that link.
     STEAM_API_KEY     Steam Web API key, from https://steamcommunity.com/dev/apikey

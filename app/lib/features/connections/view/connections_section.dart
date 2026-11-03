@@ -8,7 +8,6 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
-import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/section.dart';
@@ -29,7 +28,6 @@ import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/features/api_keys/view/api_keys_group.dart';
 import 'package:revoked_app/features/attestations/view/attestations_section.dart';
 import 'package:revoked_app/features/connections/view/access_summary.dart';
 import 'package:revoked_app/features/connections/view/day_label.dart';
@@ -51,10 +49,6 @@ class ConnectionsList extends StatelessWidget {
       builder: (_) {
         final noTools = store.connections.isEmpty;
         final nothingYet = noTools && signIns.services.isEmpty;
-        // Keys sit beside tools: both are ways in from outside the app.
-        final showKeys =
-            Stores.features.visible(Feature.developer) ||
-            Stores.apiKeys.apiKeys.isNotEmpty;
         if (nothingYet && (store.isLoading || signIns.loadState.isFirstLoad)) {
           return const AppListGroup(
             title: 'Connected tools',
@@ -95,7 +89,6 @@ class ConnectionsList extends StatelessWidget {
                 learnMoreLabel: 'How tools connect',
                 learnMoreUrl: '${AppConfig.docsUrl}/guide/tools/',
               ),
-              if (showKeys) const ApiKeysGroup(),
             ],
           );
         }
@@ -130,7 +123,6 @@ class ConnectionsList extends StatelessWidget {
                   ),
               ],
             ),
-            if (showKeys) const ApiKeysGroup(),
             const SignInServicesGroup(),
           ],
         );

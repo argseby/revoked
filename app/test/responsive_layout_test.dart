@@ -463,7 +463,7 @@ void main() {
     }
   });
 
-  group('connected tools and API keys', () {
+  group('connected tools, and API keys on their own page', () {
     for (final entry in sizes.entries) {
       testWidgets('list fits on a ${entry.key}', (tester) async {
         final router = await signedIn(tester, entry.value);
@@ -493,6 +493,10 @@ void main() {
           );
         });
         router.go(AppRoutes.connectedTools);
+        await tester.pumpAndSettle();
+        expect(find.text('API keys'), findsNothing);
+        expect(tester.takeException(), isNull);
+        router.go(AppRoutes.apiKeys);
         await tester.pumpAndSettle();
         expect(find.text('API keys'), findsWidgets);
         expect(tester.takeException(), isNull);

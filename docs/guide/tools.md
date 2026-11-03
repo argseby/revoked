@@ -127,9 +127,10 @@ your vault either way. Its own section comes first, marked **Its own**.
 ## Give your scripts a key
 
 Your own scripts, like one that keeps a record up to date, use an **API
-key** instead. You'll find them under **Settings → Connected tools**, in
-**API keys**. Tap **New**, tick what the key may do, and, if it should use
-your vault, pick the **Sections it can reach**. The key reaches only those.
+key** instead. You'll find them under **Settings → Developer → API keys**.
+Tap **New API key** (**New** once you have one), tick what the key may do,
+and, if it should use your vault, pick the **Sections it can reach**. The
+key reaches only those.
 You see the key once: copy it then. To stop a key, revoke it in the same
 list.
 
