@@ -17,10 +17,17 @@ Sign in. If you don't have a workspace yet, the app helps you set one up:
 
 - **Create your own.** It's already filled in for you. The workspace is
   called *Personal*, and your name comes from your email address
-  (`max.mustermann@…` becomes *Max Mustermann*). Change either one before
-  you confirm. People who get your shares and requests will see this name.
+  (`max.mustermann@…` becomes *Max Mustermann*). Change either one, then
+  press **Continue**. People who get your shares and requests will see this
+  name.
 - **Join someone else's.** Choose **Use an invite key** and paste the key
   they sent you.
+
+Creating your own workspace then asks **What will you use this for?** Tick
+what you want to see: sharing, requests, identities and attestations,
+contacts, connected tools. The vault is always there. Untick what you won't
+use and it stays out of your way. Change your mind any time under
+**Settings → Features**.
 
 Did you arrive through a link? It might be a tool's
 [link proposal](tools.md), a request to connect a tool, or a workspace
@@ -34,8 +41,13 @@ workspace. See [Workspaces & members](workspaces.md).
 
 **New** starts anything: a record, a file, a share link, a request, an
 attestation. The sidebar takes you to the rest. On a phone, use the bar
-along the bottom: **Attestations**, **Contacts** and **Settings** are under
-**More**.
+along the bottom: it holds four places, and the rest sit under **More**
+with **Settings**.
+
+You only see the parts you turned on under **Settings → Features**, and
+only those your workspace lets you use. Turn **Developer** on there to see
+the API request behind every form. A link to something you turned off still
+opens, and offers to turn it back on.
 
 | Where | What you do there | Learn more |
 |---|---|---|
@@ -43,7 +55,7 @@ along the bottom: **Attestations**, **Contacts** and **Settings** are under
 | **Shares** | Send links to your records, and see how often they were opened | [Sharing](sharing.md) |
 | **Requests** | Ask people for information and read their answers. Shares you saved from others wait under **Received**. | [Requests](requests.md), [Read the answers](requests.md#reading-what-came-back) |
 | **Attestations** | Keep what others confirm about you, confirm things about others, and check what others show you | [Attestations](attestations.md) |
-| **Settings** | Workspaces, members, invites, identities, connected tools, API keys, templates and your domain check | [Workspaces & members](workspaces.md), [Identities & trust](identities.md), [Tools & link proposals](tools.md), [Templates](templates.md) |
+| **Settings** | Features, workspaces, members, invites, identities, connected tools, API keys, templates and your domain check | [Workspaces & members](workspaces.md), [Identities & trust](identities.md), [Tools & link proposals](tools.md), [Templates](templates.md) |
 
 ## Open a link someone sent you
 
