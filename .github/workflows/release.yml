@@ -250,6 +250,10 @@ jobs:
             type=raw,value=latest
 
       - uses: docker/build-push-action@v6
+        env:
+          # The build record is an artifact nobody reads, and it lands in the
+          # same run as the app builds.
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           platforms: linux/amd64,linux/arm64
