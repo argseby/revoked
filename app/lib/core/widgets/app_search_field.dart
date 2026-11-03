@@ -35,12 +35,12 @@ class AppSearchTrigger extends StatelessWidget {
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onTap,
-            borderRadius: AppRadius.allPill,
+            borderRadius: AppRadius.allMd,
             child: Ink(
               height: _searchHeight,
               decoration: BoxDecoration(
                 color: scheme.surfaceContainerHighest,
-                borderRadius: AppRadius.allPill,
+                borderRadius: AppRadius.allMd,
               ),
               child: Row(
                 children: [

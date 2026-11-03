@@ -23,7 +23,7 @@ class AppTheme {
     onPrimaryContainer: AppPalette.lightOnBrandContainer,
     secondary: AppPalette.lightSecondaryText,
     onSecondary: AppPalette.lightWhite,
-    secondaryContainer: AppPalette.lightCard,
+    secondaryContainer: AppPalette.lightCardHigh,
     onSecondaryContainer: AppPalette.lightInk,
     tertiary: AppPalette.lightBrand,
     onTertiary: AppPalette.lightWhite,
@@ -59,7 +59,7 @@ class AppTheme {
     onPrimaryContainer: AppPalette.darkOnBrandContainer,
     secondary: AppPalette.darkSecondaryText,
     onSecondary: AppPalette.darkOnInk,
-    secondaryContainer: AppPalette.darkCard,
+    secondaryContainer: AppPalette.darkCardHigh,
     onSecondaryContainer: AppPalette.darkInk,
     tertiary: AppPalette.darkBrand,
     onTertiary: AppPalette.darkOnBrand,
@@ -105,7 +105,10 @@ class AppTheme {
 
     // Body 16 and small 13: the sizes of `AppText`, so a plain `Text` and a
     // Material widget's own labels read at the same sizes as the rest.
-    final base = ThemeData(brightness: brightness).textTheme;
+    final base = ThemeData(
+      brightness: brightness,
+      fontFamily: AppFont.sans,
+    ).textTheme;
     final textTheme = base.copyWith(
       bodyLarge: base.bodyLarge?.copyWith(fontSize: AppTextSize.body),
       bodyMedium: base.bodyMedium?.copyWith(
@@ -124,6 +127,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: AppFont.sans,
       colorScheme: scheme,
       textTheme: textTheme,
       scaffoldBackgroundColor: surface,
@@ -135,6 +139,11 @@ class AppTheme {
       // Keyboard focus fills the focused row faintly; the ring around it comes
       // from `AppFocusRing` and the button style.
       focusColor: scheme.accent.withValues(alpha: 0.12),
+      // Feedback is a flat fill, not Material's spreading ripple.
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: scheme.onSurface.withValues(alpha: 0.08),
+      hoverColor: scheme.onSurface.withValues(alpha: 0.04),
       dividerTheme: DividerThemeData(color: scheme.outlineVariant),
       dialogTheme: DialogThemeData(
         backgroundColor: surface,
@@ -183,12 +192,17 @@ class AppTheme {
           backgroundColor: WidgetStatePropertyAll(surface),
           surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
           side: WidgetStatePropertyAll(outline),
-          elevation: const WidgetStatePropertyAll(2),
+          elevation: const WidgetStatePropertyAll(0),
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: surface,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allMd,
+          side: outline,
+        ),
       ),
       // Hover and press feedback follows the shape of the thing being touched:
       // Material paints a rectangle unless the surface says otherwise, which
@@ -204,7 +218,15 @@ class AppTheme {
           minimumSize: WidgetStatePropertyAll(Size(0, 48)),
         ),
       ),
-      tabBarTheme: const TabBarThemeData(splashBorderRadius: AppRadius.allMd),
+      tabBarTheme: TabBarThemeData(
+        splashBorderRadius: AppRadius.allMd,
+        indicatorSize: TabBarIndicatorSize.label,
+        indicator: UnderlineTabIndicator(
+          borderSide: BorderSide(color: scheme.onSurface, width: 2),
+        ),
+        labelColor: scheme.onSurface,
+        unselectedLabelColor: scheme.onSurfaceVariant,
+      ),
       // A field's edge is what says "type here", so it meets 3:1 against the
       // page (the control border, not the divider). Focus thickens it in the
       // accent.
@@ -217,7 +239,7 @@ class AppTheme {
         errorBorder: field(scheme.error),
         focusedErrorBorder: field(scheme.error, width: 2),
       ),
-      // The one New button: brand-coloured and flat, like the primary buttons.
+      // The one New button: solid ink and flat, like the primary buttons.
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: scheme.primary,
         foregroundColor: scheme.onPrimary,
@@ -237,12 +259,15 @@ class AppTheme {
         toolbarHeight: 56,
         shape: Border(bottom: outline),
       ),
-      // The current destination is a brand pill behind a light icon: a state
-      // marker strong enough to meet 3:1 against the bar, not a faint tint.
+      // The current destination is an inverted ink square behind the icon: a
+      // state marker strong enough to meet 3:1 against the bar, not a tint.
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
         indicatorColor: scheme.primary,
+        indicatorShape: const RoundedRectangleBorder(
+          borderRadius: AppRadius.allSm,
+        ),
         elevation: 0,
         height: 68,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -269,17 +294,22 @@ class AppTheme {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: surface,
         indicatorColor: scheme.primary,
+        indicatorShape: const RoundedRectangleBorder(
+          borderRadius: AppRadius.allSm,
+        ),
         selectedIconTheme: IconThemeData(size: 24, color: scheme.onPrimary),
         unselectedIconTheme: IconThemeData(
           size: 24,
           color: scheme.onSurfaceVariant,
         ),
         selectedLabelTextStyle: TextStyle(
+          fontFamily: AppFont.sans,
           fontSize: AppTextSize.small,
           fontWeight: FontWeight.w700,
           color: scheme.onSurface,
         ),
         unselectedLabelTextStyle: TextStyle(
+          fontFamily: AppFont.sans,
           fontSize: AppTextSize.small,
           fontWeight: FontWeight.w500,
           color: scheme.onSurfaceVariant,

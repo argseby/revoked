@@ -69,7 +69,8 @@ class _Pill extends StatelessWidget {
       selected: selected,
       child: Material(
         color: selected ? scheme.primary : Colors.transparent,
-        shape: StadiumBorder(
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allMd,
           side: BorderSide(
             color: selected ? scheme.primary : scheme.outlineVariant,
           ),
@@ -77,7 +78,7 @@ class _Pill extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: AppRadius.allPill,
+          borderRadius: AppRadius.allMd,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,

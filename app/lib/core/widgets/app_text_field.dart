@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 
@@ -89,7 +90,7 @@ class _AppTextFieldState extends State<AppTextField> {
       inputFormatters: widget.inputFormatters,
       onChanged: widget.onChanged,
       onFieldSubmitted: widget.onSubmitted,
-      style: widget.mono ? const TextStyle(fontFamily: 'monospace') : null,
+      style: widget.mono ? const TextStyle(fontFamily: AppFont.mono) : null,
       maxLines: obscured ? 1 : widget.maxLines,
       minLines: widget.minLines,
       autofocus: widget.autofocus,

@@ -4,19 +4,20 @@ import 'package:flutter/widgets.dart';
 ///
 /// Four steps and a pill. Views never call `BorderRadius.circular(n)` with a
 /// bare number; the whole point is that a card, an alert and a dialog cannot
-/// quietly disagree about how round they are.
+/// quietly disagree about how round they are. The steps are square, like the
+/// website; only avatars, dots and progress tracks stay round.
 abstract final class AppRadius {
   /// Tight rounding for chips and inline labels that sit inside text.
-  static const double xs = 4;
+  static const double xs = 0;
 
   /// Inputs, small controls, table cells.
-  static const double sm = 8;
+  static const double sm = 0;
 
   /// The default: cards, alerts, dialogs, menus, toasts, buttons and tags.
-  static const double md = 12;
+  static const double md = 0;
 
   /// Large surfaces — sheets, hero containers.
-  static const double lg = 16;
+  static const double lg = 0;
 
   /// Fully rounded ends. Avatars, progress tracks, round affordances.
   static const double pill = 999;

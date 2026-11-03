@@ -89,7 +89,7 @@ class AppBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: tag ? AppRadius.allPill : AppRadius.allMd,
+        borderRadius: AppRadius.allMd,
         border: border == null ? null : Border.all(color: border),
       ),
       child: Row(
@@ -109,7 +109,7 @@ class AppBadge extends StatelessWidget {
                 fontSize: tag ? _tagFontSize : AppTextSize.small,
                 letterSpacing: tag ? 1 : null,
                 fontWeight: FontWeight.w500,
-                fontFamily: mono ? 'monospace' : null,
+                fontFamily: mono ? AppFont.mono : null,
               ),
             ),
           ),
