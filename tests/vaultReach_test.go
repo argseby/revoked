@@ -167,11 +167,31 @@ func TestAToolKeepsItsOwnSection(t *testing.T) {
 
 	t.Run("taking the section away keeps it, and giving it back brings the same one", func(t *testing.T) {
 		setPermissions(f.api, connID, f.token, map[string]any{"section": false}).Status(http.StatusOK).
-			JSON().Object().Value("vaultAccess").String().IsEmpty()
+			JSON().Object().Value("sectionOff").Boolean().IsTrue()
 		toolVault(f.api, token, http.MethodGet, "").Expect().Status(http.StatusForbidden)
 		setPermissions(f.api, connID, f.token, map[string]any{"section": true}).Status(http.StatusOK).
 			JSON().Object().Value("section").String().IsEqual(sectionID)
 		toolVault(f.api, token, http.MethodGet, "").Expect().Status(http.StatusOK)
+	})
+
+	t.Run("a section the owner added stays readable while its own is off", func(t *testing.T) {
+		note := toolVault(f.api, token, http.MethodPost, "").
+			WithJSON(map[string]any{"key": "own_note", "value": "mine"}).
+			Expect().Status(http.StatusCreated).JSON().Object().Value("id").String().Raw()
+		added := extractID(t, baseURL, util.Coll.Sections, f.token, map[string]any{
+			util.Fields.Section.Key: "banking", util.Fields.Section.Name: "Banking",
+			util.Fields.Section.Records: []string{ibanID},
+			util.Fields.Section.User:    f.userID, util.Fields.Section.Workspace: f.wsID,
+		})
+		setPermissions(f.api, connID, f.token, map[string]any{"section": false, "sections": []string{added}}).
+			Status(http.StatusOK)
+		toolVault(f.api, token, http.MethodGet, "/"+ibanID).Expect().Status(http.StatusOK)
+		raw := toolVault(f.api, token, http.MethodGet, "").Expect().Status(http.StatusOK).Body().Raw()
+		if strings.Contains(raw, note) || !strings.Contains(raw, ibanID) {
+			t.Fatalf("its own section is still in reach while off: %s", raw)
+		}
+		setPermissions(f.api, connID, f.token, map[string]any{"section": true, "sections": []string{}}).
+			Status(http.StatusOK)
 	})
 
 	t.Run("read only means read only", func(t *testing.T) {

@@ -143,7 +143,7 @@ it on again, ask your assistant to connect with vault access.
 
 Open **Settings → Connected tools** and pick your assistant:
 
-- **Pause** stops it for now. **Activate** brings it back.
+- Turn off **Active** to stop it for now. Turn it on to bring it back.
 - **Disconnect** cuts it off for good. What it prepared stays yours.
 
 To use it again after disconnecting, ask it to connect.

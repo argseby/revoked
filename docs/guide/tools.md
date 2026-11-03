@@ -120,9 +120,9 @@ if that's what you want. To take it back, remove the record from the
 section.
 
 Want a tool to read more? Open it under **Settings → Connected tools**. In
-**Sections … can read**, tap **Add** and pick one of your sections. Tap a
-section and **Remove** to take it away again. The section stays in your
-vault.
+**Vault sections**, every section of yours has a switch: turn one on and the
+tool can read it, turn it off and it can't any more. The section stays in
+your vault either way. Its own section comes first, marked **Its own**.
 
 ## Give your scripts a key
 
@@ -145,9 +145,9 @@ request, an attestation or a check to open it where it lives.
 
 ### Take a break from a tool
 
-Not sure you still want it? Tap **Pause**. The tool can't do anything, its
-links stop opening, and its requests stop taking answers. Tap **Activate** when you want it back, and
-everything works as before. Any link you paused yourself stays paused.
+Not sure you still want it? Turn off **Active**. The tool can't do anything,
+its links stop opening, and its requests stop taking answers. Turn it back
+on when you want it back, and everything works as before. Any link you paused yourself stays paused.
 
 ### Cut a tool off for good
 

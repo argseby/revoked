@@ -120,7 +120,7 @@ class ToolPermissions extends StatelessWidget {
     if (showVault && allowVaultRead) {
       return 'No access to your links or your account.';
     }
-    if (showSection && ownSection) {
+    if (ownSection) {
       return 'No access to the rest of your vault, your links or your account.';
     }
     return 'No access to your vault, your links or your account.';
@@ -195,44 +195,9 @@ class ToolPermissions extends StatelessWidget {
                 onChanged: onOwnSection,
               ),
               if (ownSection)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.md,
-                    0,
-                    AppSpacing.md,
-                    AppSpacing.md,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      AppSegmented<bool>(
-                        expand: true,
-                        value: sectionWrite,
-                        items: const [
-                          AppSegmentedItem(
-                            value: false,
-                            icon: AppIcons.eye,
-                            label: 'Read',
-                          ),
-                          AppSegmentedItem(
-                            value: true,
-                            icon: AppIcons.pencil,
-                            label: 'Manage',
-                          ),
-                        ],
-                        onChanged: (v) => onSectionWrite?.call(v),
-                      ),
-                      AppSpacing.gapSm,
-                      Text(
-                        sectionWrite
-                            ? 'It can add records here, and change or delete '
-                                  'the ones it added. Records you add stay '
-                                  'as they are.'
-                            : 'It sees what you put here. It can’t add, '
-                                  'change or delete anything.',
-                      ).muted.small,
-                    ],
-                  ),
+                SectionAccessChoice(
+                  write: sectionWrite,
+                  onChanged: onSectionWrite,
                 ),
             ],
             for (final p in own)
@@ -273,6 +238,53 @@ class ToolPermissions extends StatelessWidget {
         ),
         if (showVault) ...[VaultReadNotice(name: name), AppSpacing.gapLg],
       ],
+    );
+  }
+}
+
+/// Whether a tool only reads its own section or also keeps records there,
+/// with what that lets it do said under the choice.
+class SectionAccessChoice extends StatelessWidget {
+  final bool write;
+  final ValueChanged<bool>? onChanged;
+
+  const SectionAccessChoice({super.key, required this.write, this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppSegmented<bool>(
+            expand: true,
+            value: write,
+            items: const [
+              AppSegmentedItem(value: false, icon: AppIcons.eye, label: 'Read'),
+              AppSegmentedItem(
+                value: true,
+                icon: AppIcons.pencil,
+                label: 'Manage',
+              ),
+            ],
+            onChanged: (v) => onChanged?.call(v),
+          ),
+          AppSpacing.gapSm,
+          Text(
+            write
+                ? 'It can add records here, and change or delete the ones it '
+                      'added. Records you add stay as they are.'
+                : 'It sees what you put here. It can’t add, change or delete '
+                      'anything.',
+          ).muted.small,
+        ],
+      ),
     );
   }
 }

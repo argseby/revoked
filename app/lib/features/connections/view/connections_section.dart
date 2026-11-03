@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
@@ -17,6 +18,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -308,149 +310,69 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     );
   }
 
-  /// What the tool's own section is called, or will be once it has one.
-  String _ownSectionName(Connection connection) {
-    for (final s in Stores.vault.sections) {
-      if (s.id == connection.section) return s.name.isEmpty ? s.key : s.name;
-    }
-    return connection.name;
-  }
-
-  /// The tool's section, or another it may read, picked in the vault.
-  void _editSection(Section section) {
-    Stores.vault.editSection(section.id);
-    context.go(AppRoutes.vault);
-  }
-
-  /// The owner's own sections the tool doesn't reach yet. A section made for
-  /// a request's answers or a sign-in isn't theirs to hand on.
-  List<Section> _addable(Connection connection) => [
-    for (final s in Stores.vault.sections)
-      if (!s.isRequested &&
-          !s.isSignIn &&
-          s.user == Stores.auth.userId &&
-          !connection.reachedSections.contains(s.id))
-        s,
-  ];
-
-  Future<void> _addSection(Connection connection) async {
-    final addable = _addable(connection);
-    await showAppOptionsSheet(
-      context: context,
-      title: 'Let ${connection.name} read a section',
-      subtitle: 'It can read every record in it. It can’t change them.',
-      actions: [
-        for (final s in addable)
-          AppSheetAction(
-            icon: AppIcons.folder,
-            label: _sectionName(s),
-            onTap: () => _change(
-              Stores.connections.setSectionReached(connection, s.id, true),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Future<void> _removeSection(Connection connection, Section section) async {
-    final ok = await showAppDialog(
-      context: context,
-      title: 'Remove ${_sectionName(section)} from ${connection.name}?',
-      message:
-          'It can’t read the records in it anymore. The section stays in '
-          'your vault.',
-      confirmLabel: 'Remove',
-      confirmIcon: AppIcons.shieldSlash,
-      destructive: true,
-    );
-    if (!ok || !mounted) return;
-    await _change(
-      Stores.connections.setSectionReached(connection, section.id, false),
-    );
-  }
-
   static String _sectionName(Section s) => s.name.isEmpty ? s.key : s.name;
 
   String _recordCount(Section s) =>
       '${s.records.length} ${s.records.length == 1 ? 'record' : 'records'}';
 
-  /// Its own section and the ones the owner added: what in the vault it
-  /// reaches, with the way to change that.
+  /// Every section of the owner's a tool may be given, its own first, each
+  /// with a switch: on, the tool reads it. A section made for a request's
+  /// answers or a sign-in isn't the owner's to hand on.
   Widget _sections(Connection connection) {
-    Section? find(String id) {
-      for (final s in Stores.vault.sections) {
-        if (s.id == id) return s;
+    final store = Stores.connections;
+    Section? own;
+    final others = <Section>[];
+    for (final s in Stores.vault.sections) {
+      if (s.id == connection.section) {
+        own = s;
+      } else if (!s.isRequested &&
+          !s.isSignIn &&
+          s.user == Stores.auth.userId) {
+        others.add(s);
       }
-      return null;
     }
-
-    final own = connection.section.isEmpty ? null : find(connection.section);
-    final added = [
-      for (final id in connection.sections)
-        if (id != connection.section) ?find(id),
-    ];
-    final readable = connection.vaultAccess.isNotEmpty;
+    final ownOn = connection.hasOwnSection;
+    final access = connection.vaultAccess == 'read' ? 'Read' : 'Manage';
     return AppListGroup(
-      title: 'Sections ${connection.name} can read',
-      trailing: _addable(connection).isEmpty
-          ? const SizedBox.shrink()
-          : AppButton(
-              icon: AppIcons.plus,
-              label: 'Add',
-              style: AppButtonStyle.accent,
-              size: AppButtonSize.small,
-              onTap: () => _addSection(connection),
-            ),
-      footer: Text(
-        readable
-            ? 'It can read every record in these sections. It can only change '
-                  'records it added to its own.'
-            : 'It can read these once you allow it to read your vault above.',
+      title: 'Vault sections',
+      trailing: const SizedBox.shrink(),
+      footer: const Text(
+        'It reads every record in the sections that are on. It changes only '
+        'what it added to its own.',
       ),
       children: [
-        if (own == null && added.isEmpty)
-          const AppDetailRow(icon: AppIcons.info, label: 'No sections yet'),
-        if (own != null)
-          AppListRow(
-            icon: AppIcons.folder,
-            title: _sectionName(own),
-            subtitle: 'Its own section · ${_recordCount(own)}',
-            onTap: () => showAppOptionsSheet(
-              context: context,
-              title: _sectionName(own),
-              subtitle: 'Its own section',
-              actions: [
-                AppSheetAction(
-                  icon: AppIcons.plusSlashMinus,
-                  label: 'Add or remove records',
-                  onTap: () => _editSection(own),
-                ),
-              ],
+        AppFormToggleRow(
+          icon: AppIcons.folder,
+          label: own == null ? connection.name : _sectionName(own),
+          badge: 'Its own',
+          badgeVariant: AppBadgeVariant.outline,
+          subtitle: own == null
+              ? 'New'
+              : ownOn
+              ? '$access · ${_recordCount(own)}'
+              : _recordCount(own),
+          value: ownOn,
+          onChanged: (v) => _change(store.setOwnSection(connection, v)),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        ),
+        if (ownOn)
+          SectionAccessChoice(
+            write: connection.vaultAccess != 'read',
+            onChanged: (v) => _change(
+              store.setSectionAccess(connection, v, Stores.invites.catalogue),
             ),
           ),
-        for (final s in added)
-          AppListRow(
+        for (final s in others)
+          AppFormToggleRow(
             icon: AppIcons.folder,
-            title: _sectionName(s),
-            subtitle: 'You added it · ${_recordCount(s)}',
-            onTap: () => showAppOptionsSheet(
-              context: context,
-              title: _sectionName(s),
-              subtitle: 'You added it',
-              actions: [
-                AppSheetAction(
-                  icon: AppIcons.plusSlashMinus,
-                  label: 'Add or remove records',
-                  onTap: () => _editSection(s),
-                ),
-                AppSheetAction(
-                  icon: AppIcons.shieldSlash,
-                  label: 'Remove',
-                  destructive: true,
-                  onTap: () => _removeSection(connection, s),
-                ),
-              ],
-            ),
+            label: _sectionName(s),
+            subtitle: connection.sections.contains(s.id)
+                ? 'Read · ${_recordCount(s)}'
+                : _recordCount(s),
+            value: connection.sections.contains(s.id),
+            onChanged: (v) =>
+                _change(store.setSectionReached(connection, s.id, v)),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           ),
       ],
     );
@@ -529,6 +451,17 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
               label: connection.isExpired ? 'Expired' : 'Expires',
               value: dayLabel(connection.expiresAt),
             ),
+            if (!connection.isExpired)
+              AppFormToggleRow(
+                icon: AppIcons.pause,
+                label: 'Active',
+                subtitle: 'Off pauses it and its links',
+                value: !connection.paused,
+                onChanged: store.isChanging
+                    ? null
+                    : (on) => _setPaused(connection, !on),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              ),
           ],
         ),
         ToolPermissions(
@@ -553,15 +486,8 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
           onPermission: (key, on) => _change(
             store.setPermission(connection, key, on, Stores.invites.catalogue),
           ),
-          showSection: true,
-          ownSection: connection.hasOwnSection,
-          onOwnSection: (v) => _change(store.setOwnSection(connection, v)),
-          sectionName: _ownSectionName(connection),
-          sectionIsNew: connection.section.isEmpty,
-          sectionWrite: connection.vaultAccess != 'read',
-          onSectionWrite: (v) => _change(
-            store.setSectionAccess(connection, v, Stores.invites.catalogue),
-          ),
+          // Its sections have a group of their own below.
+          ownSection: connection.reachedSections.isNotEmpty,
         ),
         _sections(connection),
         AppListGroup(
@@ -627,25 +553,6 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
           ),
         AppDetailManage(
           actions: [
-            if (connection.paused)
-              AppButton(
-                label: 'Activate',
-                icon: AppIcons.play,
-                busy: store.isChanging,
-                onTap: store.isChanging
-                    ? null
-                    : () => _setPaused(connection, false),
-              )
-            else if (!connection.isExpired)
-              AppButton(
-                label: 'Pause',
-                icon: AppIcons.pause,
-                style: AppButtonStyle.accent,
-                busy: store.isChanging,
-                onTap: store.isChanging
-                    ? null
-                    : () => _setPaused(connection, true),
-              ),
             AppButton(
               label: 'Disconnect',
               icon: AppIcons.linkSlash,
