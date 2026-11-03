@@ -63,6 +63,16 @@ abstract class _WebhooksStore with Store {
   final ObservableMap<String, WebhookDelivery> details =
       ObservableMap<String, WebhookDelivery>();
 
+  /// The range the endpoint page charts: `1h`, `24h` or `7d`.
+  @observable
+  String metricsRange = '24h';
+
+  /// Each endpoint's metrics for [metricsRange].
+  final ObservableMap<String, WebhookMetrics> metrics =
+      ObservableMap<String, WebhookMetrics>();
+
+  final ObservableSet<String> loadingMetrics = ObservableSet<String>();
+
   /// The delivery a resend or a test is waiting on.
   @observable
   String? sendingId;
@@ -171,6 +181,36 @@ abstract class _WebhooksStore with Store {
       runInAction(() => errorMessage = describeError(e));
     } finally {
       runInAction(() => loadingDeliveries.remove(endpointId));
+    }
+  }
+
+  @action
+  void setMetricsRange(String range, String endpointId) {
+    metricsRange = range;
+    metrics.remove(endpointId);
+    loadMetrics(endpointId);
+  }
+
+  @action
+  Future<void> loadMetrics(String endpointId) async {
+    loadingMetrics.add(endpointId);
+    final asked = metricsRange;
+    try {
+      final data = await _api.get(
+        '$_base/endpoints/$endpointId/metrics',
+        queryParams: {'range': asked},
+      );
+      // A slower answer for a range no longer picked mustn't replace it.
+      if (asked != metricsRange) return;
+      runInAction(
+        () => metrics[endpointId] = WebhookMetrics.fromJson(
+          data as Map<String, dynamic>,
+        ),
+      );
+    } catch (e) {
+      runInAction(() => errorMessage = describeError(e));
+    } finally {
+      runInAction(() => loadingMetrics.remove(endpointId));
     }
   }
 
@@ -386,6 +426,7 @@ abstract class _WebhooksStore with Store {
   void forget() {
     endpoints.clear();
     deliveries.clear();
+    metrics.clear();
     details.clear();
   }
 }

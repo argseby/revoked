@@ -2385,6 +2385,71 @@ paths:
           description: The endpoint, with `secret`.
         "403":
           description: The caller lacks Manage webhooks (`webhook:manage`).
+  /api/webhooks/endpoints/{id}/metrics:
+    get:
+      tags: [Webhooks]
+      summary: How an endpoint has done
+      description: |
+        Its attempts over `range` (`1h` in 5-minute buckets, `24h` hourly,
+        the default, or `7d` in 6-hour buckets), oldest first: how many were
+        answered with a 2xx and how many weren't, with the median and p95
+        response time. Also the range's answers by kind (`2xx`, `4xx`, `5xx`,
+        `none` for no answer), the deliveries made and how many got through on
+        the first try, how many wait to be tried again right now, and the
+        event types sent most. The endpoint list carries the last day as
+        `series`.
+      security:
+        - Session: []
+        - ApiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: range
+          in: query
+          schema: { type: string, enum: [1h, 24h, 7d], default: 24h }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  range: { type: string }
+                  buckets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start: { type: string }
+                        delivered: { type: integer }
+                        failed: { type: integer }
+                        p50Ms: { type: integer }
+                        p95Ms: { type: integer }
+                  deliveries: { type: integer }
+                  firstTry: { type: integer }
+                  retrying: { type: integer }
+                  p95Ms: { type: integer }
+                  codes:
+                    type: object
+                    properties:
+                      2xx: { type: integer }
+                      4xx: { type: integer }
+                      5xx: { type: integer }
+                      none: { type: integer }
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type: { type: string }
+                        count: { type: integer }
+        "403":
+          description: The caller lacks Manage webhooks (`webhook:manage`).
+        "404":
+          description: Not an endpoint of this workspace.
   /api/webhooks/endpoints/{id}:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
