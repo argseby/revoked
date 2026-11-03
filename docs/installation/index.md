@@ -22,15 +22,37 @@ check your server against.
 
 ```bash
 git clone https://github.com/argseby/revoked && cd revoked
-docker network create proxy-network   # once — or reuse your proxy's network
 cp .env.example .env                  # set DOMAIN; see the .env reference
-docker compose up -d --build
+docker compose up -d
 docker compose logs api               # prints the DNS record to publish
 ```
 
-The container opens no ports on the host. Your proxy reaches it by name over
-the shared network. So nobody can reach the API by raw IP and skip your TLS.
-More in [Put a reverse proxy in front](reverse-proxy.md).
+Compose pulls the release image, so nothing is built. To build this checkout
+instead, run `docker compose up -d --build`.
+
+**Test it before the proxy:**
+
+The API answers on the machine itself, at `http://localhost:3000`, and on no
+other address:
+
+```bash
+curl http://localhost:3000/healthz
+```
+
+The app can use `http://localhost:3000` as its server on that machine, sign-in
+included. From another computer, an SSH tunnel brings the same address there:
+
+```bash
+ssh -L 3000:127.0.0.1:3000 you@your-server
+```
+
+To reach it by the machine's IP instead, set `API_PUBLISH=3000`. That answers
+`/healthz` and shows the version, but nobody can sign in: a passkey cannot be
+bound to an IP address. Set it back before the server goes public, because a
+port open by IP skips the proxy's TLS.
+
+Your proxy reaches the container by name over a shared network. More in
+[Put a reverse proxy in front](reverse-proxy.md).
 
 **Then, in this order:**
 
@@ -54,6 +76,8 @@ Use a **git-backed** stack with the compose path `docker-compose.yml`, and put
 the `.env` values in Portainer's *Environment variables* section.
 
 The stack runs the published image, `ghcr.io/argseby/revoked`, which carries
-its release; Portainer builds nothing. Set `REVOKED_IMAGE` to a release tag,
-such as `ghcr.io/argseby/revoked:v0.35.0`, and change the tag to upgrade. With
-`:latest`, an upgrade needs *Re-pull image* enabled on redeploy.
+its release; Portainer builds nothing. To pin a release, set `REVOKED_IMAGE`
+to the full image reference, such as `ghcr.io/argseby/revoked:v0.36.0`, and
+change the tag to upgrade. A tag alone (`latest`, `:v0.36.0`) is not an image
+name, and the pull fails with *pull access denied*. Left unset, the stack
+runs `:latest`, and an upgrade needs *Re-pull image* enabled on redeploy.

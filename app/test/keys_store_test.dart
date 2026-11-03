@@ -14,6 +14,7 @@ import 'package:revoked_app/features/sealing/store/keys_store.dart';
 
 const _user = 'user000000000aa';
 const _workspace = 'wspace00000000a';
+const _otherWorkspace = 'wspace00000000b';
 const _canary = 'smtp-password-canary-9d2f';
 const _recordKey = 'smtp_password';
 
@@ -72,6 +73,8 @@ class _FakeServer {
   List<Map<String, dynamic>> devices = [];
   final List<Map<String, dynamic>> epochs = [];
   final List<Map<String, dynamic>> wraps = [];
+  final List<Map<String, dynamic>> otherEpochs = [];
+  final List<Map<String, dynamic>> otherWraps = [];
   final StringBuffer received = StringBuffer();
 
   bool supportsSealing = true;
@@ -127,24 +130,39 @@ class _FakeServer {
         }
         devices.add(entry);
         if (entry['action'] == 'remove') {
-          wraps.removeWhere((w) => w['deviceSeq'] == entry['targetSeq']);
-          if (epochs.isNotEmpty) epochs.last['rotationDue'] = true;
+          for (final (keyEpochs, keyWraps) in [
+            (epochs, wraps),
+            (otherEpochs, otherWraps),
+          ]) {
+            keyWraps.removeWhere((w) => w['deviceSeq'] == entry['targetSeq']);
+            if (keyEpochs.isNotEmpty) keyEpochs.last['rotationDue'] = true;
+          }
         }
       }
       for (final raw in body['wraps'] as List<dynamic>? ?? const []) {
-        wraps.add(raw as Map<String, dynamic>);
+        final wrap = raw as Map<String, dynamic>;
+        (wrap['workspace'] == _otherWorkspace ? otherWraps : wraps).add(wrap);
       }
       return _json({'ok': true});
     }
     if (path.endsWith('/epochs')) {
       if (failEpochs) return http.Response('{"message":"down"}', 500);
-      epochs.add({
+      final other = path.contains('/$_otherWorkspace/');
+      final keyEpochs = other ? otherEpochs : epochs;
+      final keyWraps = other ? otherWraps : wraps;
+      if (body['epoch'] != keyEpochs.length + 1) {
+        return http.Response(
+          jsonEncode({'code': 'sealed_version_conflict', 'status': 409}),
+          409,
+        );
+      }
+      keyEpochs.add({
         'epoch': body['epoch'],
         'priorWrap': body['priorWrap'],
         'rotationDue': false,
       });
       for (final raw in body['wraps'] as List<dynamic>) {
-        wraps.add(raw as Map<String, dynamic>);
+        keyWraps.add(raw as Map<String, dynamic>);
       }
       return _json({'ok': true});
     }
@@ -152,6 +170,8 @@ class _FakeServer {
       devices = [];
       epochs.clear();
       wraps.clear();
+      otherEpochs.clear();
+      otherWraps.clear();
       return _json({'ok': true, 'deleted': 0});
     }
     return http.Response('{}', 404);
@@ -161,15 +181,16 @@ class _FakeServer {
       jsonDecode(
             jsonEncode({
               'devices': devices,
-              'workspaces': epochs.isEmpty
-                  ? []
-                  : [
-                      {
-                        'workspace': _workspace,
-                        'epochs': epochs,
-                        'wraps': wraps,
-                      },
-                    ],
+              'workspaces': [
+                if (epochs.isNotEmpty)
+                  {'workspace': _workspace, 'epochs': epochs, 'wraps': wraps},
+                if (otherEpochs.isNotEmpty)
+                  {
+                    'workspace': _otherWorkspace,
+                    'epochs': otherEpochs,
+                    'wraps': otherWraps,
+                  },
+              ],
             }),
           )
           as Map<String, dynamic>;
@@ -688,6 +709,101 @@ void main() {
       // First hasn't heard about the third device, and still signs correctly.
       expect(await first.removeDevice(third.thisDeviceSeq!), isTrue);
       expect(first.chainBroken, isFalse);
+    });
+
+    test('a stale device takes up a key another device started', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+
+      expect(await first.ensureWorkspaceKey(_otherWorkspace), isTrue);
+      expect(second.canSeal(_otherWorkspace), isFalse);
+
+      expect(await second.ensureWorkspaceKey(_otherWorkspace), isTrue);
+      expect(second.errorMessage, isNull);
+      expect(server.otherEpochs.length, 1);
+    });
+
+    test('a key started elsewhere mid-way is taken up, not refused', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      expect(await first.ensureWorkspaceKey(_otherWorkspace), isTrue);
+
+      // The read before the write still misses it, as if the other device
+      // started it in between.
+      var hidden = false;
+      server.tamperState = (state) {
+        if (hidden) return state;
+        hidden = true;
+        return {
+          ...state,
+          'workspaces': [
+            for (final w in state['workspaces'] as List<dynamic>)
+              if ((w as Map<String, dynamic>)['workspace'] != _otherWorkspace)
+                w,
+          ],
+        };
+      };
+
+      expect(await second.ensureWorkspaceKey(_otherWorkspace), isTrue);
+      expect(server.otherEpochs.length, 1);
+    });
+
+    test('a key replaced elsewhere mid-way does not fail the load', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      final third = await _addDevice(server, first);
+      expect(await first.removeDevice(third.thisDeviceSeq!), isTrue);
+      expect(server.epochs.length, 2);
+
+      // Second reads the key as still due, after first already replaced it.
+      var shown = false;
+      server.tamperState = (state) {
+        if (shown) return state;
+        shown = true;
+        final row =
+            (state['workspaces'] as List<dynamic>).first
+                as Map<String, dynamic>;
+        return {
+          ...state,
+          'workspaces': [
+            {
+              ...row,
+              'epochs': [
+                {
+                  ...(row['epochs'] as List<dynamic>).first,
+                  'rotationDue': true,
+                },
+              ],
+              'wraps': [
+                for (final w in row['wraps'] as List<dynamic>)
+                  if ((w as Map<String, dynamic>)['epoch'] == 1) w,
+              ],
+            },
+          ],
+        };
+      };
+
+      await second.load();
+      expect(second.errorMessage, isNull);
+      expect(second.status, SealingStatus.ready);
+      expect(second.canSeal(_workspace), isTrue);
+      expect(server.epochs.length, 2);
+    });
+
+    test('a device that was away reads the server again', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final second = await _addDevice(server, first);
+      expect(await first.ensureWorkspaceKey(_otherWorkspace), isTrue);
+
+      await second.ensureLoaded();
+      expect(second.canSeal(_otherWorkspace), isFalse);
+      second.markStale();
+      await second.ensureLoaded();
+      expect(second.canSeal(_otherWorkspace), isTrue);
     });
   });
 

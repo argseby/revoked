@@ -17,6 +17,7 @@ mixin RefreshOnEntry<T extends StatefulWidget> on State<T> {
     _lifecycle = AppLifecycleListener(
       onResume: () {
         Stores.invalidateLoads();
+        Stores.keys.markStale();
         refresh();
       },
     );

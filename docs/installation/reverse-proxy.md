@@ -5,13 +5,12 @@ compose file makes that proxy the *only* way in.
 
 ## Connect your proxy to the container
 
-The container opens no ports on the host. An open port would be reachable at
-the machine's raw IP, past your proxy's TLS. Instead, your proxy reaches the
-container **by name** over a shared Docker network:
-
-```bash
-docker network create proxy-network   # once — or reuse your proxy's own network
-```
+The container is published on the host's loopback interface only, for a test
+from the machine itself. A port open at the machine's IP would skip your
+proxy's TLS. Instead, your proxy reaches the container **by name** over a
+shared Docker network, `proxy-network` by default. Compose creates it on the
+first `up`; to use the network your proxy already has, set `PROXY_NETWORK` to
+its name.
 
 Attach your proxy's container to that network. Then forward to
 `revoked-api:3000` (that is `CONTAINER_NAME:API_PORT`) over plain `http`.
@@ -42,7 +41,7 @@ request. One noisy visitor then uses up everyone's budget.
 docker compose --profile proxy up -d
 ```
 
-This adds the bundled nginx on `:80` — the only setup that opens a host port.
+This adds the bundled nginx on `:80`.
 For TLS, get a certificate and uncomment the TLS block in
 `deploy/nginx/default.conf.template`. The ACME challenge path is already set
 up for certbot's webroot mode.

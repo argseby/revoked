@@ -39,6 +39,7 @@ func TestComposePassesEveryDocumentedVariable(t *testing.T) {
 	composeOnly := map[string]bool{
 		"CONTAINER_NAME": true,
 		"API_PORT":       true,
+		"API_PUBLISH":    true,
 		"HTTP_PORT":      true,
 		"HTTPS_PORT":     true,
 		"PROXY_NETWORK":  true,

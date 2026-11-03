@@ -95,10 +95,10 @@ proxy that handles TLS. You need a domain and Docker with Compose.
 
 ```bash
 git clone https://github.com/argseby/revoked && cd revoked
-docker network create proxy-network   # once, or reuse your proxy's network
 cp .env.example .env                  # set DOMAIN
-docker compose up -d --build
+docker compose up -d
 docker compose logs api               # prints the DNS record to publish
+curl http://localhost:3000/healthz    # answers on this machine only
 ```
 
 Then publish that DNS record, point your proxy at the container, add people and

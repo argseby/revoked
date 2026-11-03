@@ -361,6 +361,7 @@ abstract class _KeysStore with Store {
   bool _serverSupports = false;
   String _serverSupportsFor = '';
   String _loadedFor = '';
+  bool _stale = false;
   Future<void>? _loading;
   Future<void>? _pinWrites;
 
@@ -449,11 +450,15 @@ abstract class _KeysStore with Store {
   /// Loads once per signed-in person; a later call awaits the same load.
   Future<void> ensureLoaded() {
     final scope = _scope;
-    if (_loadedFor == scope && status != SealingStatus.unknown) {
+    if (_loadedFor == scope && status != SealingStatus.unknown && !_stale) {
       return Future.value();
     }
     return _loading ??= load().whenComplete(() => _loading = null);
   }
+
+  /// Makes the next [ensureLoaded] read the server again. Another device may
+  /// have changed the list or started a key while this one was away.
+  void markStale() => _stale = true;
 
   /// Keys stay in memory only for a session; signing out drops them. The device
   /// keys on disk stay, the way identity keys do, so signing back in doesn't
@@ -510,6 +515,7 @@ abstract class _KeysStore with Store {
   @action
   Future<void> load() async {
     errorMessage = null;
+    _stale = false;
     if (_currentUser().isEmpty) {
       status = SealingStatus.unknown;
       return;
@@ -591,11 +597,16 @@ abstract class _KeysStore with Store {
     if (due.isEmpty || !_trusted) return;
     for (final workspace in due) {
       final held = _workspaces[workspace]!;
-      await _startEpoch(
-        workspace,
-        held.currentEpoch + 1,
-        held.keys[held.currentEpoch],
-      );
+      try {
+        await _startEpoch(
+          workspace,
+          held.currentEpoch + 1,
+          held.keys[held.currentEpoch],
+        );
+      } on ApiException catch (e) {
+        // Another device replaced it first; the read below picks that up.
+        if (e.code != AppErrorCode.sealedVersionConflict) rethrow;
+      }
     }
     await _applyState(await _fetchState());
   }
@@ -987,12 +998,24 @@ abstract class _KeysStore with Store {
     if (!_trusted || workspace.isEmpty) return false;
     if (writableWorkspaces.contains(workspace)) return true;
     try {
+      // Another device may have started the key since this one last looked.
+      await _refresh();
+      if (!_trusted) {
+        errorMessage =
+            'The device list changed. Review it in Settings before encrypting '
+            'anything.';
+        return false;
+      }
       if (lockedWorkspaces.contains(workspace) ||
           _workspaces.containsKey(workspace)) {
-        await _refresh();
         return writableWorkspaces.contains(workspace);
       }
-      await _startEpoch(workspace, 1, null);
+      try {
+        await _startEpoch(workspace, 1, null);
+      } on ApiException catch (e) {
+        // Started elsewhere between that read and this write.
+        if (e.code != AppErrorCode.sealedVersionConflict) rethrow;
+      }
       await _refresh();
       return writableWorkspaces.contains(workspace);
     } catch (e) {

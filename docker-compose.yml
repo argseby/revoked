@@ -1,23 +1,20 @@
 # revoked — API stack.
 #
-# Create the shared network once, or reuse the one your reverse proxy already
-# has, then bring it up:
-#
-#   docker network create proxy-network
 #   cp .env.example .env    # DOMAIN is required — the server refuses to boot without it
-#   docker compose up -d --build
+#   docker compose up -d
 #   docker compose logs api # prints the _revoked TXT record to publish
 #
-# Nothing is published to the host. A published port is reachable at the
-# machine's IP and skips whatever TLS the reverse proxy terminates; the proxy
-# reaches this container by name over PROXY_NETWORK instead, so the port only
-# has to be free inside the container.
+# The API port is published on the host's loopback interface only, so the
+# server answers at http://localhost:3000 on this machine and nowhere else. A
+# port reachable at the machine's IP would skip whatever TLS the reverse proxy
+# terminates; the proxy reaches this container by name over PROXY_NETWORK
+# instead.
 #
 #   Nginx Proxy Manager: forward hostname ${CONTAINER_NAME}, port ${API_PORT},
 #   scheme http — with the NPM container attached to PROXY_NETWORK too.
 #
 # No reverse proxy on this host? `docker compose --profile proxy up -d` adds
-# the bundled nginx on :80, the only thing that publishes a port.
+# the bundled nginx on :80.
 #
 # Variables are mapped explicitly rather than through `env_file:` so this works
 # unchanged under Portainer, which passes stack variables as environment and
@@ -34,6 +31,8 @@ services:
     build: .
     container_name: ${CONTAINER_NAME:-revoked-api}
     restart: unless-stopped
+    ports:
+      - "${API_PUBLISH:-127.0.0.1:3000}:${API_PORT:-3000}"
     environment:
       DOMAIN: ${DOMAIN}
       # Explicit: main.go otherwise resolves this against the working
@@ -117,10 +116,9 @@ services:
       # - /etc/letsencrypt:/etc/letsencrypt:ro
 
 networks:
-  # Shared with the reverse proxy, and created outside this file so several
-  # stacks can sit on it.
+  # Shared with the reverse proxy. Not external: compose creates it when it is
+  # missing and joins it when another stack, such as the proxy's, already has.
   proxy:
-    external: true
     name: ${PROXY_NETWORK:-proxy-network}
 
 volumes:
