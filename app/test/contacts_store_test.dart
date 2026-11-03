@@ -56,6 +56,13 @@ void main() {
         'kind': action == 'ask' ? 'request' : 'share',
         'delivered': delivers,
         'emailed': emails,
+        // What the server sends for a contact it will name a channel for;
+        // an unconfirmed one gets 'handed_over' and both flags false.
+        'channel': delivers
+            ? 'account'
+            : emails
+            ? 'email'
+            : 'manual',
       });
     }
     if (path.startsWith('/api/collections/contacts/records/')) {

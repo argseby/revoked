@@ -108,7 +108,10 @@ func TestGrantEmailOffByDefault(t *testing.T) {
 		"records": []string{record},
 		"label":   "My bank details",
 	}).Expect().Status(http.StatusOK).JSON().Object()
-	sent.Value("emailed").Boolean().IsFalse()
+	// The answer does not say whether mail went out — for a contact nobody
+	// has confirmed it says only that the grant exists, or it would resolve
+	// the address. The mailbox is where "nothing was sent" is checked.
+	sent.Value("channel").String().IsEqual(util.ContactChannelHandedOver)
 	// The slug still comes back: the sender can always pass it on by hand.
 	sent.Value("slug").String().NotEmpty()
 	box.quiet(t, "ada@elsewhere.example")
@@ -130,8 +133,7 @@ func TestSendToEmailOnlyContactMailsTheLink(t *testing.T) {
 		"records": []string{record},
 		"label":   "My bank details",
 	}).Expect().Status(http.StatusOK).JSON().Object()
-	sent.Value("emailed").Boolean().IsTrue()
-	sent.Value("delivered").Boolean().IsFalse()
+	sent.Value("channel").String().IsEqual(util.ContactChannelHandedOver)
 	slug := sent.Value("slug").String().Raw()
 
 	mail := box.await(t, "ada@elsewhere.example", 1)[0]
@@ -163,7 +165,7 @@ func TestSamedomainPolicyRefusesOutsideDomain(t *testing.T) {
 		"records": []string{record},
 		"label":   "Not for them",
 	}).Expect().Status(http.StatusOK).JSON().Object().
-		Value("emailed").Boolean().IsFalse()
+		Value("slug").String().NotEmpty()
 	box.quiet(t, "someone@elsewhere.example")
 
 	inside := newContact(t, baseURL, sender.token, sender.workspace,
@@ -172,7 +174,7 @@ func TestSamedomainPolicyRefusesOutsideDomain(t *testing.T) {
 		"records": []string{record},
 		"label":   "For them",
 	}).Expect().Status(http.StatusOK).JSON().Object().
-		Value("emailed").Boolean().IsTrue()
+		Value("slug").String().NotEmpty()
 	box.await(t, "colleague@test.invalid", 1)
 }
 
@@ -193,7 +195,7 @@ func TestAskEmailNeedsOpenSignups(t *testing.T) {
 		"label":    "Your new address",
 		"identity": identity,
 	}).Expect().Status(http.StatusOK).JSON().Object().
-		Value("emailed").Boolean().IsFalse()
+		Value("slug").String().NotEmpty()
 	box.quiet(t, "ada@elsewhere.example")
 
 	setEnvForTest(t, "ALLOW_SIGNUPS", "true")
@@ -201,7 +203,6 @@ func TestAskEmailNeedsOpenSignups(t *testing.T) {
 		"label":    "Your new address",
 		"identity": identity,
 	}).Expect().Status(http.StatusOK).JSON().Object()
-	asked.Value("emailed").Boolean().IsTrue()
 	slug := asked.Value("slug").String().Raw()
 
 	mail := box.await(t, "ada@elsewhere.example", 1)[0]

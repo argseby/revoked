@@ -4,12 +4,20 @@ An identity lets recipients verify that a share or request really comes
 from its sender. It is bound to the server's domain, so a forgery sent in
 someone else's name shows up as a forgery.
 
-An identity's private key is generated on the device and never leaves it;
-it is stored in the system keychain. The server receives only the public
-half, and signs it. The domain's DNS names the server's key. This closes
-the chain: the domain vouches for the server, the server vouches for the
-identity, and the identity signs what is sent. The
-[trust chain](../api/trust-chain.md) has the details.
+An identity's private key is generated on the device and stored in the
+system keychain. The server receives only the public half, and signs it.
+The domain's DNS names the server's key. This closes the chain: the domain
+vouches for the server, the server vouches for the identity, and the
+identity signs what is sent. The [trust chain](../api/trust-chain.md) has
+the details.
+
+With [end-to-end encryption](encryption.md) on, the private key also
+travels — encrypted, so the server cannot read it — to the other devices
+on the account's device list, and the recovery key restores it. The same
+identity then signs from every trusted device, and the attestations bound
+to it stay usable when a device is lost. Without encryption, the key never
+leaves the device that made it, and each device needs an identity of its
+own.
 
 ## Managing identities
 
@@ -23,11 +31,20 @@ Revocation cannot be undone. An identity's certificate stays valid for
 years, so revocation is what signals that it should no longer be trusted.
 Any verifier, on the same server or another, learns of it within the hour.
 Links and requests it signed keep working, but no longer show as verified.
-Revocation also erases the private key from the device. Revoked identities
-remain on record rather than being erased, so their status stays
-answerable.
+Revocation also erases the private key, from this device and from the
+encrypted copy the other devices read. Revoked identities remain on record
+rather than being erased, so their status stays answerable.
 
-A lost device means a lost private key. There is deliberately no export.
+Removing a device from the device list stops it from reading anything new,
+but a key it already held stays in its memory. A device that was lost or
+stolen while unlocked therefore calls for replacing the identities it could
+sign with, the same way the vault's guidance asks for secrets it knew to
+be changed. [Replacing](#replacing-an-identity) moves an identity's
+attestations to a new one and then revokes it; revoking it directly ends
+those attestations instead.
+
+Without end-to-end encryption, a lost device means a lost private key.
+There is deliberately no export outside the encrypted device list.
 
 ## Sender verification {#check-who-sent-something}
 

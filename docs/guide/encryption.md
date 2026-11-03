@@ -34,6 +34,10 @@ A new device joins in one of three ways:
 | A passkey | A passkey connected to encryption opens the records on any device signed in with it. **Connect your passkey** connects the one used to sign in. Some passkeys cannot do this. |
 | The recovery key | **Use your recovery key** gives this device access and removes every other device from the list. They must be added again. |
 
+The device list carries more than record keys: the private keys of
+[identities](identities.md) travel over it too, encrypted the same way, so
+every trusted device can sign and present attestations.
+
 **Remove** takes a device or passkey off the list. It can read nothing
 encrypted from then on, but keeps copies of what it already read, so a
 secret that matters should be changed. A removed device stays signed in

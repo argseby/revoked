@@ -40,6 +40,15 @@ abstract final class SealedFormats {
   static Uint8List _priorAad(String workspace, int epoch) =>
       Sealing.context('revoked-prior-epoch-v1', [workspace, epoch]);
 
+  /// Binds an identity's wrapped private key to that identity in that
+  /// workspace under that epoch: a server moving a wrap to another identity
+  /// row gets a failed decryption, not a key under the wrong name.
+  static Uint8List _identityKeyAad(
+    String workspace,
+    String identity,
+    int epoch,
+  ) => Sealing.context('revoked-identity-key-v1', [workspace, identity, epoch]);
+
   static String sealValue({
     required Uint8List valueKey,
     required String value,
@@ -98,6 +107,39 @@ abstract final class SealedFormats {
     workspaceKey,
     _dekAad(workspace, record, version, epoch),
     decode(wrapped),
+  );
+
+  /// An identity's private key for the owner's other devices, under the
+  /// workspace key of [epoch]. Padded: the ciphertext should not say how long
+  /// the PEM is.
+  static String wrapIdentityKey({
+    required Uint8List workspaceKey,
+    required String privateKeyPem,
+    required String workspace,
+    required String identity,
+    required int epoch,
+  }) => encode(
+    Sealing.aeadSeal(
+      workspaceKey,
+      _identityKeyAad(workspace, identity, epoch),
+      Sealing.pad(Uint8List.fromList(utf8.encode(privateKeyPem))),
+    ),
+  );
+
+  static String openIdentityKey({
+    required Uint8List workspaceKey,
+    required String wrapped,
+    required String workspace,
+    required String identity,
+    required int epoch,
+  }) => utf8.decode(
+    Sealing.unpad(
+      Sealing.aeadOpen(
+        workspaceKey,
+        _identityKeyAad(workspace, identity, epoch),
+        decode(wrapped),
+      ),
+    ),
   );
 
   static String wrapPriorEpoch({

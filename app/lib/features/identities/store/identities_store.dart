@@ -8,6 +8,7 @@ import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/state/load_state.dart';
+import 'package:revoked_app/core/stores.dart';
 
 part 'identities_store.g.dart';
 
@@ -42,9 +43,11 @@ abstract class _IdentitiesStore with Store {
   @observable
   String? errorMessage;
 
-  /// The identities whose private key is on this device. A key never leaves
-  /// the device that made it, so on a second device the account's identities
-  /// are listed but cannot sign.
+  /// The identities whose private key is on this device. With end-to-end
+  /// encryption on, keys travel to every trusted device through the device
+  /// list ([syncSealedKeys]); without it, each key stays on the device that
+  /// made it, and the account's other identities are listed but cannot sign
+  /// here.
   final ObservableSet<String> localKeyIds = ObservableSet<String>();
 
   /// Whether this device's key check has run since the identities loaded.
@@ -125,6 +128,72 @@ abstract class _IdentitiesStore with Store {
         ..addAll(present);
       keysChecked = true;
     });
+    await syncSealedKeys();
+  }
+
+  /// Whether a sync pass is running, so two loads don't race one another.
+  bool _syncing = false;
+
+  /// Brings this device in line with the account's device list: opens keys
+  /// wrapped on another device, and wraps a key that exists only here — an
+  /// identity from before syncing, or one made while encryption was off.
+  /// Quietly does nothing on an account without end-to-end encryption, or
+  /// while this device is not trusted yet.
+  Future<void> syncSealedKeys() async {
+    if (_syncing) return;
+    _syncing = true;
+    try {
+      await Stores.keys.ensureLoaded();
+      for (final identity in identities.toList()) {
+        if (identity.isRevoked) continue;
+        final here = localKeyIds.contains(identity.id);
+        if (!here && identity.sealedKey.isNotEmpty) {
+          final pem = Stores.keys.openIdentityKey(
+            workspace: identity.workspace,
+            identity: identity.id,
+            epoch: identity.sealedKeyEpoch,
+            wrap: identity.sealedKey,
+          );
+          if (pem == null || pem.isEmpty) continue;
+          await _crypto.storePrivateKey(identity.id, pem);
+          runInAction(() => localKeyIds.add(identity.id));
+        } else if (here && identity.sealedKey.isEmpty) {
+          final pem = await _crypto.loadPrivateKey(identity.id);
+          if (pem == null || pem.isEmpty) continue;
+          await _uploadSealedKey(identity.id, identity.workspace, pem);
+        }
+      }
+    } catch (_) {
+      // Never the identities list's problem: whatever failed here, every key
+      // already on this device keeps working, and the next load tries again.
+    } finally {
+      _syncing = false;
+    }
+  }
+
+  /// Wraps the private key under the workspace key and stores it on the
+  /// identity, where the owner's other devices find it. Does nothing when
+  /// this device may not encrypt in that workspace, and keeps the key local
+  /// when the server refuses (an older server, or a member without the
+  /// identities permission).
+  Future<void> _uploadSealedKey(String id, String workspace, String pem) async {
+    final sealed = Stores.keys.sealIdentityKey(
+      workspace: workspace,
+      identity: id,
+      privateKeyPem: pem,
+    );
+    if (sealed == null) return;
+    try {
+      final data = await _api.patch(
+        '$_basePath/$id',
+        body: {'sealedKey': sealed.wrap, 'sealedKeyEpoch': sealed.epoch},
+      );
+      final updated = Identity.fromJson(data as Map<String, dynamic>);
+      final idx = identities.indexWhere((i) => i.id == id);
+      if (idx != -1) runInAction(() => identities[idx] = updated);
+    } catch (_) {
+      // Left local; the next load tries again.
+    }
   }
 
   /// Fetches an identity's public certificate + fingerprint from the dedicated
@@ -175,6 +244,9 @@ abstract class _IdentitiesStore with Store {
       // copyWith preserves server-set fields (domainAtIssue, created, …)
       // that a hand-rebuilt Identity would silently drop.
       identities.insert(0, identity.copyWith(isPrimary: isPrimary));
+      // So the person's other devices can sign with it too. Best effort: on
+      // an account without encryption the key simply stays here.
+      await _uploadSealedKey(identity.id, workspace, generated.privateKeyPem);
       return true;
     } catch (e) {
       errorMessage = describeError(e);
@@ -226,6 +298,7 @@ abstract class _IdentitiesStore with Store {
         body: {'status': 'revoked', 'revokedReason': reason},
       );
       await _crypto.deletePrivateKey(id);
+      localKeyIds.remove(id);
       final updated = Identity.fromJson(data as Map<String, dynamic>);
       final idx = identities.indexWhere((i) => i.id == id);
       if (idx != -1) identities[idx] = updated;

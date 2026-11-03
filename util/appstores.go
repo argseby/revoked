@@ -7,7 +7,9 @@ import (
 )
 
 // Where the app is downloaded, shown on the /app page a phone reaches from the
-// QR code a computer shows. Unset, the page only offers to open the app.
+// QR code a computer shows. Wherever the operator publishes builds — a store
+// listing, a release page — so the page names the platform, not a store.
+// Unset, the page only offers to open the app.
 const (
 	AppStoreURLEnv  = "APP_STORE_URL"
 	PlayStoreURLEnv = "PLAY_STORE_URL"

@@ -888,26 +888,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                       : null,
                   onTap: () => Navigator.of(sheetCtx).pop(''),
                 ),
-                if (templates.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xl,
-                      AppSpacing.sm,
-                      AppSpacing.xl,
-                      AppSpacing.sm,
-                    ),
-                    child: AppButton(
-                      icon: AppIcons.plus,
-                      label: 'Create a template',
-                      onTap: () {
-                        Navigator.of(sheetCtx).pop();
-                        Navigator.of(context).pop();
-                        goReturning(context, AppRoutes.templates);
-                      },
-                      style: AppButtonStyle.accent,
-                    ),
-                  )
-                else ...[
+                if (templates.isNotEmpty) ...[
                   if (templates.any((t) => t.isBuiltin))
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -928,6 +909,30 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                   for (final t in templates.where((t) => !t.isBuiltin))
                     _templatePickerTile(sheetCtx, t, inGroup: false),
                 ],
+                // The fields a request asks for come from a template, so the
+                // way to make one belongs in the list that offers them.
+                // Templates live in the vault; the draft stays in the store,
+                // so reopening the sheet finds it as it was.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.sm,
+                    AppSpacing.xl,
+                    AppSpacing.sm,
+                  ),
+                  child: AppButton(
+                    icon: AppIcons.plus,
+                    label: 'Create a template',
+                    onTap: () {
+                      Navigator.of(sheetCtx).pop();
+                      Navigator.of(context).pop();
+                      goReturning(context, AppRoutes.templates);
+                    },
+                    style: templates.isEmpty
+                        ? AppButtonStyle.accent
+                        : AppButtonStyle.ghost,
+                  ),
+                ),
               ],
             );
           },

@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -16,11 +18,9 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
-import 'package:revoked_app/core/widgets/app_entity_card.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
-import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
@@ -172,6 +172,9 @@ Future<bool?> openRecoveryKeySheet(
                                 final ok = await keys.finishRecovery(
                                   workspace: Stores.auth.activeWorkspace ?? '',
                                 );
+                                if (ok) {
+                                  unawaited(Stores.identities.syncSealedKeys());
+                                }
                                 if (ok && sheetContext.mounted) {
                                   Navigator.of(sheetContext).pop(true);
                                 }
@@ -285,6 +288,9 @@ Future<void> openAddThisDeviceSheet(BuildContext context) async {
                           final ok = await keys.confirmThisDevice(
                             keys.confirmationInput.text,
                           );
+                          if (ok) {
+                            unawaited(Stores.identities.syncSealedKeys());
+                          }
                           if (ok && sheetContext.mounted) {
                             Navigator.of(sheetContext).pop();
                           }
@@ -454,6 +460,9 @@ Future<void> _openRecoverySheet(BuildContext context) {
                   ? null
                   : () async {
                       final ok = await keys.restoreWithRecoveryKey();
+                      if (ok) {
+                        unawaited(Stores.identities.syncSealedKeys());
+                      }
                       if (ok && sheetContext.mounted) {
                         Navigator.of(sheetContext).pop();
                       }
@@ -812,10 +821,15 @@ class _WhereRecordsOpen extends StatelessWidget {
   final List<DeviceChainEntry> passkeys;
   final DeviceChainEntry? recovery;
 
+  /// Takes a passkey off the list. The row is the only place it is shown, so
+  /// it is also the only place it can be removed from.
+  final void Function(DeviceChainEntry) onRemovePasskey;
+
   const _WhereRecordsOpen({
     required this.keys,
     required this.passkeys,
     required this.recovery,
+    required this.onRemovePasskey,
   });
 
   @override
@@ -824,7 +838,6 @@ class _WhereRecordsOpen extends StatelessWidget {
       builder: (context) {
         final scheme = Theme.of(context).colorScheme;
         final thisDevice = keys.chain.bySeq(keys.thisDeviceSeq ?? 0);
-        final names = passkeys.map((e) => e.label).join(', ');
         Icon holds() => Icon(AppIcons.checkCircle, color: scheme.success);
         Icon missing() =>
             Icon(AppIcons.exclamationTriangle, color: scheme.warning);
@@ -841,16 +854,35 @@ class _WhereRecordsOpen extends StatelessWidget {
                   subtitle: 'This device · holds the key',
                   showChevron: false,
                 ),
-                AppListRow(
-                  leading: passkeys.isEmpty ? missing() : holds(),
-                  title: 'Your passkey',
-                  subtitle: passkeys.isNotEmpty
-                      ? '$names · opens them on any device signed in with it'
-                      : keys.passkeyWithoutSecret
-                      ? 'Cannot carry the key on this device'
-                      : 'Not connected yet',
-                  showChevron: false,
-                ),
+                if (passkeys.isEmpty)
+                  AppListRow(
+                    leading: missing(),
+                    title: 'Your passkey',
+                    subtitle: keys.passkeyWithoutSecret
+                        ? 'Cannot carry the key on this device'
+                        : 'Not connected yet',
+                    showChevron: false,
+                  )
+                else
+                  for (final entry in passkeys)
+                    AppListRow(
+                      leading: holds(),
+                      title: entry.label,
+                      subtitle:
+                          entry.credentialId == keys.thisPasskeyCredentialId
+                          ? 'Passkey · signed in here · opens them on any '
+                                'device signed in with it'
+                          : 'Passkey · opens them on any device signed in '
+                                'with it',
+                      showChevron: false,
+                      trailing: AppButton(
+                        icon: AppIcons.trash,
+                        tooltip: 'Remove ${entry.label}',
+                        style: AppButtonStyle.ghost,
+                        size: AppButtonSize.small,
+                        onTap: () => onRemovePasskey(entry),
+                      ),
+                    ),
                 AppListRow(
                   leading: recovery == null ? missing() : holds(),
                   title: 'Your recovery key',
@@ -869,7 +901,6 @@ class _WhereRecordsOpen extends StatelessWidget {
               ],
             ),
             if (passkeys.isEmpty && !keys.passkeyWithoutSecret) ...[
-              const SizedBox(height: AppSpacing.md),
               AppAlert(
                 tone: AppAlertTone.warning,
                 leading: const Icon(AppIcons.exclamationTriangle),
@@ -886,6 +917,7 @@ class _WhereRecordsOpen extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: AppSpacing.lg),
             ],
           ],
         );
@@ -1075,8 +1107,8 @@ class _Devices extends StatelessWidget {
               keys: keys,
               passkeys: passkeys,
               recovery: recovery,
+              onRemovePasskey: (entry) => _remove(context, entry),
             ),
-            const SizedBox(height: AppSpacing.lg),
             const Text(
               'Only these devices can read encrypted records, not the server. '
               'Encrypted records cannot be shared yet.',
@@ -1092,8 +1124,11 @@ class _Devices extends StatelessWidget {
                 onTap: () => _openAddAnotherDeviceSheet(context),
               ),
               children: [
+                // Rows, not cards: a card of its own inside the group's card
+                // draws a second outline around every device.
                 for (final entry in devices)
-                  AppEntityCard(
+                  AppListRow(
+                    icon: AppIcons.device,
                     title: entry.label,
                     subtitle: entry.seq == keys.thisDeviceSeq
                         ? 'This device'
@@ -1101,46 +1136,24 @@ class _Devices extends StatelessWidget {
                             entry.hpkePublicKey,
                             entry.signingPublicKey,
                           ),
-                    actions: [
-                      if (entry.seq != keys.thisDeviceSeq)
-                        AppSheetAction(
-                          icon: AppIcons.trash,
-                          label: 'Remove',
-                          destructive: true,
-                          onTap: () => _remove(context, entry),
-                        ),
-                    ],
-                  ),
-                for (final entry in passkeys)
-                  AppEntityCard(
-                    title: entry.label,
-                    subtitle: entry.credentialId == keys.thisPasskeyCredentialId
-                        ? 'Passkey · signed in here'
-                        : 'Passkey · ${KeysStore.fingerprint(entry.hpkePublicKey, entry.signingPublicKey)}',
-                    actions: [
-                      AppSheetAction(
-                        icon: AppIcons.trash,
-                        label: 'Remove',
-                        destructive: true,
-                        onTap: () => _remove(context, entry),
-                      ),
-                    ],
-                  ),
-                if (recovery != null)
-                  AppEntityCard(
-                    title: recovery.label,
-                    subtitle: KeysStore.fingerprint(
-                      recovery.hpkePublicKey,
-                      recovery.signingPublicKey,
-                    ),
+                    showChevron: false,
+                    trailing: entry.seq == keys.thisDeviceSeq
+                        ? null
+                        : AppButton(
+                            icon: AppIcons.trash,
+                            tooltip: 'Remove ${entry.label}',
+                            style: AppButtonStyle.ghost,
+                            size: AppButtonSize.small,
+                            onTap: () => _remove(context, entry),
+                          ),
                   ),
               ],
             ),
             if (keys.passkeyError != null) ...[
               const SizedBox(height: AppSpacing.sm),
               AppErrorText(keys.passkeyError!),
+              const SizedBox(height: AppSpacing.lg),
             ],
-            const SizedBox(height: AppSpacing.lg),
             Wrap(
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.sm,

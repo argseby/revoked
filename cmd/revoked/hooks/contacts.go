@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"strings"
+
 	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -54,6 +56,28 @@ func BindContactHooks(app core.App) {
 		}
 		return e.Next()
 	})
+}
+
+// BindContactBlockHooks keeps a block to its owner and to something it can
+// actually refuse.
+//
+// The address and domain are lowercased here rather than at the check: a block
+// written as "Spam@Example.com" that silently never matches is worse than none
+// at all, because the person believes they are rid of the sender.
+func BindContactBlockHooks(app core.App) {
+	settle := func(e *core.RecordEvent) error {
+		f := util.Fields.ContactBlock
+		e.Record.Set(f.Email, strings.ToLower(strings.TrimSpace(e.Record.GetString(f.Email))))
+		e.Record.Set(f.Domain, strings.ToLower(strings.TrimSpace(e.Record.GetString(f.Domain))))
+		if e.Record.GetString(f.BlockedUser) == "" &&
+			e.Record.GetString(f.Email) == "" &&
+			e.Record.GetString(f.Domain) == "" {
+			return util.AsFieldValidationError(f.Email, util.Errors.ContactBlockTargetMissing)
+		}
+		return e.Next()
+	}
+	app.OnRecordCreate(util.Coll.ContactBlocks).BindFunc(settle)
+	app.OnRecordUpdate(util.Coll.ContactBlocks).BindFunc(settle)
 }
 
 // validateContactRoute refuses a contact that names nobody reachable.

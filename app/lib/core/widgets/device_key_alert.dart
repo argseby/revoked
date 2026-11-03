@@ -46,7 +46,10 @@ class DeviceKeyAlert extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Keys never leave the device that created them and cannot sign here. Signing and attestations on this device require an identity created here.',
+                  'With end-to-end encryption on, identities reach every '
+                  'device on the account\'s device list. Without it, keys '
+                  'stay on the device that made them, and signing here needs '
+                  'an identity created here.',
                 ).small,
                 AppSpacing.gapSm,
                 AppButton(

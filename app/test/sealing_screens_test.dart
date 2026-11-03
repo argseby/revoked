@@ -409,7 +409,9 @@ void main() {
       expect(find.text('Your devices'), findsOneWidget);
       expect(find.text('This device'), findsOneWidget);
       expect(find.text('Remove'), findsNothing);
-      expect(find.text('Recovery key'), findsOneWidget);
+      // The recovery key is named once, in the list of where records open.
+      expect(find.text('Your recovery key'), findsOneWidget);
+      expect(find.text('Recovery key'), findsNothing);
       expect(find.text('Add a device'), findsOneWidget);
     });
 

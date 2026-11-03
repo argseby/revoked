@@ -127,6 +127,13 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 		ActionUpdate: {Kind: AccessWorkspaceSelf, Scope: ScopeContactUpdate},
 		ActionDelete: {Kind: AccessWorkspaceSelf, Scope: ScopeContactDelete},
 	},
+	// Personal, like bookmarks: who a person refuses deliveries from is
+	// theirs, not their workspace's, and no API key speaks for it. A block is
+	// added or removed and never edited, so no update is declared.
+	Coll.ContactBlocks: {
+		ActionCreate: {Kind: AccessUserSelf},
+		ActionDelete: {Kind: AccessUserSelf},
+	},
 }
 
 // AccessSpecFor returns the requirement for a collection action, if declared.

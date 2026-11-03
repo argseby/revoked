@@ -1278,16 +1278,33 @@ paths:
 
         Every entry and section must be one the caller may read in that
         workspace; an id alone is not permission, so one from anywhere else is
-        reported as not found. `delivered` says whether the contact's address
-        belongs to an account here and the share was put in their tray — a
-        bookmark they can remove, resolved through the same public view as the
-        slug itself, with every gate and view cap still applying.
+        reported as not found. Where the contact's address belongs to an
+        account here the share is put in their tray — a bookmark they can
+        remove, resolved through the same public view as the slug itself, with
+        every gate and view cap still applying.
+
+        `channel` says how much of that the caller is told. It is
+        `handed_over`, with `delivered` and `emailed` both false, unless
+        something already connects the two: the contact was proven by the peer
+        check, they share a workspace, or a grant has come the other way.
+        Otherwise a precise answer would resolve any address that was typed
+        in — `delivered` means it has an account here, and `emailed`, only ever
+        attempted where it has none, means it does not. The `slug` is in every
+        answer, so the grant can always be passed on by hand.
+
+        Deliveries into a tray are bounded per pair of accounts per day while
+        nothing connects them (`RATELIMIT_CONTACT_PAIR`, 3), and a recipient
+        may refuse a sender outright through `contactBlocks`. Neither refusal
+        is reported: "you have had your three" and "you are blocked" are both
+        answers about the address, and a sender who learns of a block opens
+        another account. The delivered bookmark carries `sender`, which is what
+        a block is aimed at.
 
         A session is required: an API key authenticates as a program, and this
         is the one endpoint that writes into somebody else's account.
 
         Two audit rows are written: the share's own creation, and the handover
-        naming the contact and whether it arrived.
+        naming the contact, whether it arrived, and why it did not.
       security:
         - Session: []
       parameters:
@@ -1335,16 +1352,31 @@ paths:
                   id: { type: string }
                   slug: { type: string }
                   kind: { type: string, enum: [share] }
-                  delivered: { type: boolean }
+                  channel:
+                    type: string
+                    enum: [account, email, manual, handed_over]
+                    description: >-
+                      Where it went, as far as the caller is told.
+                      `handed_over` is the answer for a contact nothing
+                      connects them to, and for a refused delivery: the grant
+                      exists, the slug is here, and nothing is said about the
+                      address. `delivered` and `emailed` are then both false,
+                      which does not mean nothing arrived.
+                  delivered:
+                    type: boolean
+                    description: >-
+                      It is in the recipient's tray on this server. Only ever
+                      true alongside `channel: account`.
                   emailed:
                     type: boolean
                     description: >-
                       The link was queued to be emailed to the contact's
                       address — queued, not accepted by a mail server. Only
-                      ever true when `delivered` is false, and only where the
-                      operator's `mail.recipients` policy admits the address.
-                      The email carries what the grant is called and a link,
-                      never what was shared.
+                      ever true when `delivered` is false, where the address
+                      has no account here, and where the operator's
+                      `mail.recipients` policy admits it. The email carries
+                      what the grant is called and a link, never what was
+                      shared.
         "400": { $ref: "#/components/responses/AppError" }
         "401": { $ref: "#/components/responses/AppError" }
         "403": { $ref: "#/components/responses/AppError" }
@@ -1365,12 +1397,15 @@ paths:
         1, because an ask is addressed to one person — left uncapped it is a
         form anyone holding the slug can keep filling in.
 
-        `delivered` says whether the contact's address belongs to an account
-        here and the ask was put in their tray, as something to answer rather
-        than something to read.
+        Where the contact's address belongs to an account here the ask is put
+        in their tray, as something to answer rather than something to read.
+        `channel` says how much of that the caller is told, with the same
+        reserve as `/api/contacts/{id}/send`: `handed_over` unless something
+        already connects the two, and the same per-pair cap and blocks behind
+        it.
 
         Two audit rows are written: the request's own creation, and the
-        handover naming the contact and whether it arrived.
+        handover naming the contact, whether it arrived, and why it did not.
       security:
         - Session: []
       parameters:
@@ -1412,7 +1447,18 @@ paths:
                   id: { type: string }
                   slug: { type: string }
                   kind: { type: string, enum: [request] }
-                  delivered: { type: boolean }
+                  channel:
+                    type: string
+                    enum: [account, email, manual, handed_over]
+                    description: >-
+                      As for a share: `handed_over` where the caller is told
+                      nothing about the address, which is every contact
+                      nothing connects them to.
+                  delivered:
+                    type: boolean
+                    description: >-
+                      It is in the recipient's tray. Only ever true alongside
+                      `channel: account`.
                   emailed:
                     type: boolean
                     description: >-
@@ -2797,7 +2843,7 @@ paths:
       description: |
         Where the QR code the app shows on a computer leads. It opens the app
         (`revoked://open`) and, when the operator set `APP_STORE_URL` or
-        `PLAY_STORE_URL`, links to the store for the phone it is opened on.
+        `PLAY_STORE_URL`, a download link for the phone it is opened on.
         It names the server, so the app on the phone can be pointed at it.
       security: []
       responses:

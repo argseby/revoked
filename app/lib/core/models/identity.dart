@@ -30,6 +30,13 @@ class Identity {
   final String status;
   final String? revokedAt;
   final String? revokedReason;
+
+  /// The private key, encrypted under the owner's workspace key so their
+  /// other devices can sign too. Empty on accounts without end-to-end
+  /// encryption, where each key stays on the device that made it. Only the
+  /// owner is ever served this; it is ciphertext even to them in transit.
+  final String sealedKey;
+  final int sealedKeyEpoch;
   final String? created;
   final String? updated;
 
@@ -46,6 +53,8 @@ class Identity {
     this.status = 'active',
     this.revokedAt,
     this.revokedReason,
+    this.sealedKey = '',
+    this.sealedKeyEpoch = 0,
     this.created,
     this.updated,
   });
@@ -77,6 +86,8 @@ class Identity {
       status: json['status'] as String? ?? 'active',
       revokedAt: json['revokedAt'] as String?,
       revokedReason: json['revokedReason'] as String?,
+      sealedKey: json['sealedKey'] as String? ?? '',
+      sealedKeyEpoch: (json['sealedKeyEpoch'] as num?)?.toInt() ?? 0,
       created: json['created'] as String?,
       updated: json['updated'] as String?,
     );
@@ -98,6 +109,8 @@ class Identity {
     String? status,
     String? revokedAt,
     String? revokedReason,
+    String? sealedKey,
+    int? sealedKeyEpoch,
     String? created,
     String? updated,
   }) {
@@ -114,6 +127,8 @@ class Identity {
       status: status ?? this.status,
       revokedAt: revokedAt ?? this.revokedAt,
       revokedReason: revokedReason ?? this.revokedReason,
+      sealedKey: sealedKey ?? this.sealedKey,
+      sealedKeyEpoch: sealedKeyEpoch ?? this.sealedKeyEpoch,
       created: created ?? this.created,
       updated: updated ?? this.updated,
     );

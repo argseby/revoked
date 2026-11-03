@@ -652,6 +652,10 @@ class _SharedRecordRow extends StatelessWidget {
                         textAlign: TextAlign.end,
                       ).small,
               ),
+              // The value is set right against the eye, so it needs the gap:
+              // a long one, or the solid bar standing in for a hidden one,
+              // otherwise runs into the button.
+              AppSpacing.gapSm,
               if (r.isHidden)
                 AppButton(
                   icon: masked ? AppIcons.eye : AppIcons.eyeSlash,

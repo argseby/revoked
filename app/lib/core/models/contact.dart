@@ -65,8 +65,11 @@ class Contact {
   }
 
   /// Their address belongs to an account here, so what you send reaches them
-  /// in the app. Known only once something has been sent: the server resolves
-  /// the address, because no client can discover an account by id.
+  /// in the app. Known only once you are in touch: the server resolves the
+  /// address, but it fills this in only for a contact it is willing to
+  /// confirm — a proven one, a co-member, or someone who has sent something
+  /// back. Until then the answer would be an account-existence oracle for any
+  /// address that was typed in, so it stays empty even when they are here.
   bool get isHere => user.isNotEmpty;
 
   bool get isPeer => !isHere && peerDomain.isNotEmpty;
@@ -81,11 +84,42 @@ class Contact {
       : email;
 }
 
+/// Which way a hand-over went, as far as the sender is told.
+///
+/// The server names the channel only where something already connects the two
+/// — the contact was proven, they share a workspace, or something came the
+/// other way first. For anyone else it answers [ContactChannel.handedOver]
+/// whatever happened: a precise outcome would say whether an address anyone
+/// typed in has an account on this server.
+enum ContactChannel {
+  /// In their tray on this server.
+  account,
+
+  /// Queued for their address.
+  email,
+
+  /// Nothing went out; the link is the sender's to pass on.
+  manual,
+
+  /// The grant exists and the link is here. Whether it also reached them is
+  /// deliberately not said.
+  handedOver;
+
+  static ContactChannel parse(String? value) => switch (value) {
+    'account' => ContactChannel.account,
+    'email' => ContactChannel.email,
+    'manual' => ContactChannel.manual,
+    _ => ContactChannel.handedOver,
+  };
+}
+
 /// What became of a grant handed to a contact.
 ///
 /// [delivered] says the grant reached an account on this server and is in that
-/// person's tray; [emailed] says it went out by email instead. With neither,
-/// the grant still exists — the slug has to be passed on by hand.
+/// person's tray; [emailed] says it went out by email instead. Both are false
+/// on a [ContactChannel.handedOver] answer, which does not mean nothing
+/// arrived — only that the server did not say. The slug is in every answer, so
+/// the link can always be passed on by hand.
 class ContactGrant {
   final String id;
   final String slug;
@@ -98,12 +132,16 @@ class ContactGrant {
   /// mail server.
   final bool emailed;
 
+  /// How much the server was willing to say about where it went.
+  final ContactChannel channel;
+
   const ContactGrant({
     required this.id,
     required this.slug,
     required this.kind,
     required this.delivered,
     this.emailed = false,
+    this.channel = ContactChannel.handedOver,
   });
 
   factory ContactGrant.fromJson(Map<String, dynamic> json) {
@@ -113,6 +151,7 @@ class ContactGrant {
       kind: json['kind'] as String? ?? '',
       delivered: json['delivered'] as bool? ?? false,
       emailed: json['emailed'] as bool? ?? false,
+      channel: ContactChannel.parse(json['channel'] as String?),
     );
   }
 

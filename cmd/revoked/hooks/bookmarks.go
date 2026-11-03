@@ -6,8 +6,19 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// BindBookmarkHooks keeps a bookmark's groups within its owner's own.
+// BindBookmarkHooks keeps a bookmark's groups within its owner's own, and
+// `sender` the server's to write: it says who put the bookmark there, and a
+// client that could set it would be able to pin a delivery on an account that
+// never sent one — the name a block is then aimed at.
 func BindBookmarkHooks(app core.App) {
+	holdSender := func(e *core.RecordRequestEvent) error {
+		if err := util.RestrictFields(e, util.Fields.Bookmark.Sender); err != nil {
+			return err
+		}
+		return e.Next()
+	}
+	app.OnRecordCreateRequest(util.Coll.Bookmarks).BindFunc(holdSender)
+	app.OnRecordUpdateRequest(util.Coll.Bookmarks).BindFunc(holdSender)
 	app.OnRecordCreate(util.Coll.Bookmarks).BindFunc(func(e *core.RecordEvent) error {
 		if err := validateBookmarkGroups(app, e.Record); err != nil {
 			return err
