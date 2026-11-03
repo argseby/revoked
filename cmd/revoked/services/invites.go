@@ -32,15 +32,19 @@ func GranterScopes(app core.App, auth *core.Record, workspaceId string, isSuperu
 		if !found {
 			return nil
 		}
-		// A legacy admin predates the permission field: the role stands for the full set.
-		if member.GetString(util.Fields.WorkspaceMember.Role) == util.RoleAdmin &&
-			len(member.GetStringSlice(util.Fields.WorkspaceMember.Permissions)) == 0 {
-			scopes, _ := util.ExpandPermissions(util.AllPermissionKeys())
-			return scopes
-		}
-		return member.GetStringSlice(util.Fields.WorkspaceMember.Permissions)
+		return MemberScopes(member)
 	}
 	return nil
+}
+
+// MemberScopes returns what a membership row grants. A legacy admin predates
+// the permission field: the role stands for the full set.
+func MemberScopes(member *core.Record) []string {
+	scopes := member.GetStringSlice(util.Fields.WorkspaceMember.Permissions)
+	if member.GetString(util.Fields.WorkspaceMember.Role) == util.RoleAdmin && len(scopes) == 0 {
+		scopes, _ = util.ExpandPermissions(util.AllPermissionKeys())
+	}
+	return scopes
 }
 
 // RefreshInviteStatus settles an invite's lifecycle and reports whether it may

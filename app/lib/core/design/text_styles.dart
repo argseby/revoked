@@ -16,8 +16,14 @@ abstract final class AppTextSize {
 
   /// Large type set at the default tracking looks loose and formal; pulling
   /// it in is what makes a title read as a headline.
-  static const double titleTracking = -0.6;
-  static const double headerTracking = -0.2;
+  static const double titleTracking = -1.1;
+  static const double headerTracking = -0.5;
+}
+
+/// The two typefaces, bundled so every platform draws the same letters.
+abstract final class AppFont {
+  static const sans = 'Geist';
+  static const mono = 'Geist Mono';
 }
 
 /// The app's entire text vocabulary: four sizes, a few modifiers.
@@ -123,7 +129,7 @@ class AppText extends StatelessWidget {
           ? AppTextSize.smallHeight
           : AppTextSize.bodyHeight,
       fontWeight: heading
-          ? FontWeight.w700
+          ? FontWeight.w600
           : _bold
           ? FontWeight.w600
           : FontWeight.w400,
@@ -134,7 +140,7 @@ class AppText extends StatelessWidget {
           : null,
       // Non-muted text inherits, so buttons and alerts keep their own color.
       color: _muted ? scheme.onSurfaceVariant : null,
-      fontFamily: _mono ? 'monospace' : null,
+      fontFamily: _mono ? AppFont.mono : null,
       fontStyle: _italic ? FontStyle.italic : null,
     );
     if (_selectable) {

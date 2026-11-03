@@ -41,11 +41,13 @@ import 'package:revoked_app/features/passkeys/view/passkeys_section.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/settings/view/appearance_page.dart';
+import 'package:revoked_app/features/settings/view/features_page.dart';
 
 /// The settings topics, each a page of its own under Settings — opened from
 /// the settings list the way a record is opened from the vault.
 enum SettingsPage {
   appearance('appearance', 'Appearance and accessibility'),
+  features('features', 'Features'),
   passkeys('passkeys', 'Passkeys'),
   encryption('encryption', 'End-to-end encryption'),
   workspaces('workspaces', 'Workspaces'),
@@ -120,6 +122,10 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
       case SettingsPage.domain:
         // Load themselves.
         break;
+      case SettingsPage.features:
+        Stores.features.loadIfDue();
+        // Which features the workspace allows comes from the roster.
+        if (ws.isNotEmpty) Stores.invites.loadMembers(ws);
       case SettingsPage.encryption:
         Stores.keys.load();
       case SettingsPage.workspaces:
@@ -152,6 +158,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
       children: [
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),
+          SettingsPage.features => const FeaturesPage(),
           SettingsPage.passkeys => const PasskeysSection(),
           SettingsPage.encryption => const SealingSection(),
           SettingsPage.workspaces => const _WorkspacesPage(),

@@ -17,6 +17,7 @@ import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/onboarding/store/onboarding_store.dart';
+import 'package:revoked_app/features/settings/view/features_page.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/features/auth/view/round_trip.dart';
 
@@ -48,6 +49,15 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   void initState() {
     super.initState();
     _store.prefill(Stores.auth.userEmail);
+    Stores.features.loadIfDue();
+  }
+
+  void _continueToFeatures() {
+    if (_store.nameController.text.trim().isEmpty) {
+      _store.fail('Give your workspace a name.');
+      return;
+    }
+    _store.askFeatures(Stores.features.on);
   }
 
   Future<void> _createWorkspace() async {
@@ -58,6 +68,11 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     }
 
     _store.startBusy();
+
+    // The choice is the account's, not the workspace's, so it is kept first;
+    // a hiccup here is not worth stopping for, since Settings → Features
+    // asks the same question again.
+    await Stores.features.save(_store.draftFeatures);
 
     final auth = Stores.auth;
     final ok = await Stores.settings.createWorkspace(
@@ -140,6 +155,7 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
   Widget _build(BuildContext context) {
     final next = ResumeLocation.describe();
     final creating = _store.choice == OnboardingChoice.create;
+    final choosing = creating && _store.choosingFeatures;
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -157,13 +173,20 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                   Semantics(
                     header: true,
                     child: AppText(
-                      creating ? 'Your name' : 'Join a workspace',
+                      choosing
+                          ? 'What will you use this for?'
+                          : creating
+                          ? 'Your name'
+                          : 'Join a workspace',
                       textAlign: TextAlign.center,
                     ).title,
                   ),
                   AppSpacing.gapSm,
                   AppText(
-                    creating
+                    choosing
+                        ? 'Tick what you want to see. You can change this '
+                              'any time under Settings → Features.'
+                        : creating
                         ? 'People see this name when you share with them or '
                               'ask them for something.'
                         : 'Paste your invite key. You\'ll see who sent it and '
@@ -187,7 +210,10 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
                     ),
                     AppSpacing.gapMd,
                   ],
-                  if (creating) ..._createForm(),
+                  if (choosing)
+                    ..._featuresForm()
+                  else if (creating)
+                    ..._createForm(),
                   if (_store.choice == OnboardingChoice.join) ..._joinForm(),
                 ],
               ),
@@ -239,14 +265,14 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
     const Text('Your vault, links and requests live here.').muted.small,
     AppSpacing.gapXl,
     AppButton(
-      icon: AppIcons.check,
-      label: _store.isBusy ? 'Setting up…' : 'Finish',
+      icon: AppIcons.arrowRight,
+      label: 'Continue',
       onTap:
           _store.isBusy ||
               _store.nameController.text.trim().isEmpty ||
               _store.identityNameController.text.trim().isEmpty
           ? null
-          : _createWorkspace,
+          : _continueToFeatures,
     ),
     AppSpacing.gapLg,
     Center(
@@ -259,6 +285,37 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
             ? null
             : () => _store.choose(OnboardingChoice.join),
       ),
+    ),
+  ];
+
+  List<Widget> _featuresForm() => [
+    AppCard(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: FeatureRows(
+        draft: _store.draftFeatures,
+        onChanged: (feature, on) => _store.toggleFeature(feature.key, on),
+      ),
+    ),
+    AppSpacing.gapXl,
+    Row(
+      children: [
+        Expanded(
+          child: AppButton(
+            icon: AppIcons.arrowLeft,
+            label: 'Back',
+            style: AppButtonStyle.accent,
+            onTap: _store.isBusy ? null : _store.backToName,
+          ),
+        ),
+        AppSpacing.gapLg,
+        Expanded(
+          child: AppButton(
+            icon: AppIcons.check,
+            label: _store.isBusy ? 'Setting up…' : 'Finish',
+            onTap: _store.isBusy ? null : _createWorkspace,
+          ),
+        ),
+      ],
     ),
   ];
 

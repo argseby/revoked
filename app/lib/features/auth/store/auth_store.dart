@@ -380,6 +380,18 @@ abstract class _AuthStore with Store {
     errorMessage = null;
   }
 
+  /// Swaps in a changed copy of the signed-in account, such as after its
+  /// feature set was saved, and keeps the cached record in step so an
+  /// offline start shows the same.
+  @action
+  void replaceUser(User user) {
+    currentUser = user;
+    final cached = _api.userData;
+    if (cached != null && cached['id'] == user.id) {
+      cached['features'] = user.features;
+    }
+  }
+
   String _parseError(Object e) => describeError(e);
 
   Future<User?> _tryRestoreSession() async {

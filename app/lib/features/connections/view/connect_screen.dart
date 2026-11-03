@@ -10,6 +10,7 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -193,6 +194,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
           ? _decline(context)
           : context.go(AppRoutes.overview),
       bottomBar: consenting ? _decision(context) : null,
+      feature: Feature.tools,
       body: r == null
           ? _invalid(context)
           : _checking.value

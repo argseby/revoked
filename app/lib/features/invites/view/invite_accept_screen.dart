@@ -228,6 +228,18 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
           ),
         ),
 
+        if (preview.features case final features?) ...[
+          AppSpacing.gapSm,
+          Text(
+            features.isEmpty
+                ? 'You start with the vault alone. Turn on more any time '
+                      'under Settings → Features.'
+                : 'You start with the vault and '
+                      '${features.map((f) => f.label).join(', ')}. Change '
+                      'that any time under Settings → Features.',
+          ).muted.small,
+        ],
+
         if (preview.grantsDestructive) ...[
           AppSpacing.gapMd,
           AppAlert(

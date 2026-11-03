@@ -52,6 +52,7 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
   void initState() {
     super.initState();
     Stores.invites.startMemberEdit(widget.member.permissionKeys);
+    Stores.features.loadIfDue();
   }
 
   /// Permissions the member holds that the caller cannot grant. They stay
@@ -60,6 +61,18 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
   late final List<InvitePermission> _beyondCaller = widget.member.permissions
       .where((p) => !Stores.invites.grantable.any((g) => g.key == p.key))
       .toList();
+
+  /// "Vault, Sharing and Requests": the parts of the app they turned on.
+  String _featuresOn() {
+    final store = Stores.features;
+    final on = [
+      'Vault',
+      for (final f in store.ordered)
+        if (widget.member.features.contains(f.key)) store.labelFor(f),
+    ];
+    if (on.length == 1) return 'Only the vault';
+    return '${on.sublist(0, on.length - 1).join(', ')} and ${on.last}';
+  }
 
   bool get _wouldDropAdmin =>
       widget.member.isLastAdmin &&
@@ -164,6 +177,19 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                             .toggleMemberPermission(permission.key, on),
                       ),
                     ),
+
+                  const AppFormSectionHeader('What they see'),
+                  AppTile(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xl,
+                      vertical: AppSpacing.sm,
+                    ),
+                    title: Text(_featuresOn()),
+                    subtitle: const Text(
+                      'Their own choice, under Settings → Features. A '
+                      'permission they hold still works with the feature off.',
+                    ).muted.small,
+                  ),
 
                   if (_beyondCaller.isNotEmpty) ...[
                     const AppFormSectionHeader('Given by someone else'),

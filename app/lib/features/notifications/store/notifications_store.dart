@@ -30,7 +30,6 @@ abstract class _NotificationsStore with Store {
   @observable
   String? errorMessage;
 
-  @computed
   /// @computed, not a bare getter: a plain getter over an empty list
   /// registers no dependency, so the bell that reads it never lights up
   /// when the first notification arrives.
@@ -95,13 +94,29 @@ abstract class _NotificationsStore with Store {
     }
   }
 
+  /// Removed from the list at once and put back if the server refuses, so a
+  /// swipe never leaves the row hanging while the request is in flight.
   @action
   Future<void> delete(String id) async {
+    final idx = notifications.indexWhere((n) => n.id == id);
+    if (idx == -1) return;
+    final removed = notifications.removeAt(idx);
     try {
       await _api.delete('$_basePath/$id');
-      notifications.removeWhere((n) => n.id == id);
     } catch (e) {
+      notifications.insert(idx.clamp(0, notifications.length), removed);
       errorMessage = describeError(e);
+    }
+  }
+
+  @computed
+  int get readCount => notifications.where((n) => n.read).length;
+
+  @action
+  Future<void> clearRead() async {
+    final read = notifications.where((n) => n.read).toList();
+    for (final n in read) {
+      await delete(n.id);
     }
   }
 

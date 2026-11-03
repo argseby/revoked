@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/files/file_opener.dart';
@@ -21,6 +23,10 @@ import 'package:revoked_app/features/shell/view/new_picker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    final ofl = await rootBundle.loadString('assets/fonts/OFL.txt');
+    yield LicenseEntryWithLineBreaks(['Geist'], ofl);
+  });
   unawaited(purgeOpenedFiles());
   await Stores.init();
   await DisplayPreferences.load();
@@ -98,7 +104,7 @@ class _RevokedAppState extends State<RevokedApp> {
   void _openNew() {
     final ctx = AppRouter.rootNavigatorKey.currentContext;
     if (ctx == null) return;
-    openNewPicker(ctx, destination: AppRoutes.destinationOf(_path));
+    openNewPicker(ctx, destination: AppRoutes.rootOf(_path));
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/credential.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
@@ -116,6 +117,7 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
       closeLabel: deciding ? 'Decline and go back' : 'Back to the app',
       onClose: _leave,
       bottomBar: deciding ? _decision(context, offer) : null,
+      feature: Feature.attestations,
       body: accepted != null
           ? _kept(context, accepted)
           : offer != null

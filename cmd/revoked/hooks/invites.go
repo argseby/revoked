@@ -1,8 +1,10 @@
 package hooks
 
 import (
+	"encoding/json"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
+	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
@@ -86,7 +88,35 @@ func bindInviteGrant(app core.App, e *core.RecordRequestEvent, workspaceId strin
 			),
 		}
 	}
-	return normalizePermissionGrant(app, e, util.Fields.Invite.Permissions, workspaceId)
+	if err := normalizePermissionGrant(app, e, util.Fields.Invite.Permissions, workspaceId); err != nil {
+		return err
+	}
+	return normalizeInviteFeatures(e)
+}
+
+// normalizeInviteFeatures checks the starting feature set an invite carries.
+// Features are a display choice, not access, so there is nothing to compare
+// against the granter — only the catalogue.
+func normalizeInviteFeatures(e *core.RecordRequestEvent) error {
+	refuse := func(text string) error {
+		return validation.Errors{
+			util.Fields.Invite.Features: validation.NewError(util.Errors.UnknownFeature.ErrorCode, text),
+		}
+	}
+	raw := strings.TrimSpace(e.Record.GetString(util.Fields.Invite.Features))
+	if raw == "" || raw == "null" {
+		return nil
+	}
+	var keys []string
+	if err := json.Unmarshal([]byte(raw), &keys); err != nil {
+		return refuse(util.Errors.UnknownFeature.ErrorText)
+	}
+	features, unknown := util.NormalizeFeatures(keys)
+	if len(unknown) > 0 {
+		return refuse("Unknown feature: " + unknown[0] + ".")
+	}
+	e.Record.Set(util.Fields.Invite.Features, features)
+	return nil
 }
 
 // normalizePermissionGrant expands permission keys or raw scopes into stored

@@ -3,6 +3,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -47,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Stores.signIns.loadIfDue();
       Stores.credentials.load();
       Stores.serverSettings.loadServerVersion();
+      Stores.features.loadIfDue();
       if (ws.isNotEmpty) {
         Stores.invites.load(ws);
         Stores.invites.loadMembers(ws);
@@ -91,6 +93,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _build(BuildContext context) {
     final auth = Stores.auth;
+    final features = Stores.features;
     final openInvites = Stores.invites.invites.where((i) => i.isActive).length;
     final ownTemplates = Stores.templates.templates
         .where((t) => !t.isBuiltin)
@@ -104,6 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           trailing: const SizedBox.shrink(),
           children: [
             _AppearanceRow(),
+            _page(SettingsPage.features, AppIcons.sliders, _featuresSummary()),
             _page(
               SettingsPage.passkeys,
               AppIcons.key,
@@ -156,43 +160,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'No open invites',
               ),
             ),
-            _page(
-              SettingsPage.identities,
-              AppIcons.personBoundingBox,
-              _count(
-                Stores.identities.identities.length,
-                'identity',
-                'identities',
-                'Prove it’s really you',
+            if (features.visible(Feature.attestations))
+              _page(
+                SettingsPage.identities,
+                AppIcons.personBoundingBox,
+                _count(
+                  Stores.identities.identities.length,
+                  'identity',
+                  'identities',
+                  'Prove it’s really you',
+                ),
               ),
-            ),
-            _page(SettingsPage.connectedTools, AppIcons.plug, _toolsSummary()),
+            if (features.visible(Feature.tools))
+              _page(
+                SettingsPage.connectedTools,
+                AppIcons.plug,
+                _toolsSummary(),
+              ),
           ],
         ),
         AppListGroup(
           title: 'Developer',
           trailing: const SizedBox.shrink(),
           children: [
-            _page(
-              SettingsPage.apiKeys,
-              AppIcons.code,
-              _count(
-                Stores.apiKeys.apiKeys.length,
-                'key',
-                'keys',
-                'Let your scripts use Revoked',
+            if (features.visible(Feature.developer))
+              _page(
+                SettingsPage.apiKeys,
+                AppIcons.code,
+                _count(
+                  Stores.apiKeys.apiKeys.length,
+                  'key',
+                  'keys',
+                  'Let your scripts use Revoked',
+                ),
               ),
-            ),
-            _page(
-              SettingsPage.templates,
-              AppIcons.cardList,
-              _count(
-                ownTemplates,
-                'template of your own',
-                'templates of your own',
-                'Reuse requests you send often',
+            if (features.visible(Feature.requests))
+              _page(
+                SettingsPage.templates,
+                AppIcons.cardList,
+                _count(
+                  ownTemplates,
+                  'template of your own',
+                  'templates of your own',
+                  'Reuse requests you send often',
+                ),
               ),
-            ),
             _page(
               SettingsPage.domain,
               AppIcons.server,
@@ -277,6 +289,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// "Vault, Sharing and Requests", or what a fresh account is told.
+  String _featuresSummary() {
+    final store = Stores.features;
+    final on = [
+      'Vault',
+      for (final f in store.ordered)
+        if (store.visible(f)) store.labelFor(f),
+    ];
+    if (on.length == 1) return 'Only the vault';
+    return '${on.sublist(0, on.length - 1).join(', ')} and ${on.last}';
+  }
+
   String _host() {
     final base = Stores.api.baseUrl;
     final host = Uri.tryParse(base)?.host ?? '';
@@ -320,7 +344,7 @@ Future<void> confirmLogout(BuildContext context) async {
   if (confirmed) await Stores.auth.logout();
 }
 
-/// Theme, detail, text size and motion, summed up in the row that opens them.
+/// Theme, text size and motion, summed up in the row that opens them.
 class _AppearanceRow extends StatelessWidget {
   static const _themes = {
     ThemeMode.system: 'System theme',
@@ -332,14 +356,11 @@ class _AppearanceRow extends StatelessWidget {
   Widget build(BuildContext context) => Observer(builder: _build);
 
   Widget _build(BuildContext context) {
-    final detail = DisplayPreferences.detailLevel == DetailLevel.full
-        ? 'Full detail'
-        : 'Essentials';
     final size = '${(DisplayPreferences.textScale * 100).round()}% text';
     return AppListRow(
       icon: AppIcons.brightnessAuto,
       title: SettingsPage.appearance.title,
-      subtitle: '${_themes[Stores.theme.mode]} · $detail · $size',
+      subtitle: '${_themes[Stores.theme.mode]} · $size',
       onTap: () => context.go(SettingsPage.appearance.route),
     );
   }

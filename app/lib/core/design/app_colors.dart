@@ -8,23 +8,23 @@ import 'package:flutter/material.dart';
 /// state indicators). Change a value here and that test says whether it still
 /// passes.
 ///
-/// Ink on paper, with one signature colour: indigo marks the main action,
-/// links, focus and the current destination. Red, amber and green stay
-/// reserved for status, so indigo never has to mean "danger" or "done".
+/// Black and white, like the logo: ink marks the main action, links, focus
+/// and the current destination. Red, amber and green stay reserved for
+/// status, so they are the only colour on a screen and always mean something.
 abstract final class AppPalette {
   // Light.
-  static const lightPaper = Color(0xFFFAF9F6);
+  static const lightPaper = Color(0xFFFFFFFF);
   static const lightWhite = Color(0xFFFFFFFF);
-  static const lightCard = Color(0xFFF2F0F6);
-  static const lightCardHigh = Color(0xFFECEAF2);
-  static const lightCardHighest = Color(0xFFE6E3EE);
-  static const lightInk = Color(0xFF16151F);
-  static const lightSecondaryText = Color(0xFF575569);
-  static const lightControlBorder = Color(0xFF7D798F);
-  static const lightDivider = Color(0xFFE1DEE8);
-  static const lightBrand = Color(0xFF3D35B5);
-  static const lightBrandContainer = Color(0xFFE9E6FB);
-  static const lightOnBrandContainer = Color(0xFF2A2390);
+  static const lightCard = Color(0xFFFAFAFA);
+  static const lightCardHigh = Color(0xFFF5F5F5);
+  static const lightCardHighest = Color(0xFFF2F2F2);
+  static const lightInk = Color(0xFF0A0A0A);
+  static const lightSecondaryText = Color(0xFF525252);
+  static const lightControlBorder = Color(0xFF858585);
+  static const lightDivider = Color(0xFFE5E5E5);
+  static const lightBrand = Color(0xFF0A0A0A);
+  static const lightBrandContainer = Color(0xFFF2F2F2);
+  static const lightOnBrandContainer = Color(0xFF0A0A0A);
   static const lightSuccess = Color(0xFF1D6B4C);
   static const lightSuccessContainer = Color(0xFFD7F0E3);
   static const lightWarning = Color(0xFF7A5600);
@@ -34,20 +34,20 @@ abstract final class AppPalette {
   static const lightDangerFill = Color(0xFFC62828);
 
   // Dark.
-  static const darkPage = Color(0xFF0E0D14);
-  static const darkSurface = Color(0xFF15141C);
-  static const darkCard = Color(0xFF1D1C26);
-  static const darkCardHigh = Color(0xFF22212C);
-  static const darkCardHighest = Color(0xFF282632);
-  static const darkInk = Color(0xFFF1F0F7);
-  static const darkOnInk = Color(0xFF16151F);
-  static const darkSecondaryText = Color(0xFFA9A6BC);
-  static const darkControlBorder = Color(0xFF77748C);
-  static const darkDivider = Color(0xFF2E2C3A);
-  static const darkBrand = Color(0xFFB3ACFF);
-  static const darkOnBrand = Color(0xFF16133F);
-  static const darkBrandContainer = Color(0xFF2E2870);
-  static const darkOnBrandContainer = Color(0xFFDCD8FF);
+  static const darkPage = Color(0xFF0A0A0A);
+  static const darkSurface = Color(0xFF0A0A0A);
+  static const darkCard = Color(0xFF141414);
+  static const darkCardHigh = Color(0xFF1A1A1A);
+  static const darkCardHighest = Color(0xFF1C1C1C);
+  static const darkInk = Color(0xFFFAFAFA);
+  static const darkOnInk = Color(0xFF0A0A0A);
+  static const darkSecondaryText = Color(0xFFA3A3A3);
+  static const darkControlBorder = Color(0xFF737373);
+  static const darkDivider = Color(0xFF262626);
+  static const darkBrand = Color(0xFFFAFAFA);
+  static const darkOnBrand = Color(0xFF0A0A0A);
+  static const darkBrandContainer = Color(0xFF262626);
+  static const darkOnBrandContainer = Color(0xFFFAFAFA);
   static const darkSuccess = Color(0xFF8ED5B1);
   static const darkSuccessContainer = Color(0xFF12352A);
   static const darkWarning = Color(0xFFF2C24B);

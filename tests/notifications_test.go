@@ -48,4 +48,15 @@ func TestNotificationsCreatedOnRequestSubmission(t *testing.T) {
 	first := items.Value(0).Object()
 	first.Value(util.Fields.Notification.Type).String().IsEqual(util.NotificationRequestResponse)
 	first.Value(util.Fields.Notification.RefCollection).String().IsEqual(util.Coll.Requests)
+
+	id := first.Value("id").String().Raw()
+	path := "/api/collections/" + util.Coll.Notifications + "/records/" + id
+
+	api.E.DELETE(path).WithHeader("Authorization", responderToken).
+		Expect().Status(http.StatusNotFound)
+	api.E.DELETE(path).WithHeader("Authorization", token).
+		Expect().Status(http.StatusNoContent)
+	api.E.GET("/api/collections/"+util.Coll.Notifications+"/records").
+		WithHeader("Authorization", token).
+		Expect().Status(http.StatusOK).JSON().Object().Value("items").Array().Length().IsEqual(0)
 }

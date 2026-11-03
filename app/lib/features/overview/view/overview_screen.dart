@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/notification.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
@@ -82,7 +84,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
         if (vault.records.isEmpty && shares.shares.isEmpty) {
           return const _FirstSteps();
         }
-        return _overview(context);
+        return Observer(builder: _overview);
       },
     );
   }
@@ -98,7 +100,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
     final paused = links.where((l) => l.status == 'paused').length;
 
     final cards = <Widget>[
-      if (answers > 0)
+      if (answers > 0 && Stores.features.visible(Feature.requests))
         AttentionCard(
           tone: AttentionTone.info,
           icon: AppIcons.inboxFill,

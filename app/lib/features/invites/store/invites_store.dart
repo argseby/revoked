@@ -2,7 +2,9 @@ import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/invite.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
@@ -65,6 +67,43 @@ abstract class _InvitesStore with Store {
   /// Permission keys ticked in the create form.
   final ObservableSet<String> draftPermissions = ObservableSet<String>();
 
+  /// Feature keys the invite starts the member on.
+  final ObservableSet<String> draftFeatures = ObservableSet<String>();
+
+  /// Which preset the draft matches, by key, or null once it was edited
+  /// past any of them.
+  @computed
+  String? get draftPreset {
+    for (final preset in Stores.features.presets) {
+      if (draftPermissions.length == preset.permissions.length &&
+          draftPermissions.containsAll(preset.permissions) &&
+          draftFeatures.length == preset.features.length &&
+          draftFeatures.containsAll(preset.features)) {
+        return preset.key;
+      }
+    }
+    return null;
+  }
+
+  @action
+  void applyPreset(FeaturePreset preset) {
+    draftPermissions
+      ..clear()
+      ..addAll(preset.permissions);
+    draftFeatures
+      ..clear()
+      ..addAll(preset.features);
+  }
+
+  @action
+  void toggleDraftFeature(String key, bool on) {
+    if (on) {
+      draftFeatures.add(key);
+    } else {
+      draftFeatures.remove(key);
+    }
+  }
+
   @observable
   bool draftSingleUse = true;
 
@@ -92,6 +131,7 @@ abstract class _InvitesStore with Store {
     labelController.clear();
     emailController.clear();
     draftPermissions.clear();
+    draftFeatures.clear();
     draftSingleUse = true;
     isCreating = false;
   }
@@ -313,6 +353,7 @@ abstract class _InvitesStore with Store {
     required String workspace,
     required String label,
     required List<String> permissions,
+    List<String>? features,
     String? email,
     String? expiresAt,
     int? maxUses,
@@ -327,6 +368,7 @@ abstract class _InvitesStore with Store {
           'workspace': workspace,
           'label': label,
           'permissions': permissions,
+          'features': ?features,
           'status': 'active',
           if (email != null && email.isNotEmpty) 'email': email,
           if (expiresAt != null && expiresAt.isNotEmpty) 'expiresAt': expiresAt,
@@ -365,6 +407,7 @@ abstract class _InvitesStore with Store {
           label: old.label,
           status: 'revoked',
           permissions: old.permissions,
+          features: old.features,
           email: old.email,
           expiresAt: old.expiresAt,
           maxUses: old.maxUses,

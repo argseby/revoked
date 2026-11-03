@@ -80,6 +80,7 @@ func PublicInvitesRoute(app core.App, root *server.RootKey) {
 				app.Logger().Error("Failed to accept invite", "error", err, "invite", invite.Id)
 				return re.InternalServerError("Failed to join the workspace", nil)
 			}
+			adoptInviteFeatures(app, invite, re.Auth)
 
 			services.EmitNotification(app, invite.GetString(util.Fields.Invite.InvitedBy), workspaceId,
 				util.NotificationInviteAccepted,
@@ -92,11 +93,29 @@ func PublicInvitesRoute(app core.App, root *server.RootKey) {
 				"workspace":   workspaceId,
 				"membership":  member.Id,
 				"permissions": util.SurfacesFor(services.InviteGrantedScopes(invite)),
+				"features":    accountFeatureKeys(re.Auth),
 			})
 		})
 
 		return e.Next()
 	})
+}
+
+// adoptInviteFeatures copies the invite's starting feature set to an account
+// that never chose one. A set the person picked themselves stays theirs: an
+// invite says what a workspace is for, not how someone already uses the app.
+func adoptInviteFeatures(app core.App, invite, user *core.Record) {
+	starting, carried := util.StoredFeatures(invite, util.Fields.Invite.Features)
+	if !carried {
+		return
+	}
+	if _, chosen := util.StoredFeatures(user, util.Fields.User.Features); chosen {
+		return
+	}
+	user.Set(util.Fields.User.Features, starting)
+	if err := app.Save(user); err != nil {
+		app.Logger().Error("Failed to adopt invite features", "error", err, "invite", invite.Id)
+	}
 }
 
 // findLiveInvite resolves a plaintext token to an invite that may still be
@@ -121,6 +140,7 @@ func inviteProbe(app core.App, root *server.RootKey, invite *core.Record) map[st
 		"label":         invite.GetString(util.Fields.Invite.Label),
 		"role":          invite.GetString(util.Fields.Invite.Role),
 		"permissions":   permissionDetails(services.InviteGrantedScopes(invite)),
+		"features":      inviteFeatureDetails(invite),
 		"requiresEmail": invite.GetString(util.Fields.Invite.Email) != "",
 		"expiresAt":     invite.GetString(util.Fields.Invite.ExpiresAt),
 		// Without this the recipient has nothing to walk the DNS chain against,
@@ -233,6 +253,16 @@ func permissionDetails(scopes []string) []map[string]any {
 		})
 	}
 	return out
+}
+
+// inviteFeatureDetails labels the starting feature set an invite carries, or
+// nothing when it leaves the choice to the person.
+func inviteFeatureDetails(invite *core.Record) []map[string]any {
+	keys, carried := util.StoredFeatures(invite, util.Fields.Invite.Features)
+	if !carried {
+		return nil
+	}
+	return featureDetails(keys)
 }
 
 func inviteErrorResponse(re *core.RequestEvent, appErr *util.AppError) error {
