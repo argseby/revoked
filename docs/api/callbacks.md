@@ -11,6 +11,9 @@ pulled, not pushed.
 Besides submissions, a callback receives [grant events](#grant-events): a
 note that an answer was revoked, changed or expired, without its values.
 
+For anything beyond one request — shares, the vault, members — use
+[webhooks](webhooks.md): one signed, retried and logged feed per workspace.
+
 ## Configuring
 
 Set the callback when creating or editing a request (the `callbackUrl` field,

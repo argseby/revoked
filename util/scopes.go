@@ -67,6 +67,11 @@ const (
 	ScopeContactCreate = "contact:create"
 	ScopeContactUpdate = "contact:update"
 	ScopeContactDelete = "contact:delete"
+
+	// webhook:manage covers the workspace's webhook endpoints and their
+	// delivery log. An endpoint hears about activity across the workspace, so
+	// it is one scope: reading the log is as revealing as subscribing.
+	ScopeWebhookManage = "webhook:manage"
 )
 
 // AllScopes lists every defined API key scope.
@@ -117,6 +122,7 @@ var AllScopes = []string{
 	ScopeContactCreate,
 	ScopeContactUpdate,
 	ScopeContactDelete,
+	ScopeWebhookManage,
 }
 
 // AttestationScopes are the scopes added with attestations, for the migration

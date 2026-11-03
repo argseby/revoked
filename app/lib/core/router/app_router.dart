@@ -21,6 +21,7 @@ import 'package:revoked_app/features/auth/view/login_screen.dart';
 import 'package:revoked_app/features/shell/view/app_shell.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/settings/view/settings_screen.dart';
+import 'package:revoked_app/features/webhooks/view/webhooks_page.dart';
 import 'package:revoked_app/features/shell/view/splash_screen.dart';
 import 'package:revoked_app/features/vault/view/record_detail_screen.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
@@ -98,6 +99,8 @@ abstract class AppRoutes {
   static const apiKeys = '/settings/api-keys';
   static const connectedTools = '/settings/connected-tools';
   static String connectedToolFor(String id) => '$connectedTools/$id';
+  static const webhooks = '/settings/webhooks';
+  static String webhookFor(String id) => '$webhooks/$id';
   static String signInServiceFor(String id) => '/settings/signed-in/$id';
   static const share = '/share/:slug';
   static const request = '/request/:slug';
@@ -643,6 +646,15 @@ class AppRouter {
                     child: ConnectedToolPage(
                       key: ValueKey(state.pathParameters['id']),
                       connectionId: state.pathParameters['id']!,
+                    ),
+                  ),
+                ),
+                GoRoute(
+                  path: 'webhooks/:id',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: WebhookEndpointPage(
+                      key: ValueKey(state.pathParameters['id']),
+                      endpointId: state.pathParameters['id']!,
                     ),
                   ),
                 ),

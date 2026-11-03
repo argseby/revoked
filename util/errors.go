@@ -178,6 +178,12 @@ var Errors = struct {
 	SealedKeyMissing              AppError
 	SealedRecordUnsupported       AppError
 	SealedLinksAffected           AppError
+	WebhookNotFound               AppError
+	WebhookDeliveryNotFound       AppError
+	WebhookUrlInvalid             AppError
+	WebhookEventsInvalid          AppError
+	WebhookLimitReached           AppError
+	WebhookDisabled               AppError
 }{
 	DuplicateWorkspaceMember: AppError{
 		ErrorCode: "duplicate_workspace_member",
@@ -818,6 +824,30 @@ var Errors = struct {
 	SealedLinksAffected: AppError{
 		ErrorCode: "sealed_links_affected",
 		ErrorText: "Links share this entry, and they'd stop showing it once it's encrypted.",
+	},
+	WebhookNotFound: AppError{
+		ErrorCode: "webhook_not_found",
+		ErrorText: "This webhook doesn't exist in your workspace.",
+	},
+	WebhookDeliveryNotFound: AppError{
+		ErrorCode: "webhook_delivery_not_found",
+		ErrorText: "This delivery doesn't exist in your workspace.",
+	},
+	WebhookUrlInvalid: AppError{
+		ErrorCode: "webhook_url_invalid",
+		ErrorText: "Use a full http:// or https:// address this server is allowed to reach.",
+	},
+	WebhookEventsInvalid: AppError{
+		ErrorCode: "webhook_events_invalid",
+		ErrorText: "Pick at least one event, using names from the event list.",
+	},
+	WebhookLimitReached: AppError{
+		ErrorCode: "webhook_limit_reached",
+		ErrorText: "This workspace has as many webhooks as it can hold. Remove one first.",
+	},
+	WebhookDisabled: AppError{
+		ErrorCode: "webhook_disabled",
+		ErrorText: "This webhook is turned off. Turn it on to send to it.",
 	},
 }
 

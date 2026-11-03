@@ -10,6 +10,7 @@ import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/user.dart';
+import 'package:revoked_app/core/models/webhook.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -210,6 +211,70 @@ void main() {
             ),
           ),
         );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  group('webhook pages', () {
+    for (final entry in sizes.entries) {
+      testWidgets('fit on a ${entry.key}', (tester) async {
+        final router = await signedIn(tester, entry.value);
+        runInAction(() {
+          final store = Stores.webhooks;
+          store.endpoints.add(
+            WebhookEndpoint.fromJson({
+              'id': 'h1',
+              'url':
+                  'https://a-rather-long-integration-host.example.com/hooks/revoked/f3a9c1d2',
+              'description': 'CRM sync for the onboarding team',
+              'events': ['link.revoked', 'response.submitted'],
+              'enabled': true,
+              'failingSince': '2026-11-01T09:00:00Z',
+              'stats': {'succeeded': 1204, 'failed': 37, 'pending': 3},
+            }),
+          );
+          store.eventTypes.addAll([
+            const WebhookEventType(
+              type: 'response.submitted',
+              group: 'Answers',
+              description: 'Someone answered a request, or answered it again.',
+              noisy: false,
+            ),
+            const WebhookEventType(
+              type: 'link.revoked',
+              group: 'Shares',
+              description: 'A share was revoked or deleted.',
+              noisy: false,
+            ),
+          ]);
+          store.testType = 'response.submitted';
+          store.deliveries['h1'] = [
+            WebhookDelivery.fromJson({
+              'id': 'd1',
+              'endpoint': 'h1',
+              'type': 'attestation.revoked',
+              'status': 'pending',
+              'attempts': 4,
+              'lastStatus': 503,
+              'nextAttemptAt': '2026-11-03T10:00:00Z',
+              'created': '2026-11-03T09:00:00Z',
+            }),
+          ];
+        });
+        router.go(AppRoutes.webhooks);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        router.go(AppRoutes.webhookFor('h1'));
+        await tester.pumpAndSettle();
+        expect(find.text('Deliveries'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+
+        await tester.ensureVisible(find.text('attestation.revoked'));
+        await tester.tap(find.text('attestation.revoked'));
+        await tester.pumpAndSettle();
+        expect(find.text('What was sent'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

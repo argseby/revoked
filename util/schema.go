@@ -88,6 +88,15 @@ type collectionSchema struct {
 	DeviceKeys         string
 	WorkspaceKeyEpochs string
 	WorkspaceKeyWraps  string
+	// WebhookEndpoints are where a workspace wants its events sent.
+	// WebhookEvents record what happened, WebhookDeliveries carry one event
+	// to one endpoint, and WebhookAttempts keep every try so a failing
+	// receiver can be diagnosed. All four are reached through /api/webhooks
+	// only: the endpoint's signing secret must never ride a list response.
+	WebhookEndpoints  string
+	WebhookEvents     string
+	WebhookDeliveries string
+	WebhookAttempts   string
 }
 
 type inviteFields struct {
@@ -255,6 +264,25 @@ type attestationCheckFields struct {
 	ExpiresAt, Result, AnsweredAt, Connection, Ref, ProposedBy, Created, Updated string
 }
 
+type webhookEndpointFields struct {
+	Workspace, User, Url, Description, Events, Secret, PreviousSecret,
+	PreviousSecretExpiresAt, Enabled, DisabledReason, FailingSince, Created, Updated string
+}
+
+type webhookEventFields struct {
+	Workspace, Type, Data, Test, Created string
+}
+
+type webhookDeliveryFields struct {
+	Workspace, Endpoint, Event, Status, Attempts, NextAttemptAt, LastStatus,
+	LastError, DeliveredAt, Created, Updated string
+}
+
+type webhookAttemptFields struct {
+	Delivery, Endpoint, Workspace, ResponseStatus, ResponseBody, Error,
+	DurationMs, Manual, Created string
+}
+
 type signInFields struct {
 	User, ClientId, Scopes, Link, NameRecord, NameIdentity, LastSignInAt,
 	Status, Generation, SubjectVersion, DisconnectedAt, NewIdOnReturn, Created, Updated string
@@ -299,6 +327,10 @@ var Coll = collectionSchema{
 	DeviceKeys:          "deviceKeys",
 	WorkspaceKeyEpochs:  "workspaceKeyEpochs",
 	WorkspaceKeyWraps:   "workspaceKeyWraps",
+	WebhookEndpoints:    "webhookEndpoints",
+	WebhookEvents:       "webhookEvents",
+	WebhookDeliveries:   "webhookDeliveries",
+	WebhookAttempts:     "webhookAttempts",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -338,6 +370,10 @@ var Fields = struct {
 	AttestationCheck   attestationCheckFields
 	SignIn             signInFields
 	Contact            contactFields
+	WebhookEndpoint    webhookEndpointFields
+	WebhookEvent       webhookEventFields
+	WebhookDelivery    webhookDeliveryFields
+	WebhookAttempt     webhookAttemptFields
 }{
 	Workspace: workspaceFields{
 		Name:    "name",
@@ -783,5 +819,51 @@ var Fields = struct {
 		LastUsedAt:      "lastUsedAt",
 		Created:         "created",
 		Updated:         "updated",
+	},
+	WebhookEndpoint: webhookEndpointFields{
+		Workspace:               "workspace",
+		User:                    "user",
+		Url:                     "url",
+		Description:             "description",
+		Events:                  "events",
+		Secret:                  "secret",
+		PreviousSecret:          "previousSecret",
+		PreviousSecretExpiresAt: "previousSecretExpiresAt",
+		Enabled:                 "enabled",
+		DisabledReason:          "disabledReason",
+		FailingSince:            "failingSince",
+		Created:                 "created",
+		Updated:                 "updated",
+	},
+	WebhookEvent: webhookEventFields{
+		Workspace: "workspace",
+		Type:      "type",
+		Data:      "data",
+		Test:      "test",
+		Created:   "created",
+	},
+	WebhookDelivery: webhookDeliveryFields{
+		Workspace:     "workspace",
+		Endpoint:      "endpoint",
+		Event:         "event",
+		Status:        "status",
+		Attempts:      "attempts",
+		NextAttemptAt: "nextAttemptAt",
+		LastStatus:    "lastStatus",
+		LastError:     "lastError",
+		DeliveredAt:   "deliveredAt",
+		Created:       "created",
+		Updated:       "updated",
+	},
+	WebhookAttempt: webhookAttemptFields{
+		Delivery:       "delivery",
+		Endpoint:       "endpoint",
+		Workspace:      "workspace",
+		ResponseStatus: "responseStatus",
+		ResponseBody:   "responseBody",
+		Error:          "error",
+		DurationMs:     "durationMs",
+		Manual:         "manual",
+		Created:        "created",
 	},
 }

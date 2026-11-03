@@ -46,6 +46,10 @@ var AuditSecretFields = map[string][]string{
 	// and the day a write is routed through the request hooks it would be
 	// recorded verbatim.
 	Coll.GrantDeliveries: {Fields.GrantDelivery.Payload},
+	// Whoever holds the secret can forge deliveries the receiver will trust.
+	Coll.WebhookEndpoints: {Fields.WebhookEndpoint.Secret, Fields.WebhookEndpoint.PreviousSecret},
+	// A receiver's answer is its own data and may echo what it was sent.
+	Coll.WebhookAttempts: {Fields.WebhookAttempt.ResponseBody},
 }
 
 // RedactAuditData returns data with the collection's secret fields replaced by

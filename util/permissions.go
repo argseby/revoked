@@ -38,6 +38,7 @@ const (
 	PermMembersAdd        = "members:add"
 	PermMembersRemove     = "members:remove"
 	PermSettingsManage    = "settings:manage"
+	PermWebhooksManage    = "webhooks:manage"
 )
 
 // Permissions is the catalogue offered when granting access, in display order.
@@ -151,6 +152,11 @@ var Permissions = []Permission{
 		Description: "Rename the workspace, change its settings, and delete it.",
 		Destructive: true,
 		Scopes:      []string{ScopeWorkspacesUpdate, ScopeWorkspacesRead, ScopeWorkspacesDelete},
+	},
+	{
+		Key: PermWebhooksManage, Label: "Manage webhooks",
+		Description: "Send this workspace's activity to other services, and see what was sent.",
+		Scopes:      []string{ScopeWebhookManage},
 	},
 }
 

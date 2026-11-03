@@ -42,6 +42,7 @@ import 'package:revoked_app/features/templates/view/templates_screen.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/settings/view/appearance_page.dart';
 import 'package:revoked_app/features/settings/view/features_page.dart';
+import 'package:revoked_app/features/webhooks/view/webhooks_page.dart';
 
 /// The settings topics, each a page of its own under Settings — opened from
 /// the settings list the way a record is opened from the vault.
@@ -56,6 +57,7 @@ enum SettingsPage {
   identities('identities', 'Identities'),
   connectedTools('connected-tools', 'Connected tools'),
   apiKeys('api-keys', 'API keys'),
+  webhooks('webhooks', 'Webhooks'),
   templates('templates', 'Templates'),
   domain('domain', 'Domain verification');
 
@@ -147,6 +149,8 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
       case SettingsPage.apiKeys:
         Stores.apiKeys.loadApiKeys();
         Stores.invites.loadCatalogue();
+      case SettingsPage.webhooks:
+        Stores.webhooks.loadIfDue();
       case SettingsPage.templates:
         Stores.templates.loadTemplates(ws);
     }
@@ -167,6 +171,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
           SettingsPage.identities => const _IdentitiesPage(),
           SettingsPage.connectedTools => const ConnectionsList(),
           SettingsPage.apiKeys => const _ApiKeysPage(),
+          SettingsPage.webhooks => const WebhooksList(),
           SettingsPage.templates => const _TemplatesPage(),
           SettingsPage.domain => const _DomainPage(),
         },

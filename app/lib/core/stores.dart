@@ -37,6 +37,7 @@ import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
+import 'package:revoked_app/features/webhooks/store/webhooks_store.dart';
 
 /// The one access point for every store and stateless service.
 ///
@@ -64,6 +65,7 @@ abstract final class Stores {
   static late RequestsStore requests;
   static late TemplatesStore templates;
   static late ApiKeysStore apiKeys;
+  static late WebhooksStore webhooks;
   static late IdentitiesStore identities;
   static late CredentialsStore credentials;
   static late AttestationsStore attestations;
@@ -138,6 +140,7 @@ abstract final class Stores {
     requests = RequestsStore(api);
     templates = TemplatesStore(api);
     apiKeys = ApiKeysStore(api);
+    webhooks = WebhooksStore(api);
     identities = IdentitiesStore(api, crypto);
     deviceUnlock = unlock ?? SystemDeviceUnlock();
     signInApproval = SignInApproval(api, crypto, identities, deviceUnlock);
@@ -176,6 +179,7 @@ abstract final class Stores {
     attestationChecks.loadState,
     signIns.loadState,
     features.loadState,
+    webhooks.loadState,
   ];
 
   /// Makes every cached list fetch again the next time a screen asks for it.
@@ -211,6 +215,7 @@ abstract final class Stores {
       templates.templates.clear();
       invites.invites.clear();
       invites.members.clear();
+      webhooks.forget();
     });
   }
 
