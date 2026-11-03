@@ -43,7 +43,7 @@ along the bottom: **Attestations**, **Contacts** and **Settings** are under
 | **Shares** | Send links to your records, and see how often they were opened | [Sharing](sharing.md) |
 | **Requests** | Ask people for information and read their answers. Shares you saved from others wait under **Received**. | [Requests](requests.md), [Read the answers](requests.md#reading-what-came-back) |
 | **Attestations** | Keep what others confirm about you, confirm things about others, and check what others show you | [Attestations](attestations.md) |
-| **Settings** | Workspaces, members, invites, identities, connected tools, API keys, templates and your domain check | [Workspaces & members](workspaces.md), [Identities & trust](identities.md), [Tools & link proposals](tools.md), [Templates](templates.md) |
+| **Settings** | Workspaces, members, invites, identities, connected tools, API keys, templates and your domain check | [Workspaces & members](workspaces.md), [Identities & trust](identities.md), [Tools & link proposals](tools.md), [Your AI assistant](assistant.md), [Templates](templates.md) |
 
 ## Open a link someone sent you
 

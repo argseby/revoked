@@ -223,6 +223,13 @@ void main() {
       );
       expect(read('&poll=https%3A%2F%2Fvault.example%2Fapi'), isNull);
       expect(read('&poll=http%3A%2F%2Fvault.example'), isNull);
+      // Asking for the vault is a plain read request, and nothing else.
+      expect(read('')!.vault, isFalse);
+      final vault = read('&vault=read&vault_reason=To%20answer%20questions')!;
+      expect(vault.vault, isTrue);
+      expect(vault.reasons.vault, 'To answer questions');
+      expect(vault.toQuery()['vault'], 'read');
+      expect(read('&vault=write'), isNull);
       // A proposal names one only when it names itself.
       expect(
         ShareProposal.fromQuery({

@@ -5,19 +5,25 @@ attestations for the owner of a vault over the
 [Model Context Protocol](https://modelcontextprotocol.io). It is a
 [connected tool](tools.md) that runs on the owner's machine, and it can do
 exactly what a tool can: propose, follow what became of a proposal, and end
-it. It never reads a value.
+it. It reads values only if the owner lets it read their vault.
 
-That limit is deliberate. Whatever an MCP tool returns lands in the model's
-context, and from there with the model provider, so a secret that reached it
-could not be taken back by revoking anything. The assistant therefore names
-things — record keys, a template, claim names — and the owner fills in the
-values and saves in their app. Even a link the owner hands over to the
-connection is not passed on: `list_shares` drops its `url`. A request's
-answers and an attestation's values never reach the connection at all.
+Whatever an MCP tool returns lands in the model's context, and from there
+with the model provider, so a secret that reached it cannot be taken back by
+revoking anything. By default the assistant therefore names things — record
+keys, a template, claim names — and the owner fills in the values and saves
+in their app. Even a link the owner hands over to the connection is not
+passed on: `list_shares` drops its `url`. A request's answers and an
+attestation's values never reach the connection at all.
 
-The one exception is a check. Its point is to tell the asker what the other
-person showed, so `list_checks` returns the verdict with the claims they
-chose to disclose.
+Two things do return values:
+
+- A **check**. Its point is to tell the asker what the other person showed,
+  so `list_checks` returns the verdict with the claims they chose to disclose.
+- The **vault**, when the owner allowed it. `connect` with `vault` asks for
+  it, the app offers it switched off and explains what it means, and only
+  then do `list_vault` and `read_record` work. The owner can withdraw it in
+  **Settings → Connected tools** at any time. The user-facing side is in
+  [Your AI assistant](../guide/assistant.md).
 
 ## Who can use it
 
@@ -45,6 +51,18 @@ What such a connection gets is still bounded: the status of what was
 proposed through it, the verdicts of its checks, and — only if the owner
 ticked **End what it proposed** — ending those. Never a value, never the
 vault. Approve an assistant only if you started it yourself.
+
+Vault access is the one permission that phishing must not reach, so it is
+never given to an answer collected by polling. With `vault`, `connect`
+leaves out `poll` and starts a listener on the client origin's port, on the
+loopback interface only, at `/callback`. The app sends the owner's answer
+there through their browser, and the assistant exchanges the code with its
+verifier. Someone who sends the owner a connect link for `localhost` would
+have the answer delivered to the owner's own machine, where they are not
+listening; a link for any other address shows that address in the app. That
+needs `-client` to
+be `http://localhost:<port>` or `http://127.0.0.1:<port>`, and the Revoked
+app on the same computer as the assistant.
 
 ## Running it
 
@@ -81,8 +99,8 @@ link is returned either way, for the owner to open on another device.
 
 | Tool | Does |
 |---|---|
-| `connect` | Builds a `revoked://connect` link with `poll` set to the server, and returns it with the check code. The owner approves in the app only if the app shows the same code. Asks for `allowRevoke`; it never asks to receive links. |
-| `connection_status` | While a connect is pending, polls `POST /api/connect/token` once (with `Origin` set to the client origin) and stores the token on success. Once connected, reports the connection's name, expiry, `allowRevoke` and how many shares, requests, attestations and checks it follows. |
+| `connect` | Builds a `revoked://connect` link with `poll` set to the server, and returns it with the check code. The owner approves in the app only if the app shows the same code. Asks for `allowRevoke`; it never asks to receive links. With `vault: true` it asks to read the vault instead of polling (see [Who can use it](#who-can-use-it)), and no check code is needed. Already connected without the vault, `vault: true` connects again. |
+| `connection_status` | While a connect is pending, polls `POST /api/connect/token` once (with `Origin` set to the client origin), or reports whether the app's answer reached `/callback`, and stores the token on success. Once connected, reports the connection's name, expiry, `allowRevoke`, `readsVault` and how many shares, requests, attestations and checks it follows. |
 | `propose_share` | Builds a `revoked://p` link from `label`, `keys`, and optionally `template`, `days` and `ref`, checked against the [proposal rules](tools.md#1-the-proposal). `from` and `client` are filled in, so the share joins the connection. |
 | `list_shares` | `GET /api/connection`: each share's `id`, `ref`, `label`, `status`, `viewCount`, `maxViews`, `expiresAt`, `created` and `handedOver` — never its `url`. |
 | `revoke_share` | `POST /api/connection/links/{id}/revoke`. |
@@ -94,6 +112,8 @@ link is returned either way, for the owner to open on another device.
 | `revoke_attestation` | `POST /api/connection/attestations/{id}/revoke`. Final. |
 | `propose_check` | Builds a `revoked://check` link from optional `type`, `issuers`, `claims` and `ref`. |
 | `list_checks` | Each check's `id`, `ref`, `type`, `status`, and once answered its `verdict`: `state`, `issuer`, `type`, the disclosed `claims`, `withheld`, `status` and `holder`. |
+| `list_vault` | `GET /api/connection/vault`: the owner's records, `id`, `key`, `label`, `type`, `format` and `updated` — no values, no encrypted records. |
+| `read_record` | `GET /api/connection/vault/{id}`: one record with its `value`, or a file's `filename`, `mime` and `size`. The owner's audit log names every record read. |
 | `disconnect` | `DELETE /api/connection`, then forgets the token. Everything it proposed stays the owner's. |
 
 The three tools that end something are refused unless the owner allowed it

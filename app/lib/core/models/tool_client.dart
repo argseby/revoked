@@ -58,8 +58,8 @@ abstract final class ToolClient {
 }
 
 /// Why a tool asks for what the owner may allow or not, in its own words:
-/// `revoke_reason` and `links_reason` on a `revoked://` link. Shown as the
-/// tool's claim, never as fact.
+/// `revoke_reason`, `links_reason` and `vault_reason` on a `revoked://` link.
+/// Shown as the tool's claim, never as fact.
 class ToolReasons {
   /// Why it wants to revoke the links it proposed.
   final String revoke;
@@ -67,7 +67,10 @@ class ToolReasons {
   /// Why it wants to receive links the owner shares with it.
   final String links;
 
-  const ToolReasons({this.revoke = '', this.links = ''});
+  /// Why it wants to read the vault.
+  final String vault;
+
+  const ToolReasons({this.revoke = '', this.links = '', this.vault = ''});
 
   static const maxReason = 120;
 
@@ -75,13 +78,15 @@ class ToolReasons {
   static ToolReasons? fromQuery(Map<String, String> query) {
     final revoke = _line(query['revoke_reason']);
     final links = _line(query['links_reason']);
-    if (revoke == null || links == null) return null;
-    return ToolReasons(revoke: revoke, links: links);
+    final vault = _line(query['vault_reason']);
+    if (revoke == null || links == null || vault == null) return null;
+    return ToolReasons(revoke: revoke, links: links, vault: vault);
   }
 
   Map<String, String> toQuery() => {
     if (revoke.isNotEmpty) 'revoke_reason': revoke,
     if (links.isNotEmpty) 'links_reason': links,
+    if (vault.isNotEmpty) 'vault_reason': vault,
   };
 
   static String? _line(String? raw) {
@@ -94,11 +99,12 @@ class ToolReasons {
 }
 
 /// A tool asking to be connected: `revoked://connect?client=…&name=…&redirect=…&state=…&challenge=…`
-/// (+ `revoke_reason`, `links_reason`, `poll`).
+/// (+ `revoke_reason`, `links_reason`, `poll`, `vault=read`, `vault_reason`).
 ///
 /// Connecting lets the tool see the status of the links it proposes. Whether
-/// it may also revoke them, or receive links, is the owner's choice. It never
-/// reads the vault.
+/// it may also revoke them, or receive links, is the owner's choice, and so is
+/// reading the vault when it asks. The server never lets a tool that polls for
+/// its answer read the vault, so that choice is only offered without [poll].
 class ConnectRequest {
   /// The tool's origin — who it is.
   final String client;
@@ -121,6 +127,9 @@ class ConnectRequest {
   /// origin; empty when it waits to be sent back to [redirect] instead.
   final String poll;
 
+  /// Whether it asks to read the vault (`vault=read`).
+  final bool vault;
+
   const ConnectRequest({
     required this.client,
     required this.name,
@@ -129,6 +138,7 @@ class ConnectRequest {
     required this.challenge,
     this.reasons = const ToolReasons(),
     this.poll = '',
+    this.vault = false,
   });
 
   static const maxName = 40;
@@ -149,6 +159,8 @@ class ConnectRequest {
     if (reasons == null) return null;
     final poll = ToolClient.pollOrigin(query['poll']);
     if (poll == null) return null;
+    final vault = query['vault'] ?? '';
+    if (vault.isNotEmpty && vault != 'read') return null;
     return ConnectRequest(
       client: client,
       name: name.isEmpty ? Uri.parse(client).host : name,
@@ -157,6 +169,7 @@ class ConnectRequest {
       challenge: challenge,
       reasons: reasons,
       poll: poll,
+      vault: vault == 'read',
     );
   }
 
@@ -168,6 +181,7 @@ class ConnectRequest {
     'challenge': challenge,
     ...reasons.toQuery(),
     if (poll.isNotEmpty) 'poll': poll,
+    if (vault) 'vault': 'read',
   };
 
   static String? _cleanName(String? raw) {

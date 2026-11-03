@@ -119,8 +119,8 @@ tags:
     description: |
       Tools the owner connected. A tool proposes shares (`revoked://p`) and,
       once connected, reads the status of the links its proposals became and
-      receives the links the owner handed it. It never reads the vault and
-      stores nothing here. It is connected from the app — the owner
+      receives the links the owner handed it. It reads the vault only where
+      the owner allowed `allowVaultRead`, and stores nothing here. It is connected from the app — the owner
       authorizes, the tool exchanges a one-time code (PKCE) for a token it
       sends as `X-Revoked-Connection`. A connection lapses 90 days after the
       owner last connected the tool.
@@ -1492,6 +1492,14 @@ paths:
                     `handedOver` while this is set
                     (`link_hand_over_not_allowed` otherwise), and the tool
                     stops seeing the URLs it was given when it is taken away.
+                allowVaultRead:
+                  type: boolean
+                  description: |
+                    Whether the tool may read the owner's vault through
+                    `/api/connection/vault`. Left out, a connection keeps what
+                    it had; a new one starts without it. Refused together with
+                    `poll` (`connection_vault_polled`), and a token collected by
+                    polling never reads the vault.
                 challenge: { type: string, description: "PKCE S256 challenge, base64url." }
                 reuse:
                   type: boolean
@@ -1733,6 +1741,66 @@ paths:
           description: "`connection_revoke_not_allowed`, or `connection_paused` while the owner has the tool paused."
         "404":
           description: Not a link of this tool.
+  /api/connection/vault:
+    get:
+      tags: [Connections]
+      summary: List the owner's vault (the tool)
+      description: |
+        The owner's own records in the connection's workspace, without values.
+        Encrypted records, and answers others sent, are left out. Only where the
+        owner allowed `allowVaultRead`, and only to a token that came through the
+        tool's return address, not by polling.
+      security:
+        - Connection: []
+      responses:
+        "200":
+          description: The records.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  records:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        key: { type: string }
+                        label: { type: string }
+                        type: { type: string }
+                        format: { type: string }
+                        updated: { type: string }
+        "401":
+          description: "`connection_unauthorized` or `connection_expired`."
+        "403":
+          description: "`connection_vault_not_allowed`, `connection_vault_polled`, or `connection_paused`."
+  /api/connection/vault/{id}:
+    get:
+      tags: [Connections]
+      summary: Read one record's value (the tool)
+      description: |
+        One record from the list with its current `value`; an alias reads
+        through to its entry. A file record gives `filename`, `mime` and `size`
+        instead of a value. An encrypted record answers 404, like a missing
+        one. Each read is written to the owner's audit log with the record's
+        key.
+      security:
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The record and its value.
+        "401":
+          description: "`connection_unauthorized` or `connection_expired`."
+        "403":
+          description: "`connection_vault_not_allowed`, `connection_vault_polled`, or `connection_paused`."
+        "404":
+          description: "`record_not_found`: not the owner's, or encrypted."
   /api/connection/requests/{id}/close:
     post:
       tags: [Connections]
@@ -1787,8 +1855,10 @@ paths:
       tags: [Connections]
       summary: Change what a tool is allowed (the owner)
       description: |
-        The two things the owner decides per connection. A field left out
-        stays as it is.
+        What the owner decides per connection. A field left out stays as it
+        is. `allowVaultRead` can only be withdrawn here; `true` is refused
+        with `connection_vault_reconnect`, because granting it takes a
+        connect the tool asks for.
       security:
         - Session: []
       parameters:
@@ -1805,9 +1875,12 @@ paths:
               properties:
                 allowRevoke: { type: boolean, description: "The tool may revoke the links its proposals became." }
                 allowHandOver: { type: boolean, description: "The tool may receive the links its proposals became." }
+                allowVaultRead: { type: boolean, description: "Only `false`: the tool stops reading the vault at once." }
       responses:
         "200":
-          description: Both permissions as they now stand.
+          description: The permissions as they now stand.
+        "400":
+          description: "`connection_vault_reconnect`." 
         "404":
           description: Not one of your connections.
   /api/connections/{id}/pause:

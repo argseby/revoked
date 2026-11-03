@@ -46,6 +46,7 @@ nav = [
     { "Attestations" = "guide/attestations.md" },
     { "Workspaces & members" = "guide/workspaces.md" },
     { "Tools & link proposals" = "guide/tools.md" },
+    { "Your AI assistant" = "guide/assistant.md" },
     { "Example: Notfallkarte" = "guide/notfallkarte.md" },
   ] },
   { "Developer API" = [

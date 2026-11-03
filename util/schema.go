@@ -195,7 +195,7 @@ type bookmarkGroupFields struct {
 }
 
 type connectionFields struct {
-	User, Workspace, ClientId, ClientName, AllowRevoke, AllowHandOver, Paused, ExpiresAt, LastUsedAt, Created, Updated string
+	User, Workspace, ClientId, ClientName, AllowRevoke, AllowHandOver, AllowVaultRead, Paused, ExpiresAt, LastUsedAt, Created, Updated string
 }
 
 type connectionTokenFields struct {
@@ -609,17 +609,18 @@ var Fields = struct {
 		Updated: "updated",
 	},
 	Connection: connectionFields{
-		User:          "user",
-		Workspace:     "workspace",
-		ClientId:      "clientId",
-		ClientName:    "clientName",
-		AllowRevoke:   "allowRevoke",
-		AllowHandOver: "allowHandOver",
-		Paused:        "paused",
-		ExpiresAt:     "expiresAt",
-		LastUsedAt:    "lastUsedAt",
-		Created:       "created",
-		Updated:       "updated",
+		User:           "user",
+		Workspace:      "workspace",
+		ClientId:       "clientId",
+		ClientName:     "clientName",
+		AllowRevoke:    "allowRevoke",
+		AllowHandOver:  "allowHandOver",
+		AllowVaultRead: "allowVaultRead",
+		Paused:         "paused",
+		ExpiresAt:      "expiresAt",
+		LastUsedAt:     "lastUsedAt",
+		Created:        "created",
+		Updated:        "updated",
 	},
 	ConnectionToken: connectionTokenFields{
 		Connection:    "connection",

@@ -4,6 +4,7 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
+import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 
@@ -24,6 +25,12 @@ class ToolPermissions extends StatelessWidget {
   final ValueChanged<bool>? onAllowRevoke;
   final ValueChanged<bool>? onAllowHandOver;
 
+  /// Whether to offer reading the vault at all: only when the tool asked for
+  /// it, or still has it. Off unless the owner ticks it.
+  final bool showVault;
+  final bool allowVaultRead;
+  final ValueChanged<bool>? onAllowVaultRead;
+
   /// Why the tool asks, in its own words.
   final ToolReasons reasons;
 
@@ -34,6 +41,9 @@ class ToolPermissions extends StatelessWidget {
     required this.allowHandOver,
     required this.onAllowRevoke,
     required this.onAllowHandOver,
+    this.showVault = false,
+    this.allowVaultRead = false,
+    this.onAllowVaultRead,
     this.reasons = const ToolReasons(),
   });
 
@@ -114,8 +124,24 @@ class ToolPermissions extends StatelessWidget {
                 onChanged: onAllowHandOver,
               ),
             ),
+            if (showVault)
+              choice(
+                AppCheckRow(
+                  label: 'Read your vault',
+                  subtitle:
+                      'See the values of your records, to answer your '
+                      'questions. Encrypted records stay hidden.',
+                  note: _reason(reasons.vault),
+                  value: allowVaultRead,
+                  onChanged: onAllowVaultRead,
+                ),
+              ),
           ],
         ),
+        if (showVault) ...[
+          VaultReadNotice(name: name),
+          AppSpacing.gapLg,
+        ],
         AppListGroup(
           title: '$name can never',
           trailing: quiet,
@@ -125,7 +151,14 @@ class ToolPermissions extends StatelessWidget {
           children: [
             row(
               AppIcons.x,
-              'Read your vault, your other links or your account',
+              showVault && allowVaultRead
+                  ? 'Change your vault'
+                  : 'Read your vault without your consent',
+              allowed: false,
+            ),
+            row(
+              AppIcons.x,
+              'See your other links or your account',
               allowed: false,
             ),
             row(
@@ -136,6 +169,44 @@ class ToolPermissions extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// What letting a tool read the vault means, said before the owner decides.
+/// Once a value leaves, nothing in Revoked can call it back.
+class VaultReadNotice extends StatelessWidget {
+  final String name;
+
+  const VaultReadNotice({super.key, required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppAlert(
+      tone: AppAlertTone.warning,
+      leading: const Icon(AppIcons.exclamationTriangle),
+      title: const Text('What reading your vault means'),
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$name sees the value of any record it opens.'),
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'What it sees leaves Revoked. Revoking or disconnecting later '
+            'can’t take it back.',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'If it’s an AI assistant, the company that runs the AI gets what '
+            'it sees, too.',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Text(
+            'Only allow this for an assistant you started yourself, on this '
+            'device.',
+          ),
+        ],
+      ),
     );
   }
 }

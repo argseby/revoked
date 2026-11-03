@@ -4,7 +4,7 @@ Some tools need your data: an emergency-card maker, an application form,
 someone else's service. With a **link proposal**, the tool asks for the
 records it needs, and you create the share yourself, on your own server.
 The tool only ever names keys, never values, and it never gets into your
-vault.
+vault unless you let it read it.
 
 A [request](requests.md) works the other way round: the person who wants
 the data sends you a form, and you fill it in.
@@ -69,15 +69,16 @@ example from the tool's settings. A connected tool can see what became of
 the links it proposed: active, paused, revoked or expired, and how often
 they were opened. It can follow the requests, attestations and checks it
 suggested the same way. It never sees what they contain, or anything else in
-your vault.
+your vault, unless you let it read your vault.
 
-Two more permissions are your choice, per tool. Each one shows the reason
-the tool gave for asking:
+More permissions are your choice, per tool. Each one shows the reason the
+tool gave for asking:
 
 | Permission | What it allows |
 |---|---|
 | **End what it proposed** | The tool can end what came from its own proposals: revoke a link, for example when you delete the printed card it belongs to, close a request, or revoke an attestation. It can never create or read them. You're notified like for any other revocation. |
 | **Receive the links it proposed** | The finished link goes straight to the tool, so you don't have to copy it over. Links with a hidden record or a file are never handed over: copy those yourself. |
+| **Read your vault** | Only when the tool asks, and off until you turn it on. The tool can see the values of your records, but not your encrypted ones, and it can't change anything. What it sees can't be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) explains what to weigh. |
 
 ### Confirm on another device
 
@@ -96,7 +97,9 @@ one. It gets the same permissions as before, nothing more.
 **Settings → Connected tools** lists every tool: when you connected it,
 when it was last used, when the connection ends, and everything it
 proposed: its links, requests, attestations and checks. There you can
-change its two permissions, or open or revoke each of its links. Tap a
+change its permissions, or open or revoke each of its links. **Read your
+vault** shows only while it's on. You can turn it off there. To turn it on
+again, the tool has to ask when it connects. Tap a
 request, an attestation or a check to open it where it lives.
 
 ### Take a break from a tool

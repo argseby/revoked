@@ -185,6 +185,7 @@ abstract class _ConnectionsStore with Store {
     required String challenge,
     bool? allowRevoke,
     bool? allowHandOver,
+    bool? allowVaultRead,
     bool reuse = false,
     bool poll = false,
   }) async {
@@ -201,6 +202,7 @@ abstract class _ConnectionsStore with Store {
           if (poll) 'poll': true,
           if (!reuse) 'allowRevoke': ?allowRevoke,
           if (!reuse) 'allowHandOver': ?allowHandOver,
+          if (!reuse) 'allowVaultRead': ?allowVaultRead,
         },
       );
       return (
@@ -268,18 +270,25 @@ abstract class _ConnectionsStore with Store {
   }
 
   /// Changes what the owner allows the tool: revoking the links it proposed,
-  /// receiving links. A value left null stays as it is.
+  /// receiving links, reading the vault. A value left null stays as it is.
+  /// Reading the vault can only be withdrawn here; the server grants it on a
+  /// new connect alone.
   @action
   Future<bool> setPermissions(
     String id, {
     bool? allowRevoke,
     bool? allowHandOver,
+    bool? allowVaultRead,
   }) async {
     errorMessage = null;
     try {
       final data = await _api.post(
         '/api/connections/$id/permissions',
-        body: {'allowRevoke': ?allowRevoke, 'allowHandOver': ?allowHandOver},
+        body: {
+          'allowRevoke': ?allowRevoke,
+          'allowHandOver': ?allowHandOver,
+          'allowVaultRead': ?allowVaultRead,
+        },
       );
       final i = connections.indexWhere((c) => c.id == id);
       if (i >= 0) {
@@ -290,6 +299,7 @@ abstract class _ConnectionsStore with Store {
           clientName: c.clientName,
           allowRevoke: data['allowRevoke'] as bool? ?? c.allowRevoke,
           allowHandOver: data['allowHandOver'] as bool? ?? c.allowHandOver,
+          allowVaultRead: data['allowVaultRead'] as bool? ?? c.allowVaultRead,
           paused: c.paused,
           expiresAt: c.expiresAt,
           lastUsedAt: c.lastUsedAt,

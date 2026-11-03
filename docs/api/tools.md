@@ -1,8 +1,8 @@
 # Building a tool
 
 A tool proposes a share to the owner of a vault and, once it has been
-connected, can see what became of that share. The vault itself is never read,
-the owner's credentials are never held, and nothing is stored on the owner's
+connected, can see what became of that share. The vault itself is read only
+if the owner allows it, the owner's credentials are never held, and nothing is stored on the owner's
 server for the tool. The user-facing side is described in
 [Tools & link proposals](../guide/tools.md);
 [Notfallkarte](../guide/notfallkarte.md) is a complete tool built this way.
@@ -39,6 +39,7 @@ percent-encoded, with a space written as `%20` rather than `+`.
 | `ref` | | The tool's own reference for this link, up to 80 characters. Returned with the link's status once connected. |
 | `challenge` | needs `state` | A PKCE S256 challenge, for connecting along the way (see below). |
 | `revoke_reason`, `links_reason` | | Why the tool wants each permission, up to 120 characters each. Shown when it connects. |
+| `vault`, `vault_reason` | connect link only | `vault=read` asks to read the owner's vault; see [the connection](#2-the-connection). |
 | `poll` | needs `client` | The server origin the tool will ask for the answer itself. |
 
 A link with any invalid part is refused as a whole. A label and keys are the
@@ -88,6 +89,17 @@ revoked://connect?client=https://tool.example
   &state=<random>
   &challenge=<base64url(SHA-256(verifier))>
 ```
+
+A connect link may also ask to read the owner's vault with `vault=read`,
+and say why in `vault_reason` (up to 120 characters). The app offers it
+switched off, with an explanation, and only when the answer goes to the
+return address: the server refuses `allowVaultRead` together with `poll`
+(`connection_vault_polled`), and a token collected by polling never reads the
+vault even when the connection allows it. A polled answer is tied to the
+owner only by a check code that whoever sent the link can read out to them;
+a return address on `http://localhost` is reachable only from the owner's
+own machine. An owner who already connected the tool is asked again when a
+link asks for the vault and the connection does not have it.
 
 ### Answer through the return address
 
@@ -156,8 +168,10 @@ const code = hex.slice(0, 3) + '-' + hex.slice(3); // "83C-047"
 ## 3. The token
 
 The token is sent in `X-Revoked-Connection`, not in `Authorization`. It is
-not a user session and no collection rule admits it, so neither the vault nor
-anything else outside these endpoints can be read with it.
+not a user session and no collection rule admits it, so nothing outside these
+endpoints can be read with it. The vault endpoints answer only where the
+owner allowed `allowVaultRead`, and only to a token that came through the
+return address.
 
 | Endpoint | Does |
 |---|---|
@@ -165,6 +179,8 @@ anything else outside these endpoints can be read with it.
 | `POST /api/connection/links/{id}/revoke` | Revokes one of those links, where the owner allowed `allowRevoke`. |
 | `POST /api/connection/requests/{id}/close` | Stops one of those requests taking answers, where the owner allowed `allowRevoke`. Answers already given stay their responders' links. |
 | `POST /api/connection/attestations/{id}/revoke` | Revokes one of those attestations, or withdraws its offer, where the owner allowed `allowRevoke`. Final, like any revocation. |
+| `GET /api/connection/vault` | The owner's own records in the connection's workspace: `id`, `key`, `label`, `type`, `format`, `updated` — no values. Encrypted records and answers others sent are left out. `403` with `connection_vault_not_allowed` or `connection_vault_polled`. |
+| `GET /api/connection/vault/{id}` | One of those records with its current `value` (an alias reads through to its entry; a file record gives `filename`, `mime` and `size` instead). An encrypted record answers `404`, like a missing one. Each read is written to the audit log with the record's key, never its value. |
 | `DELETE /api/connection` | Disconnects the tool. The links remain the owner's. |
 
 ```bash

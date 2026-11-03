@@ -1,6 +1,6 @@
 // Command revoked-mcp is an MCP server over stdio that lets an AI assistant
-// propose, follow and end shares on the owner's Revoked server. It never reads
-// a value: see docs/api/mcp.md.
+// propose, follow and end shares, requests and attestations on the owner's
+// Revoked server, and read their vault if they allow it: see docs/api/mcp.md.
 package main
 
 import (

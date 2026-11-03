@@ -38,6 +38,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
   final _done = Local<bool>(false);
   final _allowRevoke = Local<bool>(true);
   final _allowHandOver = Local<bool>(true);
+  // Reading the vault is never on until the owner turns it on.
+  final _allowVaultRead = Local<bool>(false);
   // Until it is known whether the owner already agreed to this tool.
   final _checking = Local<bool>(true);
   // Already connected: this browser was let in without asking again.
@@ -50,6 +52,11 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   bool get _polls =>
       widget.request != null && toolWatchesThisServer(widget.request!.poll);
+
+  /// Whether to offer reading the vault: the tool asked, and its answer goes
+  /// back to its own address. The server refuses it for an answer collected
+  /// by polling, which anyone could have set up for the owner.
+  bool get _offersVault => widget.request?.vault == true && !_polls;
 
   @override
   void initState() {
@@ -82,6 +89,13 @@ class _ConnectScreenState extends State<ConnectScreen> {
     if (existing != null && _polls) {
       if (!mounted) return;
       _joining.value = true;
+      _checking.value = false;
+      return;
+    }
+    // Asking for the vault is asking for more than the owner agreed to, so
+    // they are asked again rather than let through.
+    if (existing != null && _offersVault && !existing.allowVaultRead) {
+      if (!mounted) return;
       _checking.value = false;
       return;
     }
@@ -119,6 +133,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       challenge: r.challenge,
       allowRevoke: _allowRevoke.value,
       allowHandOver: _allowHandOver.value,
+      allowVaultRead: _offersVault ? _allowVaultRead.value : null,
       reuse: _joining.value,
       poll: polls,
     );
@@ -299,6 +314,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
             allowHandOver: _allowHandOver.value,
             onAllowRevoke: (v) => _allowRevoke.value = v,
             onAllowHandOver: (v) => _allowHandOver.value = v,
+            showVault: _offersVault,
+            allowVaultRead: _allowVaultRead.value,
+            onAllowVaultRead: (v) => _allowVaultRead.value = v,
           ),
         if (_error.value != null)
           AppAlert(destructive: true, content: Text(_error.value!)),

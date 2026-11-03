@@ -55,12 +55,19 @@ var connectLimiter = util.NewRateLimiter(util.LimitFromEnv("RATELIMIT_CONNECT_RE
 //	POST   /api/connection/links/{id}/revoke
 //	                                  revoke one of those links, when the
 //	                                  owner allowed it (allowRevoke).
+//	GET    /api/connection/vault[/{id}]
+//	                                  read the owner's vault, when the owner
+//	                                  allowed it (allowVaultRead) and the token
+//	                                  was not collected by polling.
 //	DELETE /api/connection            disconnect itself.
 //
-// The owner decides both permissions when connecting and changes them later
+// The owner decides these permissions when connecting and changes them later
 // with
 //
-//	POST /api/connections/{id}/permissions   {"allowRevoke"?, "allowHandOver"?}
+//	POST /api/connections/{id}/permissions   {"allowRevoke"?, "allowHandOver"?, "allowVaultRead"?}
+//
+// allowVaultRead can only be withdrawn there: granting it takes a fresh
+// connect, so the owner sees the tool's own request for it.
 //
 // and can stop the tool altogether:
 //
@@ -68,8 +75,8 @@ var connectLimiter = util.NewRateLimiter(util.LimitFromEnv("RATELIMIT_CONNECT_RE
 //	POST /api/connections/{id}/resume        undoes that
 //	POST /api/connections/{id}/disconnect    {"revokeLinks"?}
 //
-// Nothing here reads the vault: a token is not a PocketBase auth record, so no
-// collection rule ever admits it. Nor does a tool keep anything here — what it
+// A token is not a PocketBase auth record, so no collection rule ever admits
+// it: the vault routes in connectionVault.go are the only way it reads one. Nor does a tool keep anything here — what it
 // has to remember about a proposal travels in the link's ref and label.
 //
 // A connection lasts util.ConnectionTTL from the last time the owner connected
@@ -93,8 +100,9 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				Challenge   string `json:"challenge"`
 				// What the owner chose to allow. Left out, a connection keeps
 				// what it had.
-				AllowRevoke   *bool `json:"allowRevoke"`
-				AllowHandOver *bool `json:"allowHandOver"`
+				AllowRevoke    *bool `json:"allowRevoke"`
+				AllowHandOver  *bool `json:"allowHandOver"`
+				AllowVaultRead *bool `json:"allowVaultRead"`
 				// Set when the owner was not asked again: the tool is already
 				// connected and another of their browsers wants in. That takes
 				// a live connection and leaves it exactly as it was.
@@ -115,6 +123,11 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			}
 			if !util.ValidPKCE(body.Challenge) {
 				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ConnectionChallengeInvalid)
+			}
+			// A polled answer is tied to the owner only by a code anyone can
+			// read out to them, so it must never carry the vault.
+			if body.Poll && body.AllowVaultRead != nil && *body.AllowVaultRead {
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ConnectionVaultPolled)
 			}
 			name := strings.Join(strings.Fields(body.ClientName), " ")
 			if len([]rune(name)) > 40 {
@@ -175,6 +188,9 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 					}
 					if body.AllowHandOver != nil {
 						conn.Set(util.Fields.Connection.AllowHandOver, *body.AllowHandOver)
+					}
+					if body.AllowVaultRead != nil {
+						conn.Set(util.Fields.Connection.AllowVaultRead, *body.AllowVaultRead)
 					}
 					conn.Set(util.Fields.Connection.ExpiresAt, time.Now().Add(util.ConnectionTTL))
 					if err := tx.Save(conn); err != nil {
@@ -311,17 +327,18 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			return re.JSON(http.StatusOK, map[string]any{
 				"token": token,
 				"connection": map[string]any{
-					"id":            conn.Id,
-					"clientName":    conn.GetString(util.Fields.Connection.ClientName),
-					"expiresAt":     conn.GetString(util.Fields.Connection.ExpiresAt),
-					"allowRevoke":   conn.GetBool(util.Fields.Connection.AllowRevoke),
-					"allowHandOver": conn.GetBool(util.Fields.Connection.AllowHandOver),
+					"id":             conn.Id,
+					"clientName":     conn.GetString(util.Fields.Connection.ClientName),
+					"expiresAt":      conn.GetString(util.Fields.Connection.ExpiresAt),
+					"allowRevoke":    conn.GetBool(util.Fields.Connection.AllowRevoke),
+					"allowHandOver":  conn.GetBool(util.Fields.Connection.AllowHandOver),
+					"allowVaultRead": conn.GetBool(util.Fields.Connection.AllowVaultRead),
 				},
 			})
 		})
 
 		e.Router.GET("/api/connection", func(re *core.RequestEvent) error {
-			conn, first, ok := connectionFromRequest(app, re)
+			token, conn, first, ok := connectionTokenFromRequest(app, re)
 			if !ok {
 				return nil
 			}
@@ -357,10 +374,13 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				"expiresAt":     conn.GetString(util.Fields.Connection.ExpiresAt),
 				"allowRevoke":   conn.GetBool(util.Fields.Connection.AllowRevoke),
 				"allowHandOver": conn.GetBool(util.Fields.Connection.AllowHandOver),
-				"links":         out,
-				"requests":      requests,
-				"attestations":  attestations,
-				"checks":        checks,
+				// What this token can do with it: one collected by polling never reads.
+				"allowVaultRead": conn.GetBool(util.Fields.Connection.AllowVaultRead),
+				"vaultReadable":  vaultReadable(conn, token),
+				"links":          out,
+				"requests":       requests,
+				"attestations":   attestations,
+				"checks":         checks,
 			})
 		})
 
@@ -447,11 +467,15 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				return re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
 			}
 			var body struct {
-				AllowRevoke   *bool `json:"allowRevoke"`
-				AllowHandOver *bool `json:"allowHandOver"`
+				AllowRevoke    *bool `json:"allowRevoke"`
+				AllowHandOver  *bool `json:"allowHandOver"`
+				AllowVaultRead *bool `json:"allowVaultRead"`
 			}
 			if err := re.BindBody(&body); err != nil {
 				return re.BadRequestError("Invalid request body", nil)
+			}
+			if body.AllowVaultRead != nil && *body.AllowVaultRead {
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ConnectionVaultReconnect)
 			}
 			conn, err := app.FindRecordById(util.Coll.Connections, re.Request.PathValue("id"))
 			if err != nil || conn == nil || conn.GetString(util.Fields.Connection.User) != re.Auth.Id {
@@ -463,13 +487,17 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			if body.AllowHandOver != nil {
 				conn.Set(util.Fields.Connection.AllowHandOver, *body.AllowHandOver)
 			}
+			if body.AllowVaultRead != nil {
+				conn.Set(util.Fields.Connection.AllowVaultRead, false)
+			}
 			if err := app.Save(conn); err != nil {
 				return re.InternalServerError("Failed to change the permissions", err)
 			}
 			auditConnection(app, re, conn, auditToolPermissionChanged, nil)
 			return re.JSON(http.StatusOK, map[string]any{
-				"allowRevoke":   conn.GetBool(util.Fields.Connection.AllowRevoke),
-				"allowHandOver": conn.GetBool(util.Fields.Connection.AllowHandOver),
+				"allowRevoke":    conn.GetBool(util.Fields.Connection.AllowRevoke),
+				"allowHandOver":  conn.GetBool(util.Fields.Connection.AllowHandOver),
+				"allowVaultRead": conn.GetBool(util.Fields.Connection.AllowVaultRead),
 			})
 		})
 
@@ -562,9 +590,16 @@ const connectionLastUsedResolution = 10 * time.Minute
 // connection, and reports whether this is the first request of a new stretch
 // of use. When it cannot, it has already answered 401 and reports !ok.
 func connectionFromRequest(app core.App, re *core.RequestEvent) (conn *core.Record, first, ok bool) {
-	refuse := func(appErr *util.AppError) (*core.Record, bool, bool) {
+	_, conn, first, ok = connectionTokenFromRequest(app, re)
+	return conn, first, ok
+}
+
+// connectionTokenFromRequest is connectionFromRequest with the token's own
+// row, which says how the token was collected.
+func connectionTokenFromRequest(app core.App, re *core.RequestEvent) (row, conn *core.Record, first, ok bool) {
+	refuse := func(appErr *util.AppError) (*core.Record, *core.Record, bool, bool) {
 		_ = appErrorResponse(re, http.StatusUnauthorized, appErr)
-		return nil, false, false
+		return nil, nil, false, false
 	}
 	token := strings.TrimSpace(re.Request.Header.Get(util.ConnectionHeader))
 	if token == "" {
@@ -586,7 +621,7 @@ func connectionFromRequest(app core.App, re *core.RequestEvent) (conn *core.Reco
 	// 403, not 401: a tool drops its token on a 401, and this one comes back.
 	if conn.GetBool(util.Fields.Connection.Paused) {
 		_ = appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionPaused)
-		return nil, false, false
+		return nil, nil, false, false
 	}
 	now := time.Now()
 	touch := func(r *core.Record, field string) bool {
@@ -602,7 +637,7 @@ func connectionFromRequest(app core.App, re *core.RequestEvent) (conn *core.Reco
 	}
 	touch(row, util.Fields.ConnectionToken.LastUsedAt)
 	first = touch(conn, util.Fields.Connection.LastUsedAt)
-	return conn, first, true
+	return row, conn, first, true
 }
 
 // What a connected tool does, and what its owner does to it, as the audit log
@@ -616,6 +651,8 @@ const (
 	auditToolRevokedLink        = "tool_revoked_link"        // it revoked one of its links
 	auditToolClosedRequest      = "tool_closed_request"      // it closed one of its requests
 	auditToolRevokedAttestation = "tool_revoked_attestation" // it revoked one of its attestations
+	auditToolListedVault        = "tool_listed_vault"        // it listed the records in the vault
+	auditToolReadRecord         = "tool_read_record"         // it read one record's value
 	auditToolDisconnected       = "tool_disconnected"        // it disconnected itself
 
 	auditToolPermissionChanged = "tool_permission_changed" // the owner changed what it may do
@@ -629,11 +666,12 @@ const (
 // adds what the action was about. A failure is logged and never blocks the action it describes.
 func auditConnection(app core.App, re *core.RequestEvent, conn *core.Record, action string, extra map[string]any) {
 	fields := map[string]any{
-		util.Fields.Connection.ClientId:      conn.GetString(util.Fields.Connection.ClientId),
-		util.Fields.Connection.ClientName:    conn.GetString(util.Fields.Connection.ClientName),
-		util.Fields.Connection.AllowRevoke:   conn.GetBool(util.Fields.Connection.AllowRevoke),
-		util.Fields.Connection.AllowHandOver: conn.GetBool(util.Fields.Connection.AllowHandOver),
-		util.Fields.Connection.ExpiresAt:     conn.GetString(util.Fields.Connection.ExpiresAt),
+		util.Fields.Connection.ClientId:       conn.GetString(util.Fields.Connection.ClientId),
+		util.Fields.Connection.ClientName:     conn.GetString(util.Fields.Connection.ClientName),
+		util.Fields.Connection.AllowRevoke:    conn.GetBool(util.Fields.Connection.AllowRevoke),
+		util.Fields.Connection.AllowHandOver:  conn.GetBool(util.Fields.Connection.AllowHandOver),
+		util.Fields.Connection.AllowVaultRead: conn.GetBool(util.Fields.Connection.AllowVaultRead),
+		util.Fields.Connection.ExpiresAt:      conn.GetString(util.Fields.Connection.ExpiresAt),
 	}
 	for k, v := range extra {
 		fields[k] = v

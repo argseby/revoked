@@ -38,6 +38,11 @@ void main() {
       if (!routesExist) return json({'message': 'Not found'}, 404);
       final action = path.split('/').last;
       calls.add('$action ${request.body}');
+      if (action == 'permissions') {
+        final changed = jsonDecode(request.body) as Map<String, dynamic>;
+        tool.addAll(changed);
+        return json(changed);
+      }
       tool['paused'] = action == 'pause';
       return json({});
     }
@@ -162,6 +167,23 @@ void main() {
       find.textContaining('Its request stops taking answers.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('reading the vault shows while it is on, and can only be '
+      'turned off', (tester) async {
+    await signedIn(tester);
+    expect(find.text('Read your vault'), findsNothing);
+
+    tool['allowVaultRead'] = true;
+    await Stores.connections.load();
+    await tester.pumpAndSettle();
+    expect(find.text('What reading your vault means'), findsOneWidget);
+    await tester.ensureVisible(find.text('Read your vault'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Read your vault'));
+    await tester.pumpAndSettle();
+    expect(calls, ['permissions {"allowVaultRead":false}']);
+    expect(find.text('Read your vault'), findsNothing);
   });
 
   testWidgets('a tool with only links shows no empty sections', (tester) async {

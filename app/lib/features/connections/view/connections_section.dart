@@ -349,6 +349,12 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
               store.setPermissions(connection.id, allowRevoke: v),
           onAllowHandOver: (v) =>
               store.setPermissions(connection.id, allowHandOver: v),
+          // Shown only while it is on: granting it again takes a connect
+          // the tool starts, so the owner sees what it asks for.
+          showVault: connection.allowVaultRead,
+          allowVaultRead: connection.allowVaultRead,
+          onAllowVaultRead: (v) =>
+              store.setPermissions(connection.id, allowVaultRead: v),
         ),
         AppListGroup(
           title: 'Links from ${connection.name}',

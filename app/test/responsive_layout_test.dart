@@ -228,6 +228,7 @@ void main() {
               'clientId': 'https://a-rather-long-tool-name.example.com',
               'clientName': name,
               'expiresAt': '2099-01-01 00:00:00.000Z',
+              'allowVaultRead': true,
             }),
           );
           store.requestsByConnection['c1'] = [

@@ -94,14 +94,17 @@ type Verdict struct {
 }
 
 type Connection struct {
-	ID           string        `json:"id"`
-	ClientName   string        `json:"clientName"`
-	ExpiresAt    string        `json:"expiresAt"`
-	AllowRevoke  bool          `json:"allowRevoke"`
-	Links        []Link        `json:"links"`
-	Requests     []Request     `json:"requests"`
-	Attestations []Attestation `json:"attestations"`
-	Checks       []Check       `json:"checks"`
+	ID          string `json:"id"`
+	ClientName  string `json:"clientName"`
+	ExpiresAt   string `json:"expiresAt"`
+	AllowRevoke bool   `json:"allowRevoke"`
+	// VaultReadable is whether this token may read the vault: the owner
+	// allowed it, and the answer came back to this machine, not by polling.
+	VaultReadable bool          `json:"vaultReadable"`
+	Links         []Link        `json:"links"`
+	Requests      []Request     `json:"requests"`
+	Attestations  []Attestation `json:"attestations"`
+	Checks        []Check       `json:"checks"`
 }
 
 type savedConnection struct {
@@ -112,6 +115,10 @@ type savedConnection struct {
 type pendingConnect struct {
 	verifier string
 	expires  time.Time
+	// Set when the answer comes back to this process's own address rather
+	// than by polling; the callback stores the token, or the error, itself.
+	loopback *loopback
+	err      error
 }
 
 // errNotConnected is returned when the server no longer accepts the token; the
@@ -129,6 +136,13 @@ func (e *apiError) Error() string {
 		return "the owner paused this assistant in the Revoked app"
 	case util.Errors.ConnectionRevokeNotAllowed.ErrorCode:
 		return "the owner has not allowed this assistant to end what it proposed"
+	case util.Errors.ConnectionVaultNotAllowed.ErrorCode:
+		return "the owner has not allowed this assistant to read their vault; call connect with vault set to ask"
+	case util.Errors.ConnectionVaultPolled.ErrorCode:
+		return "this connection was approved with a check code, which can never read the vault; " +
+			"call connect with vault set, on the computer where the Revoked app runs"
+	case util.Errors.RecordNotFound.ErrorCode:
+		return "no such record, or it is encrypted"
 	}
 	if e.Code != "" {
 		return fmt.Sprintf("server refused (%d %s)", e.Status, e.Code)
@@ -170,9 +184,12 @@ func (c *client) saveToken(token string) error {
 
 func (c *client) forgetToken() { _ = os.Remove(c.cfg.StatePath) }
 
-// startConnect prepares a connect link the owner answers in the app. The
-// answer is collected by polling, so the app opens no browser.
-func (c *client) startConnect() (link, checkCode string, err error) {
+// startConnect prepares a connect link the owner answers in the app. Without
+// vault the answer is collected by polling, so the app opens no browser. With
+// it the app sends the answer back to this process's own address, which only
+// a browser on this machine can reach: the server never lets a polled answer
+// read the vault.
+func (c *client) startConnect(vault bool) (link, checkCode string, err error) {
 	verifier, err := randomValue(32)
 	if err != nil {
 		return "", "", err
@@ -182,21 +199,47 @@ func (c *client) startConnect() (link, checkCode string, err error) {
 		return "", "", err
 	}
 	challenge := util.PKCEChallenge(verifier)
+	p := &pendingConnect{verifier: verifier, expires: time.Now().Add(10 * time.Minute)}
+
+	redirect := c.redirect()
+	if vault {
+		redirect = c.cfg.Client + "/callback"
+		lb, err := listenLoopback(c, p, state, redirect)
+		if err != nil {
+			return "", "", err
+		}
+		p.loopback = lb
+	}
 
 	c.mu.Lock()
-	c.pending = &pendingConnect{verifier: verifier, expires: time.Now().Add(10 * time.Minute)}
+	if c.pending != nil && c.pending.loopback != nil {
+		c.pending.loopback.close()
+	}
+	c.pending = p
 	c.mu.Unlock()
 
 	q := []string{
 		"client=" + escape(c.cfg.Client),
 		"name=" + escape(c.cfg.Name),
-		"redirect=" + escape(c.redirect()),
+		"redirect=" + escape(redirect),
 		"state=" + state,
 		"challenge=" + challenge,
-		"poll=" + escape(c.cfg.Server),
 		"revoke_reason=" + escape("So you can ask your assistant to end what it set up for you"),
 	}
-	return "revoked://connect?" + strings.Join(q, "&"), CheckCode(challenge), nil
+	if !vault {
+		q = append(q, "poll="+escape(c.cfg.Server))
+		return "revoked://connect?" + strings.Join(q, "&"), CheckCode(challenge), nil
+	}
+	q = append(q, "vault=read",
+		"vault_reason="+escape("So you can ask your assistant about what is in your vault"))
+	return "revoked://connect?" + strings.Join(q, "&"), "", nil
+}
+
+// pendingConnectActive reports whether a connect is waiting for the owner.
+func (c *client) pendingConnectActive() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.pending != nil && time.Now().Before(c.pending.expires)
 }
 
 // pollConnect asks once whether the owner answered. It reports false while
@@ -207,6 +250,15 @@ func (c *client) pollConnect(ctx context.Context) (bool, error) {
 	c.mu.Unlock()
 	if p == nil || time.Now().After(p.expires) {
 		return false, errNotConnected
+	}
+	if p.loopback != nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if p.err != nil {
+			c.pending = nil
+			return false, p.err
+		}
+		return false, nil
 	}
 	body, _ := json.Marshal(map[string]string{"verifier": p.verifier, "redirectUri": c.redirect()})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.Server+"/api/connect/token", bytes.NewReader(body))
@@ -261,6 +313,31 @@ func (c *client) connection(ctx context.Context) (*Connection, error) {
 		out.Checks = []Check{}
 	}
 	return &out, nil
+}
+
+// exchange trades the code the app sent back for a token, and stores it.
+func (c *client) exchange(ctx context.Context, code, verifier, redirect string) error {
+	body, _ := json.Marshal(map[string]string{"code": code, "verifier": verifier, "redirectUri": redirect})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.Server+"/api/connect/token", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return readAPIError(resp)
+	}
+	var out struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil || out.Token == "" {
+		return errors.New("unexpected answer from the server")
+	}
+	return c.saveToken(out.Token)
 }
 
 // act posts to one of the connection's own rows, e.g. links/{id}/revoke.

@@ -1,6 +1,7 @@
-// Package mcpserver lets an AI assistant organise shares through the
-// connected-tool protocol: it proposes shares the owner confirms in the app,
-// follows what became of them and ends them. It never reads a value.
+// Package mcpserver lets an AI assistant organise shares, requests and
+// attestations through the connected-tool protocol: it proposes what the owner
+// confirms in the app, follows what became of it and ends it. It reads values
+// only when the owner let it read their vault.
 package mcpserver
 
 import (
@@ -71,11 +72,15 @@ func New(cfg Config) (*mcp.Server, error) {
 	s := mcp.NewServer(&mcp.Implementation{Name: "revoked", Version: "1"}, &mcp.ServerOptions{
 		Instructions: "Organise the owner's Revoked shares, requests and attestations. You propose " +
 			"them by name — record keys, a template, claim names — and the owner fills in the values " +
-			"and confirms in their app, so you never see them. Connect once to follow what became " +
-			"of your proposals and to end them.",
+			"and confirms in their app. Connect once to follow what became of your proposals and to " +
+			"end them. Only if the owner wants you to answer questions about their vault, connect with " +
+			"vault set and they decide in the app; then list_vault and read_record show their records. " +
+			"Read only what the task needs, and to give a value to someone else, propose a share " +
+			"instead of repeating it.",
 	})
 	addTools(s, c)
 	addProposalTools(s, c)
+	addVaultTools(s, c)
 	return s, nil
 }
 
@@ -108,12 +113,17 @@ type ConnectResult struct {
 	Next      string `json:"next"`
 }
 
+type ConnectInput struct {
+	Vault bool `json:"vault,omitempty" jsonschema:"also ask to read the owner's vault; only when they asked you to work with what is in it. Needs the Revoked app on this computer"`
+}
+
 type StatusResult struct {
 	Connected    bool   `json:"connected"`
 	Pending      bool   `json:"pending"`
 	ClientName   string `json:"clientName,omitempty"`
 	ExpiresAt    string `json:"expiresAt,omitempty"`
 	AllowRevoke  bool   `json:"allowRevoke"`
+	ReadsVault   bool   `json:"readsVault"`
 	Shares       int    `json:"shares"`
 	Requests     int    `json:"requests"`
 	Attestations int    `json:"attestations"`
@@ -153,24 +163,29 @@ func addTools(s *mcp.Server, c *client) {
 	destructive := true
 
 	mcp.AddTool(s, &mcp.Tool{
-		Name:        "connect",
-		Description: "Ask the owner to connect this assistant, so it can follow and end the shares it proposes. Opens a confirmation in the Revoked app.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ empty) (*mcp.CallToolResult, ConnectResult, error) {
-		if _, err := c.connection(ctx); err == nil {
-			return nil, ConnectResult{Connected: true, Next: "Already connected."}, nil
+		Name: "connect",
+		Description: "Ask the owner to connect this assistant, so it can follow and end what it proposes, " +
+			"and with vault set also read their vault. Opens a confirmation in the Revoked app.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in ConnectInput) (*mcp.CallToolResult, ConnectResult, error) {
+		if conn, err := c.connection(ctx); err == nil {
+			if !in.Vault || conn.VaultReadable {
+				return nil, ConnectResult{Connected: true, Next: "Already connected."}, nil
+			}
 		} else if !errors.Is(err, errNotConnected) {
 			return nil, ConnectResult{}, err
 		}
-		link, code, err := c.startConnect()
+		link, code, err := c.startConnect(in.Vault)
 		if err != nil {
 			return nil, ConnectResult{}, err
 		}
 		opened := c.cfg.Open != nil && c.cfg.Open(link) == nil
-		return nil, ConnectResult{
-			Link: link, CheckCode: code, Opened: opened,
-			Next: "Tell the owner to approve only if the app shows check code " + code +
-				". Then call connection_status.",
-		}, nil
+		next := "Tell the owner to approve only if the app shows check code " + code +
+			". Then call connection_status."
+		if in.Vault {
+			next = "The owner decides in the Revoked app whether you may read their vault. Afterwards " +
+				"the app opens a browser tab that hands their answer back to you. Then call connection_status."
+		}
+		return nil, ConnectResult{Link: link, CheckCode: code, Opened: opened, Next: next}, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -198,8 +213,8 @@ func addTools(s *mcp.Server, c *client) {
 			return nil, StatusResult{}, err
 		}
 		return nil, StatusResult{
-			Connected: true, ClientName: conn.ClientName, ExpiresAt: conn.ExpiresAt,
-			AllowRevoke: conn.AllowRevoke, Shares: len(conn.Links), Requests: len(conn.Requests),
+			Connected: true, Pending: c.pendingConnectActive(), ClientName: conn.ClientName, ExpiresAt: conn.ExpiresAt,
+			AllowRevoke: conn.AllowRevoke, ReadsVault: conn.VaultReadable, Shares: len(conn.Links), Requests: len(conn.Requests),
 			Attestations: len(conn.Attestations), Checks: len(conn.Checks),
 		}, nil
 	})

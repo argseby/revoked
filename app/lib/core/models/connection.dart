@@ -1,6 +1,7 @@
 /// A tool the owner connected. It may propose links, see what became of
-/// them, and receive the ones it was handed. It never reads the vault, and
-/// the connection lapses unless the owner connects the tool again.
+/// them, and receive the ones it was handed. It reads the vault only if the
+/// owner allowed it, and the connection lapses unless the owner connects the
+/// tool again.
 class Connection {
   final String id;
 
@@ -15,6 +16,10 @@ class Connection {
 
   /// Whether the tool may receive links the owner shares with it.
   final bool allowHandOver;
+
+  /// Whether the tool may read the values in the vault. Only a new connect
+  /// grants it; the owner can withdraw it here.
+  final bool allowVaultRead;
 
   /// Whether the owner paused it: its tokens are refused until they activate
   /// it again.
@@ -32,6 +37,7 @@ class Connection {
     this.clientName = '',
     this.allowRevoke = false,
     this.allowHandOver = false,
+    this.allowVaultRead = false,
     this.paused = false,
     this.expiresAt,
     this.lastUsedAt,
@@ -63,6 +69,7 @@ class Connection {
       clientName: json['clientName'] as String? ?? '',
       allowRevoke: json['allowRevoke'] as bool? ?? false,
       allowHandOver: json['allowHandOver'] as bool? ?? false,
+      allowVaultRead: json['allowVaultRead'] as bool? ?? false,
       paused: json['paused'] as bool? ?? false,
       expiresAt: date('expiresAt'),
       lastUsedAt: date('lastUsedAt'),

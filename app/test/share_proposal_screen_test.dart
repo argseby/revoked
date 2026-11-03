@@ -432,6 +432,64 @@ void main() {
       expect(launched, isEmpty);
       expect(find.textContaining('carries on from there'), findsOneWidget);
       expect(find.text('Back to Mietunterlagen'), findsNothing);
+
+      // Reading the vault is offered when the tool asks, explained, and off
+      // until the owner turns it on.
+      Future<void> askForVault({String poll = ''}) async {
+        authorized.clear();
+        launched.clear();
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.build(Brightness.light),
+            home: ConnectScreen(
+              request: ConnectRequest(
+                client: tool,
+                name: 'Assistant',
+                redirect: '$tool/callback',
+                state: 'st-4',
+                challenge: 'f' * 43,
+                vault: true,
+                poll: poll,
+                reasons: const ToolReasons(vault: 'To answer your questions'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await askForVault();
+      expect(find.text('Read your vault'), findsOneWidget);
+      expect(find.text('What reading your vault means'), findsOneWidget);
+      expect(
+        find.text('Assistant says: “To answer your questions”'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Connect'));
+      await tester.tap(find.text('Connect'));
+      await tester.pumpAndSettle();
+      expect(authorized.single['allowVaultRead'], false);
+
+      await askForVault();
+      await tester.ensureVisible(find.text('Read your vault'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Read your vault'));
+      await tester.pumpAndSettle();
+      expect(find.text('Change your vault'), findsOneWidget);
+      await tester.ensureVisible(find.text('Connect'));
+      await tester.tap(find.text('Connect'));
+      await tester.pumpAndSettle();
+      expect(authorized.single['allowVaultRead'], true);
+
+      // A page collecting its own answer is never offered it.
+      await askForVault(poll: watched);
+      expect(find.text('Read your vault'), findsNothing);
+      expect(find.text('What reading your vault means'), findsNothing);
+      await tester.ensureVisible(find.text('Connect'));
+      await tester.tap(find.text('Connect'));
+      await tester.pumpAndSettle();
+      expect(authorized.single.containsKey('allowVaultRead'), isFalse);
     },
   );
 }

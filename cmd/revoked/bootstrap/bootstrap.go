@@ -65,6 +65,7 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.VerifyPeerRoute(app)
 	routes.DeleteAccountRoute(app)
 	routes.ConnectionsRoute(app, root)
+	routes.ConnectionVaultRoute(app)
 	routes.PasskeysRoute(app, root)
 	routes.AppPageRoute(app, root)
 	routes.OIDCRoute(app, root)

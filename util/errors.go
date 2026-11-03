@@ -115,6 +115,9 @@ var Errors = struct {
 	ConnectionNotConnected        AppError
 	ConnectionRevokeNotAllowed    AppError
 	ConnectionPaused              AppError
+	ConnectionVaultNotAllowed     AppError
+	ConnectionVaultPolled         AppError
+	ConnectionVaultReconnect      AppError
 	LinkHandOverNotAllowed        AppError
 	LinkConnectionForeign         AppError
 	ConnectionForeign             AppError
@@ -562,6 +565,18 @@ var Errors = struct {
 	ConnectionPaused: AppError{
 		ErrorCode: "connection_paused",
 		ErrorText: "The owner has paused this tool. It works again once they activate it.",
+	},
+	ConnectionVaultNotAllowed: AppError{
+		ErrorCode: "connection_vault_not_allowed",
+		ErrorText: "The owner has not allowed this tool to read their vault.",
+	},
+	ConnectionVaultPolled: AppError{
+		ErrorCode: "connection_vault_polled",
+		ErrorText: "Vault access needs the answer sent to the tool's own address. A tool that collects it by polling can't read the vault.",
+	},
+	ConnectionVaultReconnect: AppError{
+		ErrorCode: "connection_vault_reconnect",
+		ErrorText: "To let a tool read your vault, connect it again from the tool.",
 	},
 	LinkHandOverNotAllowed: AppError{
 		ErrorCode: "link_hand_over_not_allowed",

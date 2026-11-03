@@ -135,9 +135,10 @@ Once it's revoked, the next read returns `"status": "revoked"` and no values.
   [complete example shop](examples/sign-in-demo)
 - [Build a tool](https://docs.revoked.link/api/tools/) that people share their
   data with
-- [Let your AI assistant help](https://docs.revoked.link/api/mcp/) with an MCP
-  server that suggests shares, requests and attestations for you to confirm.
-  It never sees a value
+- [Let your AI assistant help](https://docs.revoked.link/guide/assistant/)
+  with an MCP server that suggests shares, requests and attestations for you
+  to confirm. It reads your vault only if you allow it
+  ([developer details](https://docs.revoked.link/api/mcp/))
 
 ## Contributing
 
