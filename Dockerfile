@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # ---- build ------------------------------------------------------------------
-FROM golang:1.26-alpine AS build
+# The build stage runs natively and cross-compiles, so a multi-platform image
+# does not compile Go under emulation.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 
 WORKDIR /src
 
@@ -16,12 +18,13 @@ RUN apk add --no-cache git
 
 # CGO off: the SQLite driver is modernc's pure-Go one, so the result is a static
 # binary and the runtime image needs nothing but CA certificates.
-# Without .git (a Portainer stack's checkout has none) the toolchain stamps
-# nothing, so the release can be passed in instead.
+# Without .git the toolchain stamps nothing, so the release workflow passes the
+# release in instead.
 ARG REVOKED_VERSION=""
+ARG TARGETOS TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
       -ldflags="-s -w -X revoked/util.releaseVersion=${REVOKED_VERSION}" \
       -o /out/revoked ./cmd/revoked
 

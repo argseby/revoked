@@ -25,11 +25,13 @@
 
 services:
   api:
-    build:
-      context: .
-      args:
-        # Only read when the build context has no .git, as under Portainer.
-        REVOKED_VERSION: ${REVOKED_VERSION:-}
+    # The release image, with its version stamped in. Pin a release
+    # (ghcr.io/argseby/revoked:v0.35.0) so an upgrade is a deliberate change of
+    # tag; a pinned tag not yet on the host is pulled on the next `up`.
+    # `docker compose up -d --build` builds this checkout under the same name
+    # instead.
+    image: ${REVOKED_IMAGE:-ghcr.io/argseby/revoked:latest}
+    build: .
     container_name: ${CONTAINER_NAME:-revoked-api}
     restart: unless-stopped
     environment:

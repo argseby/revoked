@@ -18,7 +18,7 @@ no `.env` file needed there.
 | `CONTAINER_NAME` | `revoked-api` | The container's name. Your reverse proxy forwards to this hostname. |
 | `PROXY_NETWORK` | `proxy-network` | The external Docker network you share with your reverse proxy. Create it once: `docker network create proxy-network`. |
 | `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | Only for the bundled nginx (`--profile proxy`), the one thing that opens host ports. |
-| `REVOKED_VERSION` | — | The release you're building, such as `v0.22.0`, for a build without `.git`. A Portainer stack's checkout has none, and the server then reports `dev`. Ignored when the build can read the version from git. Keep it equal to the release you deploy: the app compares it with its own. |
+| `REVOKED_IMAGE` | `ghcr.io/argseby/revoked:latest` | The server image to run. Pin a release, such as `ghcr.io/argseby/revoked:v0.35.0`: a new tag is pulled on the next `up`, while `:latest` only moves when the image is pulled again. `docker compose up -d --build` builds the checkout under this name instead. |
 
 ## Registration
 

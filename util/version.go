@@ -5,9 +5,9 @@ import (
 	"sync"
 )
 
-// releaseVersion is set with `-ldflags -X` by a build whose source arrived
-// without .git, such as a Portainer stack, where the toolchain has nothing to
-// stamp from. A real git checkout wins over it.
+// releaseVersion is set with `-ldflags -X` by the release image build. It wins
+// over the toolchain's stamp: .dockerignore leaves files out of the build
+// context, so git sees them deleted and stamps the release `+dirty`.
 var releaseVersion string
 
 // Version is the release this binary was built from: `v0.22.0` on a tagged
@@ -16,14 +16,14 @@ var releaseVersion string
 // nothing has to be kept in step by hand. `go run` stamps nothing and reports
 // `dev`.
 var Version = sync.OnceValue(func() string {
+	if releaseVersion != "" {
+		return releaseVersion
+	}
 	info, ok := debug.ReadBuildInfo()
 	if ok {
 		if v := info.Main.Version; v != "" && v != "(devel)" {
 			return v
 		}
-	}
-	if releaseVersion != "" {
-		return releaseVersion
 	}
 	if !ok {
 		return "dev"

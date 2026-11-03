@@ -50,10 +50,10 @@ the desktop and Android downloads.
 
 ## Portainer
 
-Use a **git-backed** stack, not the web editor: `build: .` needs the repository
-to build from. Set the compose path to `docker-compose.yml`, and put the `.env`
-values in Portainer's *Environment variables* section.
+Use a **git-backed** stack with the compose path `docker-compose.yml`, and put
+the `.env` values in Portainer's *Environment variables* section.
 
-Pin the stack's repository reference to a release tag (`refs/tags/v0.22.0`) and
-set `REVOKED_VERSION` to the same tag. Portainer's checkout has no `.git`, so
-without it the server can't tell its release and reports `dev`.
+The stack runs the published image, `ghcr.io/argseby/revoked`, which carries
+its release; Portainer builds nothing. Set `REVOKED_IMAGE` to a release tag,
+such as `ghcr.io/argseby/revoked:v0.35.0`, and change the tag to upgrade. With
+`:latest`, an upgrade needs *Re-pull image* enabled on redeploy.
