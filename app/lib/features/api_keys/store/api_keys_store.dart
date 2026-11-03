@@ -37,27 +37,51 @@ abstract class _ApiKeysStore with Store {
 
   final ObservableSet<String> draftScopes = ObservableSet<String>();
 
+  /// The sections the new key reaches, when it may read or change the vault.
+  final ObservableSet<String> draftSections = ObservableSet<String>();
+
+  /// Whether the new key is to reach the vault, which it does only through
+  /// sections picked for it.
+  @computed
+  bool get draftReachesVault =>
+      draftScopes.contains('vault:read') || draftScopes.contains('vault:write');
+
   /// Days until the key stops working; null means it never expires.
   @observable
   int? draftExpiresInDays = 90;
 
   @computed
   bool get canCreateDraft =>
-      draftLabel.text.trim().isNotEmpty && draftScopes.isNotEmpty;
+      draftLabel.text.trim().isNotEmpty &&
+      draftScopes.isNotEmpty &&
+      (!draftReachesVault || draftSections.isNotEmpty);
 
   @action
   void resetDraft() {
     draftLabel.clear();
     draftScopes.clear();
+    draftSections.clear();
     draftExpiresInDays = 90;
   }
 
+  /// Changing the vault implies reading it, so the two move together.
   @action
   void toggleDraftScope(String key, bool on) {
     if (on) {
       draftScopes.add(key);
+      if (key == 'vault:write') draftScopes.add('vault:read');
     } else {
       draftScopes.remove(key);
+      if (key == 'vault:read') draftScopes.remove('vault:write');
+    }
+  }
+
+  @action
+  void toggleDraftSection(String id, bool on) {
+    if (on) {
+      draftSections.add(id);
+    } else {
+      draftSections.remove(id);
     }
   }
 
@@ -90,6 +114,7 @@ abstract class _ApiKeysStore with Store {
     required String user,
     required String workspace,
     required List<String> scopes,
+    List<String> sections = const [],
     String? expiresAt,
   }) async {
     isLoading = true;
@@ -103,6 +128,7 @@ abstract class _ApiKeysStore with Store {
           'user': user,
           'workspace': workspace,
           'scopes': scopes,
+          if (sections.isNotEmpty) 'sections': sections,
           if (expiresAt != null && expiresAt.isNotEmpty) 'expiresAt': expiresAt,
         },
       );

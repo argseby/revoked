@@ -7,8 +7,10 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/request.dart';
+import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -25,7 +27,9 @@ import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/api_keys/view/api_keys_group.dart';
 import 'package:revoked_app/features/attestations/view/attestations_section.dart';
+import 'package:revoked_app/features/connections/view/access_summary.dart';
 import 'package:revoked_app/features/connections/view/day_label.dart';
 import 'package:revoked_app/features/connections/view/sign_ins_section.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
@@ -45,6 +49,10 @@ class ConnectionsList extends StatelessWidget {
       builder: (_) {
         final noTools = store.connections.isEmpty;
         final nothingYet = noTools && signIns.services.isEmpty;
+        // Keys sit beside tools: both are ways in from outside the app.
+        final showKeys =
+            Stores.features.visible(Feature.developer) ||
+            Stores.apiKeys.apiKeys.isNotEmpty;
         if (nothingYet && (store.isLoading || signIns.loadState.isFirstLoad)) {
           return const AppListGroup(
             title: 'Connected tools',
@@ -53,34 +61,40 @@ class ConnectionsList extends StatelessWidget {
           );
         }
         if (nothingYet && signIns.loadState.error == null) {
-          return AppEmptyState(
-            icon: AppIcons.plug,
-            title: 'Let tools help, without opening your vault',
-            subtitle:
-                'A tool, like an application form, asks to connect when you '
-                'use it. It proposes links for you to confirm. It never sees '
-                'the records themselves.',
-            example: const AppEmptyExample(
-              title: 'Flat application',
-              detail: '2 links · last used today',
-              badge: 'connected',
-            ),
-            steps: const [
-              AppEmptyStep(
-                'A tool asks to connect',
-                'You approve it in the app',
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppEmptyState(
+                icon: AppIcons.plug,
+                title: 'Let tools help, without opening your vault',
+                subtitle:
+                    'A tool, like an application form, asks to connect when '
+                    'you use it. It proposes links for you to confirm. It '
+                    'sees only the sections you choose.',
+                example: const AppEmptyExample(
+                  title: 'Flat application',
+                  detail: '2 links · last used today',
+                  badge: 'connected',
+                ),
+                steps: const [
+                  AppEmptyStep(
+                    'A tool asks to connect',
+                    'You approve it in the app',
+                  ),
+                  AppEmptyStep(
+                    'It proposes links',
+                    'Nothing is shared until you confirm',
+                  ),
+                  AppEmptyStep(
+                    'Disconnect it any time',
+                    'Revoke its links too, if you like',
+                  ),
+                ],
+                learnMoreLabel: 'How tools connect',
+                learnMoreUrl: '${AppConfig.docsUrl}/guide/tools/',
               ),
-              AppEmptyStep(
-                'It proposes links',
-                'Nothing is shared until you confirm',
-              ),
-              AppEmptyStep(
-                'Disconnect it any time',
-                'Revoke its links too, if you like',
-              ),
+              if (showKeys) const ApiKeysGroup(),
             ],
-            learnMoreLabel: 'How tools connect',
-            learnMoreUrl: '${AppConfig.docsUrl}/guide/tools/',
           );
         }
         return Column(
@@ -91,8 +105,8 @@ class ConnectionsList extends StatelessWidget {
               trailing: noTools ? const SizedBox.shrink() : null,
               footer: const Text(
                 'Tools you connect can propose links, requests and '
-                'attestations, and follow how they’re going. They never read '
-                'your vault.',
+                'attestations, and follow how they’re going. They see only '
+                'the sections you choose.',
               ),
               children: [
                 if (noTools)
@@ -114,6 +128,7 @@ class ConnectionsList extends StatelessWidget {
                   ),
               ],
             ),
+            if (showKeys) const ApiKeysGroup(),
             const SignInServicesGroup(),
           ],
         );
@@ -135,10 +150,24 @@ class ConnectionsList extends StatelessWidget {
       if (checks > 0) count(checks, 'check', 'checks'),
     ];
     return [
+      toolAccessSummary(c),
       if (parts.isEmpty) 'No links yet' else ...parts,
       'last used ${dayLabel(c.lastUsedAt)}',
     ].join(' · ');
   }
+}
+
+/// What a tool may do and where, counted as the rows ticked on its page.
+String toolAccessSummary(Connection c) {
+  final keys = c.permissionKeys(Stores.invites.catalogue);
+  return accessSummary(
+    permissions:
+        keys.length +
+        (c.allowRevoke ? 1 : 0) +
+        (c.allowHandOver && !keys.contains('shares:read') ? 1 : 0),
+    sections: c.vaultAccess.isEmpty ? 0 : c.reachedSections.length,
+    wholeVault: c.allowVaultRead,
+  );
 }
 
 /// One connected tool: when it was connected, what it may do, what came of
@@ -160,6 +189,9 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       if (mounted) ShellSlots.title.claim(_title);
       // Opened straight from a link, the list has not loaded anything yet.
       if (Stores.connections.connections.isEmpty) Stores.connections.load();
+      // Permissions are named from the catalogue, sections from the vault.
+      Stores.invites.loadCatalogue();
+      Stores.vault.loadIfDue();
     });
   }
 
@@ -266,6 +298,164 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     await Stores.connections.revokeLink(link);
   }
 
+  /// Runs a change to what the tool may do, and says so when it fails.
+  Future<void> _change(Future<bool> change) async {
+    if (await change || !mounted) return;
+    AppToast.error(
+      context,
+      'Couldn’t change it',
+      subtitle: Stores.connections.errorMessage,
+    );
+  }
+
+  /// What the tool's own section is called, or will be once it has one.
+  String _ownSectionName(Connection connection) {
+    for (final s in Stores.vault.sections) {
+      if (s.id == connection.section) return s.name.isEmpty ? s.key : s.name;
+    }
+    return connection.name;
+  }
+
+  /// The tool's section, or another it may read, picked in the vault.
+  void _editSection(Section section) {
+    Stores.vault.editSection(section.id);
+    context.go(AppRoutes.vault);
+  }
+
+  /// The owner's own sections the tool doesn't reach yet. A section made for
+  /// a request's answers or a sign-in isn't theirs to hand on.
+  List<Section> _addable(Connection connection) => [
+    for (final s in Stores.vault.sections)
+      if (!s.isRequested &&
+          !s.isSignIn &&
+          s.user == Stores.auth.userId &&
+          !connection.reachedSections.contains(s.id))
+        s,
+  ];
+
+  Future<void> _addSection(Connection connection) async {
+    final addable = _addable(connection);
+    await showAppOptionsSheet(
+      context: context,
+      title: 'Let ${connection.name} read a section',
+      subtitle: 'It can read every record in it. It can’t change them.',
+      actions: [
+        for (final s in addable)
+          AppSheetAction(
+            icon: AppIcons.folder,
+            label: _sectionName(s),
+            onTap: () => _change(
+              Stores.connections.setSectionReached(connection, s.id, true),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _removeSection(Connection connection, Section section) async {
+    final ok = await showAppDialog(
+      context: context,
+      title: 'Remove ${_sectionName(section)} from ${connection.name}?',
+      message:
+          'It can’t read the records in it anymore. The section stays in '
+          'your vault.',
+      confirmLabel: 'Remove',
+      confirmIcon: AppIcons.shieldSlash,
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await _change(
+      Stores.connections.setSectionReached(connection, section.id, false),
+    );
+  }
+
+  static String _sectionName(Section s) => s.name.isEmpty ? s.key : s.name;
+
+  String _recordCount(Section s) =>
+      '${s.records.length} ${s.records.length == 1 ? 'record' : 'records'}';
+
+  /// Its own section and the ones the owner added: what in the vault it
+  /// reaches, with the way to change that.
+  Widget _sections(Connection connection) {
+    Section? find(String id) {
+      for (final s in Stores.vault.sections) {
+        if (s.id == id) return s;
+      }
+      return null;
+    }
+
+    final own = connection.section.isEmpty ? null : find(connection.section);
+    final added = [
+      for (final id in connection.sections)
+        if (id != connection.section) ?find(id),
+    ];
+    final readable = connection.vaultAccess.isNotEmpty;
+    return AppListGroup(
+      title: 'Sections ${connection.name} can read',
+      trailing: _addable(connection).isEmpty
+          ? const SizedBox.shrink()
+          : AppButton(
+              icon: AppIcons.plus,
+              label: 'Add',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () => _addSection(connection),
+            ),
+      footer: Text(
+        readable
+            ? 'It can read every record in these sections. It can only change '
+                  'records it added to its own.'
+            : 'It can read these once you allow it to read your vault above.',
+      ),
+      children: [
+        if (own == null && added.isEmpty)
+          const AppDetailRow(icon: AppIcons.info, label: 'No sections yet'),
+        if (own != null)
+          AppListRow(
+            icon: AppIcons.folder,
+            title: _sectionName(own),
+            subtitle: 'Its own section · ${_recordCount(own)}',
+            onTap: () => showAppOptionsSheet(
+              context: context,
+              title: _sectionName(own),
+              subtitle: 'Its own section',
+              actions: [
+                AppSheetAction(
+                  icon: AppIcons.plusSlashMinus,
+                  label: 'Add or remove records',
+                  onTap: () => _editSection(own),
+                ),
+              ],
+            ),
+          ),
+        for (final s in added)
+          AppListRow(
+            icon: AppIcons.folder,
+            title: _sectionName(s),
+            subtitle: 'You added it · ${_recordCount(s)}',
+            onTap: () => showAppOptionsSheet(
+              context: context,
+              title: _sectionName(s),
+              subtitle: 'You added it',
+              actions: [
+                AppSheetAction(
+                  icon: AppIcons.plusSlashMinus,
+                  label: 'Add or remove records',
+                  onTap: () => _editSection(s),
+                ),
+                AppSheetAction(
+                  icon: AppIcons.shieldSlash,
+                  label: 'Remove',
+                  destructive: true,
+                  onTap: () => _removeSection(connection, s),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Observer(builder: (_) => _build(context));
@@ -346,16 +536,34 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
           allowRevoke: connection.allowRevoke,
           allowHandOver: connection.allowHandOver,
           onAllowRevoke: (v) =>
-              store.setPermissions(connection.id, allowRevoke: v),
+              _change(store.setPermissions(connection.id, allowRevoke: v)),
           onAllowHandOver: (v) =>
-              store.setPermissions(connection.id, allowHandOver: v),
+              _change(store.setPermissions(connection.id, allowHandOver: v)),
           // Shown only while it is on: granting it again takes a connect
           // the tool starts, so the owner sees what it asks for.
           showVault: connection.allowVaultRead,
           allowVaultRead: connection.allowVaultRead,
           onAllowVaultRead: (v) =>
-              store.setPermissions(connection.id, allowVaultRead: v),
+              _change(store.setPermissions(connection.id, allowVaultRead: v)),
+          permissions: [
+            for (final p in Stores.invites.catalogue)
+              if (Connection.toolPermissions.contains(p.key)) p,
+          ],
+          granted: connection.permissionKeys(Stores.invites.catalogue).toSet(),
+          onPermission: (key, on) => _change(
+            store.setPermission(connection, key, on, Stores.invites.catalogue),
+          ),
+          showSection: true,
+          ownSection: connection.hasOwnSection,
+          onOwnSection: (v) => _change(store.setOwnSection(connection, v)),
+          sectionName: _ownSectionName(connection),
+          sectionIsNew: connection.section.isEmpty,
+          sectionWrite: connection.vaultAccess != 'read',
+          onSectionWrite: (v) => _change(
+            store.setSectionAccess(connection, v, Stores.invites.catalogue),
+          ),
         ),
+        _sections(connection),
         AppListGroup(
           title: 'Links from ${connection.name}',
           noun: 'links',

@@ -44,6 +44,10 @@ class AppCheckRow extends StatelessWidget {
   /// Rendered after the label, for a marker the label itself cannot carry.
   final Widget? badge;
 
+  /// What the choice is about, shown before the label where rows of choices
+  /// are easier to tell apart by shape.
+  final IconData? icon;
+
   final bool value;
   final ValueChanged<bool>? onChanged;
 
@@ -55,6 +59,7 @@ class AppCheckRow extends StatelessWidget {
     this.subtitle,
     this.note,
     this.badge,
+    this.icon,
   });
 
   @override
@@ -73,6 +78,17 @@ class AppCheckRow extends StatelessWidget {
               onChanged: enabled ? (v) => onChanged!(v ?? false) : null,
             ),
             AppSpacing.gapSm,
+            if (icon != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              AppSpacing.gapSm,
+            ],
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xxs),

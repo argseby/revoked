@@ -10,11 +10,26 @@ import (
 	"github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/hook"
 )
 
 // BindRecordHooks enforces the alias and file invariants on record create and
 // update.
 func BindRecordHooks(app core.App) {
+	// Which key or tool wrote a record is set by the vault routes alone, so
+	// the owner can trust the name the app shows on it.
+	for _, h := range []*hook.TaggedHook[*core.RecordRequestEvent]{
+		app.OnRecordCreateRequest(util.Coll.Records),
+		app.OnRecordUpdateRequest(util.Coll.Records),
+	} {
+		h.BindFunc(func(e *core.RecordRequestEvent) error {
+			if err := util.RestrictFields(e, util.Fields.Record.WrittenBy, util.Fields.Record.WrittenByName); err != nil {
+				return err
+			}
+			return e.Next()
+		})
+	}
+
 	app.OnRecordCreate(util.Coll.Records).BindFunc(func(e *core.RecordEvent) error {
 		if err := validateSealedRecord(e.Record); err != nil {
 			return err

@@ -10,7 +10,9 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/feature.dart';
+import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -41,6 +43,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
   final _allowHandOver = Local<bool>(true);
   // Reading the vault is never on until the owner turns it on.
   final _allowVaultRead = Local<bool>(false);
+  // What the tool asked for starts given; the owner takes away what they
+  // don't want it to have.
+  late final _granted = Local<Set<String>>({...?widget.request?.permissions});
+  late final _ownSection = Local<bool>(widget.request?.section ?? false);
+  // Adding records unless the tool asked only to read.
+  late final _sectionWrite = Local<bool>(
+    !_asks('vault:read') || _asks('vault:write'),
+  );
+  // The connection the owner already made with this tool, if any.
+  final _existing = Local<Connection?>(null);
   // Until it is known whether the owner already agreed to this tool.
   final _checking = Local<bool>(true);
   // Already connected: this browser was let in without asking again.
@@ -62,7 +74,86 @@ class _ConnectScreenState extends State<ConnectScreen> {
   @override
   void initState() {
     super.initState();
+    Stores.invites.loadCatalogue();
     _reuse();
+  }
+
+  /// The asked-for permissions as the catalogue names them, in its order.
+  /// One the catalogue doesn't name yet shows under its key.
+  List<InvitePermission> get _asked {
+    final asked = widget.request?.permissions ?? const <String>[];
+    final catalogue = Stores.invites.catalogue;
+    return [
+      for (final key in asked)
+        catalogue.firstWhere(
+          (p) => p.key == key,
+          orElse: () => InvitePermission(key: key, label: key, description: ''),
+        ),
+    ];
+  }
+
+  void _setPermission(String key, bool on) {
+    final next = {..._granted.value};
+    if (on) {
+      next.add(key);
+      if (key == 'vault:write' && _asks('vault:read')) next.add('vault:read');
+    } else {
+      next.remove(key);
+      if (key == 'vault:read') next.remove('vault:write');
+    }
+    _granted.value = next;
+  }
+
+  bool _asks(String key) => widget.request?.permissions.contains(key) ?? false;
+
+  /// What the tool may do once connected: the asked-for keys the owner left
+  /// ticked, with the vault decided by its section. Left out, the server
+  /// keeps what an earlier connect gave and a section means read and add.
+  List<String>? _permissionsToSend(ConnectRequest r) {
+    final readOnly = r.section && _ownSection.value && !_sectionWrite.value;
+    if (r.permissions.isEmpty && !readOnly) return null;
+    final held =
+        _existing.value?.permissionKeys(Stores.invites.catalogue) ??
+        const <String>[];
+    final keys = {
+      for (final k in held)
+        if (!k.startsWith('vault:')) k,
+      for (final k in r.permissions)
+        if (_granted.value.contains(k) && !k.startsWith('vault:')) k,
+    };
+    if (r.section && _ownSection.value) {
+      keys.add(_sectionWrite.value ? 'vault:write' : 'vault:read');
+    } else {
+      for (final k in r.permissions) {
+        if (k.startsWith('vault:') && _granted.value.contains(k)) keys.add(k);
+      }
+    }
+    return [
+      for (final k in Connection.toolPermissions)
+        if (keys.contains(k)) k,
+    ];
+  }
+
+  /// The name of the tool's section: the one it already has, or the one
+  /// connecting will create, named after the tool.
+  (String, bool) _sectionLabel(ConnectRequest r) {
+    final id = _existing.value?.section ?? '';
+    if (id.isNotEmpty) {
+      for (final s in Stores.vault.sections) {
+        if (s.id == id) return (s.name.isEmpty ? s.key : s.name, false);
+      }
+    }
+    return (r.name, true);
+  }
+
+  /// Whether the tool asks for more than [existing] already has, which the
+  /// owner then has to agree to.
+  Future<bool> _asksForMore(ConnectRequest r, Connection existing) async {
+    if (r.section && !existing.hasOwnSection) return true;
+    if (r.permissions.isEmpty) return false;
+    await Stores.invites.loadCatalogue();
+    final held = existing.permissionKeys(Stores.invites.catalogue);
+    return r.permissions.any((k) => !held.contains(k));
   }
 
   /// A tool the owner already connected is not asked about again: another of
@@ -81,6 +172,10 @@ class _ConnectScreenState extends State<ConnectScreen> {
       return;
     }
     final existing = await Stores.connections.findByClient(r.client);
+    if (existing != null) {
+      _existing.value = existing;
+      if (existing.section.isNotEmpty) Stores.vault.loadIfDue();
+    }
     if (existing != null && existing.paused) {
       if (!mounted) return;
       _pausedTool.value = existing.id;
@@ -95,7 +190,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
     }
     // Asking for the vault is asking for more than the owner agreed to, so
     // they are asked again rather than let through.
-    if (existing != null && _offersVault && !existing.allowVaultRead) {
+    if (existing != null &&
+        ((_offersVault && !existing.allowVaultRead) ||
+            await _asksForMore(r, existing))) {
       if (!mounted) return;
       _checking.value = false;
       return;
@@ -135,6 +232,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
       allowRevoke: _allowRevoke.value,
       allowHandOver: _allowHandOver.value,
       allowVaultRead: _offersVault ? _allowVaultRead.value : null,
+      permissions: _permissionsToSend(r),
+      section: r.section ? _ownSection.value : null,
       reuse: _joining.value,
       poll: polls,
     );
@@ -319,6 +418,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
             showVault: _offersVault,
             allowVaultRead: _allowVaultRead.value,
             onAllowVaultRead: (v) => _allowVaultRead.value = v,
+            permissions: _asked,
+            granted: _granted.value,
+            onPermission: _setPermission,
+            showSection: r.section,
+            ownSection: _ownSection.value,
+            onOwnSection: (v) => _ownSection.value = v,
+            sectionName: _sectionLabel(r).$1,
+            sectionIsNew: _sectionLabel(r).$2,
+            sectionWrite: _sectionWrite.value,
+            onSectionWrite: (v) => _sectionWrite.value = v,
           ),
         if (_error.value != null)
           AppAlert(destructive: true, content: Text(_error.value!)),

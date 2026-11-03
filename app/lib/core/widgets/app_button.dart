@@ -38,6 +38,11 @@ class AppButton extends StatelessWidget {
 
   final String? tooltip;
 
+  /// Off for a button inside a text field, where any semantics node of its
+  /// own is reported off screen once the form scrolls, so screen readers
+  /// can't reach it. The [tooltip] still names it, merged into one node.
+  final bool showTooltip;
+
   /// Height of a button at each size. Exposed so surfaces that sit a button
   /// next to plain text can reserve the same height whether or not a button is
   /// actually there, instead of collapsing to the text's own height.
@@ -58,6 +63,7 @@ class AppButton extends StatelessWidget {
     this.size = AppButtonSize.normal,
     this.busy = false,
     this.tooltip,
+    this.showTooltip = true,
   }) : assert(label != null || icon != null, 'a button needs a label or icon'),
        assert(
          label != null || tooltip != null,
@@ -74,10 +80,9 @@ class AppButton extends StatelessWidget {
 
     final (Color background, Color foreground) = switch (style) {
       AppButtonStyle.primary => (scheme.primary, scheme.onPrimary),
-      AppButtonStyle.accent => (
-        scheme.secondaryContainer,
-        scheme.onSecondaryContainer,
-      ),
+      // Outlined rather than tinted: a pale fill reads as disabled on white
+      // and turns muddy on an alert's colour.
+      AppButtonStyle.accent => (Colors.transparent, scheme.onSurface),
       AppButtonStyle.destructive => (scheme.dangerFill, scheme.onDangerFill),
       AppButtonStyle.ghost => (Colors.transparent, scheme.onSurfaceVariant),
     };
@@ -97,7 +102,8 @@ class AppButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) Icon(icon, size: iconSize),
-              if (icon != null && text != null) AppSpacing.gapXs,
+              if (icon != null && text != null)
+                small ? AppSpacing.gapXs : AppSpacing.gapSm,
               if (text != null) Flexible(child: small ? text.small : text),
               if (trailingIcon != null) ...[
                 AppSpacing.gapXxs,
@@ -128,8 +134,6 @@ class AppButton extends StatelessWidget {
           ).copyWith(
             // Keyboard focus: a 2 px accent ring just outside the fill, the same
             // ring `AppFocusRing` draws around rows.
-            // A tonal button sits close to the page in dark mode, so it keeps
-            // a hairline edge as well.
             side: WidgetStateProperty.resolveWith(
               (states) => states.contains(WidgetState.focused)
                   ? BorderSide(
@@ -138,7 +142,7 @@ class AppButton extends StatelessWidget {
                       strokeAlign: BorderSide.strokeAlignOutside,
                     )
                   : style == AppButtonStyle.accent
-                  ? BorderSide(color: scheme.outlineVariant)
+                  ? BorderSide(color: scheme.outline)
                   : null,
             ),
           ),
@@ -146,6 +150,11 @@ class AppButton extends StatelessWidget {
     );
 
     if (tooltip == null) return button;
+    if (!showTooltip) {
+      return MergeSemantics(
+        child: Semantics(label: tooltip, child: button),
+      );
+    }
     return Tooltip(message: tooltip!, child: button);
   }
 }

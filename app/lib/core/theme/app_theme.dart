@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 
 /// Builds the app's Material 3 theme for a given [Brightness], so light and dark
 /// share one definition (only the [ColorScheme] flips).
@@ -248,7 +249,16 @@ class AppTheme {
         hoverElevation: 0,
         highlightElevation: 0,
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.allLg),
-        extendedTextStyle: textTheme.labelLarge,
+        // The proportions of a primary `AppButton`, only tall enough to be a
+        // comfortable thumb target, so New looks the same on every size.
+        extendedSizeConstraints: const BoxConstraints.tightFor(
+          height: AppSpacing.minTarget,
+        ),
+        extendedPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        extendedIconLabelSpacing: AppSpacing.sm,
+        extendedTextStyle: textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: surface,

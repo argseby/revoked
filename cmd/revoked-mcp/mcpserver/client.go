@@ -94,10 +94,14 @@ type Verdict struct {
 }
 
 type Connection struct {
-	ID          string `json:"id"`
-	ClientName  string `json:"clientName"`
-	ExpiresAt   string `json:"expiresAt"`
-	AllowRevoke bool   `json:"allowRevoke"`
+	ID          string   `json:"id"`
+	ClientName  string   `json:"clientName"`
+	ExpiresAt   string   `json:"expiresAt"`
+	AllowRevoke bool     `json:"allowRevoke"`
+	Permissions []string `json:"permissions"`
+	VaultAccess string   `json:"vaultAccess"`
+	// Section is the assistant's own section in the owner's vault, if it has one.
+	Section string `json:"section"`
 	// VaultReadable is whether this token may read the vault: the owner
 	// allowed it, and the answer came back to this machine, not by polling.
 	VaultReadable bool          `json:"vaultReadable"`
@@ -106,6 +110,10 @@ type Connection struct {
 	Attestations  []Attestation `json:"attestations"`
 	Checks        []Check       `json:"checks"`
 }
+
+// hasSection reports whether the assistant may use its own section: the
+// owner can take that away and keep the section.
+func (c *Connection) hasSection() bool { return c.Section != "" && c.VaultAccess != "" }
 
 type savedConnection struct {
 	Server string `json:"server"`
@@ -143,6 +151,19 @@ func (e *apiError) Error() string {
 			"call connect with vault set, on the computer where the Revoked app runs"
 	case util.Errors.RecordNotFound.ErrorCode:
 		return "no such record, or it is encrypted"
+	case util.Errors.ConnectionPolled.ErrorCode:
+		return "this connection was approved with a check code, which can't create requests; " +
+			"call connect with create set, on the computer where the Revoked app runs"
+	case util.Errors.ConnectionNotPermitted.ErrorCode:
+		return "the owner has not allowed this assistant to do that; call connect with create set to ask"
+	case util.Errors.VaultSectionNotWritable.ErrorCode:
+		return "this assistant has no section of its own to write to; call connect with section set to ask"
+	case util.Errors.VaultReadOnly.ErrorCode:
+		return "this record is the owner's: the assistant can change only records it wrote"
+	case util.Errors.VaultKeyTaken.ErrorCode:
+		return "a record with this key already exists"
+	case util.Errors.VaultStorageExceeded.ErrorCode:
+		return "the assistant has used all the room it may use in the vault"
 	}
 	if e.Code != "" {
 		return fmt.Sprintf("server refused (%d %s)", e.Status, e.Code)
@@ -184,12 +205,22 @@ func (c *client) saveToken(token string) error {
 
 func (c *client) forgetToken() { _ = os.Remove(c.cfg.StatePath) }
 
+// connectAsk is what a connect asks the owner for.
+type connectAsk struct {
+	Vault   bool
+	Section bool
+	Create  bool
+}
+
 // startConnect prepares a connect link the owner answers in the app. Without
 // vault the answer is collected by polling, so the app opens no browser. With
 // it the app sends the answer back to this process's own address, which only
 // a browser on this machine can reach: the server never lets a polled answer
 // read the vault.
-func (c *client) startConnect(vault bool) (link, checkCode string, err error) {
+func (c *client) startConnect(ask connectAsk) (link, checkCode string, err error) {
+	// Creating requests in the owner's name is refused to a polled answer,
+	// like the whole vault, so it comes back to this machine too.
+	vault := ask.Vault || ask.Create
 	verifier, err := randomValue(32)
 	if err != nil {
 		return "", "", err
@@ -226,12 +257,22 @@ func (c *client) startConnect(vault bool) (link, checkCode string, err error) {
 		"challenge=" + challenge,
 		"revoke_reason=" + escape("So you can ask your assistant to end what it set up for you"),
 	}
+	if ask.Section {
+		q = append(q, "section=1",
+			"section_reason="+escape("So your assistant can keep notes and files for you in one section"))
+	}
+	if ask.Create {
+		q = append(q, "permissions="+escape(util.PermSharesManage+","+util.PermRequestsManage),
+			"permissions_reason="+escape("So your assistant can create shares and requests when you ask"))
+	}
 	if !vault {
 		q = append(q, "poll="+escape(c.cfg.Server))
 		return "revoked://connect?" + strings.Join(q, "&"), CheckCode(challenge), nil
 	}
-	q = append(q, "vault=read",
-		"vault_reason="+escape("So you can ask your assistant about what is in your vault"))
+	if ask.Vault {
+		q = append(q, "vault=read",
+			"vault_reason="+escape("So you can ask your assistant about what is in your vault"))
+	}
 	return "revoked://connect?" + strings.Join(q, "&"), "", nil
 }
 
@@ -355,13 +396,29 @@ func (c *client) disconnect(ctx context.Context) error {
 }
 
 func (c *client) call(ctx context.Context, method, path string, out any) error {
+	return c.send(ctx, method, path, nil, out)
+}
+
+// send is call with a JSON body.
+func (c *client) send(ctx context.Context, method, path string, in, out any) error {
 	token := c.loadToken()
 	if token == "" {
 		return errNotConnected
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.cfg.Server+path, nil)
+	var body io.Reader
+	if in != nil {
+		raw, err := json.Marshal(in)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(raw)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.cfg.Server+path, body)
 	if err != nil {
 		return err
+	}
+	if in != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set(util.ConnectionHeader, token)
 	resp, err := c.http.Do(req)

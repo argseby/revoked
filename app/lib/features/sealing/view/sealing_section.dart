@@ -601,63 +601,67 @@ class _NeedsThisDevice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (Stores.keys.removedFromList) ...[
-          AppAlert(
-            destructive: true,
-            title: const Text('This device was removed from your list'),
-            content: Text(
-              Stores.keys.chain.liveRecovery != null
-                  ? 'If you didn’t do that on another device, someone else may '
-                        'have access. Use your recovery key: it takes every '
-                        'other device off your list.'
-                  : 'If you didn’t do that on another device, someone else has '
-                        'access, and they’ve taken your recovery key off too. '
-                        'Sign out everywhere else from a device that’s still on '
-                        'your list. If you have none, you can only start over.',
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
-        const Text(
-          'You’ve encrypted records on another device. Add this one to read '
-          'them here.',
-        ),
-        if (Stores.keys.chain.livePasskeys.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.sm),
-          const _PasskeyWayIn(),
-        ],
-        if (Stores.keys.passkeyError != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          AppErrorText(Stores.keys.passkeyError!),
-        ],
-        const SizedBox(height: AppSpacing.lg),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
+    return Observer(
+      builder: (context) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppButton(
-              icon: AppIcons.personPlus,
-              label: 'Add this device',
-              onTap: () => openAddThisDeviceSheet(context),
+            if (Stores.keys.removedFromList) ...[
+              AppAlert(
+                destructive: true,
+                title: const Text('This device was removed from your list'),
+                content: Text(
+                  Stores.keys.chain.liveRecovery != null
+                      ? 'If you didn’t do that on another device, someone else may '
+                            'have access. Use your recovery key: it takes every '
+                            'other device off your list.'
+                      : 'If you didn’t do that on another device, someone else has '
+                            'access, and they’ve taken your recovery key off too. '
+                            'Sign out everywhere else from a device that’s still on '
+                            'your list. If you have none, you can only start over.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            const Text(
+              'You’ve encrypted records on another device. Add this one to read '
+              'them here.',
             ),
-            AppButton(
-              icon: AppIcons.lock,
-              label: 'Use your recovery key',
-              style: AppButtonStyle.accent,
-              onTap: () => _openRecoverySheet(context),
-            ),
-            AppButton(
-              icon: AppIcons.trash,
-              label: 'Start over',
-              style: AppButtonStyle.destructive,
-              onTap: () => _openStartOverSheet(context),
+            if (Stores.keys.chain.livePasskeys.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              const _PasskeyWayIn(),
+            ],
+            if (Stores.keys.passkeyError != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              AppErrorText(Stores.keys.passkeyError!),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                AppButton(
+                  icon: AppIcons.personPlus,
+                  label: 'Add this device',
+                  onTap: () => openAddThisDeviceSheet(context),
+                ),
+                AppButton(
+                  icon: AppIcons.lock,
+                  label: 'Use your recovery key',
+                  style: AppButtonStyle.accent,
+                  onTap: () => _openRecoverySheet(context),
+                ),
+                AppButton(
+                  icon: AppIcons.trash,
+                  label: 'Start over',
+                  style: AppButtonStyle.destructive,
+                  onTap: () => _openStartOverSheet(context),
+                ),
+              ],
             ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -669,33 +673,37 @@ class _PasskeyWayIn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final keys = Stores.keys;
-    final names = keys.chain.livePasskeys.map((e) => e.label).join(', ');
-    if (keys.thisPasskeyCredentialId != null) {
-      return const Text(
-        'The passkey you signed in with here doesn’t hold your key yet. Add '
-        'this device another way, and it will from then on.',
-      ).muted;
-    }
-    if (keys.passkeyWithoutSecret) {
-      return Text(
-        'Your passkey can’t unlock them on this device. Signing in with '
-        '$names on a device that supports it would.',
-      ).muted;
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Signing in with $names unlocks them here.').muted,
-        const SizedBox(height: AppSpacing.sm),
-        AppButton(
-          icon: AppIcons.key,
-          label: 'Sign in with your passkey',
-          style: AppButtonStyle.accent,
-          size: AppButtonSize.small,
-          onTap: () => Stores.auth.beginSignIn(),
-        ),
-      ],
+    return Observer(
+      builder: (context) {
+        final keys = Stores.keys;
+        final names = keys.chain.livePasskeys.map((e) => e.label).join(', ');
+        if (keys.thisPasskeyCredentialId != null) {
+          return const Text(
+            'The passkey you signed in with here doesn’t hold your key yet. Add '
+            'this device another way, and it will from then on.',
+          ).muted;
+        }
+        if (keys.passkeyWithoutSecret) {
+          return Text(
+            'Your passkey can’t unlock them on this device. Signing in with '
+            '$names on a device that supports it would.',
+          ).muted;
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Signing in with $names unlocks them here.').muted,
+            const SizedBox(height: AppSpacing.sm),
+            AppButton(
+              icon: AppIcons.key,
+              label: 'Sign in with your passkey',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () => Stores.auth.beginSignIn(),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -710,24 +718,28 @@ class _PasskeyConnectButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final keys = Stores.keys;
-    if (keys.passkeyWithoutSecret) return const SizedBox.shrink();
-    if (keys.canConnectPasskey) {
-      return AppButton(
-        icon: AppIcons.key,
-        label: compact ? 'Connect' : 'Connect your passkey',
-        style: AppButtonStyle.accent,
-        size: AppButtonSize.small,
-        busy: keys.isSaving,
-        onTap: keys.isSaving ? null : () => keys.connectPasskey(),
-      );
-    }
-    return AppButton(
-      icon: AppIcons.key,
-      label: compact ? 'Sign in with passkey' : 'Sign in with your passkey',
-      style: AppButtonStyle.accent,
-      size: AppButtonSize.small,
-      onTap: () => Stores.auth.beginSignIn(),
+    return Observer(
+      builder: (context) {
+        final keys = Stores.keys;
+        if (keys.passkeyWithoutSecret) return const SizedBox.shrink();
+        if (keys.canConnectPasskey) {
+          return AppButton(
+            icon: AppIcons.key,
+            label: compact ? 'Connect' : 'Connect your passkey',
+            style: AppButtonStyle.accent,
+            size: AppButtonSize.small,
+            busy: keys.isSaving,
+            onTap: keys.isSaving ? null : () => keys.connectPasskey(),
+          );
+        }
+        return AppButton(
+          icon: AppIcons.key,
+          label: compact ? 'Sign in with passkey' : 'Sign in with your passkey',
+          style: AppButtonStyle.accent,
+          size: AppButtonSize.small,
+          onTap: () => Stores.auth.beginSignIn(),
+        );
+      },
     );
   }
 }
@@ -805,71 +817,76 @@ class _WhereRecordsOpen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final thisDevice = keys.chain.bySeq(keys.thisDeviceSeq ?? 0);
-    final names = passkeys.map((e) => e.label).join(', ');
-    Icon holds() => Icon(AppIcons.checkCircle, color: scheme.success);
-    Icon missing() => Icon(AppIcons.exclamationTriangle, color: scheme.warning);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppListGroup(
-          title: 'Where your encrypted records open',
-          trailing: const SizedBox.shrink(),
+    return Observer(
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        final thisDevice = keys.chain.bySeq(keys.thisDeviceSeq ?? 0);
+        final names = passkeys.map((e) => e.label).join(', ');
+        Icon holds() => Icon(AppIcons.checkCircle, color: scheme.success);
+        Icon missing() =>
+            Icon(AppIcons.exclamationTriangle, color: scheme.warning);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppListRow(
-              leading: holds(),
-              title: thisDevice?.label ?? 'This device',
-              subtitle: 'This device · holds the key',
-              showChevron: false,
-            ),
-            AppListRow(
-              leading: passkeys.isEmpty ? missing() : holds(),
-              title: 'Your passkey',
-              subtitle: passkeys.isNotEmpty
-                  ? '$names · opens them on any device you sign in to with it'
-                  : keys.passkeyWithoutSecret
-                  ? 'Can’t carry the key on this device'
-                  : 'Not connected yet',
-              showChevron: false,
-            ),
-            AppListRow(
-              leading: recovery == null ? missing() : holds(),
-              title: 'Your recovery key',
-              subtitle: recovery == null
-                  ? 'None. Make one below, or losing your devices loses what '
-                        'you’ve encrypted.'
-                  : 'Saved · gets you back in if you lose everything',
-              showChevron: false,
-            ),
-            AppListRow(
-              leading: Icon(AppIcons.shieldSlash, color: scheme.outline),
-              title: 'Other people in your workspace',
-              subtitle: 'Can’t read them yet. They see a locked row.',
-              showChevron: false,
-            ),
-          ],
-        ),
-        if (passkeys.isEmpty && !keys.passkeyWithoutSecret) ...[
-          const SizedBox(height: AppSpacing.md),
-          AppAlert(
-            tone: AppAlertTone.warning,
-            leading: const Icon(AppIcons.exclamationTriangle),
-            title: const Text('Your passkey isn’t connected yet'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Until it is, a new device needs a code from this one to '
-                  'read your encrypted records.',
+            AppListGroup(
+              title: 'Where your encrypted records open',
+              trailing: const SizedBox.shrink(),
+              children: [
+                AppListRow(
+                  leading: holds(),
+                  title: thisDevice?.label ?? 'This device',
+                  subtitle: 'This device · holds the key',
+                  showChevron: false,
                 ),
-                SizedBox(height: AppSpacing.sm),
-                _PasskeyConnectButton(),
+                AppListRow(
+                  leading: passkeys.isEmpty ? missing() : holds(),
+                  title: 'Your passkey',
+                  subtitle: passkeys.isNotEmpty
+                      ? '$names · opens them on any device you sign in to with it'
+                      : keys.passkeyWithoutSecret
+                      ? 'Can’t carry the key on this device'
+                      : 'Not connected yet',
+                  showChevron: false,
+                ),
+                AppListRow(
+                  leading: recovery == null ? missing() : holds(),
+                  title: 'Your recovery key',
+                  subtitle: recovery == null
+                      ? 'None. Make one below, or losing your devices loses what '
+                            'you’ve encrypted.'
+                      : 'Saved · gets you back in if you lose everything',
+                  showChevron: false,
+                ),
+                AppListRow(
+                  leading: Icon(AppIcons.shieldSlash, color: scheme.outline),
+                  title: 'Other people in your workspace',
+                  subtitle: 'Can’t read them yet. They see a locked row.',
+                  showChevron: false,
+                ),
               ],
             ),
-          ),
-        ],
-      ],
+            if (passkeys.isEmpty && !keys.passkeyWithoutSecret) ...[
+              const SizedBox(height: AppSpacing.md),
+              AppAlert(
+                tone: AppAlertTone.warning,
+                leading: const Icon(AppIcons.exclamationTriangle),
+                title: const Text('Your passkey isn’t connected yet'),
+                content: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Until it is, a new device needs a code from this one to '
+                      'read your encrypted records.',
+                    ),
+                    SizedBox(height: AppSpacing.sm),
+                    _PasskeyConnectButton(),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -992,152 +1009,159 @@ class _Devices extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final keys = Stores.keys;
-    final devices = keys.chain.live
-        .where((e) => e.kind == DeviceChainEntry.kindDevice)
-        .toList();
-    final passkeys = keys.chain.livePasskeys;
-    final recovery = keys.chain.liveRecovery;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (keys.chainBroken) ...[
-          AppAlert(
-            destructive: true,
-            title: const Text(
-              'Something on your device list doesn’t check out',
-            ),
-            content: const Text(
-              'This device still reads your records, but it has stopped '
-              'encrypting and sharing keys.',
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
-        if (keys.unreviewedEntries.isNotEmpty) ...[
-          AppAlert(
-            destructive: true,
-            title: const Text('New on your list'),
-            content: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${keys.unreviewedEntries.map((e) => e.action == DeviceChainEntry.actionRemove ? 'A removal' : e.label).join(', ')} '
-                  'came from another device. If that wasn’t you, remove that '
-                  'device.',
+    return Observer(
+      builder: (context) {
+        final keys = Stores.keys;
+        final devices = keys.chain.live
+            .where((e) => e.kind == DeviceChainEntry.kindDevice)
+            .toList();
+        final passkeys = keys.chain.livePasskeys;
+        final recovery = keys.chain.liveRecovery;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (keys.chainBroken) ...[
+              AppAlert(
+                destructive: true,
+                title: const Text(
+                  'Something on your device list doesn’t check out',
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                content: const Text(
+                  'This device still reads your records, but it has stopped '
+                  'encrypting and sharing keys.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (keys.unreviewedEntries.isNotEmpty) ...[
+              AppAlert(
+                destructive: true,
+                title: const Text('New on your list'),
+                content: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${keys.unreviewedEntries.map((e) => e.action == DeviceChainEntry.actionRemove ? 'A removal' : e.label).join(', ')} '
+                      'came from another device. If that wasn’t you, remove that '
+                      'device.',
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppButton(
+                      icon: AppIcons.check,
+                      label: 'That was me',
+                      style: AppButtonStyle.accent,
+                      size: AppButtonSize.small,
+                      onTap: keys.acknowledgeNewEntries,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (keys.needsNewRecoveryKey) ...[
+              AppAlert(
+                destructive: true,
+                title: const Text('You don’t have a recovery key'),
+                content: const Text(
+                  'If you lose your devices now, you lose what you’ve encrypted. '
+                  'Make a new key below.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            _WhereRecordsOpen(
+              keys: keys,
+              passkeys: passkeys,
+              recovery: recovery,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            const Text(
+              'Only these devices can read what you encrypt. Not even your server '
+              'can. You can’t share an encrypted record yet.',
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppListGroup(
+              title: 'Your devices',
+              trailing: AppButton(
+                icon: AppIcons.personPlus,
+                label: 'Add a device',
+                style: AppButtonStyle.accent,
+                size: AppButtonSize.small,
+                onTap: () => _openAddAnotherDeviceSheet(context),
+              ),
+              children: [
+                for (final entry in devices)
+                  AppEntityCard(
+                    title: entry.label,
+                    subtitle: entry.seq == keys.thisDeviceSeq
+                        ? 'This device'
+                        : KeysStore.fingerprint(
+                            entry.hpkePublicKey,
+                            entry.signingPublicKey,
+                          ),
+                    actions: [
+                      if (entry.seq != keys.thisDeviceSeq)
+                        AppSheetAction(
+                          icon: AppIcons.trash,
+                          label: 'Remove',
+                          destructive: true,
+                          onTap: () => _remove(context, entry),
+                        ),
+                    ],
+                  ),
+                for (final entry in passkeys)
+                  AppEntityCard(
+                    title: entry.label,
+                    subtitle: entry.credentialId == keys.thisPasskeyCredentialId
+                        ? 'Passkey · signed in here'
+                        : 'Passkey · ${KeysStore.fingerprint(entry.hpkePublicKey, entry.signingPublicKey)}',
+                    actions: [
+                      AppSheetAction(
+                        icon: AppIcons.trash,
+                        label: 'Remove',
+                        destructive: true,
+                        onTap: () => _remove(context, entry),
+                      ),
+                    ],
+                  ),
+                if (recovery != null)
+                  AppEntityCard(
+                    title: recovery.label,
+                    subtitle: KeysStore.fingerprint(
+                      recovery.hpkePublicKey,
+                      recovery.signingPublicKey,
+                    ),
+                  ),
+              ],
+            ),
+            if (keys.passkeyError != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              AppErrorText(keys.passkeyError!),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
                 AppButton(
-                  icon: AppIcons.check,
-                  label: 'That was me',
+                  icon: AppIcons.key,
+                  label: keys.needsNewRecoveryKey
+                      ? 'Make a recovery key'
+                      : 'Replace your recovery key',
                   style: AppButtonStyle.accent,
-                  size: AppButtonSize.small,
-                  onTap: keys.acknowledgeNewEntries,
+                  onTap: () => openRecoveryKeySheet(context, replacing: true),
+                ),
+                AppButton(
+                  icon: AppIcons.boxArrowLeft,
+                  label: 'Sign out everywhere else',
+                  style: AppButtonStyle.accent,
+                  onTap: () => _signOutOthers(context),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
-        if (keys.needsNewRecoveryKey) ...[
-          AppAlert(
-            destructive: true,
-            title: const Text('You don’t have a recovery key'),
-            content: const Text(
-              'If you lose your devices now, you lose what you’ve encrypted. '
-              'Make a new key below.',
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
-        _WhereRecordsOpen(keys: keys, passkeys: passkeys, recovery: recovery),
-        const SizedBox(height: AppSpacing.lg),
-        const Text(
-          'Only these devices can read what you encrypt. Not even your server '
-          'can. You can’t share an encrypted record yet.',
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        AppListGroup(
-          title: 'Your devices',
-          trailing: AppButton(
-            icon: AppIcons.personPlus,
-            label: 'Add a device',
-            style: AppButtonStyle.accent,
-            size: AppButtonSize.small,
-            onTap: () => _openAddAnotherDeviceSheet(context),
-          ),
-          children: [
-            for (final entry in devices)
-              AppEntityCard(
-                title: entry.label,
-                subtitle: entry.seq == keys.thisDeviceSeq
-                    ? 'This device'
-                    : KeysStore.fingerprint(
-                        entry.hpkePublicKey,
-                        entry.signingPublicKey,
-                      ),
-                actions: [
-                  if (entry.seq != keys.thisDeviceSeq)
-                    AppSheetAction(
-                      icon: AppIcons.trash,
-                      label: 'Remove',
-                      destructive: true,
-                      onTap: () => _remove(context, entry),
-                    ),
-                ],
-              ),
-            for (final entry in passkeys)
-              AppEntityCard(
-                title: entry.label,
-                subtitle: entry.credentialId == keys.thisPasskeyCredentialId
-                    ? 'Passkey · signed in here'
-                    : 'Passkey · ${KeysStore.fingerprint(entry.hpkePublicKey, entry.signingPublicKey)}',
-                actions: [
-                  AppSheetAction(
-                    icon: AppIcons.trash,
-                    label: 'Remove',
-                    destructive: true,
-                    onTap: () => _remove(context, entry),
-                  ),
-                ],
-              ),
-            if (recovery != null)
-              AppEntityCard(
-                title: recovery.label,
-                subtitle: KeysStore.fingerprint(
-                  recovery.hpkePublicKey,
-                  recovery.signingPublicKey,
-                ),
-              ),
           ],
-        ),
-        if (keys.passkeyError != null) ...[
-          const SizedBox(height: AppSpacing.sm),
-          AppErrorText(keys.passkeyError!),
-        ],
-        const SizedBox(height: AppSpacing.lg),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppButton(
-            icon: AppIcons.lock,
-            label: keys.needsNewRecoveryKey
-                ? 'Make a recovery key'
-                : 'Replace your recovery key',
-            style: AppButtonStyle.accent,
-            onTap: () => openRecoveryKeySheet(context, replacing: true),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppButton(
-            icon: AppIcons.lock,
-            label: 'Sign out everywhere else',
-            style: AppButtonStyle.accent,
-            onTap: () => _signOutOthers(context),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

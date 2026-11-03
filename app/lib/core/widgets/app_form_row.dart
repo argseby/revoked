@@ -8,6 +8,7 @@ import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 
 /// A tappable settings-style summary row used by the create drawers.
@@ -93,6 +94,79 @@ class AppFormRow extends StatelessWidget {
         ],
       ),
       onTap: onTap,
+    );
+  }
+}
+
+/// A field filled in where it stands: its label, the input, and under it
+/// whatever is wrong with the value, else a note. Anything typed belongs here
+/// rather than behind an [AppFormRow], which costs a tap to open and one to
+/// close; [AppFormRow] is for choosing from a list or a calendar.
+class AppFormField extends StatelessWidget {
+  final String label;
+
+  /// The input: an `AppTextField`, a switch row, a file picker.
+  final Widget child;
+
+  /// What the field is for, under the label.
+  final String? explanation;
+
+  /// Replaces [note] while the value is wrong.
+  final String? error;
+
+  /// Under the input, such as what an empty field falls back to.
+  final String? note;
+
+  /// Under the input, after the error or note: "Use suggested: …".
+  final Widget? action;
+
+  /// Lines the field up with a create drawer's rows. Off inside a form that
+  /// already pads its fields.
+  final bool inset;
+
+  const AppFormField({
+    super.key,
+    required this.label,
+    required this.child,
+    this.explanation,
+    this.error,
+    this.note,
+    this.action,
+    this.inset = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: inset
+          ? const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.sm,
+            )
+          : EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(label),
+          if (explanation != null) ...[
+            const SizedBox(height: AppSpacing.xxs),
+            Text(explanation!).muted.small,
+          ],
+          const SizedBox(height: AppSpacing.xs),
+          child,
+          if (error != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            AppErrorText(error!),
+          ] else if (note != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(note!).muted.small,
+          ],
+          if (action != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Align(alignment: Alignment.centerLeft, child: action),
+          ],
+        ],
+      ),
     );
   }
 }

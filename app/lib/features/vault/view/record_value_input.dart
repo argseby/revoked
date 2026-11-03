@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/utils/value_kind.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 
 /// Whether the vault masks a record's value (or a file record's name) on
 /// screen. A labelled switch of its own, below the value, rather than an eye
@@ -69,12 +71,16 @@ class RecordSealedToggle extends StatelessWidget {
   }
 }
 
-/// What a record of [type] holds once the type is picked: a yes/no record
-/// holds `true` or `false` and nothing else, so anything else becomes
-/// `false` and the toggle starts in a state it can show.
-String recordValueForType(String type, String value) {
-  if (type != 'boolean') return value;
-  return value.trim().toLowerCase() == 'true' ? 'true' : 'false';
+/// What a record of [type] holds once the type is picked over [from]: a
+/// yes/no record holds `true` or `false` and nothing else, so anything else
+/// becomes `false` and the toggle starts in a state it can show. Leaving
+/// yes/no drops that `false` again, or it would be offered back as a yes/no.
+String recordValueForType(String type, String value, {required String from}) {
+  if (type == 'boolean') {
+    return value.trim().toLowerCase() == 'true' ? 'true' : 'false';
+  }
+  if (from == 'boolean') return '';
+  return value;
 }
 
 /// A date or date-and-time value the way a person reads it: "12 April 1991",
@@ -123,6 +129,55 @@ Future<String?> pickRecordDateTime(
       '${time.minute.toString().padLeft(2, '0')}';
 }
 
+/// The type of a record's value, picked in one tap. When the value looks like
+/// another type, that one is offered first.
+class RecordTypeChoice extends StatelessWidget {
+  final String selected;
+  final String? detected;
+  final ValueChanged<String> onPicked;
+
+  /// A new record can become a file; an existing one can't change into or out
+  /// of one.
+  final bool includeFile;
+
+  const RecordTypeChoice({
+    super.key,
+    required this.selected,
+    required this.onPicked,
+    this.detected,
+    this.includeFile = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        if (detected != null)
+          AppButton(
+            icon: AppIcons.stars,
+            label: 'Auto: ${detected!.toUpperCase()}',
+            style: AppButtonStyle.accent,
+            size: AppButtonSize.small,
+            onTap: () => onPicked(detected!),
+          ),
+        for (final type in RecordTypeUtils.supportedTypes)
+          if (includeFile || type != 'file')
+            AppButton(
+              icon: RecordTypeUtils.icon(type),
+              label: type.toUpperCase(),
+              size: AppButtonSize.small,
+              style: selected == type
+                  ? AppButtonStyle.primary
+                  : AppButtonStyle.accent,
+              onTap: () => onPicked(type),
+            ),
+      ],
+    );
+  }
+}
+
 /// A record's value as an input that fits its type — typed for text, numbers
 /// and web addresses, a switch for yes/no, a calendar for dates. Whether it is
 /// masked is the [RecordHiddenToggle] the form places below it.
@@ -156,16 +211,22 @@ class RecordValueField extends StatelessWidget {
     switch (type) {
       case 'boolean':
         final on = controller.text.trim().toLowerCase() == 'true';
-        return _PickerField(
+        return AppPickerField(
+          text: on ? 'True' : 'False',
+          opens: null,
           onTap: () => _set(on ? 'false' : 'true'),
           trailing: [
             AppSwitch(value: on, onChanged: (v) => _set(v ? 'true' : 'false')),
+            AppSpacing.gapSm,
           ],
-          child: Text(on ? 'True' : 'False'),
         );
       case 'datetime':
         final value = controller.text.trim();
-        return _PickerField(
+        return AppPickerField(
+          text: value.isEmpty ? 'Pick a date' : recordDateTimeLabel(value),
+          isPlaceholder: value.isEmpty,
+          opens: AppIcons.calendar,
+          onClear: () => _set(''),
           onTap: () async {
             final picked = await pickRecordDateTime(
               context,
@@ -174,15 +235,6 @@ class RecordValueField extends StatelessWidget {
             );
             if (picked != null) _set(picked);
           },
-          leading: const Icon(AppIcons.calendar),
-          child: value.isEmpty
-              ? Text(
-                  'Pick a date',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                )
-              : Text(recordDateTimeLabel(value)),
         );
       default:
         return AppTextField(
@@ -203,36 +255,5 @@ class RecordValueField extends StatelessWidget {
           onChanged: onChanged,
         );
     }
-  }
-}
-
-/// A field that is tapped rather than typed in, drawn with the same frame as
-/// a text field so the form's inputs line up.
-class _PickerField extends StatelessWidget {
-  final Widget child;
-  final VoidCallback onTap;
-  final Widget? leading;
-  final List<Widget> trailing;
-
-  const _PickerField({
-    required this.child,
-    required this.onTap,
-    this.leading,
-    this.trailing = const [],
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppRadius.allMd,
-      child: InputDecorator(
-        decoration: InputDecoration(
-          prefixIcon: leading,
-          suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: trailing),
-        ),
-        child: child,
-      ),
-    );
   }
 }

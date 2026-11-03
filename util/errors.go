@@ -119,6 +119,15 @@ var Errors = struct {
 	ConnectionVaultNotAllowed     AppError
 	ConnectionVaultPolled         AppError
 	ConnectionVaultReconnect      AppError
+	ConnectionNotPermitted        AppError
+	ConnectionPolled              AppError
+	ConnectionPermissionInvalid   AppError
+	VaultNotAllowed               AppError
+	VaultReadOnly                 AppError
+	VaultSectionNotWritable       AppError
+	VaultSectionInvalid           AppError
+	VaultStorageExceeded          AppError
+	VaultKeyTaken                 AppError
 	LinkHandOverNotAllowed        AppError
 	LinkConnectionForeign         AppError
 	ConnectionForeign             AppError
@@ -539,7 +548,7 @@ var Errors = struct {
 	},
 	ApiKeyVaultScope: AppError{
 		ErrorCode: "api_key_vault_scope",
-		ErrorText: "An API key cannot read or write the vault.",
+		ErrorText: "An API key reaches the vault only through sections chosen for it. Choose at least one.",
 	},
 	ConnectionClientInvalid: AppError{
 		ErrorCode: "connection_client_invalid",
@@ -588,6 +597,42 @@ var Errors = struct {
 	ConnectionVaultReconnect: AppError{
 		ErrorCode: "connection_vault_reconnect",
 		ErrorText: "To let a tool read your vault, connect it again from the tool.",
+	},
+	ConnectionNotPermitted: AppError{
+		ErrorCode: "connection_not_permitted",
+		ErrorText: "The owner has not allowed this tool to do that.",
+	},
+	ConnectionPolled: AppError{
+		ErrorCode: "connection_polled",
+		ErrorText: "This needs the answer sent to the tool's own address. A tool that collects it by polling can't do this.",
+	},
+	ConnectionPermissionInvalid: AppError{
+		ErrorCode: "connection_permission_invalid",
+		ErrorText: "A connected tool can't be given this permission.",
+	},
+	VaultNotAllowed: AppError{
+		ErrorCode: "vault_not_allowed",
+		ErrorText: "This key or tool was not given any part of the vault.",
+	},
+	VaultReadOnly: AppError{
+		ErrorCode: "vault_read_only",
+		ErrorText: "Only records written with this key or tool can be changed with it.",
+	},
+	VaultSectionNotWritable: AppError{
+		ErrorCode: "vault_section_not_writable",
+		ErrorText: "This key or tool can't write to that section.",
+	},
+	VaultSectionInvalid: AppError{
+		ErrorCode: "vault_section_invalid",
+		ErrorText: "A chosen section isn't in this workspace.",
+	},
+	VaultStorageExceeded: AppError{
+		ErrorCode: "vault_storage_exceeded",
+		ErrorText: "This key or tool has used all the room it may use in the vault.",
+	},
+	VaultKeyTaken: AppError{
+		ErrorCode: "vault_key_taken",
+		ErrorText: "A record with this key already exists.",
 	},
 	LinkHandOverNotAllowed: AppError{
 		ErrorCode: "link_hand_over_not_allowed",

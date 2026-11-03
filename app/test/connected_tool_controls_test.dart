@@ -46,6 +46,46 @@ void main() {
       tool['paused'] = action == 'pause';
       return json({});
     }
+    if (path == '/api/permissions') {
+      Map<String, dynamic> p(String key, String label, List<String> scopes) => {
+        'key': key,
+        'label': label,
+        'description': '',
+        'scopes': scopes,
+      };
+      return json({
+        'permissions': [
+          p('vault:read', 'Read vault', ['record:read', 'section:read'])
+            ..['membersOnly'] = true,
+          p('shares:read', 'View shares', ['link:read']),
+          p('shares:manage', 'Manage shares', [
+            'link:create',
+            'link:update',
+            'link:delete',
+          ]),
+          p('members:add', 'Invite members', ['workspaceMembers:create']),
+        ],
+      });
+    }
+    if (path == '/api/collections/sections/records') {
+      Map<String, dynamic> section(String id, String name) => {
+        'id': id,
+        'key': id,
+        'name': name,
+        'records': <String>[],
+        'user': 'u1',
+        'workspace': 'w1',
+      };
+      return json({
+        'items': [
+          section('s1', 'Flat tool'),
+          section('s2', 'Documents'),
+          section('s3', 'Travel'),
+        ],
+        'page': 1,
+        'totalPages': 1,
+      });
+    }
     if (path == '$toolsPath/c1' && request.method == 'DELETE') {
       calls.add('delete');
       return http.Response('', 204, request: request);
@@ -161,6 +201,8 @@ void main() {
     expect(find.text('over_18'), findsOneWidget);
     expect(find.text('Waiting'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Disconnect'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Disconnect'));
     await tester.pumpAndSettle();
     expect(
@@ -184,6 +226,67 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, ['permissions {"allowVaultRead":false}']);
     expect(find.text('Read your vault'), findsNothing);
+  });
+
+  testWidgets('what it does on its own comes from the catalogue, and '
+      'changes one at a time', (tester) async {
+    tool['scopes'] = ['link:create', 'link:update', 'link:delete'];
+    await signedIn(tester);
+
+    // Only what a tool does by itself is offered here.
+    expect(find.text('Invite members'), findsNothing);
+    expect(find.text('View shares'), findsNothing);
+    await tester.ensureVisible(find.text('Share what it can read'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share what it can read'));
+    await tester.pumpAndSettle();
+    expect(calls, ['permissions {"permissions":[]}']);
+  });
+
+  testWidgets('its section can be made read only, and taken away and given '
+      'back', (tester) async {
+    tool['vaultAccess'] = 'write';
+    tool['section'] = 's1';
+    await signedIn(tester);
+    await Stores.vault.loadRecords();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Section: Flat tool'), findsOneWidget);
+    await tester.ensureVisible(find.text('It can read'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('It can read'));
+    await tester.pumpAndSettle();
+    expect(calls.last, 'permissions {"permissions":["vault:read"]}');
+
+    await tester.ensureVisible(find.text('Give it a section'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Give it a section'));
+    await tester.pumpAndSettle();
+    expect(calls.last, 'permissions {"section":false}');
+  });
+
+  testWidgets('its own section and the ones you added are listed, and one '
+      'you added can be taken away', (tester) async {
+    tool['vaultAccess'] = 'write';
+    tool['section'] = 's1';
+    tool['sections'] = ['s2'];
+    await signedIn(tester);
+    await Stores.vault.loadRecords();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sections Flat tool can read'), findsOneWidget);
+    expect(find.text('Its own section · 0 records'), findsOneWidget);
+    expect(find.text('You added it · 0 records'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Documents'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Documents'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove').hitTestable());
+    await tester.pumpAndSettle();
+    expect(calls, ['permissions {"sections":[]}']);
   });
 
   testWidgets('a tool with only links shows no empty sections', (tester) async {

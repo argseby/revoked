@@ -98,11 +98,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				ClientName  string `json:"clientName"`
 				RedirectUri string `json:"redirectUri"`
 				Challenge   string `json:"challenge"`
-				// What the owner chose to allow. Left out, a connection keeps
-				// what it had.
-				AllowRevoke    *bool `json:"allowRevoke"`
-				AllowHandOver  *bool `json:"allowHandOver"`
-				AllowVaultRead *bool `json:"allowVaultRead"`
+				connectionGrant
 				// Set when the owner was not asked again: the tool is already
 				// connected and another of their browsers wants in. That takes
 				// a live connection and leaves it exactly as it was.
@@ -134,8 +130,10 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				name = string([]rune(name)[:40])
 			}
 
+			granter := services.GranterScopes(app, re.Auth, workspace, false)
 			var code, connectionID string
 			var saved *core.Record
+			var refused *util.AppError
 			err := app.RunInTransaction(func(tx core.App) error {
 				conn, err := tx.FindFirstRecordByFilter(util.Coll.Connections,
 					"user = {:user} && workspace = {:ws} && clientId = {:client}",
@@ -183,17 +181,14 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 							}
 						}
 					}
-					if body.AllowRevoke != nil {
-						conn.Set(util.Fields.Connection.AllowRevoke, *body.AllowRevoke)
-					}
-					if body.AllowHandOver != nil {
-						conn.Set(util.Fields.Connection.AllowHandOver, *body.AllowHandOver)
-					}
-					if body.AllowVaultRead != nil {
-						conn.Set(util.Fields.Connection.AllowVaultRead, *body.AllowVaultRead)
+					if refused = applyConnectionGrant(tx, conn, body.connectionGrant, granter); refused != nil {
+						return errConnectionGrant
 					}
 					conn.Set(util.Fields.Connection.ExpiresAt, time.Now().Add(util.ConnectionTTL))
 					if err := tx.Save(conn); err != nil {
+						return err
+					}
+					if err := ensureOwnSection(tx, conn, body.connectionGrant); err != nil {
 						return err
 					}
 				}
@@ -214,6 +209,9 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				connectionID = conn.Id
 				return tx.Save(row)
 			})
+			if errors.Is(err, errConnectionGrant) {
+				return appErrorResponse(re, http.StatusBadRequest, refused)
+			}
 			if errors.Is(err, errNotConnected) {
 				return appErrorResponse(re, http.StatusConflict, &util.Errors.ConnectionNotConnected)
 			}
@@ -324,17 +322,11 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				return re.InternalServerError("Failed to exchange code", err)
 			}
 			auditConnection(app, re, conn, auditToolConnected, nil)
-			return re.JSON(http.StatusOK, map[string]any{
-				"token": token,
-				"connection": map[string]any{
-					"id":             conn.Id,
-					"clientName":     conn.GetString(util.Fields.Connection.ClientName),
-					"expiresAt":      conn.GetString(util.Fields.Connection.ExpiresAt),
-					"allowRevoke":    conn.GetBool(util.Fields.Connection.AllowRevoke),
-					"allowHandOver":  conn.GetBool(util.Fields.Connection.AllowHandOver),
-					"allowVaultRead": conn.GetBool(util.Fields.Connection.AllowVaultRead),
-				},
-			})
+			view := connectionGrantView(conn, nil)
+			view["id"] = conn.Id
+			view["clientName"] = conn.GetString(util.Fields.Connection.ClientName)
+			view["expiresAt"] = conn.GetString(util.Fields.Connection.ExpiresAt)
+			return re.JSON(http.StatusOK, map[string]any{"token": token, "connection": view})
 		})
 
 		e.Router.GET("/api/connection", func(re *core.RequestEvent) error {
@@ -367,21 +359,16 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			if err != nil {
 				return re.InternalServerError("Failed to list checks", err)
 			}
-			return re.JSON(http.StatusOK, map[string]any{
-				"id":            conn.Id,
-				"clientId":      conn.GetString(util.Fields.Connection.ClientId),
-				"clientName":    conn.GetString(util.Fields.Connection.ClientName),
-				"expiresAt":     conn.GetString(util.Fields.Connection.ExpiresAt),
-				"allowRevoke":   conn.GetBool(util.Fields.Connection.AllowRevoke),
-				"allowHandOver": conn.GetBool(util.Fields.Connection.AllowHandOver),
-				// What this token can do with it: one collected by polling never reads.
-				"allowVaultRead": conn.GetBool(util.Fields.Connection.AllowVaultRead),
-				"vaultReadable":  vaultReadable(conn, token),
-				"links":          out,
-				"requests":       requests,
-				"attestations":   attestations,
-				"checks":         checks,
-			})
+			view := connectionGrantView(conn, token)
+			view["id"] = conn.Id
+			view["clientId"] = conn.GetString(util.Fields.Connection.ClientId)
+			view["clientName"] = conn.GetString(util.Fields.Connection.ClientName)
+			view["expiresAt"] = conn.GetString(util.Fields.Connection.ExpiresAt)
+			view["links"] = out
+			view["requests"] = requests
+			view["attestations"] = attestations
+			view["checks"] = checks
+			return re.JSON(http.StatusOK, view)
 		})
 
 		// Ending a share is the one thing a tool may change, and only for a
@@ -392,7 +379,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			if !ok {
 				return nil
 			}
-			if !conn.GetBool(util.Fields.Connection.AllowRevoke) {
+			if !connectionHas(conn, util.ScopeLinkUpdate) {
 				return appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionRevokeNotAllowed)
 			}
 			link, err := app.FindRecordById(util.Coll.Links, re.Request.PathValue("id"))
@@ -416,7 +403,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			if !ok {
 				return nil
 			}
-			if !conn.GetBool(util.Fields.Connection.AllowRevoke) {
+			if !connectionHas(conn, util.ScopeRequestUpdate) {
 				return appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionRevokeNotAllowed)
 			}
 			f := util.Fields.Request
@@ -442,7 +429,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			if !ok {
 				return nil
 			}
-			if !conn.GetBool(util.Fields.Connection.AllowRevoke) {
+			if !connectionHas(conn, util.ScopeAttestationUpdate) {
 				return appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionRevokeNotAllowed)
 			}
 			f := util.Fields.Attestation
@@ -463,42 +450,38 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 		})
 
 		e.Router.POST("/api/connections/{id}/permissions", func(re *core.RequestEvent) error {
-			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-				return re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+			conn, err := ownedConnection(app, re)
+			if err != nil {
+				return err
 			}
-			var body struct {
-				AllowRevoke    *bool `json:"allowRevoke"`
-				AllowHandOver  *bool `json:"allowHandOver"`
-				AllowVaultRead *bool `json:"allowVaultRead"`
-			}
+			var body connectionGrant
 			if err := re.BindBody(&body); err != nil {
 				return re.BadRequestError("Invalid request body", nil)
 			}
+			// The whole vault is granted only by connecting again, so the
+			// owner sees the tool's own request for it.
 			if body.AllowVaultRead != nil && *body.AllowVaultRead {
 				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ConnectionVaultReconnect)
 			}
-			conn, err := app.FindRecordById(util.Coll.Connections, re.Request.PathValue("id"))
-			if err != nil || conn == nil || conn.GetString(util.Fields.Connection.User) != re.Auth.Id {
-				return re.NotFoundError("Connection not found", nil)
+			granter := services.GranterScopes(app, re.Auth, conn.GetString(util.Fields.Connection.Workspace), false)
+			var refused *util.AppError
+			err = app.RunInTransaction(func(tx core.App) error {
+				if refused = applyConnectionGrant(tx, conn, body, granter); refused != nil {
+					return errConnectionGrant
+				}
+				if err := tx.Save(conn); err != nil {
+					return err
+				}
+				return ensureOwnSection(tx, conn, body)
+			})
+			if errors.Is(err, errConnectionGrant) {
+				return appErrorResponse(re, http.StatusBadRequest, refused)
 			}
-			if body.AllowRevoke != nil {
-				conn.Set(util.Fields.Connection.AllowRevoke, *body.AllowRevoke)
-			}
-			if body.AllowHandOver != nil {
-				conn.Set(util.Fields.Connection.AllowHandOver, *body.AllowHandOver)
-			}
-			if body.AllowVaultRead != nil {
-				conn.Set(util.Fields.Connection.AllowVaultRead, false)
-			}
-			if err := app.Save(conn); err != nil {
+			if err != nil {
 				return re.InternalServerError("Failed to change the permissions", err)
 			}
 			auditConnection(app, re, conn, auditToolPermissionChanged, nil)
-			return re.JSON(http.StatusOK, map[string]any{
-				"allowRevoke":    conn.GetBool(util.Fields.Connection.AllowRevoke),
-				"allowHandOver":  conn.GetBool(util.Fields.Connection.AllowHandOver),
-				"allowVaultRead": conn.GetBool(util.Fields.Connection.AllowVaultRead),
-			})
+			return re.JSON(http.StatusOK, connectionGrantView(conn, nil))
 		})
 
 		e.Router.POST("/api/connections/{id}/pause", func(re *core.RequestEvent) error {
@@ -570,6 +553,10 @@ var errNotConnected = errors.New("not connected")
 
 // errConnectionPaused ends an authorize for a tool the owner has paused.
 var errConnectionPaused = errors.New("connection paused")
+
+// errConnectionGrant ends a transaction whose grant was refused; the refusal
+// itself travels beside it.
+var errConnectionGrant = errors.New("connection grant refused")
 
 // ownedConnection finds the connection named in the path for the person asking.
 func ownedConnection(app core.App, re *core.RequestEvent) (*core.Record, error) {
@@ -654,6 +641,8 @@ const (
 	auditToolListedVault        = "tool_listed_vault"        // it listed the records in the vault
 	auditToolReadRecord         = "tool_read_record"         // it read one record's value
 	auditToolDisconnected       = "tool_disconnected"        // it disconnected itself
+	auditToolCreatedLink        = "tool_created_link"        // it created a share itself
+	auditToolCreatedRequest     = "tool_created_request"     // it created a request itself
 
 	auditToolPermissionChanged = "tool_permission_changed" // the owner changed what it may do
 	auditToolPaused            = "tool_paused"             // the owner paused it
@@ -668,8 +657,10 @@ func auditConnection(app core.App, re *core.RequestEvent, conn *core.Record, act
 	fields := map[string]any{
 		util.Fields.Connection.ClientId:       conn.GetString(util.Fields.Connection.ClientId),
 		util.Fields.Connection.ClientName:     conn.GetString(util.Fields.Connection.ClientName),
-		util.Fields.Connection.AllowRevoke:    conn.GetBool(util.Fields.Connection.AllowRevoke),
-		util.Fields.Connection.AllowHandOver:  conn.GetBool(util.Fields.Connection.AllowHandOver),
+		util.Fields.Connection.Scopes:         conn.GetStringSlice(util.Fields.Connection.Scopes),
+		util.Fields.Connection.VaultAccess:    conn.GetString(util.Fields.Connection.VaultAccess),
+		util.Fields.Connection.Section:        conn.GetString(util.Fields.Connection.Section),
+		util.Fields.Connection.Sections:       conn.GetStringSlice(util.Fields.Connection.Sections),
 		util.Fields.Connection.AllowVaultRead: conn.GetBool(util.Fields.Connection.AllowVaultRead),
 		util.Fields.Connection.ExpiresAt:      conn.GetString(util.Fields.Connection.ExpiresAt),
 	}
@@ -735,7 +726,7 @@ func connectionLinkView(conn, l *core.Record, domain string) map[string]any {
 		"handedOver": l.GetBool(util.Fields.Link.HandedOver),
 	}
 	if l.GetBool(util.Fields.Link.HandedOver) && status == util.StatusActive &&
-		conn.GetBool(util.Fields.Connection.AllowHandOver) {
+		connectionHas(conn, util.ConnectionHandOverScope) {
 		view["url"] = publicLinkURL(domain, l.GetString(util.Fields.Link.Slug))
 	}
 	return view
@@ -838,4 +829,12 @@ func connectionCheckView(r *core.Record) map[string]any {
 		}
 	}
 	return view
+}
+
+// vaultReadable reports whether this token reaches the whole vault. A token
+// collected by polling never does: anyone can send the owner a connect link and
+// read them its check code, but only the owner's own machine receives an
+// answer sent back to the tool's address.
+func vaultReadable(conn, token *core.Record) bool {
+	return services.ConnectionCredential(conn, token).WholeVault
 }

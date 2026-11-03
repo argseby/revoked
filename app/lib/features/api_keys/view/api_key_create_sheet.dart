@@ -4,10 +4,12 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/models/api_key.dart';
 import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_entity_card.dart';
@@ -19,6 +21,7 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/permission_check_row.dart';
+import 'package:revoked_app/features/connections/view/access_summary.dart';
 
 /// The create-key drawer, opened straight from wherever keys are listed.
 /// Header and footer are pinned; only the form scrolls, so Cancel and Create
@@ -27,6 +30,7 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
   final store = Stores.apiKeys;
   store.resetDraft();
   Stores.invites.loadCatalogue();
+  Stores.vault.loadIfDue();
 
   return showAppSheet(
     context: context,
@@ -52,9 +56,10 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                   const Text('New API key').header,
                   const SizedBox(height: AppSpacing.xxs),
                   const Text(
-                    'A key does only what you allow here. It never opens '
-                    'your vault. Keep it to yourself: other services connect '
-                    'as tools or send requests instead.',
+                    'A key does only what you allow here. It reaches only the '
+                    'sections of your vault you choose. Keep it to yourself: '
+                    'other services connect as tools or send requests '
+                    'instead.',
                   ).muted.small,
                 ],
               ),
@@ -115,21 +120,39 @@ Future<void> openApiKeyCreateSheet(BuildContext context) {
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: AppSpacing.xl,
                                 ),
-                                child: PermissionCheckRow(
-                                  permission: permission,
-                                  selected: store.draftScopes.contains(
-                                    permission.key,
-                                  ),
-                                  onChanged: (on) => store.toggleDraftScope(
-                                    permission.key,
-                                    on,
-                                  ),
-                                ),
+                                child: _isVault(permission)
+                                    ? AppCheckRow(
+                                        label: permission.label,
+                                        subtitle: _vaultSubtitle(permission),
+                                        value: store.draftScopes.contains(
+                                          permission.key,
+                                        ),
+                                        onChanged: (on) =>
+                                            store.toggleDraftScope(
+                                              permission.key,
+                                              on,
+                                            ),
+                                      )
+                                    : PermissionCheckRow(
+                                        permission: permission,
+                                        selected: store.draftScopes.contains(
+                                          permission.key,
+                                        ),
+                                        onChanged: (on) =>
+                                            store.toggleDraftScope(
+                                              permission.key,
+                                              on,
+                                            ),
+                                      ),
                               ),
                           ],
                         );
                       },
                     ),
+                    if (store.draftReachesVault) ...[
+                      const AppFormSectionHeader('Sections it can reach'),
+                      const _SectionPicker(),
+                    ],
                     const SizedBox(height: AppSpacing.lg),
                   ],
                 ),
@@ -180,6 +203,7 @@ Future<void> _create(BuildContext sheetCtx, BuildContext parent) async {
     user: Stores.auth.userId,
     workspace: Stores.auth.activeWorkspace ?? '',
     scopes: store.draftScopes.toList(),
+    sections: store.draftReachesVault ? store.draftSections.toList() : const [],
     expiresAt: _expiryTimestamp(store.draftExpiresInDays),
   );
   if (!sheetCtx.mounted) return;
@@ -230,7 +254,7 @@ Future<void> confirmRevokeApiKey(BuildContext context, String id) async {
 /// One key as a row: what it may do and when it expires; tapping it offers
 /// the revoke.
 class ApiKeyRow extends StatelessWidget {
-  final dynamic apiKey;
+  final ApiKey apiKey;
 
   const ApiKeyRow({super.key, required this.apiKey});
 
@@ -240,15 +264,18 @@ class ApiKeyRow extends StatelessWidget {
   }
 
   Widget _build(BuildContext context) {
-    final scopes = apiKey.scopes as List<String>;
+    final scopes = apiKey.scopes;
     final catalogue = _keyPermissions(Stores.invites.catalogue);
     // A key from before keys were kept out of the vault still holds what it
     // was granted, until it expires or is revoked.
     final opensVault = Stores.invites.catalogue.any(
       (p) => p.membersOnly && p.scopes.any(scopes.contains),
     );
-    final expires = AppEntityCard.formatDate(apiKey.expiresAt as String?);
-    final label = apiKey.label as String;
+    final expires = AppEntityCard.formatDate(apiKey.expiresAt);
+    final label = apiKey.label;
+
+    final vaultAccess = apiKey.vaultAccess;
+    final sections = apiKey.sections;
 
     return AppListRow(
       icon: AppIcons.key,
@@ -256,10 +283,17 @@ class ApiKeyRow extends StatelessWidget {
       subtitle: [
         // Stored scopes are the expanded form, so they are counted as the
         // permissions they satisfy — the same count members and invites show.
+        // The vault's two are held as its access instead.
         if (catalogue.isNotEmpty)
-          permissionCountLabel(
-            permissionsFromScopes(catalogue, scopes).length,
-            catalogue.length,
+          accessSummary(
+            permissions:
+                permissionsFromScopes(
+                  catalogue.where((p) => !_isVault(p)).toList(),
+                  scopes,
+                ).length +
+                (vaultAccess.isEmpty ? 0 : 1) +
+                (vaultAccess == 'write' ? 1 : 0),
+            sections: vaultAccess.isEmpty ? 0 : sections.length,
           ),
         expires == null ? 'Never expires' : 'Expires $expires',
       ].join(' · '),
@@ -278,7 +312,7 @@ class ApiKeyRow extends StatelessWidget {
             icon: AppIcons.xCircle,
             label: 'Revoke key',
             destructive: true,
-            onTap: () => confirmRevokeApiKey(context, apiKey.id as String),
+            onTap: () => confirmRevokeApiKey(context, apiKey.id),
           ),
         ],
       ),
@@ -286,9 +320,59 @@ class ApiKeyRow extends StatelessWidget {
   }
 }
 
-/// What a key may be granted: everything but the vault.
+/// What a key may be granted: everything a member may hand on, and the vault
+/// through the sections picked for it.
 List<InvitePermission> _keyPermissions(List<InvitePermission> catalogue) =>
-    catalogue.where((p) => !p.membersOnly).toList();
+    catalogue.where((p) => !p.membersOnly || _isVault(p)).toList();
+
+bool _isVault(InvitePermission p) =>
+    p.key == 'vault:read' || p.key == 'vault:write';
+
+/// The catalogue's words are about a member, who reaches the whole vault; a
+/// key reaches only its sections.
+String _vaultSubtitle(InvitePermission p) => p.key == 'vault:write'
+    ? 'Add records to the sections you choose, and change the ones it added.'
+    : 'See the records in the sections you choose.';
+
+/// The person's own sections, to pick the ones a new key reaches. A section
+/// holding a request's answers or a sign-in's entries isn't theirs to hand on.
+class _SectionPicker extends StatelessWidget {
+  const _SectionPicker();
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (_) {
+        final store = Stores.apiKeys;
+        final sections = [
+          for (final s in Stores.vault.sections)
+            if (!s.isRequested && s.user == Stores.auth.userId) s,
+        ];
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+          child: sections.isEmpty
+              ? const Text(
+                  'You have no sections yet. Make one in your vault first.',
+                ).muted.small
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final s in sections)
+                      AppCheckRow(
+                        label: s.name.isEmpty ? s.key : s.name,
+                        subtitle:
+                            '${s.records.length} '
+                            '${s.records.length == 1 ? 'record' : 'records'}',
+                        value: store.draftSections.contains(s.id),
+                        onChanged: (on) => store.toggleDraftSection(s.id, on),
+                      ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+}
 
 class _ExpiryOption {
   final String label;

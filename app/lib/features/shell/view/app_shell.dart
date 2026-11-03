@@ -224,7 +224,7 @@ class _AppShellState extends State<AppShell> {
             heroTag: 'shell-new',
             tooltip: 'Create something new',
             onPressed: () => _openNew(root),
-            icon: const Icon(AppIcons.plus),
+            icon: const Icon(AppIcons.plus, size: 18),
             label: const Text('New'),
           );
         },
@@ -249,7 +249,7 @@ class _AppShellState extends State<AppShell> {
           _slot(ShellSlots.action),
           AppButton(
             icon: AppIcons.search,
-            style: AppButtonStyle.accent,
+            style: AppButtonStyle.ghost,
             tooltip: 'Search or paste a link',
             onTap: () => openLinkSearchSheet(context),
           ),
@@ -362,6 +362,7 @@ class _AppShellState extends State<AppShell> {
                       child: AppButton(
                         icon: AppIcons.plus,
                         label: 'New',
+                        size: AppButtonSize.small,
                         tooltip: 'Create something new (N)',
                         onTap: () => _openNew(root),
                       ),
@@ -601,7 +602,7 @@ class _NotificationBell extends StatelessWidget {
           children: [
             AppButton(
               icon: AppIcons.bell,
-              style: AppButtonStyle.accent,
+              style: AppButtonStyle.ghost,
               tooltip: unread > 0
                   ? 'Notifications, $unread unread'
                   : 'Notifications',

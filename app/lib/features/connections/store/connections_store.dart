@@ -3,10 +3,12 @@ import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
+import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/stores.dart';
 
 part 'connections_store.g.dart';
 
@@ -186,6 +188,8 @@ abstract class _ConnectionsStore with Store {
     bool? allowRevoke,
     bool? allowHandOver,
     bool? allowVaultRead,
+    List<String>? permissions,
+    bool? section,
     bool reuse = false,
     bool poll = false,
   }) async {
@@ -203,6 +207,8 @@ abstract class _ConnectionsStore with Store {
           if (!reuse) 'allowRevoke': ?allowRevoke,
           if (!reuse) 'allowHandOver': ?allowHandOver,
           if (!reuse) 'allowVaultRead': ?allowVaultRead,
+          if (!reuse) 'permissions': ?permissions,
+          if (!reuse) 'section': ?section,
         },
       );
       return (
@@ -270,17 +276,22 @@ abstract class _ConnectionsStore with Store {
   }
 
   /// Changes what the owner allows the tool: revoking the links it proposed,
-  /// receiving links, reading the vault. A value left null stays as it is.
-  /// Reading the vault can only be withdrawn here; the server grants it on a
-  /// new connect alone.
+  /// receiving links, reading the vault, its [permissions], its own
+  /// [section] and the other [sections] it may read. A value left null stays
+  /// as it is. Reading the whole vault can only be withdrawn here; the server
+  /// grants it on a new connect alone.
   @action
   Future<bool> setPermissions(
     String id, {
     bool? allowRevoke,
     bool? allowHandOver,
     bool? allowVaultRead,
+    List<String>? permissions,
+    bool? section,
+    List<String>? sections,
   }) async {
     errorMessage = null;
+    isChanging = true;
     try {
       final data = await _api.post(
         '/api/connections/$id/permissions',
@@ -288,28 +299,116 @@ abstract class _ConnectionsStore with Store {
           'allowRevoke': ?allowRevoke,
           'allowHandOver': ?allowHandOver,
           'allowVaultRead': ?allowVaultRead,
+          'permissions': ?permissions,
+          'section': ?section,
+          'sections': ?sections,
         },
       );
-      final i = connections.indexWhere((c) => c.id == id);
-      if (i >= 0) {
-        final c = connections[i];
-        connections[i] = Connection(
-          id: c.id,
-          clientId: c.clientId,
-          clientName: c.clientName,
-          allowRevoke: data['allowRevoke'] as bool? ?? c.allowRevoke,
-          allowHandOver: data['allowHandOver'] as bool? ?? c.allowHandOver,
-          allowVaultRead: data['allowVaultRead'] as bool? ?? c.allowVaultRead,
-          paused: c.paused,
-          expiresAt: c.expiresAt,
-          lastUsedAt: c.lastUsedAt,
-          created: c.created,
-        );
-      }
+      runInAction(() {
+        final i = connections.indexWhere((c) => c.id == id);
+        if (i >= 0 && data is Map<String, dynamic>) {
+          connections[i] = connections[i].withGrant(data);
+        }
+      });
       return true;
     } catch (e) {
-      errorMessage = describeError(e);
+      runInAction(() => errorMessage = describeError(e));
       return false;
+    } finally {
+      runInAction(() => isChanging = false);
+    }
+  }
+
+  /// Gives the tool [key] from the catalogue, or takes it away. Changing the
+  /// vault keeps the two vault permissions in step: changing implies reading.
+  Future<bool> setPermission(
+    Connection connection,
+    String key,
+    bool on,
+    List<InvitePermission> catalogue,
+  ) {
+    final keys = {...connection.permissionKeys(catalogue)};
+    if (on) {
+      keys.add(key);
+      if (key == 'vault:write') keys.add('vault:read');
+    } else {
+      keys.remove(key);
+      if (key == 'vault:read') keys.remove('vault:write');
+    }
+    return setPermissions(
+      connection.id,
+      permissions: [
+        for (final k in Connection.toolPermissions)
+          if (keys.contains(k)) k,
+      ],
+    );
+  }
+
+  /// Gives the tool its section, or takes its access to it away. The section
+  /// stays in the vault either way, and comes back as it was.
+  Future<bool> setOwnSection(Connection connection, bool on) async {
+    final ok = await setPermissions(connection.id, section: on);
+    if (ok && on && connection.section.isEmpty) {
+      Stores.invalidateLoads();
+      await Stores.vault.loadIfDue();
+    }
+    return ok;
+  }
+
+  /// Lets the tool add records to its section, or only read it.
+  Future<bool> setSectionAccess(
+    Connection connection,
+    bool write,
+    List<InvitePermission> catalogue,
+  ) {
+    final keys = {
+      for (final k in connection.permissionKeys(catalogue))
+        if (!k.startsWith('vault:')) k,
+      write ? 'vault:write' : 'vault:read',
+    };
+    return setPermissions(
+      connection.id,
+      permissions: [
+        for (final k in Connection.toolPermissions)
+          if (keys.contains(k)) k,
+      ],
+    );
+  }
+
+  /// Lets the tool read [sectionId] as well, or no longer.
+  Future<bool> setSectionReached(
+    Connection connection,
+    String sectionId,
+    bool on,
+  ) {
+    final next = [
+      for (final s in connection.sections)
+        if (s != sectionId) s,
+      if (on) sectionId,
+    ];
+    return setPermissions(connection.id, sections: next);
+  }
+
+  /// The live tools that can read what is in [sectionId], asked of the
+  /// server each time: adding a record there hands it to them. Null when the
+  /// answer can't be had, so the caller can still ask before adding.
+  Future<List<Connection>?> toolsReaching(String sectionId) async {
+    try {
+      // Ids are the server's own, letters and digits, so nothing in one can
+      // break out of the filter.
+      final data = await _api.get(
+        _basePath,
+        queryParams: {
+          'filter': 'section = "$sectionId" || sections ~ "$sectionId"',
+          'perPage': '50',
+        },
+      );
+      final items = (data['items'] as List<dynamic>?) ?? const [];
+      return [
+        for (final e in items) Connection.fromJson(e as Map<String, dynamic>),
+      ].where((c) => !c.isExpired && c.reaches(sectionId)).toList();
+    } catch (_) {
+      return null;
     }
   }
 

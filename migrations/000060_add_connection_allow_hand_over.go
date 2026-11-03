@@ -18,10 +18,10 @@ func init() {
 		if err != nil {
 			return err
 		}
-		if connections.Fields.GetByName(util.Fields.Connection.AllowHandOver) != nil {
+		if connections.Fields.GetByName("allowHandOver") != nil {
 			return nil
 		}
-		connections.Fields.Add(&core.BoolField{Name: util.Fields.Connection.AllowHandOver})
+		connections.Fields.Add(&core.BoolField{Name: "allowHandOver"})
 		if err := app.Save(connections); err != nil {
 			return err
 		}
@@ -42,7 +42,7 @@ func init() {
 			if err != nil {
 				continue
 			}
-			conn.Set(util.Fields.Connection.AllowHandOver, true)
+			conn.Set("allowHandOver", true)
 			if err := app.Save(conn); err != nil {
 				return err
 			}

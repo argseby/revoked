@@ -5,10 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
-import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -72,59 +70,21 @@ void main() {
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Key'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Key'));
-      await tester.pumpAndSettle();
     }
 
-    testWidgets('left empty, Done closes it, as its text promises', (
+    testWidgets('is typed where it stands, with no sheet to get out of', (
       tester,
     ) async {
       await openKey(tester);
-      expect(find.text('prod_api_key'), findsOneWidget);
-      await tester.tap(find.text('Done'));
+      expect(find.text('Done'), findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'record'),
+        'typed_key',
+      );
       await tester.pumpAndSettle();
-      expect(find.text('prod_api_key'), findsNothing);
+      expect(Stores.vault.recordKey.text, 'typed_key');
+      expect(find.text('Create record'), findsOneWidget);
     });
-
-    testWidgets('Cancel gets out of it and drops what was typed', (
-      tester,
-    ) async {
-      await openKey(tester);
-      await tester.enterText(find.byType(TextField).last, 'typed_key');
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel').last);
-      await tester.pumpAndSettle();
-      expect(find.text('prod_api_key'), findsNothing);
-      expect(Stores.vault.recordKey.text, isEmpty);
-    });
-  });
-
-  testWidgets('Cancel closes the sheet and puts the text back', (tester) async {
-    final controller = ObservableTextController()..text = 'before';
-    late BuildContext page;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.build(Brightness.light),
-        home: Builder(
-          builder: (context) {
-            page = context;
-            return const Scaffold();
-          },
-        ),
-      ),
-    );
-    final result = showAppEditSheet(
-      context: page,
-      title: 'Label',
-      controller: controller,
-    );
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'typed');
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-
-    expect(await result, isFalse);
-    expect(controller.text, 'before');
-    expect(find.text('Cancel'), findsNothing);
   });
 }

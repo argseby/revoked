@@ -112,9 +112,14 @@ void main() {
     expect(find.text('Contacts is off'), findsOneWidget);
     expect(find.text('Turn on Contacts'), findsOneWidget);
 
+    // API keys are listed with connected tools; the old address leads there.
     router.go(AppRoutes.apiKeys);
     await tester.pumpAndSettle();
-    expect(find.text('Developer is off'), findsOneWidget);
+    expect(
+      router.routerDelegate.currentConfiguration.uri.path,
+      AppRoutes.connectedTools,
+    );
+    expect(find.text('Connected tools is off'), findsOneWidget);
 
     router.go(AppRoutes.vault);
     await tester.pumpAndSettle();

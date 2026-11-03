@@ -8,6 +8,8 @@ import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
+import 'package:revoked_app/core/files/pending_upload.dart';
+import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
 /// The create forms open with only what most people fill in: developer
@@ -76,7 +78,46 @@ void main() {
     await tester.tap(find.text('Advanced'));
     await tester.pumpAndSettle();
     expect(find.text('Key'), findsOneWidget);
-    expect(find.text('From the label: record'), findsOneWidget);
+    expect(find.text('Leave it empty to use record.'), findsOneWidget);
+  });
+
+  void openRecord(BuildContext context) => openRecordCreateSheet(
+    context: context,
+    store: Stores.vault,
+    authStore: Stores.auth,
+  );
+
+  testWidgets('leaving yes/no offers nothing back for an empty value', (
+    tester,
+  ) async {
+    await open(tester, openRecord);
+    await tester.tap(find.text('BOOLEAN'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('TEXT'));
+    await tester.pumpAndSettle();
+
+    expect(Stores.vault.recordValue.text, isEmpty);
+    expect(find.textContaining('Auto:'), findsNothing);
+  });
+
+  testWidgets('an attached file shows what it is and can be removed', (
+    tester,
+  ) async {
+    await open(tester, openRecord);
+    await tester.tap(find.text('FILE'));
+    await tester.pumpAndSettle();
+    expect(find.text('Choose a file'), findsOneWidget);
+
+    Stores.vault.setPickedFile(
+      PendingUpload(name: 'lease.pdf', size: 2048, open: () => Stream.empty()),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('lease.pdf'), findsOneWidget);
+
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+    expect(Stores.vault.pickedFile, isNull);
+    expect(find.text('Choose a file'), findsOneWidget);
   });
 
   testWidgets('a link starts from what it shares and is named after it', (
@@ -88,8 +129,7 @@ void main() {
     );
 
     expect(find.text('What to share'), findsOneWidget);
-    expect(find.text('Company name'), findsOneWidget);
-    expect(find.text('From the selection: Company name'), findsOneWidget);
+    expect(find.text('Leave it empty to use Company name.'), findsOneWidget);
     // A new link lapses by itself unless told otherwise.
     expect(find.text('Never'), findsNothing);
     expect(find.text('URL slug'), findsNothing);
@@ -99,7 +139,7 @@ void main() {
   testWidgets('a link sharing nothing cannot be created', (tester) async {
     await open(tester, (context) => openShareCreateSheet(context: context));
 
-    expect(find.text('Required — pick from your vault'), findsOneWidget);
+    expect(find.text('Pick from your vault'), findsOneWidget);
     expect(button(tester, 'Create link').onTap, isNull);
   });
 
@@ -113,7 +153,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Required — pick the fields to ask for'), findsOneWidget);
+    expect(find.text('Pick the fields to ask for'), findsOneWidget);
     expect(button(tester, 'Create request').onTap, isNull);
   });
 }

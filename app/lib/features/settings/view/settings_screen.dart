@@ -64,18 +64,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _count(int n, String one, String many, String otherwise) =>
       n == 0 ? otherwise : '$n ${n == 1 ? one : many}';
 
-  /// "1 tool connected · 2 sign-ins", leaving out whichever there are none of.
+  /// "1 tool connected · 2 keys · 2 sign-ins", leaving out whichever there
+  /// are none of.
   String _toolsSummary() {
     final tools = Stores.connections.connections.length;
+    final keys = Stores.apiKeys.apiKeys.length;
     final signIns = Stores.signIns.services.length;
     return [
-      if (tools > 0 || signIns == 0)
+      if (tools > 0 || (signIns == 0 && keys == 0))
         _count(
           tools,
           'tool connected',
           'tools connected',
           'No tools connected',
         ),
+      if (keys > 0) _count(keys, 'key', 'keys', ''),
       if (signIns > 0) _count(signIns, 'sign-in', 'sign-ins', ''),
     ].join(' · ');
   }
@@ -174,7 +177,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Prove it’s really you',
                 ),
               ),
-            if (features.visible(Feature.tools))
+            if (features.visible(Feature.tools) ||
+                features.visible(Feature.developer))
               _page(
                 SettingsPage.connectedTools,
                 AppIcons.plug,
@@ -186,17 +190,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Developer',
           trailing: const SizedBox.shrink(),
           children: [
-            if (features.visible(Feature.developer))
-              _page(
-                SettingsPage.apiKeys,
-                AppIcons.code,
-                _count(
-                  Stores.apiKeys.apiKeys.length,
-                  'key',
-                  'keys',
-                  'Let your scripts use Revoked',
-                ),
-              ),
             if (features.visible(Feature.developer))
               _page(
                 SettingsPage.webhooks,

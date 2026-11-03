@@ -32,26 +32,25 @@ const (
 // first, and finds rows only inside that workspace.
 func WebhooksRoute(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
-		g := e.Router.Group("/api/webhooks")
-		g.GET("/event-types", func(re *core.RequestEvent) error {
+		e.Router.GET("/api/webhooks/event-types", func(re *core.RequestEvent) error {
 			if _, ok := webhookWorkspace(app, re); !ok {
 				return nil
 			}
 			return re.JSON(http.StatusOK, map[string]any{"items": util.WebhookEventTypes})
 		})
-		g.GET("/endpoints", func(re *core.RequestEvent) error { return listWebhookEndpoints(app, re) })
-		g.POST("/endpoints", func(re *core.RequestEvent) error { return createWebhookEndpoint(app, re) })
-		g.GET("/endpoints/{id}", func(re *core.RequestEvent) error { return getWebhookEndpoint(app, re) })
-		g.PATCH("/endpoints/{id}", func(re *core.RequestEvent) error { return updateWebhookEndpoint(app, re) })
-		g.DELETE("/endpoints/{id}", func(re *core.RequestEvent) error { return deleteWebhookEndpoint(app, re) })
-		g.GET("/endpoints/{id}/secret", func(re *core.RequestEvent) error { return revealWebhookSecret(app, re) })
-		g.POST("/endpoints/{id}/rotate-secret", func(re *core.RequestEvent) error { return rotateWebhookSecret(app, re) })
-		g.POST("/endpoints/{id}/test", func(re *core.RequestEvent) error { return testWebhookEndpoint(app, re) })
-		g.POST("/endpoints/{id}/replay", func(re *core.RequestEvent) error { return replayWebhookEndpoint(app, re) })
-		g.GET("/events", func(re *core.RequestEvent) error { return listWebhookEvents(app, re) })
-		g.GET("/deliveries", func(re *core.RequestEvent) error { return listWebhookDeliveries(app, re) })
-		g.GET("/deliveries/{id}", func(re *core.RequestEvent) error { return getWebhookDelivery(app, re) })
-		g.POST("/deliveries/{id}/resend", func(re *core.RequestEvent) error { return resendWebhookDelivery(app, re) })
+		e.Router.GET("/api/webhooks/endpoints", func(re *core.RequestEvent) error { return listWebhookEndpoints(app, re) })
+		e.Router.POST("/api/webhooks/endpoints", func(re *core.RequestEvent) error { return createWebhookEndpoint(app, re) })
+		e.Router.GET("/api/webhooks/endpoints/{id}", func(re *core.RequestEvent) error { return getWebhookEndpoint(app, re) })
+		e.Router.PATCH("/api/webhooks/endpoints/{id}", func(re *core.RequestEvent) error { return updateWebhookEndpoint(app, re) })
+		e.Router.DELETE("/api/webhooks/endpoints/{id}", func(re *core.RequestEvent) error { return deleteWebhookEndpoint(app, re) })
+		e.Router.GET("/api/webhooks/endpoints/{id}/secret", func(re *core.RequestEvent) error { return revealWebhookSecret(app, re) })
+		e.Router.POST("/api/webhooks/endpoints/{id}/rotate-secret", func(re *core.RequestEvent) error { return rotateWebhookSecret(app, re) })
+		e.Router.POST("/api/webhooks/endpoints/{id}/test", func(re *core.RequestEvent) error { return testWebhookEndpoint(app, re) })
+		e.Router.POST("/api/webhooks/endpoints/{id}/replay", func(re *core.RequestEvent) error { return replayWebhookEndpoint(app, re) })
+		e.Router.GET("/api/webhooks/events", func(re *core.RequestEvent) error { return listWebhookEvents(app, re) })
+		e.Router.GET("/api/webhooks/deliveries", func(re *core.RequestEvent) error { return listWebhookDeliveries(app, re) })
+		e.Router.GET("/api/webhooks/deliveries/{id}", func(re *core.RequestEvent) error { return getWebhookDelivery(app, re) })
+		e.Router.POST("/api/webhooks/deliveries/{id}/resend", func(re *core.RequestEvent) error { return resendWebhookDelivery(app, re) })
 		return e.Next()
 	})
 }

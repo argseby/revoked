@@ -49,6 +49,11 @@ class Record {
   final String keyWrap;
   final bool opened;
 
+  /// The connected tool or API key that wrote this record, and its name.
+  /// Empty for what the owner wrote.
+  final String writtenBy;
+  final String writtenByName;
+
   /// This device knew the record as encrypted and now it isn't: someone stopped
   /// encrypting it, or the server is passing off a value of its own.
   final bool unsealedElsewhere;
@@ -78,6 +83,8 @@ class Record {
     this.keyWrap = '',
     this.opened = false,
     this.unsealedElsewhere = false,
+    this.writtenBy = '',
+    this.writtenByName = '',
   });
 
   factory Record.fromJson(Map<String, dynamic> json) {
@@ -110,6 +117,8 @@ class Record {
       sealedVersion: (json['sealedVersion'] as num?)?.toInt() ?? 0,
       keyEpoch: (json['keyEpoch'] as num?)?.toInt() ?? 0,
       keyWrap: json['keyWrap'] as String? ?? '',
+      writtenBy: json['writtenBy'] as String? ?? '',
+      writtenByName: json['writtenByName'] as String? ?? '',
     );
   }
 
@@ -145,6 +154,8 @@ class Record {
     keyWrap: keyWrap,
     opened: opened ?? this.opened,
     unsealedElsewhere: unsealedElsewhere ?? this.unsealedElsewhere,
+    writtenBy: writtenBy,
+    writtenByName: writtenByName,
   );
 
   /// This record as decrypted. The label, type and format come from inside the
@@ -169,6 +180,12 @@ class Record {
   bool get isRequested => requestedBy != null && requestedBy!.isNotEmpty;
   bool get isAlias => aliasOf != null && aliasOf!.isNotEmpty;
   bool get isFile => type == 'file';
+
+  /// Written by a connected tool or an API key rather than by the owner.
+  bool get isWrittenByTool => writtenBy.isNotEmpty;
+
+  /// What to call whoever wrote it, when that was not the owner.
+  String get writerName => writtenByName.isNotEmpty ? writtenByName : writtenBy;
 
   /// Encrypted, and this device can't read it.
   bool get isLocked => sealed && !opened;

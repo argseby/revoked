@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -11,7 +12,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
-import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
@@ -383,15 +383,13 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: AppButton(
+                AppButton(
                     label: 'Cancel',
                     style: AppButtonStyle.accent,
                     onTap: _store.isSubmittingShare
                         ? null
                         : () => Navigator.of(context).pop(),
                   ),
-                ),
                 AppSpacing.gapMd,
                 Expanded(
                   child: AppButton(
@@ -410,97 +408,86 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   }
 
   Widget _buildLabelRow() {
-    final v = _store.draftLabel.text.trim();
     final fallback = _effectiveLabel;
-    return AppFormRow(
-      icon: AppIcons.fileText,
+    return AppFormField(
       label: 'Label',
-      valueText: v.isNotEmpty
-          ? v
-          : (fallback.isEmpty ? 'Required' : 'From the selection: $fallback'),
-      isPlaceholder: v.isEmpty,
-      isError: fallback.isEmpty && (_isEdit || _hasContents),
-      onTap: () async {
-        await showAppEditSheet(
-          context: context,
-          title: 'Label',
-          description:
-              'The title the recipient sees. Leave it empty to name it '
-              'after what it shares.',
-          controller: _store.draftLabel,
-          hint: 'Vendor Onboarding',
-        );
-      },
+      explanation: 'The title the recipient sees.',
+      note: _store.draftLabel.text.trim().isEmpty && fallback.isNotEmpty
+          ? 'Leave it empty to use $fallback.'
+          : null,
+      child: AppTextField(
+        controller: _store.draftLabel,
+        hint: fallback.isEmpty ? 'Vendor Onboarding' : fallback,
+      ),
     );
   }
 
-  Widget _buildSlugRow() {
-    final slug = _store.draftSlug.text.trim();
-    return AppFormRow(
-      icon: AppIcons.link,
-      label: 'Link address',
-      valueText: slug.isEmpty ? 'Required' : (_store.draftSlugWarning ?? slug),
-      isPlaceholder: slug.isEmpty,
-      isError: slug.isEmpty || _store.draftSlugWarning != null,
-      onTap: _editSlug,
-    );
-  }
+  Widget _buildSlugRow() => AppFormField(
+    label: 'Link address',
+    explanation: 'The last part of your link\'s web address.',
+    error: _store.draftSlugWarning,
+    child: AppTextField(
+      controller: _store.draftSlug,
+      hint: 'vendor-onboarding-2024',
+      mono: true,
+      inputFormatters: [SlugInputFormatter()],
+      onChanged: _validateSlug,
+      trailing: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        child: AppButton(
+          icon: AppIcons.arrowRepeat,
+          style: AppButtonStyle.ghost,
+          size: AppButtonSize.small,
+          tooltip: 'Make a random address',
+          showTooltip: false,
+          onTap: () async {
+            final s = _generateRandomSlug();
+            _store.draftSlug.text = s;
+            await _validateSlug(s);
+          },
+        ),
+      ),
+    ),
+  );
 
   Widget _buildWatermarkRow() {
-    final v = _store.draftWatermarkText.text.trim();
     final tag = widget.editShare?.watermarkTag;
-    return AppFormRow(
-      icon: AppIcons.watermark,
+    return AppFormField(
       label: 'Watermark',
-      valueText: v.isEmpty ? 'Not set' : v,
-      isPlaceholder: v.isEmpty,
-      onClear: v.isEmpty ? null : _store.draftWatermarkText.clear,
-      onTap: () async {
-        await showAppEditSheet(
-          context: context,
-          title: 'Watermark',
-          description:
-              'Every image and PDF gets this text, the date and the link '
-              'tag${tag == null ? '' : ' (#$tag)'}. Other file types can\'t '
-              'be opened. Leave it empty for no watermark.',
-          controller: _store.draftWatermarkText,
-          hint: 'e.g. Nur für Wohnungsbewerbung Musterstr. 5',
-        );
-      },
+      explanation:
+          'Every image and PDF gets this text, the date and the link '
+          'tag${tag == null ? '' : ' (#$tag)'}. Other file types can\'t be '
+          'opened. Leave it empty for no watermark.',
+      child: AppTextField(
+        controller: _store.draftWatermarkText,
+        hint: 'Nur für Wohnungsbewerbung Musterstr. 5',
+      ),
     );
   }
 
-  Widget _buildMaxViewsRow() {
-    final v = _store.draftMaxViews.text.trim();
-    return AppFormRow(
-      icon: AppIcons.collection,
-      label: 'Maximum views',
-      valueText: v.isEmpty ? 'Unlimited' : v,
-      isPlaceholder: v.isEmpty,
-      onClear: _store.draftMaxViews.clear,
-      onTap: () async {
-        await showAppEditSheet(
-          context: context,
-          title: 'Maximum views',
-          description: 'The link stops working after this many views.',
-          controller: _store.draftMaxViews,
-          hint: 'e.g. 5 — leave blank for unlimited',
-          keyboardType: TextInputType.number,
-        );
-      },
-    );
-  }
+  Widget _buildMaxViewsRow() => AppFormField(
+    label: 'Maximum views',
+    explanation: 'The link stops working after this many views.',
+    child: AppTextField(
+      controller: _store.draftMaxViews,
+      hint: 'Unlimited',
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    ),
+  );
 
   Widget _buildExpiryRow() {
-    return AppFormRow(
-      icon: AppIcons.clock,
+    return AppFormField(
       label: 'Expiration date',
-      valueText: _store.draftExpiresAt == null
-          ? 'Never'
-          : _formatDate(_store.draftExpiresAt!),
-      isPlaceholder: _store.draftExpiresAt == null,
-      onClear: () => _store.setDraftExpiry(null),
-      onTap: _pickExpiry,
+      child: AppPickerField(
+        text: _store.draftExpiresAt == null
+            ? 'Never'
+            : _formatDate(_store.draftExpiresAt!),
+        isPlaceholder: _store.draftExpiresAt == null,
+        opens: AppIcons.calendar,
+        onClear: () => _store.setDraftExpiry(null),
+        onTap: _pickExpiry,
+      ),
     );
   }
 
@@ -508,48 +495,43 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     final typed = _store.draftPassword.text.isNotEmpty;
     final stored = widget.editShare?.hasPassword ?? false;
     final removing = _store.draftRemovePassword;
-
-    final String valueText;
-    if (typed) {
-      valueText = stored ? '•••••••• · replaces the current one' : '••••••••';
-    } else if (removing) {
-      valueText = 'Removed when you save';
-    } else if (stored) {
-      valueText = 'Set · leave blank to keep it';
-    } else {
-      valueText = 'Not set';
-    }
-
-    return AppFormRow(
-      icon: AppIcons.lock,
+    return AppFormField(
       label: 'Password',
-      valueText: valueText,
-      isPlaceholder: !typed && !stored && !removing,
-      isError: removing,
-      onClear: (typed || stored)
-          ? () {
-              _store.draftPassword.clear();
-              _store.setDraftRemovePassword(stored);
-            }
-          : null,
-      onTap: () async {
-        await showAppEditSheet(
-          context: context,
-          title: 'Password',
-          description: stored
-              ? 'Type a new password to replace the current one, or leave '
-                    'it empty to keep it.'
-              : 'People need this password to open the link.',
-          controller: _store.draftPassword,
-          hint: stored
-              ? 'Leave blank to keep the current one'
-              : 'Leave blank for no password',
-          passwordToggle: true,
-        );
-        if (_store.draftPassword.text.isNotEmpty) {
-          _store.setDraftRemovePassword(false);
-        }
-      },
+      explanation: 'People need this password to open the link.',
+      error: removing ? 'Removed when you save.' : null,
+      note: !stored
+          ? null
+          : typed
+          ? 'Replaces the current one.'
+          : 'Leave it empty to keep the current one.',
+      action: !stored
+          ? null
+          : removing
+          ? AppButton(
+              icon: AppIcons.lock,
+              label: 'Keep the password',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () => _store.setDraftRemovePassword(false),
+            )
+          : AppButton(
+              icon: AppIcons.trash,
+              label: 'Remove the password',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: () {
+                _store.draftPassword.clear();
+                _store.setDraftRemovePassword(true);
+              },
+            ),
+      child: AppTextField(
+        controller: _store.draftPassword,
+        hint: stored ? 'Leave blank to keep it' : 'Leave blank for no password',
+        passwordToggle: true,
+        onChanged: (v) {
+          if (v.isNotEmpty) _store.setDraftRemovePassword(false);
+        },
+      ),
     );
   }
 
@@ -589,84 +571,6 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           ),
         ],
       ),
-    );
-  }
-
-  Future<void> _editSlug() async {
-    final before = _store.draftSlug.text;
-    await showAppSheet(
-      context: context,
-      builder: (sheetCtx) {
-        return Observer(
-          builder: (ctx) {
-            final done =
-                _store.draftSlug.text.trim().isNotEmpty &&
-                    _store.draftSlugWarning == null
-                ? () => Navigator.of(sheetCtx).pop()
-                : null;
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                AppSpacing.xl,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Link address').header,
-                  AppSpacing.gapXxs,
-                  const Text(
-                    'The last part of your link\'s web address.',
-                  ).muted.small,
-                  AppSpacing.gapLg,
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: _store.draftSlug,
-                          hint: 'vendor-onboarding-2024',
-                          autofocus: true,
-                          inputFormatters: [SlugInputFormatter()],
-                          onChanged: (v) async {
-                            await _validateSlug(v);
-                          },
-                          onSubmitted: done == null ? null : (_) => done(),
-                        ),
-                      ),
-                      AppSpacing.gapSm,
-                      AppButton(
-                        icon: AppIcons.arrowRepeat,
-                        style: AppButtonStyle.accent,
-                        tooltip: 'Make a random address',
-                        onTap: () async {
-                          final s = _generateRandomSlug();
-                          _store.draftSlug.text = s;
-                          await _validateSlug(s);
-                        },
-                      ),
-                    ],
-                  ),
-                  if (_store.draftSlugWarning != null) ...[
-                    AppSpacing.gapSm,
-                    Text(_store.draftSlugWarning!).small,
-                  ],
-                  AppSpacing.gapLg,
-                  AppEditSheetActions(
-                    onCancel: () {
-                      _store.draftSlug.text = before;
-                      _validateSlug(before);
-                      Navigator.of(sheetCtx).pop();
-                    },
-                    onDone: done,
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
     );
   }
 

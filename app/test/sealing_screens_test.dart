@@ -413,6 +413,23 @@ void main() {
       expect(find.text('Add a device'), findsOneWidget);
     });
 
+    testWidgets('"That was me" clears the notice about a new entry', (
+      tester,
+    ) async {
+      await _start(tester);
+      await tester.runAsync(_setUpKeys);
+      runInAction(
+        () => Stores.keys.unreviewedEntries.add(Stores.keys.chain.live.first),
+      );
+      await _pumpSection(tester);
+      expect(find.text('New on your list'), findsOneWidget);
+
+      await tester.tap(find.text('That was me'));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+      expect(find.text('New on your list'), findsNothing);
+    });
+
     testWidgets('a device not on the list can join or recover', (tester) async {
       final server = await _start(tester);
       await tester.runAsync(_setUpKeys);

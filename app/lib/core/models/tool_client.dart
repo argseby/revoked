@@ -58,8 +58,9 @@ abstract final class ToolClient {
 }
 
 /// Why a tool asks for what the owner may allow or not, in its own words:
-/// `revoke_reason`, `links_reason` and `vault_reason` on a `revoked://` link.
-/// Shown as the tool's claim, never as fact.
+/// `revoke_reason`, `links_reason`, `vault_reason`, `section_reason` and
+/// `permissions_reason` on a `revoked://` link. Shown as the tool's claim,
+/// never as fact.
 class ToolReasons {
   /// Why it wants to revoke the links it proposed.
   final String revoke;
@@ -70,7 +71,19 @@ class ToolReasons {
   /// Why it wants to read the vault.
   final String vault;
 
-  const ToolReasons({this.revoke = '', this.links = '', this.vault = ''});
+  /// Why it wants a section of its own.
+  final String section;
+
+  /// Why it wants the permissions it asks for.
+  final String permissions;
+
+  const ToolReasons({
+    this.revoke = '',
+    this.links = '',
+    this.vault = '',
+    this.section = '',
+    this.permissions = '',
+  });
 
   static const maxReason = 120;
 
@@ -79,14 +92,30 @@ class ToolReasons {
     final revoke = _line(query['revoke_reason']);
     final links = _line(query['links_reason']);
     final vault = _line(query['vault_reason']);
-    if (revoke == null || links == null || vault == null) return null;
-    return ToolReasons(revoke: revoke, links: links, vault: vault);
+    final section = _line(query['section_reason']);
+    final permissions = _line(query['permissions_reason']);
+    if (revoke == null ||
+        links == null ||
+        vault == null ||
+        section == null ||
+        permissions == null) {
+      return null;
+    }
+    return ToolReasons(
+      revoke: revoke,
+      links: links,
+      vault: vault,
+      section: section,
+      permissions: permissions,
+    );
   }
 
   Map<String, String> toQuery() => {
     if (revoke.isNotEmpty) 'revoke_reason': revoke,
     if (links.isNotEmpty) 'links_reason': links,
     if (vault.isNotEmpty) 'vault_reason': vault,
+    if (section.isNotEmpty) 'section_reason': section,
+    if (permissions.isNotEmpty) 'permissions_reason': permissions,
   };
 
   static String? _line(String? raw) {
@@ -99,7 +128,8 @@ class ToolReasons {
 }
 
 /// A tool asking to be connected: `revoked://connect?client=…&name=…&redirect=…&state=…&challenge=…`
-/// (+ `revoke_reason`, `links_reason`, `poll`, `vault=read`, `vault_reason`).
+/// (+ `revoke_reason`, `links_reason`, `poll`, `vault=read`, `vault_reason`,
+/// `section=1`, `section_reason`, `permissions=<keys>`, `permissions_reason`).
 ///
 /// Connecting lets the tool see the status of the links it proposes. Whether
 /// it may also revoke them, or receive links, is the owner's choice, and so is
@@ -130,6 +160,12 @@ class ConnectRequest {
   /// Whether it asks to read the vault (`vault=read`).
   final bool vault;
 
+  /// Whether it asks for a section of its own (`section=1`).
+  final bool section;
+
+  /// The permissions it asks for, as catalogue keys (`permissions=…`).
+  final List<String> permissions;
+
   const ConnectRequest({
     required this.client,
     required this.name,
@@ -139,9 +175,21 @@ class ConnectRequest {
     this.reasons = const ToolReasons(),
     this.poll = '',
     this.vault = false,
+    this.section = false,
+    this.permissions = const [],
   });
 
   static const maxName = 40;
+
+  /// The keys a tool may ask for (the server's ConnectionPermissions).
+  static const toolPermissions = [
+    'shares:read',
+    'shares:manage',
+    'requests:manage',
+    'attestations:issue',
+    'vault:read',
+    'vault:write',
+  ];
 
   /// Reads a connect request, or null when any part is invalid.
   static ConnectRequest? fromQuery(Map<String, String> query) {
@@ -161,6 +209,15 @@ class ConnectRequest {
     if (poll == null) return null;
     final vault = query['vault'] ?? '';
     if (vault.isNotEmpty && vault != 'read') return null;
+    final section = query['section'] ?? '';
+    if (section.isNotEmpty && section != '1') return null;
+    final permissions = <String>[];
+    for (final part in (query['permissions'] ?? '').split(',')) {
+      final key = part.trim();
+      if (key.isEmpty) continue;
+      if (!toolPermissions.contains(key)) return null;
+      if (!permissions.contains(key)) permissions.add(key);
+    }
     return ConnectRequest(
       client: client,
       name: name.isEmpty ? Uri.parse(client).host : name,
@@ -170,6 +227,8 @@ class ConnectRequest {
       reasons: reasons,
       poll: poll,
       vault: vault == 'read',
+      section: section == '1',
+      permissions: permissions,
     );
   }
 
@@ -182,6 +241,8 @@ class ConnectRequest {
     ...reasons.toQuery(),
     if (poll.isNotEmpty) 'poll': poll,
     if (vault) 'vault': 'read',
+    if (section) 'section': '1',
+    if (permissions.isNotEmpty) 'permissions': permissions.join(','),
   };
 
   static String? _cleanName(String? raw) {

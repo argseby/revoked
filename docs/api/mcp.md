@@ -5,7 +5,9 @@ attestations for the owner of a vault over the
 [Model Context Protocol](https://modelcontextprotocol.io). It is a
 [connected tool](tools.md) that runs on the owner's machine, and it can do
 exactly what a tool can: propose, follow what became of a proposal, and end
-it. It reads values only if the owner lets it read their vault.
+it; keep notes and files in a section of its own; and, where the owner allows
+it, create shares and requests itself. It reads values only from its own
+section, or from the whole vault if the owner lets it.
 
 Whatever an MCP tool returns lands in the model's context, and from there
 with the model provider, so a secret that reached it cannot be taken back by
@@ -15,11 +17,15 @@ in their app. Even a link the owner hands over to the connection is not
 passed on: `list_shares` drops its `url`. A request's answers and an
 attestation's values never reach the connection at all.
 
-Two things do return values:
+Three things do return values:
 
 - A **check**. Its point is to tell the asker what the other person showed,
   so `list_checks` returns the verdict with the claims they chose to disclose.
-- The **vault**, when the owner allowed it. `connect` with `vault` asks for
+- The assistant's **own section**: `connect` with `section` asks for it, and
+  `list_vault` and `read_record` then show what it wrote there and anything
+  the owner added. `create_share` returns a share's link, of records it can
+  already read.
+- The **whole vault**, when the owner allowed it. `connect` with `vault` asks for
   it, the app offers it switched off and explains what it means, and only
   then do `list_vault` and `read_record` work. The owner can withdraw it in
   **Settings → Connected tools** at any time. The user-facing side is in
@@ -99,8 +105,8 @@ link is returned either way, for the owner to open on another device.
 
 | Tool | Does |
 |---|---|
-| `connect` | Builds a `revoked://connect` link with `poll` set to the server, and returns it with the check code. The owner approves in the app only if the app shows the same code. Asks for `allowRevoke`; it never asks to receive links. With `vault: true` it asks to read the vault instead of polling (see [Who can use it](#who-can-use-it)), and no check code is needed. Already connected without the vault, `vault: true` connects again. |
-| `connection_status` | While a connect is pending, polls `POST /api/connect/token` once (with `Origin` set to the client origin), or reports whether the app's answer reached `/callback`, and stores the token on success. Once connected, reports the connection's name, expiry, `allowRevoke`, `readsVault` and how many shares, requests, attestations and checks it follows. |
+| `connect` | Builds a `revoked://connect` link with `poll` set to the server, and returns it with the check code. The owner approves in the app only if the app shows the same code. Asks for `allowRevoke`; it never asks to receive links. With `section: true` it asks for a section of its own, which works with polling. With `create: true` it asks for `shares:manage` and `requests:manage`, and like `vault` the answer comes back to `/callback` on this machine, since a polled answer can't create requests. With `vault: true` it asks to read the vault instead of polling (see [Who can use it](#who-can-use-it)), and no check code is needed. Already connected without the vault, `vault: true` connects again. |
+| `connection_status` | While a connect is pending, polls `POST /api/connect/token` once (with `Origin` set to the client origin), or reports whether the app's answer reached `/callback`, and stores the token on success. Once connected, reports the connection's name, expiry, `allowRevoke`, `readsVault`, `hasSection`, its `permissions` and how many shares, requests, attestations and checks it follows. |
 | `propose_share` | Builds a `revoked://p` link from `label`, `keys`, and optionally `template`, `days` and `ref`, checked against the [proposal rules](tools.md#1-the-proposal). `from` and `client` are filled in, so the share joins the connection. |
 | `list_shares` | `GET /api/connection`: each share's `id`, `ref`, `label`, `status`, `viewCount`, `maxViews`, `expiresAt`, `created` and `handedOver` — never its `url`. |
 | `revoke_share` | `POST /api/connection/links/{id}/revoke`. |
@@ -112,8 +118,12 @@ link is returned either way, for the owner to open on another device.
 | `revoke_attestation` | `POST /api/connection/attestations/{id}/revoke`. Final. |
 | `propose_check` | Builds a `revoked://check` link from optional `type`, `issuers`, `claims` and `ref`. |
 | `list_checks` | Each check's `id`, `ref`, `type`, `status`, and once answered its `verdict`: `state`, `issuer`, `type`, the disclosed `claims`, `withheld`, `status` and `holder`. |
-| `list_vault` | `GET /api/connection/vault`: the owner's records, `id`, `key`, `label`, `type`, `format` and `updated` — no values, no encrypted records. |
-| `read_record` | `GET /api/connection/vault/{id}`: one record with its `value`, or a file's `filename`, `mime` and `size`. The owner's audit log names every record read. |
+| `list_vault` | `GET /api/vault`: the records within reach — its own section and those the owner added, or the whole vault — `id`, `key`, `label`, `type`, `format`, `updated` and whether it may change them; no values, no encrypted records. |
+| `read_record` | `GET /api/vault/{id}`: one record with its `value`, or a file's `filename`, `mime` and `size`. The owner's audit log names every record read. |
+| `write_record` | `POST /api/vault`, or with `id` `PATCH /api/vault/{id}`: keeps a text value in the assistant's own section, or changes one it wrote. Needs `connect` with `section`. |
+| `delete_record` | `DELETE /api/vault/{id}` for a record it wrote. |
+| `create_share` | `POST /api/connection/links`: shares records it may read, at once, and returns the link. Needs `connect` with `create`. |
+| `create_request` | `POST /api/connection/requests`: asks for data in the owner's name, at once, and returns the `revoked://r/…` link. Needs `connect` with `create`. |
 | `disconnect` | `DELETE /api/connection`, then forgets the token. Everything it proposed stays the owner's. |
 
 The three tools that end something are refused unless the owner allowed it

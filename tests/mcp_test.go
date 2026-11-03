@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -59,7 +60,7 @@ func (h *mcpHarness) call(name string, args any, wantError bool) string {
 		h.t.Fatalf("%s: %v", name, err)
 	}
 	if res.IsError != wantError {
-		h.t.Fatalf("%s: isError=%v, content %+v", name, res.IsError, res.Content)
+		h.t.Fatalf("%s: isError=%v, content %s", name, res.IsError, mcpText(res))
 	}
 	raw, _ := json.Marshal(res.StructuredContent)
 	return string(raw)
@@ -300,6 +301,120 @@ func TestMCPAssistantFollowsRequestsAttestationsAndChecks(t *testing.T) {
 		v := list.Checks[0].Verdict
 		if v.State != "verified" || len(v.Claims) != 1 || v.Claims["age_over_18"] != true || v.Withheld != 2 {
 			t.Fatalf("unexpected verdict: %+v", v)
+		}
+	})
+}
+
+func mcpText(res *mcp.CallToolResult) string {
+	out := ""
+	for _, c := range res.Content {
+		if t, ok := c.(*mcp.TextContent); ok {
+			out += t.Text
+		}
+	}
+	return out
+}
+
+func TestMCPAssistantKeepsNotesInItsOwnSection(t *testing.T) {
+	f := newWatermarkFixture(t)
+	baseURL, _ := testutils.SetupTestApp(t)
+	h := newMCPHarness(t, baseURL)
+
+	h.call("write_record", map[string]any{"key": "note", "value": "x"}, true)
+
+	var started mcpserver.ConnectResult
+	h.decode("connect", map[string]any{"section": true}, &started)
+	link, _ := url.Parse(started.Link)
+	q := link.Query()
+	if q.Get("section") != "1" || q.Get("poll") != baseURL || q.Get("permissions") != "" {
+		t.Fatalf("unexpected connect link %s", started.Link)
+	}
+	authorizeTool(f.api, f.token, map[string]any{
+		"clientId": q.Get("client"), "clientName": q.Get("name"), "redirectUri": q.Get("redirect"),
+		"challenge": q.Get("challenge"), "poll": true, "section": true,
+		"permissions": []string{util.PermSharesManage},
+	}).Status(http.StatusOK)
+
+	var status mcpserver.StatusResult
+	h.decode("connection_status", nil, &status)
+	if !status.Connected || !status.HasSection || status.ReadsVault {
+		t.Fatalf("not connected with a section: %+v", status)
+	}
+
+	var rec mcpserver.VaultRecord
+	h.decode("write_record", map[string]any{"key": "packing_list", "label": "Packing list", "value": "tent, stove"}, &rec)
+	if rec.ID == "" || !rec.Writable {
+		t.Fatalf("unexpected record: %+v", rec)
+	}
+	h.decode("write_record", map[string]any{"id": rec.ID, "value": "tent, stove, lamp"}, &rec)
+
+	var list mcpserver.VaultList
+	h.decode("list_vault", nil, &list)
+	if len(list.Records) != 1 || list.Records[0].ID != rec.ID {
+		t.Fatalf("the vault list shows more than its section: %+v", list)
+	}
+	h.call("read_record", map[string]any{"id": f.textID}, true)
+
+	var share mcpserver.CreatedShare
+	h.decode("create_share", map[string]any{"label": "Packing list", "records": []string{rec.ID}, "days": 7}, &share)
+	if !strings.Contains(share.URL, "/s/") || share.Status != util.StatusActive {
+		t.Fatalf("unexpected share: %+v", share)
+	}
+	h.call("create_share", map[string]any{"label": "x", "records": []string{f.textID}}, true)
+	h.call("create_request", map[string]any{"label": "RSVP"}, true)
+
+	h.decode("delete_record", map[string]any{"id": rec.ID}, &struct{}{})
+	h.call("read_record", map[string]any{"id": rec.ID}, true)
+
+	t.Run("asking to create requests comes back to this machine", func(t *testing.T) {
+		client := fmt.Sprintf("http://127.0.0.1:%d", freeLoopbackPort(t))
+		h2 := &mcpHarness{t: t, ctx: context.Background()}
+		s, err := mcpserver.New(mcpserver.Config{
+			Server: baseURL, Client: client, Name: "Test assistant",
+			StatePath: filepath.Join(t.TempDir(), "connection.json"),
+			Open:      func(link string) error { return nil },
+		})
+		if err != nil {
+			t.Fatalf("new mcp server: %v", err)
+		}
+		st, ct := mcp.NewInMemoryTransports()
+		if _, err := s.Connect(h2.ctx, st, nil); err != nil {
+			t.Fatalf("connect server: %v", err)
+		}
+		h2.cs, err = mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(h2.ctx, ct, nil)
+		if err != nil {
+			t.Fatalf("connect client: %v", err)
+		}
+		t.Cleanup(func() { _ = h2.cs.Close() })
+
+		var started mcpserver.ConnectResult
+		h2.decode("connect", map[string]any{"create": true}, &started)
+		link, _ := url.Parse(started.Link)
+		q := link.Query()
+		if q.Get("poll") != "" || q.Get("vault") != "" || q.Get("redirect") != client+"/callback" ||
+			q.Get("permissions") != util.PermSharesManage+","+util.PermRequestsManage {
+			t.Fatalf("unexpected connect link %s", started.Link)
+		}
+		code := authorizeTool(f.api, f.token, map[string]any{
+			"clientId": q.Get("client"), "clientName": q.Get("name"), "redirectUri": q.Get("redirect"),
+			"challenge": q.Get("challenge"), "permissions": strings.Split(q.Get("permissions"), ","),
+		}).Status(http.StatusOK).JSON().Object().Value("code").String().Raw()
+		resp, err := http.Get(q.Get("redirect") + "?status=connected&code=" + url.QueryEscape(code) +
+			"&state=" + url.QueryEscape(q.Get("state")))
+		if err != nil {
+			t.Fatalf("return to the assistant: %v", err)
+		}
+		resp.Body.Close()
+
+		// The assistant asks as the workspace's primary identity.
+		identity, _ := newIdentity(t, baseURL, f.token, "Party host", f.userID, f.wsID)
+		f.api.Update(util.Coll.Identities, identity, f.token, map[string]any{
+			util.Fields.Identity.IsPrimary: true,
+		}).Expect().Status(http.StatusOK)
+		var req mcpserver.CreatedRequest
+		h2.decode("create_request", map[string]any{"label": "RSVP", "maxResponses": 30}, &req)
+		if !strings.HasPrefix(req.URL, "revoked://r/") {
+			t.Fatalf("unexpected request: %+v", req)
 		}
 	})
 }

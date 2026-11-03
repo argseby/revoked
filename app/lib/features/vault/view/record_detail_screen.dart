@@ -191,6 +191,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             icon: AppIcons.inboxFill,
             label: 'Requested by ${r.requestedBy}',
           ),
+        if (r.isWrittenByTool)
+          AppBadge(icon: AppIcons.plug, label: 'Added by ${r.writerName}'),
       ],
       title: _name(r),
       subtitle: r.key,

@@ -60,10 +60,12 @@ void openRecordEditSheet(
               void setHidden(bool on) =>
                   store.setEditRecordFormat(on ? 'hidden' : 'default');
               void pickType(String type) {
+                final from = store.editRecordType;
                 store.setEditRecordType(type);
                 store.editRecordValue.text = recordValueForType(
                   type,
                   store.editRecordValue.text,
+                  from: from,
                 );
                 validateAndDetectType(store.editRecordValue.text);
               }
@@ -150,32 +152,10 @@ void openRecordEditSheet(
                               child: AppBadge(label: 'FILE'),
                             )
                           else
-                            Wrap(
-                              spacing: AppSpacing.sm,
-                              runSpacing: AppSpacing.sm,
-                              children: [
-                                if (store.editRecordDetectedType != null)
-                                  AppButton(
-                                    icon: AppIcons.stars,
-                                    label:
-                                        'Auto: ${store.editRecordDetectedType!.toUpperCase()}',
-                                    size: AppButtonSize.small,
-                                    onTap: () =>
-                                        pickType(store.editRecordDetectedType!),
-                                  ),
-                                for (final type
-                                    in RecordTypeUtils.supportedTypes)
-                                  if (type != 'file')
-                                    AppButton(
-                                      icon: RecordTypeUtils.icon(type),
-                                      label: type.toUpperCase(),
-                                      size: AppButtonSize.small,
-                                      style: store.editRecordType == type
-                                          ? AppButtonStyle.primary
-                                          : AppButtonStyle.accent,
-                                      onTap: () => pickType(type),
-                                    ),
-                              ],
+                            RecordTypeChoice(
+                              selected: store.editRecordType,
+                              detected: store.editRecordDetectedType,
+                              onPicked: pickType,
                             ),
                           const SizedBox(height: AppSpacing.lg),
 
@@ -317,15 +297,13 @@ void openRecordEditSheet(
                     ),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: AppButton(
+                        AppButton(
                             label: 'Cancel',
                             onTap: store.isSubmittingEditRecord
                                 ? null
                                 : () => Navigator.of(sheetContext).pop(),
                             style: AppButtonStyle.accent,
                           ),
-                        ),
                         const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: AppButton(

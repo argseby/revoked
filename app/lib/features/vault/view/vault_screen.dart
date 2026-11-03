@@ -21,6 +21,7 @@ import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -34,6 +35,7 @@ import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/tool_reach_confirm.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
@@ -462,8 +464,15 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       // Text, not a badge: most records are shared somewhere, and a badge on
       // every row is the noise this list is meant to be rid of. But who can
       // read a record is the vault's one question, so it is not muted.
+      // A record a tool or key wrote is the exception: its name has to show,
+      // or a record it made could pass as the owner's own.
       trailing: r.sealed
           ? const _EncryptedMark()
+          : r.isWrittenByTool
+          ? ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: AppBadge(icon: AppIcons.plug, label: r.writerName),
+            )
           : links > 0
           ? _LinkCount(links)
           : null,
@@ -598,6 +607,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     models.Record record,
     bool selected,
   ) async {
+    if (selected && !await confirmToolsReach(context, section, record)) {
+      return;
+    }
     final newRecords = List<String>.from(section.records);
     if (selected && !newRecords.contains(record.id)) {
       newRecords.add(record.id);

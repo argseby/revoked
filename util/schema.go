@@ -107,7 +107,7 @@ type inviteFields struct {
 type recordFields struct {
 	Key, Value, User, Workspace, Label, Type, Format, RequestedBy, AliasOf,
 	File, Filename, ContentHash, HashSalt, Mime, Size, Created, Updated,
-	Sealed, SealedValue, SealedVersion, KeyEpoch, KeyWrap string
+	Sealed, SealedValue, SealedVersion, KeyEpoch, KeyWrap, WrittenBy, WrittenByName string
 }
 
 type deviceKeyFields struct {
@@ -148,7 +148,7 @@ type memberFields struct {
 }
 
 type apiKeyFields struct {
-	Token, Label, User, Workspace, Scopes, LastUsedAt, ExpiresAt, Created, Updated string
+	Token, Label, User, Workspace, Scopes, VaultAccess, Sections, LastUsedAt, ExpiresAt, Created, Updated string
 }
 
 type auditLogFields struct {
@@ -204,7 +204,8 @@ type bookmarkGroupFields struct {
 }
 
 type connectionFields struct {
-	User, Workspace, ClientId, ClientName, AllowRevoke, AllowHandOver, AllowVaultRead, Paused, ExpiresAt, LastUsedAt, Created, Updated string
+	User, Workspace, ClientId, ClientName, AllowVaultRead,
+	Scopes, VaultAccess, Section, Sections, Paused, ExpiresAt, LastUsedAt, Created, Updated string
 }
 
 type connectionTokenFields struct {
@@ -400,15 +401,17 @@ var Fields = struct {
 		Updated:     "updated",
 	},
 	ApiKey: apiKeyFields{
-		Token:      "token",
-		Label:      "label",
-		User:       "user",
-		Workspace:  "workspace",
-		Scopes:     "scopes",
-		LastUsedAt: "lastUsedAt",
-		ExpiresAt:  "expiresAt",
-		Created:    "created",
-		Updated:    "updated",
+		Token:       "token",
+		Label:       "label",
+		User:        "user",
+		Workspace:   "workspace",
+		Scopes:      "scopes",
+		VaultAccess: "vaultAccess",
+		Sections:    "sections",
+		LastUsedAt:  "lastUsedAt",
+		ExpiresAt:   "expiresAt",
+		Created:     "created",
+		Updated:     "updated",
 	},
 	Record: recordFields{
 		Key:         "key",
@@ -434,6 +437,8 @@ var Fields = struct {
 		SealedVersion: "sealedVersion",
 		KeyEpoch:      "keyEpoch",
 		KeyWrap:       "keyWrap",
+		WrittenBy:     "writtenBy",
+		WrittenByName: "writtenByName",
 	},
 	DeviceKey: deviceKeyFields{
 		User:             "user",
@@ -651,9 +656,11 @@ var Fields = struct {
 		Workspace:      "workspace",
 		ClientId:       "clientId",
 		ClientName:     "clientName",
-		AllowRevoke:    "allowRevoke",
-		AllowHandOver:  "allowHandOver",
 		AllowVaultRead: "allowVaultRead",
+		Scopes:         "scopes",
+		VaultAccess:    "vaultAccess",
+		Section:        "section",
+		Sections:       "sections",
 		Paused:         "paused",
 		ExpiresAt:      "expiresAt",
 		LastUsedAt:     "lastUsedAt",

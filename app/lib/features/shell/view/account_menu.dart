@@ -92,11 +92,6 @@ class _AccountMenuState extends State<AccountMenu> {
         onSelected: () => context.go(AppRoutes.connectedTools),
       ),
       AppMenuItem(
-        label: 'API keys',
-        icon: AppIcons.code,
-        onSelected: () => context.go(AppRoutes.apiKeys),
-      ),
-      AppMenuItem(
         label: 'Appearance and accessibility',
         icon: AppIcons.brightnessAuto,
         onSelected: () => context.go(SettingsPage.appearance.route),

@@ -63,8 +63,8 @@ func init() {
 			},
 			// The name the tool gives itself — a claim, shown as one.
 			&core.TextField{Name: util.Fields.Connection.ClientName, Max: 40},
-			&core.BoolField{Name: util.Fields.Connection.AllowRevoke},
-			&core.BoolField{Name: util.Fields.Connection.AllowHandOver},
+			&core.BoolField{Name: "allowRevoke"},
+			&core.BoolField{Name: "allowHandOver"},
 			&core.DateField{Name: util.Fields.Connection.ExpiresAt},
 			&core.DateField{Name: util.Fields.Connection.LastUsedAt},
 			&core.AutodateField{Name: util.Fields.Connection.Created, OnCreate: true},

@@ -250,6 +250,38 @@ void main() {
       );
     });
 
+    test('a section of its own and permissions survive the trip', () {
+      ConnectRequest? read(String extra) {
+        final location = DeepLinks.locationFor(
+          Uri.parse(
+            'revoked://connect?client=$tool&redirect=$tool/&state=s'
+            '&challenge=$challenge$extra',
+          ),
+        );
+        return location == null
+            ? null
+            : ConnectRequest.fromQuery(Uri.parse(location).queryParameters);
+      }
+
+      final plain = read('')!;
+      expect(plain.section, isFalse);
+      expect(plain.permissions, isEmpty);
+
+      final asked = read(
+        '&section=1&section_reason=To%20keep%20your%20saves'
+        '&permissions=shares%3Amanage%2Cvault%3Awrite%2Cshares%3Amanage'
+        '&permissions_reason=To%20share%20what%20it%20saves',
+      )!;
+      expect(asked.section, isTrue);
+      expect(asked.reasons.section, 'To keep your saves');
+      expect(asked.permissions, ['shares:manage', 'vault:write']);
+      expect(asked.reasons.permissions, 'To share what it saves');
+
+      // Anything a tool can't hold refuses the whole link.
+      expect(read('&permissions=members%3Aadd'), isNull);
+      expect(read('&section=2'), isNull);
+    });
+
     test('both ends read the same check code from a challenge', () {
       // The same vector as the tool's own test.
       expect(

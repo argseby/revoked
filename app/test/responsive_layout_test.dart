@@ -5,16 +5,21 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/models/api_key.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/connection.dart';
+import 'package:revoked_app/core/models/invite.dart';
+import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/models/request.dart';
+import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/models/webhook.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
@@ -36,7 +41,11 @@ void main() {
     'desktop': Size(1280, 800),
   };
 
-  Future<GoRouter> signedIn(WidgetTester tester, Size size) async {
+  Future<GoRouter> signedIn(
+    WidgetTester tester,
+    Size size, {
+    List<String>? features,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -54,20 +63,97 @@ void main() {
         'id': 'u1',
         'email': 'ada@example.com',
         'activeWorkspace': 'w1',
+        'features': ?features,
       }),
     );
     await tester.pumpAndSettle();
     return router;
   }
 
+  /// The catalogue and two sections with long names, for the pages that
+  /// show what a tool or a key may do.
+  void withAccessFixtures() {
+    runInAction(() {
+      Stores.invites.catalogue.addAll([
+        for (final (key, label) in [
+          ('vault:read', 'Read vault'),
+          ('vault:write', 'Manage vault'),
+          ('shares:read', 'View shares'),
+          ('shares:manage', 'Manage shares'),
+        ])
+          InvitePermission(
+            key: key,
+            label: label,
+            description: 'A description long enough to wrap on a phone.',
+            membersOnly: key.startsWith('vault:'),
+            scopes: [key],
+          ),
+      ]);
+      Stores.vault.sections.addAll([
+        for (final id in ['s1', 's2'])
+          Section(
+            id: id,
+            key: id,
+            name: 'A section with a name long enough to wrap $id',
+            records: const [],
+            user: 'u1',
+            workspace: 'w1',
+          ),
+      ]);
+    });
+  }
+
+  /// Every place, shown or hidden: a hidden one still opens from a link, with
+  /// a notice above it, and has to fit with that notice too.
+  Future<void> visitEverywhere(
+    WidgetTester tester,
+    GoRouter router,
+    String reason,
+  ) async {
+    for (final destination in [
+      ...AppRoutes.allDestinations,
+      AppRoutes.settings,
+      AppRoutes.settingsPage(SettingsPage.features.slug),
+    ]) {
+      router.go(destination);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: '$destination $reason');
+    }
+  }
+
   for (final MapEntry(key: name, value: size) in sizes.entries) {
     testWidgets('every destination fits a $name', (tester) async {
       final router = await signedIn(tester, size);
-      for (final destination in AppRoutes.destinations) {
-        router.go(destination);
-        await tester.pumpAndSettle();
-        expect(tester.takeException(), isNull, reason: destination);
-      }
+      await visitEverywhere(tester, router, 'with everything on');
+    });
+
+    /// Each feature off in turn takes a tab away; the rest close up.
+    for (final off in Feature.values) {
+      testWidgets('every destination fits a $name with ${off.key} off', (
+        tester,
+      ) async {
+        final router = await signedIn(
+          tester,
+          size,
+          features: [
+            for (final f in Feature.values)
+              if (f != off) f.key,
+          ],
+        );
+        expect(
+          AppRoutes.destinations.length,
+          lessThanOrEqualTo(AppRoutes.allDestinations.length),
+        );
+        await visitEverywhere(tester, router, 'with ${off.key} off');
+      });
+    }
+
+    testWidgets('every destination fits a $name with only the vault', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size, features: const []);
+      expect(AppRoutes.destinations, [AppRoutes.vault]);
+      await visitEverywhere(tester, router, 'with only the vault');
     });
   }
 
@@ -109,6 +195,25 @@ void main() {
       router.go(AppRoutes.attestations);
       await tester.pumpAndSettle();
       expect(bar(tester).selectedIndex, bar(tester).destinations.length - 1);
+    });
+
+    testWidgets('a feature turned off takes its tab away; the rest close up', (
+      tester,
+    ) async {
+      await signedIn(
+        tester,
+        sizes['phone']!,
+        features: ['requests', 'attestations', 'contacts'],
+      );
+      final labels = [
+        for (final d in bar(tester).destinations)
+          (d as NavigationDestination).label,
+      ];
+      expect(labels, ['Vault', 'Requests', 'Attestations', 'Contacts', 'More']);
+      // Settings still waits under More, however few tabs there are.
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings'), findsOneWidget);
     });
   });
 
@@ -328,6 +433,116 @@ void main() {
         expect(find.text('Checks from $name'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
+
+      testWidgets('with its permissions and sections fits on a ${entry.key}', (
+        tester,
+      ) async {
+        final router = await signedIn(tester, entry.value);
+        const name = 'A rather long assistant name, 40 chars';
+        withAccessFixtures();
+        runInAction(() {
+          Stores.connections.connections.add(
+            Connection.fromJson({
+              'id': 'c1',
+              'clientId': 'https://a-rather-long-tool-name.example.com',
+              'clientName': name,
+              'expiresAt': '2099-01-01 00:00:00.000Z',
+              'scopes': ['link:read', 'link:update'],
+              'vaultAccess': 'write',
+              'section': 's1',
+              'sections': ['s2'],
+            }),
+          );
+        });
+        router.go(AppRoutes.connectedToolFor('c1'));
+        await tester.pumpAndSettle();
+        expect(find.text('Sections $name can read'), findsOneWidget);
+        expect(find.text('Give it a section'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
+  group('connected tools and API keys', () {
+    for (final entry in sizes.entries) {
+      testWidgets('list fits on a ${entry.key}', (tester) async {
+        final router = await signedIn(tester, entry.value);
+        withAccessFixtures();
+        runInAction(() {
+          Stores.connections.connections.add(
+            Connection.fromJson({
+              'id': 'c1',
+              'clientId': 'https://a-rather-long-tool-name.example.com',
+              'clientName': 'A rather long assistant name, 40 chars',
+              'expiresAt': '2099-01-01 00:00:00.000Z',
+              'vaultAccess': 'read',
+              'sections': ['s1', 's2'],
+            }),
+          );
+          Stores.apiKeys.apiKeys.add(
+            ApiKey.fromJson({
+              'id': 'k1',
+              'label': 'A rather long name for an import script',
+              'user': 'u1',
+              'workspace': 'w1',
+              'scopes': ['link:read'],
+              'vaultAccess': 'write',
+              'sections': ['s1'],
+              'expiresAt': '2099-01-01 00:00:00.000Z',
+            }),
+          );
+        });
+        router.go(AppRoutes.connectedTools);
+        await tester.pumpAndSettle();
+        expect(find.text('API keys'), findsWidgets);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('new key sheet with sections fits on a ${entry.key}', (
+        tester,
+      ) async {
+        final router = await signedIn(tester, entry.value);
+        router.go(AppRoutes.connectedTools);
+        await tester.pumpAndSettle();
+        final context = tester.element(find.byType(Scaffold).first);
+        openApiKeyCreateSheet(context);
+        await tester.pumpAndSettle();
+        withAccessFixtures();
+        runInAction(() => Stores.apiKeys.toggleDraftScope('vault:write', true));
+        await tester.pumpAndSettle();
+        expect(find.text('Sections it can reach'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets(
+        'connect screen asking for a section fits on a ${entry.key}',
+        (tester) async {
+          final router = await signedIn(tester, entry.value);
+          withAccessFixtures();
+          router.go(
+            Uri(
+              path: AppRoutes.connect,
+              queryParameters: const ConnectRequest(
+                client: 'https://a-rather-long-tool-name.example.com',
+                name: 'A rather long assistant name, 40 chars',
+                redirect: 'https://a-rather-long-tool-name.example.com/cb',
+                state: 'st',
+                challenge: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                section: true,
+                permissions: ['shares:manage', 'vault:write'],
+                reasons: ToolReasons(
+                  section: 'To keep the documents you upload with you',
+                  permissions: 'To share the documents you upload',
+                ),
+              ).toQuery(),
+            ).toString(),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text('Give it a section'), findsOneWidget);
+          expect(find.text('Read and add'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
   });
 

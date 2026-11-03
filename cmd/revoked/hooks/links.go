@@ -3,6 +3,7 @@ package hooks
 import (
 	"revoked/cmd/revoked/services"
 	"revoked/util"
+	"slices"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -104,7 +105,7 @@ func validateLinkConnection(app core.App, rec *core.Record, before string) error
 	// later hides the link from the tool without making it unsaveable.
 	if rec.GetBool(util.Fields.Link.HandedOver) &&
 		(rec.IsNew() || !rec.Original().GetBool(util.Fields.Link.HandedOver)) &&
-		!conn.GetBool(util.Fields.Connection.AllowHandOver) {
+		!slices.Contains(conn.GetStringSlice(util.Fields.Connection.Scopes), util.ConnectionHandOverScope) {
 		return util.AsFieldValidationError(util.Fields.Link.HandedOver, util.Errors.LinkHandOverNotAllowed)
 	}
 	// A new link cannot join a connection the owner has let lapse or paused.

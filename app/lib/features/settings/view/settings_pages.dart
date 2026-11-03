@@ -32,7 +32,6 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
-import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
@@ -56,6 +55,7 @@ enum SettingsPage {
   invites('invites', 'Invites'),
   identities('identities', 'Identities'),
   connectedTools('connected-tools', 'Connected tools'),
+  // Listed with connected tools now; the address leads there.
   apiKeys('api-keys', 'API keys'),
   webhooks('webhooks', 'Webhooks'),
   templates('templates', 'Templates'),
@@ -144,9 +144,9 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.identities.loadIdentities();
         Stores.settings.ensureDomainChecked();
       case SettingsPage.connectedTools:
+      case SettingsPage.apiKeys:
         Stores.connections.load();
         Stores.signIns.loadIfDue();
-      case SettingsPage.apiKeys:
         Stores.apiKeys.loadApiKeys();
         Stores.invites.loadCatalogue();
       case SettingsPage.webhooks:
@@ -169,8 +169,8 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
           SettingsPage.members => const _MembersPage(),
           SettingsPage.invites => const _InvitesPage(),
           SettingsPage.identities => const _IdentitiesPage(),
-          SettingsPage.connectedTools => const ConnectionsList(),
-          SettingsPage.apiKeys => const _ApiKeysPage(),
+          SettingsPage.connectedTools ||
+          SettingsPage.apiKeys => const ConnectionsList(),
           SettingsPage.webhooks => const WebhooksList(),
           SettingsPage.templates => const _TemplatesPage(),
           SettingsPage.domain => const _DomainPage(),
@@ -365,6 +365,13 @@ class _MembersPage extends StatelessWidget {
     Stores.invites.loadCatalogue();
   }
 
+  Future<void> _invite(BuildContext context) async {
+    final ws = Stores.auth.activeWorkspace ?? '';
+    if (ws.isEmpty) return;
+    await showInviteCreateSheet(context: context, workspaceId: ws);
+    if (context.mounted) await Stores.invites.load(ws);
+  }
+
   Future<void> _remove(
     BuildContext context,
     WorkspaceMemberDetail member,
@@ -416,6 +423,13 @@ class _MembersPage extends StatelessWidget {
         return AppListGroup(
           title: 'Members',
           footer: const Text('Who has access, and what they can do.'),
+          trailing: store.canManageMembers
+              ? _HeaderButton(
+                  icon: AppIcons.personPlus,
+                  label: 'Invite',
+                  onTap: () => _invite(context),
+                )
+              : null,
           children: [
             if (store.isLoadingMembers && store.members.isEmpty)
               const _LoadingRow()
@@ -796,73 +810,6 @@ class _IdentitiesPage extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-// API keys
-
-class _ApiKeysPage extends StatelessWidget {
-  const _ApiKeysPage();
-
-  @override
-  Widget build(BuildContext context) {
-    final store = Stores.apiKeys;
-    return Observer(
-      builder: (_) {
-        if (store.errorMessage != null && store.apiKeys.isEmpty) {
-          return AppLoadError(
-            title: 'Couldn’t load API keys',
-            message: store.errorMessage!,
-            onRetry: store.loadApiKeys,
-          );
-        }
-        if (store.apiKeys.isEmpty && !store.isLoading) {
-          return AppEmptyState(
-            icon: AppIcons.key,
-            title: 'Connect your own scripts',
-            subtitle:
-                'Give your scripts and integrations a key to this '
-                'workspace. It does only what you allow, and never opens the '
-                'vault.',
-            example: const AppEmptyExample(
-              title: 'Import script',
-              detail: 'links:read, requests:create · expires in 90 days',
-              badge: 'active',
-            ),
-            steps: const [
-              AppEmptyStep(
-                'Name it and choose what it can do',
-                'Only what it needs',
-              ),
-              AppEmptyStep('Copy the key', 'You see it only once'),
-              AppEmptyStep('Revoke it any time', 'It stops working right away'),
-            ],
-            action: AppButton(
-              icon: AppIcons.plus,
-              label: 'New API key',
-              onTap: () => openApiKeyCreateSheet(context),
-            ),
-          );
-        }
-        return AppListGroup(
-          title: 'API keys',
-          footer: const Text(
-            'Keys for your scripts. A key never opens the vault.',
-          ),
-          trailing: _HeaderButton(
-            icon: AppIcons.plus,
-            label: 'New',
-            onTap: () => openApiKeyCreateSheet(context),
-          ),
-          children: [
-            if (store.isLoading && store.apiKeys.isEmpty)
-              const _LoadingRow()
-            else
-              for (final key in store.apiKeys) ApiKeyRow(apiKey: key),
-          ],
-        );
-      },
     );
   }
 }

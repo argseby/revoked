@@ -71,11 +71,12 @@ class _AppTextFieldState extends State<AppTextField> {
     Widget? suffix = widget.trailing;
     if (widget.passwordToggle) {
       suffix = Padding(
-        padding: const EdgeInsets.all(AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
         child: AppButton(
           icon: obscured ? AppIcons.eye : AppIcons.eyeSlash,
           tooltip: obscured ? 'Show' : 'Hide',
-          style: AppButtonStyle.accent,
+          showTooltip: false,
+          style: AppButtonStyle.ghost,
           size: AppButtonSize.small,
           onTap: () => _obscured.value = !obscured,
         ),

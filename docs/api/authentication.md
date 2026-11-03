@@ -13,10 +13,16 @@ collection rules.
 
 ## Choosing a credential
 
+Every key and every connected tool is described the same way: the
+**permissions** it holds, from the catalogue at `GET /api/permissions`, and its
+**reach** into the vault — none, the sections chosen for it, or, for an AI
+assistant you run on your own machine, the whole vault. [Ways to
+connect](connect.md) compares them all.
+
 | Situation | Credential | Reach |
 |---|---|---|
-| A **personal setup** — a cron job, a home server, a script keeping a record current | An [API key](#api-keys), created in the app | The scopes granted to it, never the vault |
-| A tool used by **other people** with **their own** data | A [connection](tools.md), granted by each of them in their app | The links created from its proposals: status, and — where allowed — receiving or revoking them. Never the vault. |
+| A **personal setup** — a cron job, a home server, a script keeping a record current | An [API key](#api-keys), created in the app | Its permissions, and in the vault only the sections chosen for it |
+| A tool used by **other people** with **their own** data | A [connection](tools.md), granted by each of them in their app | What it proposed or created, the permissions the owner gave it, and in the vault its own section and any the owner adds |
 | Answers collected from other people into the **own** workspace | A [request](reference/requests.md), optionally with a [callback](callbacks.md) | What is submitted |
 
 The difference lies in whose credential it is: an API key belongs to the
@@ -53,7 +59,7 @@ Scripts do not sign in; they use an API key.
 
 ## API keys
 
-Create one under **Settings → Developer → API keys**, or over the API by
+Create one in the app under **Settings → Connected tools → API keys**, or over the API by
 creating an `apiKeys` record with a session token. The token is minted
 server-side either way and returned exactly once — in the app as the
 plaintext you copy, over the API in the `X-Plain-Token` response header. The
@@ -66,14 +72,29 @@ A key carries the permissions granted when it was created, expanded to scopes.
 A request outside those scopes is refused with a named error rather than a
 generic 403, so the response says which grant is missing.
 
-A key never opens the vault. Creating one with a vault permission
-(`vault:read`, `vault:write`) or one of their scopes (`record:*`, `section:*`)
-fails with `api_key_vault_scope`: a key is a string that ends up pasted into
-other services, and one that reads the vault hands over everything in it. A
-tool that needs something from you connects and proposes a link you confirm; a
-company sends a request. Keys created before this rule keep what they were
-granted until they expire or are revoked — the app marks them, and they should
-be replaced.
+A key never opens the whole vault. It reaches only the sections chosen for it
+when it was created: give it `vault:read` or `vault:write` together with
+`sections`, the ids of your own sections in that workspace. It then reads and
+writes through [`/api/vault`](reference/vault.md), never through the
+collection API:
+
+```bash
+curl -X POST "https://api.example.com/api/vault" \
+  -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
+  -d '{"key":"now_playing","value":"Hunt: Showdown"}'
+```
+
+A record a key writes lands in the first of its sections (or the one named in
+`section`), belongs to you, and is marked as written by the key. The key may
+change only what it wrote; records you put in its sections are read-only to
+it.
+
+A vault permission without sections, or a raw record scope (`record:*`,
+`section:*`), fails with `api_key_vault_scope`: a key is a string that ends up
+pasted into other services, and one that reads the whole vault hands over
+everything in it. Keys created before this rule keep what they were granted
+until they expire or are revoked — the app marks them, and they should be
+replaced.
 
 ```bash
 curl "https://api.example.com/api/collections/links/records" \
@@ -89,7 +110,8 @@ inside double quotes.
 A connection token is issued at `POST /api/connect/token`, in exchange for a
 one-time code and its PKCE verifier, after the tool was connected in the app.
 It travels as `X-Revoked-Connection` and opens only the `/api/connection`
-endpoints; it is not a session, so no collection rule admits it. The whole
+and `/api/vault` endpoints; it is not a session, so no collection rule admits
+it. The whole
 flow, including a minimal working page, is described in
 [Building a tool](tools.md).
 
@@ -99,7 +121,9 @@ flow, including a minimal working page, is described in
 |---|---|
 | `not_authenticated` | No usable credential arrived — wrong header, an unexpanded variable, or an empty value. |
 | `invalid_api_key` | The header arrived, but no key matches it: mistyped, revoked, or expired. |
-| `api_key_vault_scope` | The key being created asks for the vault, which no key may hold. |
+| `api_key_vault_scope` | The key being created asks for the vault without choosing sections, or for a raw record scope. |
+| `vault_not_allowed` | The key was not given any part of the vault. |
+| `vault_section_invalid` | A chosen section isn't one of yours in this workspace. |
 | `connection_unauthorized` | No connection matches the `X-Revoked-Connection` token: mistyped, or the owner disconnected the tool. |
 | `connection_expired` | The connection lapsed, 90 days after the owner last connected the tool. Only the owner can connect it again. |
 | `connection_paused` | The owner paused the tool. The token works again once they activate it, so keep it. |

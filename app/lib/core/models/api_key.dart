@@ -6,6 +6,12 @@ class ApiKey {
   final String user;
   final String workspace;
   final List<String> scopes;
+
+  /// What it may do in [sections]: `""`, `read` or `write`.
+  final String vaultAccess;
+
+  /// The sections of the vault it reaches; empty when it reaches none.
+  final List<String> sections;
   final String? lastUsedAt;
 
   /// Empty when the key never expires.
@@ -23,6 +29,8 @@ class ApiKey {
     required this.user,
     required this.workspace,
     required this.scopes,
+    this.vaultAccess = '',
+    this.sections = const [],
     this.lastUsedAt,
     this.expiresAt,
     this.created,
@@ -38,6 +46,8 @@ class ApiKey {
       user: json['user'] as String,
       workspace: json['workspace'] as String,
       scopes: (json['scopes'] as List<dynamic>?)?.cast<String>() ?? [],
+      vaultAccess: json['vaultAccess'] as String? ?? '',
+      sections: (json['sections'] as List<dynamic>?)?.cast<String>() ?? [],
       lastUsedAt: json['lastUsedAt'] as String?,
       expiresAt: (json['expiresAt'] as String?)?.isEmpty ?? true
           ? null

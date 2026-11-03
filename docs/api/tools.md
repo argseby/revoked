@@ -39,7 +39,9 @@ percent-encoded, with a space written as `%20` rather than `+`.
 | `ref` | | The tool's own reference for this link, up to 80 characters. Returned with the link's status once connected. |
 | `challenge` | needs `state` | A PKCE S256 challenge, for connecting along the way (see below). |
 | `revoke_reason`, `links_reason` | | Why the tool wants each permission, up to 120 characters each. Shown when it connects. |
-| `vault`, `vault_reason` | connect link only | `vault=read` asks to read the owner's vault; see [the connection](#2-the-connection). |
+| `vault`, `vault_reason` | connect link only | `vault=read` asks to read the owner's whole vault; see [the connection](#2-the-connection). |
+| `section`, `section_reason` | connect link only | `section=1` asks for a section of the owner's vault of the tool's own; see [its own section](#its-own-section). |
+| `permissions`, `permissions_reason` | connect link only | Comma-separated permission keys the tool asks for: `shares:read`, `shares:manage`, `requests:manage`, `attestations:issue`, `vault:read`, `vault:write`. |
 | `poll` | needs `client` | The server origin the tool will ask for the answer itself. |
 
 A link with any invalid part is refused as a whole. A label and keys are the
@@ -100,6 +102,27 @@ owner only by a check code that whoever sent the link can read out to them;
 a return address on `http://localhost` is reachable only from the owner's
 own machine. An owner who already connected the tool is asked again when a
 link asks for the vault and the connection does not have it.
+
+### Its own section
+
+With `section=1`, the owner is offered to give the tool a section of their
+vault, named after it. That works with polling too: the section starts empty,
+so a connect link sent by someone else reaches nothing the owner had. The tool
+then keeps records and files there through [`/api/vault`](reference/vault.md),
+reads them back, and — with `shares:manage` — shares them. What it writes
+belongs to the owner, shows in their vault with the tool's name, and stays
+when the tool is disconnected. The tool may change only what it wrote; a
+record the owner adds to the section is read-only to it. The owner can also
+let the tool read other sections of theirs, from the app. Taking the section
+away from the tool keeps it in the vault, and giving it back brings the same
+one.
+
+With `permissions`, the tool asks for more than proposing: to create shares
+(`shares:manage`) and requests (`requests:manage`) itself. Those join the
+connection exactly as a saved proposal does. A request asks strangers for data
+in the owner's name, so creating one needs the answer sent to the return
+address, as the whole vault does: a token collected by polling is refused with
+`connection_polled`.
 
 ### Answer through the return address
 
@@ -169,18 +192,24 @@ const code = hex.slice(0, 3) + '-' + hex.slice(3); // "83C-047"
 
 The token is sent in `X-Revoked-Connection`, not in `Authorization`. It is
 not a user session and no collection rule admits it, so nothing outside these
-endpoints can be read with it. The vault endpoints answer only where the
-owner allowed `allowVaultRead`, and only to a token that came through the
-return address.
+endpoints can be read with it. The vault endpoints reach the tool's own
+section and the sections the owner added; the whole vault only where the owner
+allowed `allowVaultRead`, and only to a token that came through the return
+address. The response to `GET /api/connection` says which: `permissions`,
+`vaultAccess`, `section`, `sections` and `vaultReadable`.
 
 | Endpoint | Does |
 |---|---|
 | `GET /api/connection` | The connection and what its proposals became, newest first. `links`: `id`, `ref`, `label`, `status`, `viewCount`, `maxViews`, `expiresAt`, `created`, `handedOver`, and `url` — only on a handed-over, active link while the owner allows `allowHandOver`. `requests`: `id`, `ref`, `label`, `status`, `responseCount`, `maxResponses`, `expiresAt`, `created` — never the address or the answers. `attestations`: `id`, `ref`, `type`, `label`, `status`, `subjectName`, `subjectFingerprint`, `subjectDomain`, `expiresAt`, `issuedAt`, `created` — never the claims or the offer token. `checks`: `id`, `ref`, `type`, `status`, `expiresAt`, `answeredAt`, `created`, and once answered a `verdict` with the claims the other person chose to show. |
-| `POST /api/connection/links/{id}/revoke` | Revokes one of those links, where the owner allowed `allowRevoke`. |
-| `POST /api/connection/requests/{id}/close` | Stops one of those requests taking answers, where the owner allowed `allowRevoke`. Answers already given stay their responders' links. |
-| `POST /api/connection/attestations/{id}/revoke` | Revokes one of those attestations, or withdraws its offer, where the owner allowed `allowRevoke`. Final, like any revocation. |
-| `GET /api/connection/vault` | The owner's own records in the connection's workspace: `id`, `key`, `label`, `type`, `format`, `updated` — no values. Encrypted records and answers others sent are left out. `403` with `connection_vault_not_allowed` or `connection_vault_polled`. |
-| `GET /api/connection/vault/{id}` | One of those records with its current `value` (an alias reads through to its entry; a file record gives `filename`, `mime` and `size` instead). An encrypted record answers `404`, like a missing one. Each read is written to the audit log with the record's key, never its value. |
+| `POST /api/connection/links` | Creates a share of records and sections within reach, where the owner allowed `shares:manage`, and answers with its `url`. |
+| `POST /api/connection/requests` | Creates a request in the owner's workspace, where the owner allowed `requests:manage`, and answers with the `revoked://r/…` link to pass on. It asks as the identity named in `identity`, or the workspace's primary one. Never with a token collected by polling (`connection_polled`). |
+| `POST /api/connection/links/{id}/revoke` | Revokes one of those links, where the owner allowed `allowRevoke` or `shares:manage`. |
+| `POST /api/connection/requests/{id}/close` | Stops one of those requests taking answers, where the owner allowed `allowRevoke` or `requests:manage`. Answers already given stay their responders' links. |
+| `POST /api/connection/attestations/{id}/revoke` | Revokes one of those attestations, or withdraws its offer, where the owner allowed `allowRevoke` or `attestations:issue`. Final, like any revocation. |
+| `GET /api/vault` | The records within reach: `id`, `key`, `label`, `type`, `format`, `updated`, `sections`, `writable`, `writtenByName` — no values. Encrypted records and answers others sent are left out. `403` with `connection_vault_not_allowed` or `connection_vault_polled`. |
+| `GET /api/vault/{id}` | One of those records with its current `value` (an alias reads through to its entry; a file record gives `filename`, `mime` and `size`, and its bytes are at `/api/vault/{id}/file`). An encrypted record answers `404`, like a missing one. Each read is written to the audit log with the record's key, never its value. |
+| `POST /api/vault` | Writes a record — JSON, or `multipart/form-data` with a `file` — into the tool's own section. `409` with `vault_key_taken`, `413` with `vault_storage_exceeded`. |
+| `PATCH /api/vault/{id}`, `DELETE /api/vault/{id}` | Changes or deletes a record the tool wrote; `403` with `vault_read_only` for any other. |
 | `DELETE /api/connection` | Disconnects the tool. The links remain the owner's. |
 
 ```bash

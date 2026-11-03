@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 	"time"
 
@@ -70,6 +71,15 @@ func BindApiKeyHooks(app core.App) {
 			}
 		}
 
+		// The vault is reached through sections, never through record scopes,
+		// which the collection rules would honour across the workspace.
+		workspace := e.Record.GetString(util.Fields.ApiKey.Workspace)
+		rest, access := util.SplitVaultPermissions(e.Record.GetStringSlice(util.Fields.ApiKey.Scopes))
+		e.Record.Set(util.Fields.ApiKey.Scopes, rest)
+		if err := applyKeyReach(e, workspace, access); err != nil {
+			return err
+		}
+
 		// Keys are granted by permission, exactly as invites are: the app
 		// sends catalogue keys, and this expands them into stored scopes and
 		// refuses anything the creator does not hold themselves. Validating the
@@ -84,8 +94,9 @@ func BindApiKeyHooks(app core.App) {
 			return err
 		}
 
-		// No new key opens the vault, whoever asks. Keys issued before this
-		// rule keep their scopes until they expire or are revoked.
+		// No new key holds a record scope, whoever asks: its reach is its
+		// sections. Keys issued before this rule keep their scopes until they
+		// expire or are revoked.
 		if vault := util.MembersOnlyScopes(e.Record.GetStringSlice(util.Fields.ApiKey.Scopes)); len(vault) > 0 {
 			return validation.Errors{
 				util.Fields.ApiKey.Scopes: validation.NewError(
@@ -97,6 +108,47 @@ func BindApiKeyHooks(app core.App) {
 
 		return e.Next()
 	})
+}
+
+// applyKeyReach sets the vault access and sections a new key reaches. Every
+// section must be its creator's own in the key's workspace, and the creator
+// must hold the access they hand on.
+func applyKeyReach(e *core.RecordRequestEvent, workspace, access string) error {
+	f := util.Fields.ApiKey
+	refuse := func(appErr util.AppError) error {
+		return validation.Errors{f.Sections: validation.NewError(appErr.ErrorCode, appErr.ErrorText)}
+	}
+	sections := e.Record.GetStringSlice(f.Sections)
+	if access == "" {
+		e.Record.Set(f.VaultAccess, "")
+		e.Record.Set(f.Sections, []string{})
+		return nil
+	}
+	if len(sections) == 0 {
+		return validation.Errors{f.Scopes: validation.NewError(
+			util.Errors.ApiKeyVaultScope.ErrorCode, util.Errors.ApiKeyVaultScope.ErrorText)}
+	}
+	if e.Auth == nil || e.Auth.Collection().Name != util.Coll.Users {
+		return refuse(util.Errors.PermissionEscalation)
+	}
+	want := []string{util.ScopeRecordRead}
+	if access == util.VaultAccessWrite {
+		want = append(want, util.ScopeRecordCreate, util.ScopeRecordUpdate, util.ScopeRecordDelete)
+	}
+	if !util.HasAllScopes(services.GranterScopes(e.App, e.Auth, workspace, false), want) {
+		return refuse(util.Errors.PermissionEscalation)
+	}
+	for _, id := range sections {
+		s, err := e.App.FindRecordById(util.Coll.Sections, id)
+		if err != nil || s == nil ||
+			s.GetString(util.Fields.Section.Workspace) != workspace ||
+			s.GetString(util.Fields.Section.User) != e.Auth.Id ||
+			s.GetString(util.Fields.Section.RequestedBy) != "" {
+			return refuse(util.Errors.VaultSectionInvalid)
+		}
+	}
+	e.Record.Set(f.VaultAccess, access)
+	return nil
 }
 
 // BindApiKeyAuthMiddleware authenticates an X-API-Key request by matching the

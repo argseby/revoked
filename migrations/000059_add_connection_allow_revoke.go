@@ -16,10 +16,10 @@ func init() {
 		if err != nil {
 			return err
 		}
-		if connections.Fields.GetByName(util.Fields.Connection.AllowRevoke) != nil {
+		if connections.Fields.GetByName("allowRevoke") != nil {
 			return nil
 		}
-		connections.Fields.Add(&core.BoolField{Name: util.Fields.Connection.AllowRevoke})
+		connections.Fields.Add(&core.BoolField{Name: "allowRevoke"})
 		return app.Save(connections)
 	}, func(app core.App) error {
 		return nil

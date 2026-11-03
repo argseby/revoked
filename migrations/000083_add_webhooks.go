@@ -120,6 +120,17 @@ func init() {
 			return err
 		}
 
+		// The scope selects list every known scope; webhook:manage has to be
+		// one of them before a member can be given it.
+		for _, f := range [][2]string{
+			{util.Coll.WorkspaceMembers, util.Fields.WorkspaceMember.Permissions},
+			{util.Coll.Invites, util.Fields.Invite.Permissions},
+			{util.Coll.ApiKeys, util.Fields.ApiKey.Scopes},
+		} {
+			if err := widenScopeSelect(app, f[0], f[1]); err != nil {
+				return err
+			}
+		}
 		return grantWebhookScopeToWorkspaceManagers(app)
 	}, func(app core.App) error {
 		for _, name := range []string{

@@ -324,9 +324,9 @@ void main() {
       );
       expect(find.text('Connect Mietunterlagen'), findsOneWidget);
       // The owner's own choices sit in their own section, ticked to start.
-      expect(find.text('You decide'), findsOneWidget);
-      expect(find.text('End what it proposed'), findsOneWidget);
-      expect(find.text('Receive the links it proposed'), findsOneWidget);
+      expect(find.text('What it suggests'), findsOneWidget);
+      expect(find.text('Let it end what it suggested'), findsOneWidget);
+      expect(find.text('Send it the finished link'), findsOneWidget);
       // The connection is decided first; the link is reviewed after it.
       expect(find.textContaining('will receive this link'), findsNothing);
       await tester.tap(find.text('Continue'));
@@ -378,7 +378,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Mietunterlagen wants to connect'), findsOneWidget);
-      expect(find.textContaining('Read your vault'), findsOneWidget);
+      expect(find.text('See the rest of your vault'), findsOneWidget);
       // The tool's reason is quoted as its own words; unticking is respected.
       expect(
         find.text('Mietunterlagen says: “To end a link you remove”'),
@@ -386,9 +386,9 @@ void main() {
       );
       // The decision is pinned to the bottom, so a choice further down the
       // page has to be scrolled into view before it can be tapped.
-      await tester.ensureVisible(find.text('Receive the links it proposed'));
+      await tester.ensureVisible(find.text('Send it the finished link'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Receive the links it proposed'));
+      await tester.tap(find.text('Send it the finished link'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
@@ -476,7 +476,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Read your vault'));
       await tester.pumpAndSettle();
-      expect(find.text('Change your vault'), findsOneWidget);
+      expect(find.text('Change records you added'), findsOneWidget);
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
@@ -490,6 +490,42 @@ void main() {
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
       expect(authorized.single.containsKey('allowVaultRead'), isFalse);
+
+      // A section of its own and permissions are shown as asked, given
+      // unless the owner unticks them, and sent as decided.
+      authorized.clear();
+      launched.clear();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.build(Brightness.light),
+          home: ConnectScreen(
+            request: ConnectRequest(
+              client: tool,
+              name: 'Saves',
+              redirect: '$tool/callback',
+              state: 'st-5',
+              challenge: 'g' * 43,
+              section: true,
+              permissions: const ['shares:manage', 'vault:write'],
+              reasons: const ToolReasons(section: 'To keep your saves'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Give it a section'), findsOneWidget);
+      expect(find.text('New section: Saves'), findsOneWidget);
+      expect(find.text('Saves says: “To keep your saves”'), findsOneWidget);
+      await tester.ensureVisible(find.text('Share what it can read'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share what it can read'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Connect'));
+      await tester.tap(find.text('Connect'));
+      await tester.pumpAndSettle();
+      expect(authorized.single['permissions'], ['vault:write']);
+      expect(authorized.single['section'], true);
     },
   );
 }

@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show TextInputFormatter;
+import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -19,12 +19,9 @@ import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_collapsible_group.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
-import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
-import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -416,15 +413,13 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: AppButton(
+                AppButton(
                     label: 'Cancel',
                     onTap: _store.isSubmittingRequest
                         ? null
                         : () => Navigator.of(context).pop(),
                     style: AppButtonStyle.accent,
                   ),
-                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
@@ -497,58 +492,68 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
   }
 
-  Widget _buildTitleRow() {
-    final v = _store.draftLabel.text.trim();
-    return AppFormRow(
-      icon: AppIcons.fileText,
-      label: 'Title',
-      valueText: v.isNotEmpty
-          ? v
-          : (_effectiveLabel.isEmpty
-                ? 'Required'
-                : 'From the template: $_effectiveLabel'),
-      isPlaceholder: v.isEmpty,
-      isError: _effectiveLabel.isEmpty && _store.draftTemplateId != null,
-      onTap: () => _editText(
-        title: 'Title',
-        description:
-            'The heading people see on the form. Leave it empty to use the '
-            'template\'s name.',
-        controller: _store.draftLabel,
-        hint: 'e.g. Onboarding intake',
-      ),
-    );
-  }
+  Widget _buildTitleRow() => AppFormField(
+    label: 'Title',
+    explanation: 'The heading people see on the form.',
+    note: _store.draftLabel.text.trim().isEmpty && _effectiveLabel.isNotEmpty
+        ? 'Leave it empty to use $_effectiveLabel.'
+        : null,
+    child: AppTextField(
+      controller: _store.draftLabel,
+      hint: _effectiveLabel.isEmpty ? 'Onboarding intake' : _effectiveLabel,
+    ),
+  );
 
-  Widget _buildSlugRow() {
-    final slug = _store.draftSlug.text.trim();
-    final hasWarning = _store.draftSlugWarning != null;
-    return AppFormRow(
-      icon: AppIcons.link,
-      label: 'Link address',
-      valueText: slug.isEmpty
-          ? 'Required'
-          : (hasWarning ? _store.draftSlugWarning! : slug),
-      isPlaceholder: slug.isEmpty,
-      isError: slug.isEmpty || hasWarning,
-      onTap: _editSlug,
-    );
-  }
+  Widget _buildSlugRow() => AppFormField(
+    label: 'Link address',
+    explanation:
+        'The last part of the link\'s web address. At least 6 characters.',
+    error: _store.draftSlugWarning,
+    note: _store.isCheckingSlug ? 'Checking…' : null,
+    child: AppTextField(
+      controller: _store.draftSlug,
+      hint: 'intake-2024',
+      mono: true,
+      inputFormatters: [SlugInputFormatter()],
+      onChanged: _validateSlug,
+      trailing: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        child: AppButton(
+          icon: AppIcons.arrowClockwise,
+          tooltip: 'Suggest an address',
+          showTooltip: false,
+          style: AppButtonStyle.ghost,
+          size: AppButtonSize.small,
+          onTap: () async {
+            final s = _randomSlug(Random().nextInt(6) + 6);
+            _store.draftSlug.text = s;
+            await _validateSlug(s);
+          },
+        ),
+      ),
+    ),
+  );
 
   /// The same inline picker the share drawer uses. Choosing which key signs
   /// something is one decision with one control.
   Widget _buildIdentityRow() {
     if (Stores.identities.identities.isEmpty) {
-      return AppFormRow(
-        icon: AppIcons.shieldCheck,
+      return AppFormField(
         label: 'Your identity',
-        valueText: 'Create an identity in Settings first',
-        isPlaceholder: true,
-        isError: true,
-        onTap: () {
-          Navigator.of(context).pop();
-          context.go(AppRoutes.settings);
-        },
+        error: 'Create an identity in Settings first.',
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: AppButton(
+            icon: AppIcons.shieldCheck,
+            label: 'Open Settings',
+            style: AppButtonStyle.accent,
+            size: AppButtonSize.small,
+            onTap: () {
+              Navigator.of(context).pop();
+              context.go(AppRoutes.settings);
+            },
+          ),
+        ),
       );
     }
     return Padding(
@@ -577,38 +582,30 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   Widget _buildTemplateRow() {
     final name = _templateName();
-    return AppFormRow(
-      icon: AppIcons.cardList,
+    return AppFormField(
       label: 'Template',
-      valueText:
-          name ??
-          (_store.draftAllowExtraFields
-              ? 'None — people add their own fields'
-              : 'Required — pick the fields to ask for'),
-      isPlaceholder: name == null,
-      isError: !_asksSomething,
-      onClear: () => _store.setDraftTemplate(null),
-      onTap: _pickTemplate,
-    );
-  }
-
-  Widget _buildPasswordRow() {
-    final has = _store.draftPassword.text.trim().isNotEmpty;
-    return AppFormRow(
-      icon: AppIcons.lock,
-      label: 'Password',
-      valueText: has ? '••••••••' : 'Not set',
-      isPlaceholder: !has,
-      onClear: _store.draftPassword.clear,
-      onTap: () => _editText(
-        title: 'Password',
-        description: 'People need this password to respond.',
-        controller: _store.draftPassword,
-        hint: 'Leave blank for no password',
-        passwordToggle: true,
+      note: name == null && _store.draftAllowExtraFields
+          ? 'None — people add their own fields.'
+          : null,
+      child: AppPickerField(
+        leading: AppIcons.cardList,
+        text: name ?? 'Pick the fields to ask for',
+        isPlaceholder: name == null,
+        onClear: () => _store.setDraftTemplate(null),
+        onTap: _pickTemplate,
       ),
     );
   }
+
+  Widget _buildPasswordRow() => AppFormField(
+    label: 'Password',
+    explanation: 'People need this password to respond.',
+    child: AppTextField(
+      controller: _store.draftPassword,
+      hint: 'Leave blank for no password',
+      passwordToggle: true,
+    ),
+  );
 
   Widget _buildIdentityScopeRow() {
     final scheme = Theme.of(context).colorScheme;
@@ -658,24 +655,16 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
   }
 
-  Widget _buildIdentifierRow() {
-    final v = _store.draftIdentifier.text.trim();
-    return AppFormRow(
-      icon: AppIcons.tag,
-      label: 'Identifier',
-      valueText: v.isEmpty ? 'Not set' : v,
-      isPlaceholder: v.isEmpty,
-      onClear: _store.draftIdentifier.clear,
-      onTap: () => _editText(
-        title: 'Identifier',
-        description:
-            'Give this to the person you ask. They enter it to respond, and '
-            'their response is tied to it. The link alone is not enough.',
-        controller: _store.draftIdentifier,
-        hint: 'e.g. INV-2024-0093',
-      ),
-    );
-  }
+  Widget _buildIdentifierRow() => AppFormField(
+    label: 'Identifier',
+    explanation:
+        'Give this to the person you ask. They enter it to respond, and '
+        'their response is tied to it. The link alone is not enough.',
+    child: AppTextField(
+      controller: _store.draftIdentifier,
+      hint: 'INV-2024-0093',
+    ),
+  );
 
   /// Live summary translating the two access axes — "who can respond"
   /// (handshake) × "can we identify them" (identifier) — into a named mode,
@@ -765,54 +754,41 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
   }
 
-  Widget _buildMaxResponsesRow() {
-    final v = _store.draftMaxResponses.text.trim();
-    return AppFormRow(
-      icon: AppIcons.collection,
-      label: 'Max responses',
-      valueText: v.isEmpty ? 'Unlimited' : v,
-      isPlaceholder: v.isEmpty,
-      onClear: _store.draftMaxResponses.clear,
-      onTap: () => _editText(
-        title: 'Max responses',
-        description: 'The request closes after this many responses.',
-        controller: _store.draftMaxResponses,
-        hint: 'e.g. 1 — leave blank for unlimited',
-        keyboardType: TextInputType.number,
-      ),
-    );
-  }
+  Widget _buildMaxResponsesRow() => AppFormField(
+    label: 'Max responses',
+    explanation: 'The request closes after this many responses.',
+    child: AppTextField(
+      controller: _store.draftMaxResponses,
+      hint: 'Unlimited',
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    ),
+  );
 
   Widget _buildExpiryRow() {
-    return AppFormRow(
-      icon: AppIcons.clock,
+    return AppFormField(
       label: 'Expires at',
-      valueText: _store.draftExpiresAt == null
-          ? 'Never'
-          : _formatDate(_store.draftExpiresAt!),
-      isPlaceholder: _store.draftExpiresAt == null,
-      onClear: () => _store.setDraftExpiry(null),
-      onTap: _pickExpiry,
-    );
-  }
-
-  Widget _buildCallbackRow() {
-    final v = _store.draftCallback.text.trim();
-    return AppFormRow(
-      icon: AppIcons.send,
-      label: 'Callback URL',
-      valueText: v.isEmpty ? 'Not set' : v,
-      isPlaceholder: v.isEmpty,
-      onClear: _store.draftCallback.clear,
-      onTap: () => _editText(
-        title: 'Callback URL',
-        description: 'Each response is sent here as JSON (POST).',
-        controller: _store.draftCallback,
-        hint: 'https://example.com/hook',
-        keyboardType: TextInputType.url,
+      child: AppPickerField(
+        text: _store.draftExpiresAt == null
+            ? 'Never'
+            : _formatDate(_store.draftExpiresAt!),
+        isPlaceholder: _store.draftExpiresAt == null,
+        opens: AppIcons.calendar,
+        onClear: () => _store.setDraftExpiry(null),
+        onTap: _pickExpiry,
       ),
     );
   }
+
+  Widget _buildCallbackRow() => AppFormField(
+    label: 'Callback URL',
+    explanation: 'Each response is sent here as JSON (POST).',
+    child: AppTextField(
+      controller: _store.draftCallback,
+      hint: 'https://example.com/hook',
+      keyboardType: TextInputType.url,
+    ),
+  );
 
   /// Sits under the callback row only once there is something to test.
   Widget _buildCallbackTestRow() {
@@ -873,132 +849,6 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       _ => result.detail,
     };
     AppToast.error(context, title, subtitle: hint);
-  }
-
-  Future<void> _editText({
-    required String title,
-    String? description,
-    required TextEditingController controller,
-    String? hint,
-    bool passwordToggle = false,
-    TextInputType? keyboardType,
-    List<TextInputFormatter>? inputFormatters,
-  }) async {
-    await showAppEditSheet(
-      context: context,
-      title: title,
-      description: description,
-      controller: controller,
-      hint: hint,
-      passwordToggle: passwordToggle,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-    );
-  }
-
-  /// Slug editor — text field plus regenerate and live uniqueness validation.
-  Future<void> _editSlug() async {
-    final before = _store.draftSlug.text;
-    await showAppSheet(
-      context: context,
-      builder: (sheetCtx) {
-        return Observer(
-          builder: (ctx) {
-            final done =
-                _store.draftSlug.text.trim().length >= 6 &&
-                    _store.draftSlugWarning == null &&
-                    !_store.isCheckingSlug
-                ? () => Navigator.of(sheetCtx).pop()
-                : null;
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                AppSpacing.xl,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Link address').header,
-                  const SizedBox(height: AppSpacing.xxs),
-                  const Text(
-                    'The last part of the link\'s web address. At least 6 '
-                    'characters.',
-                  ).muted.small,
-                  const SizedBox(height: AppSpacing.lg),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppTextField(
-                          controller: _store.draftSlug,
-                          hint: 'intake-2024',
-                          autofocus: true,
-                          inputFormatters: [SlugInputFormatter()],
-                          onChanged: (v) async {
-                            await _validateSlug(v);
-                          },
-                          onSubmitted: done == null ? null : (_) => done(),
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      AppButton(
-                        icon: AppIcons.arrowClockwise,
-                        tooltip: 'Suggest an address',
-                        style: AppButtonStyle.accent,
-                        onTap: () async {
-                          final s = _randomSlug(Random().nextInt(6) + 6);
-                          _store.draftSlug.text = s;
-                          await _validateSlug(s);
-                        },
-                      ),
-                    ],
-                  ),
-                  if (_store.isCheckingSlug) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Row(
-                      children: [
-                        const AppSpinner(),
-                        const SizedBox(width: AppSpacing.xs),
-                        const Text('Checking availability…').muted.small,
-                      ],
-                    ),
-                  ] else if (_store.draftSlugWarning != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    AppErrorText(_store.draftSlugWarning!),
-                  ],
-                  if (_store.draftSuggestedSlug != null) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: AppButton(
-                        icon: AppIcons.stars,
-                        label: 'Use suggested: ${_store.draftSuggestedSlug}',
-                        onTap: () async {
-                          _store.draftSlug.text = _store.draftSuggestedSlug!;
-                          await _validateSlug(_store.draftSlug.text);
-                        },
-                        style: AppButtonStyle.accent,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.lg),
-                  AppEditSheetActions(
-                    onCancel: () {
-                      _store.draftSlug.text = before;
-                      _validateSlug(before);
-                      Navigator.of(sheetCtx).pop();
-                    },
-                    onDone: done,
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   Future<void> _pickTemplate() async {

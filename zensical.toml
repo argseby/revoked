@@ -51,6 +51,7 @@ nav = [
   ] },
   { "Developer API" = [
     "api/index.md",
+    { "Ways to connect" = "api/connect.md" },
     { "Authentication" = "api/authentication.md" },
     { "Building a tool" = "api/tools.md" },
     { "MCP server" = "api/mcp.md" },
@@ -62,6 +63,7 @@ nav = [
     { "Reference" = [
       "api/reference/index.md",
       { "Records" = "api/reference/records.md" },
+      { "Vault" = "api/reference/vault.md" },
       { "Shares" = "api/reference/shares.md" },
       { "Requests" = "api/reference/requests.md" },
       { "Grants" = "api/reference/grants.md" },

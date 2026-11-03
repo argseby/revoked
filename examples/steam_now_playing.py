@@ -15,12 +15,14 @@ so `$(python steam_now_playing.py --once)` is exactly the link.
 Configuration (environment):
 
     REVOKED_URL       Base URL of your revoked server, e.g. https://vault.example.com
-    REVOKED_API_KEY   An API key with scopes: record:read, record:create,
-                      record:update, link:read, link:create, link:update
-                      (Settings -> API keys in the app)
-    REVOKED_WORKSPACE_ID  Only needed when the vault is completely empty -
-                      normally the script reads the workspace id off any
-                      existing record or link.
+    REVOKED_API_KEY   An API key with the permissions "Manage vault",
+                      "View shares" and "Manage shares", and one section of
+                      your vault chosen for it - say a new, empty "Steam"
+                      section. The key reaches only that section: the
+                      records it writes land there, and it sees nothing else.
+                      (Settings -> Connected tools -> API keys in the app)
+    REVOKED_WORKSPACE_ID  Only needed before the key has made its first share -
+                      the script reads the workspace id off that link.
     STEAM_API_KEY     Steam Web API key, from https://steamcommunity.com/dev/apikey
     STEAM_ID          Your 64-bit Steam id (17 digits), or your vanity name -
                       the custom part of https://steamcommunity.com/id/<name>,
@@ -101,55 +103,51 @@ class RevokedClient:
         return items[0] if items else None
 
     def workspace_id(self):
-        # The access rules check the submitted record's workspace against the
-        # key's before the server stamps anything, so a create must name it.
-        # Any row the key can read carries it; an empty vault needs the env.
-        for collection in ("records", "links"):
-            row = self._first(collection)
-            if row:
-                return row["workspace"]
+        # The access rules check a new link's workspace against the key's
+        # before the server stamps anything, so a create must name it.
+        row = self._first("links")
+        if row:
+            return row["workspace"]
         from_env = os.environ.get("REVOKED_WORKSPACE_ID", "").strip()
         if from_env:
             return from_env
         sys.exit(
-            "The vault is empty, so the workspace id cannot be discovered - "
-            "set REVOKED_WORKSPACE_ID (visible in the app under Settings)."
+            "The key has made no share yet, so the workspace id cannot be "
+            "discovered - set REVOKED_WORKSPACE_ID (visible in the app under Settings)."
         )
 
+    def _vault_record(self, key):
+        # A key reaches the vault only through /api/vault, and only the
+        # sections chosen for it.
+        for record in self._call("GET", "/api/vault").get("records", []):
+            if record["key"] == key:
+                return self._call("GET", f"/api/vault/{record['id']}")
+        return None
+
     def find_or_create_record(self):
-        record = self._first("records", f"key='{RECORD_KEY}'")
+        record = self._vault_record(RECORD_KEY)
         if record:
             return record
         log(f"Creating vault record '{RECORD_KEY}'")
-        return self._call(
+        value = f"{NOT_PLAYING} - last edited {time.strftime('%H:%M')}"
+        record = self._call(
             "POST",
-            "/api/collections/records/records",
-            {
-                "key": RECORD_KEY,
-                "label": RECORD_LABEL,
-                "value": f"{NOT_PLAYING} - last edited {time.strftime('%H:%M')}",
-                "type": "text",
-                "format": "default",
-                "workspace": self.workspace_id(),
-            },
+            "/api/vault",
+            {"key": RECORD_KEY, "label": RECORD_LABEL, "value": value},
         )
+        record["value"] = value
+        return record
 
     def find_or_create_script_record(self):
-        record = self._first("records", f"key='{SCRIPT_KEY}'")
+        record = self._vault_record(SCRIPT_KEY)
         if record:
             return record
         log(f"Uploading this script as vault record '{SCRIPT_KEY}'")
         with open(__file__, "rb") as f:
             content = f.read()
         return self._upload(
-            "/api/collections/records/records",
-            fields={
-                "key": SCRIPT_KEY,
-                "label": SCRIPT_LABEL,
-                "type": "file",
-                "format": "default",
-                "workspace": self.workspace_id(),
-            },
+            "/api/vault",
+            fields={"key": SCRIPT_KEY, "label": SCRIPT_LABEL},
             filename=os.path.basename(__file__),
             content=content,
         )
@@ -222,11 +220,7 @@ class RevokedClient:
         return link
 
     def set_record_value(self, record_id, value):
-        self._call(
-            "PATCH",
-            f"/api/collections/records/records/{record_id}",
-            {"value": value},
-        )
+        self._call("PATCH", f"/api/vault/{record_id}", {"value": value})
 
 
 def resolve_steam_id(steam_key, steam_id):

@@ -121,6 +121,14 @@ tags:
       list tells whether a credential still stands without the issuer
       learning who asked. Which attesters to believe is left to whoever
       verifies.
+  - name: Vault
+    description: |
+      The vault as an API key or a connected tool reaches it. Each holds
+      permissions from the catalogue (`GET /api/permissions`) and a reach:
+      the sections chosen for it, or for an assistant the owner runs on their
+      own machine, the whole vault. Reach is checked on every request, so a
+      record taken out of a section is out of reach at once. Encrypted
+      records are never served.
   - name: Connections
     description: |
       Tools the owner connected. A tool proposes shares (`revoked://p`) and,
@@ -1540,11 +1548,38 @@ paths:
                 allowVaultRead:
                   type: boolean
                   description: |
-                    Whether the tool may read the owner's vault through
-                    `/api/connection/vault`. Left out, a connection keeps what
+                    Whether the tool may read the owner's whole vault through
+                    `/api/vault`. Left out, a connection keeps what
                     it had; a new one starts without it. Refused together with
                     `poll` (`connection_vault_polled`), and a token collected by
                     polling never reads the vault.
+                permissions:
+                  type: array
+                  items: { type: string }
+                  description: |
+                    Permission keys from the catalogue the tool may act on:
+                    `shares:read`, `shares:manage`, `requests:manage`,
+                    `attestations:issue`, `vault:read`, `vault:write`. Anything
+                    else is refused with `connection_permission_invalid`, and
+                    a key the owner does not hold with `permission_escalation`.
+                    Replaces what the connection held, keeping the narrower
+                    `allowRevoke` and `allowHandOver`. The vault keys reach only
+                    the tool's sections, or the whole vault with
+                    `allowVaultRead`.
+                section:
+                  type: boolean
+                  description: |
+                    Give the tool a section of its own, named after it, where
+                    it may write records and files. Asking for it asks for
+                    `vault:write` unless `permissions` says `vault:read`.
+                    `false` takes the tool's vault access away and keeps the
+                    section: giving it back brings the same one.
+                sections:
+                  type: array
+                  items: { type: string }
+                  description: |
+                    The owner's own sections the tool may read and not change.
+                    Refused with `vault_section_invalid` for any other.
                 challenge: { type: string, description: "PKCE S256 challenge, base64url." }
                 reuse:
                   type: boolean
@@ -1577,7 +1612,7 @@ paths:
                   code: { type: string }
                   connectionId: { type: string }
         "400":
-          description: "`connection_client_invalid`, `connection_redirect_invalid` or `connection_challenge_invalid`."
+          description: "`connection_client_invalid`, `connection_redirect_invalid`, `connection_challenge_invalid`, `connection_vault_polled`, `connection_permission_invalid`, `permission_escalation` or `vault_section_invalid`."
         "409":
           description: "`connection_not_connected`: `reuse` was set, but the tool is not connected or its connection has lapsed. `connection_paused`: the owner paused the tool, and connecting again doesn't lift that."
   /api/connect/token:
@@ -1667,10 +1702,22 @@ paths:
                       renews it.
                   allowRevoke:
                     type: boolean
-                    description: Whether the owner lets the tool revoke its links.
+                    description: Whether the owner lets the tool end what it proposed or created.
                   allowHandOver:
                     type: boolean
                     description: Whether the owner lets the tool receive links.
+                  permissions:
+                    type: array
+                    items: { type: string }
+                    description: The catalogue keys the tool holds in full.
+                  vaultAccess: { type: string, enum: ["", read, write] }
+                  section: { type: string, description: "The tool's own section, if it has one." }
+                  sections:
+                    type: array
+                    items: { type: string }
+                    description: Sections the owner added, which the tool may read.
+                  allowVaultRead: { type: boolean, description: "Whether the owner let the tool read the whole vault." }
+                  vaultReadable: { type: boolean, description: "Whether this token reaches the whole vault: never one collected by polling." }
                   links:
                     type: array
                     items:
@@ -1766,8 +1813,8 @@ paths:
       tags: [Connections]
       summary: Revoke one of the tool's links (the tool)
       description: |
-        Ends a link the tool's proposal became. Only when the owner allowed it
-        (`allowRevoke`); a tool can end a share, never start one or read it.
+        Ends a link the tool's proposal became, or one it created. Only when
+        the owner allowed it (`allowRevoke`, or `shares:manage`).
         The owner is notified as for any revocation. Revoking a link that is
         already revoked succeeds.
       security:
@@ -1789,13 +1836,112 @@ paths:
   /api/connection/vault:
     get:
       tags: [Connections]
-      summary: List the owner's vault (the tool)
-      description: |
-        The owner's own records in the connection's workspace, without values.
-        Encrypted records, and answers others sent, are left out. Only where the
-        owner allowed `allowVaultRead`, and only to a token that came through the
-        tool's return address, not by polling.
+      summary: List the vault (the tool, older path)
+      description: The same as `GET /api/vault`, kept for tools written against it.
       security:
+        - Connection: []
+      responses:
+        "200":
+          description: As `GET /api/vault`.
+        "403":
+          description: As `GET /api/vault`.
+  /api/connection/vault/{id}:
+    get:
+      tags: [Connections]
+      summary: Read one record (the tool, older path)
+      description: The same as `GET /api/vault/{id}`.
+      security:
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: As `GET /api/vault/{id}`.
+        "404":
+          description: As `GET /api/vault/{id}`.
+  /api/connection/links:
+    post:
+      tags: [Connections]
+      summary: Create a share (the tool)
+      description: |
+        Shares records and sections within the tool's reach, at once. Needs
+        `shares:manage`. The share is the owner's and joins the connection, as
+        a proposal the owner saved does; the owner can pause, change or revoke
+        it in the app. A record or section out of reach answers 404, like a
+        missing one.
+      security:
+        - Connection: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label: { type: string }
+                records: { type: array, items: { type: string } }
+                sections: { type: array, items: { type: string } }
+                expiresAt: { type: string, description: "Left out, the share does not expire." }
+                maxViews: { type: integer }
+                ref: { type: string, description: "The tool's own reference, returned with the link's status." }
+      responses:
+        "201":
+          description: The link as the tool sees it, with its `url`.
+        "403":
+          description: "`connection_not_permitted`, or `connection_paused`."
+        "404":
+          description: "`record_not_found`: a record or section out of reach."
+  /api/connection/requests:
+    post:
+      tags: [Connections]
+      summary: Create a request (the tool)
+      description: |
+        Asks for data in the owner's workspace, at once. Needs
+        `requests:manage`. `identity` names the identity it asks as; left out,
+        the workspace's primary one. `template` is a template id or name in the
+        workspace. The answers land with the owner as for any request; the
+        tool sees where the request stands, never the answers. `url` is the
+        app link to pass to whoever should answer. Refused to a token
+        collected by polling (`connection_polled`): whoever sent the owner a
+        connect link can read them its check code, and a request asks
+        strangers for data in the owner's name.
+      security:
+        - Connection: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [label]
+              properties:
+                label: { type: string }
+                template: { type: string }
+                identity: { type: string }
+                expiresAt: { type: string }
+                maxResponses: { type: integer }
+                ref: { type: string }
+      responses:
+        "201":
+          description: The request as the tool sees it, with its `url`.
+        "403":
+          description: "`connection_not_permitted`, `connection_polled`, `template_not_owned`, `identity_required`, `identity_not_owned` or `identity_revoked`."
+  /api/vault:
+    get:
+      tags: [Vault]
+      summary: List the records within reach
+      description: |
+        The records a key or tool may read, without values: those in its
+        sections, or for a whole-vault connection the owner's own records.
+        Encrypted records, and answers others sent, are left out. `writable`
+        says whether this key or tool wrote the record and may change it;
+        `writtenByName` names whoever wrote one.
+      security:
+        - ApiKey: []
         - Connection: []
       responses:
         "200":
@@ -1816,21 +1962,74 @@ paths:
                         type: { type: string }
                         format: { type: string }
                         updated: { type: string }
+                        sections: { type: array, items: { type: string } }
+                        writable: { type: boolean }
+                        writtenByName: { type: string }
         "401":
-          description: "`connection_unauthorized` or `connection_expired`."
+          description: "`not_authenticated`, `connection_unauthorized` or `connection_expired`."
         "403":
-          description: "`connection_vault_not_allowed`, `connection_vault_polled`, or `connection_paused`."
-  /api/connection/vault/{id}:
-    get:
-      tags: [Connections]
-      summary: Read one record's value (the tool)
+          description: "`vault_not_allowed` (a key without vault access), `connection_vault_not_allowed`, `connection_vault_polled`, or `connection_paused`."
+        "429":
+          description: "`rate_limited`: 120 reads a minute by default (`RATELIMIT_CONNECTION_VAULT_READS`)."
+    post:
+      tags: [Vault]
+      summary: Write a record
       description: |
-        One record from the list with its current `value`; an alias reads
-        through to its entry. A file record gives `filename`, `mime` and `size`
-        instead of a value. An encrypted record answers 404, like a missing
-        one. Each read is written to the owner's audit log with the record's
-        key.
+        Creates a record in a section the key or tool may write to: a tool's
+        own section, or one of a key's sections (`section`, default the
+        first). Needs `vault:write`. Send JSON, or `multipart/form-data` with
+        the bytes in `file` for a file record. The record is the owner's and
+        is marked as written by this key or tool. Its values and files count
+        against `CONNECTION_STORAGE_MB` (default 100, 0 for no cap). Audited
+        without the value.
       security:
+        - ApiKey: []
+        - Connection: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key: { type: string }
+                label: { type: string }
+                type: { type: string, description: "Left out: `text`, or `file` with an upload." }
+                format: { type: string, enum: [default, hidden] }
+                value: { type: string }
+                section: { type: string }
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                key: { type: string }
+                label: { type: string }
+                filename: { type: string }
+                section: { type: string }
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          description: The record, without its value.
+        "400":
+          description: A field failed validation.
+        "403":
+          description: "`vault_section_not_writable`."
+        "409":
+          description: "`vault_key_taken`."
+        "413":
+          description: "`vault_storage_exceeded`."
+  /api/vault/{id}:
+    get:
+      tags: [Vault]
+      summary: Read one record
+      description: |
+        One record within reach with its current `value`; an alias reads
+        through to its entry. A file record gives `filename`, `mime` and
+        `size`; its bytes are at `/api/vault/{id}/file`. Each read is in the
+        owner's audit log by key.
+      security:
+        - ApiKey: []
         - Connection: []
       parameters:
         - name: id
@@ -1840,12 +2039,66 @@ paths:
       responses:
         "200":
           description: The record and its value.
-        "401":
-          description: "`connection_unauthorized` or `connection_expired`."
-        "403":
-          description: "`connection_vault_not_allowed`, `connection_vault_polled`, or `connection_paused`."
         "404":
-          description: "`record_not_found`: not the owner's, or encrypted."
+          description: "`record_not_found`: out of reach, encrypted, or missing."
+    patch:
+      tags: [Vault]
+      summary: Change a record it wrote
+      description: |
+        Changes `label`, `format`, `value`, `filename` or the uploaded `file`
+        of a record this key or tool wrote. A record the owner put in its
+        section is read-only to it.
+      security:
+        - ApiKey: []
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The record, without its value.
+        "403":
+          description: "`vault_read_only` or `vault_section_not_writable`."
+        "404":
+          description: "`record_not_found`."
+    delete:
+      tags: [Vault]
+      summary: Delete a record it wrote
+      security:
+        - ApiKey: []
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Deleted.
+        "403":
+          description: "`vault_read_only` or `vault_section_not_writable`."
+        "404":
+          description: "`record_not_found`."
+  /api/vault/{id}/file:
+    get:
+      tags: [Vault]
+      summary: Download a file record
+      description: Always an attachment, never sniffed.
+      security:
+        - ApiKey: []
+        - Connection: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The file.
+        "404":
+          description: "`record_not_found`."
   /api/connection/requests/{id}/close:
     post:
       tags: [Connections]
@@ -1853,7 +2106,8 @@ paths:
       description: |
         Stops a request the tool's proposal became from taking new answers.
         The answers already given stay their responders' links. Only when the
-        owner allowed it (`allowRevoke`). Closing a closed request succeeds.
+        owner allowed it (`allowRevoke`, or `requests:manage`). Closing a
+        closed request succeeds.
       security:
         - Connection: []
       parameters:
@@ -1878,7 +2132,7 @@ paths:
         Revokes an attestation the tool proposed and the owner issued, or
         withdraws its offer. Final: it reaches verifiers through the status
         list, as when the owner revokes it. Only when the owner allowed it
-        (`allowRevoke`).
+        (`allowRevoke`, or `attestations:issue`).
       security:
         - Connection: []
       parameters:
@@ -1900,10 +2154,11 @@ paths:
       tags: [Connections]
       summary: Change what a tool is allowed (the owner)
       description: |
-        What the owner decides per connection. A field left out stays as it
-        is. `allowVaultRead` can only be withdrawn here; `true` is refused
-        with `connection_vault_reconnect`, because granting it takes a
-        connect the tool asks for.
+        What the owner decides per connection, with the same fields as
+        authorizing it. A field left out stays as it is. `allowVaultRead` can
+        only be withdrawn here; `true` is refused with
+        `connection_vault_reconnect`, because granting it takes a connect the
+        tool asks for.
       security:
         - Session: []
       parameters:
@@ -1918,14 +2173,17 @@ paths:
             schema:
               type: object
               properties:
-                allowRevoke: { type: boolean, description: "The tool may revoke the links its proposals became." }
+                permissions: { type: array, items: { type: string }, description: "As on authorize." }
+                section: { type: boolean, description: "As on authorize." }
+                sections: { type: array, items: { type: string }, description: "As on authorize." }
+                allowRevoke: { type: boolean, description: "The tool may end what it proposed." }
                 allowHandOver: { type: boolean, description: "The tool may receive the links its proposals became." }
-                allowVaultRead: { type: boolean, description: "Only `false`: the tool stops reading the vault at once." }
+                allowVaultRead: { type: boolean, description: "Only `false`: the tool stops reading the whole vault at once." }
       responses:
         "200":
           description: The permissions as they now stand.
         "400":
-          description: "`connection_vault_reconnect`." 
+          description: "`connection_vault_reconnect`, `connection_permission_invalid`, `permission_escalation` or `vault_section_invalid`." 
         "404":
           description: Not one of your connections.
   /api/connections/{id}/pause:
@@ -3957,9 +4215,10 @@ components:
         membersOnly:
           type: boolean
           description: |
-            Grantable to a member, never to an API key. The vault permissions
-            are: creating a key with one, or with a scope of one, fails with
-            `api_key_vault_scope`.
+            Held across the whole workspace only by a member. An API key or a
+            connected tool holds a vault permission only within the sections
+            chosen for it: creating a key with one and no `sections`, or with
+            a raw record scope, fails with `api_key_vault_scope`.
         scopes:
           type: array
           description: What the permission expands to when stored.

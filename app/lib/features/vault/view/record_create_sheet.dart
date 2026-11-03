@@ -10,19 +10,16 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
-import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
-import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
-import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/features/vault/tool_reach_confirm.dart';
 import 'package:revoked_app/features/vault/view/record_value_input.dart';
 import 'package:revoked_app/features/vault/view/vault_file_row.dart';
 
@@ -45,13 +42,6 @@ void openRecordCreateSheet({
     ),
   );
 }
-
-/// Inset for a row in a "choose one" sheet, so every picker lines up with
-/// the sheet's own padding.
-const _pickerRowPadding = EdgeInsets.symmetric(
-  horizontal: AppSpacing.xl,
-  vertical: AppSpacing.md,
-);
 
 /// The record form on its own, for the vault's combined create drawer: the
 /// same form, minus the title the drawer already carries.
@@ -219,7 +209,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         (s) => s.id == _store.recordOriginSectionId,
         orElse: () => widget.store.sections.first,
       );
-      if (sec.id == _store.recordOriginSectionId) {
+      if (sec.id == _store.recordOriginSectionId &&
+          await confirmToolsReach(context, sec, widget.store.records.first)) {
         final merged = List<String>.from(sec.records)..add(newId);
         await widget.store.updateSection(sec.id, {'records': merged});
       }
@@ -285,11 +276,11 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               children: [
                 const AppFormSectionHeader('Details'),
-                _buildLabelRow(),
+                _buildLabelField(),
                 // The type decides how the value is entered, so it comes
                 // first.
-                _buildTypeRow(),
-                if (_isFileType) const VaultFileRow() else _buildValueRow(),
+                _buildTypeField(),
+                if (_isFileType) const VaultFileRow() else _buildValueField(),
                 _hiddenToggle(),
                 if (!_isFileType && Stores.keys.isAvailable) _sealedToggle(),
 
@@ -297,7 +288,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                   summary: 'Key and API preview',
                   // A duplicate's key clashes until it is changed.
                   initiallyOpen: _store.recordKeyWarning != null,
-                  children: [_buildKeyRow(), _apiPreview()],
+                  children: [_buildKeyField(), _apiPreview()],
                 ),
               ],
             ),
@@ -313,15 +304,13 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: AppButton(
+                AppButton(
                     label: 'Cancel',
                     onTap: _store.isSubmittingRecord
                         ? null
                         : () => Navigator.of(context).pop(),
                     style: AppButtonStyle.accent,
                   ),
-                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: AppButton(
@@ -340,45 +329,42 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     return _wrapDropTarget(sheet);
   }
 
-  Widget _buildLabelRow() {
-    final v = _store.recordLabel.text.trim();
-    return AppFormRow(
-      icon: AppIcons.fileText,
-      label: 'Label',
-      valueText: v.isEmpty ? 'Required' : v,
-      isPlaceholder: v.isEmpty,
-      isError: v.isEmpty,
-      onTap: () async {
-        await showAppEditSheet(
-          context: context,
-          title: 'Label',
-          description: 'What this is, in your own words.',
-          controller: _store.recordLabel,
-          hint: 'IBAN',
-        );
-      },
-    );
-  }
+  Widget _buildLabelField() => AppFormField(
+    label: 'Label',
+    child: AppTextField(
+      controller: _store.recordLabel,
+      hint: 'IBAN',
+      onSubmitted: (_) => _submit(),
+    ),
+  );
 
-  Widget _buildKeyRow() {
-    final k = _store.recordKey.text.trim();
-    return AppFormRow(
-      icon: AppIcons.hash,
-      label: 'Key',
-      valueText: k.isEmpty
-          ? 'From the label: $_effectiveKey'
-          : (_store.recordKeyWarning ?? k),
-      isPlaceholder: k.isEmpty,
-      isError: _store.recordKeyWarning != null,
-      onClear: k.isEmpty
-          ? null
-          : () {
-              _store.recordKey.clear();
-              _validateKey('');
+  Widget _buildKeyField() => AppFormField(
+    label: 'Key',
+    explanation: 'A short ID for templates, requests and scripts.',
+    error: _store.recordKeyWarning,
+    note: _store.recordKey.text.trim().isEmpty
+        ? 'Leave it empty to use $_effectiveKey.'
+        : null,
+    action: _store.recordSuggestedKey == null
+        ? null
+        : AppButton(
+            icon: AppIcons.stars,
+            label: 'Use suggested: ${_store.recordSuggestedKey}',
+            style: AppButtonStyle.accent,
+            size: AppButtonSize.small,
+            onTap: () {
+              _store.recordKey.text = _store.recordSuggestedKey!;
+              _validateKey(_store.recordKey.text);
             },
-      onTap: _editKey,
-    );
-  }
+          ),
+    child: AppTextField(
+      controller: _store.recordKey,
+      hint: _effectiveKey,
+      mono: true,
+      inputFormatters: [KeyInputFormatter()],
+      onChanged: _validateKey,
+    ),
+  );
 
   /// The request this form would send, for anyone scripting the same thing.
   Widget _apiPreview() => Padding(
@@ -455,224 +441,34 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     ],
   );
 
-  /// The value, entered the way its type asks: a yes/no is switched in the
-  /// row itself, a date is picked from a calendar, anything else is typed.
-  Widget _buildValueRow() {
-    final v = _store.recordValue.text;
-    final empty = v.trim().isEmpty;
-    final hidden = _store.recordFormat == 'hidden';
-
-    if (_store.recordType == 'boolean') {
-      final on = v.trim().toLowerCase() == 'true';
-      void set(bool value) {
-        _store.recordValue.text = value ? 'true' : 'false';
-        _validateAndDetectType(_store.recordValue.text);
-      }
-
-      return AppFormRow(
-        icon: RecordTypeUtils.icon('boolean'),
-        label: 'Value',
-        valueText: hidden ? '••••••••' : (on ? 'True' : 'False'),
-        showChevron: false,
-        trailing: [AppSwitch(value: on, onChanged: set)],
-        onTap: () => set(!on),
-      );
-    }
-
-    final String summary;
-    if (hidden) {
-      summary = '••••••••';
-    } else if (_store.recordType == 'datetime') {
-      summary = recordDateTimeLabel(v);
-    } else {
-      summary = v;
-    }
-    return AppFormRow(
-      icon: _store.recordType == 'datetime' ? AppIcons.calendar : AppIcons.key,
-      label: 'Value',
-      valueText: empty
-          ? (_store.recordType == 'datetime'
-                ? 'Required — tap to pick a date'
-                : 'Required')
-          : (_store.recordTypeWarning ?? summary),
-      isPlaceholder: empty,
-      isError: empty || _store.recordTypeWarning != null,
-      onTap: _editValue,
-    );
-  }
-
-  Widget _buildTypeRow() {
-    final base = _store.recordType.toUpperCase();
-    return AppFormRow(
-      icon: AppIcons.tag,
-      label: 'Type',
-      valueText: _store.recordDetectedType != null
-          ? '$base · suggested ${_store.recordDetectedType!.toUpperCase()}'
-          : base,
-      onTap: _pickType,
-    );
-  }
-
-  Future<void> _editValue() async {
-    if (_store.recordType == 'datetime') {
-      final picked = await pickRecordDateTime(
-        context,
-        title: 'Value',
-        current: _store.recordValue.text,
-      );
-      if (picked == null || !mounted) return;
-      _store.recordValue.text = picked;
-      _validateAndDetectType(picked);
-      return;
-    }
-    await showAppEditSheet(
-      context: context,
-      title: 'Value',
-      description: 'The detail itself, like a password or an IBAN.',
+  Widget _buildValueField() => AppFormField(
+    label: 'Value',
+    error: _store.recordTypeWarning,
+    child: RecordValueField(
+      type: _store.recordType,
       controller: _store.recordValue,
-      hint: switch (_store.recordType) {
-        'number' => '42',
-        'url' => 'https://example.com',
-        _ => 'sk-123456789...',
-      },
-      keyboardType: switch (_store.recordType) {
-        'number' => const TextInputType.numberWithOptions(
-          decimal: true,
-          signed: true,
-        ),
-        'url' => TextInputType.url,
-        _ => null,
-      },
-    );
-    if (mounted) _validateAndDetectType(_store.recordValue.text);
-  }
+      onChanged: _validateAndDetectType,
+    ),
+  );
 
-  Future<void> _editKey() async {
-    final before = _store.recordKey.text;
-    await showAppSheet(
-      context: context,
-      builder: (sheetCtx) {
-        return Observer(
-          builder: (ctx) {
-            // Empty is fine: the key then comes from the label.
-            final done = _store.recordKeyWarning == null
-                ? () => Navigator.of(sheetCtx).pop()
-                : null;
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                AppSpacing.xl,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Key').header,
-                  const SizedBox(height: AppSpacing.xxs),
-                  const Text(
-                    'A short ID for templates, requests and scripts. Leave '
-                    'it empty to use the label.',
-                  ).muted.small,
-                  const SizedBox(height: AppSpacing.lg),
-                  AppTextField(
-                    controller: _store.recordKey,
-                    hint: 'prod_api_key',
-                    autofocus: true,
-                    inputFormatters: [KeyInputFormatter()],
-                    onChanged: (v) {
-                      _validateKey(v);
-                    },
-                    onSubmitted: done == null ? null : (_) => done(),
-                  ),
-                  if (_store.recordKeyWarning != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    AppErrorText(_store.recordKeyWarning!),
-                  ],
-                  if (_store.recordSuggestedKey != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: AppButton(
-                        icon: AppIcons.stars,
-                        label: 'Use suggested: ${_store.recordSuggestedKey}',
-                        onTap: () {
-                          _store.recordKey.text = _store.recordSuggestedKey!;
-                          _validateKey(_store.recordKey.text);
-                        },
-                        style: AppButtonStyle.accent,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.lg),
-                  AppEditSheetActions(
-                    onCancel: () {
-                      _store.recordKey.text = before;
-                      _validateKey(before);
-                      Navigator.of(sheetCtx).pop();
-                    },
-                    onDone: done,
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+  Widget _buildTypeField() => AppFormField(
+    label: 'Type',
+    child: RecordTypeChoice(
+      selected: _store.recordType,
+      detected: _store.recordDetectedType,
+      includeFile: true,
+      onPicked: _pickType,
+    ),
+  );
 
-  Future<void> _pickType() async {
-    final picked = await showAppSheet<String>(
-      context: context,
-      dismissible: true,
-      builder: (sheetCtx) {
-        return SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.xxs,
-                  AppSpacing.xl,
-                  AppSpacing.sm,
-                ),
-                child: Text('Value type').header,
-              ),
-              ...RecordTypeUtils.supportedTypes.map((t) {
-                final selected = t == _store.recordType;
-                final suggested = t == _store.recordDetectedType;
-                return AppTile(
-                  padding: _pickerRowPadding,
-                  title: Text(t.toUpperCase()),
-                  subtitle: suggested
-                      ? const Text('Suggested for this value').muted.small
-                      : null,
-                  trailing: selected
-                      ? Icon(
-                          AppIcons.check,
-                          color: Theme.of(sheetCtx).colorScheme.primary,
-                        )
-                      : null,
-                  onTap: () => Navigator.of(sheetCtx).pop(t),
-                );
-              }),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-          ),
-        );
-      },
+  void _pickType(String type) {
+    final from = _store.recordType;
+    _store.setRecordType(type);
+    _store.recordValue.text = recordValueForType(
+      type,
+      _store.recordValue.text,
+      from: from,
     );
-    if (picked != null && mounted) {
-      _store.setRecordType(picked);
-      _store.recordValue.text = recordValueForType(
-        picked,
-        _store.recordValue.text,
-      );
-      _validateAndDetectType(_store.recordValue.text);
-    }
+    _validateAndDetectType(_store.recordValue.text);
   }
 }

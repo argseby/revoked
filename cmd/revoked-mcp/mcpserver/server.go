@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"revoked/util"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -73,10 +74,11 @@ func New(cfg Config) (*mcp.Server, error) {
 		Instructions: "Organise the owner's Revoked shares, requests and attestations. You propose " +
 			"them by name — record keys, a template, claim names — and the owner fills in the values " +
 			"and confirms in their app. Connect once to follow what became of your proposals and to " +
-			"end them. Only if the owner wants you to answer questions about their vault, connect with " +
-			"vault set and they decide in the app; then list_vault and read_record show their records. " +
-			"Read only what the task needs, and to give a value to someone else, propose a share " +
-			"instead of repeating it.",
+			"end them. To keep notes or files for the owner, connect with section set: you get a section " +
+			"of your own in their vault, which write_record and delete_record change. Only if the owner " +
+			"wants you to answer questions about their whole vault, connect with vault set and they " +
+			"decide in the app. list_vault and read_record show what you may read. Read only what the " +
+			"task needs, and to give a value to someone else, share it instead of repeating it.",
 	})
 	addTools(s, c)
 	addProposalTools(s, c)
@@ -114,20 +116,24 @@ type ConnectResult struct {
 }
 
 type ConnectInput struct {
-	Vault bool `json:"vault,omitempty" jsonschema:"also ask to read the owner's vault; only when they asked you to work with what is in it. Needs the Revoked app on this computer"`
+	Vault   bool `json:"vault,omitempty" jsonschema:"also ask to read the owner's whole vault; only when they asked you to work with what is in it. Needs the Revoked app on this computer"`
+	Section bool `json:"section,omitempty" jsonschema:"also ask for a section of your own in the owner's vault, where you can keep notes and files for them"`
+	Create  bool `json:"create,omitempty" jsonschema:"also ask to create shares and requests yourself, instead of proposing them"`
 }
 
 type StatusResult struct {
-	Connected    bool   `json:"connected"`
-	Pending      bool   `json:"pending"`
-	ClientName   string `json:"clientName,omitempty"`
-	ExpiresAt    string `json:"expiresAt,omitempty"`
-	AllowRevoke  bool   `json:"allowRevoke"`
-	ReadsVault   bool   `json:"readsVault"`
-	Shares       int    `json:"shares"`
-	Requests     int    `json:"requests"`
-	Attestations int    `json:"attestations"`
-	Checks       int    `json:"checks"`
+	Connected    bool     `json:"connected"`
+	Pending      bool     `json:"pending"`
+	ClientName   string   `json:"clientName,omitempty"`
+	ExpiresAt    string   `json:"expiresAt,omitempty"`
+	AllowRevoke  bool     `json:"allowRevoke"`
+	ReadsVault   bool     `json:"readsVault"`
+	HasSection   bool     `json:"hasSection"`
+	Permissions  []string `json:"permissions,omitempty"`
+	Shares       int      `json:"shares"`
+	Requests     int      `json:"requests"`
+	Attestations int      `json:"attestations"`
+	Checks       int      `json:"checks"`
 }
 
 type ProposeInput struct {
@@ -164,25 +170,27 @@ func addTools(s *mcp.Server, c *client) {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "connect",
-		Description: "Ask the owner to connect this assistant, so it can follow and end what it proposes, " +
-			"and with vault set also read their vault. Opens a confirmation in the Revoked app.",
+		Description: "Ask the owner to connect this assistant, so it can follow and end what it proposes. " +
+			"With section set it also asks for a section of its own in their vault; with create, to create " +
+			"shares and requests itself; with vault, to read their whole vault. Opens a confirmation in the Revoked app.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in ConnectInput) (*mcp.CallToolResult, ConnectResult, error) {
 		if conn, err := c.connection(ctx); err == nil {
-			if !in.Vault || conn.VaultReadable {
+			if (!in.Vault || conn.VaultReadable) && (!in.Section || conn.hasSection()) &&
+				(!in.Create || slices.Contains(conn.Permissions, util.PermSharesManage)) {
 				return nil, ConnectResult{Connected: true, Next: "Already connected."}, nil
 			}
 		} else if !errors.Is(err, errNotConnected) {
 			return nil, ConnectResult{}, err
 		}
-		link, code, err := c.startConnect(in.Vault)
+		link, code, err := c.startConnect(connectAsk{Vault: in.Vault, Section: in.Section, Create: in.Create})
 		if err != nil {
 			return nil, ConnectResult{}, err
 		}
 		opened := c.cfg.Open != nil && c.cfg.Open(link) == nil
 		next := "Tell the owner to approve only if the app shows check code " + code +
 			". Then call connection_status."
-		if in.Vault {
-			next = "The owner decides in the Revoked app whether you may read their vault. Afterwards " +
+		if in.Vault || in.Create {
+			next = "The owner decides in the Revoked app what you may do. Afterwards " +
 				"the app opens a browser tab that hands their answer back to you. Then call connection_status."
 		}
 		return nil, ConnectResult{Link: link, CheckCode: code, Opened: opened, Next: next}, nil
@@ -214,7 +222,8 @@ func addTools(s *mcp.Server, c *client) {
 		}
 		return nil, StatusResult{
 			Connected: true, Pending: c.pendingConnectActive(), ClientName: conn.ClientName, ExpiresAt: conn.ExpiresAt,
-			AllowRevoke: conn.AllowRevoke, ReadsVault: conn.VaultReadable, Shares: len(conn.Links), Requests: len(conn.Requests),
+			AllowRevoke: conn.AllowRevoke, ReadsVault: conn.VaultReadable, HasSection: conn.hasSection(),
+			Permissions: conn.Permissions, Shares: len(conn.Links), Requests: len(conn.Requests),
 			Attestations: len(conn.Attestations), Checks: len(conn.Checks),
 		}, nil
 	})

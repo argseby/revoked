@@ -680,6 +680,7 @@ class AppRouter {
                       AppRoutes.attestations,
                     null => AppRoutes.settings,
                     SettingsPage.templates => AppRoutes.templates,
+                    SettingsPage.apiKeys => AppRoutes.connectedTools,
                     _ => null,
                   },
                   pageBuilder: (context, state) {

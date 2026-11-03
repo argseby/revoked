@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
-const double _searchHeight = 40;
+/// The height of the bar's other controls, so search and New line up.
+const double _searchHeight = AppButton.smallExtent;
 
 /// The app's one search control: a pill that opens the shell's search and
 /// link panel rather than filtering anything in place. Lists do not carry

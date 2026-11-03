@@ -8,8 +8,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
-import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
-import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
@@ -234,106 +232,36 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
     );
   }
 
-  Widget _buildNameRow() {
-    final name = _store.sectionName.text.trim();
-    return AppFormRow(
-      icon: AppIcons.fileText,
-      label: 'Name',
-      valueText: name.isEmpty ? 'Required' : name,
-      isPlaceholder: name.isEmpty,
-      isError: name.isEmpty,
-      onTap: () => showAppEditSheet(
-        context: context,
-        title: 'Name',
-        description: 'The name you see for this section.',
-        controller: _store.sectionName,
-        hint: 'My Section',
-      ),
-    );
-  }
+  Widget _buildNameRow() => AppFormField(
+    label: 'Name',
+    explanation: 'The name you see for this section.',
+    child: AppTextField(controller: _store.sectionName, hint: 'My Section'),
+  );
 
-  Widget _buildKeyRow() {
-    final key = _store.sectionKey.text.trim();
-    return AppFormRow(
-      icon: AppIcons.hash,
-      label: 'Key',
-      valueText: key.isEmpty ? 'Required' : (_store.sectionKeyWarning ?? key),
-      isPlaceholder: key.isEmpty,
-      isError: key.isEmpty || _store.sectionKeyWarning != null,
-      onTap: _editKey,
-    );
-  }
-
-  Future<void> _editKey() async {
-    final before = _store.sectionKey.text;
-    await showAppSheet(
-      context: context,
-      builder: (sheetCtx) => Observer(
-        builder: (ctx) {
-          final done =
-              _store.sectionKey.text.trim().isNotEmpty &&
-                  _store.sectionKeyWarning == null
-              ? () => Navigator.of(sheetCtx).pop()
-              : null;
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.xl,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Key').header,
-                const SizedBox(height: AppSpacing.xxs),
-                const Text('A short ID for links and templates.').muted.small,
-                const SizedBox(height: AppSpacing.lg),
-                AppTextField(
-                  controller: _store.sectionKey,
-                  hint: 'section_key',
-                  autofocus: true,
-                  inputFormatters: [KeyInputFormatter()],
-                  onChanged: _validateKey,
-                  onSubmitted: done == null ? null : (_) => done(),
-                ),
-                if (_store.sectionKeyWarning != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  AppErrorText(_store.sectionKeyWarning!),
-                ],
-                if (_store.sectionSuggestedKey != null) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: AppButton(
-                      icon: AppIcons.stars,
-                      label: 'Use suggested: ${_store.sectionSuggestedKey}',
-                      style: AppButtonStyle.accent,
-                      size: AppButtonSize.small,
-                      onTap: () {
-                        _store.sectionKey.text = _store.sectionSuggestedKey!;
-                        _validateKey(_store.sectionKey.text);
-                      },
-                    ),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                AppEditSheetActions(
-                  onCancel: () {
-                    _store.sectionKey.text = before;
-                    _validateKey(before);
-                    Navigator.of(sheetCtx).pop();
-                  },
-                  onDone: done,
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Widget _buildKeyRow() => AppFormField(
+    label: 'Key',
+    explanation: 'A short ID for links and templates.',
+    error: _store.sectionKeyWarning,
+    action: _store.sectionSuggestedKey == null
+        ? null
+        : AppButton(
+            icon: AppIcons.stars,
+            label: 'Use suggested: ${_store.sectionSuggestedKey}',
+            style: AppButtonStyle.accent,
+            size: AppButtonSize.small,
+            onTap: () {
+              _store.sectionKey.text = _store.sectionSuggestedKey!;
+              _validateKey(_store.sectionKey.text);
+            },
+          ),
+    child: AppTextField(
+      controller: _store.sectionKey,
+      hint: 'section_key',
+      mono: true,
+      inputFormatters: [KeyInputFormatter()],
+      onChanged: _validateKey,
+    ),
+  );
 }
 
 class _SectionRenameDrawer extends StatefulWidget {
@@ -409,18 +337,16 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               children: [
                 const AppFormSectionHeader('Details'),
-                AppFormRow(
-                  icon: AppIcons.fileText,
+                AppFormField(
                   label: 'Name',
-                  valueText: name.isEmpty ? 'Required' : name,
-                  isPlaceholder: name.isEmpty,
-                  isError: name.isEmpty,
-                  onTap: () => showAppEditSheet(
-                    context: context,
-                    title: 'Name',
-                    description: 'The name you see for this section.',
+                  explanation: 'The name you see for this section.',
+                  child: AppTextField(
                     controller: _store.renameSectionName,
                     hint: 'My Section',
+                    autofocus: true,
+                    onSubmitted: (_) {
+                      if (name.isNotEmpty) _submit();
+                    },
                   ),
                 ),
 
@@ -499,13 +425,11 @@ class _SheetFooter extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: AppButton(
+          AppButton(
               label: 'Cancel',
               style: AppButtonStyle.accent,
               onTap: busy ? null : () => Navigator.of(context).pop(),
             ),
-          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: AppButton(
