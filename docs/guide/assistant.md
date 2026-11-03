@@ -21,10 +21,29 @@ about it.
 
 ## Setup
 
-### Building the program
+### Installing the program
 
-`revoked-mcp` is built from the Revoked source code and requires
-[Go](https://go.dev/dl/):
+Every [release](https://github.com/argseby/revoked/releases/latest) carries
+`revoked-mcp` for macOS, Linux and Windows, named after the system and
+processor: `revoked-mcp-darwin-arm64` for a Mac with Apple silicon,
+`revoked-mcp-darwin-amd64` for an Intel Mac, `revoked-mcp-linux-amd64`,
+`revoked-mcp-windows-amd64.exe` and so on. `revoked-mcp-sha256.txt` lists
+their checksums.
+
+On macOS or Linux:
+
+```bash
+mkdir -p ~/.local/bin
+curl -fL -o ~/.local/bin/revoked-mcp \
+  https://github.com/argseby/revoked/releases/latest/download/revoked-mcp-darwin-arm64
+chmod +x ~/.local/bin/revoked-mcp
+```
+
+A file downloaded with a browser on macOS is quarantined and refuses to
+start. `xattr -d com.apple.quarantine ~/.local/bin/revoked-mcp` releases it;
+a download with `curl` is not affected.
+
+Built from the source code instead, it requires [Go](https://go.dev/dl/):
 
 ```bash
 go build -o ~/.local/bin/revoked-mcp ./cmd/revoked-mcp
@@ -47,13 +66,14 @@ In **Claude Desktop**, under **Settings → Developer → Edit Config**:
 {
   "mcpServers": {
     "revoked": {
-      "command": "/home/you/.local/bin/revoked-mcp",
+      "command": "/Users/you/.local/bin/revoked-mcp",
       "env": { "REVOKED_SERVER": "https://api.revoked.link" }
     }
   }
 }
 ```
 
+The command must be an absolute path: Claude Desktop does not expand `~`.
 The change takes effect in a new chat or after restarting the application.
 For a server running on the same computer, the address is
 `http://localhost:3000`.

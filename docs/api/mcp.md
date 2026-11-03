@@ -72,11 +72,15 @@ app on the same computer as the assistant.
 
 ## Running it
 
-Build it from this repository and point it at the owner's server:
+Each release attaches a static binary per platform,
+`revoked-mcp-<goos>-<goarch>` (`.exe` on Windows), with
+`revoked-mcp-sha256.txt` beside them. Or build it from this repository:
 
 ```bash
 go build -o revoked-mcp ./cmd/revoked-mcp
 ```
+
+Then point it at the owner's server:
 
 ```json
 {

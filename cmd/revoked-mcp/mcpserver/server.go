@@ -70,7 +70,7 @@ func New(cfg Config) (*mcp.Server, error) {
 	}
 	c := &client{cfg: cfg, http: cfg.HTTP}
 
-	s := mcp.NewServer(&mcp.Implementation{Name: "revoked", Version: "1"}, &mcp.ServerOptions{
+	s := mcp.NewServer(&mcp.Implementation{Name: "revoked", Version: util.Version()}, &mcp.ServerOptions{
 		Instructions: "Organise the owner's Revoked shares, requests and attestations. You propose " +
 			"them by name — record keys, a template, claim names — and the owner fills in the values " +
 			"and confirms in their app. Connect once to follow what became of your proposals and to " +
