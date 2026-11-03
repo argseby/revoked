@@ -9,6 +9,7 @@ import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/features/settings/store/updates_store.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -152,5 +153,41 @@ void main() {
       await back(tester);
       expect(at(router), AppRoutes.settings);
     });
+  });
+
+  group('create buttons', () {
+    for (final (page, label) in [
+      (SettingsPage.identities, 'New identity'),
+      (SettingsPage.workspaces, 'New workspace'),
+      (SettingsPage.apiKeys, 'New API key'),
+      (SettingsPage.webhooks, 'New webhook'),
+    ]) {
+      testWidgets('${page.title} creates from the top bar', (tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        SharedPreferences.setMockInitialValues({});
+        FlutterSecureStorage.setMockInitialValues({});
+        await Stores.init(
+          httpClient: MockClient((_) async => http.Response('{}', 404)),
+        );
+        final router = AppRouter.create(Stores.auth);
+        await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+        runInAction(
+          () => Stores.auth.currentUser = User.fromJson({
+            'id': 'u1',
+            'email': 'ada@example.com',
+            'activeWorkspace': 'w1',
+          }),
+        );
+        await tester.pumpAndSettle();
+        router.go(page.route);
+        await tester.pumpAndSettle();
+        expect(find.byTooltip(label), findsOneWidget);
+        await tester.tap(find.byTooltip(label));
+        await tester.pumpAndSettle();
+        expect(find.text('Cancel'), findsWidgets);
+      });
+    }
   });
 }

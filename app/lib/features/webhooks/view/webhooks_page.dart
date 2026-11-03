@@ -20,7 +20,6 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_inline_create.dart';
 import 'package:revoked_app/core/widgets/app_chart.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -46,22 +45,6 @@ class WebhooksList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppInlineCreate(
-      label: 'New webhook',
-      onOpen: prepareWebhookDraft,
-      form: (close) => WebhookCreateForm(onClose: close),
-      builder: (create) => _Endpoints(create: create),
-    );
-  }
-}
-
-class _Endpoints extends StatelessWidget {
-  final AppCreateTrigger? create;
-
-  const _Endpoints({required this.create});
-
-  @override
-  Widget build(BuildContext context) {
     final store = Stores.webhooks;
     return Observer(
       builder: (_) {
@@ -69,16 +52,10 @@ class _Endpoints extends StatelessWidget {
           return const AppListSkeleton();
         }
         if (store.endpoints.isEmpty && store.loadState.error != null) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppListHeader(title: 'Webhooks', trailing: create?.header),
-              AppLoadError(
-                title: 'Webhooks could not be loaded',
-                message: store.loadState.error!,
-                onRetry: store.load,
-              ),
-            ],
+          return AppLoadError(
+            title: 'Webhooks could not be loaded',
+            message: store.loadState.error!,
+            onRetry: store.load,
           );
         }
         if (store.endpoints.isEmpty) {
@@ -99,14 +76,18 @@ class _Endpoints extends StatelessWidget {
               AppEmptyStep('Signature', 'Verifies the sender'),
               AppEmptyStep('Deliveries', 'Logged and resendable'),
             ],
-            action: create?.button,
+            action: AppButton(
+              icon: AppIcons.plus,
+              label: 'New webhook',
+              style: AppButtonStyle.accent,
+              onTap: () => openWebhookCreateSheet(context),
+            ),
             learnMoreLabel: 'How webhooks work',
             learnMoreUrl: '${AppConfig.docsUrl}/api/webhooks/',
           );
         }
         return AppListGroup(
           title: 'Webhooks',
-          trailing: create?.header,
           footer: const Text(
             'Messages never contain record values. Records are read '
             'separately with an API key.',

@@ -4,6 +4,11 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/features/webhooks/view/webhook_create_sheet.dart';
+import 'package:revoked_app/features/passkeys/view/passkeys_section.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
+import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
+import 'package:revoked_app/features/api_keys/view/api_key_create_sheet.dart';
 import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_check_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
@@ -160,13 +165,45 @@ enum NewKind {
 typedef PageAction = ({String label, void Function(BuildContext) start});
 
 /// The create button of a sub-page that makes something other than its
-/// destination does: Templates sits under the vault and creates templates.
+/// destination does: Templates sits under the vault and creates templates,
+/// and each settings list creates its own kind of entry.
 PageAction? subPageActionFor(String path) {
-  if (path == AppRoutes.templates &&
-      Stores.features.visible(Feature.requests)) {
-    return (label: 'New template', start: (c) => openTemplateEditorSheet(c));
-  }
-  return null;
+  final (feature, action) = switch (path) {
+    AppRoutes.templates => (
+      Feature.requests,
+      (label: 'New template', start: (c) => openTemplateEditorSheet(c)),
+    ),
+    _ when path == AppRoutes.settingsPage(SettingsPage.identities.slug) => (
+      Feature.attestations,
+      (label: 'New identity', start: openIdentityCreateSheet),
+    ),
+    _ when path == AppRoutes.settingsPage(SettingsPage.workspaces.slug) => (
+      null,
+      (label: 'New workspace', start: openWorkspaceCreateSheet),
+    ),
+    // Only for a member who may invite; the server refuses anyone else.
+    _
+        when Stores.invites.canManageMembers &&
+            (path == AppRoutes.settingsPage(SettingsPage.invites.slug) ||
+                path == AppRoutes.settingsPage(SettingsPage.members.slug)) =>
+      (null, (label: 'New invite', start: openInviteCreateSheet)),
+    _ when path == AppRoutes.settingsPage(SettingsPage.passkeys.slug) => (
+      null,
+      (label: 'Add passkey', start: addPasskeyHere),
+    ),
+    AppRoutes.apiKeys => (
+      Feature.developer,
+      (label: 'New API key', start: openApiKeyCreateSheet),
+    ),
+    AppRoutes.webhooks => (
+      Feature.developer,
+      (label: 'New webhook', start: openWebhookCreateSheet),
+    ),
+    _ => (null, null),
+  };
+  if (action == null) return null;
+  if (feature != null && !Stores.features.visible(feature)) return null;
+  return action;
 }
 
 /// The create button the page at [path] shows beside the general New, or null

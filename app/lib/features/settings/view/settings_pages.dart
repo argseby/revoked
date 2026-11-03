@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -21,7 +20,7 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
-import 'package:revoked_app/core/widgets/app_inline_create.dart';
+import 'package:revoked_app/core/widgets/app_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -140,6 +139,8 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.invites.loadCatalogue();
       case SettingsPage.invites:
         if (ws.isNotEmpty) Stores.invites.load(ws);
+        // Whether this member may invite decides the New invite button.
+        if (ws.isNotEmpty) Stores.invites.loadMembers(ws);
         Stores.invites.loadCatalogue();
       case SettingsPage.identities:
         Stores.identities.loadIdentities();
@@ -301,54 +302,41 @@ class _WorkspacesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = Stores.settings;
-    return AppInlineCreate(
-      label: 'New workspace',
-      onOpen: Stores.settings.resetWorkspaceDraft,
-      form: (close) => _CreateWorkspaceSheet(onClose: close),
-      builder: (create) => Observer(
-        builder: (_) {
-          final activeId = Stores.auth.activeWorkspace ?? '';
-          return AppListGroup(
-            title: 'Workspaces',
-            footer: const Text(
-              'Separate spaces for records, members and keys.',
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _HeaderButton(
-                  // Not a plus: joining an existing workspace is not a second
-                  // way to create one.
-                  icon: AppIcons.key,
-                  label: 'Join',
-                  onTap: () => showInviteJoinSheet(context: context),
+    return Observer(
+      builder: (_) {
+        final activeId = Stores.auth.activeWorkspace ?? '';
+        return AppListGroup(
+          title: 'Workspaces',
+          footer: const Text('Separate spaces for records, members and keys.'),
+          trailing: _HeaderButton(
+            // Not a plus: joining an existing workspace is not a second way
+            // to create one.
+            icon: AppIcons.key,
+            label: 'Join',
+            onTap: () => showInviteJoinSheet(context: context),
+          ),
+          children: [
+            if (settings.isLoading && settings.workspaces.isEmpty)
+              const _LoadingRow()
+            else if (settings.workspaces.isEmpty)
+              const AppDetailRow(icon: AppIcons.info, label: 'No workspaces.')
+            else
+              for (final ws in settings.workspaces)
+                AppListRow(
+                  icon: AppIcons.personWorkspace,
+                  title: ws.name,
+                  subtitle: ws.slug,
+                  trailing: ws.id == activeId
+                      ? const AppBadge(
+                          label: 'Active',
+                          variant: AppBadgeVariant.primary,
+                        )
+                      : null,
+                  onTap: () => _options(context, ws, ws.id == activeId),
                 ),
-                if (create != null) ...[AppSpacing.gapSm, create.header],
-              ],
-            ),
-            children: [
-              if (settings.isLoading && settings.workspaces.isEmpty)
-                const _LoadingRow()
-              else if (settings.workspaces.isEmpty)
-                const AppDetailRow(icon: AppIcons.info, label: 'No workspaces.')
-              else
-                for (final ws in settings.workspaces)
-                  AppListRow(
-                    icon: AppIcons.personWorkspace,
-                    title: ws.name,
-                    subtitle: ws.slug,
-                    trailing: ws.id == activeId
-                        ? const AppBadge(
-                            label: 'Active',
-                            variant: AppBadgeVariant.primary,
-                          )
-                        : null,
-                    onTap: () => _options(context, ws, ws.id == activeId),
-                  ),
-            ],
-          );
-        },
-      ),
+          ],
+        );
+      },
     );
   }
 }
@@ -364,8 +352,6 @@ class _MembersPage extends StatelessWidget {
     Stores.invites.loadMembers(ws);
     Stores.invites.loadCatalogue();
   }
-
-  void _invite(BuildContext context) => context.go(SettingsPage.invites.route);
 
   Future<void> _remove(
     BuildContext context,
@@ -418,13 +404,6 @@ class _MembersPage extends StatelessWidget {
         return AppListGroup(
           title: 'Members',
           footer: const Text('Members and their permissions.'),
-          trailing: store.canManageMembers
-              ? _HeaderButton(
-                  icon: AppIcons.personPlus,
-                  label: 'Invite',
-                  onTap: () => _invite(context),
-                )
-              : null,
           children: [
             if (store.isLoadingMembers && store.members.isEmpty)
               const _LoadingRow()
@@ -525,21 +504,10 @@ class _InvitesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ws = Stores.auth.activeWorkspace ?? '';
-    return AppInlineCreate(
-      label: 'New invite',
-      form: (close) => InviteCreateForm(
-        workspaceId: ws,
-        onClose: () {
-          close();
-          if (ws.isNotEmpty) Stores.invites.load(ws);
-        },
-      ),
-      builder: (create) => _list(context, create),
-    );
+    return _list(context);
   }
 
-  Widget _list(BuildContext context, AppCreateTrigger? create) {
+  Widget _list(BuildContext context) {
     final store = Stores.invites;
     return Observer(
       builder: (_) {
@@ -552,7 +520,12 @@ class _InvitesPage extends StatelessWidget {
             subtitle:
                 'Invite keys add members to this workspace with the selected '
                 'permissions only.',
-            action: create?.button,
+            action: AppButton(
+              icon: AppIcons.plus,
+              label: 'New invite',
+              style: AppButtonStyle.accent,
+              onTap: () => openInviteCreateSheet(context),
+            ),
             example: const AppEmptyExample(
               title: 'Accountant',
               detail: '3 of 16 permissions · valid 7 days',
@@ -567,7 +540,6 @@ class _InvitesPage extends StatelessWidget {
         }
         return AppListGroup(
           title: 'Pending invites',
-          trailing: create?.header,
           footer: const Text('Invite keys not yet used.'),
           children: [
             if (store.isLoading && open.isEmpty)
@@ -715,17 +687,12 @@ class _IdentitiesPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const DeviceKeyAlert(),
-        AppInlineCreate(
-          label: 'New identity',
-          onOpen: Stores.settings.resetIdentityDraft,
-          form: (close) => _CreateIdentitySheet(onClose: close),
-          builder: (create) => Observer(builder: (_) => _list(context, create)),
-        ),
+        Observer(builder: (_) => _list(context)),
       ],
     );
   }
 
-  Widget _list(BuildContext context, AppCreateTrigger? create) {
+  Widget _list(BuildContext context) {
     final store = Stores.identities;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -737,7 +704,12 @@ class _IdentitiesPage extends StatelessWidget {
             subtitle:
                 'An identity signs links and responses so recipients can '
                 'verify their origin. Its key stays on this device.',
-            action: create?.button,
+            action: AppButton(
+              icon: AppIcons.plus,
+              label: 'New identity',
+              style: AppButtonStyle.accent,
+              onTap: () => openIdentityCreateSheet(context),
+            ),
             example: const AppEmptyExample(
               title: 'Laptop',
               detail: 'Primary · 3fa2c1…',
@@ -752,7 +724,6 @@ class _IdentitiesPage extends StatelessWidget {
         else
           AppListGroup(
             title: 'Identities',
-            trailing: create?.header,
             footer: const Text('Signing identities for shares and responses.'),
             children: [
               if (store.isLoading && store.identities.isEmpty)
@@ -942,6 +913,15 @@ class _DomainPage extends StatelessWidget {
 String _slugify(String s) =>
     s.toLowerCase().replaceAll(' ', '-').replaceAll(RegExp(r'[^a-z0-9\-]'), '');
 
+/// Opens the new-workspace form.
+Future<void> openWorkspaceCreateSheet(BuildContext context) =>
+    showAppCreateSheet(
+      context,
+      label: 'New workspace',
+      onOpen: Stores.settings.resetWorkspaceDraft,
+      form: (close) => _CreateWorkspaceSheet(onClose: close),
+    );
+
 class _CreateWorkspaceSheet extends StatefulWidget {
   final VoidCallback onClose;
 
@@ -1060,6 +1040,15 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
     );
   }
 }
+
+/// Opens the new-identity form.
+Future<void> openIdentityCreateSheet(BuildContext context) =>
+    showAppCreateSheet(
+      context,
+      label: 'New identity',
+      onOpen: Stores.settings.resetIdentityDraft,
+      form: (close) => _CreateIdentitySheet(onClose: close),
+    );
 
 class _CreateIdentitySheet extends StatefulWidget {
   final VoidCallback onClose;

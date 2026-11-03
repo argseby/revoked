@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:revoked_app/core/widgets/app_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -19,6 +20,22 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/permission_check_row.dart';
 import 'package:revoked_app/features/settings/view/features_page.dart';
+
+/// Opens the new-invite form for the active workspace.
+Future<void> openInviteCreateSheet(BuildContext context) {
+  final ws = Stores.auth.activeWorkspace ?? '';
+  return showAppCreateSheet(
+    context,
+    label: 'New invite',
+    form: (close) => InviteCreateForm(
+      workspaceId: ws,
+      onClose: () {
+        close();
+        if (ws.isNotEmpty) Stores.invites.load(ws);
+      },
+    ),
+  );
+}
 
 /// Creates a workspace invite: choose what the person will be able to do, then
 /// hand them the key.

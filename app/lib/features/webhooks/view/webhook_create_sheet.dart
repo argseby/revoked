@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/widgets/app_create_sheet.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -22,7 +23,15 @@ void prepareWebhookDraft() {
   if (store.eventTypes.isEmpty) store.load();
 }
 
-/// The new-webhook form, shown in place on the webhooks page.
+/// Opens the new-webhook form.
+Future<void> openWebhookCreateSheet(BuildContext context) => showAppCreateSheet(
+  context,
+  label: 'New webhook',
+  onOpen: prepareWebhookDraft,
+  form: (close) => WebhookCreateForm(onClose: close),
+);
+
+/// The new-webhook form.
 class WebhookCreateForm extends StatelessWidget {
   final VoidCallback onClose;
 

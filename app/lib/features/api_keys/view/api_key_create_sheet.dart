@@ -17,7 +17,7 @@ import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
-import 'package:revoked_app/core/widgets/app_inline_create.dart';
+import 'package:revoked_app/core/widgets/app_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/permission_check_row.dart';
@@ -55,7 +55,16 @@ List<AppCreateStart> apiKeyStarts() {
   ];
 }
 
-/// The new-key form, shown in place on the page that lists keys.
+/// Opens the new-key form, starting from one of [apiKeyStarts].
+Future<void> openApiKeyCreateSheet(BuildContext context) => showAppCreateSheet(
+  context,
+  label: 'New API key',
+  starts: apiKeyStarts(),
+  onOpen: prepareApiKeyDraft,
+  form: (close) => ApiKeyCreateForm(onClose: close),
+);
+
+/// The new-key form.
 class ApiKeyCreateForm extends StatelessWidget {
   final VoidCallback onClose;
 

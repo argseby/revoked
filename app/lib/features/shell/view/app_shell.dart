@@ -231,9 +231,11 @@ class _AppShellState extends State<AppShell> {
       // and on a detail page, where it would sit on the page's own controls.
       floatingActionButton: Observer(
         builder: (_) {
+          // A sub-page with an action of its own shows it, Settings pages
+          // included, though Settings is no destination on a phone.
+          final own = subPageActionFor(path);
           if (SheetTracker.anyOpen ||
-              destination == null ||
-              (isSubPage && subPageActionFor(path) == null)) {
+              (own == null && (destination == null || isSubPage))) {
             return const SizedBox.shrink();
           }
           // The page's own action when it has one; the general New stays

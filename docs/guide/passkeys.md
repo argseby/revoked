@@ -14,7 +14,7 @@ Two ways lead there:
 
 | Control | Use |
 |---|---|
-| **Add on this device** | Opens the page on the current device. |
+| **Add passkey** | Opens the page on the current device. In the top bar, or the floating button on a phone. |
 | **Copy link for another device** | Copies a link to open on a different device. The link works once, within 15 minutes. |
 
 On the page, **Save passkey** asks the device where to store it, such as

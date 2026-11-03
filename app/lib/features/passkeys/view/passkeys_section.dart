@@ -16,6 +16,21 @@ import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// Opens the page where this device saves a new passkey, in the browser.
+Future<void> addPasskeyHere(BuildContext context) async {
+  final link = await Stores.passkeys.addLink();
+  if (!context.mounted) return;
+  if (link == null ||
+      !await launchUrl(link, mode: LaunchMode.externalApplication)) {
+    if (!context.mounted) return;
+    AppToast.error(
+      context,
+      'The page could not be opened',
+      subtitle: Stores.passkeys.errorMessage,
+    );
+  }
+}
+
 /// The passkeys this account signs in with: which devices hold one, a way to
 /// add another, and a way to remove one that is gone. The last one stays —
 /// without it there is no way back in.
@@ -45,20 +60,6 @@ class _PasskeysSectionState extends State<PasskeysSection>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) Stores.passkeys.load();
-  }
-
-  Future<void> _addHere() async {
-    final link = await Stores.passkeys.addLink();
-    if (!mounted) return;
-    if (link == null ||
-        !await launchUrl(link, mode: LaunchMode.externalApplication)) {
-      if (!mounted) return;
-      AppToast.error(
-        context,
-        'The page could not be opened',
-        subtitle: Stores.passkeys.errorMessage,
-      );
-    }
   }
 
   Future<void> _copyLink() async {
@@ -151,11 +152,6 @@ class _PasskeysSectionState extends State<PasskeysSection>
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
             children: [
-              AppButton(
-                icon: AppIcons.plus,
-                label: 'Add on this device',
-                onTap: _addHere,
-              ),
               AppButton(
                 icon: AppIcons.copy,
                 label: 'Copy link for another device',
