@@ -48,10 +48,8 @@ class AppSearchTrigger extends StatelessWidget {
                 children: [
                   // The width of a field's prefix icon, so the hint starts
                   // where [AppSearchField]'s does.
-                  const SizedBox(
-                    width: 48,
-                    child: Icon(AppIcons.search, size: 18),
-                  ),
+                  SizedBox(width: 12),
+
                   Expanded(
                     child: AppText(
                       hint,

@@ -273,7 +273,6 @@ class _AppShellState extends State<AppShell> {
           AppButton(
             icon: AppIcons.search,
             style: AppButtonStyle.ghost,
-            tooltip: 'Search or paste a link',
             onTap: () => openLinkSearchSheet(context),
           ),
           AppSpacing.gapXs,
@@ -501,6 +500,8 @@ class _Sidebar extends StatelessWidget {
               const AccountMenu(expanded: true),
               AppSpacing.gapSm,
               AppButton(
+                size: .small,
+                style: .accent,
                 icon: AppIcons.plus,
                 label: 'New',
                 tooltip: 'Create something new (N)',
