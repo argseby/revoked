@@ -75,7 +75,8 @@ enum SettingsPage {
   templates('templates', 'Templates'),
   domain('domain', 'Domain verification');
 
-  const SettingsPage(this.slug, this.title, {this.isNew = false, this.stage});
+  const SettingsPage(this.slug, this.title, {this.isNew = false})
+    : stage = null;
 
   final String slug;
   final String title;
