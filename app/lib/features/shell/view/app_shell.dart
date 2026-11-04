@@ -246,7 +246,7 @@ class _AppShellState extends State<AppShell> {
             tooltip: action?.label ?? 'Create something new',
             onPressed: () =>
                 action == null ? _openNew(root) : action.start(context),
-            icon: const Icon(AppIcons.plus, size: 18),
+            icon: Icon(action?.icon ?? AppIcons.plus, size: 18),
             label: Text(action?.label ?? 'New'),
           );
         },
@@ -273,6 +273,7 @@ class _AppShellState extends State<AppShell> {
           AppButton(
             icon: AppIcons.search,
             style: AppButtonStyle.ghost,
+            tooltip: 'Search or paste a link',
             onTap: () => openLinkSearchSheet(context),
           ),
           AppSpacing.gapXs,
@@ -401,7 +402,7 @@ class _AppShellState extends State<AppShell> {
                       // On the rail the bar is too narrow for a title, the
                       // search pill and a labelled button together.
                       child: AppButton(
-                        icon: AppIcons.plus,
+                        icon: action.icon,
                         label: sidebar ? action.label : null,
                         tooltip: action.label,
                         size: AppButtonSize.small,

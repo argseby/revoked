@@ -128,6 +128,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     final switched = await Stores.workspaceContext.switchTo(
       userId: auth.userId,
       workspaceId: workspaceId,
+      waitForReload: false,
     );
     if (!mounted) return;
     if (switched) {

@@ -7,6 +7,8 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -87,7 +89,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       icon: icon,
       title: page.title,
       subtitle: subtitle,
+      trailing: _stageBadges(page),
       onTap: () => goReturning(context, page.route),
+    );
+  }
+
+  /// "New" and the alpha or beta tag, for a topic that carries either.
+  Widget? _stageBadges(SettingsPage page) {
+    final stage = page.stage;
+    if (!page.isNew && stage == null) return null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: AppSpacing.xs,
+      children: [
+        if (page.isNew)
+          AppBadge(label: 'New', accent: Theme.of(context).colorScheme.primary),
+        if (stage != null)
+          AppBadge(label: stage.label, variant: AppBadgeVariant.experimental),
+      ],
     );
   }
 
@@ -447,6 +466,13 @@ class _UrlRow extends StatelessWidget {
       icon: icon,
       title: title,
       subtitle: subtitle ?? url,
+      // Leaves the app, so it carries an outward arrow, not a chevron.
+      showChevron: false,
+      trailing: Icon(
+        AppIcons.boxArrowUpRight,
+        size: 18,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
       onTap: () async {
         final ok = await launchUrl(
           Uri.parse(url),

@@ -141,16 +141,27 @@ abstract class _ServerSettingsStore with Store {
       final saved = await _api.setBaseUrl(controller.text);
       savedBaseUrl = saved;
       serverVersion = await _versionAt(saved);
+      _versionFrom = saved;
       return saved;
     } finally {
       isSaving = false;
     }
   }
 
+  /// Asks the server in effect for its release. A failed ask keeps what an
+  /// earlier one learned from the same server instead of turning it unknown.
   @action
   Future<void> loadServerVersion() async {
-    serverVersion = await _versionAt(_api.baseUrl);
+    final base = _api.baseUrl;
+    final version = await _versionAt(base) ?? await _versionAt(base);
+    if (version != null || _versionFrom != base) {
+      serverVersion = version;
+      _versionFrom = base;
+    }
   }
+
+  /// The address [serverVersion] was learned from.
+  String? _versionFrom;
 
   /// What `/api/server` says it was built from; null for a server too old to
   /// say, or one that does not answer.

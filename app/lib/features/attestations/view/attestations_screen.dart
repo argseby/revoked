@@ -74,10 +74,7 @@ class _AttestationsScreenState extends State<AttestationsScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(h, AppSpacing.md, h, 0),
-          child: const DeviceKeyAlert(),
-        ),
+        DeviceKeyAlert(padding: EdgeInsets.fromLTRB(h, AppSpacing.md, h, 0)),
         Expanded(
           child: Observer(
             builder: (_) => AppTabs(

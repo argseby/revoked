@@ -26,8 +26,8 @@ import 'package:revoked_app/features/attestations/claim_text.dart';
 import 'package:revoked_app/features/attestations/view/ask_attestation_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_check_sheet.dart';
 import 'package:revoked_app/features/attestations/view/attestation_create_sheet.dart';
+import 'package:revoked_app/features/attestations/view/attestation_share_sheet.dart';
 import 'package:revoked_app/features/attestations/view/verdict_badge.dart';
-import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 
 /// A tab's list: one line on what it holds, then its rows. The tab names it,
 /// so it carries no heading of its own. While there is nothing to list, the
@@ -158,15 +158,17 @@ class HeldAttestations extends StatelessWidget {
                 ],
               ),
               trailing: verdictBadge(context, store.verdicts[c.id]),
-              onTap: () => showAppSheet(
-                context: context,
-                dismissible: true,
-                builder: (_) => _CredentialSheet(
-                  credential: c,
-                  identityName: _identityName(c),
-                  host: context,
-                ),
-              ),
+              onTap: () {
+                store.loadShares(c.id);
+                showAppSheet(
+                  context: context,
+                  dismissible: true,
+                  builder: (_) => _CredentialSheet(
+                    credential: c,
+                    identityName: _identityName(c),
+                  ),
+                );
+              },
             ),
         ],
       ),
@@ -179,24 +181,10 @@ class _CredentialSheet extends StatelessWidget {
   final Credential credential;
   final String identityName;
 
-  /// The list the sheet was opened from, still mounted once the sheet has
-  /// closed: where the link panel opens.
-  final BuildContext host;
-
   const _CredentialSheet({
     required this.credential,
     required this.identityName,
-    required this.host,
   });
-
-  /// An attestation is shown, never copied: a copy carries every detail, and
-  /// whoever holds it could pass it on as theirs. The one who wants to see it
-  /// sends a link, and opening it here lets the holder pick the details and
-  /// sign for that one occasion.
-  void _show(BuildContext context) {
-    Navigator.of(context).pop();
-    openLinkSearchSheet(host);
-  }
 
   Future<void> _remove(BuildContext context) async {
     final confirmed = await showAppDialog(
@@ -297,20 +285,25 @@ class _CredentialSheet extends StatelessWidget {
                   ],
                 ),
                 AppSpacing.gapMd,
-                const Text('Showing it'),
+                const Text('Links'),
                 AppSpacing.gapSm,
                 const Text(
-                  'An attestation is shown, not copied. Whoever wants to see '
-                  'it sends a link or a QR code, made under New → See '
-                  'someone\'s attestation. Opening that link here asks which '
-                  'details to show, and signs them for that one occasion, so '
-                  'what they receive cannot be passed on as someone else\'s.',
+                  'A link shows this attestation, with the details picked, to '
+                  'whoever opens it, in the app or a browser. It proves what '
+                  'the issuer attests. It does not prove that whoever passes '
+                  'the link on is the holder: for that, the other person '
+                  'makes a check under New → See someone\'s attestation.',
                 ).muted.small,
-                AppSpacing.gapMd,
+                AppSpacing.gapSm,
+                AttestationShareList(credential: credential),
+                AppSpacing.gapSm,
                 AppButton(
-                  icon: AppIcons.qrCode,
-                  label: 'Open or scan their link',
-                  onTap: () => _show(context),
+                  icon: AppIcons.link,
+                  label: 'Share link',
+                  style: AppButtonStyle.accent,
+                  onTap: verdict == null || !verdict.isUnusable
+                      ? () => openAttestationShareSheet(context, credential)
+                      : null,
                 ),
                 AppSpacing.gapLg,
                 AppButton(

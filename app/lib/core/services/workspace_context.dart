@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:revoked_app/core/stores.dart';
 
 /// Moves the app from one workspace to another.
@@ -13,9 +15,15 @@ class WorkspaceContext {
 
   /// Switches the active workspace and reloads everything scoped to it.
   /// Returns false when the server refused the switch, leaving state untouched.
+  ///
+  /// With [waitForReload] false it returns once the switch is in effect and
+  /// the old workspace's rows are gone, and the stores fill in behind: a
+  /// screen that needs one answer from the new workspace, such as a sign-in
+  /// request, should not sit through a dozen unrelated lists first.
   Future<bool> switchTo({
     required String userId,
     required String workspaceId,
+    bool waitForReload = true,
   }) async {
     final ok = await Stores.settings.switchWorkspace(userId, workspaceId);
     if (!ok) return false;
@@ -23,7 +31,12 @@ class WorkspaceContext {
     // Refresh the session first: the reloads below authenticate against the
     // new active workspace, so a stale cached user would refetch the old one.
     await Stores.auth.initialize();
-    await reload();
+    final reloading = reload();
+    if (waitForReload) {
+      await reloading;
+    } else {
+      unawaited(reloading);
+    }
     return true;
   }
 

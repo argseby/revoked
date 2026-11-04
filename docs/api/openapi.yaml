@@ -4038,6 +4038,155 @@ paths:
         "410": { $ref: "#/components/responses/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /api/attestation-shares:
+    post:
+      tags: [Attestations]
+      summary: Start a link that shows a held attestation
+      description: |
+        Starts a link for one of the caller's held attestations, open for
+        `days` (1 to 90). The answer is the audience and nonce the holder's
+        presentation must be bound to; the link opens once
+        `POST /api/attestation-shares/{id}/activate` receives one that
+        verifies, within ten minutes. Requires a `users` session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential, days]
+              properties:
+                credential: { type: string, description: The id of one of the caller's credentials. }
+                days: { type: integer, minimum: 1, maximum: 90 }
+      responses:
+        "200":
+          description: The pending link and what to bind the presentation to.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  audience: { type: string }
+                  nonce: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/attestation-shares/{id}/activate:
+    post:
+      tags: [Attestations]
+      summary: Sign a pending link and open it
+      description: |
+        Takes the holder's presentation for a pending link. It must be bound
+        to the link's audience and nonce, made by the identity the
+        attestation was issued to, and the attestation must still stand.
+        The answer carries the link; only a hash of its token is kept, so it
+        is shown this once. A link is signed once: a second attempt gets
+        `410`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [presentation]
+              properties:
+                presentation: { type: string }
+      responses:
+        "200":
+          description: The open link.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  token: { type: string }
+                  url: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  disclosed: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/AppError" }
+        "410": { $ref: "#/components/responses/AppError" }
+
+  /api/attestation-shares/{id}/revoke:
+    post:
+      tags: [Attestations]
+      summary: End a link
+      description: Ends one of the caller's links. Whoever opens it afterwards gets `410`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Ended.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  status: { type: string }
+        "401": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/AppError" }
+
+  /api/public/attestation-shares/{token}:
+    get:
+      tags: [Attestations]
+      summary: Read a shared attestation
+      description: |
+        What a link shows: the verdict on the holder's presentation, checked
+        again now. The key binding was checked when the holder signed the
+        link; the issuer's key, the status list, expiry and the holder's
+        identity are checked on every read. The link shows what the holder
+        chose to share; it does not prove that whoever sent it is the
+        holder. Each read is counted for the holder.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The verdict, with when the link was made and until when it is open.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state: { type: string }
+                  reason: { type: string }
+                  issuer: { type: string }
+                  type: { type: string }
+                  claims: { type: object }
+                  withheld: { type: integer }
+                  holder: { type: object }
+                  holderName: { type: string }
+                  sharedAt: { type: string, format: date-time }
+                  linkExpiresAt: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/AppError" }
+        "410": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /p/{token}:
+    get:
+      tags: [Attestations]
+      summary: A shared attestation, as a page
+      description: |
+        The link a holder passes on. A browser gets a page; anything else
+        gets the JSON of `GET /api/public/attestation-shares/{token}`.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The page, or the verdict as JSON.
+        "404": { $ref: "#/components/responses/AppError" }
+        "410": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /api/credentials/claim:
     post:
       tags: [Attestations]

@@ -134,11 +134,6 @@ class McpPage extends StatelessWidget {
                 ),
               ],
             ),
-            const ApiUrlTile(
-              icon: AppIcons.boxArrowUpRight,
-              label: 'Guide',
-              url: '${AppConfig.docsUrl}/guide/assistant/',
-            ),
           ],
         );
       },

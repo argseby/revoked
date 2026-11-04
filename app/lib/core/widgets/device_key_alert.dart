@@ -14,7 +14,15 @@ import 'package:revoked_app/features/identities/store/identities_store.dart';
 /// device, as after signing in on a new computer: says where the keys are
 /// and makes one here, instead of letting the next signature fail.
 class DeviceKeyAlert extends StatelessWidget {
-  const DeviceKeyAlert({super.key});
+  /// Around the alert while it shows. Nothing is laid out while it is hidden,
+  /// so a page that needs space above the alert passes it here rather than
+  /// wrapping it, which would leave that space empty.
+  final EdgeInsetsGeometry padding;
+
+  const DeviceKeyAlert({
+    super.key,
+    this.padding = const EdgeInsets.only(bottom: AppSpacing.md),
+  });
 
   Future<void> _create(BuildContext context) async {
     final store = Stores.identities;
@@ -38,7 +46,7 @@ class DeviceKeyAlert extends StatelessWidget {
         final store = Stores.identities;
         if (!store.keysElsewhere) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          padding: padding,
           child: AppAlert(
             leading: const Icon(AppIcons.keyOff),
             title: const Text('No identity on this device'),

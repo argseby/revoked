@@ -428,9 +428,14 @@ void main() {
       lessThanOrEqualTo(AppSpacing.md + 1),
     );
 
-    // Holding it says how to show it: through the asker's link, never a copy.
-    expect(find.text('Open or scan their link'), findsOneWidget);
-    expect(find.textContaining('shown, not copied'), findsOneWidget);
+    // Holding it offers a link that shows it, and says what a link proves.
+    expect(find.text('Open or scan their link'), findsNothing);
+    expect(find.text('Share link'), findsOneWidget);
+    expect(
+      find.textContaining('does not prove that whoever passes'),
+      findsOneWidget,
+    );
+    expect(find.text('No open links.'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Remove attestation'));
     await tester.pumpAndSettle();

@@ -41,6 +41,11 @@ var AuditSecretFields = map[string][]string{
 	Coll.Credentials:  {Fields.Credential.Credential, Fields.Credential.Claims},
 	// What was shown is the shower's data, and the nonce answers the check.
 	Coll.AttestationChecks: {Fields.AttestationCheck.Result, Fields.AttestationCheck.Nonce},
+	// The presentation is what the link shows, and the hash finds it.
+	Coll.AttestationShares: {
+		Fields.AttestationShare.Presentation, Fields.AttestationShare.Disclosed,
+		Fields.AttestationShare.Nonce, Fields.AttestationShare.TokenHash,
+	},
 	// Nothing snapshots this collection today — the outbox is written with
 	// app.Save, which bypasses the audit hook — but a payload names a grant
 	// and the day a write is routed through the request hooks it would be

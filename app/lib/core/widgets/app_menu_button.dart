@@ -133,13 +133,21 @@ class AppMenuButton extends StatelessWidget {
           else
             MenuItemButton(
               onPressed: item.onSelected,
+              // A disabled entry takes the menu's muted color even when
+              // destructive: red would suggest it can still be chosen.
               leadingIcon: Icon(
                 item.checked ? AppIcons.check : item.icon,
                 size: 18,
-                color: item.destructive ? scheme.error : null,
+                color: item.destructive && item.onSelected != null
+                    ? scheme.error
+                    : null,
               ),
               child: DefaultTextStyle.merge(
-                style: TextStyle(color: item.destructive ? scheme.error : null),
+                style: TextStyle(
+                  color: item.destructive && item.onSelected != null
+                      ? scheme.error
+                      : null,
+                ),
                 child: Text(item.label),
               ),
             ),

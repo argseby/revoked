@@ -838,7 +838,7 @@ func TestSignInsLeaveARowThePersonCanFind(t *testing.T) {
 // A person gives each service the name they choose for it: one of their
 // identities' names, or a vault entry that the service reads as it changes.
 func TestSignInNameIsChosenPerService(t *testing.T) {
-	baseURL, _ := testutils.SetupTestApp(t)
+	baseURL, app := testutils.SetupTestApp(t)
 	api := testutils.NewPBClient(t, baseURL)
 	person := newOIDCPerson(t, baseURL)
 	wsID := activeWorkspaceOf(t, api, person.userID, person.token)
@@ -878,6 +878,48 @@ func TestSignInNameIsChosenPerService(t *testing.T) {
 		}
 		if n := idName(tokens); n != nil {
 			t.Fatalf("name = %v", n)
+		}
+	})
+
+	t.Run("a name typed for the sign-in joins the service's section", func(t *testing.T) {
+		svc := newOIDCService(t, baseURL, "https://typed.example")
+		typed := entry("name_typed_example", "Ada at the table", util.FormatDefault)
+		signIn(svc, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name":    nameOf(services.NameFromRecord, typed),
+			"created": []string{typed},
+		})
+		section, err := app.FindFirstRecordByFilter(util.Coll.Sections,
+			util.Fields.Section.Key+" = 'signin_typed_example' && "+util.Fields.Section.User+" = {:u}",
+			dbx.Params{"u": person.userID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(section.GetStringSlice(util.Fields.Section.Records), typed) {
+			t.Fatalf("records = %v", section.GetStringSlice(util.Fields.Section.Records))
+		}
+	})
+
+	t.Run("a name typed on a later sign-in joins the service's section too", func(t *testing.T) {
+		svc := newOIDCService(t, baseURL, "https://again.example")
+		signIn(svc, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromIdentity, person.identityID),
+		})
+		typed := entry("name_again_example", "Ada again", util.FormatDefault)
+		signIn(svc, map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name":    nameOf(services.NameFromRecord, typed),
+			"created": []string{typed},
+		})
+		section, err := app.FindFirstRecordByFilter(util.Coll.Sections,
+			util.Fields.Section.Key+" = 'signin_again_example' && "+util.Fields.Section.User+" = {:u}",
+			dbx.Params{"u": person.userID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(section.GetStringSlice(util.Fields.Section.Records), typed) {
+			t.Fatalf("records = %v", section.GetStringSlice(util.Fields.Section.Records))
 		}
 	})
 

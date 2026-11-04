@@ -189,6 +189,9 @@ var Errors = struct {
 	AttestationCheckInvalid       AppError
 	AttestationCheckNotFound      AppError
 	AttestationCheckClosed        AppError
+	AttestationShareInvalid       AppError
+	AttestationShareNotFound      AppError
+	AttestationShareClosed        AppError
 	SealedFieldsRestricted        AppError
 	SealedInvalid                 AppError
 	SealedVersionConflict         AppError
@@ -886,6 +889,18 @@ var Errors = struct {
 	AttestationCheckClosed: AppError{
 		ErrorCode: "attestation_check_closed",
 		ErrorText: "This check was already answered or has expired.",
+	},
+	AttestationShareInvalid: AppError{
+		ErrorCode: "attestation_share_invalid",
+		ErrorText: "A share link names one of your attestations and how many days it stays open, from 1 to 90.",
+	},
+	AttestationShareNotFound: AppError{
+		ErrorCode: "attestation_share_not_found",
+		ErrorText: "This link does not exist. It may be incomplete.",
+	},
+	AttestationShareClosed: AppError{
+		ErrorCode: "attestation_share_closed",
+		ErrorText: "This link was ended by the person who shared it, or has expired.",
 	},
 	SealedFieldsRestricted: AppError{
 		ErrorCode: "sealed_fields_restricted",

@@ -129,6 +129,7 @@ abstract final class Stores {
     auth.onLoggedOut = () {
       keys.forgetSession();
       forgetAccountData();
+      settings.forgetDomainCheck();
     };
     auth.onPasskeySignIn = keys.offerPasskeySignIn;
     api.onWrite = invalidateLoads;
@@ -170,11 +171,24 @@ abstract final class Stores {
     linkSearch = LinkSearchStore();
     onboarding = OnboardingStore();
 
+    // Whenever a session begins, by signing in or by restoring one, the
+    // server's DNS check and release are asked for. On a new device nothing
+    // else does so until a screen happens to, and until then the domain
+    // claim reads as unverified and the server's release as unknown.
+    _onSession?.call();
+    _onSession = reaction((_) => auth.userId, (String id) {
+      if (id.isEmpty) return;
+      settings.ensureDomainChecked();
+      unawaited(serverSettings.loadServerVersion());
+    }, fireImmediately: true);
+
     // Deliberately not awaited here: restoring the session is a network call,
     // and awaiting it before runApp meant the first frame waited on the
     // server. The router shows a splash until isInitialized flips.
     unawaited(auth.initialize());
   }
+
+  static ReactionDisposer? _onSession;
 
   static List<LoadState> get _loads => [
     vault.loadState,
@@ -217,6 +231,7 @@ abstract final class Stores {
       identities.identities.clear();
       credentials.credentials.clear();
       credentials.verdicts.clear();
+      credentials.shares.clear();
       attestations.attestations.clear();
       attestationChecks.checks.clear();
       signIns.services.clear();

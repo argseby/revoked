@@ -86,6 +86,38 @@ signed with the identity's key and bound to this one request, so the
 service cannot pass it on and a copy is of no use to anyone else.
 **Decline** sends nothing.
 
+## Sharing an attestation
+
+A held attestation can also be shown through a link, without waiting for
+someone to ask. **Share link** in the attestation's detail view takes:
+
+- the **details** to include, all ticked at first; any can be left out, and
+  the issuer, the kind and the identity are always shown, and
+- how long the link stays **open**: one day, seven days or thirty days.
+
+**Create link** signs a presentation of the picked details on the device,
+with the identity's key, for that one link. The link and its QR code are
+shown once and cannot be retrieved later. It opens as a page in any
+browser; the Revoked app is not needed to read it.
+
+The page shows the kind, the issuer, the picked details and the status.
+The status is checked again every time the page is opened, so a link to an
+attestation the issuer revoked, or one that expired, says so.
+
+| | Link | Check |
+|---|---|---|
+| Started by | The holder | The person who wants to see it |
+| Proves | What the issuer attests, signed by its holder | That, and that the person answering holds it right now |
+| Can be passed on | Yes, and it still shows the same | No: it is valid once, for ten minutes |
+
+A link proves what the issuer attests. It does not prove that whoever
+passes the link on is the holder. Where that matters, such as at a door or
+for an age limit, a check is the right tool.
+
+The detail view lists the open links with how often each was opened.
+**End link** closes one at once. Removing the attestation ends all of its
+links.
+
 ## Checking an attestation
 
 **New → See someone's attestation** asks another person to present an

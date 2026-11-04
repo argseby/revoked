@@ -298,28 +298,30 @@ class _ClaimRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: AppFormField(
-                    label: 'Detail',
-                    inset: false,
+            // The button sits beside the input, not beside label and input
+            // together, so it lines up with the field it removes.
+            AppFormField(
+              label: 'Detail',
+              inset: false,
+              child: Row(
+                children: [
+                  Expanded(
                     child: AppTextField(
                       controller: claim.name,
                       hint: 'age_over_18',
                       mono: true,
                     ),
                   ),
-                ),
-                AppSpacing.gapSm,
-                AppButton(
-                  icon: AppIcons.x,
-                  tooltip: 'Remove detail',
-                  style: AppButtonStyle.ghost,
-                  size: AppButtonSize.small,
-                  onTap: onRemove,
-                ),
-              ],
+                  AppSpacing.gapSm,
+                  AppButton(
+                    icon: AppIcons.x,
+                    tooltip: 'Remove detail',
+                    style: AppButtonStyle.ghost,
+                    size: AppButtonSize.small,
+                    onTap: onRemove,
+                  ),
+                ],
+              ),
             ),
             AppSpacing.gapXs,
             Align(

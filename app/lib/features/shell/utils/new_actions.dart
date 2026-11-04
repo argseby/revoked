@@ -162,7 +162,11 @@ enum NewKind {
 }
 
 /// A page's own create button: what it says and what it opens.
-typedef PageAction = ({String label, void Function(BuildContext) start});
+typedef PageAction = ({
+  String label,
+  IconData icon,
+  void Function(BuildContext) start,
+});
 
 /// The create button of a sub-page that makes something other than its
 /// destination does: Templates sits under the vault and creates templates,
@@ -171,33 +175,66 @@ PageAction? subPageActionFor(String path) {
   final (feature, action) = switch (path) {
     AppRoutes.templates => (
       Feature.requests,
-      (label: 'New template', start: (c) => openTemplateEditorSheet(c)),
+      (
+        icon: AppIcons.plus,
+        label: 'New template',
+        start: (c) => openTemplateEditorSheet(c),
+      ),
     ),
     _ when path == AppRoutes.settingsPage(SettingsPage.identities.slug) => (
       Feature.attestations,
-      (label: 'New identity', start: openIdentityCreateSheet),
+      (
+        icon: AppIcons.plus,
+        label: 'New identity',
+        start: openIdentityCreateSheet,
+      ),
     ),
     _ when path == AppRoutes.settingsPage(SettingsPage.workspaces.slug) => (
       null,
-      (label: 'New workspace', start: openWorkspaceCreateSheet),
+      (
+        icon: AppIcons.plus,
+        label: 'New workspace',
+        start: openWorkspaceCreateSheet,
+      ),
     ),
     // Only for a member who may invite; the server refuses anyone else.
     _
         when Stores.invites.canManageMembers &&
             (path == AppRoutes.settingsPage(SettingsPage.invites.slug) ||
                 path == AppRoutes.settingsPage(SettingsPage.members.slug)) =>
-      (null, (label: 'New invite', start: openInviteCreateSheet)),
+      (
+        null,
+        (
+          icon: AppIcons.plus,
+          label: 'New invite',
+          start: openInviteCreateSheet,
+        ),
+      ),
+    // Not something made, but the page's one action all the same, so it
+    // stands where every page keeps it: beside the documentation button.
+    _ when path == AppRoutes.settingsPage(SettingsPage.domain.slug) => (
+      null,
+      (
+        icon: AppIcons.shieldCheck,
+        label: 'Check DNS',
+        start: (_) => Stores.settings.checkDomain(),
+      ),
+    ),
     _ when path == AppRoutes.settingsPage(SettingsPage.passkeys.slug) => (
       null,
-      (label: 'Add passkey', start: addPasskeyHere),
+      (icon: AppIcons.plus, label: 'Add passkey', start: addPasskeyHere),
     ),
     AppRoutes.apiKeys => (
       Feature.developer,
-      (label: 'New API key', start: openApiKeyCreateSheet),
+      (icon: AppIcons.plus, label: 'New API key', start: openApiKeyCreateSheet),
     ),
     AppRoutes.webhooks => (
       Feature.developer,
-      (label: 'New webhook', start: openWebhookCreateSheet),
+      (
+        icon: AppIcons.plus,
+        label: 'New webhook',
+        start: openWebhookCreateSheet,
+      ),
     ),
     _ => (null, null),
   };
@@ -225,7 +262,11 @@ PageAction? pageActionFor(String path) {
     _ => null,
   };
   if (action == null || !action.kind.isAvailable) return null;
-  return (label: action.label, start: (c) => startNew(c, action.kind));
+  return (
+    icon: AppIcons.plus,
+    label: action.label,
+    start: (c) => startNew(c, action.kind),
+  );
 }
 
 /// Opens the form that already exists for [kind].

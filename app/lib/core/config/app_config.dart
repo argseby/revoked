@@ -42,6 +42,7 @@ class AppConfig {
   static const String attestationsCollection = 'attestations';
   static const String credentialsCollection = 'credentials';
   static const String attestationChecksCollection = 'attestationChecks';
+  static const String attestationSharesCollection = 'attestationShares';
   static const String contactsCollection = 'contacts';
 
   /// Senders this account refuses deliveries from. Personal, like bookmarks.

@@ -5,6 +5,7 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
+import 'package:revoked_app/core/models/attestation_share.dart';
 import 'package:revoked_app/core/models/credential.dart';
 import 'package:revoked_app/core/models/identity.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
@@ -118,6 +119,102 @@ abstract class _CredentialsStore with Store {
     }
   }
 
+  /// The links made for each held attestation, by credential id, once asked
+  /// for with [loadShares]. Links still waiting to be signed are left out.
+  final ObservableMap<String, List<AttestationShare>> shares =
+      ObservableMap<String, List<AttestationShare>>();
+
+  @observable
+  bool isSharing = false;
+
+  @observable
+  String? shareError;
+
+  /// Lists the links made for [credentialId], newest first.
+  @action
+  Future<void> loadShares(String credentialId) async {
+    try {
+      final data = await _api.get(
+        '/api/collections/${AppConfig.attestationSharesCollection}/records',
+        queryParams: {
+          'sort': '-created',
+          'filter': 'credential = "$credentialId" && status != "pending"',
+        },
+      );
+      final items = (data['items'] as List<dynamic>?) ?? [];
+      runInAction(
+        () => shares[credentialId] = [
+          for (final e in items)
+            AttestationShare.fromJson(e as Map<String, dynamic>),
+        ],
+      );
+    } catch (_) {
+      // No answer leaves the list as it was.
+    }
+  }
+
+  /// Makes a link that shows [credential] with the details in [disclose] to
+  /// whoever opens it, open for [days]. The server hands out a nonce, the
+  /// presentation is signed here for that nonce and the server's address,
+  /// and the server opens the link once it verifies.
+  @action
+  Future<NewAttestationShare?> share({
+    required Credential credential,
+    required Iterable<String> disclose,
+    required int days,
+  }) async {
+    isSharing = true;
+    shareError = null;
+    try {
+      final started = await _api.post(
+        '/api/attestation-shares',
+        body: {'credential': credential.id, 'days': days},
+      );
+      final presentation = await _crypto.presentCredential(
+        identityId: credential.identity,
+        credential: credential.credential,
+        disclose: disclose,
+        audience: started['audience'] as String,
+        nonce: started['nonce'] as String,
+      );
+      final opened = await _api.post(
+        '/api/attestation-shares/${started['id']}/activate',
+        body: {'presentation': presentation},
+      );
+      unawaited(loadShares(credential.id));
+      return NewAttestationShare(
+        id: opened['id'] as String,
+        url: opened['url'] as String,
+        expiresAt: DateTime.tryParse(opened['expiresAt'] as String? ?? ''),
+      );
+    } on StateError catch (e) {
+      shareError = e.message;
+      return null;
+    } on FormatException catch (e) {
+      shareError = 'This attestation cannot be shown: ${e.message}.';
+      return null;
+    } catch (e) {
+      shareError = AppErrorMessage.fromException(e).description;
+      return null;
+    } finally {
+      isSharing = false;
+    }
+  }
+
+  /// Ends a link: whoever has it sees nothing more.
+  @action
+  Future<bool> revokeShare(AttestationShare link) async {
+    shareError = null;
+    try {
+      await _api.post('/api/attestation-shares/${link.id}/revoke');
+      await loadShares(link.credential);
+      return true;
+    } catch (e) {
+      shareError = AppErrorMessage.fromException(e).description;
+      return false;
+    }
+  }
+
   @action
   Future<bool> remove(String id) async {
     errorMessage = null;
@@ -125,6 +222,7 @@ abstract class _CredentialsStore with Store {
       await _api.delete('$_basePath/$id');
       credentials.removeWhere((c) => c.id == id);
       verdicts.remove(id);
+      shares.remove(id);
       return true;
     } catch (e) {
       errorMessage = AppErrorMessage.fromException(e).description;

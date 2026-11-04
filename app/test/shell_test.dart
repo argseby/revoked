@@ -8,6 +8,7 @@ import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/data/view/data_screen.dart';
 import 'package:revoked_app/features/overview/view/overview_screen.dart';
 import 'package:revoked_app/features/requests/view/request_detail_screen.dart';
@@ -260,9 +261,11 @@ void main() {
     final router = await signedIn(tester, size: const Size(1200, 800));
     router.go(AppRoutes.settings);
     await tester.pumpAndSettle();
-    expect(find.text('New'), findsOneWidget);
+    // The button, not every "New": settings rows carry "New" badges too.
+    final newButton = find.widgetWithText(AppButton, 'New');
+    expect(newButton, findsOneWidget);
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('New')),
+      find.descendant(of: find.byType(AppBar), matching: newButton),
       findsNothing,
     );
   });

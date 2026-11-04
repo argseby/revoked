@@ -36,6 +36,13 @@ const (
 	// photo of it taken later must be useless.
 	AttestationCheckTTL = 10 * time.Minute
 
+	// AttestationSharePendingTTL is how long the holder has to sign a new
+	// share link before its nonce lapses.
+	AttestationSharePendingTTL = 10 * time.Minute
+
+	// AttestationShareMaxTTL bounds how long a share link can stay open.
+	AttestationShareMaxTTL = 90 * 24 * time.Hour
+
 	// MaxAttestationClaims bounds how many claims one attestation states.
 	MaxAttestationClaims = 50
 

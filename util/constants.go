@@ -206,6 +206,18 @@ var NotificationTypes = []string{
 // BookmarkKinds lists what a bookmark may point at.
 var BookmarkKinds = []string{BookmarkKindShare, BookmarkKindRequest}
 
+// An attestation share is pending from its creation until the holder's
+// presentation arrives, active while it can be opened, and revoked once the
+// holder ends it. An expired one stays active: its date says so.
+const (
+	ShareLinkPending = "pending"
+	ShareLinkActive  = "active"
+	ShareLinkRevoked = "revoked"
+)
+
+// AttestationShareStatuses lists the valid attestation share statuses.
+var AttestationShareStatuses = []string{ShareLinkPending, ShareLinkActive, ShareLinkRevoked}
+
 // CheckStatuses lists the valid attestation check statuses.
 var CheckStatuses = []string{CheckStatusOpen, CheckStatusAnswered}
 

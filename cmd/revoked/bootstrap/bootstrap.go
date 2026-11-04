@@ -77,5 +77,6 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.OIDCRoute(app, root)
 	routes.AttestationsRoute(app, root)
 	routes.AttestationChecksRoute(app, root)
+	routes.AttestationSharesRoute(app, root)
 	routes.SignupEmailRoute(app, root)
 }

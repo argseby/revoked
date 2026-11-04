@@ -48,14 +48,21 @@ abstract class _SettingsStore with Store {
     domainError = error;
   }
 
-  /// Runs [checkDomain] unless it already ran or is running. Every screen
-  /// that states an identity's domain claim calls this: without an answer
-  /// the claim reads as unverified, which is wrong rather than unknown.
+  /// Runs [checkDomain] unless it already has an answer or is running. Every
+  /// screen that states an identity's domain claim calls this: without an
+  /// answer the claim reads as unverified, which is wrong rather than
+  /// unknown. A check that failed is tried again: it may have run before the
+  /// device was online or signed in.
   void ensureDomainChecked() {
-    if (domainVerdict != null || domainError != null || isCheckingDomain) {
-      return;
-    }
+    if (domainVerdict != null || isCheckingDomain) return;
     checkDomain();
+  }
+
+  /// Drops the last answer, so the next session asks again.
+  @action
+  void forgetDomainCheck() {
+    domainVerdict = null;
+    domainError = null;
   }
 
   /// Whether this server's own DNS check vouches for [domain], the domain an

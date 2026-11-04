@@ -46,6 +46,17 @@ import 'package:revoked_app/features/settings/view/features_page.dart';
 import 'package:revoked_app/features/settings/view/mcp_page.dart';
 import 'package:revoked_app/features/webhooks/view/webhooks_page.dart';
 
+/// A topic still settling: alpha may change or go away, beta is close to
+/// done.
+enum SettingsStage {
+  alpha('Alpha'),
+  beta('Beta');
+
+  const SettingsStage(this.label);
+
+  final String label;
+}
+
 /// The settings topics, each a page of its own under Settings — opened from
 /// the settings list the way a record is opened from the vault.
 enum SettingsPage {
@@ -59,15 +70,21 @@ enum SettingsPage {
   identities('identities', 'Identities'),
   connectedTools('connected-tools', 'Connected tools'),
   apiKeys('api-keys', 'API keys'),
-  mcp('mcp', 'AI assistant (MCP)'),
-  webhooks('webhooks', 'Webhooks'),
+  mcp('mcp', 'AI assistant (MCP)', isNew: true),
+  webhooks('webhooks', 'Webhooks', isNew: true),
   templates('templates', 'Templates'),
   domain('domain', 'Domain verification');
 
-  const SettingsPage(this.slug, this.title);
+  const SettingsPage(this.slug, this.title, {this.isNew = false, this.stage});
 
   final String slug;
   final String title;
+
+  /// Marks a topic added recently, with a "New" badge on its row.
+  final bool isNew;
+
+  /// How settled the topic is; null once it is stable.
+  final SettingsStage? stage;
 
   /// Templates live in the vault now; every other topic under Settings.
   String get route =>
@@ -122,6 +139,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
       case SettingsPage.appearance:
       case SettingsPage.passkeys:
       case SettingsPage.domain:
+        Stores.settings.ensureDomainChecked();
       case SettingsPage.mcp:
         // Load themselves.
         break;
@@ -883,34 +901,30 @@ class _DomainPage extends StatelessWidget {
               'that shares and responses originate from this domain.',
             ),
             children: [
-              if (store.domainVerdict != null)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: AppTrustBadge(verdict: store.domainVerdict!),
-                )
-              else
-                const AppDetailRow(
-                  icon: AppIcons.server,
-                  label: 'Status',
-                  value: 'Not checked',
-                ),
+              // A row like any other in the group: the full trust banner
+              // brings its own border and drew a box inside the card. The
+              // compact badge names the domain and opens the reason on tap.
+              AppDetailRow(
+                icon: AppIcons.server,
+                label: 'Status',
+                value: store.domainVerdict != null
+                    ? ''
+                    : store.isCheckingDomain
+                    ? 'Checking…'
+                    : 'Not checked',
+                badge: store.domainVerdict == null
+                    ? null
+                    : AppTrustBadge(
+                        verdict: store.domainVerdict!,
+                        compact: true,
+                      ),
+              ),
             ],
           ),
           if (store.domainError != null) ...[
             AppSpacing.gapSm,
             AppErrorText(store.domainError!),
-            AppSpacing.gapMd,
           ],
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AppButton(
-              icon: AppIcons.shieldCheck,
-              label: 'Check DNS',
-              style: AppButtonStyle.accent,
-              busy: store.isCheckingDomain,
-              onTap: store.checkDomain,
-            ),
-          ),
         ],
       ),
     );

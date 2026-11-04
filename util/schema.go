@@ -73,6 +73,10 @@ type collectionSchema struct {
 	// AttestationChecks are one person asking another to show an attestation:
 	// the request, and once answered, the verdict on what was shown.
 	AttestationChecks string
+	// AttestationShares are links a holder made to show an attestation to
+	// whoever opens them: one presentation, signed for that link, and checked
+	// again each time it is opened.
+	AttestationShares string
 	// SignIns are the services a person approved a sign-in at, so they can
 	// find them again.
 	SignIns string
@@ -286,6 +290,11 @@ type attestationCheckFields struct {
 	ExpiresAt, Result, AnsweredAt, Connection, Ref, ProposedBy, Created, Updated string
 }
 
+type attestationShareFields struct {
+	User, Credential, Status, Nonce, Audience, TokenHash, Presentation,
+	Disclosed, ExpiresAt, ViewCount, LastViewedAt, Created, Updated string
+}
+
 type webhookEndpointFields struct {
 	Workspace, User, Url, Description, Events, Secret, PreviousSecret,
 	PreviousSecretExpiresAt, Enabled, DisabledReason, FailingSince, Created, Updated string
@@ -344,6 +353,7 @@ var Coll = collectionSchema{
 	AttestationStatus:   "attestationStatus",
 	Credentials:         "credentials",
 	AttestationChecks:   "attestationChecks",
+	AttestationShares:   "attestationShares",
 	SignIns:             "signIns",
 	Contacts:            "contacts",
 	ContactDeliveries:   "contactDeliveries",
@@ -392,6 +402,7 @@ var Fields = struct {
 	AttestationStatus  attestationStatusFields
 	Credential         credentialFields
 	AttestationCheck   attestationCheckFields
+	AttestationShare   attestationShareFields
 	SignIn             signInFields
 	Contact            contactFields
 	ContactDelivery    contactDeliveryFields
@@ -824,6 +835,21 @@ var Fields = struct {
 		ProposedBy: "proposedBy",
 		Created:    "created",
 		Updated:    "updated",
+	},
+	AttestationShare: attestationShareFields{
+		User:         "user",
+		Credential:   "credential",
+		Status:       "status",
+		Nonce:        "nonce",
+		Audience:     "audience",
+		TokenHash:    "tokenHash",
+		Presentation: "presentation",
+		Disclosed:    "disclosed",
+		ExpiresAt:    "expiresAt",
+		ViewCount:    "viewCount",
+		LastViewedAt: "lastViewedAt",
+		Created:      "created",
+		Updated:      "updated",
 	},
 	SignIn: signInFields{
 		User:         "user",
