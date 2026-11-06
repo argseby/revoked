@@ -120,8 +120,7 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 		// A sealed key binds the identity's id, which does not exist before this
 		// create, so nothing sent with it can be a valid wrap. The app uploads
 		// the wrap right after, once it knows the id.
-		e.Record.Set(util.Fields.Identity.SealedKey, "")
-		e.Record.Set(util.Fields.Identity.SealedKeyEpoch, 0)
+		clearSealedKey(e.Record)
 
 		// Set here rather than trusted from the client, so no caller can mint an
 		// identity that is born revoked or carries a backdated revocation.
@@ -225,6 +224,7 @@ func applyRevocationTransition(app core.App, rec *core.Record) error {
 func clearSealedKey(rec *core.Record) {
 	rec.Set(util.Fields.Identity.SealedKey, "")
 	rec.Set(util.Fields.Identity.SealedKeyEpoch, 0)
+	rec.Set(util.Fields.Identity.SealedKeyScope, "")
 }
 
 // stripSealedKey keeps the wrapped private key between the owner's own

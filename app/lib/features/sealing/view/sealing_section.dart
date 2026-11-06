@@ -28,10 +28,19 @@ import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/sealing/store/keys_store.dart';
+import 'package:revoked_app/features/sealing/store/member_keys_store.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/shell/view/qr_scan_sheet.dart';
 
 bool get _hasCamera => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+void _showLockedWorkspace(BuildContext context) => AppToast.error(
+  context,
+  'Another account holds this workspace’s key',
+  subtitle:
+      'Only the account that turned on encryption here can use it. '
+      'Sharing the key with other members is not possible yet.',
+);
 
 /// Gets this device able to encrypt in [workspace], walking the person through
 /// whatever is missing. True when it can encrypt now.
@@ -44,17 +53,14 @@ Future<bool> ensureSealingReady(BuildContext context, String workspace) async {
   switch (keys.status) {
     case SealingStatus.ready:
       if (keys.isLockedFor(workspace)) {
-        AppToast.error(
-          context,
-          'Another account holds this workspace’s key',
-          subtitle:
-              'Only the account that turned on encryption here can use '
-              'it.',
-        );
+        _showLockedWorkspace(context);
         return false;
       }
       final ok = await keys.ensureWorkspaceKey(workspace);
-      if (!ok && context.mounted) {
+      if (!ok && context.mounted && keys.isLockedFor(workspace)) {
+        // Someone else turned it on here since this device last looked.
+        _showLockedWorkspace(context);
+      } else if (!ok && context.mounted) {
         AppToast.error(
           context,
           'Encryption could not be turned on',
@@ -567,7 +573,8 @@ class SealingSection extends StatelessWidget {
           SealingStatus.notSetUp => _Message(
             text:
                 'Encrypted records are readable only on this account’s '
-                'devices, not by the server. They cannot be shared yet.',
+                'devices, and on those of members given access, not by the '
+                'server. Links cannot show them yet.',
             action: AppButton(
               icon: AppIcons.lock,
               label: 'Turn on',
@@ -1110,8 +1117,8 @@ class _Devices extends StatelessWidget {
               onRemovePasskey: (entry) => _remove(context, entry),
             ),
             const Text(
-              'Only these devices can read encrypted records, not the server. '
-              'Encrypted records cannot be shared yet.',
+              'Only these devices can read encrypted records, not the server, '
+              'along with the devices of members given access below.',
             ),
             const SizedBox(height: AppSpacing.lg),
             AppListGroup(
@@ -1174,6 +1181,283 @@ class _Devices extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.xl),
+            const _Members(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The workspace's members as this device sees their keys. Nobody is handed
+/// anything here yet; this is where fingerprints are compared, so a later
+/// grant only goes to a list the person had a chance to check.
+class _Members extends StatelessWidget {
+  const _Members();
+
+  static String _stateLabel(MemberKeyState state) => switch (state) {
+    MemberKeyState.notSetUp => 'Encryption off',
+    MemberKeyState.broken => 'Failed verification',
+    MemberKeyState.trusted => 'Not verified',
+    MemberKeyState.verified => 'Verified',
+    MemberKeyState.changed => 'Keys changed',
+  };
+
+  static AppBadgeVariant _stateVariant(MemberKeyState state) => switch (state) {
+    MemberKeyState.verified => AppBadgeVariant.primary,
+    MemberKeyState.broken ||
+    MemberKeyState.changed => AppBadgeVariant.destructive,
+    _ => AppBadgeVariant.outline,
+  };
+
+  Future<void> _verify(BuildContext context, MemberKeys member) async {
+    final own = Stores.keys.ownFingerprint;
+    final ok = await showAppDialog(
+      context: context,
+      title: 'Compare fingerprints with ${member.email}',
+      icon: AppIcons.shieldCheck,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'In person or on a call, not through this app or the server. '
+            'Both of you should see the same two numbers.',
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppText('Theirs').small.bold,
+          AppText(member.fingerprint ?? '').mono.selectable,
+          if (own != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppText('Yours').small.bold,
+            AppText(own).mono.selectable,
+          ],
+        ],
+      ),
+      confirmLabel: 'They match',
+      confirmIcon: AppIcons.check,
+    );
+    if (!ok) return;
+    await Stores.memberKeys.markVerified(member.user);
+    // A key they handed over waited for exactly this.
+    final waiting = Stores.keys.pendingGrants.values.any(
+      (granters) => granters.contains(member.user),
+    );
+    if (waiting) await Stores.keys.load();
+  }
+
+  Future<void> _grant(BuildContext context, MemberKeys member) async {
+    final workspace = Stores.memberKeys.workspace;
+    if (workspace == null) return;
+    if (member.state != MemberKeyState.verified) {
+      final grantAnyway = await showAppDialog(
+        context: context,
+        title: 'Fingerprints not compared',
+        icon: AppIcons.exclamationTriangle,
+        message:
+            'Without comparing, the keys shown for ${member.email} are the '
+            'server’s word. If the server made them up, it could read every '
+            'encrypted record in this workspace. Comparing takes a minute.',
+        confirmLabel: 'Give access without comparing',
+        confirmIcon: AppIcons.key,
+        cancelLabel: 'Compare first',
+        destructive: true,
+      );
+      if (!context.mounted) return;
+      if (!grantAnyway) {
+        await _verify(context, member);
+        if (!context.mounted ||
+            Stores.memberKeys.byUser(member.user)?.state !=
+                MemberKeyState.verified) {
+          return;
+        }
+      }
+    } else {
+      final ok = await showAppDialog(
+        context: context,
+        title: 'Give ${member.email} access?',
+        message:
+            'Their devices get the key this workspace’s encrypted records are '
+            'written under. Removing them later stops them reading new '
+            'values, not what they already read.',
+        confirmLabel: 'Give access',
+        confirmIcon: AppIcons.key,
+      );
+      if (!ok || !context.mounted) return;
+    }
+    final current = Stores.memberKeys.byUser(member.user) ?? member;
+    final done = await Stores.keys.grantAccess(workspace, current);
+    if (!context.mounted) return;
+    if (done) {
+      AppToast.success(context, '${member.email} has access');
+      await Stores.memberKeys.load(workspace);
+    } else {
+      AppToast.error(
+        context,
+        'Access could not be given',
+        subtitle: Stores.keys.errorMessage,
+      );
+    }
+  }
+
+  Future<void> _acceptChange(BuildContext context, MemberKeys member) async {
+    final ok = await showAppDialog(
+      context: context,
+      title: 'Accept ${member.email}’s new keys?',
+      message:
+          'Their device list now starts somewhere else, or lost entries this '
+          'device saw. That happens when they start over with encryption. It '
+          'also happens when the server shows a list of its own. Asking them, '
+          'and comparing the new fingerprint, tells the two apart.'
+          '${member.previousFingerprint == null ? '' : '\n\nBefore: ${member.previousFingerprint}'}'
+          '${member.fingerprint == null ? '' : '\nNow: ${member.fingerprint}'}',
+      confirmLabel: 'Accept new keys',
+      confirmIcon: AppIcons.key,
+      destructive: true,
+    );
+    if (ok) await Stores.memberKeys.acceptChange(member.user);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Observer(
+      builder: (context) {
+        final store = Stores.memberKeys;
+        final own = Stores.keys.ownFingerprint;
+        final others = [
+          for (final m in store.members)
+            if (!m.isSelf) m,
+        ];
+        MemberKeys? self;
+        for (final m in store.members) {
+          if (m.isSelf) self = m;
+        }
+        final workspace = store.workspace;
+        final canGrantHere =
+            self != null &&
+            self.canGrant &&
+            workspace != null &&
+            Stores.keys.canSeal(workspace);
+        final pending = workspace == null
+            ? const <String>{}
+            : Stores.keys.pendingGrants[workspace] ?? const <String>{};
+        String nameOf(String user) =>
+            store.byUser(user)?.email ?? 'Another member';
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (self?.state == MemberKeyState.changed) ...[
+              AppAlert(
+                destructive: true,
+                title: const Text('Others are shown a different list for you'),
+                content: const Text(
+                  'The server shows other members a device list for this '
+                  'account that does not start where yours does. Nothing is '
+                  'handed to it; tell an administrator.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (pending.isNotEmpty) ...[
+              AppAlert(
+                title: const Text('Access waits for a fingerprint'),
+                content: Text(
+                  '${pending.map(nameOf).join(', ')} gave your devices this '
+                  'workspace’s key. It is used once you compare fingerprints '
+                  'with them below.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (store.changed.isNotEmpty) ...[
+              AppAlert(
+                destructive: true,
+                title: const Text('A member’s keys changed'),
+                content: Text(
+                  '${store.changed.map((m) => m.email).join(', ')}: nothing '
+                  'is shared with them until their new keys are accepted.',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (own != null) ...[
+              AppText('Your fingerprint').small.bold,
+              const SizedBox(height: AppSpacing.xs),
+              AppText(own).mono.selectable,
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'Other members compare it with what their app shows for you. '
+                'It stays the same as devices come and go.',
+              ),
+              const SizedBox(height: AppSpacing.lg),
+            ],
+            if (store.errorMessage != null)
+              AppErrorText(store.errorMessage!)
+            else if (store.isLoading && store.members.isEmpty)
+              const AppListSkeleton(embedded: true)
+            else if (others.isNotEmpty)
+              AppListGroup(
+                title: 'Members',
+                children: [
+                  for (final member in others)
+                    AppListRow(
+                      icon: AppIcons.person,
+                      title: member.email.isEmpty
+                          ? 'Unknown account'
+                          : member.email,
+                      subtitle: member.fingerprint ?? 'No keys yet',
+                      showChevron: false,
+                      trailing: Wrap(
+                        spacing: AppSpacing.sm,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          AppBadge(
+                            label: _stateLabel(member.state),
+                            variant: _stateVariant(member.state),
+                          ),
+                          if (member.holdsKey)
+                            const AppBadge(
+                              label: 'Has access',
+                              variant: AppBadgeVariant.secondary,
+                            )
+                          else if (member.waiting &&
+                              member.state != MemberKeyState.notSetUp)
+                            const AppBadge(
+                              label: 'Waiting for access',
+                              variant: AppBadgeVariant.outline,
+                            ),
+                          if (canGrantHere && member.waiting && member.usable)
+                            AppButton(
+                              icon: AppIcons.key,
+                              label: 'Give access',
+                              style: AppButtonStyle.accent,
+                              size: AppButtonSize.small,
+                              onTap: () => _grant(context, member),
+                            ),
+                          if (member.state == MemberKeyState.trusted)
+                            AppButton(
+                              icon: AppIcons.shieldCheck,
+                              tooltip: 'Compare fingerprints',
+                              style: AppButtonStyle.ghost,
+                              size: AppButtonSize.small,
+                              onTap: () => _verify(context, member),
+                            ),
+                          if (member.state == MemberKeyState.changed &&
+                              member.fingerprint != null &&
+                              !member.chain.broken)
+                            AppButton(
+                              icon: AppIcons.key,
+                              tooltip: 'Accept new keys',
+                              style: AppButtonStyle.ghost,
+                              size: AppButtonSize.small,
+                              onTap: () => _acceptChange(context, member),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
           ],
         );
       },

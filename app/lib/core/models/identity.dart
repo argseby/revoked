@@ -31,12 +31,16 @@ class Identity {
   final String? revokedAt;
   final String? revokedReason;
 
-  /// The private key, encrypted under the owner's workspace key so their
-  /// other devices can sign too. Empty on accounts without end-to-end
-  /// encryption, where each key stays on the device that made it. Only the
-  /// owner is ever served this; it is ciphertext even to them in transit.
+  /// The private key, encrypted so the owner's other devices can sign too.
+  /// Empty on accounts without end-to-end encryption, where each key stays on
+  /// the device that made it. Only the owner is ever served this; it is
+  /// ciphertext even to them in transit.
   final String sealedKey;
   final int sealedKeyEpoch;
+
+  /// Which key [sealedKey] is under: `account`, the owner's own key, or empty
+  /// for the workspace key it was wrapped under before account keys existed.
+  final String sealedKeyScope;
   final String? created;
   final String? updated;
 
@@ -55,6 +59,7 @@ class Identity {
     this.revokedReason,
     this.sealedKey = '',
     this.sealedKeyEpoch = 0,
+    this.sealedKeyScope = '',
     this.created,
     this.updated,
   });
@@ -88,6 +93,7 @@ class Identity {
       revokedReason: json['revokedReason'] as String?,
       sealedKey: json['sealedKey'] as String? ?? '',
       sealedKeyEpoch: (json['sealedKeyEpoch'] as num?)?.toInt() ?? 0,
+      sealedKeyScope: json['sealedKeyScope'] as String? ?? '',
       created: json['created'] as String?,
       updated: json['updated'] as String?,
     );
@@ -111,6 +117,7 @@ class Identity {
     String? revokedReason,
     String? sealedKey,
     int? sealedKeyEpoch,
+    String? sealedKeyScope,
     String? created,
     String? updated,
   }) {
@@ -129,6 +136,7 @@ class Identity {
       revokedReason: revokedReason ?? this.revokedReason,
       sealedKey: sealedKey ?? this.sealedKey,
       sealedKeyEpoch: sealedKeyEpoch ?? this.sealedKeyEpoch,
+      sealedKeyScope: sealedKeyScope ?? this.sealedKeyScope,
       created: created ?? this.created,
       updated: updated ?? this.updated,
     );

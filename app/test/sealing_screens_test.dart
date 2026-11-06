@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -7,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
+import 'package:revoked_app/core/crypto/sealing.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -28,6 +31,9 @@ class _Server {
   final records = <Map<String, dynamic>>[];
   final seen = <http.Request>[];
   bool supportsSealing = true;
+
+  /// Other members of the workspace, as `/members` lists them.
+  final otherMembers = <Map<String, dynamic>>[];
 
   /// Mirrors what the real server refuses: an old-style write of a value into
   /// a sealed record through the collection API.
@@ -53,6 +59,23 @@ class _Server {
             : [
                 {'workspace': _workspace, 'epochs': epochs, 'wraps': wraps},
               ],
+      });
+    }
+    if (path == '/api/sealed/workspaces/$_workspace/members') {
+      return _json({
+        'epoch': epochs.length,
+        'members': [
+          {
+            'user': _user,
+            'email': 'ada@example.com',
+            'isSelf': true,
+            'canRead': true,
+            'canGrant': true,
+            'holdsKey': epochs.isNotEmpty,
+            'devices': devices,
+          },
+          ...otherMembers,
+        ],
       });
     }
     if (path == '/api/sealed/devices') {
@@ -413,6 +436,56 @@ void main() {
       expect(find.text('Your recovery key'), findsOneWidget);
       expect(find.text('Recovery key'), findsNothing);
       expect(find.text('Add a device'), findsOneWidget);
+    });
+
+    testWidgets('a member waiting for access can be given it', (tester) async {
+      final server = await _start(tester);
+      const bob = 'user000000000bb';
+      final signing = Sealing.generateKeyPair();
+      final first = DeviceChainEntry.sign(
+        user: bob,
+        seq: 1,
+        action: DeviceChainEntry.actionAdd,
+        kind: DeviceChainEntry.kindDevice,
+        label: 'Laptop',
+        hpkePublicKey: Sealing.generateKeyPair().publicKey,
+        signingPublicKey: signing.publicKey,
+        targetSeq: 0,
+        previousHash: Uint8List(0),
+        signerSeq: 1,
+        signer: signing,
+      );
+      server.otherMembers.add({
+        'user': bob,
+        'email': 'bob@example.com',
+        'isSelf': false,
+        'canRead': true,
+        'canGrant': false,
+        'holdsKey': false,
+        'devices': [
+          {...first.toJson(), 'user': bob},
+        ],
+      });
+      await tester.runAsync(() async {
+        await _setUpKeys();
+        await Stores.memberKeys.load(_workspace);
+      });
+      await _pumpSection(tester);
+
+      expect(find.text('Your fingerprint'), findsOneWidget);
+      expect(find.text('bob@example.com'), findsOneWidget);
+      expect(
+        find.text(SealedFormats.memberFingerprint(bob, first.hash)),
+        findsOneWidget,
+      );
+      expect(find.text('Not verified'), findsOneWidget);
+      expect(find.text('Waiting for access'), findsOneWidget);
+
+      await tester.tap(find.text('Give access'));
+      await tester.pumpAndSettle();
+      // Unverified: the person is told what giving access then trusts.
+      expect(find.text('Fingerprints not compared'), findsOneWidget);
+      expect(find.text('Compare first'), findsOneWidget);
     });
 
     testWidgets('"That was me" clears the notice about a new entry', (

@@ -1,0 +1,14 @@
+{
+  "workspace": "wspacevector001",
+  "epoch": 3,
+  "recipientUser": "vectorrecipient",
+  "granterUser": "vectorgranter01",
+  "granterChainSeq": 4,
+  "recipientChainSeq": 2,
+  "recipientHpkePublicKey": "04effb8e444da3993e948746076fcca4fee5f98d0815813ebbd6e46e27bd803953fa9b9462a23c888ab04473f2a04db78175bc6d9a861de4dfc3afb1ffa9100c29",
+  "recipientHpkePrivateKey": "a32b7c3c08fd7288920e8874c9df50b2689dc597b2840fa8758b50a3c84afdd4",
+  "signingPublicKey": "042c1f8be6317a8fa3981ff683b87d5e54b717b861f7f9cccbb4ef7f8095264deb81e2e5c3eadb3d82aab5b24f69deb40e3ee1564f58d283e84f12108505a21d78",
+  "key": "00070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9",
+  "wrap": "AQRDxoEqXB9aWPNmoptOGv0_MPxSN7SBzMAxFQTH5TQUhiqCme2bOF-KBhi4v_JjyQZIH5pYSLBxGmf4HzLlZyJuTryeHkKTb26IWueFJAtdkOELE-a_qBi4HwdtYQEK8lQgA452YyEdsMDYFonIOruQ",
+  "signature": "mOv5rc_DEDEnLrGPzpxhAD5zeas94gTKdli94mWxRFNlOe0GciHzIEVueLaVjrYBm_Ok0XlqJG30_7s9DvMlFg=="
+}

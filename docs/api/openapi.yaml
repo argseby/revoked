@@ -1121,6 +1121,24 @@ paths:
               schema: { type: object }
         "401": { $ref: "#/components/responses/AppError" }
 
+  /api/shared/vault:
+    get:
+      tags: [Encrypted records]
+      summary: Read the sections other members shared with you
+      description: |
+        The sections in the caller's active workspace that other members
+        shared (`shared: true`), each with `ownerEmail` and the ids of its
+        records, and those records in the collection API's form. Only records
+        the section's owner created; files and aliases are left out. Encrypted
+        records come as ciphertext. Read-only: changes go through the
+        collection API, whose rules are unchanged. Needs the vault-read
+        permission; people only.
+      security:
+        - Session: []
+      responses:
+        "200": { description: "`sections` and `records`." }
+        "401": { description: Not signed in. }
+        "403": { description: "An API key, not a member, or `missing_permission`." }
   /api/sealed/state:
     get:
       tags: [Encrypted records]
@@ -1131,6 +1149,10 @@ paths:
 
         Everything returned is opaque to the server. A client must verify the
         device list before trusting any of it.
+
+        `account` is the caller's own account key, in the same shape as a
+        workspace row and named `account:<user id>`, or `null` before any of
+        their devices made one. Identity private keys travel under it.
       security:
         - Session: []
       responses:
@@ -1142,8 +1164,9 @@ paths:
       tags: [Encrypted records]
       summary: Add to your device list and hand keys to your devices
       description: |
-        Experimental. Appends signed entries and stores wrapped workspace keys
-        in one transaction. Every entry must follow from the list before it and be
+        Experimental. Appends signed entries and stores wrapped workspace keys,
+        and copies of the caller's account key (a wrap whose `workspace` is
+        `account:<user id>`), in one transaction. Every entry must follow from the list before it and be
         signed by a device on it; a session alone cannot change the list. Removing a device withdraws its wrapped keys and
         refuses encrypted writes in those workspaces until a new key epoch
         exists.
@@ -1170,7 +1193,9 @@ paths:
       summary: Start a workspace's encryption key, or replace it
       description: |
         Experimental. Only someone holding the current key may replace it, and
-        all of their live devices must receive the new one.
+        all of their live devices must receive the new one. Optional `grants`
+        hand it to other members' devices in the same request, checked as in
+        `POST /api/sealed/workspaces/{id}/grants`.
       security:
         - Session: []
       parameters:
@@ -1183,6 +1208,77 @@ paths:
         "400": { description: "`sealed_invalid`." }
         "403": { description: "`sealed_key_missing`: the caller does not hold the current key." }
         "404": { description: Not a member of this workspace. }
+        "409": { description: "`sealed_version_conflict`: the epoch is not the next one." }
+  /api/sealed/workspaces/{id}/grants:
+    post:
+      tags: [Encrypted records]
+      summary: Hand the workspace key to other members' devices
+      description: |
+        Experimental. Body: `epoch` (the current one) and `grants`, each with
+        `user`, `deviceSeq`, `wrap`, `signerSeq`, `chainSeq` (how far the
+        caller's list had got), `recipientChainSeq` (how far the recipient's
+        had) and `signature`, made by the caller's live device over
+        `revoked-grant-signature-v1 ‖ workspace ‖ epoch ‖ recipient user ‖
+        recipient HPKE key ‖ wrap ‖ granter user ‖ chainSeq ‖
+        recipientChainSeq`. The caller must hold the current key and be able
+        to invite members; each recipient must be able to read the vault and
+        the device must be live on their list. Copies are never replaced. Each
+        recipient is notified (`sealing_access_granted`).
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: "Saved; `granted` lists the recipients." }
+        "400": { description: "`sealed_invalid`: a bad signature, or a device not on the recipient's list." }
+        "403": { description: "`sealed_key_missing`, `missing_permission` or `not_workspace_member`." }
+        "404": { description: Not a member of this workspace. }
+        "409": { description: "`sealed_epoch_stale` (not the current key, or a new one is due), `sealed_identity_keys_pending` (an identity key in the workspace is still under its key), or `sealed_version_conflict` (that device already holds it)." }
+  /api/sealed/workspaces/{id}/members:
+    get:
+      tags: [Encrypted records]
+      summary: Read every member's device list
+      description: |
+        Experimental. Each member's `user`, `email`, `isSelf`, `canRead` (the
+        server's word on whether they may read the vault), `canGrant`,
+        `holdsKey` (whether any of their devices holds the current key) and
+        `devices`, in the same form as in `/api/sealed/state`; `epoch` is the
+        current one. Public keys only: no wrapped keys
+        and no values. A client checks each list itself and remembers where it
+        starts; the start is what a member's fingerprint is made from.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Every member's device list. }
+        "401": { description: Not signed in. }
+        "403": { description: An API key cannot hold encryption keys. }
+        "404": { description: Not a member of this workspace. }
+  /api/sealed/account/epochs:
+    post:
+      tags: [Encrypted records]
+      summary: Start your account key, or replace it
+      description: |
+        Experimental. The account key is wrapped only to the caller's own
+        devices and holds their identities' private keys, so a workspace key
+        shared with other members never opens them. Wraps and their signatures
+        use the workspace key formats with `account:<user id>` in place of the
+        workspace id. Only a holder of the current key may replace it, the new
+        key must carry the old one in `priorWrap`, and every live device must
+        receive it. Removing a device that held it makes a new one due.
+      security:
+        - Session: []
+      responses:
+        "200": { description: Saved. }
+        "400": { description: "`sealed_invalid`." }
+        "403": { description: "`sealed_key_missing`: the caller does not hold the current key." }
         "409": { description: "`sealed_version_conflict`: the epoch is not the next one." }
   /api/sealed/records:
     post:

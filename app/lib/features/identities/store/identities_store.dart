@@ -9,6 +9,8 @@ import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/features/sealing/store/keys_store.dart'
+    show identityKeyScopeAccount;
 
 part 'identities_store.g.dart';
 
@@ -147,17 +149,25 @@ abstract class _IdentitiesStore with Store {
       for (final identity in identities.toList()) {
         if (identity.isRevoked) continue;
         final here = localKeyIds.contains(identity.id);
+        // Under the workspace key, every member that key is one day handed
+        // to could open it: moved to the account key wherever this device
+        // holds the private key.
+        final onAccountKey = identity.sealedKeyScope == identityKeyScopeAccount;
         if (!here && identity.sealedKey.isNotEmpty) {
           final pem = Stores.keys.openIdentityKey(
             workspace: identity.workspace,
             identity: identity.id,
             epoch: identity.sealedKeyEpoch,
             wrap: identity.sealedKey,
+            scope: identity.sealedKeyScope,
           );
           if (pem == null || pem.isEmpty) continue;
           await _crypto.storePrivateKey(identity.id, pem);
           runInAction(() => localKeyIds.add(identity.id));
-        } else if (here && identity.sealedKey.isEmpty) {
+          if (!onAccountKey) {
+            await _uploadSealedKey(identity.id, identity.workspace, pem);
+          }
+        } else if (here && (identity.sealedKey.isEmpty || !onAccountKey)) {
           final pem = await _crypto.loadPrivateKey(identity.id);
           if (pem == null || pem.isEmpty) continue;
           await _uploadSealedKey(identity.id, identity.workspace, pem);
@@ -171,12 +181,13 @@ abstract class _IdentitiesStore with Store {
     }
   }
 
-  /// Wraps the private key under the workspace key and stores it on the
-  /// identity, where the owner's other devices find it. Does nothing when
-  /// this device may not encrypt in that workspace, and keeps the key local
+  /// Wraps the private key under the owner's account key and stores it on
+  /// the identity, where their other devices find it. Does nothing when this
+  /// device holds no account key and can't make one, and keeps the key local
   /// when the server refuses (an older server, or a member without the
   /// identities permission).
   Future<void> _uploadSealedKey(String id, String workspace, String pem) async {
+    if (!await Stores.keys.ensureAccountKey()) return;
     final sealed = Stores.keys.sealIdentityKey(
       workspace: workspace,
       identity: id,
@@ -186,7 +197,11 @@ abstract class _IdentitiesStore with Store {
     try {
       final data = await _api.patch(
         '$_basePath/$id',
-        body: {'sealedKey': sealed.wrap, 'sealedKeyEpoch': sealed.epoch},
+        body: {
+          'sealedKey': sealed.wrap,
+          'sealedKeyEpoch': sealed.epoch,
+          'sealedKeyScope': identityKeyScopeAccount,
+        },
       );
       final updated = Identity.fromJson(data as Map<String, dynamic>);
       final idx = identities.indexWhere((i) => i.id == id);

@@ -133,6 +133,18 @@ abstract class _VaultStore with Store {
   @observable
   ObservableList<Section> sections = ObservableList<Section>();
 
+  /// Sections other members shared with this person, and the records in them.
+  /// Read-only here; they stay their owners'.
+  @observable
+  ObservableList<Section> sharedSections = ObservableList<Section>();
+
+  @observable
+  ObservableList<models.Record> sharedRecords = ObservableList<models.Record>();
+
+  /// Why the shared sections could not be loaded, apart from the vault's own.
+  @observable
+  String? sharedError;
+
   @observable
   bool isLoading = false;
 
@@ -546,6 +558,7 @@ abstract class _VaultStore with Store {
         sectionItems.map((e) => Section.fromJson(e as Map<String, dynamic>)),
       );
       loadState.succeed(ticket);
+      await loadShared();
     } catch (e) {
       if (!loadState.isCurrent(ticket)) return;
       errorMessage = describeError(e);
@@ -554,6 +567,35 @@ abstract class _VaultStore with Store {
       isLoading = false;
     }
   }
+
+  /// What other members shared with this person. Its failure is its own: the
+  /// vault still shows.
+  @action
+  Future<void> loadShared() async {
+    sharedError = null;
+    try {
+      final data = await _api.get('/api/shared/vault') as Map<String, dynamic>;
+      final opened = await _openAll(
+        ((data['records'] as List<dynamic>?) ?? const []).map(
+          (e) => models.Record.fromJson(e as Map<String, dynamic>),
+        ),
+      );
+      sharedRecords = ObservableList.of(opened);
+      sharedSections = ObservableList.of(
+        ((data['sections'] as List<dynamic>?) ?? const []).map(
+          (e) => Section.fromJson(e as Map<String, dynamic>),
+        ),
+      );
+    } catch (e) {
+      sharedError = describeError(e);
+    }
+  }
+
+  /// Shares one of this person's sections with the workspace's members, or
+  /// stops. Members who may read the vault then see its records.
+  @action
+  Future<bool> setSectionShared(String id, bool shared) =>
+      updateSection(id, {'shared': shared});
 
   /// The operator's per-file cap from GET /api/server, cached for the session.
   /// Negative means the operator set none.
@@ -1019,6 +1061,7 @@ abstract class _VaultStore with Store {
           created: s.created,
           updated: s.updated,
           requestedBy: s.requestedBy,
+          shared: s.shared,
         );
       }
       return true;

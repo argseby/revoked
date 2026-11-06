@@ -13,6 +13,12 @@ class Section {
   /// inbound public request submission.
   final String? requestedBy;
 
+  /// Whether its owner shared it with the workspace's members.
+  final bool shared;
+
+  /// The owner's address, on a section someone else shared with this person.
+  final String? ownerEmail;
+
   Section({
     required this.id,
     required this.key,
@@ -23,6 +29,8 @@ class Section {
     this.created,
     this.updated,
     this.requestedBy,
+    this.shared = false,
+    this.ownerEmail,
   });
 
   factory Section.fromJson(Map<String, dynamic> json) {
@@ -43,6 +51,8 @@ class Section {
       requestedBy: (requestedByRaw is String && requestedByRaw.isNotEmpty)
           ? requestedByRaw
           : null,
+      shared: json['shared'] == true,
+      ownerEmail: json['ownerEmail'] as String?,
     );
   }
 

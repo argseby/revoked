@@ -32,6 +32,7 @@ import 'package:revoked_app/features/passkeys/store/passkeys_store.dart';
 import 'package:revoked_app/features/reminders/store/reminders_store.dart';
 import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/sealing/store/keys_store.dart';
+import 'package:revoked_app/features/sealing/store/member_keys_store.dart';
 import 'package:revoked_app/features/settings/store/features_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/settings/store/updates_store.dart';
@@ -57,6 +58,7 @@ abstract final class Stores {
   static late ThemeStore theme;
   static late AuthStore auth;
   static late KeysStore keys;
+  static late MemberKeysStore memberKeys;
   static late VaultStore vault;
   static late SharesStore shares;
   static late BookmarksStore bookmarks;
@@ -124,10 +126,22 @@ abstract final class Stores {
     );
 
     auth = AuthStore(api);
-    keys = KeysStore(api, currentUser: () => auth.userId);
+    keys = KeysStore(
+      api,
+      currentUser: () => auth.userId,
+      // Keys cross between people only through lists this device checked.
+      membersOf: (workspace, {fresh = false}) =>
+          memberKeys.membersOf(workspace, fresh: fresh),
+    );
+    memberKeys = MemberKeysStore(
+      api,
+      currentUser: () => auth.userId,
+      ownRoot: () => keys.rootHash,
+    );
     // Decrypted values go with the keys: nothing readable outlives the session.
     auth.onLoggedOut = () {
       keys.forgetSession();
+      memberKeys.forgetSession();
       forgetAccountData();
       settings.forgetDomainCheck();
     };
@@ -222,6 +236,8 @@ abstract final class Stores {
       }
       vault.records.clear();
       vault.sections.clear();
+      vault.sharedRecords.clear();
+      vault.sharedSections.clear();
       shares.shares.clear();
       requests.requests.clear();
       requests.responsesByRequest.clear();

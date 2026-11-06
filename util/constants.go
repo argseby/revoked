@@ -37,6 +37,10 @@ const (
 	SealedKindRecovery = "recovery"
 	SealedKindPasskey  = "passkey"
 
+	// SealedKeyScopeAccount marks an identity's sealedKey as wrapped under its
+	// owner's account key. Empty is the phase 1 form, under the workspace key.
+	SealedKeyScopeAccount = "account"
+
 	FormatHidden    = "hidden"
 	FormatDefault   = "default"
 	FormatMultiline = "multiline"
@@ -66,7 +70,9 @@ const (
 	NotificationInviteAccepted  = "invite_accepted"
 	NotificationLinkOpened      = "link_opened"
 	NotificationSealingReset    = "sealing_reset"
-	NotificationReminder        = "reminder"
+	// A member handed this person the key to a workspace's encrypted records.
+	NotificationSealingAccessGranted = "sealing_access_granted"
+	NotificationReminder             = "reminder"
 	// The attester hears that an offer was accepted and a credential issued.
 	NotificationAttestationAccepted = "attestation_accepted"
 	// Whoever asked to see an attestation hears that it was shown.
@@ -194,6 +200,7 @@ var NotificationTypes = []string{
 	NotificationInviteAccepted,
 	NotificationLinkOpened,
 	NotificationSealingReset,
+	NotificationSealingAccessGranted,
 	NotificationReminder,
 	NotificationAttestationAccepted,
 	NotificationAttestationChecked,

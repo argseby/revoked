@@ -149,7 +149,11 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         // Which features the workspace allows comes from the roster.
         if (ws.isNotEmpty) Stores.invites.loadMembers(ws);
       case SettingsPage.encryption:
-        Stores.keys.load();
+        // Members after the device list: whether the server shows others this
+        // person's own list is checked against it.
+        Stores.keys.load().then((_) {
+          if (ws.isNotEmpty) Stores.memberKeys.load(ws);
+        });
       case SettingsPage.workspaces:
         Stores.settings.loadWorkspaces(auth.userId);
         Stores.invites.loadCatalogue();

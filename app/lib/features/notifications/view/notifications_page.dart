@@ -20,6 +20,7 @@ import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/notifications/store/notifications_store.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
 
 /// Notifications as a place of their own: what happened, grouped by day,
 /// with filters for the unread and for what needs you to act, and the
@@ -305,19 +306,21 @@ class _NotificationRow extends StatelessWidget {
 /// Where tapping a notification takes the reader, when it names something.
 void Function(BuildContext)? _opener(AppNotification n) {
   final id = n.refId ?? '';
-  final String? route = switch (n.refCollection) {
-    AppConfig.recordsCollection when id.isNotEmpty => AppRoutes.recordDetailFor(
-      id,
-    ),
-    AppConfig.requestsCollection when id.isNotEmpty =>
-      AppRoutes.requestDetailFor(id),
-    AppConfig.linksCollection when id.isNotEmpty => AppRoutes.shareDetailFor(
-      id,
-    ),
-    AppConfig.attestationChecksCollection => AppRoutes.attestationsChecked,
-    AppConfig.bookmarksCollection => AppRoutes.requestsReceived,
-    _ => null,
-  };
+  // A key handed over waits for a fingerprint, compared on that page.
+  final String? route = n.type == 'sealing_access_granted'
+      ? AppRoutes.settingsPage(SettingsPage.encryption.slug)
+      : switch (n.refCollection) {
+          AppConfig.recordsCollection when id.isNotEmpty =>
+            AppRoutes.recordDetailFor(id),
+          AppConfig.requestsCollection when id.isNotEmpty =>
+            AppRoutes.requestDetailFor(id),
+          AppConfig.linksCollection when id.isNotEmpty =>
+            AppRoutes.shareDetailFor(id),
+          AppConfig.attestationChecksCollection =>
+            AppRoutes.attestationsChecked,
+          AppConfig.bookmarksCollection => AppRoutes.requestsReceived,
+          _ => null,
+        };
   if (route == null) return null;
   return (context) => GoRouter.of(context).go(route);
 }
@@ -331,6 +334,7 @@ IconData _iconFor(String type) => switch (type) {
   'callback_failed' => AppIcons.exclamationTriangle,
   'invite_accepted' => AppIcons.personPlus,
   'sealing_reset' => AppIcons.shieldSlash,
+  'sealing_access_granted' => AppIcons.key,
   'reminder' => AppIcons.clock,
   'attestation_accepted' => AppIcons.attestation,
   'attestation_checked' => AppIcons.shieldCheck,

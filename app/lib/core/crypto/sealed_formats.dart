@@ -34,6 +34,30 @@ abstract final class SealedFormats {
     int epoch,
   ) => Sealing.context('revoked-dek-v1', [workspace, record, version, epoch]);
 
+  /// Names a person's account key wherever a workspace id would otherwise go,
+  /// so its wraps and their signatures use the workspace key's formats yet can
+  /// never be mistaken for one: a workspace id holds no colon.
+  static String accountScope(String user) => 'account:$user';
+
+  /// What two people compare to know they see each other's real keys: six
+  /// groups of five digits from where a person's device list starts. That
+  /// start stays put as devices come and go and the recovery key is replaced;
+  /// only starting over moves it.
+  static String memberFingerprint(String user, Uint8List rootHash) {
+    final digest = Sealing.sha256(
+      Sealing.context('revoked-member-fingerprint-v1', [user, rootHash]),
+    );
+    final groups = <String>[];
+    for (var i = 0; i < 30; i += 5) {
+      var n = 0;
+      for (var j = i; j < i + 5; j++) {
+        n = n * 256 + digest[j];
+      }
+      groups.add((n % 100000).toString().padLeft(5, '0'));
+    }
+    return groups.join(' ');
+  }
+
   static Uint8List workspaceKeyInfo(String workspace, int epoch) =>
       Sealing.context('revoked-workspace-key-v1', [workspace, epoch]);
 
@@ -48,6 +72,53 @@ abstract final class SealedFormats {
     String identity,
     int epoch,
   ) => Sealing.context('revoked-identity-key-v1', [workspace, identity, epoch]);
+
+  /// The same under the owner's account key, which also names the owner.
+  static Uint8List _accountIdentityKeyAad(
+    String workspace,
+    String identity,
+    String user,
+    int epoch,
+  ) => Sealing.context('revoked-identity-key-v2', [
+    workspace,
+    identity,
+    user,
+    epoch,
+  ]);
+
+  /// An identity's private key under its owner's account key of [epoch], which
+  /// only their own devices hold.
+  static String wrapAccountIdentityKey({
+    required Uint8List accountKey,
+    required String privateKeyPem,
+    required String workspace,
+    required String identity,
+    required String user,
+    required int epoch,
+  }) => encode(
+    Sealing.aeadSeal(
+      accountKey,
+      _accountIdentityKeyAad(workspace, identity, user, epoch),
+      Sealing.pad(Uint8List.fromList(utf8.encode(privateKeyPem))),
+    ),
+  );
+
+  static String openAccountIdentityKey({
+    required Uint8List accountKey,
+    required String wrapped,
+    required String workspace,
+    required String identity,
+    required String user,
+    required int epoch,
+  }) => utf8.decode(
+    Sealing.unpad(
+      Sealing.aeadOpen(
+        accountKey,
+        _accountIdentityKeyAad(workspace, identity, user, epoch),
+        decode(wrapped),
+      ),
+    ),
+  );
 
   static String sealValue({
     required Uint8List valueKey,
@@ -214,6 +285,86 @@ abstract final class SealedFormats {
     recipientHpkeKey,
     wrap,
     chainSeq,
+  ]);
+
+  /// A workspace key handed to another member's device. Both people are bound
+  /// into the encryption: a server moving the copy to someone else's row, or
+  /// passing it off as from another granter, gets a failed decryption.
+  static Uint8List _grantInfo(
+    String workspace,
+    int epoch,
+    String recipientUser,
+    String granterUser,
+  ) => Sealing.context('revoked-workspace-key-grant-v1', [
+    workspace,
+    epoch,
+    recipientUser,
+    granterUser,
+  ]);
+
+  static String grantWorkspaceKey({
+    required Uint8List recipientHpkeKey,
+    required Uint8List key,
+    required String workspace,
+    required int epoch,
+    required String recipientUser,
+    required String granterUser,
+  }) => encode([
+    1,
+    ...Sealing.hpkeSeal(
+      recipientHpkeKey,
+      _grantInfo(workspace, epoch, recipientUser, granterUser),
+      key,
+    ),
+  ]);
+
+  static Uint8List openGrantedWorkspaceKey({
+    required SealingKeyPair recipient,
+    required String wrap,
+    required String workspace,
+    required int epoch,
+    required String recipientUser,
+    required String granterUser,
+  }) {
+    final raw = decode(wrap);
+    if (raw.isEmpty || raw[0] != 1) {
+      throw const SealingException(
+        'This data is in a format this app can\'t read.',
+      );
+    }
+    final key = Sealing.hpkeOpen(
+      recipient,
+      _grantInfo(workspace, epoch, recipientUser, granterUser),
+      Uint8List.sublistView(raw, 1),
+    );
+    if (key.length != Sealing.keyLength) {
+      throw const SealingException('This key is not the right length.');
+    }
+    return key;
+  }
+
+  /// What a granter's device signs when it hands a workspace key to another
+  /// member: both people, the device it is for, and how far each one's list
+  /// had got. The recipient checks it against the granter's list, which it
+  /// pinned on its own; the server checks it against both lists.
+  static Uint8List grantSignaturePayload({
+    required String workspace,
+    required int epoch,
+    required String recipientUser,
+    required Uint8List recipientHpkeKey,
+    required String wrap,
+    required String granterUser,
+    required int granterChainSeq,
+    required int recipientChainSeq,
+  }) => Sealing.context('revoked-grant-signature-v1', [
+    workspace,
+    epoch,
+    recipientUser,
+    recipientHpkeKey,
+    wrap,
+    granterUser,
+    granterChainSeq,
+    recipientChainSeq,
   ]);
 
   /// What a device signs to store a sealed record in plaintext again. A session

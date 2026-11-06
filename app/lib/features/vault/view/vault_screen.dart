@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -132,13 +134,16 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       loading: () =>
           store.loadState.isFirstLoad &&
           store.records.isEmpty &&
-          store.sections.isEmpty,
+          store.sections.isEmpty &&
+          store.sharedSections.isEmpty,
       skeleton: const AppListSkeleton(
         filters: ['All', 'Shared', 'Files', 'Hidden'],
         group: 'Records',
       ),
       builder: (_) {
-        if (store.records.isEmpty && store.sections.isEmpty) {
+        if (store.records.isEmpty &&
+            store.sections.isEmpty &&
+            store.sharedSections.isEmpty) {
           final failure = store.loadState.error;
           if (failure != null) {
             return AppLoadError(
@@ -391,6 +396,14 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               previewCount: visibleSections.isEmpty ? 0 : 5,
               children: [for (final r in unsorted) row(r)],
             ),
+          // What other members shared: read-only, below this person's own.
+          // Left out while searching or picking, which work on their records.
+          if (shareFilter == null &&
+              shareEdit == null &&
+              (filter == _VaultFilter.all || filter == _VaultFilter.hidden) &&
+              _tableController.filters.every((f) => f.value.isEmpty))
+            for (final section in store.sharedSections)
+              _sharedGroup(context, section, filter),
         ];
 
         return AppListPage(
@@ -617,6 +630,157 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     ];
   }
 
+  /// A section another member shared: its records, read-only.
+  Widget _sharedGroup(
+    BuildContext context,
+    Section section,
+    _VaultFilter filter,
+  ) {
+    final byId = {for (final r in Stores.vault.sharedRecords) r.id: r};
+    final shown = [
+      for (final id in section.records)
+        if (byId[id] case final r?)
+          if (filter == _VaultFilter.all || r.isHidden) r,
+    ];
+    return AppListGroup(
+      key: ValueKey('shared-${section.id}-$filter'),
+      title: _sectionName(section),
+      noun: 'records',
+      previewCount: 5,
+      trailing: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 220),
+        child: AppBadge(
+          icon: AppIcons.person,
+          label: 'Shared by ${section.ownerEmail ?? 'another member'}',
+        ),
+      ),
+      children: [
+        if (shown.isEmpty)
+          const AppDetailRow(
+            icon: AppIcons.info,
+            label: 'No records in this section',
+          )
+        else
+          for (final r in shown)
+            AppListRow(
+              icon: RecordTypeUtils.icon(r.type),
+              title: r.label.isEmpty ? r.key : r.label,
+              subtitle: _preview(r),
+              subtitleWidget: _hiddenPreview(r),
+              trailing: r.sealed ? const _EncryptedMark() : null,
+              onTap: () => _openSharedRecord(context, section, r),
+            ),
+      ],
+    );
+  }
+
+  Future<void> _openSharedRecord(
+    BuildContext context,
+    Section section,
+    models.Record r,
+  ) => showAppSheet<void>(
+    context: context,
+    dismissible: true,
+    builder: (sheetContext) => Observer(
+      builder: (_) {
+        final revealed = Stores.vault.isRevealed(r.id);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.xxs,
+            AppSpacing.xl,
+            AppSpacing.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(r.label.isEmpty ? r.key : r.label).header,
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                'Shared by ${section.ownerEmail ?? 'another member'} in '
+                '"${_sectionName(section)}". Only they can change it.',
+              ).muted.small,
+              const SizedBox(height: AppSpacing.lg),
+              if (r.isLocked)
+                const Text(
+                  'Encrypted, and not readable on this device. Someone who '
+                  'can invite members can give access under Settings → '
+                  'End-to-end encryption.',
+                )
+              else
+                AppText(
+                  r.isHidden && !revealed ? '•' * 12 : r.value,
+                ).mono.selectable,
+              if (!r.isLocked) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    AppButton(
+                      icon: AppIcons.copy,
+                      label: 'Copy value',
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: r.value));
+                        AppToast.success(sheetContext, 'Copied to clipboard');
+                      },
+                    ),
+                    if (r.isHidden)
+                      AppButton(
+                        icon: revealed ? AppIcons.eyeSlash : AppIcons.eye,
+                        label: revealed ? 'Hide' : 'Show',
+                        style: AppButtonStyle.accent,
+                        onTap: () => Stores.vault.toggleRevealed(r.id),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    ),
+  );
+
+  Future<void> _toggleSectionShared(
+    BuildContext context,
+    Section section,
+  ) async {
+    final sharing = !section.shared;
+    final ok = await showAppDialog(
+      context: context,
+      title: sharing
+          ? 'Share "${_sectionName(section)}" with members?'
+          : 'Stop sharing "${_sectionName(section)}"?',
+      message: sharing
+          ? 'Every member who can read the vault sees its records and their '
+                'values from now on, as they change. Encrypted records open '
+                'only for members given access to encryption. Members who may '
+                'manage the vault can also change them.'
+          : 'Members stop seeing its records. Anything they already read or '
+                'copied stays with them.',
+      confirmLabel: sharing ? 'Share with members' : 'Stop sharing',
+      confirmIcon: sharing ? AppIcons.personWorkspace : AppIcons.x,
+      destructive: !sharing,
+    );
+    if (!ok || !context.mounted) return;
+    final done = await Stores.vault.setSectionShared(section.id, sharing);
+    if (!context.mounted) return;
+    if (done) {
+      AppToast.success(
+        context,
+        sharing ? 'Shared with members' : 'No longer shared',
+      );
+    } else {
+      AppToast.error(
+        context,
+        'The section could not be changed',
+        subtitle: Stores.vault.errorMessage,
+      );
+    }
+  }
+
   Widget _sectionMenu(BuildContext context, Section section, int shown) {
     final store = Stores.vault;
     final access = Stores.shares.linksForSection(section.id);
@@ -624,6 +788,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       mainAxisSize: MainAxisSize.min,
       children: [
         ..._toolChips(context, section),
+        if (section.shared) ...[
+          const AppBadge(icon: AppIcons.personWorkspace, label: 'Members'),
+          AppSpacing.gapXs,
+        ],
         AppText('${section.records.length}').small.muted,
         AppSpacing.gapXs,
         AppMenuButton(
@@ -653,6 +821,14 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                   title: _sectionName(section),
                   links: access,
                 ),
+              ),
+            if (!section.isRequested)
+              AppMenuItem(
+                icon: AppIcons.personWorkspace,
+                label: section.shared
+                    ? 'Stop sharing with members'
+                    : 'Share with members',
+                onSelected: () => _toggleSectionShared(context, section),
               ),
             AppMenuItem(
               icon: AppIcons.pen,

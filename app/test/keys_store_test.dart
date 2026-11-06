@@ -15,6 +15,9 @@ import 'package:revoked_app/features/sealing/store/keys_store.dart';
 const _user = 'user000000000aa';
 const _workspace = 'wspace00000000a';
 const _otherWorkspace = 'wspace00000000b';
+const _accountScope = 'account:$_user';
+const _identity = 'ident0000000001';
+const _pem = '-----BEGIN PRIVATE KEY-----\nstand-in\n-----END PRIVATE KEY-----';
 const _canary = 'smtp-password-canary-9d2f';
 const _recordKey = 'smtp_password';
 
@@ -75,6 +78,8 @@ class _FakeServer {
   final List<Map<String, dynamic>> wraps = [];
   final List<Map<String, dynamic>> otherEpochs = [];
   final List<Map<String, dynamic>> otherWraps = [];
+  final List<Map<String, dynamic>> accountEpochs = [];
+  final List<Map<String, dynamic>> accountWraps = [];
   final StringBuffer received = StringBuffer();
 
   bool supportsSealing = true;
@@ -133,6 +138,7 @@ class _FakeServer {
           for (final (keyEpochs, keyWraps) in [
             (epochs, wraps),
             (otherEpochs, otherWraps),
+            (accountEpochs, accountWraps),
           ]) {
             keyWraps.removeWhere((w) => w['deviceSeq'] == entry['targetSeq']);
             if (keyEpochs.isNotEmpty) keyEpochs.last['rotationDue'] = true;
@@ -141,15 +147,28 @@ class _FakeServer {
       }
       for (final raw in body['wraps'] as List<dynamic>? ?? const []) {
         final wrap = raw as Map<String, dynamic>;
-        (wrap['workspace'] == _otherWorkspace ? otherWraps : wraps).add(wrap);
+        (switch (wrap['workspace']) {
+          _otherWorkspace => otherWraps,
+          _accountScope => accountWraps,
+          _ => wraps,
+        }).add(wrap);
       }
       return _json({'ok': true});
     }
     if (path.endsWith('/epochs')) {
       if (failEpochs) return http.Response('{"message":"down"}', 500);
       final other = path.contains('/$_otherWorkspace/');
-      final keyEpochs = other ? otherEpochs : epochs;
-      final keyWraps = other ? otherWraps : wraps;
+      final account = path == '/api/sealed/account/epochs';
+      final keyEpochs = account
+          ? accountEpochs
+          : other
+          ? otherEpochs
+          : epochs;
+      final keyWraps = account
+          ? accountWraps
+          : other
+          ? otherWraps
+          : wraps;
       if (body['epoch'] != keyEpochs.length + 1) {
         return http.Response(
           jsonEncode({'code': 'sealed_version_conflict', 'status': 409}),
@@ -172,6 +191,8 @@ class _FakeServer {
       wraps.clear();
       otherEpochs.clear();
       otherWraps.clear();
+      accountEpochs.clear();
+      accountWraps.clear();
       return _json({'ok': true, 'deleted': 0});
     }
     return http.Response('{}', 404);
@@ -191,6 +212,13 @@ class _FakeServer {
                     'wraps': otherWraps,
                   },
               ],
+              'account': accountEpochs.isEmpty
+                  ? null
+                  : {
+                      'workspace': _accountScope,
+                      'epochs': accountEpochs,
+                      'wraps': accountWraps,
+                    },
             }),
           )
           as Map<String, dynamic>;
@@ -879,6 +907,117 @@ void main() {
       expect(fourth.canSeal(_workspace), isTrue);
       expect(fourth.needsNewRecoveryKey, isTrue);
     });
+  });
+
+  group('the account key', () {
+    Future<String> sealedIdentity(KeysStore keys) async {
+      expect(await keys.ensureAccountKey(), isTrue);
+      return keys
+          .sealIdentityKey(
+            workspace: _workspace,
+            identity: _identity,
+            privateKeyPem: _pem,
+          )!
+          .wrap;
+    }
+
+    String? openIdentity(KeysStore keys, String wrap, {int epoch = 1}) =>
+        keys.openIdentityKey(
+          workspace: _workspace,
+          identity: _identity,
+          epoch: epoch,
+          wrap: wrap,
+          scope: identityKeyScopeAccount,
+        );
+
+    test('is made once, and only for this person\'s devices', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      expect(server.accountEpochs, isEmpty);
+      await sealedIdentity(first);
+      expect(server.accountEpochs.length, 1);
+      expect(
+        server.accountWraps.every((w) => w['workspace'] == _accountScope),
+        isTrue,
+      );
+      // The workspace's key is a different key.
+      expect(server.wraps.every((w) => w['workspace'] == _workspace), isTrue);
+
+      expect(await first.ensureAccountKey(), isTrue);
+      expect(server.accountEpochs.length, 1);
+    });
+
+    test('opens an identity key on a device added later', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final wrap = await sealedIdentity(first);
+      final second = await _addDevice(server, first);
+      expect(openIdentity(second, wrap), _pem);
+    });
+
+    test('an identity key under it does not open as a workspace one', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      final wrap = await sealedIdentity(first);
+      expect(
+        first.openIdentityKey(
+          workspace: _workspace,
+          identity: _identity,
+          epoch: 1,
+          wrap: wrap,
+        ),
+        isNull,
+      );
+      expect(
+        first.openIdentityKey(
+          workspace: _workspace,
+          identity: 'ident0000000002',
+          epoch: 1,
+          wrap: wrap,
+          scope: identityKeyScopeAccount,
+        ),
+        isNull,
+      );
+    });
+
+    test('comes back with the recovery key', () async {
+      final server = _FakeServer();
+      final (first, code) = await _setUp(server);
+      final wrap = await sealedIdentity(first);
+
+      final fresh = _device(server);
+      await fresh.load();
+      fresh.recoveryInput.text = code;
+      expect(await fresh.restoreWithRecoveryKey(), isTrue);
+      expect(openIdentity(fresh, wrap), _pem);
+    });
+
+    test(
+      'is replaced when a device is removed, and old keys still open',
+      () async {
+        final server = _FakeServer();
+        final (first, _) = await _setUp(server);
+        final wrap = await sealedIdentity(first);
+        final second = await _addDevice(server, first);
+        final removed = second.thisDeviceSeq!;
+
+        expect(await first.removeDevice(removed), isTrue);
+        expect(server.accountEpochs.length, 2);
+        expect(
+          server.accountWraps.where((w) => w['deviceSeq'] == removed),
+          isEmpty,
+        );
+        expect(openIdentity(first, wrap), _pem);
+
+        final next = first.sealIdentityKey(
+          workspace: _workspace,
+          identity: _identity,
+          privateKeyPem: _pem,
+        )!;
+        expect(next.epoch, 2);
+        expect(openIdentity(second, next.wrap, epoch: 2), isNull);
+      },
+    );
   });
 
   group('the recovery key', () {

@@ -13,6 +13,7 @@ import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/services/secure_storage.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
+import 'package:revoked_app/features/sealing/store/member_keys_store.dart';
 
 part 'keys_store.g.dart';
 
@@ -246,8 +247,16 @@ class SealedPayload {
 /// Holds this device's encryption keys and does all the sealing. E2EE.md is the
 /// design; the server sees only what this store has already encrypted.
 // ignore: library_private_types_in_public_api
+/// An identity's sealedKeyScope when its key is under the account key.
+const identityKeyScopeAccount = 'account';
+
 class KeysStore extends _KeysStore with _$KeysStore {
-  KeysStore(super.api, {required super.currentUser, super.storage});
+  KeysStore(
+    super.api, {
+    required super.currentUser,
+    super.storage,
+    super.membersOf,
+  });
 
   /// What someone must type, and the server must receive, to delete what nobody
   /// can read any more.
@@ -279,8 +288,25 @@ abstract class _KeysStore with Store {
     this._api, {
     required String Function() currentUser,
     FlutterSecureStorage? storage,
+    Future<List<MemberKeys>> Function(String workspace, {bool fresh})?
+    membersOf,
   }) : _currentUser = currentUser,
+       _membersOf = membersOf,
        _storage = storage ?? createSecureStorage();
+
+  /// Other members' checked lists, for keys they hand this person and keys this
+  /// person hands them. Without it, nothing crosses between people.
+  final Future<List<MemberKeys>> Function(String workspace, {bool fresh})?
+  _membersOf;
+
+  /// Per workspace, the granters whose copies this device may open: members
+  /// whose fingerprint the person compared. Anyone else's grant waits.
+  Map<String, Map<String, VerifiedChain>> _granters = const {};
+
+  /// Members who handed this person a key that waits for their fingerprint to
+  /// be compared, by workspace.
+  final ObservableMap<String, Set<String>> pendingGrants =
+      ObservableMap<String, Set<String>>();
 
   @observable
   SealingStatus status = SealingStatus.unknown;
@@ -406,6 +432,18 @@ abstract class _KeysStore with Store {
 
   bool canSeal(String workspace) => writableWorkspaces.contains(workspace);
 
+  /// Where this person's account key sits among the workspace keys: the same
+  /// formats, pins and rotation, under a name no workspace can have.
+  String get _accountScope => SealedFormats.accountScope(_currentUser());
+
+  /// The key rows as served: every workspace's, then this person's own.
+  List<Map<String, dynamic>> _keyRows(Map<String, dynamic> state) => [
+    for (final raw in (state['workspaces'] as List<dynamic>? ?? const []))
+      raw as Map<String, dynamic>,
+    if (state['account'] case final Map<String, dynamic> account)
+      if (account['workspace'] == _accountScope) account,
+  ];
+
   /// The passkey this session signed in with, when it derived a secret and the
   /// session is still this person's.
   PasskeySignIn? get _heldPasskey {
@@ -434,6 +472,22 @@ abstract class _KeysStore with Store {
         status == SealingStatus.ready &&
         !chainBroken &&
         chain.livePasskey(p.credentialId) == null;
+  }
+
+  /// Where this person's own checked list starts, once this device trusts it:
+  /// what their fingerprint is made from.
+  Uint8List? get rootHash =>
+      status == SealingStatus.ready && !chainBroken && chain.entries.isNotEmpty
+      ? chain.entries.first.hash
+      : null;
+
+  /// This person's fingerprint, for others to compare with what they see.
+  @computed
+  String? get ownFingerprint {
+    final root = rootHash;
+    return root == null
+        ? null
+        : SealedFormats.memberFingerprint(_currentUser(), root);
   }
 
   /// Whether a workspace's key is in someone else's hands only.
@@ -597,6 +651,7 @@ abstract class _KeysStore with Store {
     if (due.isEmpty || !_trusted) return;
     for (final workspace in due) {
       final held = _workspaces[workspace]!;
+      if (await _othersDependOn(workspace)) continue;
       try {
         await _startEpoch(
           workspace,
@@ -618,7 +673,10 @@ abstract class _KeysStore with Store {
 
   @action
   Future<void> _applyState(Map<String, dynamic> state) async {
+    // Before anything else changes: what comes after reads it without waiting.
+    final granters = await _grantersFor(state);
     _lastState = state;
+    _granters = granters;
     final user = _currentUser();
     final served = <DeviceChainEntry>[];
     var unreadable = false;
@@ -691,10 +749,13 @@ abstract class _KeysStore with Store {
       ),
     );
 
-    for (final raw in (state['workspaces'] as List<dynamic>? ?? const [])) {
-      final row = raw as Map<String, dynamic>;
+    for (final row in _keyRows(state)) {
       final workspace = row['workspace'] as String;
-      final opened = _openWorkspace(workspace, row);
+      final opened = _openWorkspace(
+        workspace,
+        row,
+        _granters[workspace] ?? const {},
+      );
       if (opened == null) {
         lockedWorkspaces.add(workspace);
         continue;
@@ -703,6 +764,61 @@ abstract class _KeysStore with Store {
       if (opened.writable) writableWorkspaces.add(workspace);
     }
     await _savePins();
+  }
+
+  /// Who handed this person keys, per workspace, and whose list this device
+  /// can check their copies against. Only a member whose fingerprint the person
+  /// compared counts: anyone can encrypt to a public key, so a member the server
+  /// made up could otherwise hand over a key it knows, and read what this person
+  /// writes under it. The others are noted in [pendingGrants].
+  Future<Map<String, Map<String, VerifiedChain>>> _grantersFor(
+    Map<String, dynamic> state,
+  ) async {
+    final me = _currentUser();
+    final named = <String, Set<String>>{};
+    for (final raw in (state['workspaces'] as List<dynamic>? ?? const [])) {
+      final row = raw as Map<String, dynamic>;
+      for (final w in (row['wraps'] as List<dynamic>? ?? const [])) {
+        final granter = (w as Map<String, dynamic>)['granter'] as String? ?? '';
+        if (granter.isNotEmpty && granter != me) {
+          named.putIfAbsent(row['workspace'] as String, () => {}).add(granter);
+        }
+      }
+    }
+    final out = <String, Map<String, VerifiedChain>>{};
+    final pending = <String, Set<String>>{};
+    final lookup = _membersOf;
+    for (final entry in named.entries) {
+      final chains = <String, VerifiedChain>{};
+      List<MemberKeys> members = const [];
+      if (lookup != null) {
+        try {
+          // Fresh: a grant names how far its granter's list had got, and an
+          // older copy of that list would refuse it.
+          members = await lookup(entry.key, fresh: true);
+        } catch (_) {
+          // Unreachable now; the copies wait, as for an unverified granter.
+        }
+      }
+      for (final granter in entry.value) {
+        MemberKeys? member;
+        for (final m in members) {
+          if (m.user == granter) member = m;
+        }
+        if (member != null && member.state == MemberKeyState.verified) {
+          chains[granter] = member.chain;
+        } else {
+          pending.putIfAbsent(entry.key, () => {}).add(granter);
+        }
+      }
+      out[entry.key] = chains;
+    }
+    runInAction(() {
+      pendingGrants
+        ..clear()
+        ..addAll(pending);
+    });
+    return out;
   }
 
   /// Whether the list as served can't be the one this device has seen. Pinning
@@ -725,7 +841,14 @@ abstract class _KeysStore with Store {
   /// ones. Returns null if it holds none. Each hand-over must be signed by a
   /// device on the list: anyone can encrypt to a public key, so an unsigned one
   /// could be a key the server chose in order to read what's written under it.
-  _WorkspaceKeys? _openWorkspace(String workspace, Map<String, dynamic> row) {
+  ///
+  /// A copy from another member is checked against [granters], their lists as
+  /// this device pinned them, and never against this person's own.
+  _WorkspaceKeys? _openWorkspace(
+    String workspace,
+    Map<String, dynamic> row,
+    Map<String, VerifiedChain> granters,
+  ) {
     final seq = thisDeviceSeq;
     final device = _device;
     if (seq == null || device == null) return null;
@@ -756,18 +879,40 @@ abstract class _KeysStore with Store {
       final epoch = (wrap['epoch'] as num).toInt();
       final signerSeq = (wrap['signerSeq'] as num).toInt();
       final chainSeq = (wrap['chainSeq'] as num?)?.toInt() ?? 0;
-      final fromLiveDevice = chain.isLive(signerSeq);
-      if (chainSeq < 1 || chainSeq > chain.headSeq) continue;
+      final granter = wrap['granter'] as String? ?? '';
+      final granted = granter.isNotEmpty && granter != _currentUser();
+      final signerChain = granted ? granters[granter] : chain;
+      if (signerChain == null) continue;
+      final fromLiveDevice = signerChain.isLive(signerSeq);
+      if (chainSeq < 1 || chainSeq > signerChain.headSeq) continue;
+      // How far this person's own list had got when the key reached them.
+      final ownSeq = granted
+          ? (wrap['recipientChainSeq'] as num?)?.toInt() ?? 0
+          : chainSeq;
+      if (ownSeq < 1 || ownSeq > chain.headSeq) continue;
 
-      final key = _openWrap(
-        workspace: workspace,
-        epoch: epoch,
-        recipient: device.hpke,
-        wrap: wrap['wrap'] as String,
-        signerSeq: signerSeq,
-        chainSeq: chainSeq,
-        signature: wrap['signature'] as String,
-      );
+      final key = granted
+          ? _openGrant(
+              workspace: workspace,
+              epoch: epoch,
+              recipient: device.hpke,
+              wrap: wrap['wrap'] as String,
+              granter: granter,
+              granterChain: signerChain,
+              signerSeq: signerSeq,
+              chainSeq: chainSeq,
+              recipientChainSeq: ownSeq,
+              signature: wrap['signature'] as String,
+            )
+          : _openWrap(
+              workspace: workspace,
+              epoch: epoch,
+              recipient: device.hpke,
+              wrap: wrap['wrap'] as String,
+              signerSeq: signerSeq,
+              chainSeq: chainSeq,
+              signature: wrap['signature'] as String,
+            );
       if (key == null) continue;
 
       // Each epoch has one key. A removed device may have kept its signing key,
@@ -817,12 +962,16 @@ abstract class _KeysStore with Store {
       final isNewest = epoch == newestEpoch && epoch >= pinned;
       // This device sees a removal the key predates for itself, so the server
       // can't keep it writing under a key a removed device has by hiding a flag.
-      final predatesRemoval = chain.lastRemovalSeq > chainSeq;
+      // For a granted key, a removal on the granter's list after the grant counts
+      // the same: that device may have kept it.
+      final predatesRemoval =
+          chain.lastRemovalSeq > ownSeq ||
+          (granted && signerChain.lastRemovalSeq > chainSeq);
       final canAct = isNewest && !chainBroken;
       return _WorkspaceKeys(
         keys: keys,
         currentEpoch: epoch,
-        chainSeq: chainSeq,
+        chainSeq: ownSeq,
         writable: canAct && fromLiveDevice && !rotationDue && !predatesRemoval,
         mustRotate:
             canAct && (rotationDue || !fromLiveDevice || predatesRemoval),
@@ -917,6 +1066,182 @@ abstract class _KeysStore with Store {
     }
   }
 
+  /// Opens a key another member handed to [recipient], one of this person's
+  /// entries, once its signature checks out against the granter's own list.
+  Uint8List? _openGrant({
+    required String workspace,
+    required int epoch,
+    required SealingKeyPair recipient,
+    required String wrap,
+    required String granter,
+    required VerifiedChain granterChain,
+    required int signerSeq,
+    required int chainSeq,
+    required int recipientChainSeq,
+    required String signature,
+  }) {
+    final signer = granterChain.bySeq(signerSeq);
+    if (signer == null || signer.action != DeviceChainEntry.actionAdd) {
+      return null;
+    }
+    final me = _currentUser();
+    try {
+      final signed = SealedFormats.grantSignaturePayload(
+        workspace: workspace,
+        epoch: epoch,
+        recipientUser: me,
+        recipientHpkeKey: recipient.publicKey,
+        wrap: wrap,
+        granterUser: granter,
+        granterChainSeq: chainSeq,
+        recipientChainSeq: recipientChainSeq,
+      );
+      if (!Sealing.verify(
+        signer.signingPublicKey,
+        signed,
+        SealedFormats.decode(signature),
+      )) {
+        return null;
+      }
+      return SealedFormats.openGrantedWorkspaceKey(
+        recipient: recipient,
+        wrap: wrap,
+        workspace: workspace,
+        epoch: epoch,
+        recipientUser: me,
+        granterUser: granter,
+      );
+    } on SealingException {
+      return null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// A workspace key for one of [member]'s entries, signed by this device over
+  /// both lists as they stand.
+  Map<String, dynamic> _grantFor({
+    required String workspace,
+    required int epoch,
+    required Uint8List key,
+    required MemberKeys member,
+    required DeviceChainEntry recipient,
+  }) {
+    final device = _device!;
+    final wrap = SealedFormats.grantWorkspaceKey(
+      recipientHpkeKey: recipient.hpkePublicKey,
+      key: key,
+      workspace: workspace,
+      epoch: epoch,
+      recipientUser: member.user,
+      granterUser: _currentUser(),
+    );
+    return {
+      'user': member.user,
+      'deviceSeq': recipient.seq,
+      'wrap': wrap,
+      'signerSeq': thisDeviceSeq!,
+      'chainSeq': chain.headSeq,
+      'recipientChainSeq': member.chain.headSeq,
+      'signature': SealedFormats.encode(
+        Sealing.sign(
+          device.signing,
+          SealedFormats.grantSignaturePayload(
+            workspace: workspace,
+            epoch: epoch,
+            recipientUser: member.user,
+            recipientHpkeKey: recipient.hpkePublicKey,
+            wrap: wrap,
+            granterUser: _currentUser(),
+            granterChainSeq: chain.headSeq,
+            recipientChainSeq: member.chain.headSeq,
+          ),
+        ),
+      ),
+    };
+  }
+
+  /// Hands this workspace's current key to every live entry on [member]'s
+  /// list. Only under a key this device may write with, only to a list this
+  /// device checked, and only to someone the server says may read the vault.
+  @action
+  Future<bool> grantAccess(String workspace, MemberKeys member) async {
+    errorMessage = null;
+    final held = _workspaces[workspace];
+    if (!_trusted || held == null || !held.writable) {
+      errorMessage =
+          'This device cannot hand out this workspace’s key right now.';
+      return false;
+    }
+    if (member.isSelf ||
+        !member.usable ||
+        !member.canRead ||
+        member.chain.broken ||
+        member.chain.live.isEmpty) {
+      errorMessage = 'Their keys cannot be trusted right now.';
+      return false;
+    }
+    try {
+      final epoch = held.currentEpoch;
+      await _api.post(
+        '/api/sealed/workspaces/$workspace/grants',
+        body: {
+          'epoch': epoch,
+          'grants': [
+            for (final entry in member.chain.live)
+              _grantFor(
+                workspace: workspace,
+                epoch: epoch,
+                key: held.keys[epoch]!,
+                member: member,
+                recipient: entry,
+              ),
+          ],
+        },
+      );
+      return true;
+    } catch (e) {
+      errorMessage = describeError(e);
+      return false;
+    }
+  }
+
+  /// The members a new key of [workspace] must reach besides this person: who
+  /// held the old one, may still read, and whose list this device trusts. Empty
+  /// unless this person may hand out keys, for the server would refuse them.
+  Future<List<MemberKeys>> _carriedMembers(String workspace) async {
+    final lookup = _membersOf;
+    if (lookup == null || workspace == _accountScope) return const [];
+    try {
+      // Fresh: who holds the key changes with every grant.
+      final members = await lookup(workspace, fresh: true);
+      final self = members.where((m) => m.isSelf).firstOrNull;
+      if (self == null || !self.canGrant) return const [];
+      return [
+        for (final m in members)
+          if (!m.isSelf && m.canRead && m.holdsKey && m.usable) m,
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Whether replacing [workspace]'s key here would cut others off: they hold
+  /// it, and this person may not hand them the new one. Left to someone who may.
+  Future<bool> _othersDependOn(String workspace) async {
+    final lookup = _membersOf;
+    if (lookup == null || workspace == _accountScope) return false;
+    try {
+      // Fresh: who holds the key changes with every grant.
+      final members = await lookup(workspace, fresh: true);
+      final self = members.where((m) => m.isSelf).firstOrNull;
+      if (self == null || self.canGrant) return false;
+      return members.any((m) => !m.isSelf && m.holdsKey);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Map<String, dynamic> _wrapFor({
     required String workspace,
     required int epoch,
@@ -962,8 +1287,11 @@ abstract class _KeysStore with Store {
     final device = _device!;
     final seq = thisDeviceSeq!;
     final key = Sealing.newSymmetricKey();
+    final carried = await _carriedMembers(workspace);
     await _api.post(
-      '/api/sealed/workspaces/$workspace/epochs',
+      workspace == _accountScope
+          ? '/api/sealed/account/epochs'
+          : '/api/sealed/workspaces/$workspace/epochs',
       body: {
         'epoch': epoch,
         'priorWrap': prior == null
@@ -986,6 +1314,18 @@ abstract class _KeysStore with Store {
               chainSeq: chain.headSeq,
             ),
         ],
+        if (carried.isNotEmpty)
+          'grants': [
+            for (final member in carried)
+              for (final entry in member.chain.live)
+                _grantFor(
+                  workspace: workspace,
+                  epoch: epoch,
+                  key: key,
+                  member: member,
+                  recipient: entry,
+                ),
+          ],
       },
     );
   }
@@ -1020,6 +1360,33 @@ abstract class _KeysStore with Store {
       return writableWorkspaces.contains(workspace);
     } catch (e) {
       errorMessage = describeError(e);
+      return false;
+    }
+  }
+
+  /// Makes sure this device holds this person's account key, making it if no
+  /// device has yet. False when it can't: another device holds the key and
+  /// hasn't handed it here, or this device isn't trusted.
+  @action
+  Future<bool> ensureAccountKey() async {
+    final scope = _accountScope;
+    if (!_trusted) return false;
+    if (writableWorkspaces.contains(scope)) return true;
+    try {
+      await _refresh();
+      if (!_trusted) return false;
+      if (lockedWorkspaces.contains(scope) || _workspaces.containsKey(scope)) {
+        return writableWorkspaces.contains(scope);
+      }
+      try {
+        await _startEpoch(scope, 1, null);
+      } on ApiException catch (e) {
+        // Made on another device between that read and this write.
+        if (e.code != AppErrorCode.sealedVersionConflict) rethrow;
+      }
+      await _refresh();
+      return writableWorkspaces.contains(scope);
+    } catch (_) {
       return false;
     }
   }
@@ -1270,9 +1637,7 @@ abstract class _KeysStore with Store {
     required DeviceChainEntry recipient,
   }) {
     final wraps = <Map<String, dynamic>>[];
-    for (final raw
-        in (_lastState['workspaces'] as List<dynamic>? ?? const [])) {
-      final row = raw as Map<String, dynamic>;
+    for (final row in _keyRows(_lastState)) {
       final workspace = row['workspace'] as String;
       final own = [
         for (final w in (row['wraps'] as List<dynamic>? ?? const []))
@@ -1282,19 +1647,42 @@ abstract class _KeysStore with Store {
       for (final w in own) {
         final epoch = (w['epoch'] as num).toInt();
         final signerSeq = (w['signerSeq'] as num).toInt();
-        // Only from devices still on the list: re-signing what a removed
-        // device handed over would launder a key it may have chosen.
-        if (!chain.isLive(signerSeq)) continue;
         final chainSeq = (w['chainSeq'] as num?)?.toInt() ?? 0;
-        final key = _openWrap(
-          workspace: workspace,
-          epoch: epoch,
-          recipient: hpke,
-          wrap: w['wrap'] as String,
-          signerSeq: signerSeq,
-          chainSeq: chainSeq,
-          signature: w['signature'] as String,
-        );
+        final granter = w['granter'] as String? ?? '';
+        final granted = granter.isNotEmpty && granter != _currentUser();
+        // Only from devices still on a list: re-signing what a removed device
+        // handed over would launder a key it may have chosen. A granted key
+        // is checked against its granter's list, and only one already
+        // checked here: the person compared their fingerprint.
+        final signerChain = granted
+            ? (_granters[workspace] ?? const {})[granter]
+            : chain;
+        if (signerChain == null || !signerChain.isLive(signerSeq)) continue;
+        final ownSeq = granted
+            ? (w['recipientChainSeq'] as num?)?.toInt() ?? 0
+            : chainSeq;
+        final key = granted
+            ? _openGrant(
+                workspace: workspace,
+                epoch: epoch,
+                recipient: hpke,
+                wrap: w['wrap'] as String,
+                granter: granter,
+                granterChain: signerChain,
+                signerSeq: signerSeq,
+                chainSeq: chainSeq,
+                recipientChainSeq: ownSeq,
+                signature: w['signature'] as String,
+              )
+            : _openWrap(
+                workspace: workspace,
+                epoch: epoch,
+                recipient: hpke,
+                wrap: w['wrap'] as String,
+                signerSeq: signerSeq,
+                chainSeq: chainSeq,
+                signature: w['signature'] as String,
+              );
         if (key == null) continue;
         wraps.add(
           _wrapFor(
@@ -1306,7 +1694,7 @@ abstract class _KeysStore with Store {
             signerSeq: holder.seq,
             // Carried over: a fresh number would hide that this key predates
             // a removal, and spare it from being replaced.
-            chainSeq: chainSeq,
+            chainSeq: ownSeq,
           ),
         );
         break;
@@ -1954,48 +2342,63 @@ abstract class _KeysStore with Store {
   }
 
   /// Encrypts an identity's private key for the owner's other devices, under
-  /// the current workspace key. Null when this device may not write in
-  /// [workspace] right now; the caller then leaves the key where it is.
+  /// their account key, which no other member is ever handed. Null when this
+  /// device holds no writable account key ([ensureAccountKey] first); the
+  /// caller then leaves the key where it is.
   ({String wrap, int epoch})? sealIdentityKey({
     required String workspace,
     required String identity,
     required String privateKeyPem,
   }) {
-    final held = _workspaces[workspace];
+    final held = _workspaces[_accountScope];
     if (held == null || !held.writable || !_trusted) return null;
     final epoch = held.currentEpoch;
     return (
-      wrap: SealedFormats.wrapIdentityKey(
-        workspaceKey: held.keys[epoch]!,
+      wrap: SealedFormats.wrapAccountIdentityKey(
+        accountKey: held.keys[epoch]!,
         privateKeyPem: privateKeyPem,
         workspace: workspace,
         identity: identity,
+        user: _currentUser(),
         epoch: epoch,
       ),
       epoch: epoch,
     );
   }
 
-  /// Decrypts an identity key wrapped by [sealIdentityKey] on some device of
-  /// this account, or returns null when this device can't: it holds no key
-  /// for that epoch, or the data doesn't authenticate.
+  /// Decrypts an identity key wrapped on some device of this account, or
+  /// returns null when this device can't: it holds no key for that epoch, or
+  /// the data doesn't authenticate. [scope] is the identity's sealedKeyScope:
+  /// `account`, or empty for a key wrapped under the workspace key before
+  /// account keys existed.
   String? openIdentityKey({
     required String workspace,
     required String identity,
     required int epoch,
     required String wrap,
+    String scope = '',
   }) {
     if (status != SealingStatus.ready || !_trusted) return null;
-    final key = _workspaces[workspace]?.keys[epoch];
+    final account = scope == identityKeyScopeAccount;
+    final key = _workspaces[account ? _accountScope : workspace]?.keys[epoch];
     if (key == null) return null;
     try {
-      return SealedFormats.openIdentityKey(
-        workspaceKey: key,
-        wrapped: wrap,
-        workspace: workspace,
-        identity: identity,
-        epoch: epoch,
-      );
+      return account
+          ? SealedFormats.openAccountIdentityKey(
+              accountKey: key,
+              wrapped: wrap,
+              workspace: workspace,
+              identity: identity,
+              user: _currentUser(),
+              epoch: epoch,
+            )
+          : SealedFormats.openIdentityKey(
+              workspaceKey: key,
+              wrapped: wrap,
+              workspace: workspace,
+              identity: identity,
+              epoch: epoch,
+            );
     } on SealingException {
       return null;
     } on FormatException {

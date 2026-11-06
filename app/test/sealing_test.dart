@@ -733,4 +733,57 @@ void main() {
       expect(chain.live, hasLength(3));
     });
   });
+
+  group('a grant', () {
+    final v =
+        jsonDecode(
+              File(
+                'test/fixtures/sealing_grant_vectors.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final recipient = SealingKeyPair(
+      privateKey: _unhex(v['recipientHpkePrivateKey'] as String),
+      publicKey: _unhex(v['recipientHpkePublicKey'] as String),
+    );
+
+    Uint8List open({String? recipientUser, String? granterUser}) =>
+        SealedFormats.openGrantedWorkspaceKey(
+          recipient: recipient,
+          wrap: v['wrap'] as String,
+          workspace: v['workspace'] as String,
+          epoch: v['epoch'] as int,
+          recipientUser: recipientUser ?? v['recipientUser'] as String,
+          granterUser: granterUser ?? v['granterUser'] as String,
+        );
+
+    test('still opens as it was made', () {
+      expect(_hex(open()), v['key']);
+    });
+
+    test('does not open for someone else, or from another granter', () {
+      expect(() => open(recipientUser: 'someoneelse0001'), throwsA(anything));
+      expect(() => open(granterUser: 'someoneelse0001'), throwsA(anything));
+    });
+
+    test('its signature still verifies', () {
+      expect(
+        Sealing.verify(
+          _unhex(v['signingPublicKey'] as String),
+          SealedFormats.grantSignaturePayload(
+            workspace: v['workspace'] as String,
+            epoch: v['epoch'] as int,
+            recipientUser: v['recipientUser'] as String,
+            recipientHpkeKey: recipient.publicKey,
+            wrap: v['wrap'] as String,
+            granterUser: v['granterUser'] as String,
+            granterChainSeq: v['granterChainSeq'] as int,
+            recipientChainSeq: v['recipientChainSeq'] as int,
+          ),
+          SealedFormats.decode(v['signature'] as String),
+        ),
+        isTrue,
+      );
+    });
+  });
 }

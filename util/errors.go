@@ -197,6 +197,8 @@ var Errors = struct {
 	SealedVersionConflict         AppError
 	SealedEpochStale              AppError
 	SealedKeyMissing              AppError
+	SealedIdentityKeysPending     AppError
+	SectionShareByPersonOnly      AppError
 	SealedRecordUnsupported       AppError
 	SealedLinksAffected           AppError
 	WebhookNotFound               AppError
@@ -921,6 +923,14 @@ var Errors = struct {
 	SealedKeyMissing: AppError{
 		ErrorCode: "sealed_key_missing",
 		ErrorText: "The encryption key for this workspace is not available.",
+	},
+	SealedIdentityKeysPending: AppError{
+		ErrorCode: "sealed_identity_keys_pending",
+		ErrorText: "Some identity keys in this workspace are still under its encryption key. They move by themselves once their owners open the app.",
+	},
+	SectionShareByPersonOnly: AppError{
+		ErrorCode: "section_share_by_person_only",
+		ErrorText: "Only the section's owner can share it with members, from the app.",
 	},
 	SealedRecordUnsupported: AppError{
 		ErrorCode: "sealed_record_unsupported",

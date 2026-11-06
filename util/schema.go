@@ -104,6 +104,11 @@ type collectionSchema struct {
 	DeviceKeys         string
 	WorkspaceKeyEpochs string
 	WorkspaceKeyWraps  string
+	// AccountKeyEpochs and AccountKeyWraps are a person's own key, wrapped
+	// only to their own devices: what their identities' private keys travel
+	// under, so a workspace key shared with other members never opens them.
+	AccountKeyEpochs string
+	AccountKeyWraps  string
 	// WebhookEndpoints are where a workspace wants its events sent.
 	// WebhookEvents record what happened, WebhookDeliveries carry one event
 	// to one endpoint, and WebhookAttempts keep every try so a failing
@@ -137,10 +142,25 @@ type workspaceKeyEpochFields struct {
 
 type workspaceKeyWrapFields struct {
 	Workspace, Epoch, User, DeviceSeq, Wrap, SignerSeq, ChainSeq, Signature, Created string
+	// Granter is who handed the key over, empty when it was the recipient's own
+	// device. On such a copy ChainSeq is the granter's list and
+	// RecipientChainSeq the recipient's.
+	Granter, RecipientChainSeq string
+}
+
+type accountKeyEpochFields struct {
+	User, Epoch, PriorWrap, RotationDue, Created string
+}
+
+type accountKeyWrapFields struct {
+	User, Epoch, DeviceSeq, Wrap, SignerSeq, ChainSeq, Signature, Created string
 }
 
 type sectionFields struct {
 	Key, Name, User, Workspace, Records, RequestedBy, Created, Updated string
+	// Shared lets every member who can read the vault read the section's
+	// records, through /api/shared/vault. Only its owner can change it.
+	Shared string
 }
 
 type linkFields struct {
@@ -179,7 +199,7 @@ type identityFields struct {
 	Name, Certificate, PublicKey, PrivateKey, Fingerprint,
 	ParentSignature, DomainAtIssue, IsPrimary,
 	Status, RevokedAt, RevokedReason,
-	SealedKey, SealedKeyEpoch,
+	SealedKey, SealedKeyEpoch, SealedKeyScope,
 	User, Workspace, Created, Updated string
 }
 
@@ -361,6 +381,8 @@ var Coll = collectionSchema{
 	DeviceKeys:          "deviceKeys",
 	WorkspaceKeyEpochs:  "workspaceKeyEpochs",
 	WorkspaceKeyWraps:   "workspaceKeyWraps",
+	AccountKeyEpochs:    "accountKeyEpochs",
+	AccountKeyWraps:     "accountKeyWraps",
 	WebhookEndpoints:    "webhookEndpoints",
 	WebhookEvents:       "webhookEvents",
 	WebhookDeliveries:   "webhookDeliveries",
@@ -377,6 +399,8 @@ var Fields = struct {
 	DeviceKey          deviceKeyFields
 	WorkspaceKeyEpoch  workspaceKeyEpochFields
 	WorkspaceKeyWrap   workspaceKeyWrapFields
+	AccountKeyEpoch    accountKeyEpochFields
+	AccountKeyWrap     accountKeyWrapFields
 	Section            sectionFields
 	Link               linkFields
 	AuditLog           auditLogFields
@@ -510,6 +534,26 @@ var Fields = struct {
 		ChainSeq:  "chainSeq",
 		Signature: "signature",
 		Created:   "created",
+
+		Granter:           "granter",
+		RecipientChainSeq: "recipientChainSeq",
+	},
+	AccountKeyEpoch: accountKeyEpochFields{
+		User:        "user",
+		Epoch:       "epoch",
+		PriorWrap:   "priorWrap",
+		RotationDue: "rotationDue",
+		Created:     "created",
+	},
+	AccountKeyWrap: accountKeyWrapFields{
+		User:      "user",
+		Epoch:     "epoch",
+		DeviceSeq: "deviceSeq",
+		Wrap:      "wrap",
+		SignerSeq: "signerSeq",
+		ChainSeq:  "chainSeq",
+		Signature: "signature",
+		Created:   "created",
 	},
 	Section: sectionFields{
 		Key:         "key",
@@ -520,6 +564,7 @@ var Fields = struct {
 		RequestedBy: "requestedBy",
 		Created:     "created",
 		Updated:     "updated",
+		Shared:      "shared",
 	},
 	Link: linkFields{
 		Slug:             "slug",
@@ -589,6 +634,7 @@ var Fields = struct {
 		RevokedReason:   "revokedReason",
 		SealedKey:       "sealedKey",
 		SealedKeyEpoch:  "sealedKeyEpoch",
+		SealedKeyScope:  "sealedKeyScope",
 		User:            "user",
 		Workspace:       "workspace",
 		Created:         "created",
