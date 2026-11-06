@@ -121,6 +121,22 @@ func SealedWrapPayload(workspace string, epoch int, recipientHpkeKey []byte, wra
 	return SealedContext("revoked-wrap-signature-v1", workspace, epoch, recipientHpkeKey, wrap, chainSeq)
 }
 
+// SealedGrantPayload is what a device signs when it hands a workspace key to
+// another member: both people, the recipient device, and how far each one's list
+// had got, so neither side's later removal can be hidden from the other.
+func SealedGrantPayload(workspace string, epoch int, recipientUser string, recipientHpkeKey []byte,
+	wrap, granterUser string, granterChainSeq, recipientChainSeq int) []byte {
+	return SealedContext("revoked-grant-signature-v1", workspace, epoch, recipientUser, recipientHpkeKey,
+		wrap, granterUser, granterChainSeq, recipientChainSeq)
+}
+
+// SealedAccountScope names a person's account key wherever a workspace id would
+// otherwise go: in what a wrap's signature and its encryption are bound to. A
+// workspace id never contains a colon, so the two can never be mistaken.
+func SealedAccountScope(userID string) string {
+	return "account:" + userID
+}
+
 // SealedUnsealPayload is what a device signs to store a sealed record in plaintext.
 func SealedUnsealPayload(user, record string, expectedVersion int, value string) []byte {
 	return SealedContext("revoked-unseal-v1", user, record, expectedVersion, value)

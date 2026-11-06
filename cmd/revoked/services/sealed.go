@@ -54,6 +54,49 @@ func HoldsWorkspaceKey(app core.App, workspaceID, userID string, epoch int) bool
 	return row != nil
 }
 
+// CurrentAccountEpoch returns a person's newest account key epoch, or nil before
+// any of their devices made one.
+func CurrentAccountEpoch(app core.App, userID string) *core.Record {
+	e := util.Fields.AccountKeyEpoch
+	rows, err := app.FindRecordsByFilter(util.Coll.AccountKeyEpochs,
+		e.User+" = {:u}", "-"+e.Epoch, 1, 0, dbx.Params{"u": userID})
+	if err != nil || len(rows) == 0 {
+		return nil
+	}
+	return rows[0]
+}
+
+// HoldsAccountKey reports whether any of the person's devices was handed their
+// account key of this epoch.
+func HoldsAccountKey(app core.App, userID string, epoch int) bool {
+	w := util.Fields.AccountKeyWrap
+	row, _ := app.FindFirstRecordByFilter(util.Coll.AccountKeyWraps,
+		w.User+" = {:u} && "+w.Epoch+" = {:e}", dbx.Params{"u": userID, "e": epoch})
+	return row != nil
+}
+
+// MarkAccountKeyRotationDue flags that a removed device held the person's
+// account key, so their devices replace it before wrapping anything new.
+func MarkAccountKeyRotationDue(app core.App, userID string) error {
+	current := CurrentAccountEpoch(app, userID)
+	if current == nil {
+		return nil
+	}
+	current.Set(util.Fields.AccountKeyEpoch.RotationDue, true)
+	return app.Save(current)
+}
+
+// MemberCanReadRecords reports whether a membership row may read the vault, and
+// so may hold its key. An empty permission list is a legacy row with full
+// access, the same reading startSealedEpoch applies.
+func MemberCanReadRecords(member *core.Record) bool {
+	if member == nil {
+		return false
+	}
+	perms := member.GetStringSlice(util.Fields.WorkspaceMember.Permissions)
+	return len(perms) == 0 || slices.Contains(perms, util.ScopeRecordRead)
+}
+
 // MarkKeyRotationDue flags that someone who held a workspace's key no longer
 // should. Sealed writes are refused until a key holder starts a new epoch, so
 // nothing new is written under a key the departed party still has.

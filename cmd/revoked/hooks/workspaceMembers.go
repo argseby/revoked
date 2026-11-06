@@ -100,6 +100,23 @@ func BindWorkspaceMembersHooks(app core.App) {
 		return services.RevokeWorkspaceIdentities(e.App, userId, workspaceId, util.RevocationMembershipEnded)
 	})
 
+	// Losing the right to read the vault must also take away the key to its
+	// encrypted records, or a member demoted to "no vault" keeps reading every
+	// value written from then on. Inside the update's own transaction, like the
+	// delete above.
+	app.OnRecordUpdate(util.Coll.WorkspaceMembers).BindFunc(func(e *core.RecordEvent) error {
+		couldRead := services.MemberCanReadRecords(e.Record.Original())
+		if err := e.Next(); err != nil {
+			return err
+		}
+		if !couldRead || services.MemberCanReadRecords(e.Record) {
+			return nil
+		}
+		return services.RevokeSealedAccess(e.App,
+			e.Record.GetString(util.Fields.WorkspaceMember.User),
+			e.Record.GetString(util.Fields.WorkspaceMember.Workspace))
+	})
+
 	// role is a denormalization of the permissions so the collection rules can
 	// test it: matching the permission list inside a rule is not reliable, but
 	// matching a single-value select is. Derive it on every write rather than

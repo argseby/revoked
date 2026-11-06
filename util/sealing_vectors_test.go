@@ -329,3 +329,36 @@ func TestPasskeyKeysDeriveAndVerifyInGo(t *testing.T) {
 		t.Fatal("the list's passkey entry does not carry the derived key")
 	}
 }
+
+// A grant is signed by the app and checked by this server, so the two must
+// build the same payload byte for byte.
+func TestDartGrantSignatureVerifiesInGo(t *testing.T) {
+	raw, err := os.ReadFile("../app/test/fixtures/sealing_grant_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		Workspace, RecipientUser, GranterUser     string
+		RecipientHpkePublicKey, SigningPublicKey  string
+		Wrap, Signature                           string
+		Epoch, GranterChainSeq, RecipientChainSeq int
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+	signature, err := base64.URLEncoding.DecodeString(v.Signature)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := SealedGrantPayload(v.Workspace, v.Epoch, v.RecipientUser,
+		mustHex(t, v.RecipientHpkePublicKey), v.Wrap, v.GranterUser, v.GranterChainSeq, v.RecipientChainSeq)
+	if !VerifySealedSignature(mustHex(t, v.SigningPublicKey), payload, signature) {
+		t.Fatal("Go refused a grant Dart signed")
+	}
+	// Every bound field matters: the same signature over another recipient fails.
+	other := SealedGrantPayload(v.Workspace, v.Epoch, "someoneelse0001",
+		mustHex(t, v.RecipientHpkePublicKey), v.Wrap, v.GranterUser, v.GranterChainSeq, v.RecipientChainSeq)
+	if VerifySealedSignature(mustHex(t, v.SigningPublicKey), other, signature) {
+		t.Fatal("a grant verified for someone it does not name")
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 
 	"revoked/cmd/revoked/services"
 	"revoked/util"
@@ -153,6 +154,24 @@ func SealedRoute(app core.App) {
 			}
 			return startSealedEpoch(app, re)
 		})
+		e.Router.POST("/api/sealed/workspaces/{id}/grants", func(re *core.RequestEvent) error {
+			if !authorizeSealed(re) {
+				return nil
+			}
+			return grantSealedAccess(app, re)
+		})
+		e.Router.GET("/api/sealed/workspaces/{id}/members", func(re *core.RequestEvent) error {
+			if !authorizeSealed(re) {
+				return nil
+			}
+			return sealedMembers(app, re)
+		})
+		e.Router.POST("/api/sealed/account/epochs", func(re *core.RequestEvent) error {
+			if !authorizeSealed(re) {
+				return nil
+			}
+			return startAccountEpoch(app, re)
+		})
 		e.Router.POST("/api/sealed/records", func(re *core.RequestEvent) error {
 			if !authorizeSealed(re) {
 				return nil
@@ -216,6 +235,18 @@ type sealedEntry struct {
 	Signature        string `json:"signature"`
 }
 
+// sealedGrant is a workspace key handed to another member's device. chainSeq is
+// how far the granter's list had got, recipientChainSeq the recipient's.
+type sealedGrant struct {
+	User              string `json:"user"`
+	DeviceSeq         int    `json:"deviceSeq"`
+	Wrap              string `json:"wrap"`
+	SignerSeq         int    `json:"signerSeq"`
+	ChainSeq          int    `json:"chainSeq"`
+	RecipientChainSeq int    `json:"recipientChainSeq"`
+	Signature         string `json:"signature"`
+}
+
 type sealedWrap struct {
 	Workspace string `json:"workspace"`
 	Epoch     int    `json:"epoch"`
@@ -226,12 +257,13 @@ type sealedWrap struct {
 	Signature string `json:"signature"`
 }
 
-func sealedState(app core.App, re *core.RequestEvent) error {
+// sealedDeviceList is a person's device list as stored, for a client to check.
+func sealedDeviceList(app core.App, userID string) ([]map[string]any, error) {
 	d := util.Fields.DeviceKey
 	rows, err := app.FindRecordsByFilter(util.Coll.DeviceKeys,
-		d.User+" = {:u}", d.Seq, 0, 0, dbx.Params{"u": re.Auth.Id})
+		d.User+" = {:u}", d.Seq, 0, 0, dbx.Params{"u": userID})
 	if err != nil {
-		return re.InternalServerError("Failed to read devices.", err)
+		return nil, err
 	}
 	devices := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
@@ -250,6 +282,15 @@ func sealedState(app core.App, re *core.RequestEvent) error {
 			"anchorSignature":  row.GetString(d.AnchorSignature),
 			"signature":        row.GetString(d.Signature),
 		})
+	}
+
+	return devices, nil
+}
+
+func sealedState(app core.App, re *core.RequestEvent) error {
+	devices, err := sealedDeviceList(app, re.Auth.Id)
+	if err != nil {
+		return re.InternalServerError("Failed to read devices.", err)
 	}
 
 	m := util.Fields.WorkspaceMember
@@ -289,12 +330,14 @@ func sealedState(app core.App, re *core.RequestEvent) error {
 		wraps := make([]map[string]any, 0, len(wrapRows))
 		for _, row := range wrapRows {
 			wraps = append(wraps, map[string]any{
-				"epoch":     row.GetInt(w.Epoch),
-				"deviceSeq": row.GetInt(w.DeviceSeq),
-				"wrap":      row.GetString(w.Wrap),
-				"signerSeq": row.GetInt(w.SignerSeq),
-				"chainSeq":  row.GetInt(w.ChainSeq),
-				"signature": row.GetString(w.Signature),
+				"epoch":             row.GetInt(w.Epoch),
+				"deviceSeq":         row.GetInt(w.DeviceSeq),
+				"wrap":              row.GetString(w.Wrap),
+				"signerSeq":         row.GetInt(w.SignerSeq),
+				"chainSeq":          row.GetInt(w.ChainSeq),
+				"signature":         row.GetString(w.Signature),
+				"granter":           row.GetString(w.Granter),
+				"recipientChainSeq": row.GetInt(w.RecipientChainSeq),
 			})
 		}
 		workspaces = append(workspaces, map[string]any{
@@ -304,10 +347,99 @@ func sealedState(app core.App, re *core.RequestEvent) error {
 		})
 	}
 
+	account, err := accountKeyState(app, re.Auth.Id)
+	if err != nil {
+		return re.InternalServerError("Failed to read keys.", err)
+	}
+
 	return re.JSON(http.StatusOK, map[string]any{
 		"devices":    devices,
 		"workspaces": workspaces,
+		"account":    account,
 	})
+}
+
+// sealedMembers serves every member's device list, so a device can check each
+// one for itself and remember where it starts before ever handing anyone a key
+// (design/e2ee-sharing.md §2.3). Public keys only: no wrap, no value. canRead is
+// the server's word on who may hold the workspace key, and only that.
+func sealedMembers(app core.App, re *core.RequestEvent) error {
+	workspace := re.Request.PathValue("id")
+	if _, member := util.WorkspaceMemberOf(app, workspace, re.Auth.Id); !member {
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.WorkspaceNotFound)
+	}
+	m := util.Fields.WorkspaceMember
+	rows, err := app.FindRecordsByFilter(util.Coll.WorkspaceMembers,
+		m.Workspace+" = {:w}", m.Created, 0, 0, dbx.Params{"w": workspace})
+	if err != nil {
+		return re.InternalServerError("Failed to read members.", err)
+	}
+	epoch := 0
+	if current := services.CurrentKeyEpoch(app, workspace); current != nil {
+		epoch = current.GetInt(util.Fields.WorkspaceKeyEpoch.Epoch)
+	}
+	members := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		userID := row.GetString(m.User)
+		devices, err := sealedDeviceList(app, userID)
+		if err != nil {
+			return re.InternalServerError("Failed to read devices.", err)
+		}
+		entry := map[string]any{
+			"user":     userID,
+			"isSelf":   userID == re.Auth.Id,
+			"canRead":  services.MemberCanReadRecords(row),
+			"canGrant": services.MemberCanAdminister(row),
+			"holdsKey": epoch > 0 && services.HoldsWorkspaceKey(app, workspace, userID, epoch),
+			"devices":  devices,
+		}
+		if user, err := app.FindRecordById(util.Coll.Users, userID); err == nil && user != nil {
+			entry["email"] = user.GetString(util.Fields.User.Email)
+		}
+		members = append(members, entry)
+	}
+	return re.JSON(http.StatusOK, map[string]any{"members": members, "epoch": epoch})
+}
+
+// accountKeyState is the caller's own key in the shape of a workspace row, under
+// its scope name, or nil before any device has made one.
+func accountKeyState(app core.App, userID string) (map[string]any, error) {
+	e := util.Fields.AccountKeyEpoch
+	epochRows, err := app.FindRecordsByFilter(util.Coll.AccountKeyEpochs,
+		e.User+" = {:u}", e.Epoch, 0, 0, dbx.Params{"u": userID})
+	if err != nil || len(epochRows) == 0 {
+		return nil, err
+	}
+	epochs := make([]map[string]any, 0, len(epochRows))
+	for _, row := range epochRows {
+		epochs = append(epochs, map[string]any{
+			"epoch":       row.GetInt(e.Epoch),
+			"priorWrap":   row.GetString(e.PriorWrap),
+			"rotationDue": row.GetBool(e.RotationDue),
+		})
+	}
+	w := util.Fields.AccountKeyWrap
+	wrapRows, err := app.FindRecordsByFilter(util.Coll.AccountKeyWraps,
+		w.User+" = {:u}", w.Epoch, 0, 0, dbx.Params{"u": userID})
+	if err != nil {
+		return nil, err
+	}
+	wraps := make([]map[string]any, 0, len(wrapRows))
+	for _, row := range wrapRows {
+		wraps = append(wraps, map[string]any{
+			"epoch":     row.GetInt(w.Epoch),
+			"deviceSeq": row.GetInt(w.DeviceSeq),
+			"wrap":      row.GetString(w.Wrap),
+			"signerSeq": row.GetInt(w.SignerSeq),
+			"chainSeq":  row.GetInt(w.ChainSeq),
+			"signature": row.GetString(w.Signature),
+		})
+	}
+	return map[string]any{
+		"workspace": util.SealedAccountScope(userID),
+		"epochs":    epochs,
+		"wraps":     wraps,
+	}, nil
 }
 
 func validSealedEntry(entry sealedEntry) bool {
@@ -438,6 +570,22 @@ func withdrawDeviceWraps(tx core.App, userID string, deviceSeq int) error {
 			return err
 		}
 	}
+
+	a := util.Fields.AccountKeyWrap
+	held, err := tx.FindRecordsByFilter(util.Coll.AccountKeyWraps,
+		a.User+" = {:u} && "+a.DeviceSeq+" = {:d}", "", 0, 0,
+		dbx.Params{"u": userID, "d": deviceSeq})
+	if err != nil {
+		return err
+	}
+	for _, row := range held {
+		if err := tx.Delete(row); err != nil {
+			return err
+		}
+	}
+	if len(held) > 0 {
+		return services.MarkAccountKeyRotationDue(tx, userID)
+	}
 	return nil
 }
 
@@ -454,7 +602,18 @@ func saveSealedWraps(tx core.App, userID string, wraps []sealedWrap, chain *util
 	}
 	w := util.Fields.WorkspaceKeyWrap
 	e := util.Fields.WorkspaceKeyEpoch
+	accountScope := util.SealedAccountScope(userID)
 	for _, wrap := range wraps {
+		if wrap.Workspace == accountScope {
+			if err := saveAccountWrap(tx, userID, wrap, chain); err != nil {
+				return err
+			}
+			continue
+		}
+		if strings.HasPrefix(wrap.Workspace, util.SealedAccountScope("")) {
+			// Someone else's account key: never theirs to hand out.
+			return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+		}
 		if _, member := util.WorkspaceMemberOf(tx, wrap.Workspace, userID); !member {
 			return refuse(http.StatusForbidden, &util.Errors.NotWorkspaceMember)
 		}
@@ -498,6 +657,297 @@ func saveSealedWraps(tx core.App, userID string, wraps []sealedWrap, chain *util
 	return nil
 }
 
+// checkWrapSignature accepts a wrap only for a live device on the caller's own
+// list, signed by another live one over exactly what it hands over.
+func checkWrapSignature(wrap sealedWrap, chain *util.SealedChain) bool {
+	signature, ok := decodeSealed(wrap.Signature)
+	_, wrapOk := decodeSealed(wrap.Wrap)
+	return ok && wrapOk && chain.IsLive(wrap.DeviceSeq) && chain.IsLive(wrap.SignerSeq) &&
+		wrap.ChainSeq >= 1 && wrap.ChainSeq <= chain.HeadSeq() &&
+		util.VerifySealedSignature(chain.Entry(wrap.SignerSeq).SigningPublicKey,
+			util.SealedWrapPayload(wrap.Workspace, wrap.Epoch,
+				chain.Entry(wrap.DeviceSeq).HpkePublicKey, wrap.Wrap, wrap.ChainSeq),
+			signature)
+}
+
+// saveAccountWrap stores one copy of the caller's account key. Never replaced,
+// for the same reason as a workspace key's.
+func saveAccountWrap(tx core.App, userID string, wrap sealedWrap, chain *util.SealedChain) error {
+	if !checkWrapSignature(wrap, chain) {
+		return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+	}
+	a := util.Fields.AccountKeyWrap
+	e := util.Fields.AccountKeyEpoch
+	epoch, _ := tx.FindFirstRecordByFilter(util.Coll.AccountKeyEpochs,
+		e.User+" = {:u} && "+e.Epoch+" = {:e}", dbx.Params{"u": userID, "e": wrap.Epoch})
+	if epoch == nil {
+		return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+	}
+	existing, _ := tx.FindFirstRecordByFilter(util.Coll.AccountKeyWraps,
+		a.User+" = {:u} && "+a.Epoch+" = {:e} && "+a.DeviceSeq+" = {:d}",
+		dbx.Params{"u": userID, "e": wrap.Epoch, "d": wrap.DeviceSeq})
+	if existing != nil {
+		return refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
+	}
+	collection, err := tx.FindCollectionByNameOrId(util.Coll.AccountKeyWraps)
+	if err != nil {
+		return err
+	}
+	row := core.NewRecord(collection)
+	row.Set(a.User, userID)
+	row.Set(a.Epoch, wrap.Epoch)
+	row.Set(a.DeviceSeq, wrap.DeviceSeq)
+	row.Set(a.Wrap, wrap.Wrap)
+	row.Set(a.SignerSeq, wrap.SignerSeq)
+	row.Set(a.ChainSeq, wrap.ChainSeq)
+	row.Set(a.Signature, wrap.Signature)
+	return tx.Save(row)
+}
+
+// startAccountEpoch creates the caller's account key, or replaces it after one
+// of their devices was removed. Like a workspace key: only a holder may replace
+// it, the new key carries the old one, and every live device gets a copy.
+func startAccountEpoch(app core.App, re *core.RequestEvent) error {
+	var body struct {
+		Epoch     int          `json:"epoch"`
+		PriorWrap string       `json:"priorWrap"`
+		Wraps     []sealedWrap `json:"wraps"`
+	}
+	if err := re.BindBody(&body); err != nil || body.Epoch < 1 ||
+		len(body.Wraps) == 0 || len(body.Wraps) > maxSealedWraps || len(body.PriorWrap) > 256 {
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
+	}
+	if body.PriorWrap != "" {
+		if _, ok := decodeSealed(body.PriorWrap); !ok {
+			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
+		}
+	}
+
+	userID := re.Auth.Id
+	scope := util.SealedAccountScope(userID)
+	e := util.Fields.AccountKeyEpoch
+	err := app.RunInTransaction(func(tx core.App) error {
+		current := services.CurrentAccountEpoch(tx, userID)
+		if current == nil {
+			if body.Epoch != 1 || body.PriorWrap != "" {
+				return refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
+			}
+		} else {
+			if !services.HoldsAccountKey(tx, userID, current.GetInt(e.Epoch)) {
+				return refuse(http.StatusForbidden, &util.Errors.SealedKeyMissing)
+			}
+			if body.Epoch != current.GetInt(e.Epoch)+1 {
+				return refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
+			}
+			if body.PriorWrap == "" {
+				return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+			}
+		}
+
+		chain, err := loadSealedChain(tx, userID)
+		if err != nil {
+			return err
+		}
+		covered := map[int]bool{}
+		for i := range body.Wraps {
+			body.Wraps[i].Workspace = scope
+			body.Wraps[i].Epoch = body.Epoch
+			covered[body.Wraps[i].DeviceSeq] = true
+		}
+		for _, seq := range chain.Live() {
+			if !covered[seq] {
+				return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+			}
+		}
+
+		collection, err := tx.FindCollectionByNameOrId(util.Coll.AccountKeyEpochs)
+		if err != nil {
+			return err
+		}
+		row := core.NewRecord(collection)
+		row.Set(e.User, userID)
+		row.Set(e.Epoch, body.Epoch)
+		row.Set(e.PriorWrap, body.PriorWrap)
+		if err := tx.Save(row); err != nil {
+			return err
+		}
+		for _, wrap := range body.Wraps {
+			if err := saveAccountWrap(tx, userID, wrap, chain); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return writeSealedResult(re, err)
+	}
+
+	services.RecordAudit(app, services.AuditEntry{
+		Action:     util.AuditActionCreate,
+		Collection: util.Coll.AccountKeyEpochs,
+		RecordId:   userID,
+		User:       userID,
+		Ip:         re.Request.RemoteAddr,
+		UserAgent:  re.Request.UserAgent(),
+	})
+	return re.JSON(http.StatusOK, map[string]any{"ok": true, "epoch": body.Epoch})
+}
+
+// saveSealedGrants stores keys a member hands to other members' devices. The
+// granter must be able to bring people in, every recipient must be able to read
+// the vault, and each copy must be signed by the granter's live device for a live
+// device on the recipient's own list. Copies are never replaced. It returns whom
+// it granted to.
+func saveSealedGrants(tx core.App, granterID, workspace string, epoch int,
+	grants []sealedGrant, granterChain *util.SealedChain) ([]string, error) {
+	if len(grants) == 0 {
+		return nil, nil
+	}
+	granter, member := util.WorkspaceMemberOf(tx, workspace, granterID)
+	if !member {
+		return nil, refuse(http.StatusForbidden, &util.Errors.NotWorkspaceMember)
+	}
+	if !services.MemberCanAdminister(granter) {
+		return nil, refuse(http.StatusForbidden, &util.Errors.MissingPermission)
+	}
+	// An identity key still under the workspace key would open for whoever
+	// receives it, and let them sign as its owner.
+	i := util.Fields.Identity
+	legacy, _ := tx.FindFirstRecordByFilter(util.Coll.Identities,
+		i.Workspace+" = {:w} && "+i.SealedKey+" != '' && "+i.SealedKeyScope+" = ''",
+		dbx.Params{"w": workspace})
+	if legacy != nil {
+		return nil, refuse(http.StatusConflict, &util.Errors.SealedIdentityKeysPending)
+	}
+
+	collection, err := tx.FindCollectionByNameOrId(util.Coll.WorkspaceKeyWraps)
+	if err != nil {
+		return nil, err
+	}
+	w := util.Fields.WorkspaceKeyWrap
+	chains := map[string]*util.SealedChain{}
+	granted := []string{}
+	for _, g := range grants {
+		if g.User == "" || g.User == granterID {
+			return nil, refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+		}
+		recipient, isMember := util.WorkspaceMemberOf(tx, workspace, g.User)
+		if !isMember {
+			return nil, refuse(http.StatusForbidden, &util.Errors.NotWorkspaceMember)
+		}
+		if !services.MemberCanReadRecords(recipient) {
+			return nil, refuse(http.StatusForbidden, &util.Errors.MissingPermission)
+		}
+		chain := chains[g.User]
+		if chain == nil {
+			if chain, err = loadSealedChain(tx, g.User); err != nil {
+				return nil, err
+			}
+			chains[g.User] = chain
+		}
+		signature, ok := decodeSealed(g.Signature)
+		_, wrapOk := decodeSealed(g.Wrap)
+		if !ok || !wrapOk || !chain.IsLive(g.DeviceSeq) || !granterChain.IsLive(g.SignerSeq) ||
+			g.ChainSeq < 1 || g.ChainSeq > granterChain.HeadSeq() ||
+			g.RecipientChainSeq < 1 || g.RecipientChainSeq > chain.HeadSeq() ||
+			!util.VerifySealedSignature(granterChain.Entry(g.SignerSeq).SigningPublicKey,
+				util.SealedGrantPayload(workspace, epoch, g.User, chain.Entry(g.DeviceSeq).HpkePublicKey,
+					g.Wrap, granterID, g.ChainSeq, g.RecipientChainSeq),
+				signature) {
+			return nil, refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+		}
+		existing, _ := tx.FindFirstRecordByFilter(util.Coll.WorkspaceKeyWraps,
+			w.Workspace+" = {:w} && "+w.Epoch+" = {:e} && "+w.User+" = {:u} && "+w.DeviceSeq+" = {:d}",
+			dbx.Params{"w": workspace, "e": epoch, "u": g.User, "d": g.DeviceSeq})
+		if existing != nil {
+			return nil, refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
+		}
+		row := core.NewRecord(collection)
+		row.Set(w.Workspace, workspace)
+		row.Set(w.Epoch, epoch)
+		row.Set(w.User, g.User)
+		row.Set(w.DeviceSeq, g.DeviceSeq)
+		row.Set(w.Wrap, g.Wrap)
+		row.Set(w.SignerSeq, g.SignerSeq)
+		row.Set(w.ChainSeq, g.ChainSeq)
+		row.Set(w.RecipientChainSeq, g.RecipientChainSeq)
+		row.Set(w.Signature, g.Signature)
+		row.Set(w.Granter, granterID)
+		if err := tx.Save(row); err != nil {
+			return nil, err
+		}
+		if !slices.Contains(granted, g.User) {
+			granted = append(granted, g.User)
+		}
+	}
+	return granted, nil
+}
+
+// grantSealedAccess hands the current workspace key to other members' devices.
+// Only under a key nobody removed has: a due rotation comes first.
+func grantSealedAccess(app core.App, re *core.RequestEvent) error {
+	var body struct {
+		Epoch  int           `json:"epoch"`
+		Grants []sealedGrant `json:"grants"`
+	}
+	if err := re.BindBody(&body); err != nil || body.Epoch < 1 ||
+		len(body.Grants) == 0 || len(body.Grants) > maxSealedWraps {
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
+	}
+	workspace := re.Request.PathValue("id")
+	userID := re.Auth.Id
+	if _, member := util.WorkspaceMemberOf(app, workspace, userID); !member {
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.WorkspaceNotFound)
+	}
+
+	var granted []string
+	err := app.RunInTransaction(func(tx core.App) error {
+		e := util.Fields.WorkspaceKeyEpoch
+		current := services.CurrentKeyEpoch(tx, workspace)
+		if current == nil || !services.HoldsWorkspaceKey(tx, workspace, userID, current.GetInt(e.Epoch)) {
+			return refuse(http.StatusForbidden, &util.Errors.SealedKeyMissing)
+		}
+		if current.GetBool(e.RotationDue) || body.Epoch != current.GetInt(e.Epoch) {
+			return refuse(http.StatusConflict, &util.Errors.SealedEpochStale)
+		}
+		chain, err := loadSealedChain(tx, userID)
+		if err != nil {
+			return err
+		}
+		granted, err = saveSealedGrants(tx, userID, workspace, body.Epoch, body.Grants, chain)
+		return err
+	})
+	if err != nil {
+		return writeSealedResult(re, err)
+	}
+	announceSealedGrants(app, re, workspace, granted, true)
+	return re.JSON(http.StatusOK, map[string]any{"ok": true, "granted": granted})
+}
+
+// announceSealedGrants audits each grant and, with notify, tells its recipient,
+// who should know whose word they now share a key on.
+func announceSealedGrants(app core.App, re *core.RequestEvent, workspace string, granted []string, notify bool) {
+	granter := re.Auth.GetString(util.Fields.User.Email)
+	for _, recipient := range granted {
+		services.RecordAudit(app, services.AuditEntry{
+			Action:     util.AuditActionCreate,
+			Collection: util.Coll.WorkspaceKeyWraps,
+			RecordId:   recipient,
+			Workspace:  workspace,
+			User:       re.Auth.Id,
+			Ip:         re.Request.RemoteAddr,
+			UserAgent:  re.Request.UserAgent(),
+		})
+		if !notify {
+			continue
+		}
+		services.EmitNotification(app, recipient, workspace, util.NotificationSealingAccessGranted,
+			"You can read this workspace's encrypted records",
+			granter+" gave your devices the key. Compare fingerprints with them under Settings → End-to-end encryption.",
+			util.Coll.WorkspaceKeyWraps, workspace)
+	}
+}
+
 // startSealedEpoch creates a workspace's first key, or replaces the current one.
 //
 // Only someone already holding the key may replace it. Otherwise any member could
@@ -506,18 +956,20 @@ func saveSealedWraps(tx core.App, userID string, wraps []sealedWrap, chain *util
 // included, or a bug here would quietly strand their recovery.
 func startSealedEpoch(app core.App, re *core.RequestEvent) error {
 	var body struct {
-		Epoch     int          `json:"epoch"`
-		PriorWrap string       `json:"priorWrap"`
-		Wraps     []sealedWrap `json:"wraps"`
+		Epoch     int           `json:"epoch"`
+		PriorWrap string        `json:"priorWrap"`
+		Wraps     []sealedWrap  `json:"wraps"`
+		Grants    []sealedGrant `json:"grants"`
 	}
 	if err := re.BindBody(&body); err != nil || body.Epoch < 1 ||
-		len(body.Wraps) == 0 || len(body.Wraps) > maxSealedWraps {
+		len(body.Wraps) == 0 || len(body.Wraps)+len(body.Grants) > maxSealedWraps {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
 	}
 	if _, ok := decodeSealed(body.PriorWrap); !ok {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
 	}
 
+	var granted []string
 	workspace := re.Request.PathValue("id")
 	userID := re.Auth.Id
 	member, found := util.WorkspaceMemberOf(app, workspace, userID)
@@ -576,11 +1028,19 @@ func startSealedEpoch(app core.App, re *core.RequestEvent) error {
 		if err := tx.Save(row); err != nil {
 			return err
 		}
-		return saveSealedWraps(tx, userID, body.Wraps, chain)
+		if err := saveSealedWraps(tx, userID, body.Wraps, chain); err != nil {
+			return err
+		}
+		// Other members' devices, each checked as in a grant. Anyone left out
+		// goes back to waiting for access.
+		granted, err = saveSealedGrants(tx, userID, workspace, body.Epoch, body.Grants, chain)
+		return err
 	})
 	if err != nil {
 		return writeSealedResult(re, err)
 	}
+	// A new key for people who already had the old one is no news to them.
+	announceSealedGrants(app, re, workspace, granted, false)
 
 	services.RecordAudit(app, services.AuditEntry{
 		Action:     util.AuditActionCreate,
@@ -931,6 +1391,9 @@ func resetSealing(app core.App, re *core.RequestEvent) error {
 				return err
 			}
 		}
+		if err := resetAccountKey(tx, userID); err != nil {
+			return err
+		}
 		for workspace := range workspaces {
 			others, _ := tx.FindFirstRecordByFilter(util.Coll.WorkspaceKeyWraps,
 				w.Workspace+" = {:w}", dbx.Params{"w": workspace})
@@ -979,6 +1442,38 @@ func resetSealing(app core.App, re *core.RequestEvent) error {
 	})
 	services.NotifySealingReset(app, userID, re.Auth.GetString(util.Fields.User.ActiveWorkspace))
 	return re.JSON(http.StatusOK, map[string]any{"ok": true, "deleted": deleted})
+}
+
+// resetAccountKey deletes a person's account key and the identity keys under it.
+// Nobody can open them any more; a device still holding an identity's private
+// key uploads it again under the new account key.
+func resetAccountKey(tx core.App, userID string) error {
+	for _, name := range []string{util.Coll.AccountKeyWraps, util.Coll.AccountKeyEpochs} {
+		rows, err := tx.FindRecordsByFilter(name, "user = {:u}", "", 0, 0, dbx.Params{"u": userID})
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			if err := tx.Delete(row); err != nil {
+				return err
+			}
+		}
+	}
+	i := util.Fields.Identity
+	identities, err := tx.FindRecordsByFilter(util.Coll.Identities,
+		i.User+" = {:u} && "+i.SealedKey+" != ''", "", 0, 0, dbx.Params{"u": userID})
+	if err != nil {
+		return err
+	}
+	for _, row := range identities {
+		row.Set(i.SealedKey, "")
+		row.Set(i.SealedKeyEpoch, 0)
+		row.Set(i.SealedKeyScope, "")
+		if err := tx.Save(row); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // revokeOtherSessions ends every session this account has, and hands the caller a

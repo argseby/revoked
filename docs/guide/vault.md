@@ -66,6 +66,24 @@ Sections can be renamed, duplicated and shared as one. A shared section
 always reflects its current contents: a record added later becomes visible
 to everyone with the link.
 
+### Sharing a section with members {#members}
+
+Records are otherwise seen only by the member who created them. **Share with
+members** in a section's menu makes its records visible to every member of
+the workspace who can read the vault, with their current values; the section
+then carries a **Members** badge. **Stop sharing with members** hides them
+again, though anything already read or copied stays with whoever read it.
+
+- Other members see the section below their own, marked **Shared by** its
+  owner, and open its records read-only. Members who may manage the vault
+  can also change them, as everywhere in the workspace.
+- Only the section's owner can share it or stop, and only from the app: an
+  API key or a connected tool cannot change who reads it.
+- Only records the owner created are shown. Files and aliases are left out
+  for now.
+- [Encrypted records](encryption.md#access) in a shared section open only for
+  members whose devices were given the workspace's key.
+
 ## Creating records from a template {#start-from-a-template}
 
 **New → From a template** creates a complete set of sections and records

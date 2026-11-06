@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 
+	"revoked/cmd/revoked/services"
 	"revoked/tests/testutils"
 	"revoked/util"
 
@@ -957,6 +958,66 @@ func TestRemovingAKeyHoldingMemberMakesRotationDue(t *testing.T) {
 		JSON().Object().Value("code").IsEqual(util.Errors.SealedEpochStale.ErrorCode)
 }
 
+func TestLosingVaultReadTakesTheKeyAway(t *testing.T) {
+	f := newSealedFixture(t)
+	f.enroll()
+	f.createSealed("smtp_password")
+
+	holder := addWorkspaceMember(t, f)
+	wraps, err := f.app.FindCollectionByNameOrId(util.Coll.WorkspaceKeyWraps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := util.Fields.WorkspaceKeyWrap
+	row := core.NewRecord(wraps)
+	row.Set(w.Workspace, f.party.workspace)
+	row.Set(w.Epoch, 1)
+	row.Set(w.User, holder.id)
+	row.Set(w.DeviceSeq, 1)
+	row.Set(w.Wrap, sealedKeyWrap)
+	row.Set(w.SignerSeq, 1)
+	row.Set(w.Signature, sealedSignature)
+	if err := f.app.Save(row); err != nil {
+		t.Fatal(err)
+	}
+
+	m := util.Fields.WorkspaceMember
+	member, err := f.app.FindFirstRecordByFilter(util.Coll.WorkspaceMembers,
+		m.Workspace+" = {:w} && "+m.User+" = {:u}", dbx.Params{"w": f.party.workspace, "u": holder.id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	copies := func() int {
+		left, _ := f.app.FindRecordsByFilter(util.Coll.WorkspaceKeyWraps,
+			w.User+" = {:u}", "", 0, 0, dbx.Params{"u": holder.id})
+		return len(left)
+	}
+
+	// A change that keeps vault read leaves the key where it is.
+	readOnly, _ := util.ExpandPermissions([]string{util.PermVaultRead})
+	member.Set(m.Permissions, readOnly)
+	if err := f.app.Save(member); err != nil {
+		t.Fatal(err)
+	}
+	if copies() != 1 {
+		t.Fatal("a member who can still read the vault lost their key")
+	}
+
+	noVault, _ := util.ExpandPermissions([]string{util.PermSharesRead})
+	member.Set(m.Permissions, noVault)
+	if err := f.app.Save(member); err != nil {
+		t.Fatal(err)
+	}
+	if copies() != 0 {
+		t.Fatal("a member who can no longer read the vault kept their key")
+	}
+	f.request("POST", "/api/sealed/records", f.party.token, sealedBody(1, map[string]any{
+		"id": newSealedID(), "key": "next", "label": "next", "type": "text", "format": "default",
+		"workspace": f.party.workspace,
+	})).Expect().Status(http.StatusConflict).
+		JSON().Object().Value("code").IsEqual(util.Errors.SealedEpochStale.ErrorCode)
+}
+
 func TestSealedRecordRules(t *testing.T) {
 	f := newSealedFixture(t)
 	f.enroll()
@@ -1347,6 +1408,359 @@ func TestAPasskeyCanHoldTheKey(t *testing.T) {
 			epoch.Workspace+" = {:w}", dbx.Params{"w": f.party.workspace})
 		if current == nil || !current.GetBool(epoch.RotationDue) {
 			t.Fatal("no new key is due after removing a key holder")
+		}
+	})
+}
+
+func (f *sealedFixture) startAccountEpoch(epoch int, prior string, devices ...int) *httpexpect.Response {
+	f.t.Helper()
+	scope := util.SealedAccountScope(f.party.id)
+	wraps := []any{}
+	for _, seq := range devices {
+		wraps = append(wraps, f.wrapTo(scope, epoch, seq))
+	}
+	return f.request("POST", "/api/sealed/account/epochs", f.party.token,
+		map[string]any{"epoch": epoch, "priorWrap": prior, "wraps": wraps}).Expect()
+}
+
+func TestTheAccountKeyStaysWithItsOwner(t *testing.T) {
+	f := newSealedFixture(t)
+	f.enroll()
+	scope := util.SealedAccountScope(f.party.id)
+
+	t.Run("it must reach every live device", func(t *testing.T) {
+		f.startAccountEpoch(1, "", 1).Status(http.StatusBadRequest)
+	})
+
+	t.Run("the first one starts at epoch 1, with nothing before it", func(t *testing.T) {
+		f.startAccountEpoch(2, sealedKeyWrap, 1, 2).Status(http.StatusConflict)
+		f.startAccountEpoch(1, "", 1, 2).Status(http.StatusOK)
+		f.startAccountEpoch(1, "", 1, 2).Status(http.StatusConflict)
+	})
+
+	t.Run("the state serves it under its scope, only to its owner", func(t *testing.T) {
+		account := f.request("GET", "/api/sealed/state", f.party.token, nil).Expect().
+			Status(http.StatusOK).JSON().Object().Value("account").Object()
+		account.Value("workspace").IsEqual(scope)
+		account.Value("wraps").Array().Length().IsEqual(2)
+
+		other := newContactParty(t, f.baseURL)
+		f.request("GET", "/api/sealed/state", other.token, nil).Expect().
+			Status(http.StatusOK).JSON().Object().Value("account").IsNull()
+	})
+
+	t.Run("nobody else's device can be handed it", func(t *testing.T) {
+		other := sealedFixtureFor(t, f.baseURL, f.app, newContactParty(t, f.baseURL))
+		other.enroll()
+		added, signer := other.addition(util.SealedKindDevice)
+		other.accept(added, signer)
+		other.request("POST", "/api/sealed/devices", other.party.token, map[string]any{
+			"entries": []any{sealedEntryJSON(added)},
+			"wraps":   []any{other.wrapTo(scope, 1, added.Seq)},
+		}).Expect().Status(http.StatusBadRequest)
+		wrap := other.wrapTo(scope, 1, 1)
+		other.request("POST", "/api/sealed/account/epochs", other.party.token, map[string]any{
+			"epoch": 1, "priorWrap": "", "wraps": []any{wrap},
+		}).Expect().Status(http.StatusBadRequest)
+	})
+
+	t.Run("a new device gets it with its entry", func(t *testing.T) {
+		added, signer := f.addition(util.SealedKindDevice)
+		f.accept(added, signer)
+		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
+			"entries": []any{sealedEntryJSON(added)},
+			"wraps":   []any{f.wrapTo(f.party.workspace, 1, added.Seq), f.wrapTo(scope, 1, added.Seq)},
+		}).Expect().Status(http.StatusOK)
+
+		w := util.Fields.AccountKeyWrap
+		rows, _ := f.app.FindRecordsByFilter(util.Coll.AccountKeyWraps,
+			w.User+" = {:u} && "+w.DeviceSeq+" = {:d}", "", 0, 0,
+			dbx.Params{"u": f.party.id, "d": added.Seq})
+		if len(rows) != 1 {
+			t.Fatal("the new device did not get the account key")
+		}
+
+		removal := f.removal(added.Seq)
+		f.accept(removal, nil)
+		f.request("POST", "/api/sealed/devices", f.party.token, map[string]any{
+			"entries": []any{sealedEntryJSON(removal)},
+		}).Expect().Status(http.StatusOK)
+		rows, _ = f.app.FindRecordsByFilter(util.Coll.AccountKeyWraps,
+			w.User+" = {:u} && "+w.DeviceSeq+" = {:d}", "", 0, 0,
+			dbx.Params{"u": f.party.id, "d": added.Seq})
+		if len(rows) != 0 {
+			t.Fatal("the removed device kept the account key")
+		}
+		current := services.CurrentAccountEpoch(f.app, f.party.id)
+		if current == nil || !current.GetBool(util.Fields.AccountKeyEpoch.RotationDue) {
+			t.Fatal("removing a device that held the account key did not make a new one due")
+		}
+	})
+
+	t.Run("replacing it needs the old one wrapped under it", func(t *testing.T) {
+		f.startAccountEpoch(2, "", 1, 2).Status(http.StatusBadRequest)
+		f.startAccountEpoch(2, sealedKeyWrap, 1, 2).Status(http.StatusOK)
+	})
+
+	t.Run("starting over deletes it and the identity keys under it", func(t *testing.T) {
+		identities, err := f.app.FindCollectionByNameOrId(util.Coll.Identities)
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := util.Fields.Identity
+		identity := core.NewRecord(identities)
+		identity.Set(i.Name, "Signer")
+		identity.Set(i.Certificate, "stand-in certificate")
+		identity.Set(i.PublicKey, "stand-in public key")
+		identity.Set(i.Fingerprint, newSealedID())
+		identity.Set(i.User, f.party.id)
+		identity.Set(i.Workspace, f.party.workspace)
+		identity.Set(i.Status, util.StatusActive)
+		identity.Set(i.SealedKey, sealedCiphertext)
+		identity.Set(i.SealedKeyEpoch, 2)
+		identity.Set(i.SealedKeyScope, util.SealedKeyScopeAccount)
+		if err := f.app.Save(identity); err != nil {
+			t.Fatal(err)
+		}
+
+		f.request("POST", "/api/sealed/reset", f.party.token, map[string]any{
+			"confirm": "delete my encrypted records",
+		}).Expect().Status(http.StatusOK)
+
+		if services.CurrentAccountEpoch(f.app, f.party.id) != nil {
+			t.Fatal("the account key outlived starting over")
+		}
+		left, _ := f.app.FindRecordsByFilter(util.Coll.AccountKeyWraps,
+			util.Fields.AccountKeyWrap.User+" = {:u}", "", 0, 0, dbx.Params{"u": f.party.id})
+		if len(left) != 0 {
+			t.Fatal("copies of the account key outlived starting over")
+		}
+		reloaded, err := f.app.FindRecordById(util.Coll.Identities, identity.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.GetString(i.SealedKey) != "" || reloaded.GetString(i.SealedKeyScope) != "" {
+			t.Fatal("an identity kept a key nobody can open")
+		}
+	})
+}
+
+func TestMembersDeviceListsAreServedToMembersOnly(t *testing.T) {
+	f := newSealedFixture(t)
+	f.enroll()
+	member := addWorkspaceMember(t, f)
+	path := "/api/sealed/workspaces/" + f.party.workspace + "/members"
+
+	members := f.request("GET", path, member.token, nil).Expect().
+		Status(http.StatusOK).JSON().Object().Value("members").Array()
+	members.Length().IsEqual(2)
+	var owner *httpexpect.Object
+	for _, m := range members.Iter() {
+		o := m.Object()
+		if o.Value("user").String().Raw() == f.party.id {
+			owner = o
+		}
+	}
+	if owner == nil {
+		t.Fatal("the owner's list is missing")
+	}
+	owner.Value("isSelf").IsEqual(false)
+	owner.Value("canRead").IsEqual(true)
+	devices := owner.Value("devices").Array()
+	devices.Length().IsEqual(2)
+	devices.Value(0).Object().Value("hpkePublicKey").IsEqual(encodeSealed(f.chain.Entry(1).HpkePublicKey))
+
+	// Public keys only: nothing a member could use to open anything.
+	body := f.request("GET", path, member.token, nil).Expect().Body().Raw()
+	if strings.Contains(body, sealedKeyWrap) || strings.Contains(body, "wraps") {
+		t.Fatal("the member list carries key material")
+	}
+
+	outsider := newContactParty(t, f.baseURL)
+	f.request("GET", path, outsider.token, nil).Expect().Status(http.StatusNotFound)
+	f.request("GET", path, "", nil).Expect().Status(http.StatusUnauthorized)
+}
+
+// grantTo hands the owner's current key to one of a member's devices, signed by
+// the owner's first device over what the member's list holds now.
+func (f *sealedFixture) grantTo(recipient *sealedFixture, epoch, deviceSeq int) map[string]any {
+	wrap := sealedKeyWrap
+	payload := util.SealedGrantPayload(f.party.workspace, epoch, recipient.party.id,
+		recipient.chain.Entry(deviceSeq).HpkePublicKey, wrap, f.party.id,
+		f.chain.HeadSeq(), recipient.chain.HeadSeq())
+	return map[string]any{
+		"user": recipient.party.id, "deviceSeq": deviceSeq, "wrap": wrap,
+		"signerSeq": 1, "chainSeq": f.chain.HeadSeq(), "recipientChainSeq": recipient.chain.HeadSeq(),
+		"signature": encodeSealed(f.signers[1].signRaw(payload)),
+	}
+}
+
+func (f *sealedFixture) grant(token string, epoch int, grants ...map[string]any) *httpexpect.Response {
+	f.t.Helper()
+	list := []any{}
+	for _, g := range grants {
+		list = append(list, g)
+	}
+	return f.request("POST", "/api/sealed/workspaces/"+f.party.workspace+"/grants", token,
+		map[string]any{"epoch": epoch, "grants": list}).Expect()
+}
+
+// newGrantFixture is an owner with a key in their workspace and a member with a
+// device list of their own.
+func newGrantFixture(t *testing.T) (*sealedFixture, *sealedFixture) {
+	f := newSealedFixture(t)
+	f.enroll()
+	member := sealedFixtureFor(t, f.baseURL, f.app, addWorkspaceMember(t, f))
+	member.enroll()
+	return f, member
+}
+
+func TestGrantingTheWorkspaceKey(t *testing.T) {
+	t.Run("hands the key to a member's devices", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1), f.grantTo(member, 1, 2)).
+			Status(http.StatusOK).JSON().Object().Value("granted").Array().IsEqual([]any{member.party.id})
+
+		if !services.HoldsWorkspaceKey(f.app, f.party.workspace, member.party.id, 1) {
+			t.Fatal("the member holds no key")
+		}
+		var ws *httpexpect.Object
+		for _, w := range f.request("GET", "/api/sealed/state", member.party.token, nil).Expect().
+			JSON().Object().Value("workspaces").Array().Iter() {
+			if w.Object().Value("workspace").String().Raw() == f.party.workspace {
+				ws = w.Object()
+			}
+		}
+		if ws == nil {
+			t.Fatal("the member's state does not name the workspace")
+		}
+		ws.Value("wraps").Array().Value(0).Object().Value("granter").IsEqual(f.party.id)
+
+		// The member can now write encrypted records here.
+		member.request("POST", "/api/sealed/records", member.party.token, sealedBody(1, map[string]any{
+			"id": newSealedID(), "key": "granted", "label": "granted", "type": "text", "format": "default",
+			"workspace": f.party.workspace,
+		})).Expect().Status(http.StatusOK)
+
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1)).Status(http.StatusConflict)
+	})
+
+	t.Run("only someone who can invite may grant", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		other := sealedFixtureFor(t, f.baseURL, f.app, addWorkspaceMember(t, f))
+		other.enroll()
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1), f.grantTo(member, 1, 2)).Status(http.StatusOK)
+		// The member holds the key now, but cannot bring anyone in.
+		member.party.workspace = f.party.workspace
+		member.grant(member.party.token, 1, member.grantTo(other, 1, 1)).Status(http.StatusForbidden)
+	})
+
+	t.Run("only to someone who can read the vault", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		m := util.Fields.WorkspaceMember
+		row, _ := f.app.FindFirstRecordByFilter(util.Coll.WorkspaceMembers,
+			m.Workspace+" = {:w} && "+m.User+" = {:u}", dbx.Params{"w": f.party.workspace, "u": member.party.id})
+		noVault, _ := util.ExpandPermissions([]string{util.PermSharesRead})
+		row.Set(m.Permissions, noVault)
+		if err := f.app.Save(row); err != nil {
+			t.Fatal(err)
+		}
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1)).Status(http.StatusForbidden)
+	})
+
+	t.Run("never to an outsider, oneself, or a dead device", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		outsider := sealedFixtureFor(t, f.baseURL, f.app, newContactParty(t, f.baseURL))
+		outsider.enroll()
+		f.grant(f.party.token, 1, f.grantTo(outsider, 1, 1)).Status(http.StatusForbidden)
+
+		self := f.grantTo(f, 1, 1)
+		f.grant(f.party.token, 1, self).Status(http.StatusBadRequest)
+
+		removal := member.removal(2)
+		member.accept(removal, nil)
+		member.request("POST", "/api/sealed/devices", member.party.token, map[string]any{
+			"entries": []any{sealedEntryJSON(removal)},
+		}).Expect().Status(http.StatusOK)
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 2)).Status(http.StatusBadRequest)
+	})
+
+	t.Run("a copy signed for someone else does not land", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		other := sealedFixtureFor(t, f.baseURL, f.app, addWorkspaceMember(t, f))
+		other.enroll()
+		g := f.grantTo(member, 1, 1)
+		g["user"] = other.party.id
+		f.grant(f.party.token, 1, g).Status(http.StatusBadRequest)
+	})
+
+	t.Run("not under an old key or one that must be replaced", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		f.grant(f.party.token, 2, f.grantTo(member, 2, 1)).Status(http.StatusConflict)
+		if err := services.MarkKeyRotationDue(f.app, f.party.workspace); err != nil {
+			t.Fatal(err)
+		}
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1)).Status(http.StatusConflict)
+	})
+
+	t.Run("not while an identity key is still under the workspace key", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		identities, _ := f.app.FindCollectionByNameOrId(util.Coll.Identities)
+		i := util.Fields.Identity
+		identity := core.NewRecord(identities)
+		identity.Set(i.Name, "Signer")
+		identity.Set(i.Certificate, "stand-in certificate")
+		identity.Set(i.PublicKey, "stand-in public key")
+		identity.Set(i.Fingerprint, newSealedID())
+		identity.Set(i.User, f.party.id)
+		identity.Set(i.Workspace, f.party.workspace)
+		identity.Set(i.Status, util.StatusActive)
+		identity.Set(i.SealedKey, sealedCiphertext)
+		identity.Set(i.SealedKeyEpoch, 1)
+		if err := f.app.Save(identity); err != nil {
+			t.Fatal(err)
+		}
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1)).Status(http.StatusConflict).
+			JSON().Object().Value("code").IsEqual(util.Errors.SealedIdentityKeysPending.ErrorCode)
+
+		identity.Set(i.SealedKeyScope, util.SealedKeyScopeAccount)
+		if err := f.app.Save(identity); err != nil {
+			t.Fatal(err)
+		}
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1)).Status(http.StatusOK)
+	})
+
+	t.Run("a new key can carry the members along", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1), f.grantTo(member, 1, 2)).Status(http.StatusOK)
+		wraps := []any{f.wrapTo(f.party.workspace, 2, 1), f.wrapTo(f.party.workspace, 2, 2)}
+		f.request("POST", "/api/sealed/workspaces/"+f.party.workspace+"/epochs", f.party.token, map[string]any{
+			"epoch": 2, "priorWrap": sealedKeyWrap, "wraps": wraps,
+			"grants": []any{f.grantTo(member, 2, 1), f.grantTo(member, 2, 2)},
+		}).Expect().Status(http.StatusOK)
+		if !services.HoldsWorkspaceKey(f.app, f.party.workspace, member.party.id, 2) {
+			t.Fatal("the member was left behind by the new key")
+		}
+	})
+
+	t.Run("the member list says who holds the key", func(t *testing.T) {
+		f, member := newGrantFixture(t)
+		path := "/api/sealed/workspaces/" + f.party.workspace + "/members"
+		holds := func() map[string]bool {
+			out := map[string]bool{}
+			for _, m := range f.request("GET", path, f.party.token, nil).Expect().
+				JSON().Object().Value("members").Array().Iter() {
+				o := m.Object()
+				out[o.Value("user").String().Raw()] = o.Value("holdsKey").Boolean().Raw()
+			}
+			return out
+		}
+		if h := holds(); !h[f.party.id] || h[member.party.id] {
+			t.Fatalf("before the grant: %v", h)
+		}
+		f.grant(f.party.token, 1, f.grantTo(member, 1, 1)).Status(http.StatusOK)
+		if h := holds(); !h[member.party.id] {
+			t.Fatalf("after the grant: %v", h)
 		}
 	})
 }
