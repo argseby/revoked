@@ -42,6 +42,56 @@ var signupMails = map[string]signupMail{
 	},
 }
 
+// accountExistsMail answers a confirmation request for an address that
+// already has an account, in one language.
+type accountExistsMail struct {
+	subject string
+	intro   func(origin string) string
+	signIn  string
+	ignore  string
+}
+
+var accountExistsMails = map[string]accountExistsMail{
+	"en": {
+		subject: "You already have a Revoked account",
+		intro: func(origin string) string {
+			return "Someone asked to create an account at " + origin + " with this address, which already has one."
+		},
+		signIn: "To get in, choose Sign in with passkey on the sign-in page. No new account is needed.",
+		ignore: "If you did not ask for this, ignore this email: nothing has changed.",
+	},
+	"de": {
+		subject: "Du hast bereits ein Revoked-Konto",
+		intro: func(origin string) string {
+			return "Für diese Adresse wurde unter " + origin + " ein Konto angefordert. Sie hat bereits eines."
+		},
+		signIn: "Zum Anmelden auf der Anmeldeseite „Mit Passkey anmelden“ wählen. Ein neues Konto ist nicht nötig.",
+		ignore: "Wenn du das nicht angefordert hast, ignoriere diese E-Mail: Es hat sich nichts geändert.",
+	},
+}
+
+// SendAccountExists tells the owner of an address that already has an
+// account that someone asked to create another with it. It goes out in place
+// of a confirmation code, so the sign-up page answers the same either way.
+func SendAccountExists(app core.App, to, origin, locale string) error {
+	m, ok := accountExistsMails[locale]
+	if !ok {
+		m = accountExistsMails["en"]
+	}
+	meta := app.Settings().Meta
+	text := strings.Join([]string{m.intro(origin), "", m.signIn, "", m.ignore}, "\n")
+	body := "<p>" + html.EscapeString(m.intro(origin)) + "</p>" +
+		"<p>" + html.EscapeString(m.signIn) + "</p>" +
+		"<p>" + html.EscapeString(m.ignore) + "</p>"
+	return app.NewMailClient().Send(&mailer.Message{
+		From:    mail.Address{Name: meta.SenderName, Address: meta.SenderAddress},
+		To:      []mail.Address{{Address: to}},
+		Subject: m.subject,
+		HTML:    body,
+		Text:    text,
+	})
+}
+
 // SendSignupCode mails the code that confirms a new account's address, in the
 // language the sign-in page was shown in (English unless it names one this
 // knows). The message says what the code is for and where it was asked for,

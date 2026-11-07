@@ -338,7 +338,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             AppButton(
               icon: AppIcons.trash,
               label: 'Delete account',
-              style: AppButtonStyle.destructive,
+              style: AppButtonStyle.danger,
               busy: auth.isDeletingAccount,
               onTap: _confirmDeleteAccount,
             ),

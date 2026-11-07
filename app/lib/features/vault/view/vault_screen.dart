@@ -410,7 +410,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           banners: [
             if (store.loadState.error != null)
               AppRefreshFailed(onRetry: store.loadRecords),
-            const SealingAlarm(),
+            if (SealingAlarm.shows) const SealingAlarm(),
             if (shareFilter != null)
               AppListBanner(
                 icon: AppIcons.funnel,

@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -16,14 +15,12 @@ import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_search_field.dart';
-import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/feature_notice.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
-import 'package:revoked_app/features/shell/utils/docs_links.dart';
 import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/features/shell/view/new_picker.dart';
 
@@ -269,7 +266,6 @@ class _AppShellState extends State<AppShell> {
         title: _title(root),
         actions: [
           _slot(ShellSlots.action),
-          _DocsButton(path: path),
           AppButton(
             icon: AppIcons.search,
             style: AppButtonStyle.ghost,
@@ -333,6 +329,16 @@ class _AppShellState extends State<AppShell> {
   }) {
     final scheme = Theme.of(context).colorScheme;
     final shown = _shownDestinations();
+    final width = MediaQuery.sizeOf(context).width;
+    final roomForSearchField = width >= _searchFieldMinWindow;
+    // A page's own "New …" belongs to its list. A detail page has its own
+    // actions, and the navigation's New is always at hand; only Shares keeps
+    // its list beside the open link on a wide window.
+    final onList =
+        path == root ||
+        subPageActionFor(path) != null ||
+        (sidebar && root == AppRoutes.shared);
+    final pageAction = onList ? pageActionFor(path) : null;
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -357,8 +363,11 @@ class _AppShellState extends State<AppShell> {
                   children: [
                     const AccountMenu(),
                     AppSpacing.gapSm,
+                    // Outlined, so it never reads as the current place, which
+                    // the rail marks with a solid fill.
                     AppButton(
                       icon: AppIcons.plus,
+                      style: AppButtonStyle.accent,
                       tooltip: 'Create something new (N)',
                       onTap: () => _openNew(root),
                     ),
@@ -381,10 +390,18 @@ class _AppShellState extends State<AppShell> {
                 title: _title(root),
                 actions: [
                   _slot(ShellSlots.action),
-                  _DocsButton(path: path),
                   if (!sidebar) const _NotificationBell(),
                   // The sidebar carries its own search, so it is not repeated.
-                  if (!sidebar)
+                  // A mid-sized window keeps the bar's room for the title and
+                  // the page's action, and searches from an icon.
+                  if (!sidebar && !roomForSearchField)
+                    AppButton(
+                      icon: AppIcons.search,
+                      style: AppButtonStyle.ghost,
+                      tooltip: 'Search or paste a link',
+                      onTap: () => openLinkSearchSheet(context),
+                    ),
+                  if (!sidebar && roomForSearchField)
                     Padding(
                       padding: EdgeInsets.only(left: AppSpacing.xs),
                       child: SizedBox(
@@ -396,14 +413,14 @@ class _AppShellState extends State<AppShell> {
                         child: _SearchField(),
                       ),
                     ),
-                  if (pageActionFor(path) case final action?)
+                  if (pageAction case final action?)
                     Padding(
                       padding: const EdgeInsets.only(left: AppSpacing.xs),
-                      // On the rail the bar is too narrow for a title, the
-                      // search pill and a labelled button together.
+                      // Always labelled: an unlabelled "+" here read as the
+                      // rail's own New, which creates anything.
                       child: AppButton(
                         icon: action.icon,
-                        label: sidebar ? action.label : null,
+                        label: action.label,
                         tooltip: action.label,
                         size: AppButtonSize.small,
                         onTap: () => action.start(context),
@@ -555,6 +572,10 @@ class _Sidebar extends StatelessWidget {
   }
 }
 
+/// The narrowest window whose rail layout keeps the search field in the top
+/// bar; below it the field becomes an icon.
+const double _searchFieldMinWindow = 900;
+
 /// How much room the trigger takes in a top bar — enough for the hint, but
 /// not so much that it crowds the bar on a mid-sized window.
 const double _searchTriggerWidth = 240;
@@ -678,36 +699,6 @@ class _NotificationBell extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-/// Opens the documentation page for wherever the person is.
-class _DocsButton extends StatelessWidget {
-  final String path;
-
-  const _DocsButton({required this.path});
-
-  @override
-  Widget build(BuildContext context) {
-    final url = docsUrlFor(path);
-    if (url == null) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.xs),
-      child: AppButton(
-        icon: AppIcons.book,
-        style: AppButtonStyle.ghost,
-        tooltip: 'Documentation',
-        onTap: () async {
-          final ok = await launchUrl(
-            Uri.parse(url),
-            mode: LaunchMode.externalApplication,
-          );
-          if (!ok && context.mounted) {
-            AppToast.error(context, '$url could not be opened');
-          }
-        },
-      ),
     );
   }
 }

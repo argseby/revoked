@@ -9,7 +9,10 @@ import 'package:revoked_app/core/design/app_colors.dart';
 /// main action nor destructive is [accent]. [ghost] has no fill of its own and
 /// is only for a control repeated on every row or group — a ⋮ menu — where an
 /// [accent] fill on each one would outweigh the content it sits beside.
-enum AppButtonStyle { primary, accent, destructive, ghost }
+/// [destructive] is the solid red of a confirmation; [danger] is the same
+/// warning outlined, for a destructive action resting on a page, so it is
+/// never the loudest thing on it.
+enum AppButtonStyle { primary, accent, destructive, danger, ghost }
 
 enum AppButtonSize { normal, small }
 
@@ -84,6 +87,7 @@ class AppButton extends StatelessWidget {
       // and turns muddy on an alert's colour.
       AppButtonStyle.accent => (Colors.transparent, scheme.onSurface),
       AppButtonStyle.destructive => (scheme.dangerFill, scheme.onDangerFill),
+      AppButtonStyle.danger => (Colors.transparent, scheme.danger),
       AppButtonStyle.ghost => (Colors.transparent, scheme.onSurfaceVariant),
     };
 
@@ -143,6 +147,8 @@ class AppButton extends StatelessWidget {
                     )
                   : style == AppButtonStyle.accent
                   ? BorderSide(color: scheme.outline)
+                  : style == AppButtonStyle.danger
+                  ? BorderSide(color: scheme.danger.withValues(alpha: 0.5))
                   : null,
             ),
           ),

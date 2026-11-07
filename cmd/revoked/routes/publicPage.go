@@ -208,13 +208,55 @@ gap: 16px;
 }
 @media (min-width: 600px) { main { padding: 32px 24px 32px; gap: 18px; } }
 
-.hero { display: flex; align-items: center; gap: 14px; }
-.hero-tile {
-width: 48px; height: 48px; border-radius: 0; flex: none;
-display: flex; align-items: center; justify-content: center;
-background: var(--primary-subtle); color: var(--primary);
+/* The head reads like the app's detail page: what this is, its name, and
+   who it is from with how far that holds, in one line. */
+.head { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-muted); }
+.head h1 { font-size: 28px; font-weight: 650; line-height: 1.15; letter-spacing: -0.04em; overflow-wrap: anywhere; }
+.trust { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 14px; color: var(--fg-muted); margin-top: 2px; }
+.trust b { color: var(--fg); font-weight: 600; }
+.more {
+margin-left: auto; border: 0; background: none; padding: 4px 0; cursor: pointer;
+color: var(--fg-muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px;
 }
-.hero h1 { font-size: 28px; font-weight: 650; line-height: 1.15; letter-spacing: -0.04em; overflow-wrap: anywhere; }
+.more:hover { color: var(--fg); }
+.trust-note {
+margin-top: 8px; padding: 10px 12px; font-size: 14px; line-height: 1.45;
+border-left: 3px solid var(--warn); background: var(--warn-subtle); color: var(--warn);
+}
+.trust-note.bad { border-left-color: var(--bad); background: var(--bad-subtle); color: var(--bad); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Under the shared items: the share as a whole, kept or passed on. */
+.tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.tool {
+flex: 1 1 160px; min-height: 44px; padding: 0 14px;
+display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+border: 1px solid var(--control); background: transparent; color: var(--fg);
+font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.tool:hover { background: var(--surface-subtle); }
+.lead-fine { text-align: center; color: var(--fg-muted); font-size: 13px; }
+
+footer { border-top: 1px solid var(--border); margin-top: 8px; }
+.foot {
+max-width: 640px; margin: 0 auto; padding: 14px 16px calc(24px + env(safe-area-inset-bottom));
+display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-start; justify-content: space-between;
+font-size: 13px; color: var(--fg-muted);
+}
+.foot details { flex: 1 1 260px; }
+.foot summary { cursor: pointer; list-style-position: inside; }
+.foot details p { margin-top: 8px; line-height: 1.5; }
+.foot a { color: var(--fg-muted); text-decoration: underline; text-underline-offset: 3px; }
+.foot a:hover { color: var(--fg); }
+.foot-links { display: flex; gap: 16px; }
+.app-gate { display: flex; flex-direction: column; gap: 10px; }
+.app-gate p { display: flex; gap: 10px; align-items: flex-start; color: var(--fg-muted); font-size: 14px; line-height: 1.5; }
+.quiet {
+width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px;
+border: 1px solid var(--control); color: var(--fg); font-weight: 600; font-size: 15px;
+}
+.quiet:hover { background: var(--surface-subtle); text-decoration: none; }
 
 .card {
 background: var(--card);
@@ -235,13 +277,18 @@ background: var(--card); color: var(--fg); font-size: 14px; font-weight: 600; wh
 .big-logo { width: 24px; height: 24px; }
 @media (max-width: 360px) { .brand-t { display: none; } }
 
-/* Sender: one verdict, then each fact marked where it cannot be vouched for. */
+/* Sender: one verdict, then each fact marked where it cannot be vouched for.
+   Folded behind Details unless the verdict is a real danger. */
 .sender { transition: border-color .3s, box-shadow .3s; }
 /* While the server is checked only the button says so; the verdict and the
    server's badge arrive together with the answer. */
 .sender[data-state="checking"] .verdict,
 .sender[data-state="checking"] [data-dns] { display: none; }
 .sender[data-state="checking"] .facts { border-top: 0; }
+/* The verdict is the note under the title line; Details holds only the
+   evidence behind it. */
+.sender .verdict { display: none; }
+.sender .facts { border-top: 0; }
 .verdict { animation: rise .4s var(--ease) both; }
 .sender[data-state="bad"] { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
 .verdict { display: flex; align-items: center; gap: 12px; padding: 14px; }
@@ -280,7 +327,7 @@ background: var(--surface-subtle); color: var(--fg-muted);
 
 /* The trust gate: the one decision on the page before anything loads. */
 .gate {
-padding: 16px;
+padding: 0;
 transition: opacity .3s var(--ease), transform .35s var(--ease), max-height .45s var(--ease),
 padding .45s var(--ease), margin .45s var(--ease), border-width .45s;
 }
@@ -303,7 +350,7 @@ padding: 11px 2px; border-bottom: 1px solid var(--border); font-size: 14px;
 .check > span:first-child { display: flex; align-items: center; gap: 10px; color: var(--fg-muted); }
 .check > span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .big {
-width: 100%; min-height: 54px; margin-top: 14px;
+width: 100%; min-height: 54px; margin-top: 0;
 border: 0; border-radius: 0;
 background: var(--primary); color: var(--primary-fg);
 font-size: 16px; font-weight: 650;
@@ -321,11 +368,6 @@ transition: transform .12s var(--ease), filter .15s;
 .fine { text-align: center; color: var(--fg-muted); font-size: 12px; margin-top: 10px; }
 .fine:empty { display: none; }
 
-/* For a reader who has never heard of Revoked: what the page is. */
-.about { padding: 0 16px; }
-.about summary { cursor: pointer; padding: 14px 0; font-weight: 600; list-style-position: inside; }
-.about p { margin: 0 0 12px; color: var(--fg-muted); font-size: 14px; line-height: 1.5; }
-.about p:last-child { margin-bottom: 16px; }
 
 /* Revealed content */
 #out { display: flex; flex-direction: column; gap: 18px; }
@@ -442,11 +484,6 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <span class="brand-t">Revoked</span>
 </a>
 <div class="nav-actions">
-{{if not (or .Gated .RequireHandshake)}}<a href="{{.AppLink}}" class="app-btn" aria-label="Open in the Revoked app">
-<img class="logo logo-light" src="{{logoLight}}" alt="">
-<img class="logo logo-dark" src="{{logoDark}}" alt="">
-<span>Open in app</span>
-</a>{{end}}
 <button class="theme" id="theme-toggle" aria-label="Toggle visual theme"></button>
 </div>
 </div>
@@ -454,14 +491,23 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 
 <main{{if eq .Purpose "application"}} data-purpose="application"{{end}}>
 
-<div class="hero">
-<div class="hero-tile"><i data-i="{{if eq .Purpose "application"}}briefcase{{else}}link{{end}}" data-s="24"></i></div>
+{{/* Who this is from and how far that holds, said once, in one line. The
+     facts behind it fold out under Details, and fold out by themselves when
+     they are a real danger. */}}
+<div class="head">
+<div class="eyebrow">{{if eq .Purpose "application"}}Application{{else}}Shared with you{{end}}</div>
 <h1>{{template "heading" .}}</h1>
+<div class="trust" id="trust">
+{{if .SharerName}}<span>From <b>{{.SharerName}}</b></span>{{if .SharerRevoked}}<span class="pill bad"><i data-i="alert" data-s="13"></i>Identity withdrawn</span>{{end}}
+{{else}}<span class="pill warn"><i data-i="alert" data-s="13"></i>Sender not named</span>{{end}}
+<span class="pill" id="server-pill"><span class="spin" style="display:block;width:11px;height:11px"></span>Checking {{.Domain}}</span>
+{{if .Official}}<span class="pill ok" data-official hidden>Official</span>{{end}}
+<button class="more" type="button" id="trust-more" aria-expanded="false" aria-controls="sender">Details</button>
+</div>
+<div class="trust-note" id="trust-note" role="status" hidden></div>
 </div>
 
-{{/* The one place that says who this is from and how far that can be trusted.
-     Every fact in it that cannot be vouched for is marked where it stands. */}}
-<section class="card sender" id="sender" data-state="checking">
+<section class="card sender" id="sender" data-state="checking" hidden>
 <div class="verdict">
 <div class="tile" id="verdict-tile"></div>
 <div style="min-width: 0;">
@@ -472,7 +518,7 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <div class="facts">
 <div class="fact" id="fact-server">
 <span class="fact-k"><i data-i="server"></i>Server</span>
-<span class="fact-v"><span class="fact-name">{{.Domain}}</span>{{if .Official}}<span class="pill ok" data-official hidden>Official</span>{{end}}<span class="pill" data-dns>Checking…</span></span>
+<span class="fact-v"><span class="fact-name">{{.Domain}}</span><span class="pill" data-dns>Checking…</span></span>
 </div>
 <div class="fact{{if .SharerRevoked}} is-bad{{else if not .SharerName}} is-warn{{end}}" id="fact-sender">
 <span class="fact-k"><i data-i="user"></i>Sender</span>
@@ -490,48 +536,42 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 </section>
 
 {{if or .Gated .RequireHandshake}}
-<div class="card gate">
-<div class="callout info">
-<i data-i="lock" data-s="22"></i>
-<div>
-<strong>This link opens in the Revoked app</strong>
-It is protected by {{if .RequireHandshake}}a verified identity{{else}}a password{{end}}. The app confirms the server's identity before sending anything, so credentials reach only the genuine server. Passwords and other secrets should not be entered on a web page hosted by the sender, as it could have been altered.
-</div>
-</div>
+<div class="app-gate">
+<p><i data-i="lock" data-s="18"></i><span>Protected by {{if .RequireHandshake}}a verified identity{{else}}a password{{end}}. {{if .RequireHandshake}}It is confirmed{{else}}The password is entered{{end}} only in the Revoked app, which checks the server first.</span></p>
 <a href="{{.AppLink}}" class="big"><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt="">Open in the Revoked app</a>
+<a href="/app" class="quiet"><i data-i="download" data-s="16"></i>Get the app</a>
 </div>
 {{else}}
-<div class="strip" id="strip" hidden>
+<div class="meta" id="strip" hidden>
 {{if gt .MaxViews 0}}<span class="pill"><i data-i="eye" data-s="13"></i><span id="views-text">{{.ViewCount}} of {{.MaxViews}} views used</span></span>{{end}}
 {{if .Watermarked}}<span class="pill"><i data-i="droplet" data-s="13"></i>Watermarked files</span>{{end}}
 </div>
 
-<div class="card gate" id="gate">
-<div class="callout" id="gate-callout">
-<i data-i="alert" data-s="22"></i>
-<div>
-<strong id="gate-t">Sender verification</strong>
-<span id="gate-d">This page is served directly from the sender's own server. The details above should be reviewed before the shared information is opened.</span>
-</div>
-</div>
+<div class="gate" id="gate">
 {{/* Held until the sender check has an answer, so nobody opens the data before
      the page could say whether to trust it. */}}
-<button class="big loading" id="reveal" disabled><span class="spin"></span><i class="big-ic" data-i="lock-open"></i><span id="reveal-t">Verifying the server…</span></button>
-<div class="fine" id="capnote">{{if gt .MaxViews 0}}Opening this link uses one of its remaining views ({{.ViewCount}} of {{.MaxViews}} already used).{{end}}{{if .Watermarked}} Downloaded files carry a watermark that traces them back to this link.{{end}}</div>
+<button class="big loading" id="reveal" disabled><span class="spin"></span><i class="big-ic" data-i="lock-open"></i><span id="reveal-t">Checking the server…</span></button>
+<div class="fine" id="capnote">{{if gt .MaxViews 0}}Opening uses one of {{.MaxViews}} views ({{.ViewCount}} used so far).{{end}}{{if .Watermarked}} Downloaded files carry a watermark that traces them back to this link.{{end}}</div>
 </div>
 
 <div id="out"></div>
 {{end}}
 
-<details class="card about">
-<summary>About this page</summary>
-<p>{{if .SharerName}}{{.SharerName}}{{else}}The sender{{end}} shares this information through Revoked. Values are read from the sender's vault each time the page is opened, not copied when the link was sent.</p>
-<p>The sender can pause or revoke the link, after which it stops working. Copied or downloaded content remains with whoever saved it.</p>
-<p><a href="https://revoked.link" target="_blank" rel="noopener noreferrer">More about Revoked</a></p>
-</details>
-
 </main>
 
+<footer>
+<div class="foot">
+<details>
+<summary>How this page works</summary>
+<p>{{if .SharerName}}{{.SharerName}}{{else}}The sender{{end}} shares this information through Revoked. Values are read from the sender's vault each time the page is opened, not copied when the link was sent.</p>
+<p>The sender can pause or revoke the link, after which it stops working. Copied or downloaded content remains with whoever saved it.</p>
+</details>
+<div class="foot-links">
+{{if not (or .Gated .RequireHandshake)}}<a href="{{.AppLink}}">Open in app</a>{{end}}
+<a href="https://revoked.link" target="_blank" rel="noopener noreferrer">revoked.link</a>
+</div>
+</div>
+</footer>
 
 <div class="toast" id="toast" role="status" aria-live="polite"><i data-i="check" data-s="16"></i><span id="toast-t"></span></div>
 
@@ -687,15 +727,17 @@ local: ['', 'Local']
 function verdictFor(server) {
 if (server === 'spoofed') return ['bad', 'Possible impersonation',
 'The key used by this server does not match the one published for ' + domain + '. The server may be impersonated; nothing on this page should be relied on.'];
-if (server === 'unverified') return ['bad', 'Server not verified',
-domain + ' publishes no DNS record confirming its identity, so the origin of this page cannot be confirmed.'];
+// No record proves nothing either way, so it is a caution, not an alarm;
+// a record that does not match is.
+if (server === 'unverified') return ['warn', 'Server not verified',
+domain + ' publishes no DNS record confirming its identity. Open this only if you expected it.'];
 if (signer === 'withdrawn') return ['bad', 'Sender no longer trusted',
 domain + ' has withdrawn the identity that signed this link.'];
 if (server === 'local') return [signer === 'none' ? 'warn' : 'neutral', 'Local server',
 'This page is served from a local or private address and cannot be checked against public DNS records.' +
 (signer === 'none' ? ' The link is also not signed by a named person.' : '')];
 if (signer === 'none') return ['warn', 'Server verified, sender unknown',
-'The connection is to the genuine ' + domain + ' server, but no named person has signed this link.'];
+'No named person signed this link. Anyone with access to ' + domain + ' could have made it. Open it only if you expected it.'];
 return ['ok', 'Server verified', 'The key used by ' + domain + ' matches the one published in its DNS records. The connection is to the genuine server.'];
 }
 
@@ -741,22 +783,49 @@ tile.appendChild(svg(v[0] === 'ok' ? 'shield' : v[0] === 'neutral' ? 'server' : 
 document.getElementById('verdict-t').textContent = v[1];
 document.getElementById('verdict-d').textContent = v[2];
 
+// The one-line summary under the title.
+var SERVER_LINE = {
+ok: ['ok', domain + ' verified', 'check'],
+spoofed: ['bad', domain + ': key mismatch', 'alert'],
+unverified: ['warn', domain + ' not verified', 'alert'],
+local: ['', 'Local server', 'server']
+};
+var line = SERVER_LINE[server];
+var sp = document.getElementById('server-pill');
+sp.className = 'pill' + (line[0] ? ' ' + line[0] : '');
+sp.textContent = '';
+sp.appendChild(svg(line[2], 13));
+sp.appendChild(document.createTextNode(line[1]));
+if (title) sp.title = title;
+
+// Said under the line only when there is something to weigh before opening.
+var note = document.getElementById('trust-note');
+note.hidden = !(v[0] === 'warn' || v[0] === 'bad');
+note.classList.toggle('bad', v[0] === 'bad');
+note.textContent = v[2];
+// A real danger shows its evidence without being asked.
+if (v[0] === 'bad') setDetails(true);
+
 // The check has an answer, so the reader can now decide.
 var reveal = document.getElementById('reveal');
 if (reveal) {
 reveal.disabled = false;
 reveal.classList.remove('loading');
-document.getElementById('reveal-t').textContent = 'Trust and open';
+document.getElementById('reveal-t').textContent =
+v[0] === 'warn' || v[0] === 'bad' ? 'Open anyway' : 'Open shared information';
+}
 }
 
-// A failed check turns the gate's warning from a caution into a stop.
-var callout = document.getElementById('gate-callout');
-if (callout && v[0] === 'bad') {
-callout.classList.add('bad');
-document.getElementById('gate-t').textContent = 'Proceed with caution';
-document.getElementById('gate-d').textContent = "The sender could not be verified. Continue only if the sender of this link is known for certain.";
+function setDetails(open) {
+var card = document.getElementById('sender');
+var more = document.getElementById('trust-more');
+card.hidden = !open;
+more.setAttribute('aria-expanded', open ? 'true' : 'false');
+more.textContent = open ? 'Hide details' : 'Details';
 }
-}
+document.getElementById('trust-more').addEventListener('click', function() {
+setDetails(document.getElementById('sender').hidden);
+});
 
 function checkDNS() {
 var d = String(domain || '');
@@ -1150,6 +1219,90 @@ out.appendChild(docs);
 return records.filter(function(r) { return !taken[r.id]; });
 }
 
+// ---- The share as a whole -------------------------------------------------
+// Built here from what was already opened: fetching the share again in another
+// format would spend another view.
+function vcEscape(v) {
+return String(v).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
+}
+function vcard(data, records) {
+var lines = ['BEGIN:VCARD', 'VERSION:3.0'];
+var name = '', notes = [], any = false;
+records.forEach(function(r) {
+if (r.type === 'file' || r.value == null) return;
+var v = String(r.value).trim();
+if (!v) return;
+var kind = kindOf(r), label = r.label || r.key || '';
+if (kind === 'person' && !name) { name = v; return; }
+if (kind === 'phone') { lines.push('TEL:' + vcEscape(v)); any = true; return; }
+if (kind === 'email') { lines.push('EMAIL:' + vcEscape(v)); any = true; return; }
+if (kind === 'url') { lines.push('URL:' + vcEscape(v)); any = true; return; }
+if (kind === 'place') { lines.push('ADR:;;' + vcEscape(v) + ';;;;'); any = true; return; }
+if (kind === 'work') { lines.push('ORG:' + vcEscape(v)); any = true; return; }
+notes.push(label + ': ' + displayValue(kind, v));
+});
+if (!name && !any) return null;
+// N is required by the format; the name is given whole, as it was shared.
+lines.splice(2, 0, 'N:' + vcEscape(name || data.label || 'Contact') + ';;;;', 'FN:' + vcEscape(name || data.label || 'Contact'));
+if (notes.length) lines.push('NOTE:' + vcEscape(notes.join('\n')));
+lines.push('END:VCARD');
+return lines.join('\r\n') + '\r\n';
+}
+function plainText(data, records) {
+var out = [(data.label || 'Shared information'), ''];
+records.forEach(function(r) {
+if (r.type === 'file' || r.value == null) return;
+var kind = kindOf(r);
+out.push((r.label || r.key || 'Record') + ': ' + displayValue(kind, String(r.value).trim()));
+});
+return out.join('\n') + '\n';
+}
+function saveBlob(text, type, filename) {
+var url = URL.createObjectURL(new Blob([text], { type: type }));
+var a = document.createElement('a');
+a.href = url;
+a.download = filename;
+document.body.appendChild(a);
+a.click();
+a.remove();
+setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+}
+function fileBase(data) {
+return String(data.label || data.slug || 'shared').replace(/[\\\/:*?"<>|]+/g, ' ').trim() || 'shared';
+}
+function toolsFor(data, records) {
+var values = records.filter(function(r) { return r.type !== 'file' && r.value != null && String(r.value).trim(); });
+if (!values.length) return null;
+var row = el('div', 'tools sec');
+var card = vcard(data, records);
+if (card) {
+var c = el('button', 'tool');
+c.type = 'button';
+c.appendChild(svg('user', 16));
+c.appendChild(el('span', '', 'Save as contact'));
+c.addEventListener('click', function() {
+saveBlob(card, 'text/vcard', fileBase(data) + '.vcf');
+toast('Contact saved');
+});
+row.appendChild(c);
+}
+var d = el('button', 'tool');
+d.type = 'button';
+d.appendChild(svg('download', 16));
+d.appendChild(el('span', '', 'Download as text'));
+d.addEventListener('click', function() {
+saveBlob(plainText(data, records), 'text/plain;charset=utf-8', fileBase(data) + '.txt');
+toast('Downloaded');
+});
+row.appendChild(d);
+var wrap = el('div', 'sec');
+wrap.appendChild(row);
+var fine = el('p', 'lead-fine', 'Always the current version while the link is open. The sender can revoke it.');
+fine.style.marginTop = '10px';
+wrap.appendChild(fine);
+return wrap;
+}
+
 function render(data) {
 var out = document.getElementById('out');
 out.textContent = '';
@@ -1206,6 +1359,9 @@ if (!rootRecords.length && !sections.length) {
 var emptyCard = el('div', 'card sec');
 emptyCard.appendChild(el('div', 'empty', 'This link contains no information yet.'));
 out.appendChild(emptyCard);
+} else {
+var tools = toolsFor(data, rootRecords);
+if (tools) out.appendChild(tools);
 }
 
 // One after another, so the page reads top to bottom as it appears.
@@ -1244,10 +1400,7 @@ body: '{}'
 var gate = document.getElementById('gate');
 if (!res.ok) {
 gate.textContent = '';
-var c = el('div', 'callout bad');
-c.appendChild(svg('alert', 22));
-c.appendChild(el('div', '', (res.body && res.body.message) || 'This link is no longer available. It may have been revoked or expired.'));
-gate.appendChild(c);
+gate.appendChild(el('div', 'trust-note bad', (res.body && res.body.message) || 'This link is no longer available. It may have been revoked or expired.'));
 return;
 }
 foldGate(gate);
@@ -1275,9 +1428,27 @@ checkDNS();
 </body>
 </html>`))
 
+// statusNext is what a reader of a dead link can still do, by why it is dead.
+func statusNext(detail string, status int) (icon, tone, next string) {
+	lower := strings.ToLower(detail)
+	switch {
+	case strings.Contains(lower, "paused"):
+		return "pause", "warn", "The sender can turn it back on. Try again later, or ask the sender."
+	case status == 404:
+		return "search", "neutral", "Check that the whole link was copied. Only the sender can say whether it is still meant to work."
+	case strings.Contains(lower, "views"):
+		return "eye", "warn", "Every view this link allowed has been used. A new link has to come from the sender."
+	default:
+		return "link-off", "bad", "Anything opened earlier stays with whoever saved it. A new link has to come from the sender."
+	}
+}
+
 func linkStatusPage(re *core.RequestEvent, title, detail string, status int) error {
 	var buf bytes.Buffer
-	_ = statusTemplate.Execute(&buf, map[string]string{"Title": title, "Detail": detail})
+	icon, tone, next := statusNext(detail, status)
+	_ = statusTemplate.Execute(&buf, map[string]string{
+		"Title": title, "Detail": detail, "Next": next, "Icon": icon, "Tone": tone,
+	})
 	re.Response.Header().Set("Content-Type", "text/html; charset=utf-8")
 	re.Response.Header().Set("Cache-Control", "no-store")
 	re.Response.Header().Set("X-Content-Type-Options", "nosniff")
@@ -1290,7 +1461,7 @@ var statusTemplate = template.Must(template.New("status").Funcs(brandFuncs).Pars
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="{{logoLight}}" media="(prefers-color-scheme: light)">
 <link rel="icon" type="image/svg+xml" href="{{logoDark}}" media="(prefers-color-scheme: dark)">
@@ -1298,69 +1469,60 @@ var statusTemplate = template.Must(template.New("status").Funcs(brandFuncs).Pars
 <style>` + pageTokens + `
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-margin: 0;
-background: var(--bg);
-color: var(--fg);
-font-family: var(--font-sans);
-font-size: 16px;
-line-height: 1.45;
+background: var(--bg); color: var(--fg); font-family: var(--font-sans);
+font-size: 16px; line-height: 1.45; min-height: 100vh; -webkit-font-smoothing: antialiased;
 }
-header {
-border-bottom: 1px solid var(--border);
-background: var(--surface);
-padding: 12px 20px;
-}
-.nav {
-max-width: 600px;
-margin: 0 auto;
-display: flex;
-align-items: center;
-justify-content: space-between;
-}
-.brand {
-display: flex;
-align-items: center;
-gap: 8px;
-font-weight: 700;
-font-size: 15px;
-}
-.brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
-.logo { width: 24px; height: 24px; border-radius: 0; }
+header { border-bottom: 1px solid var(--border); }
+.nav { max-width: 640px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; min-height: 59px; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; color: var(--fg); text-decoration: none; }
+.logo { width: 24px; height: 24px; }
 .logo-dark { display: none; }
-html[data-theme="dark"] .logo-light { display: none; }
-html[data-theme="dark"] .logo-dark { display: block; }
 @media (prefers-color-scheme: dark) {
-html:not([data-theme="light"]) .logo-light { display: none; }
-html:not([data-theme="light"]) .logo-dark { display: block; }
+.logo-light { display: none; }
+.logo-dark { display: block; }
 }
 main {
-max-width: 480px;
-margin: 12vh auto 0;
-padding: 24px;
-text-align: center;
-background: var(--surface);
-border: 1px solid var(--border);
-border-radius: 0;
+max-width: 440px; margin: 0 auto; padding: 14vh 16px 40px;
+display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;
 }
-h1 { font-size: 20px; font-weight: 650; line-height: 1.25; letter-spacing: -0.02em; margin-bottom: 8px; }
-p { color: var(--fg-muted); font-size: 16px; line-height: 1.45; }
-a { color: var(--primary); text-decoration: none; }
-a:hover { text-decoration: underline; }
+.tile { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.tone-bad { background: var(--bad-subtle); color: var(--bad); }
+.tone-warn { background: var(--warn-subtle); color: var(--warn); }
+.tone-neutral { background: var(--surface-subtle); color: var(--fg-muted); }
+h1 { font-size: 24px; font-weight: 650; line-height: 1.2; letter-spacing: -0.03em; }
+.detail { color: var(--fg); font-size: 16px; }
+.next { color: var(--fg-muted); font-size: 14px; line-height: 1.5; }
+.more {
+margin-top: 14px; width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center;
+border: 1px solid var(--control); color: var(--fg); font-weight: 600; font-size: 15px; text-decoration: none;
+}
+.more:hover { background: var(--surface-subtle); }
+svg { display: block; }
 </style>
 </head>
 <body>
 <header>
 <div class="nav">
-<div class="brand">
+<a class="brand" href="https://revoked.link" target="_blank" rel="noopener noreferrer">
 <img class="logo logo-light" src="{{logoLight}}" alt="">
 <img class="logo logo-dark" src="{{logoDark}}" alt="">
 <span>Revoked</span>
-</div>
+</a>
 </div>
 </header>
 <main>
+<div class="tile tone-{{.Tone}}" aria-hidden="true">
+<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+{{if eq .Icon "pause"}}<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+{{else if eq .Icon "search"}}<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+{{else if eq .Icon "eye"}}<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+{{else}}<path d="M9 17H7A5 5 0 0 1 7 7M15 7h2a5 5 0 0 1 4 8M8 12h3M2 2l20 20"/>{{end}}
+</svg>
+</div>
 <h1>{{.Title}}</h1>
-<p>{{.Detail}}</p>
+<p class="detail">{{.Detail}}</p>
+<p class="next">{{.Next}}</p>
+<a class="more" href="https://revoked.link" target="_blank" rel="noopener noreferrer">What is Revoked?</a>
 </main>
 </body>
 </html>`))

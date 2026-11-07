@@ -113,9 +113,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Notification n0'), findsOneWidget);
       expect(find.text('Notification n1'), findsNothing);
-      await tester.tap(find.text('Needs attention 0'));
-      await tester.pumpAndSettle();
-      expect(find.text('Nothing needs attention'), findsOneWidget);
+      // A filter with nothing in it is left out of the row.
+      expect(find.textContaining('Needs attention'), findsNothing);
       Stores.notifications.setFilter(NotificationFilter.all);
     });
 

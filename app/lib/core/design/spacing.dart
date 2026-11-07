@@ -36,6 +36,10 @@ abstract class AppSpacing {
   /// form, narrow enough that the list it was opened from stays in view.
   static const double panelWidth = 440;
 
+  /// The widest a page's content grows. Past it rows only get emptier in
+  /// the middle, so a large window keeps the page at reading width.
+  static const double contentMaxWidth = 1040;
+
   /// From this width the shell shows the full sidebar instead of a rail.
   static const double wideWidth = 1024;
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -10,6 +11,9 @@ import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_avatar.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/shell/utils/docs_links.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/settings/view/settings_screen.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
@@ -61,6 +65,19 @@ class _AccountMenuState extends State<AccountMenu> {
     );
   }
 
+  /// The documentation for wherever the person is, or its start page.
+  Future<void> _openDocs(BuildContext context) async {
+    final path = GoRouterState.of(context).uri.path;
+    final url = docsUrlFor(path) ?? '${AppConfig.docsUrl}/guide/';
+    final ok = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!ok && context.mounted) {
+      AppToast.error(context, '$url could not be opened');
+    }
+  }
+
   List<AppMenuItem?> _items(BuildContext context, String? activeId) {
     final spaces = Stores.settings.workspaces;
     return [
@@ -105,6 +122,13 @@ class _AccountMenuState extends State<AccountMenu> {
         label: 'All settings',
         icon: AppIcons.personGear,
         onSelected: () => context.go(AppRoutes.settings),
+      ),
+      // Help for the page in view; kept here rather than as a button on
+      // every top bar.
+      AppMenuItem(
+        label: 'Documentation',
+        icon: AppIcons.book,
+        onSelected: () => _openDocs(context),
       ),
       null,
       AppMenuItem(

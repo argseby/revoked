@@ -4,9 +4,9 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/resume_location.dart';
+import 'package:revoked_app/core/utils/form_factor.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_logo.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
@@ -18,8 +18,10 @@ import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
 
 /// The way in. The passkey belongs to the server's address, so making an
 /// account or signing in runs on the server's own page in the browser, which
-/// sends the person back signed in. Before it opens for a new account this
-/// screen says so, and on a computer first offers the phone.
+/// sends the person back signed in. One button opens it: the page offers a
+/// saved passkey and a new account side by side, so nothing is asked here
+/// first. The welcome says that the browser opens and comes back, and on a
+/// computer offers the phone instead.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -64,14 +66,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             authStore.isAwaitingBrowser,
                             authStore.signupIntro,
                           )) {
-                            (true, _) => _waiting(
-                              authStore.isLoading,
-                              authStore.startedSignup,
-                            ),
+                            (true, _) => _waiting(authStore.isLoading),
                             (_, SignupIntro.usePhone) => _usePhone(),
-                            (_, SignupIntro.aboutBrowser) => _aboutBrowser(
-                              authStore.isLoading,
-                            ),
                             _ => _welcome(authStore.isLoading),
                           },
                         ],
@@ -179,12 +175,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _welcome(bool busy) {
-    if (!SignupPolicy.open) {
-      return _screen(
-        top: const AppLogo(),
-        title: 'Revoked',
-        extra: const [
-          AppAlert(
+    final open = SignupPolicy.open;
+    return _screen(
+      top: const AppLogo(),
+      title: 'Revoked',
+      body: open
+          ? 'Sign in or create an account. Revoked uses passkeys, no '
+                'passwords.'
+          : 'Sign in with a passkey.',
+      extra: [
+        if (!open)
+          const AppAlert(
             leading: Icon(AppIcons.info),
             title: Text('Registration is closed on this server'),
             content: Text(
@@ -192,39 +193,35 @@ class _LoginScreenState extends State<LoginScreen> {
               'accounts can sign in.',
             ),
           ),
-        ],
-        actions: [
-          AppButton(
-            icon: AppIcons.key,
-            label: 'Sign in',
-            busy: busy,
-            onTap: () => Stores.auth.beginSignIn(),
-          ),
-        ],
-      );
-    }
-    return _screen(
-      top: const AppLogo(),
-      title: 'Revoked',
+        // Said before anything opens: a browser appearing unannounced is
+        // where people gave up.
+        const RoundTrip(at: 0),
+      ],
       actions: [
         AppButton(
-          icon: AppIcons.personPlus,
-          label: 'Create account',
-          onTap: busy ? null : Stores.auth.startSignup,
-        ),
-        AppButton(
-          icon: AppIcons.key,
-          label: 'Sign in',
-          style: AppButtonStyle.accent,
+          icon: AppIcons.boxArrowUpRight,
+          label: 'Continue',
           busy: busy,
           onTap: () => Stores.auth.beginSignIn(),
         ),
+        // A passkey stays with the device it is made on, and the phone is
+        // the one people carry: worth a mention on a computer, not a step.
+        if (open && !isMobileDevice)
+          Center(
+            child: AppButton(
+              icon: AppIcons.phone,
+              label: 'Set up on a phone instead',
+              style: AppButtonStyle.ghost,
+              size: AppButtonSize.small,
+              onTap: busy ? null : Stores.auth.showPhoneSetup,
+            ),
+          ),
       ],
     );
   }
 
-  /// Only on a computer: a passkey stays with the device it is made on, and
-  /// the phone is the device people have with them.
+  /// Only on a computer, when asked for: a passkey stays with the device it
+  /// is made on, and the phone is the device people have with them.
   Widget _usePhone() {
     return _screen(
       top: AppQrCode(data: '${Stores.api.baseUrl}/app'),
@@ -237,37 +234,10 @@ class _LoginScreenState extends State<LoginScreen> {
           icon: AppIcons.computer,
           label: 'Continue on this computer',
           style: AppButtonStyle.accent,
-          onTap: Stores.auth.continueSignupHere,
-        ),
-        _back(),
-      ],
-    );
-  }
-
-  /// Said before anything opens, because a browser appearing unannounced is
-  /// where people gave up.
-  Widget _aboutBrowser(bool busy) {
-    return _screen(
-      top: const RoundTrip(at: 0),
-      title: 'Browser setup',
-      body: 'Account setup continues in the browser and returns here.',
-      extra: const [
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            AppBadge(label: 'About 1 minute', icon: AppIcons.clock),
-            AppBadge(label: 'No password', icon: AppIcons.lock),
-          ],
-        ),
-      ],
-      actions: [
-        AppButton(
-          icon: AppIcons.boxArrowUpRight,
-          label: 'Open browser',
-          busy: busy,
-          onTap: () => Stores.auth.beginSignIn(signup: true),
+          onTap: () {
+            Stores.auth.leaveSignupIntro();
+            Stores.auth.beginSignIn();
+          },
         ),
         _back(),
       ],
@@ -275,13 +245,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   /// The browser is open; this screen carries on by itself when it answers.
-  Widget _waiting(bool busy, bool signup) {
+  Widget _waiting(bool busy) {
     return _screen(
       top: const RoundTrip(at: 1),
       title: 'Waiting for the browser',
-      body: signup
-          ? 'This screen continues once setup in the browser is finished.'
-          : 'This screen continues once the passkey is used in the browser.',
+      body: 'This screen continues once the browser is finished.',
       live: true,
       actions: [
         AppButton(
@@ -289,7 +257,7 @@ class _LoginScreenState extends State<LoginScreen> {
           label: 'Open browser again',
           style: AppButtonStyle.accent,
           busy: busy,
-          onTap: () => Stores.auth.beginSignIn(signup: signup),
+          onTap: () => Stores.auth.beginSignIn(),
         ),
         Center(
           child: AppButton(

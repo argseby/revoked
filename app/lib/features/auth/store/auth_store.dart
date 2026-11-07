@@ -13,7 +13,6 @@ import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/services/secure_storage.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/utils/form_factor.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
 
 part 'auth_store.g.dart';
@@ -44,13 +43,12 @@ Future<bool> openSignInPage(
   );
 }
 
-/// What the login screen says before the browser opens for a new account.
+/// What the login screen shows instead of its welcome before the browser
+/// opens.
 enum SignupIntro {
-  /// On a computer: the phone is the better place, with a code to get there.
+  /// On a computer: the phone is the better place for a new passkey, with a
+  /// code to get there. Offered, never in the way.
   usePhone,
-
-  /// That the browser opens, and that it comes back.
-  aboutBrowser,
 }
 
 // ignore: library_private_types_in_public_api
@@ -170,18 +168,13 @@ abstract class _AuthStore with Store {
     return opened;
   }
 
-  /// "Create account" explains the browser before opening it; on a computer
-  /// it first offers the phone.
+  /// On a computer, "Set up on a phone instead" shows the code that moves
+  /// setup to the phone.
   @action
-  void startSignup() {
+  void showPhoneSetup() {
     errorMessage = null;
-    signupIntro = isMobileDevice
-        ? SignupIntro.aboutBrowser
-        : SignupIntro.usePhone;
+    signupIntro = SignupIntro.usePhone;
   }
-
-  @action
-  void continueSignupHere() => signupIntro = SignupIntro.aboutBrowser;
 
   @action
   void leaveSignupIntro() => signupIntro = null;
@@ -230,7 +223,10 @@ abstract class _AuthStore with Store {
       final record = data['record'] as Map<String, dynamic>;
       await _api.saveAuthState(token, record);
       onPasskeySignIn?.call(_passkeySignIn(link, data, record));
-      createdAccount = pending['signup'] == true;
+      // One button leads both ways in; the server says which it was.
+      final meta = data['meta'];
+      createdAccount =
+          pending['signup'] == true || (meta is Map && meta['created'] == true);
       signupIntro = null;
       currentUser = User.fromJson(record);
       return true;

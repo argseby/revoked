@@ -4,12 +4,10 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -25,9 +23,6 @@ import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
 import 'package:revoked_app/features/shares/view/recipient_row.dart';
-
-/// Which links the chips above the list let through.
-enum _LinkFilter { all, active, paused, closed }
 
 class SharesScreen extends StatefulWidget {
   /// Narrows the list to one recipient's links, opened from "By person".
@@ -45,7 +40,6 @@ class SharesScreen extends StatefulWidget {
 
 class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   late final TableStore<Link> _table;
-  final Local<_LinkFilter> _filter = Local(_LinkFilter.all);
 
   @override
   void initState() {
@@ -104,7 +98,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     return AppLoadFade(
       loading: () => store.loadState.isFirstLoad && store.shares.isEmpty,
       skeleton: const AppListSkeleton(
-        filters: ['All', 'Active', 'Paused', 'Closed'],
         group: 'Active',
         rows: [
           AppSkeletonRow(
@@ -190,26 +183,13 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         for (final l in matches) {
           byGroup[linkGroup(l, now)]!.add(l);
         }
-        final live =
-            byGroup[LinkGroup.attention]!.length +
-            byGroup[LinkGroup.active]!.length;
-        final filter = _filter.value;
-
-        bool shows(LinkGroup g) => switch (filter) {
-          _LinkFilter.all => true,
-          _LinkFilter.active =>
-            g == LinkGroup.attention || g == LinkGroup.active,
-          _LinkFilter.paused => g == LinkGroup.paused,
-          _LinkFilter.closed => g == LinkGroup.closed,
-        };
-
+        // The groups are the filter: each says how many it holds, and the
+        // closed ones stay folded until asked for.
         Widget group(LinkGroup g, String title, {bool collapsed = false}) {
           final links = byGroup[g]!;
-          if (links.isEmpty || !shows(g)) return const SizedBox.shrink();
+          if (links.isEmpty) return const SizedBox.shrink();
           return AppListGroup(
-            // A new filter starts the group over, so picking "Closed" opens
-            // the group it would otherwise keep folded.
-            key: ValueKey('$g-$filter'),
+            key: ValueKey(g),
             title: title,
             noun: 'links',
             previewCount: g == LinkGroup.attention ? 0 : 5,
@@ -220,15 +200,16 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
                   share: l,
                   selected: l.id == widget.selectedId,
                   attention: linkAttention(l, now),
+                  // The group already says active or paused; only the closed
+                  // one mixes revoked and expired.
+                  showStatus: g == LinkGroup.closed,
                   onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
                 ),
             ],
           );
         }
 
-        final nothingShown = LinkGroup.values.every(
-          (g) => byGroup[g]!.isEmpty || !shows(g),
-        );
+        final nothingShown = matches.isEmpty;
 
         return AppListPage(
           banners: [
@@ -247,42 +228,16 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
                 ),
               ),
           ],
-          filters: AppFilterChips<_LinkFilter>(
-            selected: filter,
-            onSelected: (f) => _filter.value = f,
-            options: [
-              AppFilterOption(
-                value: _LinkFilter.all,
-                label: 'All',
-                count: matches.length,
-              ),
-              AppFilterOption(
-                value: _LinkFilter.active,
-                label: 'Active',
-                count: live,
-              ),
-              AppFilterOption(
-                value: _LinkFilter.paused,
-                label: 'Paused',
-                count: byGroup[LinkGroup.paused]!.length,
-              ),
-              AppFilterOption(
-                value: _LinkFilter.closed,
-                label: 'Closed',
-                count: byGroup[LinkGroup.closed]!.length,
-              ),
-            ],
-          ),
-          emptyMessage: nothingShown ? 'No links match the filters.' : null,
+          emptyMessage: !nothingShown
+              ? null
+              : recipient != null && recipient.isNotEmpty
+              ? 'No links for $recipient.'
+              : 'No links match the search.',
           groups: [
             group(LinkGroup.attention, 'Needs attention'),
             group(LinkGroup.active, 'Active'),
             group(LinkGroup.paused, 'Paused'),
-            group(
-              LinkGroup.closed,
-              'Revoked or expired',
-              collapsed: filter != _LinkFilter.closed,
-            ),
+            group(LinkGroup.closed, 'Closed', collapsed: true),
           ],
         );
       },
@@ -290,7 +245,8 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   }
 }
 
-/// One link in the list: what it is, one line on where it stands, one badge.
+/// One link in the list: what it is, one line on where it stands, and a badge
+/// when the group does not already say it.
 /// Its flags, slug and actions live on its detail page.
 class _LinkRow extends StatelessWidget {
   final Link share;
@@ -298,11 +254,15 @@ class _LinkRow extends StatelessWidget {
   final LinkAttention? attention;
   final VoidCallback onTap;
 
+  /// Off inside a group named for the status, which would only repeat it.
+  final bool showStatus;
+
   const _LinkRow({
     required this.share,
     required this.attention,
     required this.onTap,
     this.selected = false,
+    this.showStatus = true,
   });
 
   @override
@@ -321,7 +281,9 @@ class _LinkRow extends StatelessWidget {
       subtitle: attention?.reason ?? _summary(),
       trailing: attention != null
           ? AppBadge(label: attention.short, accent: theme.colorScheme.warning)
-          : StatusLabel(share.status),
+          : showStatus
+          ? StatusLabel(share.status)
+          : null,
       onTap: onTap,
     );
   }

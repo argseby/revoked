@@ -211,7 +211,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
   void _back() => context.go(AppRoutes.connectedTools);
 
   Widget _title(BuildContext context) =>
-      AppBarTitle(title: _connection?.name ?? 'Connected tool', onBack: _back);
+      AppBarTitle(title: 'Connected tools', onBack: _back);
 
   Future<void> _disconnect(Connection connection) async {
     final store = Stores.connections;
@@ -572,7 +572,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
             AppButton(
               label: 'Disconnect',
               icon: AppIcons.linkSlash,
-              style: AppButtonStyle.destructive,
+              style: AppButtonStyle.danger,
               onTap: store.isChanging ? null : () => _disconnect(connection),
             ),
           ],

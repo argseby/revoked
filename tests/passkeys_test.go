@@ -84,6 +84,24 @@ func TestSigningInWithAPasskey(t *testing.T) {
 		passkey.Value("id").String().NotEmpty()
 	})
 
+	t.Run("only the session that made the account says so", func(t *testing.T) {
+		fresh := testutils.NewPasskeyDevice(baseURL)
+		made, err := fresh.Register(map[string]any{"email": passkeyEmail()})
+		if err != nil {
+			t.Fatalf("register: %v", err)
+		}
+		if !made.Created {
+			t.Fatal("a new account's session does not say it is new")
+		}
+		again, err := fresh.SignIn()
+		if err != nil {
+			t.Fatalf("sign in: %v", err)
+		}
+		if again.Created {
+			t.Fatal("a sign-in says it made the account")
+		}
+	})
+
 	t.Run("another account's passkey is not this one's", func(t *testing.T) {
 		other := testutils.NewPasskeyDevice(baseURL)
 		session, err := other.Register(map[string]any{"email": passkeyEmail()})

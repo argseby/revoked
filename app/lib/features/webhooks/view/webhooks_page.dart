@@ -226,10 +226,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
   void _back() => context.go(AppRoutes.webhooks);
 
   Widget _title(BuildContext context) => Observer(
-    builder: (_) => AppBarTitle(
-      title: Stores.webhooks.endpoint(widget.endpointId)?.host ?? 'Webhook',
-      onBack: _back,
-    ),
+    builder: (_) => AppBarTitle(title: 'Webhooks', onBack: _back),
   );
 
   Future<void> _showSecret(WebhookEndpoint e) async {
@@ -653,7 +650,7 @@ class _WebhookEndpointPageState extends State<WebhookEndpointPage> {
             AppButton(
               label: 'Delete',
               icon: AppIcons.trash,
-              style: AppButtonStyle.destructive,
+              style: AppButtonStyle.danger,
               onTap: store.isChanging ? null : () => _delete(e),
             ),
           ],

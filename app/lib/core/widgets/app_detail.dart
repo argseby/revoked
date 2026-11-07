@@ -12,7 +12,7 @@ import 'package:revoked_app/core/widgets/app_list_page.dart';
 ///   [Active]
 ///   Employer HR
 ///   k7m2p9xq
-///   ( Share link                    ) [✎] [⧉]
+///   ( Share link ) [✎] [⧉]
 ///
 /// With no room for that row, the icon buttons move under the main action.
 ///
@@ -28,7 +28,7 @@ class AppDetailHeader extends StatelessWidget {
   /// [subtitle] is a slug or key and reads as one.
   final bool subtitleMono;
 
-  /// The page's main action, stretched to fill the row.
+  /// The page's main action, stretched to fill the row on a phone.
   final Widget? primaryAction;
 
   /// Icon buttons after the main action.
@@ -87,12 +87,16 @@ class AppDetailHeader extends StatelessWidget {
   Widget _actions(BuildContext context, BoxConstraints constraints) {
     final iconsWidth =
         secondaryActions.length * (AppButton.normalExtent + AppSpacing.sm);
+    // A phone gives the main action the whole row to hit; a wider page sizes
+    // it to its label, so it does not become a bar across the window.
+    final stretch = constraints.maxWidth < AppSpacing.narrowWidth;
     if (primaryAction == null ||
         secondaryActions.isEmpty ||
         constraints.maxWidth >= _primaryMinWidth + iconsWidth) {
       return Row(
         children: [
-          if (primaryAction != null) Expanded(child: primaryAction!),
+          if (primaryAction != null)
+            stretch ? Expanded(child: primaryAction!) : primaryAction!,
           for (final a in secondaryActions) ...[AppSpacing.gapSm, a],
         ],
       );
@@ -252,22 +256,37 @@ class AppDetailPage extends StatelessWidget {
 
   /// The width a page needs before its [aside] gets a column of its own. By
   /// the room the page has, not the window: beside a list in a split, a wide
-  /// window still leaves a narrow page.
-  static const double twoColumnWidth = 760;
+  /// window still leaves a narrow page, and an aside squeezed under 300
+  /// pixels breaks its labels and dates over two lines.
+  static const double twoColumnWidth = 880;
 
   @override
   Widget build(BuildContext context) {
-    if (aside.isEmpty) {
-      return AppPageBody(children: [header, ...sections]);
+    // What ends or removes the thing comes last wherever a page places it,
+    // so it never sits between the page's facts.
+    final manage = [
+      ...sections.whereType<AppDetailManage>(),
+      ...aside.whereType<AppDetailManage>(),
+    ];
+    final main = [
+      for (final w in sections)
+        if (w is! AppDetailManage) w,
+    ];
+    final side = [
+      for (final w in aside)
+        if (w is! AppDetailManage) w,
+    ];
+    if (side.isEmpty) {
+      return AppPageBody(children: [header, ...main, ...manage]);
     }
     return LayoutBuilder(
       builder: (context, constraints) => constraints.maxWidth >= twoColumnWidth
-          ? _twoColumns()
-          : AppPageBody(children: [header, ...sections, ...aside]),
+          ? _twoColumns(main, [...side, ...manage], constraints.maxWidth)
+          : AppPageBody(children: [header, ...main, ...side, ...manage]),
     );
   }
 
-  Widget _twoColumns() {
+  Widget _twoColumns(List<Widget> main, List<Widget> side, double width) {
     return AppPageBody(
       children: [
         header,
@@ -275,18 +294,17 @@ class AppDetailPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              flex: 3,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: sections,
+                children: main,
               ),
             ),
             const SizedBox(width: AppSpacing.xxl),
-            Expanded(
-              flex: 2,
+            SizedBox(
+              width: (width * 0.36).clamp(300, 360),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: aside,
+                children: side,
               ),
             ),
           ],
@@ -297,7 +315,8 @@ class AppDetailPage extends StatelessWidget {
 }
 
 /// The actions that end or remove the thing, at the foot of its detail page
-/// and apart from the everyday ones in the header.
+/// and apart from the everyday ones in the header. Every button in it is the
+/// normal size, and a destructive one uses [AppButtonStyle.danger].
 class AppDetailManage extends StatelessWidget {
   final List<Widget> actions;
 
@@ -308,17 +327,20 @@ class AppDetailManage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const AppListHeader(title: 'Manage'),
-        if (note != null) ...[Text(note!).small.muted, AppSpacing.gapSm],
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: actions,
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppListHeader(title: 'Manage'),
+          if (note != null) ...[Text(note!).small.muted, AppSpacing.gapSm],
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: actions,
+          ),
+        ],
+      ),
     );
   }
 }

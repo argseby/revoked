@@ -269,7 +269,7 @@ font-size: 14px; line-height: 1.45;
 <div class="card" id="card">
 <div id="error" class="callout" role="alert" hidden><i data-i="alert" data-s="20"></i><span id="error-t"></span></div>
 <label class="field" id="emailRow" hidden><span data-t="field.email">Email</span>
-<input id="email" type="email" autocomplete="email" placeholder="name@example.com">
+<input id="email" type="email" autocomplete="username webauthn" placeholder="name@example.com">
 </label>
 <label class="field" id="codeRow" hidden><span data-t="field.code">Confirmation code</span>
 <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
@@ -311,6 +311,16 @@ var STRINGS = {
     'signin.fromApp': 'Sign-in starts in the Revoked app, which opens this page.',
     'signin.go': 'Sign in with passkey', 'signin.other': 'Create account',
     'signin.noPasskey': 'New passkeys are added through a link from the server operator.',
+    'either.title': 'Sign in or create an account',
+    'either.lead': 'Revoked uses passkeys instead of passwords. A saved passkey is offered in the email field.',
+    'either.go': 'Continue',
+    'offer.title': 'Create an account?',
+    'offer.leadCode': function (email) { return 'No passkey was used. A new account for ' + email + ' starts with a confirmation code sent there.'; },
+    'offer.lead': function (email) { return 'No passkey was used. A new account for ' + email + ' gets a passkey on this device.'; },
+    'offer.go': 'Create account', 'offer.retry': 'Try a passkey again',
+    'offer.note': 'A passkey on a phone works through the QR code the browser offers.',
+    'err.noPasskeyEmail': 'No passkey was used. A passkey on a phone works through the QR code the browser offers. For a new account, an email address is needed first.',
+    'err.noPasskeyClosed': 'No passkey was used. One on a phone works through the QR code the browser offers.',
     'signup.title': 'Email address',
     'signup.leadCode': 'A confirmation code is sent to this address.',
     'signup.lead': 'Accounts are identified by email address. No password is used.',
@@ -354,6 +364,16 @@ var STRINGS = {
     'signin.fromApp': 'Die Anmeldung beginnt in der Revoked-App, die diese Seite öffnet.',
     'signin.go': 'Mit Passkey anmelden', 'signin.other': 'Konto erstellen',
     'signin.noPasskey': 'Neue Passkeys werden über einen Link des Serverbetreibers hinzugefügt.',
+    'either.title': 'Anmelden oder Konto erstellen',
+    'either.lead': 'Revoked nutzt Passkeys statt Passwörtern. Ein gespeicherter Passkey wird im E-Mail-Feld angeboten.',
+    'either.go': 'Weiter',
+    'offer.title': 'Konto erstellen?',
+    'offer.leadCode': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' beginnt mit einem Bestätigungscode an diese Adresse.'; },
+    'offer.lead': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' erhält einen Passkey auf diesem Gerät.'; },
+    'offer.go': 'Konto erstellen', 'offer.retry': 'Passkey erneut versuchen',
+    'offer.note': 'Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
+    'err.noPasskeyEmail': 'Es wurde kein Passkey verwendet. Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet. Für ein neues Konto wird zuerst eine E-Mail-Adresse benötigt.',
+    'err.noPasskeyClosed': 'Es wurde kein Passkey verwendet. Einer auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
     'signup.title': 'E-Mail-Adresse',
     'signup.leadCode': 'Ein Bestätigungscode wird an diese Adresse gesendet.',
     'signup.lead': 'Konten werden über die E-Mail-Adresse identifiziert. Ein Passwort wird nicht verwendet.',
@@ -641,12 +661,14 @@ function deviceName() {
   return [browser, os].filter(Boolean).join(' on ') || 'Passkey';
 }
 
-async function signIn() {
+// extra carries the autofill's mediation and abort signal; the button asks
+// without them.
+async function signIn(extra) {
   var begin = await call('/api/passkeys/login/begin', { challenge: pkce });
   var options = begin.options.publicKey;
   options.challenge = decode(options.challenge);
   (options.allowCredentials || []).forEach(function (c) { c.id = decode(c.id); });
-  var credential = await navigator.credentials.get({ publicKey: withPrf(options) });
+  var credential = await navigator.credentials.get(Object.assign({ publicKey: withPrf(options) }, extra || {}));
   var prf = prfOf(credential);
   var result = await call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
   result.prf = prf;
@@ -674,6 +696,43 @@ async function register() {
 
 // Set once the page has its answer, so nothing redraws over the result.
 var done = false;
+
+// ---- Passkey autofill ----------------------------------------------------
+// While signing in, a passkey saved for this server is offered in the email
+// field's suggestions, so a returning person picks it there and is in: no
+// choosing between signing in and creating an account first. The button
+// still asks outright, for a passkey on another device. Only one request may
+// be open, so the autofill's is withdrawn before the button's starts.
+var autofill = null;
+// Set when Continue found no passkey and the address may be someone new.
+var offerCreate = false;
+async function startAutofill() {
+  if (autofill || done || mode !== 'signin' || !pkce || offerCreate) return;
+  if (!PublicKeyCredential.isConditionalMediationAvailable) return;
+  var available = false;
+  try { available = await PublicKeyCredential.isConditionalMediationAvailable(); } catch (e) {}
+  if (!available || autofill || done || mode !== 'signin') return;
+  var controller = new AbortController();
+  autofill = controller;
+  try {
+    var result = await signIn({ mediation: 'conditional', signal: controller.signal });
+    if (autofill !== controller) return;
+    autofill = null;
+    finished(result);
+  } catch (e) {
+    if (autofill === controller) autofill = null;
+    if (controller.signal.aborted || !e || e.name === 'AbortError' || e.name === 'NotAllowedError') return;
+    fail(e.message || t('err.generic'));
+  }
+}
+async function stopAutofill() {
+  if (!autofill) return;
+  var controller = autofill;
+  autofill = null;
+  controller.abort();
+  // Let the browser close the withdrawn request before another opens.
+  await new Promise(function (resolve) { setTimeout(resolve, 0); });
+}
 
 // ---- Confirming a new account's address --------------------------------
 // The address the last code went to, and the proof the right code bought. The
@@ -752,7 +811,10 @@ function render() {
   redraw = render;
   show($('card'), true);
   show($('error'), false);
-  show($('emailRow'), mode === 'signup' && !saving());
+  // Signing in, the field is where a saved passkey is offered, and the address
+  // a new account starts from if that is what this turns out to be.
+  show($('emailRow'), (mode === 'signup' && !saving()) || (mode === 'signin' && !!pkce));
+  $('email').setAttribute('autocomplete', mode === 'signin' ? 'username webauthn' : 'email');
   show($('codeRow'), confirming());
   show($('resend'), confirming());
   show($('go'), true);
@@ -806,24 +868,46 @@ function render() {
     show($('card'), false);
     return;
   }
-  heading(t('signin.title'), t('signin.lead'), 'key');
-  action(t('signin.go'), 'key');
   hint('hint.signin');
-  if (server.signups) {
-    // The app already said which of the two this is, so the other way stays
-    // a quiet link for a wrong tap — not a second choice to make here.
+  if (server.signups && offerCreate) {
+    // The passkey prompt found nothing: the address typed may be someone new.
+    // Asked only now, so nobody is made to choose before they know.
+    var email = currentEmail();
+    heading(t('offer.title'), t(server.verifyEmail ? 'offer.leadCode' : 'offer.lead', email), 'user-plus');
+    action(t('offer.go'), 'arrow-right');
     $('other').classList.add('link');
-    $('other').textContent = t('signin.other');
+    $('other').textContent = t('offer.retry');
     show($('other'), true);
+    $('note').textContent = t('offer.note');
+    return;
+  }
+  if (server.signups) {
+    // One way in. The field offers a saved passkey; Continue asks for one
+    // anywhere, a phone included, and only when none is used does the page
+    // offer a new account for the address. Nothing here asks the server
+    // whether that address has an account.
+    heading(t('either.title'), t('either.lead'), 'key');
+    action(t('either.go'), 'arrow-right');
   } else {
+    action(t('signin.go'), 'key');
+    heading(t('signin.title'), t('signin.lead'), 'key');
     $('note').textContent = t('signin.noPasskey');
   }
+  startAutofill();
 }
 
-$('other').addEventListener('click', function () {
-  mode = mode === 'signup' ? 'signin' : 'signup';
+$('other').addEventListener('click', async function () {
+  // Offered a new account, the person may still have a passkey somewhere.
+  if (mode === 'signin' && offerCreate) {
+    offerCreate = false;
+    render();
+    $('go').click();
+    return;
+  }
+  // While creating an account, the quiet way back to signing in.
+  await stopAutofill();
+  mode = 'signin';
   render();
-  if (mode === 'signup') $('email').focus();
 });
 var busy = false;
 $('go').addEventListener('click', async function () {
@@ -833,7 +917,15 @@ $('go').addEventListener('click', async function () {
   $('go').disabled = true;
   $('go').classList.add('loading');
   try {
+    // The new account the page offered: from here it is the sign-up below.
+    if (mode === 'signin' && offerCreate) {
+      await stopAutofill();
+      offerCreate = false;
+      mode = 'signup';
+      render();
+    }
     if (mode === 'signin') {
+      await stopAutofill();
       finished(await signIn());
     } else if (mode === 'signup' && server.verifyEmail && !proof) {
       if (!confirming()) {
@@ -859,13 +951,27 @@ $('go').addEventListener('click', async function () {
       proof = ''; codeSentTo = ''; emailGiven = false;
       render();
     }
-    // Dismissing the system sheet is not an error worth explaining.
-    if (!e || e.name !== 'NotAllowedError') fail((e && e.message) || t('err.generic'));
+    // Dismissing the system sheet is not an error worth explaining, except
+    // when signing in: there it is also what finding no passkey looks like,
+    // and the way on is worth saying.
+    if (e && e.name === 'NotAllowedError' && mode === 'signin') {
+      if (server.signups && currentEmail() && $('email').checkValidity()) {
+        offerCreate = true;
+        render();
+      } else {
+        fail(t(server.signups ? 'err.noPasskeyEmail' : 'err.noPasskeyClosed'));
+        if (server.signups) $('email').focus();
+      }
+    } else if (!e || e.name !== 'NotAllowedError') {
+      fail((e && e.message) || t('err.generic'));
+    }
     if (e && e.name === 'InvalidStateError') fail(t('err.exists'));
   } finally {
     busy = false;
     $('go').disabled = false;
     $('go').classList.remove('loading');
+    // The suggestions come back for another try.
+    if (!done) startAutofill();
   }
 });
 $('email').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('go').click(); });
@@ -878,6 +984,11 @@ $('code').addEventListener('input', function () {
 });
 // A different address needs its own code.
 $('email').addEventListener('input', function () {
+  if (mode === 'signin' && offerCreate) {
+    if (!currentEmail()) offerCreate = false;
+    render();
+    return;
+  }
   if (codeSentTo && currentEmail() !== codeSentTo) {
     codeSentTo = ''; proof = '';
     render();
@@ -889,7 +1000,11 @@ $('resend').addEventListener('click', async function () {
   try { await sendCode(); } catch (e) { fail((e && e.message) || t('err.generic')); updateResend(); }
 });
 render();
-if (mode === 'signup') $('email').focus();
+// A focused field shows the saved passkeys at once; on a touch screen it
+// would also raise the keyboard over the page, so there it waits for a tap.
+if (mode === 'signup' || (mode === 'signin' && pkce && window.matchMedia && matchMedia('(pointer: fine)').matches)) {
+  $('email').focus();
+}
 })();
 </script>
 </body>

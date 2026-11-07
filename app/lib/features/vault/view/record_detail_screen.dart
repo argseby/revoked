@@ -91,8 +91,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   String _name(models.Record r) => r.label.isEmpty ? r.key : r.label;
 
   Widget _title(BuildContext context) {
-    final r = _record;
-    return AppBarTitle(title: r == null ? 'Record' : _name(r), onBack: _back);
+    return AppBarTitle(title: 'Vault', onBack: _back);
   }
 
   /// An alias carries no value of its own; it forwards its parent's.
@@ -163,8 +162,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                 AppButton(
                   icon: AppIcons.trash,
                   label: 'Delete',
-                  style: AppButtonStyle.destructive,
-                  size: AppButtonSize.small,
+                  style: AppButtonStyle.danger,
                   busy: _deleting.value,
                   onTap: _deleting.value
                       ? null
@@ -181,8 +179,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   AppDetailHeader _header(BuildContext context, models.Record r) {
     final store = Stores.vault;
     return AppDetailHeader(
+      // The type is a fact about the record, not a state, so it reads with
+      // the key rather than among the badges.
       badges: [
-        AppBadge(icon: RecordTypeUtils.icon(r.type), label: r.type),
         if (r.isHidden)
           const AppBadge(icon: AppIcons.eyeSlash, label: 'Hidden'),
         if (r.sealed)
@@ -197,7 +196,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           AppBadge(icon: AppIcons.plug, label: 'Added by ${r.writerName}'),
       ],
       title: _name(r),
-      subtitle: r.key,
+      subtitle: '${r.key} · ${RecordTypeUtils.label(r.type)}',
       subtitleMono: true,
       primaryAction: r.isFile
           ? AppButton(

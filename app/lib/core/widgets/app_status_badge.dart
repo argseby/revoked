@@ -7,7 +7,8 @@ import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
 /// A link's or request's status as a badge — "Active" green, "Paused" amber,
-/// "Revoked" red — the same everywhere a status is shown.
+/// "Revoked" red — the same everywhere a status is shown, with the icon a
+/// [StatusLabel] carries, so the two read as one badge.
 class AppStatusBadge extends StatelessWidget {
   final String status;
 
@@ -16,6 +17,7 @@ class AppStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppBadge(
+      icon: StatusColors.icon(status),
       label: StatusColors.displayLabel(status),
       accent: StatusColors.foreground(Theme.of(context), status),
     );

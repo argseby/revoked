@@ -201,16 +201,20 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
               label: 'People with access',
               value: '${recipients.length}',
             ),
-            AppStatTile(
-              icon: AppIcons.plug,
-              label: 'Connected tools',
-              value: '${tools.length}',
-            ),
-            AppStatTile(
-              icon: AppIcons.key,
-              label: 'API keys',
-              value: '${keys.length}',
-            ),
+            // Tools and keys are for the few who build on the API; a zero
+            // there says nothing to everyone else.
+            if (tools.isNotEmpty)
+              AppStatTile(
+                icon: AppIcons.plug,
+                label: 'Connected tools',
+                value: '${tools.length}',
+              ),
+            if (keys.isNotEmpty)
+              AppStatTile(
+                icon: AppIcons.key,
+                label: 'API keys',
+                value: '${keys.length}',
+              ),
           ],
         ),
         AppSpacing.gapLg,
@@ -336,7 +340,7 @@ bool _endsWithinAWeek(String? at, DateTime now) {
       end.isBefore(now.add(const Duration(days: 7)));
 }
 
-/// The four counts, in a row where there is room and two by two on a phone.
+/// The counts, in a row where there is room and two by two on a phone.
 class _Figures extends StatelessWidget {
   final List<Widget> tiles;
 

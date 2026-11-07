@@ -1470,25 +1470,34 @@ class _Members extends StatelessWidget {
 class SealingAlarm extends StatelessWidget {
   const SealingAlarm({super.key});
 
+  /// Whether there is anything to warn about, so a list can leave out the
+  /// alarm, and the gap it would stand in, when there is not.
+  static bool get shows => _message(Stores.keys) != null;
+
+  static bool _locked(KeysStore keys) =>
+      keys.status == SealingStatus.needsThisDevice ||
+      keys.status == SealingStatus.needsConfirmation;
+
+  static String? _message(KeysStore keys) {
+    final locked = _locked(keys);
+    return switch (keys) {
+      _ when keys.status == SealingStatus.untrusted =>
+        'The device list changed in a way this device cannot confirm.',
+      _ when keys.removedFromList =>
+        'This device was removed from the device list.',
+      _ when locked => 'Encrypted records cannot be read on this device yet.',
+      _ when keys.unreviewedEntries.isNotEmpty => 'The device list changed.',
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return Observer(
       builder: (context) {
         final keys = Stores.keys;
-        final locked =
-            keys.status == SealingStatus.needsThisDevice ||
-            keys.status == SealingStatus.needsConfirmation;
-        final String? message = switch (keys) {
-          _ when keys.status == SealingStatus.untrusted =>
-            'The device list changed in a way this device cannot confirm.',
-          _ when keys.removedFromList =>
-            'This device was removed from the device list.',
-          _ when locked =>
-            'Encrypted records cannot be read on this device yet.',
-          _ when keys.unreviewedEntries.isNotEmpty =>
-            'The device list changed.',
-          _ => null,
-        };
+        final locked = _locked(keys);
+        final message = _message(keys);
         if (message == null) return const SizedBox.shrink();
         final alarm = !locked || keys.removedFromList;
         return Padding(

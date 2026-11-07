@@ -19,7 +19,8 @@ class AppFilterOption<T> {
 
 /// The quick filter at the top of a list — "All 14 · Active 6 · Closed 8". The
 /// counts are the overview: a reader sees how many of each there are before
-/// scrolling. Small pills, so the row stays one line on a phone.
+/// scrolling. Small pills, so the row stays one line on a phone. An option
+/// with nothing in it is left out, unless it is the one selected.
 class AppFilterChips<T> extends StatelessWidget {
   final List<AppFilterOption<T>> options;
   final T selected;
@@ -39,11 +40,12 @@ class AppFilterChips<T> extends StatelessWidget {
       runSpacing: AppSpacing.xs,
       children: [
         for (final o in options)
-          _Pill(
-            label: '${o.label} ${o.count}',
-            selected: o.value == selected,
-            onTap: () => onSelected(o.value),
-          ),
+          if (o.count > 0 || o.value == selected)
+            _Pill(
+              label: '${o.label} ${o.count}',
+              selected: o.value == selected,
+              onTap: () => onSelected(o.value),
+            ),
       ],
     );
   }

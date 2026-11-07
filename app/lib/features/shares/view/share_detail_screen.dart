@@ -5,7 +5,6 @@ import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
-import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:go_router/go_router.dart';
@@ -30,7 +29,6 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
-import 'package:revoked_app/core/widgets/redacted_value.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/models/feature.dart';
 
@@ -80,10 +78,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   /// is on screen, and picking another link there is the way on.
   Widget _title(BuildContext context) {
     final split = mounted && ShellSplitPane.contains(this.context);
-    return AppBarTitle(
-      title: _share?.label ?? 'Link',
-      onBack: split ? null : _back,
-    );
+    return AppBarTitle(title: 'Shares', onBack: split ? null : _back);
   }
 
   @override
@@ -201,8 +196,9 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   }
 
   /// What the link hands out, resolved against the vault: every record with
-  /// its key and the value a viewer actually sees, filed under the section it
-  /// is shared through.
+  /// its key, filed under the section it is shared through. Values stay on
+  /// the record's own page, so a secret is not on show here and a long name
+  /// keeps its room.
   Widget _contents(BuildContext context, Link share) {
     final vault = Stores.vault;
     final byId = {for (final r in vault.records) r.id: r};
@@ -212,7 +208,6 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     Widget recordRow(models.Record r, {bool nested = false}) =>
         _SharedRecordRow(
           record: r,
-          value: _shownValue(r, byId),
           nested: nested,
           onTap: () => context.go(AppRoutes.recordDetailFor(r.id)),
         );
@@ -280,14 +275,6 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
             ),
       children: rows,
     );
-  }
-
-  /// The value a viewer of the link sees: an alias forwards its parent's, a
-  /// file shows its name and size.
-  String _shownValue(models.Record r, Map<String, models.Record> byId) {
-    if (r.isFile) return '${r.displayName} · ${formatBytes(r.size)}';
-    final value = r.isAlias ? (byId[r.aliasOf]?.value ?? '') : r.value;
-    return value.isEmpty ? '—' : value;
   }
 
   /// The link in one plain sentence: what it gives, and that it can be
@@ -428,14 +415,14 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
           AppButton(
             icon: AppIcons.shieldSlash,
             label: 'Revoke',
-            style: AppButtonStyle.destructive,
+            style: AppButtonStyle.danger,
             busy: busy == 'revoked',
             onTap: locked ? null : () => _confirmRevoke(context, share),
           ),
         AppButton(
           icon: AppIcons.trash,
           label: 'Delete',
-          style: AppButtonStyle.ghost,
+          style: AppButtonStyle.danger,
           busy: busy == 'delete',
           onTap: locked ? null : () => _confirmDelete(context, share),
         ),
@@ -571,12 +558,10 @@ class _SharedSectionRow extends StatelessWidget {
   }
 }
 
-/// One shared record: its label and key on the left, the value a viewer of
-/// the link sees on the right. A hidden value stays masked until the eye is
-/// tapped; the row itself opens the record.
+/// One shared record: its label and key. The row opens the record, where
+/// its value is.
 class _SharedRecordRow extends StatelessWidget {
   final models.Record record;
-  final String value;
 
   /// Filed under a [_SharedSectionRow] above it, so indented beneath it.
   final bool nested;
@@ -584,7 +569,6 @@ class _SharedRecordRow extends StatelessWidget {
 
   const _SharedRecordRow({
     required this.record,
-    required this.value,
     required this.nested,
     required this.onTap,
   });
@@ -593,7 +577,6 @@ class _SharedRecordRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final r = record;
-    final masked = r.isHidden && !Stores.vault.isRevealed(r.id);
 
     // Square like every row in a card; the card's clip rounds the ends.
     return AppFocusRing(
@@ -617,7 +600,6 @@ class _SharedRecordRow extends StatelessWidget {
               ),
               AppSpacing.gapMd,
               Expanded(
-                flex: 4,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -634,38 +616,7 @@ class _SharedRecordRow extends StatelessWidget {
                   ],
                 ),
               ),
-              AppSpacing.gapMd,
-              Expanded(
-                flex: 5,
-                child: masked
-                    ? Align(
-                        alignment: Alignment.centerRight,
-                        child: RedactionBar(
-                          width: (value.length * 7.0).clamp(40.0, 160.0),
-                          small: true,
-                        ),
-                      )
-                    : AppText(
-                        value,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
-                      ).small,
-              ),
-              // The value is set right against the eye, so it needs the gap:
-              // a long one, or the solid bar standing in for a hidden one,
-              // otherwise runs into the button.
               AppSpacing.gapSm,
-              if (r.isHidden)
-                AppButton(
-                  icon: masked ? AppIcons.eye : AppIcons.eyeSlash,
-                  tooltip: masked ? 'Show value' : 'Hide value',
-                  style: AppButtonStyle.accent,
-                  size: AppButtonSize.small,
-                  onTap: () => Stores.vault.toggleRevealed(r.id),
-                )
-              else
-                const SizedBox(width: AppSpacing.xs),
               Icon(
                 AppIcons.chevronRight,
                 size: 18,

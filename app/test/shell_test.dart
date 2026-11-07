@@ -208,6 +208,17 @@ void main() {
       ),
       findsOneWidget,
     );
+    // Under 900 pixels the bar keeps its room for the title and the page's
+    // labelled action, and searches from an icon.
+    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(find.text('Search or paste link'), findsNothing);
+  });
+
+  testWidgets('a rail window from 900 pixels keeps the search pill', (
+    tester,
+  ) async {
+    await signedIn(tester, size: const Size(900, 800));
+    expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.text('Search or paste link'), findsOneWidget);
   });
 
@@ -225,10 +236,14 @@ void main() {
     tester,
   ) async {
     // One pixel over the breakpoint is where the bar is tightest: a rail, a
-    // title, the bell and the search pill. An overflow here throws.
-    await signedIn(tester, size: const Size(601, 800));
+    // title, the bell, search and the page's labelled action. An overflow
+    // here throws.
+    final router = await signedIn(tester, size: const Size(601, 800));
     expect(find.byTooltip('Create something new (N)'), findsOneWidget);
-    expect(find.text('Search or paste link'), findsOneWidget);
+    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    router.go(AppRoutes.vault);
+    await tester.pumpAndSettle();
+    expect(find.text('Add to vault'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

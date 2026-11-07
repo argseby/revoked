@@ -29,6 +29,8 @@ type PasskeyDevice struct {
 type PasskeySession struct {
 	UserID string
 	Token  string
+	// Created is set when the ceremony made the account.
+	Created bool
 }
 
 // NewPasskeyDevice returns a device with no passkey yet.
@@ -174,9 +176,12 @@ func (d *PasskeyDevice) Exchange(code, verifier string) (*PasskeySession, error)
 		Record struct {
 			Id string `json:"id"`
 		} `json:"record"`
+		Meta struct {
+			Created bool `json:"created"`
+		} `json:"meta"`
 	}
 	if err := d.Post("/api/passkeys/token", map[string]any{"code": code, "verifier": verifier}, &auth); err != nil {
 		return nil, err
 	}
-	return &PasskeySession{UserID: auth.Record.Id, Token: auth.Token}, nil
+	return &PasskeySession{UserID: auth.Record.Id, Token: auth.Token, Created: auth.Meta.Created}, nil
 }

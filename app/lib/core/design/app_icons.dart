@@ -113,4 +113,5 @@ abstract class AppIcons {
   static const IconData image = Icons.image_outlined;
   static const IconData filePdf = Icons.picture_as_pdf_outlined;
   static const IconData notes = Icons.notes;
+  static const IconData textValue = Icons.short_text;
 }

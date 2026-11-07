@@ -72,7 +72,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   void _back() => context.go(AppRoutes.requests);
 
   Widget _title(BuildContext context) {
-    return AppBarTitle(title: _request?.label ?? 'Request', onBack: _back);
+    return AppBarTitle(title: 'Requests', onBack: _back);
   }
 
   @override
@@ -107,12 +107,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
         return AppDetailPage(
           header: _header(context, request),
-          sections: [
-            _asked(request),
-            _access(request),
-            _details(request),
-            _manage(context, request),
-          ],
+          sections: [_asked(request), _access(request)],
+          aside: [_details(request), _manage(context, request)],
         );
       },
     );
@@ -127,7 +123,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
     return AppDetailHeader(
       badges: [
-        AppStatusBadge(request.status),
+        StatusLabel(request.status),
         if (unread > 0)
           AppBadge(label: '$unread new', accent: theme.colorScheme.primary),
         if (expiry != null)
@@ -342,16 +338,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           AppButton(
             icon: AppIcons.xCircle,
             label: 'Revoke',
-            style: AppButtonStyle.destructive,
-            size: AppButtonSize.small,
+            style: AppButtonStyle.danger,
             busy: busy == 'revoke',
             onTap: locked ? null : () => _confirmRevoke(context, request),
           ),
         AppButton(
           icon: AppIcons.trash,
           label: 'Delete',
-          style: AppButtonStyle.destructive,
-          size: AppButtonSize.small,
+          style: AppButtonStyle.danger,
           busy: busy == 'delete',
           onTap: locked ? null : () => _confirmDelete(context, request),
         ),

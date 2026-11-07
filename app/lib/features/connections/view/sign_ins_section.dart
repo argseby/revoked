@@ -116,10 +116,8 @@ class _SignInServicePageState extends State<SignInServicePage> {
 
   void _back() => context.go(AppRoutes.connectedTools);
 
-  Widget _title(BuildContext context) => Observer(
-    builder: (_) =>
-        AppBarTitle(title: _service?.host ?? 'Sign-in', onBack: _back),
-  );
+  Widget _title(BuildContext context) =>
+      AppBarTitle(title: 'Connected tools', onBack: _back);
 
   Future<void> _revoke(SignInService service, Link link) async {
     final ok = await showAppDialog(
@@ -224,7 +222,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
           AppButton(
             label: 'Get a new ID',
             icon: AppIcons.arrowRepeat,
-            style: AppButtonStyle.destructive,
+            style: AppButtonStyle.danger,
             busy: busy,
             onTap: busy ? null : () => _getNewId(service),
           ),
@@ -262,7 +260,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
         AppButton(
           label: 'Disconnect',
           icon: AppIcons.linkSlash,
-          style: AppButtonStyle.destructive,
+          style: AppButtonStyle.danger,
           onTap: busy ? null : () => _disconnect(service),
         ),
       ],

@@ -5,12 +5,10 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -26,7 +24,6 @@ import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 
 /// Which requests the chips above the list let through.
-enum _RequestFilter { all, open, closed }
 
 class InboxScreen extends StatefulWidget {
   /// 1 opens on Received, the links other people gave you.
@@ -43,7 +40,6 @@ class InboxScreen extends StatefulWidget {
 
 class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
   late final TableStore<DataRequest> _table;
-  final Local<_RequestFilter> _filter = Local(_RequestFilter.all);
 
   @override
   void initState() {
@@ -109,7 +105,6 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
       loading: () =>
           reqStore.loadState.isFirstLoad && reqStore.requests.isEmpty,
       skeleton: const AppListSkeleton(
-        filters: ['All', 'Open', 'Closed'],
         group: 'Open',
         rows: [
           AppSkeletonRow(
@@ -190,22 +185,13 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
           unread[r.id] = n;
           byGroup[requestGroup(r, n)]!.add(r);
         }
-        final open = matches.where((r) => !isRequestClosed(r)).length;
-        final filter = _filter.value;
-
-        bool shows(DataRequest r) => switch (filter) {
-          _RequestFilter.all => true,
-          _RequestFilter.open => !isRequestClosed(r),
-          _RequestFilter.closed => isRequestClosed(r),
-        };
-
+        // The groups are the filter: each says how many it holds, and the
+        // closed ones stay folded until asked for.
         Widget group(RequestGroup g, String title, {bool collapsed = false}) {
-          final requests = byGroup[g]!.where(shows).toList();
+          final requests = byGroup[g]!;
           if (requests.isEmpty) return const SizedBox.shrink();
           return AppListGroup(
-            // A new filter starts the group over, so picking "Closed" opens
-            // the group it would otherwise keep folded.
-            key: ValueKey('$g-$filter'),
+            key: ValueKey(g),
             title: title,
             noun: 'requests',
             previewCount: g == RequestGroup.fresh ? 0 : 5,
@@ -216,49 +202,26 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
                   request: r,
                   unread: unread[r.id] ?? 0,
                   now: now,
+                  // Only the closed group mixes statuses worth telling apart.
+                  showStatus: g == RequestGroup.closed,
                   onTap: () => context.go(AppRoutes.requestDetailFor(r.id)),
                 ),
             ],
           );
         }
 
-        final nothingShown = !matches.any(shows);
-
         return AppListPage(
           banners: [
             if (reqStore.loadState.error != null)
               AppRefreshFailed(onRetry: reqStore.loadRequests),
           ],
-          filters: AppFilterChips<_RequestFilter>(
-            selected: filter,
-            onSelected: (f) => _filter.value = f,
-            options: [
-              AppFilterOption(
-                value: _RequestFilter.all,
-                label: 'All',
-                count: matches.length,
-              ),
-              AppFilterOption(
-                value: _RequestFilter.open,
-                label: 'Open',
-                count: open,
-              ),
-              AppFilterOption(
-                value: _RequestFilter.closed,
-                label: 'Closed',
-                count: matches.length - open,
-              ),
-            ],
-          ),
-          emptyMessage: nothingShown ? 'No requests match the filters.' : null,
+          emptyMessage: matches.isEmpty
+              ? 'No requests match the search.'
+              : null,
           groups: [
             group(RequestGroup.fresh, 'New responses'),
             group(RequestGroup.open, 'Open'),
-            group(
-              RequestGroup.closed,
-              'Closed',
-              collapsed: filter != _RequestFilter.closed,
-            ),
+            group(RequestGroup.closed, 'Closed', collapsed: true),
           ],
         );
       },
@@ -274,11 +237,15 @@ class _RequestRow extends StatelessWidget {
   final DateTime now;
   final VoidCallback onTap;
 
+  /// Off inside a group named for the status, which would only repeat it.
+  final bool showStatus;
+
   const _RequestRow({
     required this.request,
     required this.unread,
     required this.now,
     required this.onTap,
+    this.showStatus = true,
   });
 
   @override
@@ -292,7 +259,9 @@ class _RequestRow extends StatelessWidget {
               label: '$unread new',
               accent: Theme.of(context).colorScheme.primary,
             )
-          : StatusLabel(request.status),
+          : showStatus
+          ? StatusLabel(request.status)
+          : null,
       onTap: onTap,
     );
   }

@@ -173,6 +173,47 @@ void main() {
     },
   );
 
+  test('the server says when the sign-in made the account', () async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    var created = true;
+    final api = ApiClient(
+      httpClient: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'token': 'session-token',
+            'record': {'id': 'u1', 'email': 'a@example.com'},
+            'meta': {'created': created},
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+    final opened = <Uri>[];
+    final auth = AuthStore(
+      api,
+      openBrowser: (page) async {
+        opened.add(page);
+        return true;
+      },
+    );
+    Future<bool> signIn() async {
+      // One button for both ways in: the page is never told which.
+      await auth.beginSignIn();
+      expect(opened.last.queryParameters['mode'], 'signin');
+      final state = opened.last.queryParameters['state']!;
+      await auth.completeSignIn(
+        Uri.parse('revoked://auth?code=c&state=$state'),
+      );
+      return auth.createdAccount;
+    }
+
+    expect(await signIn(), isTrue);
+    created = false;
+    expect(await signIn(), isFalse);
+  });
+
   test('creating an account opens the page on signup', () async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});

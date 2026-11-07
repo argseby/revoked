@@ -37,7 +37,8 @@ class AppListGroup extends StatefulWidget {
   /// Starts folded down to a single "Show N [noun]" row.
   final bool collapsed;
 
-  /// What the rows are, for the folded row: "links", "requests".
+  /// What the rows are, for the folded row: "links", "requests". A regular
+  /// plural: one row reads "Show 1 link".
   final String noun;
 
   /// A note under the card — what the rows mean, or what happens next.
@@ -57,6 +58,10 @@ class AppListGroup extends StatefulWidget {
   @override
   State<AppListGroup> createState() => _AppListGroupState();
 }
+
+/// "links" → "link". Every noun passed in is a regular plural.
+String _singular(String noun) =>
+    noun.endsWith('s') ? noun.substring(0, noun.length - 1) : noun;
 
 class _AppListGroupState extends State<AppListGroup> {
   late final Local<bool> _open = Local(!widget.collapsed);
@@ -79,7 +84,7 @@ class _AppListGroupState extends State<AppListGroup> {
       rows = [
         _ToggleRow(
           icon: AppIcons.chevronRight,
-          label: 'Show $total ${w.noun}',
+          label: 'Show $total ${total == 1 ? _singular(w.noun) : w.noun}',
           onTap: () => _open.value = true,
         ),
       ];

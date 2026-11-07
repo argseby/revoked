@@ -53,9 +53,9 @@ class AppListPage extends StatelessWidget {
   }
 }
 
-/// The scrolling column every page sits in: the same side inset and the full
-/// width of the window, so moving from a list into a detail page keeps the
-/// edges still.
+/// The scrolling column every page sits in: the same side inset and the same
+/// width — the window's, up to [AppSpacing.contentMaxWidth] — so moving from
+/// a list into a detail page keeps the edges still.
 class AppPageBody extends StatelessWidget {
   final List<Widget> children;
 
@@ -85,9 +85,17 @@ class AppPageBody extends StatelessWidget {
           inner,
           bottomPadding,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
+        child: Align(
+          alignment: AlignmentDirectional.topStart,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppSpacing.contentMaxWidth,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ),
         ),
       ),
     );

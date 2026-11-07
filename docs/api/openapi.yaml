@@ -3088,6 +3088,11 @@ paths:
         and five guesses, replacing any earlier one. An address is sent at most
         one code a minute and five an hour; each client is limited separately
         (`RATELIMIT_SIGNUP_EMAILS` per hour).
+
+        An address that already has an account gets the same answer and the
+        same limits, but its mail says that an account exists and carries no
+        code. The endpoint does not tell anyone whether an address is
+        registered.
       security: []
       requestBody:
         required: true
@@ -3116,11 +3121,6 @@ paths:
               schema: { $ref: "#/components/schemas/AppError" }
         "403":
           description: "`signups_disabled`."
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/AppError" }
-        "409":
-          description: "`passkey_email_taken`."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
@@ -3244,6 +3244,17 @@ paths:
                 properties:
                   token: { type: string }
                   record: { type: object }
+                  meta:
+                    type: object
+                    properties:
+                      created: { type: boolean, description: "True when the ceremony behind the code made the account, so a client can welcome someone new." }
+                      passkey:
+                        type: object
+                        description: "The passkey that signed in."
+                        properties:
+                          id: { type: string }
+                          name: { type: string }
+                          credentialId: { type: string }
         "400":
           description: "`passkey_grant_invalid`."
           content:

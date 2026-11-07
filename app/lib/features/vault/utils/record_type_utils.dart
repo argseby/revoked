@@ -35,8 +35,10 @@ class RecordTypeUtils {
         return AppIcons.clock;
       case 'file':
         return AppIcons.fileEarmark;
+      // Plain text, not a page: the document glyph read as a file beside
+      // real files.
       default:
-        return AppIcons.fileText;
+        return AppIcons.textValue;
     }
   }
 

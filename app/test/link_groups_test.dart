@@ -131,5 +131,21 @@ void main() {
       await tester.pump();
       expect(find.text('Row 7'), findsOneWidget);
     });
+
+    testWidgets('a collapsed group of one says it in the singular', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(
+          AppListGroup(
+            title: 'Closed',
+            collapsed: true,
+            noun: 'links',
+            children: rows(1),
+          ),
+        ),
+      );
+      expect(find.text('Show 1 link'), findsOneWidget);
+    });
   });
 }

@@ -60,13 +60,20 @@ func bindSignupEmailRoutes(app core.App, e *core.ServeEvent, root *server.RootKe
 		if !ok {
 			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.PasskeyEmailInvalid)
 		}
-		if taken, err := emailTaken(app, email); err != nil {
+		taken, err := emailTaken(app, email)
+		if err != nil {
 			return re.InternalServerError("Failed to send the code", err)
-		} else if taken {
-			return appErrorResponse(re, http.StatusConflict, &util.Errors.PasskeyEmailTaken)
 		}
 
+		// An address that already has an account gets the same answer, the
+		// same limits and a mail of its own, so this page cannot be used to
+		// find out who has an account here. Its owner reads that they can
+		// sign in; nobody else learns anything. The code recorded for it is
+		// one no six-digit guess can match, and it is never sent.
 		code := security.RandomStringWithAlphabet(util.EmailCodeLength, "0123456789")
+		if taken {
+			code = security.RandomString(32)
+		}
 		expires, refusal := signupCodes.issue(email, code, time.Now())
 		if refusal != nil {
 			re.Response.Header().Set("Retry-After", "60")
@@ -78,7 +85,13 @@ func bindSignupEmailRoutes(app core.App, e *core.ServeEvent, root *server.RootKe
 			signupCodes.forget(email)
 			return rateLimitedResponse(re)
 		}
-		if err := services.SendSignupCode(app, email, code, pageOrigin(re, root), body.Locale); err != nil {
+		send := services.SendSignupCode
+		if taken {
+			send = func(app core.App, to, _, origin, locale string) error {
+				return services.SendAccountExists(app, to, origin, locale)
+			}
+		}
+		if err := send(app, email, code, pageOrigin(re, root), body.Locale); err != nil {
 			signupCodes.forget(email)
 			if errors.Is(err, util.ErrMailBudgetSpent) {
 				return rateLimitedResponse(re)

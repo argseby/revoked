@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 
-/// One page of an [AppTabs]: its name, icon, and a line on what it holds.
+/// One page of an [AppTabs]: its name, icon, and a line on what it holds,
+/// read out by screen readers; the name alone says it on screen.
 class AppTab {
   final String label;
   final IconData icon;
@@ -21,8 +21,8 @@ class AppTab {
   });
 }
 
-/// Pages behind a filled segmented strip, with a line under it saying what
-/// the chosen page holds. Thin underlined tabs went unnoticed.
+/// Pages behind a filled segmented strip. Thin underlined tabs went
+/// unnoticed.
 class AppTabs extends StatefulWidget {
   final List<AppTab> tabs;
 
@@ -86,7 +86,7 @@ class _AppTabsState extends State<AppTabs> {
                       builder: (context, box) {
                         final icons =
                             box.maxWidth / widget.tabs.length >= _iconRoom;
-                        return AppSegmented<int>(
+                        final strip = AppSegmented<int>(
                           value: i,
                           expand: true,
                           items: [
@@ -99,13 +99,11 @@ class _AppTabsState extends State<AppTabs> {
                           ],
                           onChanged: (k) => _selected.value = k,
                         );
+                        if (description == null) return strip;
+                        return Semantics(hint: description, child: strip);
                       },
                     ),
                   ),
-                  if (description != null) ...[
-                    AppSpacing.gapXs,
-                    Text(description).small.muted,
-                  ],
                 ],
               ),
             ),

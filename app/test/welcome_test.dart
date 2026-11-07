@@ -18,9 +18,10 @@ import 'package:revoked_app/features/auth/view/login_screen.dart';
 import 'package:revoked_app/features/auth/view/round_trip.dart';
 import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen.dart';
 
-/// People gave up when "Create account" opened a browser they did not
-/// expect. The app now says the browser opens, and comes back, before it
-/// opens; on a computer it first offers to move to the phone.
+/// One button leads in: the server's page offers a saved passkey and a new
+/// account side by side, so the app asks nothing first. The welcome still
+/// says that the browser opens and comes back, since a browser appearing
+/// unannounced is where people gave up; on a computer it offers the phone.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -70,66 +71,70 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the welcome screen is the name and two buttons', (tester) async {
+  testWidgets('the welcome screen is the name and one button', (tester) async {
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
     expect(find.text('Revoked'), findsOneWidget);
-    expect(find.text('Create account'), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Create account'), findsNothing);
+    expect(find.text('Sign in'), findsNothing);
+    // The trip to the browser and back is shown before anything opens.
+    expect(find.byType(RoundTrip), findsOneWidget);
+    expect(launched, isEmpty);
   });
 
-  testWidgets('a closed server offers only signing in', (tester) async {
+  testWidgets('a closed server says so, and still has the one button', (
+    tester,
+  ) async {
     signups = {'open': false, 'verifyEmail': false};
     await show(tester, const LoginScreen());
     expect(find.text('Registration is closed on this server'), findsOneWidget);
-    expect(find.text('Create account'), findsNothing);
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Set up on a phone instead'), findsNothing);
   });
 
-  testWidgets('on a phone, the browser is announced before it opens', (
-    tester,
-  ) async {
+  testWidgets('Continue opens the browser at once', (tester) async {
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
-    await tester.tap(find.text('Create account'));
+    // A phone has no phone to move to.
+    expect(find.text('Set up on a phone instead'), findsNothing);
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(launched, isEmpty);
-    expect(find.text('Browser setup'), findsOneWidget);
-    expect(find.byType(RoundTrip), findsOneWidget);
-
-    await tester.tap(find.text('Open browser'));
-    await tester.pumpAndSettle();
-    expect(launched.single.queryParameters['mode'], 'signup');
+    expect(launched.single.queryParameters['mode'], 'signin');
     expect(find.text('Waiting for the browser'), findsOneWidget);
 
-    // It used to reopen the page on signing in.
     await tester.tap(find.text('Open browser again'));
     await tester.pumpAndSettle();
-    expect(launched.last.queryParameters['mode'], 'signup');
+    expect(launched, hasLength(2));
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
   });
 
-  testWidgets('on a computer, the phone is offered first', (tester) async {
+  testWidgets('on a computer, the phone is offered, not required', (
+    tester,
+  ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
-    await tester.tap(find.text('Create account'));
+    await tester.tap(find.text('Set up on a phone instead'));
     await tester.pumpAndSettle();
     expect(find.text('Set up on a phone'), findsOneWidget);
     final qr = tester.widget<AppQrCode>(find.byType(AppQrCode));
     expect(qr.data, endsWith('/app'));
-
-    await tester.tap(find.text('Continue on this computer'));
-    await tester.pumpAndSettle();
-    expect(find.text('Browser setup'), findsOneWidget);
     expect(launched, isEmpty);
 
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
+
+    await tester.tap(find.text('Set up on a phone instead'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue on this computer'));
+    await tester.pumpAndSettle();
+    expect(launched.single.queryParameters['mode'], 'signin');
+    expect(find.text('Waiting for the browser'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 

@@ -161,8 +161,29 @@ func TestSignupConfirmsTheEmailAddress(t *testing.T) {
 		other := passkeyEmail()
 		_, err = testutils.NewPasskeyDevice(baseURL).Register(map[string]any{"email": other, "proof": proof})
 		passkeyRefusal(t, err, http.StatusForbidden, util.Errors.EmailVerificationRequired)
-		// And the address is now taken, so no code is sent for it.
-		passkeyRefusal(t, sendCode(email), http.StatusConflict, util.Errors.PasskeyEmailTaken)
+	})
+
+	t.Run("a taken address is answered like a free one, without a code", func(t *testing.T) {
+		before := box.count(email)
+		if err := sendCode(email); err != nil {
+			t.Fatalf("send to a taken address: %v, want the same answer as a free one", err)
+		}
+		if n := box.count(email); n != before+1 {
+			t.Fatalf("%d mails, want %d", n, before+1)
+		}
+		box.mu.Lock()
+		subject := box.sent[email][len(box.sent[email])-1]
+		box.mu.Unlock()
+		if mailedCode.MatchString(subject) {
+			t.Fatalf("a code went to a taken address: %q", subject)
+		}
+		// The limits are the same: a second ask within the minute waits.
+		passkeyRefusal(t, sendCode(email), http.StatusTooManyRequests, util.Errors.EmailCodeTooSoon)
+		// And no code the owner never saw can be guessed into a proof.
+		for i := 0; i < util.EmailCodeAttempts; i++ {
+			_, err := verify(email, wrongCode(""))
+			passkeyRefusal(t, err, http.StatusBadRequest, util.Errors.EmailCodeInvalid)
+		}
 	})
 
 	t.Run("guessing costs the code", func(t *testing.T) {
