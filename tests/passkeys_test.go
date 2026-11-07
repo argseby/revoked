@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"revoked/tests/testutils"
 	"revoked/util"
 
+	"github.com/descope/virtualwebauthn"
 	"github.com/google/uuid"
 )
 
@@ -84,6 +86,44 @@ func TestSigningInWithAPasskey(t *testing.T) {
 		passkey.Value("id").String().NotEmpty()
 	})
 
+	t.Run("a sign-in names the passkeys the account still has", func(t *testing.T) {
+		answer, err := device.SignInAnswer(util.PKCEChallenge(strings.Repeat("d", 43)))
+		if err != nil {
+			t.Fatalf("sign in: %v", err)
+		}
+		if answer.Accepted.UserID != base64.RawURLEncoding.EncodeToString([]byte(created.UserID)) {
+			t.Fatalf("user id %q is not the account's user handle", answer.Accepted.UserID)
+		}
+		want := services.PasskeyCredentialID(device.Credential.ID)
+		if len(answer.Accepted.Credentials) != 1 || answer.Accepted.Credentials[0] != want {
+			t.Fatalf("accepted %v, want [%s]", answer.Accepted.Credentials, want)
+		}
+		if answer.Accepted.Name != email {
+			t.Fatalf("name %q, want %q", answer.Accepted.Name, email)
+		}
+	})
+
+	t.Run("a passkey of a deleted account is named as unknown", func(t *testing.T) {
+		gone := testutils.NewPasskeyDevice(baseURL)
+		session, err := gone.Register(map[string]any{"email": passkeyEmail()})
+		if err != nil {
+			t.Fatalf("register: %v", err)
+		}
+		api.E.DELETE("/api/account").WithHeader("Authorization", session.Token).
+			Expect().Status(http.StatusNoContent)
+		_, err = gone.SignIn()
+		passkeyRefusal(t, err, http.StatusUnauthorized, util.Errors.PasskeyUnknown)
+	})
+
+	t.Run("a wrong signature on a known passkey is still just refused", func(t *testing.T) {
+		forger := testutils.NewPasskeyDevice(baseURL)
+		forger.Authenticator = device.Authenticator
+		forger.Credential = virtualwebauthn.NewCredential(virtualwebauthn.KeyTypeEC2)
+		forger.Credential.ID = device.Credential.ID
+		_, err := forger.SignIn()
+		passkeyRefusal(t, err, http.StatusUnauthorized, util.Errors.PasskeyVerificationFailed)
+	})
+
 	t.Run("only the session that made the account says so", func(t *testing.T) {
 		fresh := testutils.NewPasskeyDevice(baseURL)
 		made, err := fresh.Register(map[string]any{"email": passkeyEmail()})
@@ -111,7 +151,8 @@ func TestSigningInWithAPasskey(t *testing.T) {
 		if session.UserID == created.UserID {
 			t.Fatal("two registrations share an account")
 		}
-		// A device that answers with a key the server never saw is refused.
+		// A device that answers with another account's key is refused, and the
+		// key is not called unknown: it still works for its own account.
 		stranger := testutils.NewPasskeyDevice(baseURL)
 		stranger.Authenticator, stranger.Credential = device.Authenticator, other.Credential
 		_, err = stranger.SignIn()
@@ -231,8 +272,10 @@ func TestAddingAndRemovingPasskeys(t *testing.T) {
 		if !removed {
 			t.Fatal("no unused passkey to remove")
 		}
+		// Removed, so named as unknown: the page asks the password manager to
+		// drop it.
 		_, err := first.SignIn()
-		passkeyRefusal(t, err, http.StatusUnauthorized, util.Errors.PasskeyVerificationFailed)
+		passkeyRefusal(t, err, http.StatusUnauthorized, util.Errors.PasskeyUnknown)
 		if _, err := second.SignIn(); err != nil {
 			t.Fatalf("the remaining passkey stopped working: %v", err)
 		}

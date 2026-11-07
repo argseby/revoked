@@ -3012,13 +3012,20 @@ paths:
                 type: object
                 properties:
                   code: { type: string }
+                  accepted:
+                    type: object
+                    description: "What the account holds now, for the WebAuthn Signal API: a passkey removed from the account, or a changed address, then also leaves or changes in the password manager."
+                    properties:
+                      userId: { type: string, description: "The user handle, base64url." }
+                      credentials: { type: array, items: { type: string }, description: "Every credential id the account still accepts, base64url." }
+                      name: { type: string, description: "The account's email address." }
         "400":
           description: "`passkey_ceremony_invalid`, `passkey_request_invalid` or `passkey_origin_invalid`."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }
         "401":
-          description: "`passkey_verification_failed`."
+          description: "`passkey_verification_failed`, or `passkey_unknown`: no account on this server holds this passkey any longer (its account was deleted or the key removed), so a client can ask the password manager to drop it."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }

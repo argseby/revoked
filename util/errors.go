@@ -139,6 +139,7 @@ var Errors = struct {
 	PasskeyTicketInvalid          AppError
 	PasskeyCeremonyInvalid        AppError
 	PasskeyVerificationFailed     AppError
+	PasskeyUnknown                AppError
 	PasskeyGrantInvalid           AppError
 	PasskeyLast                   AppError
 	PasskeySignupOnly             AppError
@@ -691,6 +692,10 @@ var Errors = struct {
 	PasskeyVerificationFailed: AppError{
 		ErrorCode: "passkey_verification_failed",
 		ErrorText: "The passkey could not be verified.",
+	},
+	PasskeyUnknown: AppError{
+		ErrorCode: "passkey_unknown",
+		ErrorText: "This passkey belongs to no account on this server. It may have been removed, or its account deleted.",
 	},
 	PasskeyGrantInvalid: AppError{
 		ErrorCode: "passkey_grant_invalid",

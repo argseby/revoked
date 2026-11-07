@@ -146,27 +146,45 @@ func (d *PasskeyDevice) SignIn() (*PasskeySession, error) {
 	return d.Exchange(code, verifier)
 }
 
+// SignInFinish is what the sign-in ceremony's last step answers.
+type SignInFinish struct {
+	Code     string `json:"code"`
+	Accepted struct {
+		UserID      string   `json:"userId"`
+		Credentials []string `json:"credentials"`
+		Name        string   `json:"name"`
+	} `json:"accepted"`
+}
+
 // SignInCode runs the sign-in ceremony and returns the one-time code bound to
 // challenge, without redeeming it.
 func (d *PasskeyDevice) SignInCode(challenge string) (string, error) {
-	var begin passkeyBegin
-	if err := d.Post("/api/passkeys/login/begin", map[string]any{"challenge": challenge}, &begin); err != nil {
-		return "", err
-	}
-	options, err := virtualwebauthn.ParseAssertionOptions(string(begin.Options))
+	finish, err := d.SignInAnswer(challenge)
 	if err != nil {
-		return "", fmt.Errorf("sign-in options: %w", err)
-	}
-	response := virtualwebauthn.CreateAssertionResponse(d.rp, d.Authenticator, d.Credential, *options)
-	var finish struct {
-		Code string `json:"code"`
-	}
-	if err := d.Post("/api/passkeys/login/finish", map[string]any{
-		"session": begin.Session, "credential": json.RawMessage(response),
-	}, &finish); err != nil {
 		return "", err
 	}
 	return finish.Code, nil
+}
+
+// SignInAnswer runs the sign-in ceremony and returns its last step's answer
+// whole.
+func (d *PasskeyDevice) SignInAnswer(challenge string) (*SignInFinish, error) {
+	var begin passkeyBegin
+	if err := d.Post("/api/passkeys/login/begin", map[string]any{"challenge": challenge}, &begin); err != nil {
+		return nil, err
+	}
+	options, err := virtualwebauthn.ParseAssertionOptions(string(begin.Options))
+	if err != nil {
+		return nil, fmt.Errorf("sign-in options: %w", err)
+	}
+	response := virtualwebauthn.CreateAssertionResponse(d.rp, d.Authenticator, d.Credential, *options)
+	var finish SignInFinish
+	if err := d.Post("/api/passkeys/login/finish", map[string]any{
+		"session": begin.Session, "credential": json.RawMessage(response),
+	}, &finish); err != nil {
+		return nil, err
+	}
+	return &finish, nil
 }
 
 // Exchange redeems a one-time code the way the app does.

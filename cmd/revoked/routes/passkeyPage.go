@@ -321,6 +321,8 @@ var STRINGS = {
     'offer.note': 'A passkey on a phone works through the QR code the browser offers.',
     'err.noPasskeyEmail': 'No passkey was used. A passkey on a phone works through the QR code the browser offers. For a new account, an email address is needed first.',
     'err.noPasskeyClosed': 'No passkey was used. One on a phone works through the QR code the browser offers.',
+    'err.unknownRemoved': 'This passkey belongs to an account that no longer exists. Your password manager was asked to remove it.',
+    'err.unknownManual': 'This passkey belongs to an account that no longer exists. It can be deleted in your password manager.',
     'signup.title': 'Email address',
     'signup.leadCode': 'A confirmation code is sent to this address.',
     'signup.lead': 'Accounts are identified by email address. No password is used.',
@@ -374,6 +376,8 @@ var STRINGS = {
     'offer.note': 'Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
     'err.noPasskeyEmail': 'Es wurde kein Passkey verwendet. Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet. Für ein neues Konto wird zuerst eine E-Mail-Adresse benötigt.',
     'err.noPasskeyClosed': 'Es wurde kein Passkey verwendet. Einer auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
+    'err.unknownRemoved': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Der Passwort-Manager wurde gebeten, ihn zu entfernen.',
+    'err.unknownManual': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Er kann im Passwort-Manager gelöscht werden.',
     'signup.title': 'E-Mail-Adresse',
     'signup.leadCode': 'Ein Bestätigungscode wird an diese Adresse gesendet.',
     'signup.lead': 'Konten werden über die E-Mail-Adresse identifiziert. Ein Passwort wird nicht verwendet.',
@@ -670,9 +674,35 @@ async function signIn(extra) {
   (options.allowCredentials || []).forEach(function (c) { c.id = decode(c.id); });
   var credential = await navigator.credentials.get(Object.assign({ publicKey: withPrf(options) }, extra || {}));
   var prf = prfOf(credential);
-  var result = await call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
+  var rpId = options.rpId || location.hostname;
+  var result;
+  try {
+    result = await call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
+  } catch (e) {
+    // A passkey left behind by a deleted account or a removed key: the
+    // password manager is told, where the browser can tell it, so the dead
+    // passkey stops being offered.
+    if (e && e.code === 'passkey_unknown') {
+      var told = await signal('signalUnknownCredential', { rpId: rpId, credentialId: credential.id });
+      throw new Error(t(told ? 'err.unknownRemoved' : 'err.unknownManual'));
+    }
+    throw e;
+  }
+  // The keys this account still has, and its address: a passkey removed in
+  // the app leaves the password manager as well, and a changed address shows.
+  var a = result.accepted;
+  if (a && a.userId) {
+    signal('signalAllAcceptedCredentials', { rpId: rpId, userId: a.userId, allAcceptedCredentialIds: a.credentials || [] });
+    if (a.name) signal('signalCurrentUserDetails', { rpId: rpId, userId: a.userId, name: a.name, displayName: a.name });
+  }
   result.prf = prf;
   return result;
+}
+// The WebAuthn Signal API, where the browser has it. Best effort: a browser
+// without it, or a password manager that declines, changes nothing here.
+async function signal(name, args) {
+  if (typeof PublicKeyCredential[name] !== 'function') return false;
+  try { await PublicKeyCredential[name](args); return true; } catch (e) { return false; }
 }
 async function register() {
   var body = { name: deviceName() };

@@ -7,12 +7,13 @@ class AppConfig {
   /// Override at run/build time without editing code:
   ///   flutter run --dart-define=API_BASE_URL=http://192.168.178.47:3000
   ///
-  /// The default (127.0.0.1) only reaches the backend when the app runs on the
-  /// SAME machine as the server (iOS Simulator / macOS desktop). A PHYSICAL
-  /// device must use the Mac's LAN IP, because 127.0.0.1 is the phone itself.
+  /// The default is the official server, used on first install and whenever
+  /// no other address is stored. Local development passes its own address
+  /// (dev.sh does this); a PHYSICAL device must use the Mac's LAN IP there,
+  /// because 127.0.0.1 is the phone itself.
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:3000',
+    defaultValue: 'https://$officialServerHost',
   );
 
   /// How many rows a list loads. Nothing in the app paginates, so this is

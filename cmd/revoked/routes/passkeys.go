@@ -1,7 +1,10 @@
 package routes
 
 import (
+	"bytes"
 	"crypto/subtle"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -112,15 +115,48 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 				return failed(err)
 			}
 			var account *core.Record
+			var passkeyUser *services.PasskeyUser
+			// Set when the passkey is one this server no longer has anywhere:
+			// its account was deleted, or the key removed. The page then tells
+			// the password manager to drop it. A key some other account still
+			// holds is not unknown, only refused: dropping it would take a
+			// working passkey away from that account.
+			unknown := false
+			nowhere := func(rawID []byte) bool {
+				row, err := app.FindFirstRecordByFilter(util.Coll.Passkeys,
+					util.Fields.Passkey.CredentialId+" = {:c}",
+					dbx.Params{"c": services.PasskeyCredentialID(rawID)})
+				return errors.Is(err, sql.ErrNoRows) && row == nil
+			}
 			handler := func(rawID, userHandle []byte) (webauthn.User, error) {
 				user, err := app.FindRecordById(util.Coll.Users, string(userHandle))
 				if err != nil {
+					if errors.Is(err, sql.ErrNoRows) {
+						unknown = nowhere(rawID)
+					}
 					return nil, err
 				}
 				account = user
-				return services.LoadPasskeyUser(app, user)
+				loaded, err := services.LoadPasskeyUser(app, user)
+				if err != nil {
+					return nil, err
+				}
+				known := false
+				for _, c := range loaded.Credentials {
+					if bytes.Equal(c.ID, rawID) {
+						known = true
+						break
+					}
+				}
+				unknown = !known && nowhere(rawID)
+				passkeyUser = loaded
+				return loaded, nil
 			}
 			_, credential, err := w.ValidatePasskeyLogin(handler, ceremony.session, parsed)
+			if unknown {
+				app.Logger().Info("Sign-in with a passkey this server no longer has", "ip", re.RealIP())
+				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.PasskeyUnknown)
+			}
 			if err != nil || account == nil {
 				return failed(err)
 			}
@@ -131,10 +167,22 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 			if err := services.TouchPasskey(app, credential); err != nil {
 				app.Logger().Error("Failed to record a passkey sign-in", "error", err)
 			}
+			// The passkeys this account still has, for the page to hand to the
+			// password manager: one removed in the app then leaves it too.
+			// Public to whoever just proved they hold one of them.
+			accepted := make([]string, 0, len(passkeyUser.Credentials))
+			for _, c := range passkeyUser.Credentials {
+				accepted = append(accepted, services.PasskeyCredentialID(c.ID))
+			}
 			return re.JSON(http.StatusOK, map[string]any{
 				"code": passkeyCodes.put(&passkeyGrant{
 					user: account.Id, pkce: ceremony.pkce, credential: services.PasskeyCredentialID(credential.ID),
 				}, util.PasskeyCodeTTL),
+				"accepted": map[string]any{
+					"userId":      base64.RawURLEncoding.EncodeToString([]byte(account.Id)),
+					"credentials": accepted,
+					"name":        account.Email(),
+				},
 			})
 		})
 
