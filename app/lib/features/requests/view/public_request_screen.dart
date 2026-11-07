@@ -193,7 +193,9 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       await Stores.identities.loadIdentities();
       if (!mounted) return;
       runInAction(() {
-        if (_store.publicIdentityId == null) _initSelectedIdentity();
+        if (!Stores.identities.canSign(_store.publicIdentityId)) {
+          _initSelectedIdentity();
+        }
         for (final item in _store.publicTemplate.where((t) => t.isRecord)) {
           // The form is already on screen, so never overwrite an answer the
           // responder has started typing or a choice they made.
@@ -433,25 +435,15 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
     return true; // no match → defer to the identity/auth checks
   }
 
-  /// Picks a sensible default identity: a root-issued one when the request is
-  /// root-restricted, otherwise the primary (falling back to the first).
+  /// Picks a sensible default among the identities that can sign on this
+  /// device: a root-issued one when the request is root-restricted, otherwise
+  /// the primary (falling back to the first that can sign).
   void _initSelectedIdentity() {
-    final ids = Stores.identities.identities;
-    if (ids.isEmpty) {
-      _store.publicIdentityId = null;
-      return;
-    }
-    final rootOnly = _identityScope == 'from_root';
-    String? rootPick;
-    String? primaryPick;
-    String? firstId;
-    for (final i in ids) {
-      firstId ??= i.id;
-      if (i.isPrimary) primaryPick ??= i.id;
-      if (rootOnly && i.domainAtIssue == _serverDomain) rootPick ??= i.id;
-    }
-    _store.publicIdentityId =
-        (rootOnly ? rootPick : null) ?? primaryPick ?? firstId;
+    final store = Stores.identities;
+    final rootPick = _identityScope == 'from_root'
+        ? store.defaultSigner(where: (i) => i.domainAtIssue == _serverDomain)
+        : null;
+    _store.publicIdentityId = (rootPick ?? store.defaultSigner())?.id;
   }
 
   Future<void> _submit() async {
@@ -569,7 +561,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       // or stale token can't lock the responder out — the signature alone
       // re-establishes the handshake on the server.
       final identityId = _requireHandshake
-          ? (_store.publicIdentityId ?? Stores.identities.primaryIdentity?.id)
+          ? (_store.publicIdentityId ?? Stores.identities.defaultSigner()?.id)
           : null;
       if (_requireHandshake) {
         if (identityId == null || identityId.isEmpty) {

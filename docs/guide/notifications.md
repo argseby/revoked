@@ -54,7 +54,8 @@ Tapping a notification marks it as read and opens what it refers to:
 | A request | The request and its responses |
 | A link | The link |
 | A shown attestation | **Checked** under **Attestations** |
-| A share or request from a contact | **Received** under **Requests** |
+| A share from a contact | **Received** under **Shares** |
+| A request from a contact | **To answer** under **Requests** |
 
 Notifications about invites, webhooks and encrypted records open nothing;
 the text carries the full message.

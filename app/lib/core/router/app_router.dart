@@ -72,7 +72,11 @@ abstract class AppRoutes {
   static const requests = '/requests';
 
   /// Links other people gave the person, under Requests.
+  /// Requests others sent this account, waiting for an answer.
   static const requestsReceived = '$requests?tab=received';
+
+  /// Shares others gave this account, handed over or saved.
+  static const sharesReceived = '$shared?tab=received';
 
   /// One request's detail page, opened from the Requests list.
   static String requestDetailFor(String id) => '$requests/$id';
@@ -538,6 +542,9 @@ class AppRouter {
               builder: (context, state, child) => SharedSplit(
                 selectedId: state.pathParameters['id'],
                 recipient: state.uri.queryParameters['recipient'],
+                initialTab: state.uri.queryParameters['tab'] == 'received'
+                    ? 1
+                    : 0,
                 child: child,
               ),
               routes: [

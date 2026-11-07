@@ -211,13 +211,15 @@ class AppDetailRow extends StatelessWidget {
                       alignment: AlignmentDirectional.centerEnd,
                       child: badge == null
                           ? valueText
-                          : Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                badge!,
-                                AppSpacing.gapSm,
-                                Flexible(child: valueText),
-                              ],
+                          // Side by side while both fit; on a narrow phone
+                          // the value moves under the badge instead of
+                          // pushing the row past the edge.
+                          : Wrap(
+                              alignment: WrapAlignment.end,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: AppSpacing.sm,
+                              runSpacing: AppSpacing.xs,
+                              children: [badge!, valueText],
                             ),
                     ),
                   ),

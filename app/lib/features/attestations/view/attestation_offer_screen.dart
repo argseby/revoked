@@ -76,9 +76,7 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
     for (final i in usable) {
       if (bound.isNotEmpty && i.fingerprint == bound) return i.id;
     }
-    final primary = store.primaryIdentity;
-    if (primary != null && usable.contains(primary)) return primary.id;
-    return usable.isEmpty ? null : usable.first.id;
+    return store.defaultSigner()?.id;
   }
 
   Future<void> _accept() async {

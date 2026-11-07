@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/models/bookmark.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/app_segmented.dart';
+import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
@@ -32,7 +38,15 @@ class SharesScreen extends StatefulWidget {
   /// The link open beside the list, marked in it. Only in a split.
   final String? selectedId;
 
-  const SharesScreen({super.key, this.recipient, this.selectedId});
+  /// 1 opens on Received, the shares others gave this account.
+  final int initialTab;
+
+  const SharesScreen({
+    super.key,
+    this.recipient,
+    this.selectedId,
+    this.initialTab = 0,
+  });
 
   @override
   State<SharesScreen> createState() => _SharesScreenState();
@@ -40,6 +54,9 @@ class SharesScreen extends StatefulWidget {
 
 class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   late final TableStore<Link> _table;
+
+  /// Sent links by status, or by the person they went to.
+  final Local<bool> _byPerson = Local(false);
 
   @override
   void initState() {
@@ -72,23 +89,68 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
 
   @override
   Widget build(BuildContext context) {
-    // Access by record moved to the record pages and the Overview, and
-    // links others gave you to Requests › Received.
+    // Access by record moved to the record pages and the Overview. The same
+    // two tabs as Requests: what this account gave, and what it was given.
     return AppTabs(
+      initialIndex: widget.initialTab,
       tabs: [
         AppTab(
-          label: 'Links',
-          icon: AppIcons.link,
-          description: 'Every share link, by status.',
-          view: _myLinks(context),
+          label: 'Sent',
+          icon: AppIcons.send,
+          description: 'Share links made here, by status or by person.',
+          view: _sent(context),
         ),
         const AppTab(
-          label: 'By person',
-          icon: AppIcons.person,
-          description: 'Shared access, grouped by recipient.',
-          view: _ByPerson(),
+          label: 'Received',
+          icon: AppIcons.bookmark,
+          description: 'Shares others gave this account, and ones saved.',
+          view: BookmarksTab(kind: BookmarkKind.share),
         ),
       ],
+    );
+  }
+
+  /// The links, with a switch between grouping them by status and by the
+  /// person they went to: two views of the same list, so not tabs of their
+  /// own.
+  Widget _sent(BuildContext context) {
+    final inset = AppSpacing.screenH(context);
+    return Observer(
+      builder: (context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(inset, AppSpacing.xxs, inset, 0),
+            // At the end of the row, like the other tabs' tools: a view of
+            // the list, not a second row of tabs.
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: AppSegmented<bool>(
+                value: _byPerson.value,
+                onChanged: (v) => _byPerson.value = v,
+                items: const [
+                  AppSegmentedItem(
+                    value: false,
+                    label: 'By status',
+                    icon: AppIcons.cardList,
+                  ),
+                  AppSegmentedItem(
+                    value: true,
+                    label: 'By person',
+                    icon: AppIcons.person,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: IndexedStack(
+              index: _byPerson.value ? 1 : 0,
+              children: [_myLinks(context), const _ByPerson()],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

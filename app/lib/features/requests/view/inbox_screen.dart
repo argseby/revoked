@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -23,10 +24,8 @@ import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 
-/// Which requests the chips above the list let through.
-
 class InboxScreen extends StatefulWidget {
-  /// 1 opens on Received, the links other people gave you.
+  /// 1 opens on To answer, the requests others sent this account.
   final int initialTab;
 
   /// A tool's proposal for a new request; opens the form filled in.
@@ -77,22 +76,23 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
 
   @override
   Widget build(BuildContext context) {
-    // Your requests, and what others gave you (saved links). Answers to a
-    // request are on that request's page.
+    // The same two tabs as Shares: what this account asked for, and what
+    // others ask of it. Answers to a request are on that request's page;
+    // shares others gave are under Shares › Received.
     return AppTabs(
       initialIndex: widget.initialTab,
       tabs: [
         AppTab(
-          label: 'Your requests',
+          label: 'Sent',
           icon: AppIcons.send,
           description: 'Requests sent to others, with their responses.',
           view: _yourRequests(context),
         ),
         const AppTab(
-          label: 'Received',
-          icon: AppIcons.inboxFill,
-          description: 'Requests and links received from others.',
-          view: BookmarksTab(),
+          label: 'To answer',
+          icon: AppIcons.askFor,
+          description: 'Requests others sent to this account.',
+          view: BookmarksTab(kind: BookmarkKind.request),
         ),
       ],
     );

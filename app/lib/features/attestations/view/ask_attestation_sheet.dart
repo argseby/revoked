@@ -17,15 +17,7 @@ import 'package:revoked_app/core/widgets/qr_sheet.dart';
 /// the type, the claims and the identity, and they send back an offer.
 Future<void> openAskAttestationSheet(BuildContext context) {
   final identities = Stores.identities;
-  final usable = identities.identities.where(
-    (i) => !i.isRevoked && identities.hasLocalKey(i.id),
-  );
-  final primary = identities.primaryIdentity;
-  Stores.credentials.resetAsk(
-    identityId: primary != null && usable.contains(primary)
-        ? primary.id
-        : usable.firstOrNull?.id,
-  );
+  Stores.credentials.resetAsk(identityId: identities.defaultSigner()?.id);
   return showAppSheet(context: context, builder: (_) => const _AskSheet());
 }
 

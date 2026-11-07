@@ -986,11 +986,16 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
   }
 
   void _ensureIdentityDefault() {
-    if (_store.draftIdentityId != null) return;
     final store = Stores.identities;
-    _store.draftIdentityId =
-        store.primaryIdentity?.id ??
-        (store.identities.isNotEmpty ? store.identities.first.id : null);
+    final current = _store.draftIdentityId;
+    // An edit keeps the identity the request was signed with.
+    if (widget.editRequest != null && current != null) return;
+    // Until this device's keys are checked, a pick cannot be judged.
+    if (current != null && (!store.keysChecked || store.canSign(current))) {
+      return;
+    }
+    final pick = store.defaultSigner()?.id;
+    if (pick != current) _store.draftIdentityId = pick;
   }
 
   String? _templateName() {

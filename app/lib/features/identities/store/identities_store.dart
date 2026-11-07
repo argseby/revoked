@@ -76,6 +76,31 @@ abstract class _IdentitiesStore with Store {
     return identities.isNotEmpty ? identities.first : null;
   }
 
+  /// Whether [id] names one of this person's identities that still stands
+  /// and whose key is on this device, so it can sign here.
+  bool canSign(String? id) {
+    if (id == null || id.isEmpty || !localKeyIds.contains(id)) return false;
+    final identity = byId(id);
+    return identity != null && !identity.isRevoked;
+  }
+
+  /// The identity a form preselects: the primary one when it can sign here,
+  /// otherwise the first that can. [where] narrows the candidates further.
+  /// Null when none qualifies, including before this device's keys are
+  /// checked, so a form never starts on an identity it cannot sign with.
+  Identity? defaultSigner({bool Function(Identity)? where}) {
+    bool usable(Identity i) =>
+        !i.isRevoked &&
+        localKeyIds.contains(i.id) &&
+        (where == null || where(i));
+    final primary = primaryIdentity;
+    if (primary != null && usable(primary)) return primary;
+    for (final identity in identities) {
+      if (usable(identity)) return identity;
+    }
+    return null;
+  }
+
   /// The identity with [id], when it is among this person's: for a view that
   /// names the identity something is bound to.
   Identity? byId(String id) {

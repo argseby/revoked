@@ -56,8 +56,8 @@ enable it.
 |---|---|---|
 | **Overview** | Counts, items needing attention, and everything that can read the vault | [Overview](overview.md) |
 | **Vault** | Records, files and sections | [Vault](vault.md) |
-| **Shares** | Links to records, with view counts | [Sharing](sharing.md) |
-| **Requests** | Requests for information and their responses. Shares saved from others are listed under **Received**. | [Requests](requests.md), [Responses](requests.md#reading-what-came-back) |
+| **Shares** | Links to records, with view counts, under **Sent**. Shares from others are under **Received**. | [Sharing](sharing.md) |
+| **Requests** | Requests for information and their responses, under **Sent**. Requests from others are under **To answer**. | [Requests](requests.md), [Responses](requests.md#reading-what-came-back) |
 | **Attestations** | Attestations held, issued to others, and checked | [Attestations](attestations.md) |
 | **Contacts** | People and services that records are sent to or requested from | [Contacts](contacts.md) |
 | **Notifications** | Events since the last visit, filtered by unread or needing attention | [Notifications](notifications.md) |

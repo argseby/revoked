@@ -117,6 +117,8 @@ void main() {
       'id': 'u1',
       'activeWorkspace': 'w1',
     });
+    // The identity's key is on this device, so asking can be signed here.
+    await Stores.crypto.storePrivateKey('i1', 'test-private-key');
   });
 
   Future<void> open(WidgetTester tester) async {

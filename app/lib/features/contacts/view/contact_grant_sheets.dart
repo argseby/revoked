@@ -41,9 +41,7 @@ Future<void> openAskContactSheet(BuildContext context, Contact contact) async {
   if (!context.mounted) return;
   Stores.contacts.startGrant(
     contact.id,
-    identityId:
-        identities.primaryIdentity?.id ??
-        identities.identities.where((i) => !i.isRevoked).firstOrNull?.id,
+    identityId: identities.defaultSigner()?.id,
   );
   Stores.contacts.loadPolicy();
   final workspace = Stores.auth.activeWorkspace ?? '';

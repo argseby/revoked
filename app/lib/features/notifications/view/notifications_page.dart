@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/utils/dates.dart';
@@ -303,6 +304,17 @@ class _NotificationRow extends StatelessWidget {
   }
 }
 
+/// The Received tab for a bookmark: Shares for a share, Requests for a
+/// request. One not loaded yet is most likely a share.
+String _receivedRoute(String bookmarkId) {
+  for (final b in Stores.bookmarks.bookmarks) {
+    if (b.id == bookmarkId && b.kind == BookmarkKind.request) {
+      return AppRoutes.requestsReceived;
+    }
+  }
+  return AppRoutes.sharesReceived;
+}
+
 /// Where tapping a notification takes the reader, when it names something.
 void Function(BuildContext)? _opener(AppNotification n) {
   final id = n.refId ?? '';
@@ -318,7 +330,9 @@ void Function(BuildContext)? _opener(AppNotification n) {
             AppRoutes.shareDetailFor(id),
           AppConfig.attestationChecksCollection =>
             AppRoutes.attestationsChecked,
-          AppConfig.bookmarksCollection => AppRoutes.requestsReceived,
+          // Something handed over lands where its kind lives: a share to
+          // read, or a request to answer.
+          AppConfig.bookmarksCollection => _receivedRoute(id),
           _ => null,
         };
   if (route == null) return null;

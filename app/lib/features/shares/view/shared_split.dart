@@ -19,11 +19,15 @@ class SharedSplit extends StatefulWidget {
   final String? recipient;
   final Widget child;
 
+  /// The list's tab to open on: 1 for Received.
+  final int initialTab;
+
   const SharedSplit({
     super.key,
     required this.selectedId,
     required this.recipient,
     required this.child,
+    this.initialTab = 0,
   });
 
   /// The list's share of a split window, before the link takes the rest.
@@ -45,6 +49,7 @@ class _SharedSplitState extends State<SharedSplit> {
       key: _listKey,
       recipient: widget.recipient,
       selectedId: wide ? widget.selectedId : null,
+      initialTab: widget.initialTab,
     );
 
     if (wide) {

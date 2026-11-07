@@ -105,8 +105,9 @@ available through the [HTTP API](../api/index.md).
 ## Bookmarks {#bookmarking-a-share-you-received}
 
 When signed in, **Bookmark** on an opened share saves it under
-**Requests → Received**, so it can be reopened without the original
-message.
+**Shares → Received**, so it can be reopened without the original
+message. Shares someone on the same server hands over are listed there
+too, first, under **Handed to you**.
 
 A bookmark stores only where the link is, never its data. Opening a
 bookmark behaves like opening the link: the password, identity check and

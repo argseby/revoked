@@ -23,11 +23,17 @@ import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 
-/// Share links the user saved from links they were sent, filed into groups
-/// the way videos go into playlists. A bookmark in several groups shows in
-/// each; one in none is listed after the groups.
+/// What others gave this account, of one [kind]: shares to read under
+/// Shares › Received, requests to answer under Requests › To answer. Each is
+/// filed into groups the way videos go into playlists; a bookmark in several
+/// groups shows in each. One in none is listed after the groups — first what
+/// someone on this server handed over, then what the person saved.
 class BookmarksTab extends StatelessWidget {
-  const BookmarksTab({super.key});
+  final BookmarkKind kind;
+
+  const BookmarksTab({super.key, required this.kind});
+
+  bool get _asks => kind == BookmarkKind.request;
 
   Future<void> _newGroup(BuildContext context) async {
     final store = Stores.bookmarks;
@@ -56,21 +62,33 @@ class BookmarksTab extends StatelessWidget {
     final store = Stores.bookmarks;
     return AppLoadFade(
       loading: () => store.loadState.isFirstLoad && store.bookmarks.isEmpty,
-      skeleton: const AppListSkeleton(
-        group: 'Bookmarks',
-        rows: [
-          AppSkeletonRow(
-            'Lease details',
-            'From a landlord',
-            icon: AppIcons.bookmark,
-          ),
-          AppSkeletonRow(
-            'Pay slip',
-            'From an employer',
-            icon: AppIcons.bookmark,
-          ),
-          AppSkeletonRow('Club card', 'From a club', icon: AppIcons.bookmark),
-        ],
+      skeleton: AppListSkeleton(
+        group: 'Saved',
+        rows: _asks
+            ? const [
+                AppSkeletonRow(
+                  'Club membership',
+                  'From a club',
+                  icon: AppIcons.askFor,
+                ),
+                AppSkeletonRow(
+                  'Payroll details',
+                  'From an employer',
+                  icon: AppIcons.askFor,
+                ),
+              ]
+            : const [
+                AppSkeletonRow(
+                  'Lease details',
+                  'From a landlord',
+                  icon: AppIcons.bookmark,
+                ),
+                AppSkeletonRow(
+                  'Pay slip',
+                  'From an employer',
+                  icon: AppIcons.bookmark,
+                ),
+              ],
       ),
       builder: (_) {
         if (store.error != null && store.bookmarks.isEmpty) {
@@ -80,12 +98,33 @@ class BookmarksTab extends StatelessWidget {
             onRetry: store.load,
           );
         }
-        if (store.bookmarks.isEmpty) {
+        final mine = [
+          for (final b in store.bookmarks)
+            if (b.kind == kind) b,
+        ];
+        if (mine.isEmpty && _asks) {
+          return AppEmptyState(
+            icon: AppIcons.askFor,
+            title: 'Nothing to answer',
+            subtitle:
+                'Requests others send to this account, and ones saved from a '
+                'link, wait here until they are answered from the vault.',
+            action: AppButton(
+              icon: AppIcons.link,
+              label: 'Open a link',
+              style: AppButtonStyle.accent,
+              onTap: () => openLinkSearchSheet(context),
+            ),
+            learnMoreLabel: 'About requests',
+            learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
+          );
+        }
+        if (mine.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.bookmark,
-            title: 'No bookmarks',
+            title: 'Nothing received',
             subtitle:
-                'Bookmarks are shortcuts to links from others, not copies. '
+                'Shares from others are kept here as shortcuts, not copies. '
                 'Passwords and identity checks still apply, and revoked links '
                 'stay closed.',
             steps: const [
@@ -105,7 +144,28 @@ class BookmarksTab extends StatelessWidget {
                 '#bookmarking-a-share-you-received',
           );
         }
-        final ungrouped = store.ungrouped;
+        final ungrouped = [
+          for (final b in store.ungrouped)
+            if (b.kind == kind) b,
+        ];
+        // Handed over by someone on this server: it names a sender, who can
+        // be refused. Saved: the person kept it from a link they opened.
+        final handed = [
+          for (final b in ungrouped)
+            if (b.sender.isNotEmpty) b,
+        ];
+        final saved = [
+          for (final b in ungrouped)
+            if (b.sender.isEmpty) b,
+        ];
+        // A group shows where it has something of this kind, and an empty
+        // one in both, so a group just made is not lost.
+        final groups = [
+          for (final g in store.groups)
+            if (store.inGroup(g.id).isEmpty ||
+                store.inGroup(g.id).any((b) => b.kind == kind))
+              g,
+        ];
         return AppListPage(
           filters: Align(
             alignment: Alignment.centerRight,
@@ -118,14 +178,24 @@ class BookmarksTab extends StatelessWidget {
             ),
           ),
           groups: [
-            for (final group in store.groups) _GroupCard(group: group),
-            if (ungrouped.isNotEmpty)
+            if (handed.isNotEmpty)
               AppListGroup(
-                title: store.groups.isEmpty ? 'Bookmarks' : 'Not in a group',
+                title: _asks ? 'Sent to you' : 'Handed to you',
+                previewCount: 8,
+                noun: _asks ? 'requests' : 'shares',
+                children: [
+                  for (final bookmark in handed)
+                    _BookmarkRow(bookmark: bookmark),
+                ],
+              ),
+            for (final group in groups) _GroupCard(group: group, kind: kind),
+            if (saved.isNotEmpty)
+              AppListGroup(
+                title: groups.isEmpty ? 'Saved' : 'Saved, not in a group',
                 previewCount: 8,
                 noun: 'bookmarks',
                 children: [
-                  for (final bookmark in ungrouped)
+                  for (final bookmark in saved)
                     _BookmarkRow(bookmark: bookmark),
                 ],
               ),
@@ -139,7 +209,10 @@ class BookmarksTab extends StatelessWidget {
 class _GroupCard extends StatelessWidget {
   final BookmarkGroup group;
 
-  const _GroupCard({required this.group});
+  /// Only this kind is listed in it here; the rest shows in the other tab.
+  final BookmarkKind kind;
+
+  const _GroupCard({required this.group, required this.kind});
 
   Future<void> _rename(BuildContext context) async {
     final store = Stores.bookmarks;
@@ -183,7 +256,10 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final members = Stores.bookmarks.inGroup(group.id);
+    final members = [
+      for (final b in Stores.bookmarks.inGroup(group.id))
+        if (b.kind == kind) b,
+    ];
     return AppListGroup(
       title: group.name,
       previewCount: 8,
@@ -315,10 +391,13 @@ class _BookmarkRow extends StatelessWidget {
     return AppListRow(
       icon: asks ? AppIcons.askFor : AppIcons.bookmark,
       title: bookmark.title,
+      // The tab already says what it is; whether it was answered is not
+      // known here, so it is not guessed at.
       subtitle: [
-        asks ? 'Awaiting response' : null,
         ownServer ? 'This server' : bookmark.origin,
-        if (saved != null) 'saved $saved',
+        // One handed over was received, not saved by the person.
+        if (saved != null)
+          bookmark.sender.isNotEmpty ? 'received $saved' : 'saved $saved',
       ].nonNulls.join(' · '),
       onTap: () => context.push(bookmark.location),
       showChevron: false,

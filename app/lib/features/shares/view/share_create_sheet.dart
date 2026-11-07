@@ -108,7 +108,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         final String id when id.isNotEmpty => id,
         // Editing keeps the share's own answer, including "unsigned".
         _ when widget.editShare != null => null,
-        _ => Stores.identities.primaryIdentity?.id,
+        _ => Stores.identities.defaultSigner()?.id,
       },
       requireHandshake: link?.requireHandshake ?? false,
       // A share watermarked without its own text stamps its label, so that
@@ -146,6 +146,28 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   }
 
   bool get _isEdit => widget.editShare != null;
+
+  /// Set once the owner picks an identity (or none) themselves, so the
+  /// default below never overrides their choice.
+  bool _identityTouched = false;
+
+  void _pickIdentity(String? id) {
+    _identityTouched = true;
+    _store.setDraftIdentity(id);
+  }
+
+  /// A new share starts on an identity that can sign on this device. The
+  /// draft may have been seeded before the identities or this device's keys
+  /// had loaded, so it is checked again as they arrive.
+  void _ensureIdentityDefault() {
+    if (_isEdit || _identityTouched) return;
+    final store = Stores.identities;
+    if (!store.keysChecked) return;
+    final current = _store.draftIdentityId;
+    if (store.canSign(current)) return;
+    final pick = store.defaultSigner()?.id;
+    if (pick != current) _store.setDraftIdentity(pick);
+  }
 
   /// The link's name: the one typed, or for a new link what it shares.
   String get _effectiveLabel {
@@ -342,6 +364,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           Flexible(
             child: Observer(
               builder: (_) {
+                _ensureIdentityDefault();
                 return ListView(
                   shrinkWrap: true,
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -363,7 +386,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                         child: NoIdentityAlert(
                           onCreated: () {
                             if (_store.draftIdentityId != null) return;
-                            final made = Stores.identities.primaryIdentity;
+                            final made = Stores.identities.defaultSigner();
                             if (made != null) _store.setDraftIdentity(made.id);
                           },
                         ),
@@ -578,7 +601,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
             IdentityPicker(
               selectedId: _store.draftIdentityId,
               allowNone: true,
-              onChanged: _store.setDraftIdentity,
+              onChanged: _pickIdentity,
             ),
             AppSpacing.gapXxs,
           ],

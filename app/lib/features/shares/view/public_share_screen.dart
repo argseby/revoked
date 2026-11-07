@@ -95,8 +95,8 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     if (ok) {
       AppToast.success(
         context,
-        'Saved to Requests → Received',
-        subtitle: 'Groups can be assigned from Bookmarked.',
+        'Saved to Shares → Received',
+        subtitle: 'Groups can be assigned there.',
       );
     } else {
       AppToast.error(
@@ -301,7 +301,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       }
       if (requireHandshake && !_isForeign) {
         await Stores.identities.loadIdentities();
-        _store.shareIdentityId ??= Stores.identities.primaryIdentity?.id;
+        if (!Stores.identities.canSign(_store.shareIdentityId)) {
+          _store.shareIdentityId = Stores.identities.defaultSigner()?.id;
+        }
       }
       runInAction(() => _store.isLoadingShare = false);
     } on ApiException catch (e) {
