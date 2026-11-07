@@ -34,7 +34,7 @@ request as a QR code for a phone and as a link for this device. The page then
 waits, and the app delivers the answer to your server. Revoked hosts nothing
 for this, and nothing is registered.
 
-**1. Add the button.** Copy
+**1. Add the button.** Copy `revoked-sign-in.js` from
 [`examples/sign-in-button`](https://github.com/argseby/revoked/tree/main/examples/sign-in-button)
 next to your static files:
 
@@ -44,10 +44,18 @@ next to your static files:
 ```
 
 It brings its own QR code, check code, translations and layout, and needs only
-`script-src 'self'` and `connect-src 'self'` from a Content-Security-Policy. An
-app that draws its own interface keeps its own button and shows the same three
-things: the `app_link` as a QR code, that link to open on this device, and the
-`check_code`.
+`script-src 'self'` and `connect-src 'self'` from a Content-Security-Policy.
+`label`, `theme`, `shape`, `size` and `width` choose between the official
+variants; the
+[button's README](https://github.com/argseby/revoked/tree/main/examples/sign-in-button#attributes)
+lists them.
+
+A Flutter app uses
+[`packages/revoked_sign_in`](https://github.com/argseby/revoked/tree/main/packages/revoked_sign_in),
+which draws the same button and panel natively and talks to the same routes. Any
+other app that draws its own interface keeps its own button and shows the same
+three things: the `app_link` as a QR code, that link to open on this device, and
+the `check_code`.
 
 **2. Add three routes.** The paths are yours. Keep what `start` remembers for
 ten minutes, in memory or wherever suits you.
@@ -57,6 +65,13 @@ ten minutes, in memory or wherever suits you.
 | `POST /auth/revoked/start` | Makes a PKCE verifier, a `state`, a `nonce` and a random `wait` key, and remembers them. | `{ "app_link": "revoked://signin?…", "check_code": "0D2-99B", "wait": "…" }` |
 | `GET /auth/revoked/callback` | The app delivers its answer here. Finds the sign-in by `state`, redeems the code as usual, and keeps the result for `wait`. | Any status below 400; the app does not follow redirects. |
 | `POST /auth/revoked/wait` | Takes `{ "wait": "…" }`. Once there is a result, hands it over once and starts the session on this response. | `{ "done": false }`, then `{ "done": true }` or `{ "done": true, "error": "access_denied" }`. `401` once expired or already collected. |
+
+**Native apps.** A browser keeps the session as a cookie. A native app has no
+such cookie jar, so the Flutter package adds `"client": "app"` to each `wait`
+request. A service that serves apps answers that request with the session in
+the body instead, for example `{ "done": true, "session": "…" }`, in whatever
+form its app sessions take. The package hands the whole answer to the app.
+Without `"client"`, nothing changes.
 
 `app_link` is an ordinary authorization request, with `redirect_uri` pointing at
 your callback, plus `revoked_return=background`:

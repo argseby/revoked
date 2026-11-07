@@ -66,11 +66,13 @@ origin, and PKCE takes the place of a client secret.
 
 ```
 src/
-  server.js    routes: the start page, /login/start, /login/wait, /callback, /logout
+  server.js    routes: the start page, /login/start, /login/wait, /callback, /logout,
+               and /api/me and /api/logout for apps
   signins.js   sign-ins in progress, and the two keys that keep them apart
   auth.js      discovery, the authorization request, the code exchange
   grants.js    reading shared entries, honouring maxAge and ETags
-  sessions.js  in-memory sessions behind an HttpOnly cookie
+  sessions.js  in-memory sessions: an HttpOnly cookie for browsers, a bearer
+               token for apps
   views.js     HTML, with everything from elsewhere escaped
   config.js    settings from the environment, checked at startup
 public/
@@ -97,6 +99,31 @@ The sign-in follows the authorization code flow:
 4. Each view of the account page reads the grant through
    `POST /api/grants/resolve` on the person's server, unless the last answer
    is still within its `maxAge`.
+
+## From an app
+
+A native app signs in through the same routes, with
+[`packages/revoked_sign_in`](../../packages/revoked_sign_in) or its own code.
+It has no cookie jar, so it adds `"client": "app"` to `POST /login/wait`, and
+the shop answers with the session in the body instead of a cookie:
+
+```json
+{ "done": true, "session": "…", "expires_in": 28800 }
+```
+
+The app sends that token back as `Authorization: Bearer …`:
+
+| Route | Answers |
+|---|---|
+| `GET /api/me` | `{ "user": { "issuer", "subject", "name", "email", "email_verified" }, "entries": [...] }`, the same person and shared entries as the account page. `401` without a valid token. |
+| `POST /api/logout` | `204`. The token stops working. |
+
+App tokens and browser cookies are kept apart: a token is never accepted as a
+cookie, nor a cookie as a token.
+
+```bash
+cd ../../packages/revoked_sign_in/example && flutter run --dart-define=SERVICE=http://localhost:4000
+```
 
 ## Before using this pattern in production
 

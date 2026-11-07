@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { config } from './config.js';
 import { beginAppSignIn, completeSignIn } from './auth.js';
 import { readGrants, GrantError } from './grants.js';
-import { session, endSession } from './sessions.js';
+import { session, endSession, startAppSession, appSession, endAppSession } from './sessions.js';
 import { remember, takeForAnswer, finish, collect } from './signins.js';
 import { signInPage, accountPage, errorPage } from './views.js';
 
@@ -20,7 +20,6 @@ const assets = new Map(
     [
       ['/style.css', '../public/style.css', 'text/css'],
       ['/revoked/revoked-sign-in.js', '../../sign-in-button/revoked-sign-in.js', 'text/javascript'],
-      ['/revoked/qrcode.mjs', '../../sign-in-button/qrcode.mjs', 'text/javascript'],
     ].map(async ([path, file, type]) => [
       path,
       { type: `${type}; charset=utf-8`, body: await readFile(new URL(file, import.meta.url)) },
@@ -68,8 +67,10 @@ function sendJson(res, status, body) {
 const MAX_BODY = 4096;
 
 async function readJson(req) {
-  // The content type keeps a cross-site form from reaching these routes.
-  if (req.headers['content-type'] !== 'application/json') return null;
+  // The content type keeps a cross-site form from reaching these routes. Its
+  // parameters are ignored: some clients add `; charset=utf-8`.
+  const type = (req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  if (type !== 'application/json') return null;
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
@@ -117,18 +118,45 @@ async function callback(req, res, url) {
   redirect(res, '/');
 }
 
-// This is what ties the sign-in to a browser: only the page that started it
-// knows the key, and the session is set on whoever collects with it.
+// This is what ties the sign-in to a browser or an app: only the one that
+// started it knows the key, and the session goes to whoever collects with it.
+// A browser gets a cookie. An app says `"client": "app"` and gets the session
+// in the answer, since it has no cookie jar.
 async function loginWait(req, res) {
   const body = await readJson(req);
   const entry = body && typeof body.wait === 'string' ? collect(body.wait) : null;
   if (!entry) return sendJson(res, 401, { error: 'expired' });
   if (!entry.done) return sendJson(res, 200, { done: false });
   if (entry.result.error) return sendJson(res, 200, { done: true, error: entry.result.error });
+  if (body.client === 'app') {
+    const { token, expiresIn, data } = startAppSession();
+    data.user = entry.result.user;
+    return sendJson(res, 200, { done: true, session: token, expires_in: expiresIn });
+  }
   const s = session(req, res);
   s.user = entry.result.user;
   s.grantCache = new Map();
   sendJson(res, 200, { done: true });
+}
+
+// What an app signed in with a session token sees: the person, and the
+// entries they share, read fresh from their server like the account page.
+async function apiMe(req, res) {
+  const s = appSession(req);
+  if (!s?.user) return sendJson(res, 401, { error: 'unauthorized' });
+  const { issuer, subject, name, email, emailVerified } = s.user;
+  let entries = [];
+  let entriesError = null;
+  try {
+    entries = await readGrants(s.user, s.grantCache);
+  } catch (err) {
+    entriesError = err instanceof GrantError ? err.message : `Your Revoked server could not be reached (${err.message}).`;
+  }
+  sendJson(res, 200, {
+    user: { issuer, subject, name, email, email_verified: emailVerified },
+    entries,
+    ...(entriesError && { entries_error: entriesError }),
+  });
 }
 
 const server = createServer(async (req, res) => {
@@ -138,6 +166,12 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/login/start') return await loginStart(req, res);
     if (req.method === 'POST' && url.pathname === '/login/wait') return await loginWait(req, res);
     if (req.method === 'GET' && url.pathname === '/callback') return await callback(req, res, url);
+    if (req.method === 'GET' && url.pathname === '/api/me') return await apiMe(req, res);
+    if (req.method === 'POST' && url.pathname === '/api/logout') {
+      endAppSession(req);
+      res.writeHead(204, { 'Cache-Control': 'no-store' });
+      return res.end();
+    }
     if (req.method === 'POST' && url.pathname === '/logout') {
       endSession(req, res);
       return redirect(res, '/');

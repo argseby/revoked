@@ -101,7 +101,7 @@ shop keeps its own session. To sign out, you sign out at the shop.
 ## Add it to your own service
 
 You need two lines for the button and three routes on your server. Copy
-`examples/sign-in-button` next to your static files:
+`revoked-sign-in.js` from `examples/sign-in-button` next to your static files:
 
 ```html
 <script type="module" src="/revoked/revoked-sign-in.js"></script>
