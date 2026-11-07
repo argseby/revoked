@@ -79,10 +79,11 @@ class _Server {
         ],
       });
     }
-    if (path == '/api/server')
+    if (path == '/api/server') {
       return _json({
         'sealing': {'records': false},
       });
+    }
     return _json({'items': []});
   }
 
