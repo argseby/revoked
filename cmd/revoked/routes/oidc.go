@@ -508,13 +508,29 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 		scopes = append(scopes, item)
 	}
 
+	// Someone coming back sees what the service already has from them. One
+	// coming back under a new ID is a stranger to it, so sees nothing of the
+	// last time.
+	host := services.SignInHost(req.clientID)
+	var back *signInReturn
+	if row != nil && !row.GetBool(util.Fields.SignIn.NewIdOnReturn) {
+		back = returningSignIn(app, row, user.Id, workspace, req.clientID)
+	}
+	shared := map[string]string{}
+	if back != nil {
+		shared = back.links
+	}
+
 	answer := map[string]any{
 		"ticket":  ticket,
 		"client":  req.clientID,
 		"account": map[string]any{"email": user.Email()},
 		"scopes":  scopes,
-		"links":   linkOptions(app, user, req.linkKeys),
+		"links":   linkOptions(app, user, req.linkKeys, host, shared),
 		"signers": signingIdentities(app, user),
+	}
+	if back != nil {
+		answer["returning"] = back.json()
 	}
 	if row != nil && services.SignInStatus(row) == util.StatusDisconnected {
 		answer["disconnected"] = map[string]any{
@@ -527,12 +543,65 @@ func oidcAppRequest(app core.App, re *core.RequestEvent, root *server.RootKey) e
 	}
 	if slices.Contains(req.scopes, util.OIDCScopeProfile) {
 		options, selected := nameOptions(app, user, workspace, req.clientID)
+		for _, o := range options {
+			if back != nil && back.nameShared && back.name != nil && o["kind"] == back.name.Kind && o["id"] == back.name.ID {
+				o["shared"] = true
+			}
+			if o["requestedBy"] == host {
+				o["madeFor"] = true
+			}
+			delete(o, "requestedBy")
+		}
 		answer["nameOptions"] = options
 		if selected != nil {
 			answer["nameSelected"] = selected
 		}
 	}
 	return re.JSON(http.StatusOK, answer)
+}
+
+// signInReturn is what a service already has from someone signing in to it
+// again: when they first and last did, the scopes they granted, the name they
+// gave and the entries it reads now.
+type signInReturn struct {
+	firstAt, lastAt string
+	scopes          []string
+	name            *services.SignInNameChoice
+	// nameShared says the service still gets that name.
+	nameShared bool
+	links      map[string]string
+}
+
+func returningSignIn(app core.App, row *core.Record, userID, workspace, clientID string) *signInReturn {
+	f := util.Fields.SignIn
+	back := &signInReturn{
+		firstAt: row.GetString(f.Created),
+		lastAt:  row.GetString(f.LastSignInAt),
+		scopes:  []string{},
+		name:    services.RememberedSignInName(app, userID, workspace, clientID),
+		links:   services.SignInShared(app, userID, workspace, clientID),
+	}
+	if back.lastAt == "" {
+		back.lastAt = back.firstAt
+	}
+	_ = row.UnmarshalJSONField(f.Scopes, &back.scopes)
+	back.nameShared = back.name != nil && services.SignInStatus(row) == util.StatusActive &&
+		services.SignInName(app, userID, workspace, clientID) != ""
+	return back
+}
+
+func (b *signInReturn) json() map[string]any {
+	out := map[string]any{
+		"firstAt": b.firstAt,
+		"lastAt":  b.lastAt,
+		"scopes":  b.scopes,
+		"name":    nil,
+		"links":   b.links,
+	}
+	if b.name != nil {
+		out["name"] = map[string]any{"kind": b.name.Kind, "id": b.name.ID}
+	}
+	return out
 }
 
 // vaultSections lists the sections of the person's active workspace, so the app
@@ -602,6 +671,7 @@ func nameOptions(app core.App, user *core.Record, workspace, clientID string) ([
 		options = append(options, map[string]any{
 			"kind": services.NameFromRecord, "id": rec.Id, "value": value,
 			"key": rec.GetString(f.Key), "label": rec.GetString(f.Label),
+			"requestedBy": rec.GetString(f.RequestedBy),
 		})
 		if rec.GetString(f.Key) == services.SignInNameKey {
 			plain = &services.SignInNameChoice{Kind: services.NameFromRecord, ID: rec.Id}
@@ -623,8 +693,10 @@ func nameOptions(app core.App, user *core.Record, workspace, clientID string) ([
 
 // linkOptions lists, for each key a service asked for, the entries of the
 // person's active workspace they could share under it, the ones whose key
-// matches first. Hidden entries show no value.
-func linkOptions(app core.App, user *core.Record, keys []string) []map[string]any {
+// matches first. Hidden entries show no value. An entry made at an earlier
+// sign-in at the service on host is marked madeFor; the one the service reads
+// under a key now (shared maps key to entry) is marked shared under that key.
+func linkOptions(app core.App, user *core.Record, keys []string, host string, shared map[string]string) []map[string]any {
 	out := make([]map[string]any, 0, len(keys))
 	if len(keys) == 0 {
 		return out
@@ -645,6 +717,9 @@ func linkOptions(app core.App, user *core.Record, keys []string) []map[string]an
 				"label": rec.GetString(f.Label),
 				"type":  rec.GetString(f.Type),
 			}
+			if host != "" && rec.GetString(f.RequestedBy) == host {
+				entry["madeFor"] = true
+			}
 			source := rec
 			if parentID := rec.GetString(f.AliasOf); parentID != "" {
 				source, _ = app.FindRecordById(util.Coll.Records, parentID)
@@ -659,9 +734,43 @@ func linkOptions(app core.App, user *core.Record, keys []string) []map[string]an
 				others = append(others, entry)
 			}
 		}
-		out = append(out, map[string]any{"key": key, "options": append(matching, others...)})
+		options := append(matching, others...)
+		markShared(records, options, key, shared[key])
+		out = append(out, map[string]any{"key": key, "options": options})
 	}
 	return out
+}
+
+// markShared marks the one option the service reads under key now. A grant
+// points at the entry holding the value, so an alias of it stands for it too;
+// the one filed under key is preferred, as the picker offers that one first.
+func markShared(records []*core.Record, options []map[string]any, key, granted string) {
+	if granted == "" {
+		return
+	}
+	f := util.Fields.Record
+	holds := map[string]bool{}
+	for _, rec := range records {
+		if rec.Id == granted || rec.GetString(f.AliasOf) == granted {
+			holds[rec.Id] = true
+		}
+	}
+	var pick map[string]any
+	for _, o := range options {
+		if !holds[o["id"].(string)] {
+			continue
+		}
+		if o["key"] == key {
+			pick = o
+			break
+		}
+		if pick == nil || o["id"] == granted {
+			pick = o
+		}
+	}
+	if pick != nil {
+		pick["shared"] = true
+	}
 }
 
 func truncateRunes(s string, n int) string {
@@ -738,6 +847,9 @@ func oidcConsent(app core.App, re *core.RequestEvent) error {
 	var name *services.SignInNameChoice
 	if nameAsked && slices.Contains(granted, util.OIDCScopeProfile) && body.Name != nil {
 		if err := services.CheckSignInName(app, t.user, *body.Name); err != nil {
+			if errors.Is(err, services.ErrSignInNameTooLong) {
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCNameTooLong)
+			}
 			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.OIDCNameInvalid)
 		}
 		name = body.Name

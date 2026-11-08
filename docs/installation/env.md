@@ -27,6 +27,7 @@ no `.env` file needed there.
 |---|---|---|
 | `ALLOW_SIGNUPS` | `false` | Lets anyone create their own account over HTTP. Off by default, so only you can add people to a fresh server. See [Add people](accounts.md) for how to add them while it's off. |
 | `SIGNUP_VERIFY_EMAIL` | `false` | Makes a new account confirm its address with a 6-digit code mailed to it. Without it, anyone can sign up with any address. Needs the [mail server](#mail) below — the server won't start with this on and no `SMTP_HOST`/`SMTP_SENDER_ADDRESS`. Accounts you create yourself aren't affected. |
+| `REQUIRE_2FA` | `false` | Requires an authenticator app (TOTP) after the passkey for every account. An account without one is asked to set one up after signing in, and nobody can turn theirs off. `revoked user reset-2fa EMAIL` removes a lost one. See [Add people](accounts.md#two-factor-authentication). |
 | `APP_STORE_URL` | — | Where your iOS build is downloaded (https) — a store listing or a release page. The `/app` page, where a computer's QR code leads, offers it to iPhones as "Download for iPhone". Unset, the page only offers to open the app. |
 | `PLAY_STORE_URL` | — | The same for Android, offered to Android phones as "Download for Android". |
 

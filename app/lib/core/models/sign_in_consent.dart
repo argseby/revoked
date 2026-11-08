@@ -47,6 +47,10 @@ class SignInConsent {
   /// Whether this sign-in gives the service a new ID.
   final bool newId;
 
+  /// What the service already has from an earlier sign-in under the same ID;
+  /// null on a first sign-in, and when coming back under a new ID.
+  final SignInReturning? returning;
+
   const SignInConsent({
     required this.ticket,
     required this.client,
@@ -59,12 +63,14 @@ class SignInConsent {
     this.signers = const [],
     this.disconnectedAt,
     this.newId = false,
+    this.returning,
   });
 
   factory SignInConsent.fromJson(Map<String, dynamic> json) {
     final account = json['account'] as Map<String, dynamic>? ?? const {};
     final selected = json['nameSelected'] as Map<String, dynamic>?;
     final disconnected = json['disconnected'] as Map<String, dynamic>?;
+    final returning = json['returning'] as Map<String, dynamic>?;
     return SignInConsent(
       ticket: json['ticket'] as String,
       client: json['client'] as String? ?? '',
@@ -97,11 +103,63 @@ class SignInConsent {
             ),
       disconnectedAt: disconnected?['at'] as String?,
       newId: disconnected?['newId'] as bool? ?? false,
+      returning: returning == null ? null : SignInReturning.fromJson(returning),
     );
   }
 
+  /// Whether [scope] is asked for now but was never granted before. Nothing is
+  /// new on a first sign-in, where everything is.
+  bool isNewScope(String scope) =>
+      returning != null && !returning!.scopes.contains(scope);
+
   /// The service's host, for showing who is asking.
   String get clientHost => Uri.tryParse(client)?.host ?? client;
+}
+
+/// What a service already has from someone signing in to it again: when they
+/// first and last did, the scopes they granted, the name they gave, and the
+/// entry it reads under each key now.
+class SignInReturning {
+  final String firstAt;
+  final String lastAt;
+  final List<String> scopes;
+
+  /// The name given last time, as a [SignInNameOption.token]; empty for none.
+  final String name;
+
+  /// Each key the service reads now, and the entry it reads.
+  final Map<String, String> links;
+
+  const SignInReturning({
+    required this.firstAt,
+    required this.lastAt,
+    this.scopes = const [],
+    this.name = '',
+    this.links = const {},
+  });
+
+  factory SignInReturning.fromJson(Map<String, dynamic> json) {
+    final name = json['name'] as Map<String, dynamic>?;
+    final links = json['links'] as Map<String, dynamic>? ?? const {};
+    return SignInReturning(
+      firstAt: json['firstAt'] as String? ?? '',
+      lastAt: json['lastAt'] as String? ?? '',
+      scopes: [
+        for (final s in json['scopes'] as List<dynamic>? ?? const [])
+          s as String,
+      ],
+      name: name == null
+          ? ''
+          : SignInNameOption.tokenFor(
+              name['kind'] as String? ?? '',
+              name['id'] as String? ?? '',
+            ),
+      links: {
+        for (final e in links.entries)
+          if (e.value is String) e.key: e.value as String,
+      },
+    );
+  }
 }
 
 /// A section of the person's vault.
@@ -158,12 +216,20 @@ class SignInNameOption {
   final String key;
   final String label;
 
+  /// Whether the service gets this name now.
+  final bool shared;
+
+  /// Whether the entry was made at an earlier sign-in at this service.
+  final bool madeFor;
+
   const SignInNameOption({
     required this.kind,
     required this.id,
     required this.value,
     this.key = '',
     this.label = '',
+    this.shared = false,
+    this.madeFor = false,
   });
 
   factory SignInNameOption.fromJson(Map<String, dynamic> json) =>
@@ -173,6 +239,8 @@ class SignInNameOption {
         value: json['value'] as String? ?? '',
         key: json['key'] as String? ?? '',
         label: json['label'] as String? ?? '',
+        shared: json['shared'] as bool? ?? false,
+        madeFor: json['madeFor'] as bool? ?? false,
       );
 
   /// Names this option in a select, where a value has to be one string.
@@ -197,6 +265,14 @@ class SignInLinkAsk {
     ],
   );
 
+  /// The entry the service reads under this key now, if any.
+  SignInLinkOption? get shared {
+    for (final o in options) {
+      if (o.shared) return o;
+    }
+    return null;
+  }
+
   /// The entry offered first: the one under the same key, if there is one.
   SignInLinkOption? get match {
     for (final o in options) {
@@ -214,12 +290,20 @@ class SignInLinkOption {
   final String preview;
   final String type;
 
+  /// Whether the service reads this entry under the key asked for now.
+  final bool shared;
+
+  /// Whether the entry was made at an earlier sign-in at this service.
+  final bool madeFor;
+
   const SignInLinkOption({
     required this.id,
     required this.key,
     this.label = '',
     this.preview = '',
     this.type = '',
+    this.shared = false,
+    this.madeFor = false,
   });
 
   bool get isFile => type == 'file';
@@ -231,5 +315,7 @@ class SignInLinkOption {
         label: json['label'] as String? ?? '',
         preview: json['preview'] as String? ?? '',
         type: json['type'] as String? ?? '',
+        shared: json['shared'] as bool? ?? false,
+        madeFor: json['madeFor'] as bool? ?? false,
       );
 }

@@ -43,6 +43,10 @@ var passkeyLimiter = util.NewRateLimiter(util.LimitFromEnv("RATELIMIT_PASSKEY_RE
 //	POST /api/passkeys/register/begin   {email | ticket, name?, challenge?}
 //	POST /api/passkeys/register/finish  {session, credential}      -> {code?}
 //	POST /api/passkeys/token            {code, verifier}           -> session
+//	POST /api/passkeys/token/2fa        {challenge, code}          -> session
+//
+// An account with an authenticator app (see TwoFactorRoute) is answered at
+// /token with two_factor_required and a challenge instead of a session.
 //
 // Registering is either a new account (an email address, where the operator
 // allows signups, confirmed with a code first where the operator asks for
@@ -404,6 +408,17 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 					"name":         row.GetString(util.Fields.Passkey.Name),
 					"credentialId": grant.credential,
 				}
+			}
+			// The passkey is the first factor. An account with an
+			// authenticator app gets no session until the code is in: the
+			// answer is a challenge for POST /api/passkeys/token/2fa.
+			if services.TwoFactorEnabled(account) {
+				return twoFactorChallengeResponse(re, account, meta)
+			}
+			// The server requires one and this account has none yet: signed
+			// in, so it can set one up, and told to before anything else.
+			if util.TwoFactorRequired() {
+				meta["twoFactorSetupRequired"] = true
 			}
 			return apis.RecordAuthResponse(re, account, "passkey", meta)
 		})

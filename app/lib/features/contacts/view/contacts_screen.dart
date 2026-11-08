@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/contact.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
@@ -21,6 +20,9 @@ import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/contacts/view/contact_create_sheet.dart';
 import 'package:revoked_app/features/contacts/view/contact_grant_sheets.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/app_filter_menu.dart';
+import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 
 /// The people this workspace sends to and asks from. Tap one to send them
 /// something or ask them for something.
@@ -31,9 +33,109 @@ class ContactsScreen extends StatefulWidget {
   State<ContactsScreen> createState() => _ContactsScreenState();
 }
 
+/// Where a contact receives things, as the Filter offers it.
+enum _Where { here, peer, email }
+
 class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
+  late final TableStore<Contact> _table = TableStore<Contact>(
+    getSourceItems: () => Stores.contacts.contacts.toList(),
+    fieldGetters: {
+      'name': (c) => c.name,
+      'email': (c) => c.email,
+      'where': (c) => c.where,
+      'sent': (c) => c.lastUsedAt ?? '',
+      'created': (c) => c.created ?? '',
+    },
+    defaultSort: 'name_asc',
+    searchFields: const ['name', 'email', 'where'],
+  );
+
+  final Local<Set<_Where>> _where = Local(const {});
+  final Local<bool> _verifiedOnly = Local(false);
+
   @override
   void refresh() => Stores.contacts.loadIfDue();
+
+  @override
+  void dispose() {
+    _table.dispose();
+    super.dispose();
+  }
+
+  static _Where _whereOf(Contact c) => c.isHere
+      ? _Where.here
+      : c.isPeer
+      ? _Where.peer
+      : _Where.email;
+
+  bool _passes(Contact c) =>
+      (_where.value.isEmpty || _where.value.contains(_whereOf(c))) &&
+      (!_verifiedOnly.value || c.trust == ContactTrust.verified);
+
+  AppListToolbar _toolbar(List<Contact> searched) {
+    int count(_Where w) => searched.where((c) => _whereOf(c) == w).length;
+    return AppListToolbar(
+      key: const ValueKey('contacts-toolbar'),
+      query: _table.query,
+      onQueryChanged: _table.setQuery,
+      searchHint: 'Search contacts',
+      onClearFilters: () {
+        _where.value = const {};
+        _verifiedOnly.value = false;
+      },
+      sections: () => [
+        AppChecklistSection(
+          title: 'Reached',
+          selected: {for (final w in _where.value) w.name},
+          onToggle: (id, on) {
+            final w = _Where.values.byName(id);
+            _where.value = on
+                ? {..._where.value, w}
+                : ({..._where.value}..remove(w));
+          },
+          items: [
+            AppChecklistItem(
+              id: _Where.here.name,
+              label: 'In the app',
+              count: count(_Where.here),
+            ),
+            AppChecklistItem(
+              id: _Where.peer.name,
+              label: 'On another server',
+              count: count(_Where.peer),
+            ),
+            AppChecklistItem(
+              id: _Where.email.name,
+              label: 'By email',
+              count: count(_Where.email),
+            ),
+          ],
+        ),
+        AppChecklistSection(
+          title: 'Trust',
+          selected: {if (_verifiedOnly.value) 'verified'},
+          onToggle: (_, on) => _verifiedOnly.value = on,
+          items: [
+            AppChecklistItem(
+              id: 'verified',
+              label: 'Verified',
+              count: searched
+                  .where((c) => c.trust == ContactTrust.verified)
+                  .length,
+            ),
+          ],
+        ),
+      ],
+      sort: () => _table.sortBy,
+      onSort: _table.setSort,
+      defaultSort: _table.defaultSort,
+      sortOptions: const [
+        AppSortOption('name_asc', 'Name A–Z'),
+        AppSortOption('sent_desc', 'Recently sent'),
+        AppSortOption('created_desc', 'Newest first'),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,20 +177,22 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
           }
           return _empty(context);
         }
-        return AppPageBody(
-          children: [
-            if (failure != null) ...[
-              AppRefreshFailed(onRetry: store.load),
-              AppSpacing.gapLg,
-            ],
-            const Text(
-              'Contacts receive records and requests directly. Sent records '
-              'stay accessible until revoked.',
-            ).muted.small,
-            AppSpacing.gapMd,
+        final searched = _table.filteredItems;
+        final shown = searched.where(_passes).toList();
+        return AppListPage(
+          toolbar: _toolbar(searched),
+          banners: [if (failure != null) AppRefreshFailed(onRetry: store.load)],
+          filters: const Text(
+            'Contacts receive records and requests directly. Sent records '
+            'stay accessible until revoked.',
+          ).muted.small,
+          emptyMessage: shown.isEmpty
+              ? 'No contacts match the search or filters.'
+              : null,
+          groups: [
             AppListCard(
               children: [
-                for (final c in store.contacts)
+                for (final c in shown)
                   AppListRow(
                     icon: _icon(c),
                     title: c.name,

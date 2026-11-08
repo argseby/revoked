@@ -42,6 +42,12 @@ abstract class AppErrorCode {
   static const userNotFound = 'user_not_found';
   static const signupsDisabled = 'signups_disabled';
 
+  static const twoFactorRequired = 'two_factor_required';
+  static const twoFactorChallengeInvalid = 'two_factor_challenge_invalid';
+  static const twoFactorCodeInvalid = 'two_factor_code_invalid';
+  static const twoFactorEnforced = 'two_factor_enforced';
+  static const twoFactorSetupRequired = 'two_factor_setup_required';
+
   /// Raised by the client itself when a request exceeds [ApiClient.timeout].
   static const requestTimeout = 'request_timeout';
   static const duplicateValues = 'duplicate_values';

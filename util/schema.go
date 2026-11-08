@@ -177,6 +177,12 @@ type workspaceFields struct {
 
 type userFields struct {
 	ActiveWorkspace, ActiveRole, Email, Verified, Avatar, Active, Features string
+	// TotpSecret is the confirmed authenticator secret, TotpPending one being
+	// set up and not yet confirmed. Both hidden: no rule or API returns them.
+	// TotpEnabledAt is when the confirmed one was turned on.
+	// TotpLastStep is the time step of the last code accepted, so no code
+	// works twice.
+	TotpSecret, TotpPending, TotpEnabledAt, TotpLastStep string
 }
 
 type memberFields struct {
@@ -451,6 +457,10 @@ var Fields = struct {
 		Avatar:          "avatar",
 		Active:          "active",
 		Features:        "features",
+		TotpSecret:      "totpSecret",
+		TotpPending:     "totpPending",
+		TotpEnabledAt:   "totpEnabledAt",
+		TotpLastStep:    "totpLastStep",
 	},
 	WorkspaceMember: memberFields{
 		User:        "user",

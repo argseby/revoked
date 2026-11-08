@@ -20,12 +20,22 @@ RUN apk add --no-cache git
 # binary and the runtime image needs nothing but CA certificates.
 # Without .git the toolchain stamps nothing, so the release workflow passes the
 # release in instead.
+# A stack built from a git checkout (Portainer, `docker compose up --build`)
+# passes nothing, so the release is read from the checkout's tags here: the
+# toolchain's own stamp is a pseudo-version, or nothing at all when the clone is
+# shallow, and the server would report `dev`. Set REVOKED_VERSION in the stack's
+# environment when the checkout has no .git.
 ARG REVOKED_VERSION=""
 ARG TARGETOS TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    VERSION="$REVOKED_VERSION"; \
+    if [ -z "$VERSION" ] && [ -d .git ]; then \
+      git config --global --add safe.directory /src; \
+      VERSION="$(git describe --tags --always 2>/dev/null || true)"; \
+    fi; \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
-      -ldflags="-s -w -X revoked/util.releaseVersion=${REVOKED_VERSION}" \
+      -ldflags="-s -w -X revoked/util.releaseVersion=${VERSION}" \
       -o /out/revoked ./cmd/revoked
 
 # ---- runtime ----------------------------------------------------------------

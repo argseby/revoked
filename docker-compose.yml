@@ -32,7 +32,12 @@ services:
     # `docker compose up -d --build` builds this checkout under the same name
     # instead.
     image: ${REVOKED_IMAGE:-ghcr.io/argseby/revoked:latest}
-    build: .
+    build:
+      context: .
+      # Empty: the build reads the release from the checkout's git tags. A
+      # stack deployed from a source archive without .git sets it here.
+      args:
+        REVOKED_VERSION: ${REVOKED_VERSION:-}
     container_name: ${CONTAINER_NAME:-revoked-api}
     restart: unless-stopped
     ports:
@@ -47,6 +52,7 @@ services:
       USER_EMAIL: ${USER_EMAIL:-}
       ALLOW_SIGNUPS: ${ALLOW_SIGNUPS:-false}
       SIGNUP_VERIFY_EMAIL: ${SIGNUP_VERIFY_EMAIL:-false}
+      REQUIRE_2FA: ${REQUIRE_2FA:-false}
       GRANT_EMAIL_RECIPIENTS: ${GRANT_EMAIL_RECIPIENTS:-off}
       ALLOW_ATTESTATIONS: ${ALLOW_ATTESTATIONS:-false}
       APP_STORE_URL: ${APP_STORE_URL:-}

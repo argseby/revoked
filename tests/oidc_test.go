@@ -999,6 +999,32 @@ func TestSignInNameIsChosenPerService(t *testing.T) {
 		}
 	})
 
+	t.Run("a name over the limit is refused with a reason", func(t *testing.T) {
+		long := entry("a_long_name", strings.Repeat("ä", 201), util.FormatDefault)
+		svc := newOIDCService(t, baseURL, "https://long.example")
+		_, consent := person.open(t, svc.params(map[string]string{"scope": "openid profile"}))
+		status, out := person.decide(t, consent["ticket"].(string), map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromRecord, long),
+		})
+		if status != http.StatusBadRequest || out["code"] != util.Errors.OIDCNameTooLong.ErrorCode {
+			t.Fatalf("%d %v", status, out)
+		}
+	})
+
+	t.Run("a German name of 200 characters is given", func(t *testing.T) {
+		umlauts := entry("a_german_name", strings.Repeat("ü", 200), util.FormatDefault)
+		svc := newOIDCService(t, baseURL, "https://umlaut.example")
+		_, consent := person.open(t, svc.params(map[string]string{"scope": "openid profile"}))
+		status, out := person.decide(t, consent["ticket"].(string), map[string]any{
+			"approve": true, "scopes": []string{util.OIDCScopeProfile},
+			"name": nameOf(services.NameFromRecord, umlauts),
+		})
+		if status != http.StatusOK {
+			t.Fatalf("%d %v", status, out)
+		}
+	})
+
 	t.Run("a name that is not the person's own is refused", func(t *testing.T) {
 		other := newOIDCPerson(t, baseURL)
 		foreign := extractID(t, baseURL, util.Coll.Records, other.token, map[string]any{
@@ -1235,6 +1261,119 @@ func TestSignInSharesEntriesFromTheChosenWorkspace(t *testing.T) {
 				dbx.Params{"u": person.userID, "w": ws, "c": game.clientID}); err != nil {
 				t.Fatalf("no link in workspace %s: %v", ws, err)
 			}
+		}
+	})
+}
+
+func TestReturningSignInShowsWhatTheServiceHas(t *testing.T) {
+	baseURL, app := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+	person := newOIDCPerson(t, baseURL)
+	wsID := activeWorkspaceOf(t, api, person.userID, person.token)
+	f := util.Fields.Record
+	saveEntry := func(key, value string) string {
+		return extractID(t, baseURL, util.Coll.Records, person.token, map[string]any{
+			f.Key: key, f.Value: value, f.Label: key, f.Type: util.TypeText, f.Format: util.FormatDefault,
+			f.User: person.userID, f.Workspace: wsID,
+		})
+	}
+	svc := newOIDCService(t, baseURL, "https://club.example")
+	ask := map[string]string{
+		"scope":  "openid profile email",
+		"claims": `{"userinfo":{"revoked_links":{"values":["club_badge"]}}}`,
+	}
+	open := func() map[string]any {
+		t.Helper()
+		status, consent := person.open(t, svc.params(ask))
+		if status != http.StatusOK || consent["ticket"] == nil {
+			t.Fatalf("open: %d %v", status, consent)
+		}
+		return consent
+	}
+	nameOption := func(consent map[string]any, id string) map[string]any {
+		for _, o := range consent["nameOptions"].([]any) {
+			if o := o.(map[string]any); o["id"] == id {
+				return o
+			}
+		}
+		t.Fatalf("no name option %s in %v", id, consent["nameOptions"])
+		return nil
+	}
+
+	other := saveEntry("nickname", "Ada L.")
+	typed := saveEntry("name_club_example", "Ada at the club")
+	badge := saveEntry("member_badge", "Gold")
+
+	t.Run("a first sign-in is not a return", func(t *testing.T) {
+		consent := open()
+		if _, ok := consent["returning"]; ok {
+			t.Fatalf("returning = %v", consent["returning"])
+		}
+		if o := nameOption(consent, typed); o["shared"] != nil || o["madeFor"] != nil {
+			t.Fatalf("option = %v", o)
+		}
+		if _, ok := nameOption(consent, typed)["requestedBy"]; ok {
+			t.Fatalf("requestedBy leaked: %v", nameOption(consent, typed))
+		}
+	})
+
+	person.approve(t, svc.params(ask), map[string]any{
+		"approve": true,
+		"scopes":  []string{util.OIDCScopeProfile},
+		"name":    map[string]string{"kind": services.NameFromRecord, "id": typed},
+		"links":   map[string]string{"club_badge": badge},
+		"created": []string{typed, badge},
+	})
+
+	t.Run("a second sign-in shows what the service already has", func(t *testing.T) {
+		consent := open()
+		back, ok := consent["returning"].(map[string]any)
+		if !ok {
+			t.Fatalf("no returning in %v", consent)
+		}
+		if back["lastAt"] == "" || back["lastAt"] == nil || back["firstAt"] == "" || back["firstAt"] == nil {
+			t.Fatalf("returning = %v", back)
+		}
+		if scopes := back["scopes"].([]any); len(scopes) != 1 || scopes[0] != util.OIDCScopeProfile {
+			t.Fatalf("scopes = %v", scopes)
+		}
+		if n := back["name"].(map[string]any); n["kind"] != services.NameFromRecord || n["id"] != typed {
+			t.Fatalf("name = %v", n)
+		}
+		if links := back["links"].(map[string]any); links["club_badge"] != badge {
+			t.Fatalf("links = %v", links)
+		}
+
+		if o := nameOption(consent, typed); o["shared"] != true || o["madeFor"] != true {
+			t.Fatalf("typed option = %v", o)
+		}
+		if o := nameOption(consent, other); o["shared"] != nil || o["madeFor"] != nil {
+			t.Fatalf("other option = %v", o)
+		}
+
+		var shared []map[string]any
+		for _, o := range consent["links"].([]any)[0].(map[string]any)["options"].([]any) {
+			if o := o.(map[string]any); o["shared"] == true {
+				shared = append(shared, o)
+			}
+		}
+		// The alias filed under the key asked for stands for the entry it reads.
+		if len(shared) != 1 || shared[0]["key"] != "club_badge" || shared[0]["madeFor"] != true {
+			t.Fatalf("shared = %v", shared)
+		}
+	})
+
+	t.Run("coming back under a new ID is not a return", func(t *testing.T) {
+		row := services.FindSignIn(app, person.userID, wsID, svc.clientID)
+		if err := services.DisconnectSignIn(app, row, true); err != nil {
+			t.Fatal(err)
+		}
+		consent := open()
+		if _, ok := consent["returning"]; ok {
+			t.Fatalf("returning = %v", consent["returning"])
+		}
+		if o := nameOption(consent, typed); o["shared"] != nil {
+			t.Fatalf("option = %v", o)
 		}
 	})
 }

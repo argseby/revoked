@@ -50,6 +50,35 @@ To avoid this, tell people to keep a passkey on more than one device.
 fifteen-minute link to open on another. Many password managers and platforms
 also sync passkeys across a person's devices by themselves.
 
+## Two-factor authentication
+
+An account can add an authenticator app (a 6-digit code that changes every 30
+seconds) under **Settings → Account → Two-factor authentication**. Signing in
+then takes the passkey and the current code. The secret is kept on this
+server. A code is accepted from the step before or after the current one, so a
+phone clock that is slightly off still works; ten wrong codes in five minutes
+pause attempts for that account. Each code works once: one that was already
+used, even inside its 30 seconds, is refused. Turning the app on ends every
+other session of the account, since those were signed in with the passkey
+alone.
+
+With `REQUIRE_2FA=true` every account needs one: an account without it is
+asked to set one up right after signing in, before anything else, and turning
+it off is refused. The server holds such a session to setting one up: other
+API calls answer `403 two_factor_setup_required` until it is done. API keys
+are not held, so a key made before the setting was turned on keeps working
+until it is revoked.
+
+Someone who lost their authenticator app is let back in by the operator:
+
+```sh
+docker compose exec api /pb/revoked user reset-2fa someone@example.com
+```
+
+The app is removed from the account, every session of the account ends, and
+an audit entry is written. The passkey still signs in; with `REQUIRE_2FA` on,
+a new authenticator is set up right after.
+
 ## Moving from passwords
 
 Accounts made before passkeys keep everything they own, but their password

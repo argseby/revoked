@@ -1,5 +1,15 @@
 import 'package:flutter/services.dart';
 
+/// German letters a key or slug spells out instead of dropping, so "Größe"
+/// becomes `groesse` rather than `gre`.
+const _spelledOut = {'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss'};
+
+String _spellOut(String text) {
+  var out = text;
+  _spelledOut.forEach((from, to) => out = out.replaceAll(from, to));
+  return out;
+}
+
 class SlugInputFormatter extends TextInputFormatter {
   /// Underscore is allowed: the server's slug pattern accepts it, and the
   /// app's own suggestion generator produces `something_1`.
@@ -10,30 +20,23 @@ class SlugInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final filtered = newValue.text.toLowerCase().replaceAll(_disallowed, '');
+    final raw = newValue.text.toLowerCase();
+    final filtered = _spellOut(raw).replaceAll(_disallowed, '');
 
     // Keep the caret where the typing happened. Collapsing it to the end sent
     // it flying whenever someone corrected a character mid-slug.
-    final removedBeforeCaret = _removedBefore(
-      newValue.text,
-      newValue.selection.baseOffset,
-    );
-    final offset = (newValue.selection.baseOffset - removedBeforeCaret).clamp(
-      0,
-      filtered.length,
-    );
+    final caret = newValue.selection.baseOffset;
+    final offset = caret < 0
+        ? filtered.length
+        : _spellOut(
+            raw.substring(0, caret.clamp(0, raw.length)),
+          ).replaceAll(_disallowed, '').length.clamp(0, filtered.length);
 
     return TextEditingValue(
       text: filtered,
       selection: TextSelection.collapsed(offset: offset),
       composing: TextRange.empty,
     );
-  }
-
-  int _removedBefore(String raw, int caret) {
-    if (caret < 0) return 0;
-    final upTo = raw.substring(0, caret.clamp(0, raw.length)).toLowerCase();
-    return upTo.length - upTo.replaceAll(_disallowed, '').length;
   }
 }
 
@@ -43,13 +46,17 @@ class KeyInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    String text = newValue.text.toLowerCase().replaceAll(' ', '_');
-    text = text.replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    String clean(String s) => _spellOut(
+      s.toLowerCase().replaceAll(' ', '_'),
+    ).replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    final text = clean(newValue.text);
 
-    int newOffset = newValue.selection.baseOffset;
-    if (newOffset > text.length) {
-      newOffset = text.length;
-    }
+    final caret = newValue.selection.baseOffset;
+    final newOffset = caret < 0
+        ? text.length
+        : clean(
+            newValue.text.substring(0, caret.clamp(0, newValue.text.length)),
+          ).length.clamp(0, text.length);
 
     return newValue.copyWith(
       text: text,
@@ -64,9 +71,7 @@ class KeyInputFormatter extends TextInputFormatter {
 /// avoids every key in [taken] by appending `_2`, `_3`, …; an empty or
 /// all-symbol label yields `record`.
 String keyFromLabel(String label, Iterable<String> taken) {
-  const spelled = {'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss'};
-  var base = label.trim().toLowerCase();
-  spelled.forEach((from, to) => base = base.replaceAll(from, to));
+  var base = _spellOut(label.trim().toLowerCase());
   base = base
       .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
       .replaceAll(RegExp(r'^_+|_+$'), '');

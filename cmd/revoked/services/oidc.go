@@ -172,13 +172,9 @@ func SaveSignInAlias(app core.App, user *core.Record, key, recordID string) (str
 	return alias.Id, nil
 }
 
-var signInSectionKeyInvalid = regexp.MustCompile(`[^a-z0-9_]`)
-
-// SaveSignInSection groups entries made for a service under a section named
-// after it, and marks them as made for that service, so the vault can say where
-// they came from. Only entries made during a sign-in come here: one the person
-// already had stays where they filed it.
-func SaveSignInSection(app core.App, user *core.Record, clientID string, entryIDs []string) error {
+// SignInHost is how entries made for a service name it: the host of its
+// origin, cut to fit a section name.
+func SignInHost(clientID string) string {
 	host := clientID
 	if u, err := url.Parse(clientID); err == nil && u.Hostname() != "" {
 		host = u.Hostname()
@@ -186,6 +182,29 @@ func SaveSignInSection(app core.App, user *core.Record, clientID string, entryID
 	if utf8.RuneCountInString(host) > maxSignInSectionName {
 		host = string([]rune(host)[:maxSignInSectionName])
 	}
+	return host
+}
+
+// SignInShared maps each key a service can read now, through its sign-in
+// link, to the entry it reads. Empty when the link is gone, paused or revoked.
+func SignInShared(app core.App, userID, workspace, clientID string) map[string]string {
+	grants := map[string]string{}
+	link := signInLink(app, userID, workspace, clientID)
+	if link == nil || link.GetString(util.Fields.Link.Status) != util.StatusActive {
+		return grants
+	}
+	_ = link.UnmarshalJSONField(util.Fields.Link.Grants, &grants)
+	return grants
+}
+
+var signInSectionKeyInvalid = regexp.MustCompile(`[^a-z0-9_]`)
+
+// SaveSignInSection groups entries made for a service under a section named
+// after it, and marks them as made for that service, so the vault can say where
+// they came from. Only entries made during a sign-in come here: one the person
+// already had stays where they filed it.
+func SaveSignInSection(app core.App, user *core.Record, clientID string, entryIDs []string) error {
+	host := SignInHost(clientID)
 	workspace := user.GetString(util.Fields.User.ActiveWorkspace)
 	r := util.Fields.Record
 	for _, id := range entryIDs {
@@ -242,7 +261,7 @@ const maxSignInSectionName = 93
 const SignInNameKey = "name"
 
 // maxSignInNameRunes keeps a long note or a pasted document out of a claim.
-const maxSignInNameRunes = 200
+const maxSignInNameRunes = 200 // the app's name field holds the same limit
 
 // Where a name for a service comes from.
 const (
@@ -259,6 +278,10 @@ type SignInNameChoice struct {
 // ErrSignInName is returned for a name that is not the person's own to give,
 // or could not be one.
 var ErrSignInName = errors.New("not a usable name")
+
+// ErrSignInNameTooLong is returned for an entry that would be a name but for
+// its length, so the person can be told what to change.
+var ErrSignInNameTooLong = errors.New("name is too long")
 
 // RecordNameValue is what a vault entry reads as a name. Sealed entries are
 // never read, and a hidden one holds something its owner keeps off the screen,
@@ -292,6 +315,9 @@ func CheckSignInName(app core.App, userID string, choice SignInNameChoice) error
 			return ErrSignInName
 		}
 		if _, ok := RecordNameValue(app, rec); !ok {
+			if utf8.RuneCountInString(strings.TrimSpace(rec.GetString(util.Fields.Record.Value))) > maxSignInNameRunes {
+				return ErrSignInNameTooLong
+			}
 			return ErrSignInName
 		}
 	case NameFromIdentity:

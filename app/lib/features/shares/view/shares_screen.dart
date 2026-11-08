@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
-import 'package:revoked_app/core/widgets/app_segmented.dart';
+import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -28,11 +26,11 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
-import 'package:revoked_app/features/shares/view/recipient_row.dart';
 
 class SharesScreen extends StatefulWidget {
-  /// Narrows the list to one recipient's links, opened from "By person".
-  /// Their name, which is what a link's label holds.
+  /// Narrows the list to one recipient's links, opened from a recipient row:
+  /// their name, which is what a link's label holds. It ticks them in the
+  /// Filter.
   final String? recipient;
 
   /// The link open beside the list, marked in it. Only in a split.
@@ -55,8 +53,12 @@ class SharesScreen extends StatefulWidget {
 class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   late final TableStore<Link> _table;
 
-  /// Sent links by status, or by the person they went to.
-  final Local<bool> _byPerson = Local(false);
+  /// The statuses the Filter lets through; none ticked lets all through.
+  final Local<Set<LinkGroup>> _statuses = Local(const {});
+
+  /// The recipients the Filter lets through, by [_personKey]. The `recipient`
+  /// route parameter ticks its person.
+  late final Local<Set<String>> _people = Local(_peopleFrom(widget.recipient));
 
   @override
   void initState() {
@@ -70,8 +72,27 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         'created': (l) => l.created ?? '',
       },
       defaultSort: 'created_desc',
+      searchFields: const ['label', 'slug'],
     );
   }
+
+  @override
+  void didUpdateWidget(SharesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The split keeps this screen while the route changes, so a new
+    // `recipient` arrives here rather than through initState.
+    if (oldWidget.recipient != widget.recipient) {
+      _people.value = _peopleFrom(widget.recipient);
+    }
+  }
+
+  static Set<String> _peopleFrom(String? recipient) {
+    final key = _personKey(recipient ?? '');
+    return key.isEmpty ? const {} : {key};
+  }
+
+  /// How [groupByRecipient] tells recipients apart.
+  static String _personKey(String label) => label.trim().toLowerCase();
 
   @override
   void refresh() {
@@ -97,7 +118,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         AppTab(
           label: 'Sent',
           icon: AppIcons.send,
-          description: 'Share links made here, by status or by person.',
+          description: 'Share links made here, by status and by person.',
           view: _sent(context),
         ),
         const AppTab(
@@ -110,48 +131,106 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     );
   }
 
-  /// The links, with a switch between grouping them by status and by the
-  /// person they went to: two views of the same list, so not tabs of their
-  /// own.
-  Widget _sent(BuildContext context) {
-    final inset = AppSpacing.screenH(context);
-    return Observer(
-      builder: (context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(inset, AppSpacing.xxs, inset, 0),
-            // At the end of the row, like the other tabs' tools: a view of
-            // the list, not a second row of tabs.
-            child: Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: AppSegmented<bool>(
-                value: _byPerson.value,
-                onChanged: (v) => _byPerson.value = v,
-                items: const [
-                  AppSegmentedItem(
-                    value: false,
-                    label: 'By status',
-                    icon: AppIcons.cardList,
-                  ),
-                  AppSegmentedItem(
-                    value: true,
-                    label: 'By person',
-                    icon: AppIcons.person,
-                  ),
-                ],
-              ),
+  /// The links, grouped by status, under the list's header: the search,
+  /// and Filter and sort by status and by the person a link went to. The
+  /// grouping stays.
+  Widget _sent(BuildContext context) => _myLinks(context);
+
+  AppListToolbar _toolbar() => AppListToolbar(
+    key: const ValueKey('shares-toolbar'),
+    query: _table.query,
+    onQueryChanged: _table.setQuery,
+    searchHint: 'Search links',
+    sections: _filterSections,
+    onClearFilters: _clearFilters,
+    sort: () => _table.sortBy,
+    onSort: _table.setSort,
+    defaultSort: _table.defaultSort,
+    sortOptions: const [
+      AppSortOption('created_desc', 'Newest first'),
+      AppSortOption('created_asc', 'Oldest first'),
+      AppSortOption('label_asc', 'Label A–Z'),
+      AppSortOption('status_asc', 'Status'),
+    ],
+  );
+
+  void _clearFilters() {
+    _statuses.value = const {};
+    _people.value = const {};
+  }
+
+  static const _groupTitles = {
+    LinkGroup.attention: 'Needs attention',
+    LinkGroup.active: 'Active',
+    LinkGroup.paused: 'Paused',
+    LinkGroup.closed: 'Closed',
+  };
+
+  List<AppChecklistSection> _filterSections() {
+    final links = Stores.shares.shares.toList();
+    final now = DateTime.now();
+    final counts = {for (final g in LinkGroup.values) g: 0};
+    for (final l in links) {
+      counts[linkGroup(l, now)] = counts[linkGroup(l, now)]! + 1;
+    }
+    final people = groupByRecipient(links)
+      ..sort(
+        (a, b) =>
+            _personKey(a.first.label).compareTo(_personKey(b.first.label)),
+      );
+    return [
+      AppChecklistSection(
+        title: 'Status',
+        selected: {for (final g in _statuses.value) g.name},
+        onToggle: (id, on) {
+          final g = LinkGroup.values.byName(id);
+          _statuses.value = on
+              ? {..._statuses.value, g}
+              : ({..._statuses.value}..remove(g));
+        },
+        items: [
+          for (final g in LinkGroup.values)
+            AppChecklistItem(
+              id: g.name,
+              label: _groupTitles[g]!,
+              count: counts[g],
             ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _byPerson.value ? 1 : 0,
-              children: [_myLinks(context), const _ByPerson()],
-            ),
-          ),
         ],
       ),
-    );
+      if (people.isNotEmpty)
+        AppChecklistSection(
+          title: 'Person',
+          selected: _people.value,
+          onToggle: (id, on) => _people.value = on
+              ? {..._people.value, id}
+              : ({..._people.value}..remove(id)),
+          items: [
+            for (final p in people)
+              AppChecklistItem(
+                id: _personKey(p.first.label),
+                label: p.first.label.trim().isEmpty
+                    ? 'Unnamed link'
+                    : p.first.label.trim(),
+                count: p.length,
+              ),
+          ],
+        ),
+    ];
+  }
+
+  /// The one recipient ticked, as they named the link; null unless exactly
+  /// one is.
+  String? _singlePerson() {
+    final people = _people.value;
+    if (people.length != 1) return null;
+    final key = people.single;
+    for (final l in Stores.shares.shares) {
+      if (_personKey(l.label) == key) return l.label.trim();
+    }
+    // Not among the links (yet): the route's spelling, if it named them.
+    final fromRoute = widget.recipient?.trim();
+    if (fromRoute != null && _personKey(fromRoute) == key) return fromRoute;
+    return key;
   }
 
   Widget _myLinks(BuildContext context) {
@@ -235,23 +314,27 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         }
 
         final now = DateTime.now();
-        final recipient = widget.recipient?.trim();
-        final matches = recipient == null || recipient.isEmpty
-            ? _table.filteredItems
-            : _table.filteredItems
-                  .where((l) => l.label.trim() == recipient)
-                  .toList();
+        final statuses = _statuses.value;
+        final people = _people.value;
+        final recipient = _singlePerson();
+        final matches = _table.filteredItems
+            .where(
+              (l) =>
+                  (statuses.isEmpty || statuses.contains(linkGroup(l, now))) &&
+                  (people.isEmpty || people.contains(_personKey(l.label))),
+            )
+            .toList();
         final byGroup = {for (final g in LinkGroup.values) g: <Link>[]};
         for (final l in matches) {
           byGroup[linkGroup(l, now)]!.add(l);
         }
-        // The groups are the filter: each says how many it holds, and the
-        // closed ones stay folded until asked for.
+        // Each group says how many it holds, and the closed ones stay folded
+        // until asked for, by the group or by ticking Closed in the Filter.
         Widget group(LinkGroup g, String title, {bool collapsed = false}) {
           final links = byGroup[g]!;
           if (links.isEmpty) return const SizedBox.shrink();
           return AppListGroup(
-            key: ValueKey(g),
+            key: ValueKey((g, collapsed)),
             title: title,
             noun: 'links',
             previewCount: g == LinkGroup.attention ? 0 : 5,
@@ -274,10 +357,11 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         final nothingShown = matches.isEmpty;
 
         return AppListPage(
+          toolbar: _toolbar(),
           banners: [
             if (store.loadState.error != null)
               AppRefreshFailed(onRetry: store.loadShares),
-            if (recipient != null && recipient.isNotEmpty)
+            if (recipient != null)
               AppListBanner(
                 icon: AppIcons.person,
                 message: 'Links for $recipient',
@@ -286,20 +370,30 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
                   label: 'Show all',
                   style: AppButtonStyle.accent,
                   size: AppButtonSize.small,
-                  onTap: () => context.go(AppRoutes.shared),
+                  onTap: () {
+                    _people.value = const {};
+                    // Drop the parameter too, so the address says the same.
+                    if (widget.recipient != null) {
+                      context.go(AppRoutes.shared);
+                    }
+                  },
                 ),
               ),
           ],
           emptyMessage: !nothingShown
               ? null
-              : recipient != null && recipient.isNotEmpty
+              : recipient != null && statuses.isEmpty
               ? 'No links for $recipient.'
-              : 'No links match the search.',
+              : 'No links match the search or filters.',
           groups: [
             group(LinkGroup.attention, 'Needs attention'),
             group(LinkGroup.active, 'Active'),
             group(LinkGroup.paused, 'Paused'),
-            group(LinkGroup.closed, 'Closed', collapsed: true),
+            group(
+              LinkGroup.closed,
+              'Closed',
+              collapsed: !statuses.contains(LinkGroup.closed),
+            ),
           ],
         );
       },
@@ -376,96 +470,5 @@ class _LinkRow extends StatelessWidget {
       share.viewCount == 0 ? 'not viewed' : 'viewed ${share.viewCount}×',
     );
     return parts.join(' · ');
-  }
-}
-
-/// The same links, one row per recipient: who can see the person's data, and
-/// who no longer can.
-class _ByPerson extends StatelessWidget {
-  const _ByPerson();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppLoadFade(
-      loading: () =>
-          Stores.shares.loadState.isFirstLoad && Stores.shares.shares.isEmpty,
-      skeleton: const AppListSkeleton(
-        group: 'With access',
-        rows: [
-          AppSkeletonRow(
-            'Landlord',
-            '2 links · 5 records',
-            icon: AppIcons.person,
-          ),
-          AppSkeletonRow(
-            'Employer',
-            '1 link · 3 records',
-            icon: AppIcons.person,
-          ),
-          AppSkeletonRow(
-            'Insurance',
-            '1 link · 2 records',
-            icon: AppIcons.person,
-          ),
-        ],
-      ),
-      builder: (context) {
-        final groups = groupByRecipient(Stores.shares.shares);
-        if (groups.isEmpty) {
-          return AppEmptyState(
-            icon: AppIcons.lock,
-            title: 'No recipients',
-            subtitle:
-                'Each recipient is listed once, with everything they can see.',
-            example: const AppEmptyExample(
-              title: 'Landlord',
-              detail: '2 links · 5 records',
-              badge: 'can see',
-            ),
-            steps: const [
-              AppEmptyStep(
-                'Recipient per link',
-                'A person, a company or a service',
-              ),
-              AppEmptyStep(
-                'Grouped links',
-                'One row per recipient, however many links',
-              ),
-              AppEmptyStep(
-                'Revocation',
-                'Revoked links stop working immediately',
-              ),
-            ],
-            action: AppButton(
-              icon: AppIcons.plus,
-              label: 'New link',
-              onTap: () => openShareCreateSheet(context: context),
-            ),
-          );
-        }
-        final current = groups.where(recipientHasAccess).toList();
-        final former = groups.where((g) => !recipientHasAccess(g)).toList();
-        return AppListPage(
-          groups: [
-            if (current.isNotEmpty)
-              AppListGroup(
-                title: 'With access',
-                noun: 'recipients',
-                footer: const Text(
-                  'Grouped by link name. Paused links count until revoked.',
-                ),
-                children: [for (final links in current) RecipientRow(links)],
-              ),
-            if (former.isNotEmpty)
-              AppListGroup(
-                title: 'Access ended',
-                noun: 'recipients',
-                collapsed: true,
-                children: [for (final links in former) RecipientRow(links)],
-              ),
-          ],
-        );
-      },
-    );
   }
 }

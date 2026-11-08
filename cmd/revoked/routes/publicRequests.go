@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -664,7 +665,9 @@ func createGrantRecords(app core.App, auth *core.Record, target grantTarget, dat
 					continue // already satisfied by an explicit mapping
 				}
 				value, ok := raw.(string)
-				if !ok || len(value) < 1 || len(value) > util.MaxRecordValueLength {
+				// Characters, not bytes: the records field counts runes, and an umlaut
+				// is two bytes.
+				if !ok || value == "" || utf8.RuneCountInString(value) > util.MaxRecordValueLength {
 					continue
 				}
 				sanitized := sanitizeKey(key)
@@ -741,13 +744,22 @@ func grantRecordIdsFrom(grants map[string]string) []string {
 }
 
 // sanitizeKey coerces an arbitrary string into a vault-safe key ([a-z0-9_]);
-// empty input becomes "field".
+// empty input becomes "field". German letters are spelled out ("größe" →
+// "groesse") rather than turned into underscores.
 func sanitizeKey(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {
 		switch {
 		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
 			b.WriteRune(r)
+		case r == 'ä':
+			b.WriteString("ae")
+		case r == 'ö':
+			b.WriteString("oe")
+		case r == 'ü':
+			b.WriteString("ue")
+		case r == 'ß':
+			b.WriteString("ss")
 		default:
 			b.WriteRune('_')
 		}

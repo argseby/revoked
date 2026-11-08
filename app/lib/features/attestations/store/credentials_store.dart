@@ -266,7 +266,12 @@ abstract class _CredentialsStore with Store {
       );
       final probed = AttestationOffer.fromJson(data as Map<String, dynamic>);
       runInAction(() => offer = probed);
-      unawaited(_verifyOfferServer(probed.serverDomain));
+      unawaited(
+        _verifyOfferServer(
+          probed.serverDomain,
+          rootFingerprint: probed.rootFingerprint,
+        ),
+      );
     } catch (e) {
       offerError = AppErrorMessage.fromException(e);
     } finally {
@@ -275,15 +280,17 @@ abstract class _CredentialsStore with Store {
   }
 
   @action
-  Future<void> _verifyOfferServer(String domain) async {
+  Future<void> _verifyOfferServer(
+    String domain, {
+    String rootFingerprint = '',
+  }) async {
     if (domain.isEmpty) return;
     isVerifyingOffer = true;
     TrustVerdict verdict;
     try {
-      verdict = await _domainVerification.verify(
+      verdict = await _domainVerification.verifyServer(
         claimedDomain: domain,
-        identityFingerprint: '',
-        parentSignatureHex: '',
+        expectedRootFingerprint: rootFingerprint,
       );
     } catch (e) {
       // A failed check is an unverified server, not the absence of an opinion.

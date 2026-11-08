@@ -15,6 +15,7 @@ import 'package:revoked_app/features/auth/signup_policy.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/round_trip.dart';
 import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
+import 'package:revoked_app/features/two_factor/view/two_factor_code_prompt.dart';
 
 /// The way in. The passkey belongs to the server's address, so making an
 /// account or signing in runs on the server's own page in the browser, which
@@ -62,14 +63,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           ..._notices(authStore.errorMessage),
-                          switch ((
-                            authStore.isAwaitingBrowser,
-                            authStore.signupIntro,
-                          )) {
-                            (true, _) => _waiting(authStore.isLoading),
-                            (_, SignupIntro.usePhone) => _usePhone(),
-                            _ => _welcome(authStore.isLoading),
-                          },
+                          if (authStore.twoFactorChallenge != null)
+                            _twoFactor(
+                              authStore.isLoading,
+                              authStore.twoFactorError,
+                            )
+                          else
+                            switch ((
+                              authStore.isAwaitingBrowser,
+                              authStore.signupIntro,
+                            )) {
+                              (true, _) => _waiting(authStore.isLoading),
+                              (_, SignupIntro.usePhone) => _usePhone(),
+                              _ => _welcome(authStore.isLoading),
+                            },
                         ],
                       ),
                     ),
@@ -240,6 +247,29 @@ class _LoginScreenState extends State<LoginScreen> {
           },
         ),
         _back(),
+      ],
+    );
+  }
+
+  /// The passkey was right and the account has an authenticator app: its
+  /// current code completes the sign-in.
+  Widget _twoFactor(bool busy, String? error) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Center(child: Icon(AppIcons.shieldLock, size: 48)),
+        AppSpacing.gapXl,
+        TwoFactorCodePrompt(
+          title: 'Code from the authenticator app',
+          body:
+              'This account asks for the 6-digit code from its authenticator '
+              'app after the passkey.',
+          submitLabel: 'Sign in',
+          busy: busy,
+          error: error,
+          onSubmit: (code) => Stores.auth.completeTwoFactor(code),
+          onCancel: Stores.auth.cancelTwoFactor,
+        ),
       ],
     );
   }

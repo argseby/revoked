@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/models/contact.dart';
+import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -163,13 +165,17 @@ void main() {
       final router = await signedIn(tester, size: const Size(1280, 800));
       router.go(AppRoutes.shared);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('By person'));
+      // Sent says its links could not be loaded; Received does not.
+      const sentFailed = 'Links could not be loaded';
+      expect(find.text(sentFailed), findsOneWidget);
+      await tester.tap(find.text('Received'));
       await tester.pumpAndSettle();
-      expect(find.text('No recipients'), findsOneWidget);
+      expect(find.text(sentFailed), findsNothing);
 
       router.go(AppRoutes.shareDetailFor('l1'));
       await tester.pumpAndSettle();
-      expect(find.text('No recipients'), findsOneWidget);
+      expect(find.byType(SharesScreen), findsOneWidget);
+      expect(find.text(sentFailed), findsNothing);
     });
 
     testWidgets('phone: the link alone, with a way back', (tester) async {
@@ -192,7 +198,7 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.widgetWithText(FloatingActionButton, 'New'), findsOneWidget);
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
   });
 
   testWidgets('a mid-sized window gets the rail', (tester) async {
@@ -210,8 +216,8 @@ void main() {
     );
     // Under 900 pixels the bar keeps its room for the title and the page's
     // labelled action, and searches from an icon.
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
-    expect(find.text('Search or paste link'), findsNothing);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
+    expect(find.text('Open link or go to'), findsNothing);
   });
 
   testWidgets('a rail window from 900 pixels keeps the search pill', (
@@ -219,14 +225,14 @@ void main() {
   ) async {
     await signedIn(tester, size: const Size(900, 800));
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.text('Search or paste link'), findsOneWidget);
+    expect(find.text('Open link or go to'), findsOneWidget);
   });
 
   testWidgets('a phone keeps search as an icon, not the pill', (tester) async {
     await signedIn(tester, size: const Size(400, 800));
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
     expect(
-      find.text('Search or paste link'),
+      find.text('Open link or go to'),
       findsNothing,
       reason: 'there is no room for it beside the floating New button',
     );
@@ -240,7 +246,7 @@ void main() {
     // here throws.
     final router = await signedIn(tester, size: const Size(601, 800));
     expect(find.byTooltip('Create something new (N)'), findsOneWidget);
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
     router.go(AppRoutes.vault);
     await tester.pumpAndSettle();
     expect(find.text('Add to vault'), findsOneWidget);
@@ -252,7 +258,7 @@ void main() {
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
     // The sidebar carries it, so the top bar does not repeat it.
-    expect(find.text('Search or paste link'), findsOneWidget);
+    expect(find.text('Open link or go to'), findsOneWidget);
     for (final label in [
       'Overview',
       'Vault',
@@ -283,5 +289,133 @@ void main() {
       find.descendant(of: find.byType(AppBar), matching: newButton),
       findsNothing,
     );
+  });
+
+  group('list search in the top bar', () {
+    Future<GoRouter> onShares(WidgetTester tester, Size size) async {
+      final router = await signedIn(tester, size: size);
+      router.go(AppRoutes.shared);
+      await tester.pumpAndSettle();
+      runInAction(
+        () => Stores.shares.shares = ObservableList.of([
+          Link.fromJson({
+            'id': 'a',
+            'slug': 's-a',
+            'label': 'Landlord',
+            'status': 'active',
+          }),
+          Link.fromJson({
+            'id': 'b',
+            'slug': 's-b',
+            'label': 'Bank',
+            'status': 'active',
+          }),
+        ]),
+      );
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    Finder inBar(Finder f) =>
+        find.descendant(of: find.byType(AppBar), matching: f);
+
+    for (final width in const [800.0, 1200.0]) {
+      testWidgets('${width.toInt()} px: beside New, not above the list', (
+        tester,
+      ) async {
+        await onShares(tester, Size(width, 800));
+        expect(inBar(find.text('Search links')), findsOneWidget);
+        expect(inBar(find.byTooltip('Filter and sort')), findsOneWidget);
+        expect(find.text('Search links'), findsOneWidget);
+
+        await tester.enterText(inBar(find.byType(TextField)), 'bank');
+        await tester.pumpAndSettle();
+        expect(find.text('Landlord'), findsNothing);
+        expect(find.text('Bank'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('phone: an icon that turns the bar into the search', (
+      tester,
+    ) async {
+      await onShares(tester, const Size(400, 800));
+      expect(find.byType(TextField), findsNothing);
+      await tester.tap(find.byTooltip('Search links'));
+      await tester.pumpAndSettle();
+      expect(inBar(find.byType(TextField)), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'bank');
+      await tester.pumpAndSettle();
+      expect(find.text('Landlord'), findsNothing);
+
+      await tester.tap(find.byTooltip('Close search'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Landlord'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a detail page does not show its list\'s search', (
+      tester,
+    ) async {
+      final router = await onShares(tester, const Size(800, 800));
+      router.go(AppRoutes.shareDetailFor('a'));
+      await tester.pumpAndSettle();
+      expect(inBar(find.text('Search links')), findsNothing);
+    });
+
+    for (final size in const [
+      Size(400, 800),
+      Size(800, 800),
+      Size(1200, 800),
+    ]) {
+      testWidgets('${size.width.toInt()} px: switching screens keeps each '
+          'screen\'s search', (tester) async {
+        final router = await onShares(tester, size);
+        runInAction(
+          () => Stores.contacts.contacts = ObservableList.of([
+            Contact.fromJson({'id': 'c1', 'name': 'Ada', 'email': 'a@x.org'}),
+          ]),
+        );
+        final phone = size.width < 600;
+        Finder search(String hint) =>
+            phone ? find.byTooltip(hint) : inBar(find.text(hint));
+        for (var i = 0; i < 3; i++) {
+          router.go(AppRoutes.contacts);
+          await tester.pumpAndSettle();
+          expect(search('Search contacts'), findsOneWidget, reason: 'round $i');
+          expect(search('Search links'), findsNothing, reason: 'round $i');
+          router.go(AppRoutes.shared);
+          await tester.pumpAndSettle();
+          expect(search('Search links'), findsOneWidget, reason: 'round $i');
+          expect(search('Search contacts'), findsNothing, reason: 'round $i');
+          // A screen without a list has none.
+          router.go(AppRoutes.settings);
+          await tester.pumpAndSettle();
+          expect(search('Search links'), findsNothing, reason: 'round $i');
+          router.go(AppRoutes.shared);
+          await tester.pumpAndSettle();
+          expect(search('Search links'), findsOneWidget, reason: 'round $i');
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('an empty list keeps the pill, greyed out', (tester) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.requests);
+      await tester.pumpAndSettle();
+      final field = tester.widget<TextField>(inBar(find.byType(TextField)));
+      expect(field.enabled, isFalse);
+      expect(inBar(find.text('Search requests')), findsOneWidget);
+    });
+
+    testWidgets('the other tab has its own search', (tester) async {
+      await onShares(tester, const Size(1200, 800));
+      await tester.tap(find.text('Received'));
+      await tester.pumpAndSettle();
+      expect(inBar(find.text('Search links')), findsNothing);
+    });
   });
 }
