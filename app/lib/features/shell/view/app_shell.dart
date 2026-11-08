@@ -32,16 +32,7 @@ class _Destination {
   final IconData icon;
   final String label;
 
-  /// Built on the vault: shares give its records out, requests fill it. The
-  /// sidebar hangs these under it; the narrower bars stay flat.
-  final bool underVault;
-
-  const _Destination(
-    this.route,
-    this.icon,
-    this.label, {
-    this.underVault = false,
-  });
+  const _Destination(this.route, this.icon, this.label);
 }
 
 const _places = [
@@ -523,51 +514,15 @@ class _Sidebar extends StatelessWidget {
     required this.onNew,
   });
 
-  /// The places as a tree: what is built on the vault hangs under it on a
-  /// hairline, and what is not (attestations belong to identities, not
-  /// records) stands apart after a gap.
-  List<Widget> _navigation(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    Widget item(int i) => _SidebarItem(
-      icon: shown[i].icon,
-      label: shown[i].label,
-      selected: destination == i,
-      onTap: () => onSelect(i),
-    );
-    final children = <Widget>[];
-    for (var i = 0; i < shown.length; i++) {
-      if (shown[i].underVault) continue;
-      if (i > 0 && shown[i - 1].underVault) {
-        children.add(AppSpacing.gapMd);
-      }
-      children.add(item(i));
-      final nested = <int>[];
-      for (var j = i + 1; j < shown.length && shown[j].underVault; j++) {
-        nested.add(j);
-      }
-      if (nested.isEmpty) continue;
-      children.add(
-        Padding(
-          padding: const EdgeInsetsDirectional.only(start: AppSpacing.xl),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: BorderDirectional(
-                start: BorderSide(color: scheme.outlineVariant),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsetsDirectional.only(start: AppSpacing.xs),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [for (final j in nested) item(j)],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    return children;
-  }
+  List<Widget> _navigation(BuildContext context) => [
+    for (var i = 0; i < shown.length; i++)
+      _SidebarItem(
+        icon: shown[i].icon,
+        label: shown[i].label,
+        selected: destination == i,
+        onTap: () => onSelect(i),
+      ),
+  ];
 
   static const double width = 256;
 
