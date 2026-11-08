@@ -43,6 +43,7 @@ percent-encoded, with a space written as `%20` rather than `+`.
 | `section`, `section_reason` | connect link only | `section=1` asks for a section of the owner's vault of the tool's own; see [its own section](#its-own-section). |
 | `permissions`, `permissions_reason` | connect link only | Comma-separated permission keys the tool asks for: `shares:read`, `shares:manage`, `requests:manage`, `attestations:issue`, `vault:read`, `vault:write`. |
 | `poll` | needs `client` | The server origin the tool will ask for the answer itself. |
+| `draft` | needs `client` | A draft id from `POST /api/connection/drafts`: values the connected tool suggests, `[a-z0-9]{24}`. See below. |
 
 A link with any invalid part is refused as a whole. A label and keys are the
 minimum; with a template named as well, the app can ask for any key the vault
@@ -55,6 +56,22 @@ revoked://p?label=Wi-Fi%20for%20guests&keys=network_name,wifi_password&template=
 `wifi_password` is a hidden record in the *Wi-Fi access* template. A share
 that includes a hidden record or a file is never handed to a tool, connected
 or not — such a link is copied by the owner.
+
+### Suggested values
+
+A connected tool that already heard a value from the owner, such as an
+assistant they told their phone number, can suggest it rather than have the
+owner type it again. The link still carries no value: the tool posts
+`{"values": {key: text}}` to `POST /api/connection/drafts` with its token and
+adds the returned id as `draft`. The server holds the values in memory for one
+hour and hands them only to the owner of that connection.
+
+The proposal screen offers a suggestion only for a typed key the vault does not
+hold yet, never for a date, a yes/no or a file, and never over a value already
+there. Each one opens prefilled, marked as the tool's suggestion, and is saved
+only when the owner saves it. The draft is discarded once the proposal is
+created or declined. The audit log (`tool_drafted_values`) names the keys a
+tool suggested, never the values.
 
 ### Requests, attestations and checks
 

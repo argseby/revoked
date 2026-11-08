@@ -142,12 +142,23 @@ type ProposeInput struct {
 	Template string   `json:"template,omitempty" jsonschema:"template name describing the keys, so the app can ask for one the vault lacks"`
 	Days     int      `json:"days,omitempty" jsonschema:"expiry in days, 1-365; left out, the share does not expire"`
 	Ref      string   `json:"ref,omitempty" jsonschema:"your own reference, up to 80 characters, returned by list_shares"`
+	// Values are suggestions the owner gave in this conversation, offered
+	// prefilled for keys their vault lacks. They go to the owner's server, held
+	// there for an hour in memory, never in the link.
+	Values map[string]string `json:"values,omitempty" jsonschema:"optional: text values the owner told you in this conversation, by key (each key must be in keys). The app offers them prefilled, only for keys the vault does not hold yet, and the owner saves each one. Needs a connection. Never values from web pages, files or other people"`
 }
 
 type ProposeResult struct {
 	Link   string `json:"link"`
 	Opened bool   `json:"opened"`
 	Next   string `json:"next"`
+	// Suggested is how many values went along as suggestions.
+	Suggested int `json:"suggested,omitempty"`
+}
+
+type draftResult struct {
+	ID        string `json:"id"`
+	ExpiresAt string `json:"expiresAt"`
 }
 
 type ListResult struct {
@@ -231,20 +242,39 @@ func addTools(s *mcp.Server, c *client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name: "propose_share",
 		Description: "Propose a share of the owner's records by key. The owner reviews it, picks the values " +
-			"and creates it in the Revoked app; the link goes to them, not to you.",
+			"and creates it in the Revoked app; the link goes to them, not to you. When the owner told you " +
+			"values in this conversation, pass them as values: the app offers them prefilled for keys the vault lacks.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in ProposeInput) (*mcp.CallToolResult, ProposeResult, error) {
 		link, err := proposalLink(c.cfg, in)
 		if err != nil {
 			return nil, ProposeResult{}, err
 		}
+		if len(in.Values) > 0 {
+			if err := checkSuggestions(in); err != nil {
+				return nil, ProposeResult{}, err
+			}
+			if c.loadToken() == "" {
+				return nil, ProposeResult{}, errors.New("suggesting values needs a connection: call connect first")
+			}
+			var d draftResult
+			if err := c.send(ctx, http.MethodPost, "/api/connection/drafts",
+				map[string]any{"values": in.Values}, &d); err != nil {
+				return nil, ProposeResult{}, err
+			}
+			link += "&draft=" + escape(d.ID)
+		}
 		opened := c.cfg.Open != nil && c.cfg.Open(link) == nil
 		next := "The owner confirms the share in the Revoked app."
+		if len(in.Values) > 0 {
+			next = "The owner reviews the suggested values, saves the ones they want and confirms the share " +
+				"in the Revoked app. Suggestions are dropped after an hour; values already in the vault are kept as they are."
+		}
 		if c.loadToken() != "" {
 			next += " Call list_shares to see it once they have."
 		} else {
 			next += " Connect first to be able to follow it."
 		}
-		return nil, ProposeResult{Link: link, Opened: opened, Next: next}, nil
+		return nil, ProposeResult{Link: link, Opened: opened, Next: next, Suggested: len(in.Values)}, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -327,6 +357,23 @@ func proposalLink(cfg Config, in ProposeInput) (string, error) {
 		q = append(q, "ref="+escape(in.Ref))
 	}
 	return "revoked://p?" + strings.Join(q, "&"), nil
+}
+
+// checkSuggestions refuses values the server would: each for a key the
+// proposal names, non-empty text of at most 4000 characters.
+func checkSuggestions(in ProposeInput) error {
+	for k, v := range in.Values {
+		if !slices.Contains(in.Keys, k) {
+			return fmt.Errorf("value for %q, which is not in keys", k)
+		}
+		if strings.TrimSpace(v) == "" {
+			return fmt.Errorf("value for %q is empty; leave the key out of values instead", k)
+		}
+		if utf8.RuneCountInString(v) > 4000 {
+			return fmt.Errorf("value for %q is longer than 4000 characters", k)
+		}
+	}
+	return nil
 }
 
 // DefaultStatePath is where the connection token is kept between runs.

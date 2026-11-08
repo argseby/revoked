@@ -31,8 +31,20 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 /// config needs the home directory written out.
 String _home(bool windows) {
   final home = Platform.environment[windows ? 'USERPROFILE' : 'HOME'];
-  if (home != null && home.isNotEmpty && !Platform.isAndroid) return home;
+  if (home != null && home.isNotEmpty && !Platform.isAndroid) {
+    return _unsandboxed(home);
+  }
   return windows ? r'C:\Users\name' : '/Users/name';
+}
+
+/// The sandboxed macOS app sees its container as `HOME`
+/// (`/Users/name/Library/Containers/<bundle id>/Data`); the AI application
+/// runs outside it, so the real home directory is the part before the
+/// container.
+String _unsandboxed(String home) {
+  const marker = '/Library/Containers/';
+  final i = home.indexOf(marker);
+  return i > 0 ? home.substring(0, i) : home;
 }
 
 /// Settings → AI assistant (MCP): how to run `revoked-mcp` beside an AI

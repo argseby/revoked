@@ -72,6 +72,7 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.VerifyPeerRoute(app)
 	routes.DeleteAccountRoute(app)
 	routes.ConnectionsRoute(app, root)
+	routes.ConnectionDraftsRoute(app)
 	routes.VaultRoute(app)
 	routes.SharedVaultRoute(app)
 	routes.ConnectionCreateRoute(app, root)

@@ -105,6 +105,10 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
   final _submitError = Local<String?>(null);
   final _createdSlug = Local<String?>(null);
 
+  /// Values the tool suggested, by key: offered prefilled for keys the vault
+  /// does not hold yet, and saved only when the owner saves them.
+  final _suggestions = Local<Map<String, String>>(const {});
+
   // The tool behind the proposal, when it names itself.
   final _connection = Local<Connection?>(null);
   final _connectNow = Local<bool>(true);
@@ -165,8 +169,56 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         _proposal!.client,
       );
     }
+    await _loadSuggestions();
     await _refresh(selectAll: true);
     _loading.value = false;
+  }
+
+  /// Fetches the values the tool suggested. Only a tool already connected can
+  /// have left them, and only the draft of that very connection is used: a
+  /// link naming someone else's draft gets nothing.
+  Future<void> _loadSuggestions() async {
+    final draft = _proposal!.draft;
+    final conn = _connection.value;
+    if (draft.isEmpty || conn == null) return;
+    try {
+      final data = await Stores.api.get('/api/connections/drafts/$draft');
+      if (data is! Map<String, dynamic> || data['connection'] != conn.id) {
+        return;
+      }
+      final raw = data['values'];
+      if (raw is! Map) return;
+      final keys = _proposal!.keys.toSet();
+      _suggestions.value = {
+        for (final e in raw.entries)
+          if (e.key is String && e.value is String && keys.contains(e.key))
+            e.key as String: e.value as String,
+      };
+    } catch (_) {
+      // Expired or gone: the proposal still works, just without suggestions.
+    }
+  }
+
+  /// Drops the suggestions on the server once the proposal is done with,
+  /// created or declined. They expire on their own as well.
+  Future<void> _discardSuggestions() async {
+    final draft = _proposal?.draft ?? '';
+    if (draft.isEmpty) return;
+    _suggestions.value = const {};
+    try {
+      await Stores.api.delete('/api/connections/drafts/$draft');
+    } catch (_) {}
+  }
+
+  /// A suggestion is offered for typed values only: a date, a yes/no or a
+  /// file is still picked by the owner.
+  String? _suggestionFor(_Item item) {
+    if (item.record != null) return null;
+    final type = item.field?.type ?? 'text';
+    if (item.field?.isFile == true || type == 'datetime' || type == 'boolean') {
+      return null;
+    }
+    return _suggestions.value[item.key];
   }
 
   /// The proposal names its template; a built-in one wins over a workspace
@@ -319,15 +371,22 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
 
   /// A key no template describes can hold either kind of value, so it is
   /// offered both ways.
-  TemplateField _adhoc(String key, {required bool file}) => TemplateField(
-    key: key,
-    label: _Item.humanize(key),
-    type: file ? 'file' : 'text',
-    format: 'default',
-    value: '',
-    reason: '',
-    group: '',
-  );
+  TemplateField _adhoc(String key, {required bool file, String? value}) =>
+      TemplateField(
+        key: key,
+        label: _Item.humanize(key),
+        type: file ? 'file' : 'text',
+        format: 'default',
+        value: value ?? '',
+        reason: value != null ? _suggestionReason : '',
+        group: '',
+      );
+
+  /// Shown above a prefilled value: whose suggestion it is, and that nothing
+  /// is saved until the owner saves it.
+  String get _suggestionReason =>
+      'Suggested by $_toolName. Check it before saving — '
+      'nothing is saved until you do.';
 
   void _toggle(String id, bool on) {
     final next = {..._selected.value};
@@ -454,6 +513,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           .firstOrNull;
       _handedOver = handOver;
       _createdSlug.value = slug;
+      await _discardSuggestions();
       // Handed over, the tool can take it from here: straight back to it,
       // unless its page is watching and finds the link by itself.
       if (handOver && p.redirect.isNotEmpty && !_polls) await _backToTool();
@@ -473,6 +533,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
 
   /// Leaving without creating: a tool waiting for an answer hears "declined".
   Future<void> _leave(BuildContext context) async {
+    await _discardSuggestions();
     final p = _proposal;
     if (p != null &&
         p.redirect.isNotEmpty &&
@@ -989,8 +1050,13 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     final scheme = Theme.of(context).colorScheme;
     final field = item.field;
     final busy = Stores.vault.isFillingField;
+    final suggestion = _suggestionFor(item);
     Widget add(TemplateField f) => AppButton(
-      label: f.isFile ? 'Add file' : 'Add',
+      label: f.isFile
+          ? 'Add file'
+          : suggestion != null
+          ? 'Review'
+          : 'Add',
       icon: f.isFile ? AppIcons.filePlus : AppIcons.plus,
       style: AppButtonStyle.accent,
       size: AppButtonSize.small,
@@ -1024,10 +1090,17 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.title),
-                DefaultTextStyle.merge(
-                  style: TextStyle(color: scheme.warning),
-                  child: const Text('Not in the vault').small,
-                ),
+                if (suggestion != null)
+                  Text(
+                    '$_toolName suggests: $suggestion',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ).small.muted
+                else
+                  DefaultTextStyle.merge(
+                    style: TextStyle(color: scheme.warning),
+                    child: const Text('Not in the vault').small,
+                  ),
               ],
             ),
           ),
@@ -1039,12 +1112,14 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 label: item.title,
                 type: field.type,
                 format: field.format,
-                value: field.value,
-                reason: field.reason,
+                value: suggestion ?? field.value,
+                reason: suggestion != null ? _suggestionReason : field.reason,
                 group: field.group,
                 sectionKey: field.sectionKey,
               ),
             )
+          else if (suggestion != null)
+            add(_adhoc(item.key, file: false, value: suggestion))
           else
             Wrap(
               spacing: AppSpacing.xs,

@@ -1987,6 +1987,97 @@ paths:
           description: "`connection_revoke_not_allowed`, or `connection_paused` while the owner has the tool paused."
         "404":
           description: Not a link of this tool.
+  /api/connection/drafts:
+    post:
+      tags: [Connections]
+      summary: Suggest values for a proposal (the tool)
+      description: |
+        Holds text values the tool heard from the owner, so a share proposal
+        can offer them prefilled. Returns a draft id for the proposal link
+        (`draft=<id>`); the link never carries the values. Drafts are kept in
+        the server's memory only, for one hour, and are gone on restart.
+        Nothing is saved to the vault: the app offers a value only for a key
+        the vault does not hold yet, and the owner saves it. The audit log
+        (`tool_drafted_values`) names the keys, never the values. At most 20
+        open drafts per connection.
+      security:
+        - Connection: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  description: 1-50 keys (`[a-z0-9_-]{1,64}`), each non-empty text of at most 4000 characters without control characters other than line breaks and tabs.
+                  additionalProperties: { type: string }
+      responses:
+        "200":
+          description: The draft.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, description: 24 characters, a-z and 0-9. }
+                  expiresAt: { type: string, format: date-time }
+        "400":
+          description: The values are refused whole when any part is malformed.
+        "401":
+          description: "`connection_unauthorized` or `connection_expired`."
+        "403":
+          description: "`connection_paused` while the owner has the tool paused."
+        "429":
+          description: Too many open drafts for this connection.
+  /api/connections/drafts/{id}:
+    get:
+      tags: [Connections]
+      summary: Read a tool's suggested values (the owner)
+      description: |
+        The values a connected tool suggested, for the proposal screen. Only
+        the owner of the tool's connection reads them, and not while the
+        connection is paused or expired.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The draft.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  connection: { type: string }
+                  clientName: { type: string }
+                  values:
+                    type: object
+                    additionalProperties: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        "401":
+          description: Not signed in.
+        "404":
+          description: No such draft for this person, or it expired.
+    delete:
+      tags: [Connections]
+      summary: Discard a tool's suggested values (the owner)
+      description: Drops the draft once the proposal is created or declined. Succeeds when it is already gone.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Discarded, or already gone.
+        "401":
+          description: Not signed in.
   /api/connection/vault:
     get:
       tags: [Connections]
