@@ -35,6 +35,7 @@ abstract class AppIcons {
   static const IconData computer = Icons.computer_outlined;
   static const IconData copy = Icons.content_copy;
   static const IconData dashboard = Icons.space_dashboard_outlined;
+  static const IconData home = Icons.home_outlined;
   static const IconData duplicate = Icons.library_add_outlined;
   static const IconData qrCode = Icons.qr_code_2;
   static const IconData qrScan = Icons.qr_code_scanner;

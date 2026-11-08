@@ -36,7 +36,7 @@ class _Destination {
 }
 
 const _places = [
-  _Destination(AppRoutes.overview, AppIcons.dashboard, 'Overview'),
+  _Destination(AppRoutes.overview, AppIcons.home, 'Home'),
   _Destination(AppRoutes.vault, AppIcons.safe, 'Vault'),
   _Destination(AppRoutes.shared, AppIcons.share, 'Shares'),
   _Destination(AppRoutes.requests, AppIcons.inboxFill, 'Requests'),
@@ -499,8 +499,8 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// The wide layout's navigation: the workspace and account on top, search,
-/// the destinations, and notifications and settings at the bottom.
+/// The wide layout's navigation: the workspace and account on top, then Home
+/// and notifications, New and search, the lists, and settings at the bottom.
 class _Sidebar extends StatelessWidget {
   final List<_Destination> shown;
   final int? destination;
@@ -514,14 +514,20 @@ class _Sidebar extends StatelessWidget {
     required this.onNew,
   });
 
+  /// Home is the person's own view over everything, not one more list, so
+  /// it sits apart from the lists, at the top with Notifications.
+  bool _isHome(int i) => shown[i].route == AppRoutes.overview;
+
+  _SidebarItem _item(int i) => _SidebarItem(
+    icon: shown[i].icon,
+    label: shown[i].label,
+    selected: destination == i,
+    onTap: () => onSelect(i),
+  );
+
   List<Widget> _navigation(BuildContext context) => [
     for (var i = 0; i < shown.length; i++)
-      _SidebarItem(
-        icon: shown[i].icon,
-        label: shown[i].label,
-        selected: destination == i,
-        onTap: () => onSelect(i),
-      ),
+      if (!_isHome(i)) _item(i),
   ];
 
   static const double width = 256;
@@ -541,6 +547,39 @@ class _Sidebar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const AccountMenu(expanded: true),
+              AppSpacing.gapSm,
+              Semantics(
+                container: true,
+                explicitChildNodes: true,
+                label: 'Your views',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < shown.length; i++)
+                      if (_isHome(i)) _item(i),
+                    Observer(
+                      builder: (context) {
+                        final unread = Stores.notifications.unreadCount;
+                        return _SidebarItem(
+                          icon: AppIcons.bell,
+                          label: 'Notifications',
+                          selected: onNotifications,
+                          semanticsLabel: unread > 0
+                              ? 'Notifications, $unread unread'
+                              : 'Notifications',
+                          trailing: unread > 0
+                              ? AppBadge(
+                                  label: '$unread',
+                                  variant: AppBadgeVariant.primary,
+                                )
+                              : null,
+                          onTap: () => context.go(AppRoutes.notifications),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
               AppSpacing.gapSm,
               AppButton(
                 size: .small,
@@ -563,26 +602,6 @@ class _Sidebar extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Observer(
-                builder: (context) {
-                  final unread = Stores.notifications.unreadCount;
-                  return _SidebarItem(
-                    icon: AppIcons.bell,
-                    label: 'Notifications',
-                    selected: onNotifications,
-                    semanticsLabel: unread > 0
-                        ? 'Notifications, $unread unread'
-                        : 'Notifications',
-                    trailing: unread > 0
-                        ? AppBadge(
-                            label: '$unread',
-                            variant: AppBadgeVariant.primary,
-                          )
-                        : null,
-                    onTap: () => context.go(AppRoutes.notifications),
-                  );
-                },
-              ),
               _SidebarItem(
                 icon: AppIcons.personGear,
                 label: 'Settings',

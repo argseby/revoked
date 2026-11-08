@@ -264,7 +264,7 @@ void main() {
     // The sidebar carries it, so the top bar does not repeat it.
     expect(find.text('Open link or go to'), findsOneWidget);
     for (final label in [
-      'Overview',
+      'Home',
       'Vault',
       'Shares',
       'Requests',

@@ -73,7 +73,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
     super.dispose();
   }
 
-  Widget _title(BuildContext context) => const AppBarTitle(title: 'Overview');
+  Widget _title(BuildContext context) => const AppBarTitle(title: 'Home');
 
   @override
   Widget build(BuildContext context) {
