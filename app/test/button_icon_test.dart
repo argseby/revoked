@@ -29,7 +29,9 @@ void main() {
           i++;
         }
         final call = source.substring(match.start, i);
-        if (call.contains('icon:')) continue;
+        // A trailing glyph counts too, like the arrow on a button that
+        // leaves for the browser.
+        if (RegExp(r'\b(icon|trailingIcon):').hasMatch(call)) continue;
 
         final label = RegExp(r'label:\s*([^,\n]+)').firstMatch(call)?.group(1);
         if (label != null && dismissals.contains(label.trim())) continue;
