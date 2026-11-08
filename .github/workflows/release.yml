@@ -12,7 +12,7 @@ permissions:
 jobs:
   release:
     name: Bump Version & Tag
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.new_version }}
       app_changed: ${{ steps.app.outputs.changed }}
@@ -220,7 +220,7 @@ jobs:
     name: Server image
     needs: release
     if: needs.release.outputs.version != ''
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
