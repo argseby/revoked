@@ -68,11 +68,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # Flutter publishes no prebuilt SDK for Linux arm64, so flutter-action
+      # cannot install it there. On that platform the stable branch is cloned
+      # from git instead (Flutter fetches the matching arm64 Dart SDK on first
+      # run). Every other runner — GitHub-hosted, macOS, x64 — uses the action.
       - name: Set up Flutter
+        if: ${{ !(runner.os == 'Linux' && runner.arch == 'ARM64') }}
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           cache: true
+
+      - name: Set up Flutter (Linux arm64, from git)
+        if: ${{ runner.os == 'Linux' && runner.arch == 'ARM64' }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Kept in the tool cache so a persistent runner clones only once.
+          FLUTTER_HOME="${RUNNER_TOOL_CACHE:-$HOME/.cache}/flutter-stable"
+          if [ -d "$FLUTTER_HOME/.git" ]; then
+            git -C "$FLUTTER_HOME" fetch --tags origin stable
+            git -C "$FLUTTER_HOME" checkout -B stable FETCH_HEAD
+          else
+            # Full clone: the tool derives its version from git tags.
+            git clone -b stable https://github.com/flutter/flutter.git "$FLUTTER_HOME"
+          fi
+          echo "$FLUTTER_HOME/bin" >> "$GITHUB_PATH"
+          "$FLUTTER_HOME/bin/flutter" --disable-analytics
+          "$FLUTTER_HOME/bin/flutter" --version
 
       - name: Install dependencies
         run: flutter pub get
