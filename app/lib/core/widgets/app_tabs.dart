@@ -44,10 +44,6 @@ class AppTabs extends StatefulWidget {
   State<AppTabs> createState() => _AppTabsState();
 }
 
-/// How wide a segment grows at most, so the strip doesn't stretch across a
-/// desktop window.
-const double _segmentWidth = 160;
-
 /// The narrowest segment that still fits an icon beside its name.
 const double _iconRoom = 120;
 
@@ -77,8 +73,10 @@ class _AppTabsState extends State<AppTabs> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: _segmentWidth * widget.tabs.length,
+                    // As wide as the list under it, so the tabs and its
+                    // search line up edge to edge.
+                    constraints: const BoxConstraints(
+                      maxWidth: AppSpacing.contentMaxWidth,
                     ),
                     // One row: icon beside the name. A segment too narrow for
                     // both keeps the name whole and drops the icon.

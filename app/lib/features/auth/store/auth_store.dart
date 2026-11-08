@@ -14,6 +14,7 @@ import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/services/secure_storage.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/pkce.dart';
+import 'package:revoked_app/features/two_factor/two_factor.dart';
 
 part 'auth_store.g.dart';
 
@@ -49,6 +50,26 @@ enum SignupIntro {
   /// On a computer: the phone is the better place for a new passkey, with a
   /// code to get there. Offered, never in the way.
   usePhone,
+}
+
+/// A passkey sign-in the server answered with `two_factor_required`: the
+/// passkey is proven, and the session waits for the authenticator's code.
+/// Held in memory only, like the link it came from.
+class TwoFactorChallenge {
+  final String id;
+
+  /// The `revoked://auth` link the sign-in came back with: its fragment
+  /// carries what the passkey derived, handed on once the session exists.
+  final Uri link;
+
+  /// Whether the browser was opened to create an account.
+  final bool signup;
+
+  const TwoFactorChallenge({
+    required this.id,
+    required this.link,
+    required this.signup,
+  });
 }
 
 // ignore: library_private_types_in_public_api
@@ -98,6 +119,20 @@ abstract class _AuthStore with Store {
   @observable
   bool isDeletingAccount = false;
 
+  /// Set while a sign-in waits for the authenticator's code; the login screen
+  /// asks for it ([completeTwoFactor]).
+  @observable
+  TwoFactorChallenge? twoFactorChallenge;
+
+  /// What went wrong with the last code, shown under the field.
+  @observable
+  String? twoFactorError;
+
+  /// The server requires an authenticator app and this account has none: the
+  /// app shows the enrolment gate before anything else.
+  @observable
+  bool twoFactorSetupRequired = false;
+
   @computed
   bool get isAuthenticated => currentUser != null;
 
@@ -122,6 +157,7 @@ abstract class _AuthStore with Store {
         const Duration(seconds: 25),
         onTimeout: () => null,
       );
+      if (currentUser != null) await refreshTwoFactorRequirement();
     } catch (e) {
       currentUser = null;
     } finally {
@@ -140,7 +176,30 @@ abstract class _AuthStore with Store {
   /// device that sees the `revoked://auth` link can redeem it.
   @action
   Future<bool> beginSignIn({bool signup = false}) async {
-    errorMessage = null;
+    final page = await _prepareSignIn(signup: signup);
+    final opened = await _openBrowser(page).catchError((Object _) => false);
+    runInAction(() {
+      isAwaitingBrowser = opened;
+      if (!opened) errorMessage = 'The browser could not be opened.';
+    });
+    return opened;
+  }
+
+  /// The same page as [beginSignIn], handed back instead of opened, for
+  /// pasting into another browser on this device. The way back is the
+  /// `revoked://auth` link, which only this device's app answers.
+  Future<Uri> signInLink() async {
+    final page = await _prepareSignIn();
+    runInAction(() => isAwaitingBrowser = true);
+    return page;
+  }
+
+  Future<Uri> _prepareSignIn({bool signup = false}) async {
+    runInAction(() {
+      errorMessage = null;
+      twoFactorChallenge = null;
+      twoFactorError = null;
+    });
     final verifier = Pkce.randomToken(32);
     final state = Pkce.randomToken(16);
     final page = Uri.parse('${_api.baseUrl}/passkey').replace(
@@ -152,7 +211,7 @@ abstract class _AuthStore with Store {
     );
     // Kept across a restart: a phone may drop the app while the browser is
     // in front, and the link that brings it back must still be answerable.
-    startedSignup = signup;
+    runInAction(() => startedSignup = signup);
     await _writePending({
       'state': state,
       'verifier': verifier,
@@ -160,15 +219,10 @@ abstract class _AuthStore with Store {
       'server': _api.baseUrl,
       'at': DateTime.now().millisecondsSinceEpoch,
     });
-    final opened = await _openBrowser(page).catchError((Object _) => false);
-    runInAction(() {
-      isAwaitingBrowser = opened;
-      if (!opened) errorMessage = 'The browser could not be opened.';
-    });
-    return opened;
+    return page;
   }
 
-  /// On a computer, "Set up on a phone instead" shows the code that moves
+  /// On a computer, "Use a phone" shows the code that moves
   /// setup to the phone.
   @action
   void showPhoneSetup() {
@@ -183,6 +237,7 @@ abstract class _AuthStore with Store {
   @action
   Future<void> cancelSignIn() async {
     isAwaitingBrowser = false;
+    twoFactorChallenge = null;
     signupIntro = null;
     await _writePending(null);
   }
@@ -214,29 +269,117 @@ abstract class _AuthStore with Store {
 
     isLoading = true;
     errorMessage = null;
+    twoFactorChallenge = null;
+    twoFactorError = null;
     try {
       final data = await _api.post(
         '/api/passkeys/token',
         body: {'code': code, 'verifier': pending['verifier']},
       );
-      final token = data['token'] as String;
-      final record = data['record'] as Map<String, dynamic>;
-      await _api.saveAuthState(token, record);
-      onPasskeySignIn?.call(_passkeySignIn(link, data, record));
-      // One button leads both ways in; the server says which it was.
-      final meta = data['meta'];
-      createdAccount =
-          pending['signup'] == true || (meta is Map && meta['created'] == true);
-      signupIntro = null;
-      currentUser = User.fromJson(record);
+      await _finishSignIn(link, data, signup: pending['signup'] == true);
       return true;
     } catch (e) {
+      // The passkey was right, and the account asks for its authenticator
+      // too: no session yet, only a challenge the code completes.
+      final challenge = twoFactorChallengeOf(e);
+      if (challenge != null) {
+        twoFactorChallenge = TwoFactorChallenge(
+          id: challenge,
+          link: link,
+          signup: pending['signup'] == true,
+        );
+        return false;
+      }
       errorMessage = _parseError(e);
       return false;
     } finally {
       isLoading = false;
       isAwaitingBrowser = false;
     }
+  }
+
+  /// Completes a sign-in that waits for the authenticator's [code]. A wrong
+  /// code leaves the challenge for another try; one the server no longer
+  /// knows sends the person back to the start.
+  @action
+  Future<bool> completeTwoFactor(String code) async {
+    final challenge = twoFactorChallenge;
+    if (challenge == null) return false;
+    final normalized = normalizeTotpCode(code);
+    if (normalized == null) {
+      twoFactorError = 'The code has six digits.';
+      return false;
+    }
+    isLoading = true;
+    twoFactorError = null;
+    try {
+      final data = await _api.post(
+        '/api/passkeys/token/2fa',
+        body: {'challenge': challenge.id, 'code': normalized},
+      );
+      await _finishSignIn(challenge.link, data, signup: challenge.signup);
+      twoFactorChallenge = null;
+      return true;
+    } catch (e) {
+      if (e is ApiException &&
+          e.code == AppErrorCode.twoFactorChallengeInvalid) {
+        twoFactorChallenge = null;
+        errorMessage = describeTwoFactorError(e);
+      } else {
+        twoFactorError = describeTwoFactorError(e);
+      }
+      return false;
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  /// Gives up on a sign-in that waits for the authenticator's code.
+  @action
+  void cancelTwoFactor() {
+    twoFactorChallenge = null;
+    twoFactorError = null;
+  }
+
+  /// The authenticator app was set up: the enrolment gate opens.
+  @action
+  void markTwoFactorSetUp() => twoFactorSetupRequired = false;
+
+  /// Asks the server whether this account still has to set up an
+  /// authenticator app — the operator may have started requiring one since
+  /// the session began. Left as it was when the server cannot say.
+  Future<void> refreshTwoFactorRequirement() async {
+    try {
+      final status = await TwoFactorApi(
+        _api,
+      ).status().timeout(const Duration(seconds: 10));
+      runInAction(() => twoFactorSetupRequired = status.setupRequired);
+    } catch (_) {
+      // Offline or an older server: nothing to enforce from here.
+    }
+  }
+
+  /// Stores the session the server answered with and signs in.
+  Future<void> _finishSignIn(
+    Uri link,
+    dynamic data, {
+    required bool signup,
+  }) async {
+    final token = data['token'] as String;
+    final record = data['record'] as Map<String, dynamic>;
+    await _api.saveAuthState(token, record);
+    onPasskeySignIn?.call(
+      _passkeySignIn(link, data as Map<String, dynamic>, record),
+    );
+    // One button leads both ways in; the server says which it was.
+    final meta = data['meta'];
+    runInAction(() {
+      createdAccount = signup || (meta is Map && meta['created'] == true);
+      twoFactorSetupRequired =
+          meta is Map && meta['twoFactorSetupRequired'] == true;
+      signupIntro = null;
+      currentUser = User.fromJson(record);
+    });
   }
 
   Future<Map<String, dynamic>?> _readPending() async {
@@ -346,6 +489,7 @@ abstract class _AuthStore with Store {
   Future<void> logout() async {
     await _api.clearAuthState();
     onLoggedOut?.call();
+    twoFactorSetupRequired = false;
     currentUser = null;
     await purgeOpenedFiles();
   }
@@ -426,6 +570,7 @@ abstract class _AuthStore with Store {
     if (currentUser == null) return;
     await _api.clearAuthState();
     onLoggedOut?.call();
+    twoFactorSetupRequired = false;
     currentUser = null;
     errorMessage = 'The session has expired.';
   }

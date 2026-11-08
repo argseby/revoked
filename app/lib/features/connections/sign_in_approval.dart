@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:revoked_app/core/models/sign_in_consent.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/config/app_config.dart';
@@ -38,6 +39,10 @@ class SignInApproval {
   /// challenge nonce never contains a colon, so neither signature can stand
   /// in for the other.
   static const consentPrefix = 'revoked-oidc-consent:';
+
+  /// The longest name the server gives a service, in characters. Checked
+  /// before the name is saved, so a refusal leaves no stray entry behind.
+  static const maxNameLength = 200;
 
   final ApiClient _api;
   final CryptoService _crypto;
@@ -111,6 +116,12 @@ class SignInApproval {
       if (!confirmed) {
         throw const SignInApprovalException(
           'Sign-in requires confirmation on this device.',
+        );
+      }
+      if (newName.characters.length > maxNameLength) {
+        throw const SignInApprovalException(
+          'This name is too long. A name can be at most $maxNameLength '
+          'characters.',
         );
       }
       final saved = newName.isEmpty ? null : await _saveName(consent, newName);
@@ -203,11 +214,26 @@ class SignInApproval {
         value: value,
         key: key,
       );
-    } on ApiException {
+    } on ApiException catch (e) {
       // Not left as an ApiException: the ticket is still good, so the person
-      // can try again from here.
-      throw SignInApprovalException(failure);
+      // can try again from here. The server's reason goes with it — "could
+      // not be saved" alone leaves nothing to change.
+      final reason = _fieldMessage(e) ?? e.message;
+      throw SignInApprovalException(
+        reason.isEmpty ? failure : '$failure $reason',
+      );
     }
+  }
+
+  /// The first per-field message of a validation refusal, such as the value
+  /// field's length limit.
+  static String? _fieldMessage(ApiException e) {
+    for (final field in (e.data ?? const {}).values) {
+      if (field is Map && field['message'] is String) {
+        return field['message'] as String;
+      }
+    }
+    return null;
   }
 
   /// Hands [redirect] — the answer — to a service that waits for it, without

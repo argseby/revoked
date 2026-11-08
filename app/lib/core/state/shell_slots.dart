@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 
 /// One screen-owned control in the shell's top bar. A screen claims the slot
 /// on entry and releases it on exit.
@@ -56,6 +57,59 @@ class ShellSlots {
   /// The screen's one transient action — Vault's "Done" while a section is
   /// being edited.
   static final ShellSlot action = ShellSlot();
+
+  /// The search of the list on screen, behind one button in the top bar
+  /// beside New.
+  static final ShellSearchSlot search = ShellSearchSlot();
+}
+
+/// The list search in the shell's top bar. A list claims it while it is the
+/// one in view — its page current, its tab the selected one — and the bar
+/// shows the claim's Search and filter button; the chips of what is active,
+/// the search included, stay above the list itself.
+///
+/// It holds the toolbar itself rather than a builder: the list rebuilds it
+/// with its current counts and selection, and claims again after each build.
+class ShellSearchSlot {
+  final Observable<(Object, String, AppListToolbar)?> _claim = Observable(null);
+
+  /// The claimed search, if the list that claimed it belongs to [root] — a
+  /// claim left over from the screen before is never shown.
+  AppListToolbar? toolbarFor(String? root) {
+    final claim = _claim.value;
+    if (claim == null || claim.$2 != root) return null;
+    return claim.$3;
+  }
+
+  void claim(Object owner, String root, AppListToolbar toolbar) =>
+      runInAction(() => _claim.value = (owner, root, toolbar));
+
+  /// Clears only [owner]'s claim, so a late release cannot wipe the claim of
+  /// the list that replaced it.
+  void release(Object owner) => runInAction(() {
+    if (identical(_claim.value?.$1, owner)) _claim.value = null;
+  });
+}
+
+/// Marks the shell's body: a list inside it hands its search to the top bar
+/// through [ShellSlots.search]. Outside it — a sheet, a test — the list
+/// shows its search above itself.
+///
+/// [root] is the screen the shell shows. A list takes it once, when it first
+/// appears, as the screen it belongs to: asking the router instead loops
+/// forever on a page that is on its way out.
+class ShellSearchHost extends InheritedWidget {
+  final String root;
+
+  const ShellSearchHost({super.key, required this.root, required super.child});
+
+  static ShellSearchHost? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ShellSearchHost>();
+
+  static bool contains(BuildContext context) => maybeOf(context) != null;
+
+  @override
+  bool updateShouldNotify(ShellSearchHost oldWidget) => false;
 }
 
 /// Marks the detail side of a list-and-detail split, such as Shared on a wide

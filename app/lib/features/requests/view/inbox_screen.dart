@@ -22,6 +22,8 @@ import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 
 class InboxScreen extends StatefulWidget {
@@ -40,6 +42,15 @@ class InboxScreen extends StatefulWidget {
 class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
   late final TableStore<DataRequest> _table;
 
+  /// The groups the Filter lets through; none ticked lets all through.
+  final Local<Set<RequestGroup>> _groups = Local(const {});
+
+  static const _groupTitles = {
+    RequestGroup.fresh: 'New responses',
+    RequestGroup.open: 'Open',
+    RequestGroup.closed: 'Closed',
+  };
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +63,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
         'created': (r) => r.created ?? '',
       },
       defaultSort: 'created_desc',
+      searchFields: const ['label', 'slug'],
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final proposal = widget.proposal;
@@ -98,6 +110,44 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     );
   }
 
+  /// Search, a Filter by where a request stands, and a Sort.
+  AppListToolbar _toolbar(Map<RequestGroup, int> counts) => AppListToolbar(
+    key: const ValueKey('requests-toolbar'),
+    query: _table.query,
+    onQueryChanged: _table.setQuery,
+    searchHint: 'Search requests',
+    onClearFilters: () => _groups.value = const {},
+    sections: () => [
+      AppChecklistSection(
+        title: 'Status',
+        selected: {for (final g in _groups.value) g.name},
+        onToggle: (id, on) {
+          final g = RequestGroup.values.byName(id);
+          _groups.value = on
+              ? {..._groups.value, g}
+              : ({..._groups.value}..remove(g));
+        },
+        items: [
+          for (final g in RequestGroup.values)
+            AppChecklistItem(
+              id: g.name,
+              label: _groupTitles[g]!,
+              count: counts[g],
+            ),
+        ],
+      ),
+    ],
+    sort: () => _table.sortBy,
+    onSort: _table.setSort,
+    defaultSort: _table.defaultSort,
+    sortOptions: const [
+      AppSortOption('created_desc', 'Newest first'),
+      AppSortOption('created_asc', 'Oldest first'),
+      AppSortOption('label_asc', 'Name A–Z'),
+      AppSortOption('status_asc', 'Status'),
+    ],
+  );
+
   Widget _yourRequests(BuildContext context) {
     final reqStore = Stores.requests;
 
@@ -122,76 +172,88 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
         ],
       ),
       builder: (_) {
+        // Nothing to list still keeps Search and filter in the top bar.
+        Widget bare(Widget child) =>
+            AppListEmpty(toolbar: _toolbar(const {}), child: child);
         if (reqStore.requests.isEmpty && reqStore.loadState.error != null) {
-          return AppLoadError(
-            title: 'Requests could not be loaded',
-            message: reqStore.loadState.error!,
-            onRetry: reqStore.loadRequests,
+          return bare(
+            AppLoadError(
+              title: 'Requests could not be loaded',
+              message: reqStore.loadState.error!,
+              onRetry: reqStore.loadRequests,
+            ),
           );
         }
 
         if (reqStore.requests.isEmpty) {
-          return AppEmptyState(
-            icon: AppIcons.inboxFill,
-            title: 'No requests',
-            subtitle:
-                'Requests collect details from others through a form. Answers '
-                'stay current and can be withdrawn by the respondent.',
-            example: const AppEmptyExample(
-              title: 'Tenant details',
-              detail: '4 fields',
-              badge: '2 responses',
-            ),
-            steps: const [
-              AppEmptyStep(
-                'Fields',
-                'Defined by a template: a name, an address or a file',
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.inboxFill,
+              title: 'No requests',
+              subtitle:
+                  'Requests collect details from others through a form. Answers '
+                  'stay current and can be withdrawn by the respondent.',
+              example: const AppEmptyExample(
+                title: 'Tenant details',
+                detail: '4 fields',
+                badge: '2 responses',
               ),
-              AppEmptyStep(
-                'Link',
-                'Optionally restricted to verified identities',
+              steps: const [
+                AppEmptyStep(
+                  'Fields',
+                  'Defined by a template: a name, an address or a file',
+                ),
+                AppEmptyStep(
+                  'Link',
+                  'Optionally restricted to verified identities',
+                ),
+                AppEmptyStep('Responses', 'Listed or shown as a spreadsheet'),
+              ],
+              action: AppButton(
+                icon: AppIcons.plus,
+                label: 'New request',
+                onTap: () => openRequestCreateSheet(
+                  context: context,
+                  store: Stores.requests,
+                  authStore: Stores.auth,
+                ),
               ),
-              AppEmptyStep('Responses', 'Listed or shown as a spreadsheet'),
-            ],
-            action: AppButton(
-              icon: AppIcons.plus,
-              label: 'New request',
-              onTap: () => openRequestCreateSheet(
-                context: context,
-                store: Stores.requests,
-                authStore: Stores.auth,
+              secondaryAction: AppButton(
+                icon: AppIcons.fileText,
+                label: 'Templates',
+                style: AppButtonStyle.accent,
+                onTap: () => goReturning(context, AppRoutes.templates),
               ),
+              learnMoreLabel: 'How requests work',
+              learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
             ),
-            secondaryAction: AppButton(
-              icon: AppIcons.fileText,
-              label: 'Templates',
-              style: AppButtonStyle.accent,
-              onTap: () => goReturning(context, AppRoutes.templates),
-            ),
-            learnMoreLabel: 'How requests work',
-            learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
           );
         }
 
         final now = DateTime.now();
         final notifications = Stores.notifications;
-        final matches = _table.filteredItems;
+        final searched = _table.filteredItems;
+        final picked = _groups.value;
         final byGroup = {
           for (final g in RequestGroup.values) g: <DataRequest>[],
         };
+        final counts = {for (final g in RequestGroup.values) g: 0};
         final unread = <String, int>{};
-        for (final r in matches) {
+        for (final r in searched) {
           final n = notifications.unreadResponses(r.id);
           unread[r.id] = n;
-          byGroup[requestGroup(r, n)]!.add(r);
+          final g = requestGroup(r, n);
+          counts[g] = counts[g]! + 1;
+          if (picked.isEmpty || picked.contains(g)) byGroup[g]!.add(r);
         }
+        final nothingShown = byGroup.values.every((l) => l.isEmpty);
         // The groups are the filter: each says how many it holds, and the
         // closed ones stay folded until asked for.
         Widget group(RequestGroup g, String title, {bool collapsed = false}) {
           final requests = byGroup[g]!;
           if (requests.isEmpty) return const SizedBox.shrink();
           return AppListGroup(
-            key: ValueKey(g),
+            key: ValueKey((g, collapsed)),
             title: title,
             noun: 'requests',
             previewCount: g == RequestGroup.fresh ? 0 : 5,
@@ -211,17 +273,22 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
         }
 
         return AppListPage(
+          toolbar: _toolbar(counts),
           banners: [
             if (reqStore.loadState.error != null)
               AppRefreshFailed(onRetry: reqStore.loadRequests),
           ],
-          emptyMessage: matches.isEmpty
-              ? 'No requests match the search.'
+          emptyMessage: nothingShown
+              ? 'No requests match the search or filters.'
               : null,
           groups: [
             group(RequestGroup.fresh, 'New responses'),
             group(RequestGroup.open, 'Open'),
-            group(RequestGroup.closed, 'Closed', collapsed: true),
+            group(
+              RequestGroup.closed,
+              'Closed',
+              collapsed: !picked.contains(RequestGroup.closed),
+            ),
           ],
         );
       },

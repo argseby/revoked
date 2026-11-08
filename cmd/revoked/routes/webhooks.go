@@ -171,8 +171,9 @@ func (b webhookEndpointBody) apply(ep *core.Record) *util.AppError {
 	}
 	if b.Description != nil {
 		d := strings.TrimSpace(*b.Description)
-		if len(d) > 200 {
-			d = d[:200]
+		// By characters: a byte cut can split an umlaut in half.
+		if r := []rune(d); len(r) > 200 {
+			d = string(r[:200])
 		}
 		ep.Set(f.Description, d)
 	}

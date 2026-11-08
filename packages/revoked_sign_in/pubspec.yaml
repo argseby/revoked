@@ -1,6 +1,6 @@
 name: revoked_sign_in
 description: The official "Continue with Revoked" button for Flutter, with the panel that shows the QR code and check code and waits for the approval.
-version: 0.1.0
+version: 0.1.1
 homepage: https://revoked.link
 repository: https://github.com/argseby/revoked/tree/main/packages/revoked_sign_in
 issue_tracker: https://github.com/argseby/revoked/issues
@@ -20,7 +20,7 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.6.0
-  qr: ^3.0.3
+  qr: ^4.0.1
   url_launcher: ^6.3.2
 
 dev_dependencies:

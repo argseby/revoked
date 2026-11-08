@@ -42,6 +42,7 @@ import 'package:revoked_app/features/requests/view/request_sheet_screen.dart';
 import 'package:revoked_app/features/invites/view/invite_accept_screen.dart';
 import 'package:revoked_app/features/onboarding/view/tour_screen.dart';
 import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen.dart';
+import 'package:revoked_app/features/two_factor/view/two_factor_gate_screen.dart';
 import 'package:revoked_app/features/contacts/view/contacts_screen.dart';
 import 'package:revoked_app/features/overview/view/overview_screen.dart';
 
@@ -129,6 +130,10 @@ abstract class AppRoutes {
   // A service asking to be shown an attestation the person holds.
   static const present = '/present';
   static const onboarding = '/onboarding';
+
+  /// Where an account waits when the server requires an authenticator app
+  /// and it has none yet.
+  static const twoFactorSetup = '/two-factor';
 
   /// Shown while the stored session is being checked.
   static const splash = '/splash';
@@ -284,6 +289,21 @@ class AppRouter {
           return ResumeLocation.take() ?? AppRoutes.overview;
         }
 
+        // A server that requires an authenticator app lets an account without
+        // one sign in only to set one up: that comes before everything else,
+        // workspace included. A link waits, as it does for onboarding.
+        final needsTwoFactor = isLoggedIn && authStore.twoFactorSetupRequired;
+        final onTwoFactor = state.matchedLocation == AppRoutes.twoFactorSetup;
+        if (needsTwoFactor && !onTwoFactor && !isPublicRoute) {
+          ResumeLocation.hold(state.uri.toString());
+          return AppRoutes.twoFactorSetup;
+        }
+        if (needsTwoFactor) return null;
+        if (onTwoFactor) {
+          return ResumeLocation.take() ??
+              (isLoggedIn ? AppRoutes.overview : AppRoutes.login);
+        }
+
         // An account has no workspace until it creates or joins one, and every
         // other screen is scoped to a workspace, so onboarding comes first.
         final needsWorkspace =
@@ -364,6 +384,10 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.onboarding,
           builder: (context, state) => const WorkspaceOnboardingScreen(),
+        ),
+        GoRoute(
+          path: AppRoutes.twoFactorSetup,
+          builder: (context, state) => const TwoFactorGateScreen(),
         ),
         GoRoute(
           path: AppRoutes.invite,
@@ -741,6 +765,7 @@ class _AuthRefreshNotifier extends ChangeNotifier {
         store.isAuthenticated,
         store.activeWorkspace,
         store.currentUser?.features,
+        store.twoFactorSetupRequired,
       ),
       (_) => notifyListeners(),
     );

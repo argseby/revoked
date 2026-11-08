@@ -143,6 +143,14 @@ var Errors = struct {
 	PasskeyGrantInvalid           AppError
 	PasskeyLast                   AppError
 	PasskeySignupOnly             AppError
+	TwoFactorRequired             AppError
+	TwoFactorChallengeInvalid     AppError
+	TwoFactorCodeInvalid          AppError
+	TwoFactorNotEnabled           AppError
+	TwoFactorAlreadyEnabled       AppError
+	TwoFactorNotPending           AppError
+	TwoFactorEnforced             AppError
+	TwoFactorSetupRequired        AppError
 	EmailVerificationOff          AppError
 	EmailVerificationRequired     AppError
 	EmailCodeInvalid              AppError
@@ -162,6 +170,7 @@ var Errors = struct {
 	OIDCRequestInvalid            AppError
 	OIDCLinkRecordInvalid         AppError
 	OIDCNameInvalid               AppError
+	OIDCNameTooLong               AppError
 	OIDCSignInPaused              AppError
 	AttestationsDisabled          AppError
 	AttestationTypeInvalid        AppError
@@ -709,6 +718,38 @@ var Errors = struct {
 		ErrorCode: "passkey_last",
 		ErrorText: "The only passkey on an account cannot be removed. Another passkey must be added first.",
 	},
+	TwoFactorRequired: AppError{
+		ErrorCode: "two_factor_required",
+		ErrorText: "This account asks for a code from its authenticator app before signing in.",
+	},
+	TwoFactorChallengeInvalid: AppError{
+		ErrorCode: "two_factor_challenge_invalid",
+		ErrorText: "This sign-in has expired or was already completed. Signing in starts again with the passkey.",
+	},
+	TwoFactorCodeInvalid: AppError{
+		ErrorCode: "two_factor_code_invalid",
+		ErrorText: "This code is not the one the authenticator app shows right now.",
+	},
+	TwoFactorNotEnabled: AppError{
+		ErrorCode: "two_factor_not_enabled",
+		ErrorText: "Two-factor authentication is not turned on for this account.",
+	},
+	TwoFactorAlreadyEnabled: AppError{
+		ErrorCode: "two_factor_already_enabled",
+		ErrorText: "Two-factor authentication is already turned on for this account.",
+	},
+	TwoFactorNotPending: AppError{
+		ErrorCode: "two_factor_not_pending",
+		ErrorText: "No authenticator app is being set up. Setting up starts again with a new secret.",
+	},
+	TwoFactorSetupRequired: AppError{
+		ErrorCode: "two_factor_setup_required",
+		ErrorText: "This server requires two-factor authentication. Set up an authenticator app first.",
+	},
+	TwoFactorEnforced: AppError{
+		ErrorCode: "two_factor_enforced",
+		ErrorText: "This server requires two-factor authentication, so it cannot be turned off.",
+	},
 	EmailVerificationOff: AppError{
 		ErrorCode: "email_verification_off",
 		ErrorText: "This server does not confirm email addresses. Accounts are created directly.",
@@ -783,7 +824,11 @@ var Errors = struct {
 	},
 	OIDCNameInvalid: AppError{
 		ErrorCode: "oidc_name_invalid",
-		ErrorText: "This name cannot be used.",
+		ErrorText: "This name cannot be used. A name is a plain text entry of this account.",
+	},
+	OIDCNameTooLong: AppError{
+		ErrorCode: "oidc_name_too_long",
+		ErrorText: "This name is too long. A name can be at most 200 characters.",
 	},
 	OIDCSignInPaused: AppError{
 		ErrorCode: "oidc_sign_in_paused",

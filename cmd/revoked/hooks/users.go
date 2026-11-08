@@ -88,6 +88,10 @@ func BindUsersHooks(app core.App) {
 			util.Fields.User.Avatar,
 			util.Fields.User.Active,
 			util.Fields.User.Features,
+			util.Fields.User.TotpSecret,
+			util.Fields.User.TotpPending,
+			util.Fields.User.TotpEnabledAt,
+			util.Fields.User.TotpLastStep,
 		); err != nil {
 			return err
 		}

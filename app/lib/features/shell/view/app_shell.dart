@@ -11,7 +11,6 @@ import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_search_field.dart';
@@ -30,28 +29,14 @@ class _Destination {
   final IconData icon;
   final String label;
 
-  /// Built on the vault: shares give its records out, requests fill it. The
-  /// sidebar hangs these under it; the narrower bars stay flat.
-  final bool underVault;
-
-  const _Destination(
-    this.route,
-    this.icon,
-    this.label, {
-    this.underVault = false,
-  });
+  const _Destination(this.route, this.icon, this.label);
 }
 
 const _places = [
-  _Destination(AppRoutes.overview, AppIcons.dashboard, 'Overview'),
+  _Destination(AppRoutes.overview, AppIcons.home, 'Home'),
   _Destination(AppRoutes.vault, AppIcons.safe, 'Vault'),
-  _Destination(AppRoutes.shared, AppIcons.share, 'Shares', underVault: true),
-  _Destination(
-    AppRoutes.requests,
-    AppIcons.inboxFill,
-    'Requests',
-    underVault: true,
-  ),
+  _Destination(AppRoutes.shared, AppIcons.share, 'Shares'),
+  _Destination(AppRoutes.requests, AppIcons.inboxFill, 'Requests'),
   _Destination(AppRoutes.attestations, AppIcons.attestation, 'Attestations'),
   _Destination(AppRoutes.contacts, AppIcons.person, 'Contacts'),
 ];
@@ -179,14 +164,21 @@ class _AppShellState extends State<AppShell> {
   /// person has off: a link or an old bookmark still opens the page, and
   /// the notice is what keeps that from being a dead end.
   Widget _body(String path) {
+    final root = AppRoutes.rootOf(path) ?? '';
     final feature = featureForLocation(path);
-    if (feature == null) return widget.child;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FeatureNotice(feature),
-        Expanded(child: widget.child),
-      ],
+    // A list in here hands its search up to the top bar.
+    if (feature == null) {
+      return ShellSearchHost(root: root, child: widget.child);
+    }
+    return ShellSearchHost(
+      root: root,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FeatureNotice(feature),
+          Expanded(child: widget.child),
+        ],
+      ),
     );
   }
 
@@ -222,6 +214,9 @@ class _AppShellState extends State<AppShell> {
     String path, {
     required bool isSubPage,
   }) {
+    // The list's search, filters and order, behind one button that opens
+    // them in a sheet; an empty list keeps it too, so it never moves.
+    final search = isSubPage ? null : ShellSlots.search.toolbarFor(root);
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
       // Yields while any sheet is up, so it never overlaps a sheet's actions,
@@ -266,10 +261,12 @@ class _AppShellState extends State<AppShell> {
         title: _title(root),
         actions: [
           _slot(ShellSlots.action),
+          ?search?.button(),
           AppButton(
-            icon: AppIcons.search,
+            // The link, not a magnifier: a magnifier is a list's own search.
+            icon: AppIcons.link,
             style: AppButtonStyle.ghost,
-            tooltip: 'Search or paste a link',
+            tooltip: 'Open link or go to',
             onTap: () => openLinkSearchSheet(context),
           ),
           AppSpacing.gapXs,
@@ -339,6 +336,7 @@ class _AppShellState extends State<AppShell> {
         subPageActionFor(path) != null ||
         (sidebar && root == AppRoutes.shared);
     final pageAction = onList ? pageActionFor(path) : null;
+    final listSearch = onList ? ShellSlots.search.toolbarFor(root) : null;
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -391,17 +389,19 @@ class _AppShellState extends State<AppShell> {
                 actions: [
                   _slot(ShellSlots.action),
                   if (!sidebar) const _NotificationBell(),
-                  // The sidebar carries its own search, so it is not repeated.
+                  // The sidebar carries its own "Open link or go to", so it is not repeated.
                   // A mid-sized window keeps the bar's room for the title and
                   // the page's action, and searches from an icon.
-                  if (!sidebar && !roomForSearchField)
+                  // Beside a list's Search and filter a field would read as
+                  // the list's own search, so it stays an icon there.
+                  if (!sidebar && (!roomForSearchField || listSearch != null))
                     AppButton(
-                      icon: AppIcons.search,
+                      icon: AppIcons.link,
                       style: AppButtonStyle.ghost,
-                      tooltip: 'Search or paste a link',
+                      tooltip: 'Open link or go to',
                       onTap: () => openLinkSearchSheet(context),
                     ),
-                  if (!sidebar && roomForSearchField)
+                  if (!sidebar && roomForSearchField && listSearch == null)
                     Padding(
                       padding: EdgeInsets.only(left: AppSpacing.xs),
                       child: SizedBox(
@@ -412,6 +412,13 @@ class _AppShellState extends State<AppShell> {
                         ),
                         child: _SearchField(),
                       ),
+                    ),
+                  // The list's search, filters and order, behind one button
+                  // that opens them under it; an empty list keeps it too.
+                  if (listSearch != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      child: listSearch.button(),
                     ),
                   if (pageAction case final action?)
                     Padding(
@@ -438,8 +445,9 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// The wide layout's navigation: the workspace and account on top, search,
-/// the destinations, and notifications and settings at the bottom.
+/// The wide layout's navigation: the workspace and account on top with the
+/// notifications bell, then New and "Open link or go to" in one row, Home
+/// under Overview, the lists under Lists, and settings at the bottom.
 class _Sidebar extends StatelessWidget {
   final List<_Destination> shown;
   final int? destination;
@@ -453,51 +461,21 @@ class _Sidebar extends StatelessWidget {
     required this.onNew,
   });
 
-  /// The places as a tree: what is built on the vault hangs under it on a
-  /// hairline, and what is not (attestations belong to identities, not
-  /// records) stands apart after a gap.
-  List<Widget> _navigation(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    Widget item(int i) => _SidebarItem(
-      icon: shown[i].icon,
-      label: shown[i].label,
-      selected: destination == i,
-      onTap: () => onSelect(i),
-    );
-    final children = <Widget>[];
-    for (var i = 0; i < shown.length; i++) {
-      if (shown[i].underVault) continue;
-      if (i > 0 && shown[i - 1].underVault) {
-        children.add(AppSpacing.gapMd);
-      }
-      children.add(item(i));
-      final nested = <int>[];
-      for (var j = i + 1; j < shown.length && shown[j].underVault; j++) {
-        nested.add(j);
-      }
-      if (nested.isEmpty) continue;
-      children.add(
-        Padding(
-          padding: const EdgeInsetsDirectional.only(start: AppSpacing.xl),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: BorderDirectional(
-                start: BorderSide(color: scheme.outlineVariant),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsetsDirectional.only(start: AppSpacing.xs),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [for (final j in nested) item(j)],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    return children;
-  }
+  /// Home is the person's own view over everything, not one more list, so
+  /// it sits apart from the lists, at the top with Notifications.
+  bool _isHome(int i) => shown[i].route == AppRoutes.overview;
+
+  _SidebarItem _item(int i) => _SidebarItem(
+    icon: shown[i].icon,
+    label: shown[i].label,
+    selected: destination == i,
+    onTap: () => onSelect(i),
+  );
+
+  List<Widget> _navigation(BuildContext context) => [
+    for (var i = 0; i < shown.length; i++)
+      if (!_isHome(i)) _item(i),
+  ];
 
   static const double width = 256;
 
@@ -515,49 +493,66 @@ class _Sidebar extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AccountMenu(expanded: true),
-              AppSpacing.gapSm,
-              AppButton(
-                size: .small,
-                style: .accent,
-                icon: AppIcons.plus,
-                label: 'New',
-                tooltip: 'Create something new (N)',
-                onTap: onNew,
+              // The workspace, with the bell beside it: notifications are
+              // about the whole account, not one more place.
+              Row(
+                children: [
+                  const Expanded(child: AccountMenu(expanded: true)),
+                  AppSpacing.gapXxs,
+                  _NotificationBell(selected: onNotifications),
+                ],
               ),
-              AppSpacing.gapXs,
-              const _SearchField(),
-              AppSpacing.gapMd,
+              AppSpacing.gapSm,
+              // The tools in one row, ahead of the places: New, and
+              // "Open link or go to" behind its icon (`/` opens it too).
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      size: .small,
+                      style: .accent,
+                      icon: AppIcons.plus,
+                      label: 'New',
+                      tooltip: 'Create something new (N)',
+                      onTap: onNew,
+                    ),
+                  ),
+                  AppSpacing.gapXs,
+                  AppButton(
+                    size: .small,
+                    style: .accent,
+                    icon: AppIcons.search,
+                    tooltip: 'Open link or go to (/)',
+                    onTap: () => openLinkSearchSheet(context),
+                  ),
+                ],
+              ),
+              Semantics(
+                container: true,
+                explicitChildNodes: true,
+                label: 'Your views',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _SidebarHeading('Overview'),
+                    for (var i = 0; i < shown.length; i++)
+                      if (_isHome(i)) _item(i),
+                  ],
+                ),
+              ),
               Semantics(
                 container: true,
                 explicitChildNodes: true,
                 label: 'Main navigation',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: _navigation(context),
+                  children: [
+                    const _SidebarHeading('Lists'),
+                    ..._navigation(context),
+                  ],
                 ),
               ),
               const Spacer(),
-              Observer(
-                builder: (context) {
-                  final unread = Stores.notifications.unreadCount;
-                  return _SidebarItem(
-                    icon: AppIcons.bell,
-                    label: 'Notifications',
-                    selected: onNotifications,
-                    semanticsLabel: unread > 0
-                        ? 'Notifications, $unread unread'
-                        : 'Notifications',
-                    trailing: unread > 0
-                        ? AppBadge(
-                            label: '$unread',
-                            variant: AppBadgeVariant.primary,
-                          )
-                        : null,
-                    onTap: () => context.go(AppRoutes.notifications),
-                  );
-                },
-              ),
               _SidebarItem(
                 icon: AppIcons.personGear,
                 label: 'Settings',
@@ -580,35 +575,52 @@ const double _searchFieldMinWindow = 900;
 /// not so much that it crowds the bar on a mid-sized window.
 const double _searchTriggerWidth = 240;
 
-/// Opens the search and link drawer. `/` and Ctrl+K open it too.
+/// Opens the "Open link or go to" drawer, which finds anything by name or
+/// opens a pasted link. `/` and Ctrl+K open it too. Searching within a list
+/// is that list's own toolbar.
 class _SearchField extends StatelessWidget {
   const _SearchField();
 
   @override
   Widget build(BuildContext context) {
     return AppSearchTrigger(
-      hint: 'Search or paste link',
+      icon: AppIcons.link,
+      hint: 'Open link or go to',
       onTap: () => openLinkSearchSheet(context),
       trailing: const AppKeyHint('/'),
     );
   }
 }
 
+/// A small muted name over a group of the sidebar's rows.
+class _SidebarHeading extends StatelessWidget {
+  final String title;
+
+  const _SidebarHeading(this.title);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.md,
+      AppSpacing.md,
+      AppSpacing.xxs,
+    ),
+    child: ExcludeSemantics(child: AppText(title).small.muted),
+  );
+}
+
 class _SidebarItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String? semanticsLabel;
   final bool selected;
-  final Widget? trailing;
   final VoidCallback onTap;
 
   const _SidebarItem({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.semanticsLabel,
     this.selected = false,
-    this.trailing,
   });
 
   @override
@@ -621,7 +633,7 @@ class _SidebarItem extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: selected,
-        label: semanticsLabel ?? label,
+        label: label,
         excludeSemantics: true,
         child: AppFocusRing(
           child: Material(
@@ -649,7 +661,6 @@ class _SidebarItem extends StatelessWidget {
                     Icon(icon, size: 20, color: foreground),
                     AppSpacing.gapMd,
                     Expanded(child: selected ? text.bold : text),
-                    ?trailing,
                   ],
                 ),
               ),
@@ -661,10 +672,13 @@ class _SidebarItem extends StatelessWidget {
   }
 }
 
-/// Top-bar notifications bell with an unread dot, on layouts without the
-/// sidebar.
+/// The notifications bell with an unread dot: in the top bar without the
+/// sidebar, beside the workspace in it. [selected] while Notifications is
+/// open, as the sidebar marks the page on screen.
 class _NotificationBell extends StatelessWidget {
-  const _NotificationBell();
+  final bool selected;
+
+  const _NotificationBell({this.selected = false});
 
   @override
   Widget build(BuildContext context) {
@@ -675,6 +689,16 @@ class _NotificationBell extends StatelessWidget {
         return Stack(
           clipBehavior: Clip.none,
           children: [
+            // The current page's fill, as on the sidebar's own rows.
+            if (selected)
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.secondaryContainer,
+                    borderRadius: AppRadius.allMd,
+                  ),
+                ),
+              ),
             AppButton(
               icon: AppIcons.bell,
               style: AppButtonStyle.ghost,

@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:revoked_app/core/utils/paste_link_shortcut.dart';
 
 /// The shell's keys, app-wide like [PasteLinkShortcut]: `/` and Ctrl+K (Cmd
-/// on macOS) search or open a link, `N` opens the New picker, and Ctrl+1…6
-/// (Cmd on macOS) go to the destinations.
+/// on macOS) open "Open link or go to", `N` opens the New picker, and
+/// Ctrl+1…6 (Cmd on macOS) go to the destinations.
 ///
 /// Ctrl+K sits beside `/` because it is what people try first; `/` stays
 /// because it needs no modifier.

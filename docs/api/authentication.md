@@ -49,6 +49,23 @@ server's own page, `GET /passkey`, in the browser:
 4. The app checks the state and redeems the code with its verifier at
    `POST /api/passkeys/token`, which answers with the session token.
 
+When the account has an authenticator app turned on, step 4 answers
+`401 two_factor_required` with a `challenge` (good for five minutes) instead of
+a session. The app asks for the current 6-digit code and sends
+`POST /api/passkeys/token/2fa {challenge, code}`, which answers with the
+session token. A challenge allows five codes. Where the server requires
+two-factor authentication (`REQUIRE_2FA`, reported as `twoFactor.required` by
+`GET /api/server`) and the account has none yet, the session carries
+`meta.twoFactorSetupRequired: true`, and `GET /api/2fa` reports
+`setupRequired`. Until it is set up, every other call with that session
+answers `403 two_factor_setup_required`, except `/api/2fa/*`,
+`/api/passkeys/*`, `/api/server`, `/api/features`, the account's own record
+and `auth-refresh`. The authenticator is managed with
+`POST /api/2fa/totp/setup`, `POST /api/2fa/totp/confirm {code}` and
+`DELETE /api/2fa/totp {code}`. A confirmation ends every session of the
+account and answers with a fresh `token` for the device that confirmed. A code
+is accepted once; a repeat inside its window is refused.
+
 The code is useless to anything else that sees the link: it is bound to the
 challenge, and spent on first presentation. Registration runs the same way
 through `/api/passkeys/register/*` — with an email address where the operator

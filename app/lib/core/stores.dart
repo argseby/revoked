@@ -149,6 +149,10 @@ abstract final class Stores {
     api.onWrite = invalidateLoads;
     // A rejected session drops to the login screen from wherever it happened.
     api.onUnauthorized = () => unawaited(auth.handleSessionExpired());
+    // The server holds the session until an authenticator is set up: the
+    // router then shows the setup screen.
+    api.onTwoFactorSetupRequired = () =>
+        runInAction(() => auth.twoFactorSetupRequired = true);
     vault = VaultStore(api);
     shares = SharesStore(api);
     bookmarks = BookmarksStore(api);

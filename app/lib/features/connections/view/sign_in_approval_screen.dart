@@ -13,6 +13,7 @@ import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
@@ -356,6 +357,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
             ? (o.label.isEmpty ? o.key : o.label)
             : 'Your identity',
         key: o.key,
+        shared: o.shared,
+        madeFor: o.madeFor,
       ),
   ];
 
@@ -367,6 +370,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         value: o.preview,
         title: o.label.isEmpty ? o.key : o.label,
         key: o.key,
+        shared: o.shared,
+        madeFor: o.madeFor,
       ),
   ];
 
@@ -395,6 +400,8 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
       lastPick: _lastPicks[slot],
       choices: _nameChoices(c),
       draft: Stores.signInApproval.nameDraft,
+      maxLength: SignInApproval.maxNameLength,
+      isNew: c.isNewScope(_profile),
       workspace: _workspaceName,
       busy: _busy.value,
       note: _nameIsEntry
@@ -478,6 +485,16 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         // the person's own, and not one someone else put in front of them.
         if (widget.request!.background)
           ToolCheckCode(name: host, challenge: widget.request!.challenge),
+        // A disconnected service has its own note below, saying the same.
+        if (c.returning case final back? when c.disconnectedAt == null)
+          AppAlert(
+            leading: const Icon(AppIcons.info),
+            title: Text("You've signed in to $host before"),
+            content: Text(
+              'Last time on ${dayLabel(back.lastAt)}. It keeps the same ID '
+              'for you and gets what you allow below.',
+            ).small,
+          ),
         if (c.disconnectedAt != null)
           AppAlert(
             leading: const Icon(AppIcons.info),
@@ -529,6 +546,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
                   AppCheckRow(
                     label: signInScopeLabels[s.scope] ?? s.scope,
                     subtitle: s.value.isEmpty ? null : s.value,
+                    badge: c.isNewScope(s.scope)
+                        ? const AppBadge(label: 'New')
+                        : null,
                     value: _scopes.value.contains(s.scope),
                     onChanged: _busy.value
                         ? null

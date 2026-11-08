@@ -39,6 +39,7 @@ import 'package:revoked_app/features/invites/view/invite_create_sheet.dart';
 import 'package:revoked_app/features/invites/view/invite_join_sheet.dart';
 import 'package:revoked_app/features/invites/view/member_permissions_sheet.dart';
 import 'package:revoked_app/features/passkeys/view/passkeys_section.dart';
+import 'package:revoked_app/features/two_factor/view/two_factor_section.dart';
 import 'package:revoked_app/features/templates/view/templates_screen.dart';
 import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/settings/view/appearance_page.dart';
@@ -62,7 +63,7 @@ enum SettingsStage {
 enum SettingsPage {
   appearance('appearance', 'Appearance and accessibility'),
   features('features', 'Features'),
-  passkeys('passkeys', 'Passkeys'),
+  passkeys('passkeys', 'Passkeys and two-factor'),
   encryption('encryption', 'End-to-end encryption'),
   workspaces('workspaces', 'Workspaces'),
   members('members', 'Members'),
@@ -191,7 +192,14 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),
           SettingsPage.features => const FeaturesPage(),
-          SettingsPage.passkeys => const PasskeysSection(),
+          SettingsPage.passkeys => const Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              PasskeysSection(),
+              AppSpacing.gapXxl,
+              TwoFactorSection(),
+            ],
+          ),
           SettingsPage.encryption => const SealingSection(),
           SettingsPage.workspaces => const _WorkspacesPage(),
           SettingsPage.members => const _MembersPage(),

@@ -19,6 +19,9 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/app_filter_menu.dart';
+import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
@@ -28,12 +31,91 @@ import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 /// filed into groups the way videos go into playlists; a bookmark in several
 /// groups shows in each. One in none is listed after the groups — first what
 /// someone on this server handed over, then what the person saved.
-class BookmarksTab extends StatelessWidget {
+///
+/// The list's toolbar searches names and servers, filters by how a bookmark
+/// arrived, and sorts within each group.
+class BookmarksTab extends StatefulWidget {
   final BookmarkKind kind;
 
   const BookmarksTab({super.key, required this.kind});
 
+  @override
+  State<BookmarksTab> createState() => _BookmarksTabState();
+}
+
+/// How a bookmark arrived, as the Filter offers it.
+enum _Source { handed, saved }
+
+class _BookmarksTabState extends State<BookmarksTab> {
+  late final TableStore<Bookmark> _table = TableStore<Bookmark>(
+    getSourceItems: () => [
+      for (final b in Stores.bookmarks.bookmarks)
+        if (b.kind == widget.kind) b,
+    ],
+    fieldGetters: {
+      'title': (b) => b.title,
+      'origin': (b) => b.origin,
+      'created': (b) => b.created ?? '',
+    },
+    defaultSort: 'created_desc',
+    searchFields: const ['title', 'origin'],
+  );
+
+  /// The sources the Filter lets through; none ticked lets all through.
+  final Local<Set<_Source>> _sources = Local(const {});
+
+  BookmarkKind get kind => widget.kind;
+
   bool get _asks => kind == BookmarkKind.request;
+
+  @override
+  void dispose() {
+    _table.dispose();
+    super.dispose();
+  }
+
+  static _Source _sourceOf(Bookmark b) =>
+      b.sender.isNotEmpty ? _Source.handed : _Source.saved;
+
+  AppListToolbar _toolbar(List<Bookmark> all) => AppListToolbar(
+    key: ValueKey('bookmarks-toolbar-${kind.name}'),
+    query: _table.query,
+    onQueryChanged: _table.setQuery,
+    searchHint: _asks ? 'Search requests' : 'Search shares',
+    onClearFilters: () => _sources.value = const {},
+    sections: () => [
+      AppChecklistSection(
+        title: 'Show',
+        selected: {for (final s in _sources.value) s.name},
+        onToggle: (id, on) {
+          final s = _Source.values.byName(id);
+          _sources.value = on
+              ? {..._sources.value, s}
+              : ({..._sources.value}..remove(s));
+        },
+        items: [
+          AppChecklistItem(
+            id: _Source.handed.name,
+            label: _asks ? 'Sent to you' : 'Handed to you',
+            count: all.where((b) => _sourceOf(b) == _Source.handed).length,
+          ),
+          AppChecklistItem(
+            id: _Source.saved.name,
+            label: 'Saved',
+            count: all.where((b) => _sourceOf(b) == _Source.saved).length,
+          ),
+        ],
+      ),
+    ],
+    sort: () => _table.sortBy,
+    onSort: _table.setSort,
+    defaultSort: _table.defaultSort,
+    sortOptions: const [
+      AppSortOption('created_desc', 'Newest first'),
+      AppSortOption('created_asc', 'Oldest first'),
+      AppSortOption('title_asc', 'Name A–Z'),
+    ],
+  );
 
   Future<void> _newGroup(BuildContext context) async {
     final store = Stores.bookmarks;
@@ -91,11 +173,16 @@ class BookmarksTab extends StatelessWidget {
               ],
       ),
       builder: (_) {
+        // Nothing to list still keeps Search and filter in the top bar.
+        Widget bare(Widget child) =>
+            AppListEmpty(toolbar: _toolbar(const []), child: child);
         if (store.error != null && store.bookmarks.isEmpty) {
-          return AppLoadError(
-            title: store.error!.title,
-            message: store.error!.description,
-            onRetry: store.load,
+          return bare(
+            AppLoadError(
+              title: store.error!.title,
+              message: store.error!.description,
+              onRetry: store.load,
+            ),
           );
         }
         final mine = [
@@ -103,50 +190,63 @@ class BookmarksTab extends StatelessWidget {
             if (b.kind == kind) b,
         ];
         if (mine.isEmpty && _asks) {
-          return AppEmptyState(
-            icon: AppIcons.askFor,
-            title: 'Nothing to answer',
-            subtitle:
-                'Requests others send to this account, and ones saved from a '
-                'link, wait here until they are answered from the vault.',
-            action: AppButton(
-              icon: AppIcons.link,
-              label: 'Open a link',
-              style: AppButtonStyle.accent,
-              onTap: () => openLinkSearchSheet(context),
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.askFor,
+              title: 'Nothing to answer',
+              subtitle:
+                  'Requests others send to this account, and ones saved from a '
+                  'link, wait here until they are answered from the vault.',
+              action: AppButton(
+                icon: AppIcons.link,
+                label: 'Open a link',
+                style: AppButtonStyle.accent,
+                onTap: () => openLinkSearchSheet(context),
+              ),
+              learnMoreLabel: 'About requests',
+              learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
             ),
-            learnMoreLabel: 'About requests',
-            learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
           );
         }
         if (mine.isEmpty) {
-          return AppEmptyState(
-            icon: AppIcons.bookmark,
-            title: 'Nothing received',
-            subtitle:
-                'Shares from others are kept here as shortcuts, not copies. '
-                'Passwords and identity checks still apply, and revoked links '
-                'stay closed.',
-            steps: const [
-              AppEmptyStep('Received link', 'Opened from a message'),
-              AppEmptyStep('Bookmark', 'Saved from the open link'),
-              AppEmptyStep('Bookmarks list', 'Optionally sorted into groups'),
-            ],
-            action: AppButton(
-              icon: AppIcons.link,
-              label: 'Open a link',
-              style: AppButtonStyle.accent,
-              onTap: () => openLinkSearchSheet(context),
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.bookmark,
+              title: 'Nothing received',
+              subtitle:
+                  'Shares from others are kept here as shortcuts, not copies. '
+                  'Passwords and identity checks still apply, and revoked links '
+                  'stay closed.',
+              steps: const [
+                AppEmptyStep('Received link', 'Opened from a message'),
+                AppEmptyStep('Bookmark', 'Saved from the open link'),
+                AppEmptyStep('Bookmarks list', 'Optionally sorted into groups'),
+              ],
+              action: AppButton(
+                icon: AppIcons.link,
+                label: 'Open a link',
+                style: AppButtonStyle.accent,
+                onTap: () => openLinkSearchSheet(context),
+              ),
+              learnMoreLabel: 'About bookmarks',
+              learnMoreUrl:
+                  '${AppConfig.docsUrl}/guide/sharing/'
+                  '#bookmarking-a-share-you-received',
             ),
-            learnMoreLabel: 'About bookmarks',
-            learnMoreUrl:
-                '${AppConfig.docsUrl}/guide/sharing/'
-                '#bookmarking-a-share-you-received',
           );
         }
+        // What the search, Filter and Sort let through, in the sorted order;
+        // every group and list below keeps that order.
+        final sources = _sources.value;
+        final visible = [
+          for (final b in _table.filteredItems)
+            if (sources.isEmpty || sources.contains(_sourceOf(b))) b,
+        ];
+        final narrowed = sources.isNotEmpty || _table.query.trim().isNotEmpty;
+        final ungroupedIds = {for (final b in store.ungrouped) b.id};
         final ungrouped = [
-          for (final b in store.ungrouped)
-            if (b.kind == kind) b,
+          for (final b in visible)
+            if (ungroupedIds.contains(b.id)) b,
         ];
         // Handed over by someone on this server: it names a sender, who can
         // be refused. Saved: the person kept it from a link they opened.
@@ -159,14 +259,28 @@ class BookmarksTab extends StatelessWidget {
             if (b.sender.isEmpty) b,
         ];
         // A group shows where it has something of this kind, and an empty
-        // one in both, so a group just made is not lost.
-        final groups = [
-          for (final g in store.groups)
-            if (store.inGroup(g.id).isEmpty ||
-                store.inGroup(g.id).any((b) => b.kind == kind))
-              g,
-        ];
+        // one in both, so a group just made is not lost. While the list is
+        // narrowed only the groups holding a match show.
+        final groups = <(BookmarkGroup, List<Bookmark>)>[];
+        for (final g in store.groups) {
+          final inGroup = {for (final b in store.inGroup(g.id)) b.id};
+          final members = [
+            for (final b in visible)
+              if (inGroup.contains(b.id)) b,
+          ];
+          final keep = narrowed
+              ? members.isNotEmpty
+              : store.inGroup(g.id).isEmpty ||
+                    store.inGroup(g.id).any((b) => b.kind == kind);
+          if (keep) groups.add((g, members));
+        }
+        final nothingShown =
+            narrowed && handed.isEmpty && saved.isEmpty && groups.isEmpty;
         return AppListPage(
+          toolbar: _toolbar(mine),
+          emptyMessage: nothingShown
+              ? 'Nothing matches the search or filters.'
+              : null,
           filters: Align(
             alignment: Alignment.centerRight,
             child: AppButton(
@@ -188,7 +302,8 @@ class BookmarksTab extends StatelessWidget {
                     _BookmarkRow(bookmark: bookmark),
                 ],
               ),
-            for (final group in groups) _GroupCard(group: group, kind: kind),
+            for (final (group, members) in groups)
+              _GroupCard(group: group, members: members),
             if (saved.isNotEmpty)
               AppListGroup(
                 title: groups.isEmpty ? 'Saved' : 'Saved, not in a group',
@@ -209,10 +324,11 @@ class BookmarksTab extends StatelessWidget {
 class _GroupCard extends StatelessWidget {
   final BookmarkGroup group;
 
-  /// Only this kind is listed in it here; the rest shows in the other tab.
-  final BookmarkKind kind;
+  /// What it lists here: only the tab's kind, as the toolbar lets through
+  /// and in its order; the rest shows in the other tab.
+  final List<Bookmark> members;
 
-  const _GroupCard({required this.group, required this.kind});
+  const _GroupCard({required this.group, required this.members});
 
   Future<void> _rename(BuildContext context) async {
     final store = Stores.bookmarks;
@@ -256,10 +372,6 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final members = [
-      for (final b in Stores.bookmarks.inGroup(group.id))
-        if (b.kind == kind) b,
-    ];
     return AppListGroup(
       title: group.name,
       previewCount: 8,

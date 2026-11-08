@@ -5,6 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/models/attestation.dart';
+import 'package:revoked_app/core/models/bookmark.dart';
+import 'package:revoked_app/core/models/credential.dart';
+import 'package:revoked_app/core/models/contact.dart';
+import 'package:revoked_app/core/models/request.dart';
+import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -163,13 +169,17 @@ void main() {
       final router = await signedIn(tester, size: const Size(1280, 800));
       router.go(AppRoutes.shared);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('By person'));
+      // Sent says its links could not be loaded; Received does not.
+      const sentFailed = 'Links could not be loaded';
+      expect(find.text(sentFailed), findsOneWidget);
+      await tester.tap(find.text('Received'));
       await tester.pumpAndSettle();
-      expect(find.text('No recipients'), findsOneWidget);
+      expect(find.text(sentFailed), findsNothing);
 
       router.go(AppRoutes.shareDetailFor('l1'));
       await tester.pumpAndSettle();
-      expect(find.text('No recipients'), findsOneWidget);
+      expect(find.byType(SharesScreen), findsOneWidget);
+      expect(find.text(sentFailed), findsNothing);
     });
 
     testWidgets('phone: the link alone, with a way back', (tester) async {
@@ -192,7 +202,7 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.widgetWithText(FloatingActionButton, 'New'), findsOneWidget);
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
   });
 
   testWidgets('a mid-sized window gets the rail', (tester) async {
@@ -210,8 +220,8 @@ void main() {
     );
     // Under 900 pixels the bar keeps its room for the title and the page's
     // labelled action, and searches from an icon.
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
-    expect(find.text('Search or paste link'), findsNothing);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
+    expect(find.text('Open link or go to'), findsNothing);
   });
 
   testWidgets('a rail window from 900 pixels keeps the search pill', (
@@ -219,14 +229,14 @@ void main() {
   ) async {
     await signedIn(tester, size: const Size(900, 800));
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.text('Search or paste link'), findsOneWidget);
+    expect(find.text('Open link or go to'), findsOneWidget);
   });
 
   testWidgets('a phone keeps search as an icon, not the pill', (tester) async {
     await signedIn(tester, size: const Size(400, 800));
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
     expect(
-      find.text('Search or paste link'),
+      find.text('Open link or go to'),
       findsNothing,
       reason: 'there is no room for it beside the floating New button',
     );
@@ -240,7 +250,7 @@ void main() {
     // here throws.
     final router = await signedIn(tester, size: const Size(601, 800));
     expect(find.byTooltip('Create something new (N)'), findsOneWidget);
-    expect(find.byTooltip('Search or paste a link'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsOneWidget);
     router.go(AppRoutes.vault);
     await tester.pumpAndSettle();
     expect(find.text('Add to vault'), findsOneWidget);
@@ -251,10 +261,16 @@ void main() {
     await signedIn(tester, size: const Size(1200, 800));
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
-    // The sidebar carries it, so the top bar does not repeat it.
-    expect(find.text('Search or paste link'), findsOneWidget);
+    // The sidebar carries it, beside New, so the top bar does not repeat it.
+    expect(find.byTooltip('Open link or go to (/)'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsNothing);
+    // The bell sits beside the workspace, not in the list of places.
+    expect(find.text('Notifications'), findsNothing);
+    expect(find.byTooltip('Notifications'), findsOneWidget);
+    expect(find.text('Overview'), findsOneWidget);
+    expect(find.text('Lists'), findsOneWidget);
     for (final label in [
-      'Overview',
+      'Home',
       'Vault',
       'Shares',
       'Requests',
@@ -283,5 +299,369 @@ void main() {
       find.descendant(of: find.byType(AppBar), matching: newButton),
       findsNothing,
     );
+  });
+
+  group('list search in the top bar', () {
+    Future<GoRouter> onShares(WidgetTester tester, Size size) async {
+      final router = await signedIn(tester, size: size);
+      router.go(AppRoutes.shared);
+      await tester.pumpAndSettle();
+      runInAction(
+        () => Stores.shares.shares = ObservableList.of([
+          Link.fromJson({
+            'id': 'a',
+            'slug': 's-a',
+            'label': 'Landlord',
+            'status': 'active',
+          }),
+          Link.fromJson({
+            'id': 'b',
+            'slug': 's-b',
+            'label': 'Bank',
+            'status': 'active',
+          }),
+        ]),
+      );
+      await tester.pumpAndSettle();
+      return router;
+    }
+
+    Finder inBar(Finder f) =>
+        find.descendant(of: find.byType(AppBar), matching: f);
+
+    const button = 'Search and filter';
+
+    /// Types [text] into the search behind the bar's button on a window
+    /// with a popover, and closes it again.
+    Future<void> searchFor(WidgetTester tester, String text) async {
+      await tester.tap(inBar(find.byTooltip(button)));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pumpAndSettle();
+      await tester.tap(inBar(find.byTooltip('$button · 1 active')));
+      await tester.pumpAndSettle();
+    }
+
+    /// Opens the bar's button, reads which search its panel holds, and
+    /// closes it again: the popover with its own button, the sheet by
+    /// popping it. Null where the bar has no button.
+    Future<String?> panelHint(WidgetTester tester, List<String> hints) async {
+      final open = inBar(find.byTooltip(button));
+      if (open.evaluate().isEmpty) return null;
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+      final hint = [
+        for (final h in hints)
+          if (find.text(h).evaluate().isNotEmpty) h,
+      ];
+      if (find.byType(BottomSheet).evaluate().isNotEmpty ||
+          tester.view.physicalSize.width < 600) {
+        Navigator.of(tester.element(find.text('Sort'))).pop();
+      } else {
+        await tester.tap(open);
+      }
+      await tester.pumpAndSettle();
+      return hint.isEmpty ? null : hint.single;
+    }
+
+    for (final width in const [400.0, 800.0, 1200.0]) {
+      testWidgets('${width.toInt()} px: one button, the search inside it', (
+        tester,
+      ) async {
+        await onShares(tester, Size(width, 800));
+        // No field by default, in the bar or above the list.
+        expect(find.byType(TextField), findsNothing);
+        expect(inBar(find.byTooltip(button)), findsOneWidget);
+        // Labelled only beside the sidebar.
+        expect(
+          inBar(find.text(button)),
+          width >= 1024 ? findsOneWidget : findsNothing,
+        );
+
+        await tester.tap(inBar(find.byTooltip(button)));
+        await tester.pumpAndSettle();
+        // Open to type, search first, then the order and the filters.
+        expect(find.text('Search links'), findsOneWidget);
+        expect(find.text('Sort'), findsOneWidget);
+        await tester.enterText(find.byType(TextField), 'bank');
+        await tester.pumpAndSettle();
+
+        if (width < 600) {
+          Navigator.of(tester.element(find.text('Sort'))).pop();
+        } else {
+          await tester.tap(inBar(find.byTooltip('$button · 1 active')));
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Landlord'), findsNothing);
+        expect(find.text('Bank'), findsOneWidget);
+        // With the field out of sight the search shows as a chip and in the
+        // button's count.
+        expect(find.text('“bank”'), findsOneWidget);
+        expect(inBar(find.byTooltip('$button · 1 active')), findsOneWidget);
+
+        await tester.tap(find.bySemanticsLabel('Remove “bank”'));
+        await tester.pumpAndSettle();
+        expect(find.text('Landlord'), findsOneWidget);
+        expect(inBar(find.byTooltip(button)), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Reset in the panel clears the search too', (tester) async {
+      await onShares(tester, const Size(1200, 800));
+      await tester.tap(inBar(find.byTooltip(button)));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'bank');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reset'));
+      await tester.pumpAndSettle();
+      await tester.tap(inBar(find.byTooltip(button)));
+      await tester.pumpAndSettle();
+      expect(find.text('“bank”'), findsNothing);
+      expect(find.text('Landlord'), findsOneWidget);
+    });
+
+    testWidgets('a detail page does not show its list\'s search', (
+      tester,
+    ) async {
+      final router = await onShares(tester, const Size(800, 800));
+      router.go(AppRoutes.shareDetailFor('a'));
+      await tester.pumpAndSettle();
+      expect(inBar(find.byTooltip(button)), findsNothing);
+    });
+
+    for (final size in const [
+      Size(400, 800),
+      Size(800, 800),
+      Size(1200, 800),
+    ]) {
+      testWidgets('${size.width.toInt()} px: switching screens keeps each '
+          'screen\'s search', (tester) async {
+        final router = await onShares(tester, size);
+        runInAction(
+          () => Stores.contacts.contacts = ObservableList.of([
+            Contact.fromJson({'id': 'c1', 'name': 'Ada', 'email': 'a@x.org'}),
+          ]),
+        );
+        const hints = ['Search contacts', 'Search links'];
+        for (var i = 0; i < 3; i++) {
+          router.go(AppRoutes.contacts);
+          await tester.pumpAndSettle();
+          expect(
+            await panelHint(tester, hints),
+            'Search contacts',
+            reason: 'round $i',
+          );
+          router.go(AppRoutes.shared);
+          await tester.pumpAndSettle();
+          expect(
+            await panelHint(tester, hints),
+            'Search links',
+            reason: 'round $i',
+          );
+          // A screen without a list has none.
+          router.go(AppRoutes.settings);
+          await tester.pumpAndSettle();
+          expect(await panelHint(tester, hints), isNull, reason: 'round $i');
+          router.go(AppRoutes.shared);
+          await tester.pumpAndSettle();
+          expect(
+            await panelHint(tester, hints),
+            'Search links',
+            reason: 'round $i',
+          );
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final size in const [Size(400, 800), Size(1200, 800)]) {
+      testWidgets('${size.width.toInt()} px: an empty list keeps the button', (
+        tester,
+      ) async {
+        final router = await signedIn(tester, size: size);
+        router.go(AppRoutes.requests);
+        await tester.pumpAndSettle();
+        // Nothing listed (empty, or the first load failed), and still the
+        // button in the same place as on a full list, holding that list's search.
+        expect(
+          await panelHint(tester, const ['Search requests']),
+          'Search requests',
+        );
+        expect(inBar(find.byType(TextField)), findsNothing);
+        for (final (route, hint) in const [
+          (AppRoutes.vault, 'Search records'),
+          (AppRoutes.contacts, 'Search contacts'),
+          (AppRoutes.attestations, 'Search held attestations'),
+        ]) {
+          router.go(route);
+          await tester.pumpAndSettle();
+          expect(await panelHint(tester, [hint]), hint, reason: route);
+        }
+        // Each tab its own, empty or not.
+        await tester.tap(find.textContaining('Checked'));
+        await tester.pumpAndSettle();
+        expect(
+          await panelHint(tester, const ['Search checks']),
+          'Search checks',
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('switching quickly settles', (tester) async {
+      final router = await onShares(tester, const Size(1200, 800));
+      runInAction(
+        () => Stores.contacts.contacts = ObservableList.of([
+          Contact.fromJson({'id': 'c1', 'name': 'Ada', 'email': 'a@x.org'}),
+        ]),
+      );
+      // Tabs and screens, one frame apart, as fast as a person can click.
+      for (var i = 0; i < 10; i++) {
+        await tester.tap(find.text('Received'));
+        await tester.pump();
+        await tester.tap(find.text('Sent'));
+        await tester.pump();
+        router.go(AppRoutes.contacts);
+        await tester.pump();
+        router.go(AppRoutes.shared);
+        await tester.pump();
+        await tester.pump();
+      }
+      // pumpAndSettle times out if something keeps scheduling frames.
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+      expect(tester.takeException(), isNull);
+      // Pages on their way out must not hang: asking the router for a page
+      // it already let go of used to loop forever right here.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    }, timeout: const Timeout(Duration(seconds: 30)));
+
+    testWidgets('Requests: typing in the bar narrows the list', (tester) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.requests);
+      await tester.pumpAndSettle();
+      runInAction(
+        () => Stores.requests.requests
+          ..clear()
+          ..addAll([
+            DataRequest.fromJson({'id': 'q1', 'label': 'Tenant details'}),
+            DataRequest.fromJson({'id': 'q2', 'label': 'Club members'}),
+          ]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Club members'), findsOneWidget);
+      await searchFor(tester, 'tenant');
+      await tester.pumpAndSettle();
+      expect(find.text('Tenant details'), findsOneWidget);
+      expect(find.text('Club members'), findsNothing);
+    });
+
+    testWidgets('Attestations: typing in the bar narrows the list', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.attestations);
+      await tester.pumpAndSettle();
+      runInAction(
+        () => Stores.attestations.attestations
+          ..clear()
+          ..addAll([
+            Attestation.fromJson({
+              'id': 'a1',
+              'label': 'Membership',
+              'status': 'active',
+            }),
+            Attestation.fromJson({
+              'id': 'a2',
+              'label': 'Employment',
+              'status': 'active',
+            }),
+          ]),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Issued').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Employment'), findsOneWidget);
+      await searchFor(tester, 'member');
+      expect(find.text('Membership'), findsOneWidget);
+      expect(find.text('Employment'), findsNothing);
+    });
+
+    testWidgets('Requests with both tabs filled: the shown tab searches', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.requests);
+      await tester.pumpAndSettle();
+      runInAction(() {
+        Stores.requests.requests
+          ..clear()
+          ..addAll([
+            DataRequest.fromJson({'id': 'q1', 'label': 'Tenant details'}),
+            DataRequest.fromJson({'id': 'q2', 'label': 'Club members'}),
+          ]);
+        Stores.bookmarks.bookmarks = ObservableList.of([
+          Bookmark.fromJson({
+            'id': 'b1',
+            'slug': 'x1',
+            'kind': 'request',
+            'label': 'Payroll',
+          }),
+        ]);
+      });
+      await tester.pumpAndSettle();
+      await searchFor(tester, 'tenant');
+      await tester.pumpAndSettle();
+      expect(find.text('Club members'), findsNothing);
+      expect(find.text('Tenant details'), findsOneWidget);
+    });
+
+    testWidgets('Attestations with both tabs filled: the shown tab searches', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.attestations);
+      await tester.pumpAndSettle();
+      runInAction(() {
+        Stores.credentials.credentials
+          ..clear()
+          ..addAll([
+            Credential.fromJson({'id': 'c1', 'type': 'membership'}),
+            Credential.fromJson({'id': 'c2', 'type': 'employment'}),
+          ]);
+        Stores.attestations.attestations
+          ..clear()
+          ..addAll([
+            Attestation.fromJson({
+              'id': 'a1',
+              'label': 'Membership',
+              'status': 'active',
+            }),
+          ]);
+      });
+      await tester.pumpAndSettle();
+      await searchFor(tester, 'employ');
+      await tester.pumpAndSettle();
+      expect(find.text('membership'), findsNothing);
+      expect(find.text('employment'), findsOneWidget);
+    });
+
+    testWidgets('the other tab has its own search', (tester) async {
+      await onShares(tester, const Size(1200, 800));
+      await searchFor(tester, 'bank');
+      await tester.tap(find.text('Received'));
+      await tester.pumpAndSettle();
+      // Received has nothing yet, but keeps its own button; the Sent list's
+      // query is not carried over.
+      expect(inBar(find.byTooltip(button)), findsOneWidget);
+      expect(await panelHint(tester, const ['Search shares']), 'Search shares');
+      expect(find.text('“bank”'), findsNothing);
+
+      // Back on Sent, its own query is still there.
+      await tester.tap(find.text('Sent'));
+      await tester.pumpAndSettle();
+      expect(find.text('“bank”'), findsOneWidget);
+    });
   });
 }

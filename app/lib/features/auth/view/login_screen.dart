@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -10,18 +11,20 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_logo.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/version_summary.dart';
 import 'package:revoked_app/features/auth/signup_policy.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/auth/view/round_trip.dart';
 import 'package:revoked_app/features/auth/view/server_settings_sheet.dart';
+import 'package:revoked_app/features/two_factor/view/two_factor_code_prompt.dart';
 
 /// The way in. The passkey belongs to the server's address, so making an
 /// account or signing in runs on the server's own page in the browser, which
 /// sends the person back signed in. One button opens it: the page offers a
 /// saved passkey and a new account side by side, so nothing is asked here
-/// first. The welcome says that the browser opens and comes back, and on a
-/// computer offers the phone instead.
+/// first. The button names the browser, a link can be copied for another
+/// browser, and on a computer the phone is offered instead.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -62,14 +65,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           ..._notices(authStore.errorMessage),
-                          switch ((
-                            authStore.isAwaitingBrowser,
-                            authStore.signupIntro,
-                          )) {
-                            (true, _) => _waiting(authStore.isLoading),
-                            (_, SignupIntro.usePhone) => _usePhone(),
-                            _ => _welcome(authStore.isLoading),
-                          },
+                          if (authStore.twoFactorChallenge != null)
+                            _twoFactor(
+                              authStore.isLoading,
+                              authStore.twoFactorError,
+                            )
+                          else
+                            switch ((
+                              authStore.isAwaitingBrowser,
+                              authStore.signupIntro,
+                            )) {
+                              (true, _) => _waiting(authStore.isLoading),
+                              (_, SignupIntro.usePhone) => _usePhone(),
+                              _ => _welcome(authStore.isLoading),
+                            },
                         ],
                       ),
                     ),
@@ -193,31 +202,50 @@ class _LoginScreenState extends State<LoginScreen> {
               'accounts can sign in.',
             ),
           ),
-        // Said before anything opens: a browser appearing unannounced is
-        // where people gave up.
-        const RoundTrip(at: 0),
       ],
       actions: [
+        // The label says where it goes, so nothing has to explain it first:
+        // a browser appearing unannounced is where people gave up.
         AppButton(
-          icon: AppIcons.boxArrowUpRight,
-          label: 'Continue',
+          label: 'Continue in browser',
+          trailingIcon: AppIcons.boxArrowUpRight,
           busy: busy,
           onTap: () => Stores.auth.beginSignIn(),
         ),
-        // A passkey stays with the device it is made on, and the phone is
-        // the one people carry: worth a mention on a computer, not a step.
-        if (open && !isMobileDevice)
-          Center(
-            child: AppButton(
-              icon: AppIcons.phone,
-              label: 'Set up on a phone instead',
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: AppSpacing.sm,
+          children: [
+            AppButton(
+              icon: AppIcons.copy,
+              label: 'Copy link',
+              tooltip: 'For another browser on this device',
               style: AppButtonStyle.ghost,
               size: AppButtonSize.small,
-              onTap: busy ? null : Stores.auth.showPhoneSetup,
+              onTap: busy ? null : _copyLink,
             ),
-          ),
+            // A passkey stays with the device it is made on, and the phone
+            // is the one people carry: worth a mention on a computer.
+            if (open && !isMobileDevice)
+              AppButton(
+                icon: AppIcons.phone,
+                label: 'Use a phone',
+                style: AppButtonStyle.ghost,
+                size: AppButtonSize.small,
+                onTap: busy ? null : Stores.auth.showPhoneSetup,
+              ),
+          ],
+        ),
       ],
     );
+  }
+
+  /// The sign-in page as a link, for a browser other than the default one.
+  Future<void> _copyLink() async {
+    final link = await Stores.auth.signInLink();
+    await Clipboard.setData(ClipboardData(text: link.toString()));
+    if (!mounted) return;
+    AppToast.success(context, 'Sign-in link copied');
   }
 
   /// Only on a computer, when asked for: a passkey stays with the device it
@@ -240,6 +268,29 @@ class _LoginScreenState extends State<LoginScreen> {
           },
         ),
         _back(),
+      ],
+    );
+  }
+
+  /// The passkey was right and the account has an authenticator app: its
+  /// current code completes the sign-in.
+  Widget _twoFactor(bool busy, String? error) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Center(child: Icon(AppIcons.shieldLock, size: 48)),
+        AppSpacing.gapXl,
+        TwoFactorCodePrompt(
+          title: 'Code from the authenticator app',
+          body:
+              'This account asks for the 6-digit code from its authenticator '
+              'app after the passkey.',
+          submitLabel: 'Sign in',
+          busy: busy,
+          error: error,
+          onSubmit: (code) => Stores.auth.completeTwoFactor(code),
+          onCancel: Stores.auth.cancelTwoFactor,
+        ),
       ],
     );
   }

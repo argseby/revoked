@@ -3,7 +3,9 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/router/return_to.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/feature.dart';
@@ -15,26 +17,27 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_chart.dart';
+import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
-import 'package:revoked_app/core/widgets/attention_card.dart';
 import 'package:revoked_app/core/widgets/tool_tag.dart';
+import 'package:revoked_app/features/overview/inbox.dart';
 import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
-import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/features/shares/view/recipient_row.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
-/// Where the app lands: what needs the person, and who can read their data.
+/// Where the app lands, read like an inbox: what needs the person, then what
+/// changed lately.
 ///
-/// Four counts on top, then attention cards, each counting one kind of thing
-/// and opening the list it counts. Below them, everything that can reach the
-/// vault right now: people through links, connected tools and API keys, and
-/// the records others can read. Someone new sees the three steps to a first
-/// link instead.
+/// One line of counts on top, each opening the list it counts. Below it
+/// "Needs you", one row per concrete thing — an answer to read, a link about
+/// to end, a failing webhook — and "Recent", the records, links and answers
+/// that changed last. People, connected tools and API keys follow as short
+/// previews. Someone new sees the three steps to a first link instead.
 class OverviewScreen extends StatefulWidget {
   const OverviewScreen({super.key});
 
@@ -58,6 +61,10 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
     Stores.connections.load();
     Stores.apiKeys.loadApiKeys();
     Stores.webhooks.loadIfDue();
+    // Only for the names of the requests that got answers.
+    if (Stores.features.visible(Feature.requests)) {
+      Stores.requests.loadIfDue();
+    }
   }
 
   @override
@@ -66,7 +73,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
     super.dispose();
   }
 
-  Widget _title(BuildContext context) => const AppBarTitle(title: 'Overview');
+  Widget _title(BuildContext context) => const AppBarTitle(title: 'Home');
 
   @override
   Widget build(BuildContext context) {
@@ -77,14 +84,14 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           (shares.loadState.isFirstLoad && shares.shares.isEmpty) ||
           (vault.loadState.isFirstLoad && vault.records.isEmpty),
       skeleton: const AppListSkeleton(
-        group: 'Data access',
+        group: 'Needs you',
         rows: [
-          AppSkeletonRow('IBAN', 'Readable by 2 people', icon: AppIcons.lock),
           AppSkeletonRow(
-            'Home address',
-            'Readable by 1 person',
-            icon: AppIcons.lock,
+            '2 new answers to Payroll',
+            '',
+            icon: AppIcons.inboxFill,
           ),
+          AppSkeletonRow('Wi-Fi link ends tomorrow', '', icon: AppIcons.clock),
         ],
       ),
       builder: (context) {
@@ -102,76 +109,29 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
   Widget _overview(BuildContext context) {
     final now = DateTime.now();
     final links = Stores.shares.shares;
-    final answers = Stores.notifications.unreadResponseCount;
-    final soon = [
-      for (final l in links)
-        if (linkGroup(l, now) == LinkGroup.attention) l,
-    ];
-    final paused = links.where((l) => l.status == 'paused').length;
-
-    final cards = <Widget>[
-      if (answers > 0 && Stores.features.visible(Feature.requests))
-        AttentionCard(
-          tone: AttentionTone.info,
-          icon: AppIcons.inboxFill,
-          label: 'New answers',
-          value: '$answers ${answers == 1 ? 'answer' : 'answers'}',
-          detail: 'Responses to requests',
-          onTap: () => context.go(AppRoutes.requests),
-        ),
-      if (soon.isNotEmpty)
-        AttentionCard(
-          tone: AttentionTone.warning,
-          icon: AppIcons.clock,
-          label: 'Ends soon',
-          value: '${soon.length} ${soon.length == 1 ? 'link' : 'links'}',
-          detail: soon.length == 1
-              ? '${soon.first.label}: ${linkAttention(soon.first, now)!.reason}'
-              : 'Expiring or near the view limit',
-          onTap: () => context.go(
-            soon.length == 1
-                ? AppRoutes.shareDetailFor(soon.first.id)
-                : AppRoutes.shared,
-          ),
-        ),
-      if (paused > 0)
-        AttentionCard(
-          tone: AttentionTone.warning,
-          icon: AppIcons.pauseCircle,
-          label: 'Paused',
-          value: '$paused ${paused == 1 ? 'link' : 'links'}',
-          detail: 'Unavailable until reactivated',
-          onTap: () => context.go(AppRoutes.shared),
-        ),
-    ];
-
-    final failing = Stores.webhooks.endpoints.where((e) => e.isFailing).length;
-    if (failing > 0) {
-      cards.add(
-        AttentionCard(
-          tone: AttentionTone.warning,
-          icon: AppIcons.send,
-          label: 'Webhooks failing',
-          value: '$failing ${failing == 1 ? 'webhook' : 'webhooks'}',
-          detail: 'Deliveries are not getting through',
-          onTap: () => context.go(AppRoutes.webhooks),
-        ),
-      );
-    }
+    final showAnswers = Stores.features.visible(Feature.requests);
+    final notifications = Stores.notifications.notifications;
+    final requests = Stores.requests.requests;
     final keys = Stores.apiKeys.apiKeys;
-    final expiring = keys.where((k) => _endsWithinAWeek(k.expiresAt, now));
-    if (expiring.isNotEmpty) {
-      cards.add(
-        AttentionCard(
-          tone: AttentionTone.warning,
-          icon: AppIcons.key,
-          label: 'Keys expiring',
-          value: '${expiring.length} ${expiring.length == 1 ? 'key' : 'keys'}',
-          detail: 'Within the next seven days',
-          onTap: () => context.go(AppRoutes.apiKeys),
-        ),
-      );
-    }
+    final records = Stores.vault.records;
+
+    final needs = needsYouItems(
+      links: links,
+      notifications: notifications,
+      requests: requests,
+      webhooks: Stores.webhooks.endpoints,
+      apiKeys: keys,
+      now: now,
+      showAnswers: showAnswers,
+    );
+    final recent = recentItems(
+      records: records,
+      sections: Stores.vault.sections,
+      links: links,
+      notifications: notifications,
+      requests: requests,
+      showAnswers: showAnswers,
+    );
 
     final recipients = groupByRecipient(
       links,
@@ -179,59 +139,72 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
     final readable = openAccessByRecord(
       links: links,
       sections: Stores.vault.sections,
-      records: Stores.vault.records,
+      records: records,
     );
     final tools = [
       for (final c in Stores.connections.connections)
         if (!c.isExpired) c,
     ];
     final active = links.where((l) => l.status == 'active').length;
+    final recordCount = records.where((r) => !r.isAlias).length;
 
     return AppPageBody(
       children: [
-        _Figures(
-          tiles: [
-            AppStatTile(
-              icon: AppIcons.link,
-              label: 'Active links',
-              value: '$active',
-            ),
-            AppStatTile(
-              icon: AppIcons.person,
-              label: 'People with access',
-              value: '${recipients.length}',
-            ),
+        _Stats(
+          figures: [
+            _Figure(active, 'active link', 'active links', AppRoutes.shared),
+            _Figure(recipients.length, 'person', 'people', AppRoutes.shared),
+            _Figure(recordCount, 'record', 'records', AppRoutes.vault),
             // Tools and keys are for the few who build on the API; a zero
             // there says nothing to everyone else.
             if (tools.isNotEmpty)
-              AppStatTile(
-                icon: AppIcons.plug,
-                label: 'Connected tools',
-                value: '${tools.length}',
-              ),
+              _Figure(tools.length, 'tool', 'tools', AppRoutes.connectedTools),
             if (keys.isNotEmpty)
-              AppStatTile(
-                icon: AppIcons.key,
-                label: 'API keys',
-                value: '${keys.length}',
-              ),
+              _Figure(keys.length, 'API key', 'API keys', AppRoutes.apiKeys),
           ],
         ),
         AppSpacing.gapLg,
-        if (cards.isNotEmpty) ...[_Cards(cards: cards), AppSpacing.gapLg],
+        AppListGroup(
+          title: 'Current',
+          noun: 'items',
+          previewCount: 6,
+          trailing: needs.isEmpty
+              ? const SizedBox.shrink()
+              : AppText('${needs.length}').small.muted,
+          children: needs.isEmpty
+              ? [
+                  AppListRow(
+                    icon: AppIcons.checkCircle,
+                    title: ' There is nothing to do',
+                  ),
+                ]
+              : [
+                  for (final item in needs)
+                    NeedRow(item: item, onTap: () => context.go(item.route)),
+                ],
+        ),
+        if (recent.isNotEmpty)
+          AppListGroup(
+            title: 'Recent',
+            trailing: const SizedBox.shrink(),
+            children: [
+              for (final item in recent)
+                AppListRow(
+                  icon: item.icon,
+                  title: item.title,
+                  subtitle: item.subtitle,
+                  trailing: AppText(ageLabel(item.at, now)).small.muted,
+                  onTap: () => context.go(item.route),
+                ),
+            ],
+          ),
         AppListGroup(
           title: 'People',
           noun: 'recipients',
-          previewCount: 5,
+          previewCount: 3,
           trailing: recipients.isEmpty
               ? const SizedBox.shrink()
-              : AppButton(
-                  icon: AppIcons.arrowRight,
-                  label: 'All',
-                  style: AppButtonStyle.ghost,
-                  size: AppButtonSize.small,
-                  onTap: () => context.go(AppRoutes.shared),
-                ),
+              : _AllButton(route: AppRoutes.shared),
           children: recipients.isEmpty
               ? [
                   AppListRow(
@@ -246,7 +219,8 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           AppListGroup(
             title: 'Connected tools',
             noun: 'tools',
-            previewCount: 5,
+            previewCount: 3,
+            trailing: _AllButton(route: AppRoutes.connectedTools),
             children: [
               for (final c in tools)
                 AppListRow(
@@ -282,7 +256,8 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           AppListGroup(
             title: 'API keys',
             noun: 'keys',
-            previewCount: 5,
+            previewCount: 3,
+            trailing: _AllButton(route: AppRoutes.apiKeys),
             children: [
               for (final k in keys)
                 AppListRow(
@@ -300,11 +275,13 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
                 ),
             ],
           ),
+        // Recent shows what changed; this is the full answer to "who can
+        // read what", folded away until asked for.
         if (readable.isNotEmpty)
           AppListGroup(
             title: 'Shared records',
             noun: 'records',
-            previewCount: 5,
+            collapsed: true,
             children: [
               for (final (record, access) in readable)
                 AppListRow(
@@ -333,79 +310,132 @@ String _lastUsed(String? at) {
   return day == null ? 'Never used' : 'Last used $day';
 }
 
-bool _endsWithinAWeek(String? at, DateTime now) {
-  final end = parseInstant(at);
-  return end != null &&
-      end.isAfter(now) &&
-      end.isBefore(now.add(const Duration(days: 7)));
-}
+class _AllButton extends StatelessWidget {
+  final String route;
 
-/// The counts, in a row where there is room and two by two on a phone.
-class _Figures extends StatelessWidget {
-  final List<Widget> tiles;
-
-  const _Figures({required this.tiles});
+  const _AllButton({required this.route});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final columns = box.maxWidth < 520 ? 2 : tiles.length;
-        return Column(
-          children: [
-            for (var r = 0; r < tiles.length; r += columns) ...[
-              if (r > 0) AppSpacing.gapSm,
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (
-                      var i = r;
-                      i < r + columns && i < tiles.length;
-                      i++
-                    ) ...[
-                      if (i > r) AppSpacing.gapSm,
-                      Expanded(child: tiles[i]),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ],
-        );
-      },
+    return AppButton(
+      icon: AppIcons.arrowRight,
+      label: 'All',
+      style: AppButtonStyle.ghost,
+      size: AppButtonSize.small,
+      onTap: () => context.go(route),
     );
   }
 }
 
-/// Side by side where there is room, stacked on a phone.
-class _Cards extends StatelessWidget {
-  final List<Widget> cards;
+/// One row of "Needs you": a tinted icon, one line saying what and why, and
+/// a chevron to the thing itself.
+class NeedRow extends StatelessWidget {
+  final NeedItem item;
+  final VoidCallback onTap;
 
-  const _Cards({required this.cards});
+  const NeedRow({super.key, required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    if (AppSpacing.isNarrow(context)) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final scheme = Theme.of(context).colorScheme;
+    final color = switch (item.tone) {
+      NeedTone.info => scheme.accent,
+      NeedTone.warning => scheme.warning,
+    };
+    return AppListRow(
+      leading: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: AppRadius.allMd,
+        ),
+        child: Icon(item.icon, size: 18, color: color),
+      ),
+      title: item.text,
+      onTap: onTap,
+    );
+  }
+}
+
+/// One count in the strip: "12 active links".
+class _Figure {
+  final int count;
+  final String one;
+  final String many;
+  final String route;
+
+  const _Figure(this.count, this.one, this.many, this.route);
+
+  String get label => '$count ${count == 1 ? one : many}';
+}
+
+/// The counts on one bordered line, each opening the list it counts. Wraps
+/// onto a second line on a phone rather than shrinking.
+class _Stats extends StatelessWidget {
+  final List<_Figure> figures;
+
+  const _Stats({required this.figures});
+
+  @override
+  Widget build(BuildContext context) {
+    final narrow = AppSpacing.isNarrow(context);
+    return AppCard(
+      padding: EdgeInsets.symmetric(
+        horizontal: narrow ? AppSpacing.xs : AppSpacing.sm,
+        vertical: AppSpacing.xxs,
+      ),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          for (var i = 0; i < cards.length; i++) ...[
-            if (i > 0) AppSpacing.gapSm,
-            cards[i],
+          for (var i = 0; i < figures.length; i++) ...[
+            if (i > 0) const AppText('·').muted,
+            _FigureLink(figure: figures[i]),
           ],
         ],
-      );
-    }
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < cards.length; i++) ...[
-            if (i > 0) AppSpacing.gapMd,
-            Expanded(child: cards[i]),
-          ],
-        ],
+      ),
+    );
+  }
+}
+
+class _FigureLink extends StatelessWidget {
+  final _Figure figure;
+
+  const _FigureLink({required this.figure});
+
+  @override
+  Widget build(BuildContext context) {
+    final words = figure.label.substring('${figure.count}'.length);
+    return Semantics(
+      button: true,
+      label: figure.label,
+      excludeSemantics: true,
+      child: AppFocusRing(
+        borderRadius: BorderRadius.zero,
+        child: InkWell(
+          onTap: () => context.go(figure.route),
+          borderRadius: BorderRadius.zero,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: AppSpacing.xs,
+            ),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${figure.count}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextSpan(
+                    text: words,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

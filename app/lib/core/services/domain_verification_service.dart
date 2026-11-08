@@ -216,6 +216,118 @@ class DomainVerificationService {
     return verdict;
   }
 
+  /// Checks a server rather than one of its identities: that [claimedDomain]
+  /// pins, in DNS, the root key its server serves. An attestation offer is
+  /// signed with the server's own credential key, certified by that root, so
+  /// no identity — and no identity signature — is part of the question; asking
+  /// [verify] with an empty signature stopped at "issued before DNS
+  /// verification" for every offer, however green the domain was.
+  ///
+  /// When [expectedRootFingerprint] is given (what the offer's probe said),
+  /// the root key the domain pins must be that one too.
+  Future<TrustVerdict> verifyServer({
+    required String claimedDomain,
+    String expectedRootFingerprint = '',
+  }) async {
+    final key = 'server:$claimedDomain|$expectedRootFingerprint';
+    final verdict =
+        await _verifyServer(
+          claimedDomain: claimedDomain,
+          expectedRootFingerprint: expectedRootFingerprint,
+        ).timeout(
+          _overallDeadline,
+          onTimeout: () => TrustVerdict.unverified(
+            domain: claimedDomain,
+            reason:
+                'The domain check did not finish in time. The network or the '
+                'DNS resolvers may be unreachable.',
+          ),
+        );
+    if (verdict.state == TrustState.verified ||
+        verdict.state == TrustState.spoofed) {
+      _cache[key] = _CachedVerdict(verdict, DateTime.now());
+      await _persist();
+    } else if (_cache.remove(key) != null) {
+      await _persist();
+    }
+    return verdict;
+  }
+
+  Future<TrustVerdict> _verifyServer({
+    required String claimedDomain,
+    required String expectedRootFingerprint,
+  }) async {
+    if (claimedDomain.isEmpty) {
+      return TrustVerdict.unverified(
+        domain: claimedDomain,
+        reason:
+            'The server did not declare a domain. No DNS verification is '
+            'possible.',
+      );
+    }
+    final pinFuture = _shared(
+      _pinInFlight,
+      claimedDomain,
+      () => _lookupTxtFingerprint(claimedDomain),
+    );
+    final infoFuture = _shared(
+      _infoInFlight,
+      claimedDomain,
+      () => _fetchServerInfo(claimedDomain),
+    );
+    unawaited(infoFuture.catchError((Object _) => _ServerInfo.empty));
+
+    final String? dnsFingerprint;
+    try {
+      dnsFingerprint = await pinFuture;
+    } on _VerificationError catch (e) {
+      return TrustVerdict.dnsMissing(domain: claimedDomain, reason: e.message);
+    }
+    if (dnsFingerprint == null) {
+      return TrustVerdict.dnsMissing(
+        domain: claimedDomain,
+        reason:
+            'No TXT record found at _revoked.$claimedDomain. Either the '
+            'operator has not published one or DNS has not propagated.',
+      );
+    }
+
+    final _ServerInfo info;
+    try {
+      info = await infoFuture;
+    } on _VerificationError catch (e) {
+      return TrustVerdict.unverified(domain: claimedDomain, reason: e.message);
+    }
+
+    final fetchedFingerprint = _crypto.sha256Hex(info.publicKeyPem);
+    if (fetchedFingerprint != dnsFingerprint.toLowerCase() ||
+        fetchedFingerprint != info.claimedFingerprint.toLowerCase()) {
+      return TrustVerdict.spoofed(
+        domain: claimedDomain,
+        reason:
+            'DNS pins root key $dnsFingerprint but the server at '
+            '$claimedDomain is serving a different key '
+            '($fetchedFingerprint). This is consistent with a spoofed '
+            'or hijacked server — do NOT submit data.',
+      );
+    }
+    if (expectedRootFingerprint.isNotEmpty &&
+        expectedRootFingerprint.toLowerCase() != fetchedFingerprint) {
+      return TrustVerdict.spoofed(
+        domain: claimedDomain,
+        reason:
+            'This offer names root key $expectedRootFingerprint, but '
+            '$claimedDomain pins $fetchedFingerprint. It was not made by '
+            'the server it names.',
+      );
+    }
+    return TrustVerdict.verified(
+      domain: claimedDomain,
+      rootFingerprint: fetchedFingerprint,
+      identityFingerprint: '',
+    );
+  }
+
   /// The whole walk is bounded, not just its individual hops: two 8-second
   /// timeouts plus signature work could otherwise hold the UI on "Checking…"
   /// far longer than anyone waits. A deadline reached is an unverified

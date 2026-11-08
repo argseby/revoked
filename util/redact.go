@@ -55,6 +55,9 @@ var AuditSecretFields = map[string][]string{
 	Coll.WebhookEndpoints: {Fields.WebhookEndpoint.Secret, Fields.WebhookEndpoint.PreviousSecret},
 	// A receiver's answer is its own data and may echo what it was sent.
 	Coll.WebhookAttempts: {Fields.WebhookAttempt.ResponseBody},
+	// Hidden, so PublicExport leaves them out already; listed so a snapshot
+	// taken any other way still cannot carry an authenticator secret.
+	Coll.Users: {Fields.User.TotpSecret, Fields.User.TotpPending},
 }
 
 // RedactAuditData returns data with the collection's secret fields replaced by

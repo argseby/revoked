@@ -37,13 +37,14 @@ func TestComposePassesEveryDocumentedVariable(t *testing.T) {
 
 	// Read by compose itself to lay out the stack, never by the server.
 	composeOnly := map[string]bool{
-		"CONTAINER_NAME": true,
-		"API_PORT":       true,
-		"API_PUBLISH":    true,
-		"HTTP_PORT":      true,
-		"HTTPS_PORT":     true,
-		"PROXY_NETWORK":  true,
-		"REVOKED_IMAGE":  true,
+		"CONTAINER_NAME":  true,
+		"API_PORT":        true,
+		"API_PUBLISH":     true,
+		"HTTP_PORT":       true,
+		"HTTPS_PORT":      true,
+		"PROXY_NETWORK":   true,
+		"REVOKED_IMAGE":   true,
+		"REVOKED_VERSION": true, // a build argument
 	}
 
 	var missing []string

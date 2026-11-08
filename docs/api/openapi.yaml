@@ -224,6 +224,15 @@ paths:
                           Whether this server issues attestations in its
                           domain's name (`ALLOW_ATTESTATIONS`). Holding and
                           verifying credentials do not depend on it.
+                  twoFactor:
+                    type: object
+                    description: Operator policy on two-factor authentication.
+                    properties:
+                      required:
+                        type: boolean
+                        description: |
+                          Whether every account must sign in with an
+                          authenticator app after its passkey (`REQUIRE_2FA`).
 
   /api/blocked-domains:
     get:
@@ -3262,8 +3271,197 @@ paths:
                           id: { type: string }
                           name: { type: string }
                           credentialId: { type: string }
+                      twoFactorSetupRequired:
+                        type: boolean
+                        description: "Present and true when the server requires an authenticator app and the account has none yet."
         "400":
           description: "`passkey_grant_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401":
+          description: |
+            `two_factor_required`: the account has an authenticator app. No
+            session yet; the body also carries `challenge` and `expiresAt`, and
+            `POST /api/passkeys/token/2fa` completes the sign-in.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/AppError" }
+                  - type: object
+                    properties:
+                      challenge: { type: string }
+                      expiresAt: { type: string, format: date-time }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/passkeys/token/2fa:
+    post:
+      tags: [Sign-in]
+      summary: Complete a sign-in with an authenticator code (the app)
+      description: |
+        Completes a sign-in that `POST /api/passkeys/token` answered with
+        `401 two_factor_required`: the challenge from that answer and the
+        current 6-digit code of the account's authenticator app (TOTP, RFC
+        6238, one step of clock drift either way). A challenge lasts five
+        minutes and allows five codes; the account allows ten codes in five
+        minutes across all challenges.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge, code]
+              properties:
+                challenge: { type: string }
+                code: { type: string, examples: ["123456"] }
+      responses:
+        "200":
+          description: A session token, the user record and the same `meta` as `/api/passkeys/token`.
+        "400":
+          description: "`two_factor_challenge_invalid`: unknown, expired, spent, or out of attempts."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401":
+          description: "`two_factor_code_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/2fa:
+    get:
+      tags: [Sign-in]
+      summary: Two-factor status of the signed-in account
+      security:
+        - Session: []
+      responses:
+        "200":
+          description: The status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled: { type: boolean }
+                  required: { type: boolean, description: "The server requires it (`REQUIRE_2FA`)." }
+                  setupRequired: { type: boolean, description: "Required and not yet set up: the app asks for it before anything else." }
+                  enabledAt: { type: [string, "null"], format: date-time }
+        "401":
+          description: "`not_authenticated`: no session, or an API key."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+
+  /api/2fa/totp/setup:
+    post:
+      tags: [Sign-in]
+      summary: Start setting up an authenticator app
+      description: |
+        Makes a new secret and keeps it pending until a code confirms it. The
+        secret is returned here once, as text and inside an `otpauth://` URI
+        for a QR code; no other endpoint returns it.
+      security:
+        - Session: []
+      responses:
+        "200":
+          description: The pending secret.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret: { type: string, description: "Base32, 160 bits." }
+                  otpauthUri: { type: string }
+        "401":
+          description: "`not_authenticated`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "409":
+          description: "`two_factor_already_enabled`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/2fa/totp/confirm:
+    post:
+      tags: [Sign-in]
+      summary: Turn on the authenticator app being set up
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "200":
+          description: >-
+            The new status, as `GET /api/2fa`, plus `token`: turning it on
+            ends every session of the account, the calling one included, so
+            the caller continues with this one.
+        "400":
+          description: "`two_factor_code_invalid`, also for a code already used."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401":
+          description: "`not_authenticated`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "409":
+          description: "`two_factor_already_enabled` or `two_factor_not_pending`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/2fa/totp:
+    delete:
+      tags: [Sign-in]
+      summary: Turn off the authenticator app
+      description: Needs a current code. Refused while the server requires two-factor authentication.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "200":
+          description: The new status, as `GET /api/2fa`.
+        "400":
+          description: "`two_factor_code_invalid`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "401":
+          description: "`not_authenticated`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: "`two_factor_enforced`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "409":
+          description: "`two_factor_not_enabled`."
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AppError" }

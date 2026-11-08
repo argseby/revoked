@@ -8,19 +8,23 @@ import 'package:revoked_app/core/design/text_styles.dart';
 /// The height of the bar's other controls, so search and New line up.
 const double _searchHeight = AppButton.smallExtent;
 
-/// The app's one search control: a pill that opens the shell's search and
-/// link panel rather than filtering anything in place. Lists do not carry
-/// their own search, so this is the only place a query is typed.
+/// The shell's "Open link or go to" pill: it opens the panel that finds
+/// anything by name or opens a pasted link, rather than filtering anything in
+/// place. A list's own search is the field in its `AppListToolbar`.
 class AppSearchTrigger extends StatelessWidget {
   final String hint;
   final VoidCallback onTap;
   final Widget? trailing;
+
+  /// Before the hint. Not a magnifier, which marks a list's own search.
+  final IconData? icon;
 
   const AppSearchTrigger({
     super.key,
     required this.hint,
     required this.onTap,
     this.trailing,
+    this.icon,
   });
 
   @override
@@ -44,9 +48,12 @@ class AppSearchTrigger extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  // The width of a field's prefix icon, so the hint starts
-                  // where [AppSearchField]'s does.
-                  SizedBox(width: 12),
+                  if (icon != null) ...[
+                    AppSpacing.gapMd,
+                    Icon(icon, size: 16, color: scheme.onSurfaceVariant),
+                    AppSpacing.gapSm,
+                  ] else
+                    AppSpacing.gapMd,
 
                   Expanded(
                     child: AppText(

@@ -28,9 +28,9 @@ import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/shell/utils/quick_search.dart';
 import 'package:revoked_app/features/shell/view/qr_scan_sheet.dart';
 
-/// Opens the search drawer: find a record or link by name, or paste a
-/// `revoked://` share/request link and either open it or verify it (DNS +
-/// link security) first.
+/// Opens the "Open link or go to" drawer: find a record or link by name, or
+/// paste a `revoked://` share/request link and either open it or verify it
+/// (DNS + link security) first.
 Future<void> openLinkSearchSheet(BuildContext context) async {
   final store = Stores.linkSearch;
   if (store.isDrawerOpen) return;
@@ -196,12 +196,10 @@ class LinkSearchSheet extends StatelessWidget {
           '/api/attestations/offers/${Uri.encodeComponent(resolved.slug)}',
         );
         final server = probe is Map<String, dynamic> ? probe['server'] : null;
-        verdict = await Stores.domainVerification.verify(
-          claimedDomain: server is Map<String, dynamic>
-              ? (server['domain'] as String? ?? '')
-              : '',
-          identityFingerprint: '',
-          parentSignatureHex: '',
+        final info = server is Map<String, dynamic> ? server : const {};
+        verdict = await Stores.domainVerification.verifyServer(
+          claimedDomain: info['domain'] as String? ?? '',
+          expectedRootFingerprint: info['rootFingerprint'] as String? ?? '',
         );
       } else {
         // A successful probe proves the share is live (not revoked / expired /
@@ -246,7 +244,7 @@ class LinkSearchSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Search or open a link').header,
+            const Text('Open link or go to').header,
             const SizedBox(height: AppSpacing.xxs),
             const Text(
               'Searches records, links, requests, contacts and more by name, '

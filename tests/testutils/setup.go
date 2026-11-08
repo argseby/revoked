@@ -85,6 +85,7 @@ func SetupTestApp(t testing.TB) (string, *pocketbase.PocketBase) {
 		routes.ConfigureSignupMailRateLimit(0)
 		routes.ConfigureGrantRateLimit(0)
 		routes.ConfigureSubmissionRateLimit(0)
+		routes.ConfigureTwoFactorRateLimit(0)
 		hooks.ConfigureOutboundMailLimit(0)
 
 		bootstrap.Bind(testApp, root)

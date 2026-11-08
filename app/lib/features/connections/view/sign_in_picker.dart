@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
@@ -8,6 +9,7 @@ import 'package:revoked_app/core/models/sign_in_consent.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
@@ -27,12 +29,20 @@ class SignInChoice {
   final String title;
   final String key;
 
+  /// Whether the service gets this now, from an earlier sign-in.
+  final bool shared;
+
+  /// Whether the entry was made at an earlier sign-in at this service.
+  final bool madeFor;
+
   const SignInChoice({
     required this.id,
     required this.value,
     required this.title,
     this.recordId,
     this.key = '',
+    this.shared = false,
+    this.madeFor = false,
   });
 
   String get primary => value.isEmpty ? title : value;
@@ -146,6 +156,13 @@ class SignInPicker extends StatelessWidget {
   final String? workspace;
   final bool busy;
   final String? note;
+
+  /// Marks a question the service asks for the first time, on a return.
+  final bool isNew;
+
+  /// The most characters a new value may have; the field stops there and
+  /// counts down as it gets close.
+  final int? maxLength;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSwitchWorkspace;
   final SignInBrowseData Function() browse;
@@ -168,6 +185,8 @@ class SignInPicker extends StatelessWidget {
     this.allFit = false,
     this.workspace,
     this.note,
+    this.maxLength,
+    this.isNew = false,
   });
 
   SignInChoice? get _picked {
@@ -221,7 +240,15 @@ class SignInPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(heading),
+        isNew
+            ? Row(
+                children: [
+                  Flexible(child: Text(heading)),
+                  AppSpacing.gapSm,
+                  const AppBadge(label: 'New'),
+                ],
+              )
+            : Text(heading),
         AppSpacing.gapSm,
         _Preview(
           label: selected.isEmpty ? null : preview,
@@ -234,6 +261,7 @@ class SignInPicker extends StatelessWidget {
           detail: [
             if (selected == newValue) 'New value',
             if (picked != null && picked.value.isNotEmpty) picked.title,
+            if (picked != null && picked.shared) 'Already shared · unchanged',
             if (selected.isEmpty) 'Sign-in works without it',
             if (selected.isNotEmpty && workspace != null) workspace!,
           ].join(' · '),
@@ -258,11 +286,30 @@ class SignInPicker extends StatelessWidget {
             hint: newHint,
             enabled: !busy,
             leading: const Icon(AppIcons.plus),
+            inputFormatters: [
+              if (maxLength != null)
+                LengthLimitingTextInputFormatter(maxLength),
+            ],
             onChanged: (_) {
               if (selected != newValue) onChanged(newValue);
             },
           ),
         ),
+        if (maxLength case final max?)
+          Observer(
+            builder: (context) {
+              final length = draft.text.characters.length;
+              if (length < max * 0.8) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                child: Text(
+                  length >= max
+                      ? 'At most $max characters.'
+                      : '${max - length} characters left',
+                ).small.muted,
+              );
+            },
+          ),
         if (hasMore) ...[
           AppSpacing.gapSm,
           _Row(
@@ -370,10 +417,20 @@ class SignInChoiceRow extends StatelessWidget {
           choice.secondary,
           ?where,
         ].where((s) => s.isNotEmpty).join(' · '),
+        tertiary: choice.madeFor ? 'Made at your last sign-in' : null,
         selected: selected,
-        trailing: Icon(
-          selected ? AppIcons.checkCircle : AppIcons.circle,
-          color: selected ? scheme.primary : scheme.outline,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (choice.shared) ...[
+              const AppBadge(label: 'Shared now'),
+              AppSpacing.gapSm,
+            ],
+            Icon(
+              selected ? AppIcons.checkCircle : AppIcons.circle,
+              color: selected ? scheme.primary : scheme.outline,
+            ),
+          ],
         ),
         onTap: onTap,
       ),
@@ -385,6 +442,9 @@ class _Row extends StatelessWidget {
   final Widget? leading;
   final String primary;
   final String secondary;
+
+  /// A further line, for where an entry came from.
+  final String? tertiary;
   final Widget? trailing;
   final bool selected;
   final VoidCallback? onTap;
@@ -394,6 +454,7 @@ class _Row extends StatelessWidget {
     required this.secondary,
     required this.onTap,
     this.leading,
+    this.tertiary,
     this.trailing,
     this.selected = false,
   });
@@ -429,6 +490,12 @@ class _Row extends StatelessWidget {
                     if (secondary.isNotEmpty)
                       Text(
                         secondary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ).small.muted,
+                    if (tertiary case final line?)
+                      Text(
+                        line,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ).small.muted,

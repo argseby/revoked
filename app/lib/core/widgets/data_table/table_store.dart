@@ -57,11 +57,11 @@ List<DataTableSortOption> sortOptionsFor(List<DataTableColumn> columns) => [
   ],
 ];
 
-/// Filter and sort over an in-memory list.
+/// Search, filter and sort over an in-memory list.
 ///
-/// It holds no text query: searching by name is the shell's one search panel,
-/// across every kind, so a list that also filtered by its own query would be
-/// a second way to do it.
+/// [query] is the list's own search, typed into its toolbar; it matches the
+/// [searchFields]. The shell's "Open link or go to" panel searches across
+/// every kind and opens what it finds — it does not narrow a list.
 ///
 /// Page-scoped: the page that needs a table creates one and disposes it there,
 /// per the store rules — this is never a singleton.
@@ -73,11 +73,38 @@ abstract class _TableStore<T> with Store {
   final Map<String, Comparable Function(T)> fieldGetters;
   final String defaultSort;
 
+  /// The [fieldGetters] keys [query] looks in.
+  final List<String> searchFields;
+
   _TableStore({
     required this.getSourceItems,
     required this.fieldGetters,
     this.defaultSort = 'created_desc',
+    this.searchFields = const [],
   }) : sortBy = defaultSort;
+
+  /// What is typed into the list's search; empty lets everything through.
+  /// Kept as a plain observable so it needs no generated code.
+  final Observable<String> _query = Observable('');
+
+  String get query => _query.value;
+
+  void setQuery(String value) => runInAction(() => _query.value = value);
+
+  /// Whether [item] answers [query] in any of the [searchFields].
+  ///
+  /// A list without [searchFields] has nothing to search in, so a query
+  /// leaves it whole rather than emptying it.
+  bool matchesQuery(T item) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty || searchFields.isEmpty) return true;
+    for (final field in searchFields) {
+      final getter = fieldGetters[field];
+      if (getter == null) continue;
+      if (getter(item).toString().toLowerCase().contains(q)) return true;
+    }
+    return false;
+  }
 
   final ObservableList<DataTableFilter> filters =
       ObservableList<DataTableFilter>();
@@ -141,7 +168,10 @@ abstract class _TableStore<T> with Store {
     final source = getSourceItems();
     if (source.isEmpty) return [];
 
-    List<T> result = List.from(source);
+    List<T> result = [
+      for (final item in source)
+        if (matchesQuery(item)) item,
+    ];
 
     for (final f in filters) {
       if (f.value.isEmpty) continue;

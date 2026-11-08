@@ -30,6 +30,7 @@ import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_controls.dart';
@@ -513,18 +514,19 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
       }
     }
 
-    // Extras must match the slug regex if the responder added any.
+    // A field name is free text ("Straße", "Größe"); the key the server
+    // files it under is made from it, clear of the template's keys and of
+    // the other extras.
+    final extraKeys = <_ExtraField, String>{};
+    final taken = {for (final t in _store.publicTemplate) t.key};
     for (final f in _extraFields) {
-      final k = f.keyCtrl.text.trim();
-      if (k.isEmpty) continue;
-      if (!_keyPattern.hasMatch(k)) {
-        runInAction(
-          () => _store.publicFormError =
-              'Field names may contain only lowercase letters, digits, _ and '
-              '-: "$k".',
-        );
-        return;
-      }
+      final name = f.keyCtrl.text.trim();
+      if (name.isEmpty) continue;
+      final key = _keyPattern.hasMatch(name) && !taken.contains(name)
+          ? name
+          : keyFromLabel(name, taken);
+      taken.add(key);
+      extraKeys[f] = key;
     }
 
     runInAction(() {
@@ -546,11 +548,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
         if (v.isNotEmpty) data[item.key] = v;
       }
     }
-    for (final f in _extraFields) {
-      final k = f.keyCtrl.text.trim();
-      final v = f.valueCtrl.text.trim();
-      if (k.isNotEmpty) data[k] = v;
-    }
+    extraKeys.forEach((f, key) => data[key] = f.valueCtrl.text.trim());
 
     try {
       final stored = await _loadStoredHandshake();
@@ -1105,7 +1103,7 @@ class _PublicRequestScreenState extends State<PublicRequestScreen> {
                   flex: 4,
                   child: AppTextField(
                     controller: f.keyCtrl,
-                    hint: 'field-name',
+                    hint: 'Field name',
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),

@@ -278,7 +278,7 @@ class _QrCode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = QrImage(QrCode.fromData(data: data, errorCorrectLevel: QrErrorCorrectLevel.L));
+    final image = QrImage(QrCode(payload: QrPayload.fromString(data), errorCorrectLevel: QrErrorCorrectLevel.low));
     return Semantics(
       image: true,
       label: label,

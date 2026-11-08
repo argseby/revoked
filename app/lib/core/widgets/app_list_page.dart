@@ -1,20 +1,36 @@
 import 'package:flutter/material.dart';
 
+import 'package:revoked_app/core/state/shell_slots.dart';
+import 'package:revoked_app/core/widgets/app_filter_menu.dart';
+
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
 /// The body of every list tab — Vault, Links, Requests — laid out the same:
 ///
+///   top bar:  Shares     [🔍 Search links …… ⚟ Filter and sort] [+ New]
+///   [header]                       a pane's name, if any
+///   (Active ×) (Oldest first ×)    what narrows the list, if anything
 ///   (All 14) (Active 6) (Closed 8)
-///   [banner]                      a mode the screen is held in, if any
+///   [banner]                       a mode the screen is held in, if any
 ///   Group ─────────────────────
 ///   Group ─────────────────────
 ///
-/// The search sits above it in an [AppListSearch], so the top bar keeps the
-/// screen's name. The chips scroll away with the list, so a phone spends its
-/// height on rows.
+/// The [toolbar]'s search pill goes up into the shell's top bar, beside New,
+/// on every screen and width; on a phone behind a search icon there. It is
+/// handed up only while this list is the one in view — not from a tab that
+/// is not selected. Outside the shell (a sheet, a test) the pill stays above
+/// the list. The [header] and the chips of what is active stay pinned above
+/// the list; the [filters] scroll away with it, so a phone spends its height
+/// on rows.
 class AppListPage extends StatelessWidget {
+  /// The list's search, Filter and sort.
+  final AppListToolbar? toolbar;
+
+  /// Pinned above the list, over the chips — a pane's name.
+  final Widget? header;
+
   /// The filter chips, first on the page.
   final Widget? filters;
 
@@ -29,6 +45,8 @@ class AppListPage extends StatelessWidget {
 
   const AppListPage({
     super.key,
+    this.toolbar,
+    this.header,
     this.filters,
     this.banners = const [],
     required this.groups,
@@ -37,7 +55,7 @@ class AppListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPageBody(
+    final body = AppPageBody(
       children: [
         if (filters != null) ...[filters!, AppSpacing.gapLg],
         for (final b in banners) ...[b, AppSpacing.gapLg],
@@ -49,6 +67,132 @@ class AppListPage extends StatelessWidget {
         else
           ...groups,
       ],
+    );
+    final toolbar = this.toolbar;
+    final inShell = toolbar != null && ShellSearchHost.contains(context);
+    final pinned = <Widget>[
+      ?header,
+      if (toolbar != null && !inShell) toolbar.pill(),
+      // In the shell the search is behind the top bar's button, so what was
+      // typed shows here with the rest.
+      ?toolbar?.chips(context, withQuery: inShell),
+    ];
+    Widget page = pinned.isEmpty
+        ? body
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppPageInset(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (i, w) in pinned.indexed) ...[
+                      if (i > 0) AppSpacing.gapSm,
+                      w,
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(child: body),
+            ],
+          );
+    if (inShell) page = _SearchClaim(toolbar: toolbar, child: page);
+    return page;
+  }
+}
+
+/// What a list shows while it has nothing to list — its empty state, or the
+/// error of a first load — with its [toolbar] still in the shell's top bar,
+/// so Search and filter sits in the same place on every list, empty or not.
+/// Outside the shell it is only [child]: a field above an empty state would
+/// have nothing to search.
+class AppListEmpty extends StatelessWidget {
+  final AppListToolbar toolbar;
+  final Widget child;
+
+  const AppListEmpty({super.key, required this.toolbar, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!ShellSearchHost.contains(context)) return child;
+    return _SearchClaim(toolbar: toolbar, child: child);
+  }
+}
+
+/// Keeps [toolbar] in [ShellSlots.search] while its list is the one in view,
+/// and takes it out when the list goes or its tab is switched away. Claims
+/// land after the frame: the shell rebuilds from them, and changing what it
+/// observes in the middle of a build is not allowed.
+class _SearchClaim extends StatefulWidget {
+  final AppListToolbar toolbar;
+  final Widget child;
+
+  const _SearchClaim({required this.toolbar, required this.child});
+
+  @override
+  State<_SearchClaim> createState() => _SearchClaimState();
+}
+
+class _SearchClaimState extends State<_SearchClaim> {
+  /// The screen this list belongs to, taken when it first appears and kept:
+  /// a claim names it, so the bar never shows one screen's search on
+  /// another.
+  late final String _root = ShellSearchHost.maybeOf(context)?.root ?? '';
+
+  @override
+  Widget build(BuildContext context) {
+    // A tab that is not selected is still built; it must not claim. Nor may
+    // a page on its way out: switching screens keeps the old page mounted
+    // for a moment, and a rebuild there would take the bar back from the
+    // new screen, then empty it when the old page goes.
+    final visible =
+        Visibility.of(context) && (ModalRoute.of(context)?.isCurrent ?? true);
+    final root = _root;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (visible) {
+        ShellSlots.search.claim(this, root, widget.toolbar);
+      } else {
+        ShellSlots.search.release(this);
+      }
+    });
+    return widget.child;
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ShellSlots.search.release(this),
+    );
+    super.dispose();
+  }
+}
+
+/// A row outside the scrolling body that lines up with it: the same side
+/// inset and the same maximum width as [AppPageBody]'s column.
+class AppPageInset extends StatelessWidget {
+  final Widget child;
+
+  const AppPageInset({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenH(context),
+        AppSpacing.sm,
+        AppSpacing.screenH(context),
+        0,
+      ),
+      child: Align(
+        alignment: AlignmentDirectional.topStart,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: AppSpacing.contentMaxWidth,
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }

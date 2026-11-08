@@ -122,6 +122,11 @@ class ApiClient {
   /// can drop to the login screen instead of showing error toasts forever.
   void Function()? onUnauthorized;
 
+  /// Called when the server holds this session until an authenticator app is
+  /// set up (`REQUIRE_2FA`), so the app can show the setup screen instead of
+  /// a refusal on every screen.
+  void Function()? onTwoFactorSetupRequired;
+
   /// A write went through. One change can touch lists on other screens (sending
   /// to a contact creates a share), so whatever is cached has to be asked again.
   void Function()? onWrite;
@@ -664,11 +669,15 @@ class ApiClient {
     return _handleResponse(response);
   }
 
-  /// DELETE request.
-  Future<dynamic> delete(String path) async {
+  /// DELETE request, with a JSON [body] where the route asks for one.
+  Future<dynamic> delete(String path, {Map<String, dynamic>? body}) async {
     final uri = Uri.parse('$baseUrl$path');
     final response = await _send(
-      _httpClient.delete(uri, headers: _buildHeaders()),
+      _httpClient.delete(
+        uri,
+        headers: _buildHeaders(),
+        body: body != null ? jsonEncode(body) : null,
+      ),
     );
     if (response.statusCode == 204) return null;
     return _handleResponse(response);
@@ -740,6 +749,11 @@ class ApiClient {
     // shows its own failure toast forever while the session stays dead.
     if (response.statusCode == 401 && isAuthenticated && !foreign) {
       onUnauthorized?.call();
+    }
+    if (response.statusCode == 403 &&
+        code == 'two_factor_setup_required' &&
+        !foreign) {
+      onTwoFactorSetupRequired?.call();
     }
 
     throw ApiException(response.statusCode, message, code: code, data: data);
