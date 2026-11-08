@@ -176,9 +176,30 @@ abstract class _AuthStore with Store {
   /// device that sees the `revoked://auth` link can redeem it.
   @action
   Future<bool> beginSignIn({bool signup = false}) async {
-    errorMessage = null;
-    twoFactorChallenge = null;
-    twoFactorError = null;
+    final page = await _prepareSignIn(signup: signup);
+    final opened = await _openBrowser(page).catchError((Object _) => false);
+    runInAction(() {
+      isAwaitingBrowser = opened;
+      if (!opened) errorMessage = 'The browser could not be opened.';
+    });
+    return opened;
+  }
+
+  /// The same page as [beginSignIn], handed back instead of opened, for
+  /// pasting into another browser on this device. The way back is the
+  /// `revoked://auth` link, which only this device's app answers.
+  Future<Uri> signInLink() async {
+    final page = await _prepareSignIn();
+    runInAction(() => isAwaitingBrowser = true);
+    return page;
+  }
+
+  Future<Uri> _prepareSignIn({bool signup = false}) async {
+    runInAction(() {
+      errorMessage = null;
+      twoFactorChallenge = null;
+      twoFactorError = null;
+    });
     final verifier = Pkce.randomToken(32);
     final state = Pkce.randomToken(16);
     final page = Uri.parse('${_api.baseUrl}/passkey').replace(
@@ -190,7 +211,7 @@ abstract class _AuthStore with Store {
     );
     // Kept across a restart: a phone may drop the app while the browser is
     // in front, and the link that brings it back must still be answerable.
-    startedSignup = signup;
+    runInAction(() => startedSignup = signup);
     await _writePending({
       'state': state,
       'verifier': verifier,
@@ -198,15 +219,10 @@ abstract class _AuthStore with Store {
       'server': _api.baseUrl,
       'at': DateTime.now().millisecondsSinceEpoch,
     });
-    final opened = await _openBrowser(page).catchError((Object _) => false);
-    runInAction(() {
-      isAwaitingBrowser = opened;
-      if (!opened) errorMessage = 'The browser could not be opened.';
-    });
-    return opened;
+    return page;
   }
 
-  /// On a computer, "Set up on a phone instead" shows the code that moves
+  /// On a computer, "Use a phone" shows the code that moves
   /// setup to the phone.
   @action
   void showPhoneSetup() {

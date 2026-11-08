@@ -92,9 +92,12 @@ abstract class _TableStore<T> with Store {
   void setQuery(String value) => runInAction(() => _query.value = value);
 
   /// Whether [item] answers [query] in any of the [searchFields].
+  ///
+  /// A list without [searchFields] has nothing to search in, so a query
+  /// leaves it whole rather than emptying it.
   bool matchesQuery(T item) {
     final q = query.trim().toLowerCase();
-    if (q.isEmpty) return true;
+    if (q.isEmpty || searchFields.isEmpty) return true;
     for (final field in searchFields) {
       final getter = fieldGetters[field];
       if (getter == null) continue;

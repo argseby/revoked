@@ -19,9 +19,9 @@ import 'package:revoked_app/features/auth/view/round_trip.dart';
 import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen.dart';
 
 /// One button leads in: the server's page offers a saved passkey and a new
-/// account side by side, so the app asks nothing first. The welcome still
-/// says that the browser opens and comes back, since a browser appearing
-/// unannounced is where people gave up; on a computer it offers the phone.
+/// account side by side, so the app asks nothing first. The button names the
+/// browser, since a browser appearing unannounced is where people gave up; a
+/// link can be copied for another browser, and a computer offers the phone.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -75,12 +75,44 @@ void main() {
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
     expect(find.text('Revoked'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Continue in browser'), findsOneWidget);
+    expect(find.text('Copy link'), findsOneWidget);
     expect(find.text('Create account'), findsNothing);
     expect(find.text('Sign in'), findsNothing);
-    // The trip to the browser and back is shown before anything opens.
-    expect(find.byType(RoundTrip), findsOneWidget);
+    // The button says where it goes; no diagram has to.
+    expect(find.byType(RoundTrip), findsNothing);
     expect(launched, isEmpty);
+  });
+
+  testWidgets('Copy link hands over the page without opening it', (
+    tester,
+  ) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    signups = {'open': true, 'verifyEmail': true};
+    await show(tester, const LoginScreen());
+    await tester.tap(find.text('Copy link'));
+    await tester.pumpAndSettle();
+    final link = Uri.parse(copied!);
+    expect(link.path, '/passkey');
+    expect(link.queryParameters['mode'], 'signin');
+    expect(link.queryParameters['challenge'], isNotEmpty);
+    expect(launched, isEmpty);
+    expect(find.text('Waiting for the browser'), findsOneWidget);
   });
 
   testWidgets('a closed server says so, and still has the one button', (
@@ -89,16 +121,16 @@ void main() {
     signups = {'open': false, 'verifyEmail': false};
     await show(tester, const LoginScreen());
     expect(find.text('Registration is closed on this server'), findsOneWidget);
-    expect(find.text('Continue'), findsOneWidget);
-    expect(find.text('Set up on a phone instead'), findsNothing);
+    expect(find.text('Continue in browser'), findsOneWidget);
+    expect(find.text('Use a phone'), findsNothing);
   });
 
   testWidgets('Continue opens the browser at once', (tester) async {
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
     // A phone has no phone to move to.
-    expect(find.text('Set up on a phone instead'), findsNothing);
-    await tester.tap(find.text('Continue'));
+    expect(find.text('Use a phone'), findsNothing);
+    await tester.tap(find.text('Continue in browser'));
     await tester.pumpAndSettle();
     expect(launched.single.queryParameters['mode'], 'signin');
     expect(find.text('Waiting for the browser'), findsOneWidget);
@@ -109,7 +141,7 @@ void main() {
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Continue in browser'), findsOneWidget);
   });
 
   testWidgets('on a computer, the phone is offered, not required', (
@@ -118,7 +150,7 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
-    await tester.tap(find.text('Set up on a phone instead'));
+    await tester.tap(find.text('Use a phone'));
     await tester.pumpAndSettle();
     expect(find.text('Set up on a phone'), findsOneWidget);
     final qr = tester.widget<AppQrCode>(find.byType(AppQrCode));
@@ -127,9 +159,9 @@ void main() {
 
     await tester.tap(find.text('Back'));
     await tester.pumpAndSettle();
-    expect(find.text('Continue'), findsOneWidget);
+    expect(find.text('Continue in browser'), findsOneWidget);
 
-    await tester.tap(find.text('Set up on a phone instead'));
+    await tester.tap(find.text('Use a phone'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue on this computer'));
     await tester.pumpAndSettle();

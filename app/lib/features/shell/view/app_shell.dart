@@ -8,6 +8,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -85,10 +86,9 @@ class _AppShellState extends State<AppShell> {
   /// while Settings is open.
   String _lastRoot = AppRoutes.vault;
 
-  /// Whether the phone's top bar is the list's search bar, opened from its
-  /// search icon; closed again on leaving the page.
-  bool _phoneSearch = false;
-  String? _phoneSearchPath;
+  /// The page whose search the phone's top bar was opened into, from its
+  /// search icon; on any other page the bar is the usual one again.
+  final Local<String?> _phoneSearchFor = Local(null);
 
   @override
   void initState() {
@@ -180,10 +180,14 @@ class _AppShellState extends State<AppShell> {
   /// person has off: a link or an old bookmark still opens the page, and
   /// the notice is what keeps that from being a dead end.
   Widget _body(String path) {
+    final root = AppRoutes.rootOf(path) ?? '';
     final feature = featureForLocation(path);
     // A list in here hands its search up to the top bar.
-    if (feature == null) return ShellSearchHost(child: widget.child);
+    if (feature == null) {
+      return ShellSearchHost(root: root, child: widget.child);
+    }
     return ShellSearchHost(
+      root: root,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -198,11 +202,10 @@ class _AppShellState extends State<AppShell> {
   /// of the bar beside the page's New. The pill takes up to [_listSearchWidth]
   /// and gives way before the title does.
   ///
-  /// On a list screen the pill is always there: until the list is ready (or
-  /// while it has nothing in it) it shows greyed out with [hint], so the bar
-  /// keeps one shape from screen to screen.
-  Widget _titleWithSearch(String? root, AppListToolbar? search, String? hint) {
-    if (hint == null) return _title(root);
+  /// Only while the list on screen has something to search: an empty list
+  /// shows its empty state, with its own way to start, and no dead control.
+  Widget _titleWithSearch(String? root, AppListToolbar? search) {
+    if (search == null) return _title(root);
     return Row(
       children: [
         Expanded(flex: 2, child: _title(root)),
@@ -213,15 +216,7 @@ class _AppShellState extends State<AppShell> {
             alignment: AlignmentDirectional.centerEnd,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _listSearchWidth),
-              child:
-                  search?.pill() ??
-                  AppListSearchField(
-                    key: ValueKey(('search-placeholder', root)),
-                    value: '',
-                    hint: hint,
-                    enabled: false,
-                    onChanged: (_) {},
-                  ),
+              child: search.pill(),
             ),
           ),
         ),
@@ -240,10 +235,6 @@ class _AppShellState extends State<AppShell> {
     final root = AppRoutes.rootOf(path);
     final destination = AppRoutes.destinationOf(path);
     if (destination != null) _lastRoot = root!;
-    if (path != _phoneSearchPath) {
-      _phoneSearchPath = path;
-      _phoneSearch = false;
-    }
     final width = MediaQuery.sizeOf(context).width;
     if (width < AppSpacing.narrowWidth) {
       final isSubPage = path != (root ?? AppRoutes.settings);
@@ -267,10 +258,10 @@ class _AppShellState extends State<AppShell> {
   }) {
     // The list's search, behind an icon: opened, the bar becomes the search
     // bar, and a typed query keeps it open.
-    final hint = isSubPage ? null : _listSearchHints[root];
-    final search = hint == null ? null : ShellSlots.search.toolbarFor(root);
+    final search = isSubPage ? null : ShellSlots.search.toolbarFor(root);
     final searching =
-        search != null && (_phoneSearch || search.query.isNotEmpty);
+        search != null &&
+        (_phoneSearchFor.value == path || search.query.isNotEmpty);
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
       // Yields while any sheet is up, so it never overlaps a sheet's actions,
@@ -306,13 +297,13 @@ class _AppShellState extends State<AppShell> {
                 tooltip: 'Close search',
                 onTap: () {
                   search.onQueryChanged('');
-                  setState(() => _phoneSearch = false);
+                  _phoneSearchFor.value = null;
                 },
               ),
               titleSpacing: 0,
               title: Padding(
                 padding: const EdgeInsets.only(right: AppSpacing.lg),
-                child: search.pill(autofocus: _phoneSearch),
+                child: search.pill(autofocus: _phoneSearchFor.value == path),
               ),
             )
           : AppBar(
@@ -333,16 +324,13 @@ class _AppShellState extends State<AppShell> {
               title: _title(root),
               actions: [
                 _slot(ShellSlots.action),
-                // Always there on a list screen, so the bar keeps its shape;
-                // off until the list is ready.
-                if (hint != null)
+                // Only while the list has something to search.
+                if (search != null)
                   AppButton(
                     icon: AppIcons.search,
                     style: AppButtonStyle.ghost,
-                    tooltip: search?.searchHint ?? hint,
-                    onTap: search == null
-                        ? null
-                        : () => setState(() => _phoneSearch = true),
+                    tooltip: search.searchHint,
+                    onTap: () => _phoneSearchFor.value = path,
                   ),
                 AppButton(
                   // The link, not a magnifier: a magnifier is a list's own search.
@@ -418,10 +406,7 @@ class _AppShellState extends State<AppShell> {
         subPageActionFor(path) != null ||
         (sidebar && root == AppRoutes.shared);
     final pageAction = onList ? pageActionFor(path) : null;
-    final searchHint = onList ? _listSearchHints[root] : null;
-    final listSearch = searchHint == null
-        ? null
-        : ShellSlots.search.toolbarFor(root);
+    final listSearch = onList ? ShellSlots.search.toolbarFor(root) : null;
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -470,7 +455,7 @@ class _AppShellState extends State<AppShell> {
             child: Scaffold(
               appBar: AppBar(
                 titleSpacing: AppSpacing.screenH(context),
-                title: _titleWithSearch(root, listSearch, searchHint),
+                title: _titleWithSearch(root, listSearch),
                 actions: [
                   _slot(ShellSlots.action),
                   if (!sidebar) const _NotificationBell(),
@@ -479,14 +464,14 @@ class _AppShellState extends State<AppShell> {
                   // the page's action, and searches from an icon.
                   // Beside a list's search the pill would be a second one, so
                   // it stays an icon there.
-                  if (!sidebar && (!roomForSearchField || searchHint != null))
+                  if (!sidebar && (!roomForSearchField || listSearch != null))
                     AppButton(
                       icon: AppIcons.link,
                       style: AppButtonStyle.ghost,
                       tooltip: 'Open link or go to',
                       onTap: () => openLinkSearchSheet(context),
                     ),
-                  if (!sidebar && roomForSearchField && searchHint == null)
+                  if (!sidebar && roomForSearchField && listSearch == null)
                     Padding(
                       padding: EdgeInsets.only(left: AppSpacing.xs),
                       child: SizedBox(
@@ -660,16 +645,6 @@ class _Sidebar extends StatelessWidget {
 /// The narrowest window whose rail layout keeps the search field in the top
 /// bar; below it the field becomes an icon.
 const double _searchFieldMinWindow = 900;
-
-/// The screens with a list search, and what their pill says before the list
-/// has handed its own up.
-const Map<String, String> _listSearchHints = {
-  AppRoutes.vault: 'Search records',
-  AppRoutes.shared: 'Search links',
-  AppRoutes.requests: 'Search requests',
-  AppRoutes.attestations: 'Search attestations',
-  AppRoutes.contacts: 'Search contacts',
-};
 
 /// The most a list's search pill takes in the top bar.
 const double _listSearchWidth = 420;

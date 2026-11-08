@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 
@@ -116,6 +114,11 @@ class _SearchClaim extends StatefulWidget {
 }
 
 class _SearchClaimState extends State<_SearchClaim> {
+  /// The screen this list belongs to, taken when it first appears and kept:
+  /// a claim names it, so the bar never shows one screen's search on
+  /// another.
+  late final String _root = ShellSearchHost.maybeOf(context)?.root ?? '';
+
   @override
   Widget build(BuildContext context) {
     // A tab that is not selected is still built; it must not claim. Nor may
@@ -124,7 +127,7 @@ class _SearchClaimState extends State<_SearchClaim> {
     // new screen, then empty it when the old page goes.
     final visible =
         Visibility.of(context) && (ModalRoute.of(context)?.isCurrent ?? true);
-    final root = AppRoutes.rootOf(GoRouterState.of(context).uri.path) ?? '';
+    final root = _root;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (visible) {

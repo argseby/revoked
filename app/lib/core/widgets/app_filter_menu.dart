@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
@@ -187,10 +188,6 @@ class AppListSearchField extends StatefulWidget {
   final Widget? action;
   final bool autofocus;
 
-  /// Off while the list is still loading or has nothing in it: the pill
-  /// keeps its place, so the bar does not change from screen to screen.
-  final bool enabled;
-
   const AppListSearchField({
     super.key,
     required this.value,
@@ -198,7 +195,6 @@ class AppListSearchField extends StatefulWidget {
     this.hint = 'Search',
     this.action,
     this.autofocus = false,
-    this.enabled = true,
   });
 
   @override
@@ -206,7 +202,7 @@ class AppListSearchField extends StatefulWidget {
 }
 
 class _AppListSearchFieldState extends State<AppListSearchField> {
-  late final TextEditingController _controller = TextEditingController(
+  late final ObservableTextController _controller = ObservableTextController(
     text: widget.value,
   );
 
@@ -232,13 +228,11 @@ class _AppListSearchFieldState extends State<AppListSearchField> {
   Widget build(BuildContext context) {
     return CallbackShortcuts(
       bindings: {const SingleActivator(LogicalKeyboardKey.escape): _clear},
-      child: ListenableBuilder(
-        listenable: _controller,
-        builder: (context, _) => AppTextField(
+      child: Observer(
+        builder: (context) => AppTextField(
           controller: _controller,
           hint: widget.hint,
           autofocus: widget.autofocus,
-          enabled: widget.enabled,
           leading: const Icon(AppIcons.search, size: 18),
           trailing: Padding(
             padding: const EdgeInsetsDirectional.only(end: AppSpacing.xxs),
@@ -380,6 +374,7 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
             children: [
               const Expanded(child: Text('Filter and sort')),
               AppButton(
+                icon: AppIcons.arrowClockwise,
                 label: 'Reset',
                 style: AppButtonStyle.ghost,
                 size: AppButtonSize.small,
@@ -545,6 +540,8 @@ class _PanelRow extends StatelessWidget {
       inMutuallyExclusiveGroup: radio,
       child: InkWell(
         onTap: onTap,
+        // Full-width rows of the panel: square, edge to edge.
+        borderRadius: BorderRadius.zero,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,

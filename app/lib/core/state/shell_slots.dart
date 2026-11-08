@@ -93,11 +93,19 @@ class ShellSearchSlot {
 /// Marks the shell's body: a list inside it hands its search to the top bar
 /// through [ShellSlots.search]. Outside it — a sheet, a test — the list
 /// shows its search above itself.
+///
+/// [root] is the screen the shell shows. A list takes it once, when it first
+/// appears, as the screen it belongs to: asking the router instead loops
+/// forever on a page that is on its way out.
 class ShellSearchHost extends InheritedWidget {
-  const ShellSearchHost({super.key, required super.child});
+  final String root;
 
-  static bool contains(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<ShellSearchHost>() != null;
+  const ShellSearchHost({super.key, required this.root, required super.child});
+
+  static ShellSearchHost? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ShellSearchHost>();
+
+  static bool contains(BuildContext context) => maybeOf(context) != null;
 
   @override
   bool updateShouldNotify(ShellSearchHost oldWidget) => false;

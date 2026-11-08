@@ -5,7 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/models/attestation.dart';
+import 'package:revoked_app/core/models/bookmark.dart';
+import 'package:revoked_app/core/models/credential.dart';
 import 'package:revoked_app/core/models/contact.dart';
+import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/router/app_router.dart';
@@ -402,20 +406,172 @@ void main() {
       });
     }
 
-    testWidgets('an empty list keeps the pill, greyed out', (tester) async {
+    for (final size in const [Size(400, 800), Size(1200, 800)]) {
+      testWidgets('${size.width.toInt()} px: an empty list has no search', (
+        tester,
+      ) async {
+        final router = await signedIn(tester, size: size);
+        router.go(AppRoutes.requests);
+        await tester.pumpAndSettle();
+        expect(find.byTooltip('Search requests'), findsNothing);
+        expect(inBar(find.byType(TextField)), findsNothing);
+      });
+    }
+
+    testWidgets('switching quickly settles', (tester) async {
+      final router = await onShares(tester, const Size(1200, 800));
+      runInAction(
+        () => Stores.contacts.contacts = ObservableList.of([
+          Contact.fromJson({'id': 'c1', 'name': 'Ada', 'email': 'a@x.org'}),
+        ]),
+      );
+      // Tabs and screens, one frame apart, as fast as a person can click.
+      for (var i = 0; i < 10; i++) {
+        await tester.tap(find.text('Received'));
+        await tester.pump();
+        await tester.tap(find.text('Sent'));
+        await tester.pump();
+        router.go(AppRoutes.contacts);
+        await tester.pump();
+        router.go(AppRoutes.shared);
+        await tester.pump();
+        await tester.pump();
+      }
+      // pumpAndSettle times out if something keeps scheduling frames.
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+      expect(tester.takeException(), isNull);
+      // Pages on their way out must not hang: asking the router for a page
+      // it already let go of used to loop forever right here.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    }, timeout: const Timeout(Duration(seconds: 30)));
+
+    testWidgets('Requests: typing in the bar narrows the list', (tester) async {
       final router = await signedIn(tester, size: const Size(1200, 800));
       router.go(AppRoutes.requests);
       await tester.pumpAndSettle();
-      final field = tester.widget<TextField>(inBar(find.byType(TextField)));
-      expect(field.enabled, isFalse);
-      expect(inBar(find.text('Search requests')), findsOneWidget);
+      runInAction(
+        () => Stores.requests.requests
+          ..clear()
+          ..addAll([
+            DataRequest.fromJson({'id': 'q1', 'label': 'Tenant details'}),
+            DataRequest.fromJson({'id': 'q2', 'label': 'Club members'}),
+          ]),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Club members'), findsOneWidget);
+      await tester.enterText(inBar(find.byType(TextField)), 'tenant');
+      await tester.pumpAndSettle();
+      expect(find.text('Tenant details'), findsOneWidget);
+      expect(find.text('Club members'), findsNothing);
+    });
+
+    testWidgets('Attestations: typing in the bar narrows the list', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.attestations);
+      await tester.pumpAndSettle();
+      runInAction(
+        () => Stores.attestations.attestations
+          ..clear()
+          ..addAll([
+            Attestation.fromJson({
+              'id': 'a1',
+              'label': 'Membership',
+              'status': 'active',
+            }),
+            Attestation.fromJson({
+              'id': 'a2',
+              'label': 'Employment',
+              'status': 'active',
+            }),
+          ]),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Issued').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Employment'), findsOneWidget);
+      await tester.enterText(inBar(find.byType(TextField)), 'member');
+      await tester.pumpAndSettle();
+      expect(find.text('Membership'), findsOneWidget);
+      expect(find.text('Employment'), findsNothing);
+    });
+
+    testWidgets('Requests with both tabs filled: the shown tab searches', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.requests);
+      await tester.pumpAndSettle();
+      runInAction(() {
+        Stores.requests.requests
+          ..clear()
+          ..addAll([
+            DataRequest.fromJson({'id': 'q1', 'label': 'Tenant details'}),
+            DataRequest.fromJson({'id': 'q2', 'label': 'Club members'}),
+          ]);
+        Stores.bookmarks.bookmarks = ObservableList.of([
+          Bookmark.fromJson({
+            'id': 'b1',
+            'slug': 'x1',
+            'kind': 'request',
+            'label': 'Payroll',
+          }),
+        ]);
+      });
+      await tester.pumpAndSettle();
+      await tester.enterText(inBar(find.byType(TextField)), 'tenant');
+      await tester.pumpAndSettle();
+      expect(find.text('Club members'), findsNothing);
+      expect(find.text('Tenant details'), findsOneWidget);
+    });
+
+    testWidgets('Attestations with both tabs filled: the shown tab searches', (
+      tester,
+    ) async {
+      final router = await signedIn(tester, size: const Size(1200, 800));
+      router.go(AppRoutes.attestations);
+      await tester.pumpAndSettle();
+      runInAction(() {
+        Stores.credentials.credentials
+          ..clear()
+          ..addAll([
+            Credential.fromJson({'id': 'c1', 'type': 'membership'}),
+            Credential.fromJson({'id': 'c2', 'type': 'employment'}),
+          ]);
+        Stores.attestations.attestations
+          ..clear()
+          ..addAll([
+            Attestation.fromJson({
+              'id': 'a1',
+              'label': 'Membership',
+              'status': 'active',
+            }),
+          ]);
+      });
+      await tester.pumpAndSettle();
+      await tester.enterText(inBar(find.byType(TextField)), 'employ');
+      await tester.pumpAndSettle();
+      expect(find.text('membership'), findsNothing);
+      expect(find.text('employment'), findsOneWidget);
     });
 
     testWidgets('the other tab has its own search', (tester) async {
       await onShares(tester, const Size(1200, 800));
+      await tester.enterText(inBar(find.byType(TextField)), 'bank');
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Received'));
       await tester.pumpAndSettle();
-      expect(inBar(find.text('Search links')), findsNothing);
+      // Received has nothing yet, so nothing to search; the Sent list's
+      // query is not carried over.
+      expect(inBar(find.byType(TextField)), findsNothing);
+      expect(find.text('bank'), findsNothing);
+
+      // Back on Sent, its own query is still there.
+      await tester.tap(find.text('Sent'));
+      await tester.pumpAndSettle();
+      expect(find.text('bank'), findsOneWidget);
     });
   });
 }

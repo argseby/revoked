@@ -14,6 +14,12 @@ import 'package:revoked_app/features/contacts/view/contacts_screen.dart';
 /// Sending and asking are the two things a contact is for, so these drive
 /// them through the screen: pick a contact, fill the form, and check both
 /// outcomes — it reached their app, or here is the link to pass on.
+/// The first field of the open sheet — not the list's search above the
+/// contacts.
+Finder _sheetField() => find
+    .descendant(of: find.byType(BottomSheet), matching: find.byType(TextField))
+    .first;
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -164,7 +170,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Send to Ada Lovelace'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).first, 'My bank details');
+    await tester.enterText(_sheetField(), 'My bank details');
     await tester.pumpAndSettle();
 
     // Nothing picked yet, so the button is still refusing.
@@ -201,7 +207,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Send records'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, 'My number');
+    await tester.enterText(_sheetField(), 'My number');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Select from the vault'));
     await tester.pumpAndSettle();
@@ -233,7 +239,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Send records'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, 'My number');
+    await tester.enterText(_sheetField(), 'My number');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Select from the vault'));
     await tester.pumpAndSettle();
@@ -263,7 +269,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Request from Ada Lovelace'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).first, 'Your new address');
+    await tester.enterText(_sheetField(), 'Your new address');
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
     await tester.pumpAndSettle();
