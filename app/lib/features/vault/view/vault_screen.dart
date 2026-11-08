@@ -159,6 +159,56 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     return const SizedBox.shrink();
   }
 
+  /// Search, Show and Sort for the records; [links] says how many links
+  /// reach each of [matches], for the Shared count.
+  AppListToolbar _toolbar(List<models.Record> matches, Map<String, int> links) {
+    return AppListToolbar(
+      key: const ValueKey('vault-toolbar'),
+      query: _tableController.query,
+      onQueryChanged: _tableController.setQuery,
+      searchHint: 'Search records',
+      onClearFilters: () => _filters.value = const {},
+      sections: () => [
+        AppChecklistSection(
+          title: 'Show',
+          selected: {for (final f in _filters.value) f.name},
+          onToggle: (id, on) {
+            final f = _VaultFilter.values.byName(id);
+            _filters.value = on
+                ? {..._filters.value, f}
+                : ({..._filters.value}..remove(f));
+          },
+          items: [
+            AppChecklistItem(
+              id: _VaultFilter.shared.name,
+              label: 'Shared',
+              count: matches.where((r) => links[r.id]! > 0).length,
+            ),
+            AppChecklistItem(
+              id: _VaultFilter.files.name,
+              label: 'Files',
+              count: matches.where((r) => r.isFile).length,
+            ),
+            AppChecklistItem(
+              id: _VaultFilter.hidden.name,
+              label: 'Hidden',
+              count: matches.where((r) => r.isHidden).length,
+            ),
+          ],
+        ),
+      ],
+      sort: () => _tableController.sortBy,
+      onSort: _tableController.setSort,
+      defaultSort: _tableController.defaultSort,
+      sortOptions: const [
+        AppSortOption('created_desc', 'Newest first'),
+        AppSortOption('created_asc', 'Oldest first'),
+        AppSortOption('label_asc', 'Label A–Z'),
+        AppSortOption('type_asc', 'Type'),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => _body(context);
 
@@ -177,59 +227,66 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             store.sections.isEmpty &&
             store.sharedSections.isEmpty) {
           final failure = store.loadState.error;
+          // Nothing to list still keeps Search and filter in the top bar.
+          Widget bare(Widget child) =>
+              AppListEmpty(toolbar: _toolbar(const [], const {}), child: child);
           if (failure != null) {
-            return AppLoadError(
-              title: 'The vault could not be loaded',
-              message: failure,
-              onRetry: store.loadRecords,
+            return bare(
+              AppLoadError(
+                title: 'The vault could not be loaded',
+                message: failure,
+                onRetry: store.loadRecords,
+              ),
             );
           }
-          return AppEmptyState(
-            icon: AppIcons.safe,
-            title: 'No records',
-            subtitle:
-                'A record holds a single value, such as an IBAN or a password. '
-                'Changes apply to every link that shares it.',
-            example: const AppEmptyExample(
-              title: 'IBAN',
-              detail: 'DE89 •••• •••• 3000',
-              badge: 'hidden',
-            ),
-            steps: const [
-              AppEmptyStep('Record', 'A single value, optionally hidden'),
-              AppEmptyStep('Section', 'Records shared together'),
-              AppEmptyStep('Link', 'Shows the current value until revoked'),
-            ],
-            // New here, the tour shows the whole loop with real data; the
-            // forms are one tap further.
-            action: AppButton(
-              icon: AppIcons.play,
-              label: 'Take the tour',
-              onTap: () => goReturning(context, AppRoutes.tour),
-            ),
-            secondaryAction: Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                AppButton(
-                  icon: AppIcons.plus,
-                  label: 'New record',
-                  style: AppButtonStyle.accent,
-                  onTap: () => openVaultCreateSheet(context),
-                ),
-                AppButton(
-                  icon: AppIcons.fileText,
-                  label: 'From template',
-                  style: AppButtonStyle.accent,
-                  onTap: () => openVaultCreateSheet(
-                    context,
-                    initialTab: VaultCreateTab.template,
-                  ),
-                ),
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.safe,
+              title: 'No records',
+              subtitle:
+                  'A record holds a single value, such as an IBAN or a password. '
+                  'Changes apply to every link that shares it.',
+              example: const AppEmptyExample(
+                title: 'IBAN',
+                detail: 'DE89 •••• •••• 3000',
+                badge: 'hidden',
+              ),
+              steps: const [
+                AppEmptyStep('Record', 'A single value, optionally hidden'),
+                AppEmptyStep('Section', 'Records shared together'),
+                AppEmptyStep('Link', 'Shows the current value until revoked'),
               ],
+              // New here, the tour shows the whole loop with real data; the
+              // forms are one tap further.
+              action: AppButton(
+                icon: AppIcons.play,
+                label: 'Take the tour',
+                onTap: () => goReturning(context, AppRoutes.tour),
+              ),
+              secondaryAction: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  AppButton(
+                    icon: AppIcons.plus,
+                    label: 'New record',
+                    style: AppButtonStyle.accent,
+                    onTap: () => openVaultCreateSheet(context),
+                  ),
+                  AppButton(
+                    icon: AppIcons.fileText,
+                    label: 'From template',
+                    style: AppButtonStyle.accent,
+                    onTap: () => openVaultCreateSheet(
+                      context,
+                      initialTab: VaultCreateTab.template,
+                    ),
+                  ),
+                ],
+              ),
+              learnMoreLabel: 'How the vault works',
+              learnMoreUrl: '${AppConfig.docsUrl}/guide/vault/',
             ),
-            learnMoreLabel: 'How the vault works',
-            learnMoreUrl: '${AppConfig.docsUrl}/guide/vault/',
           );
         }
 
@@ -266,51 +323,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             (filters.contains(_VaultFilter.files) && r.isFile) ||
             (filters.contains(_VaultFilter.hidden) && r.isHidden);
 
-        final toolbar = AppListToolbar(
-          key: const ValueKey('vault-toolbar'),
-          query: _tableController.query,
-          onQueryChanged: _tableController.setQuery,
-          searchHint: 'Search records',
-          onClearFilters: () => _filters.value = const {},
-          sections: () => [
-            AppChecklistSection(
-              title: 'Show',
-              selected: {for (final f in _filters.value) f.name},
-              onToggle: (id, on) {
-                final f = _VaultFilter.values.byName(id);
-                _filters.value = on
-                    ? {..._filters.value, f}
-                    : ({..._filters.value}..remove(f));
-              },
-              items: [
-                AppChecklistItem(
-                  id: _VaultFilter.shared.name,
-                  label: 'Shared',
-                  count: matches.where((r) => links[r.id]! > 0).length,
-                ),
-                AppChecklistItem(
-                  id: _VaultFilter.files.name,
-                  label: 'Files',
-                  count: matches.where((r) => r.isFile).length,
-                ),
-                AppChecklistItem(
-                  id: _VaultFilter.hidden.name,
-                  label: 'Hidden',
-                  count: matches.where((r) => r.isHidden).length,
-                ),
-              ],
-            ),
-          ],
-          sort: () => _tableController.sortBy,
-          onSort: _tableController.setSort,
-          defaultSort: _tableController.defaultSort,
-          sortOptions: const [
-            AppSortOption('created_desc', 'Newest first'),
-            AppSortOption('created_asc', 'Oldest first'),
-            AppSortOption('label_asc', 'Label A–Z'),
-            AppSortOption('type_asc', 'Type'),
-          ],
-        );
+        final toolbar = _toolbar(matches, links);
         final searching = _tableController.query.trim().isNotEmpty;
 
         var records = matches.where(kind).toList();

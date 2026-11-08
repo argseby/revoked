@@ -168,14 +168,17 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       builder: (_) {
         final failure = store.loadState.error;
         if (store.contacts.isEmpty) {
-          if (failure != null) {
-            return AppLoadError(
-              title: 'Contacts could not be loaded',
-              message: failure,
-              onRetry: store.load,
-            );
-          }
-          return _empty(context);
+          // Nothing to list still keeps Search and filter in the top bar.
+          return AppListEmpty(
+            toolbar: _toolbar(const []),
+            child: failure != null
+                ? AppLoadError(
+                    title: 'Contacts could not be loaded',
+                    message: failure,
+                    onRetry: store.load,
+                  )
+                : _empty(context),
+          );
         }
         final searched = _table.filteredItems;
         final shown = searched.where(_passes).toList();

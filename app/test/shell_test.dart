@@ -261,8 +261,14 @@ void main() {
     await signedIn(tester, size: const Size(1200, 800));
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
-    // The sidebar carries it, so the top bar does not repeat it.
-    expect(find.text('Open link or go to'), findsOneWidget);
+    // The sidebar carries it, beside New, so the top bar does not repeat it.
+    expect(find.byTooltip('Open link or go to (/)'), findsOneWidget);
+    expect(find.byTooltip('Open link or go to'), findsNothing);
+    // The bell sits beside the workspace, not in the list of places.
+    expect(find.text('Notifications'), findsNothing);
+    expect(find.byTooltip('Notifications'), findsOneWidget);
+    expect(find.text('Overview'), findsOneWidget);
+    expect(find.text('Lists'), findsOneWidget);
     for (final label in [
       'Home',
       'Vault',
@@ -323,41 +329,96 @@ void main() {
     Finder inBar(Finder f) =>
         find.descendant(of: find.byType(AppBar), matching: f);
 
-    for (final width in const [800.0, 1200.0]) {
-      testWidgets('${width.toInt()} px: beside New, not above the list', (
+    const button = 'Search and filter';
+
+    /// Types [text] into the search behind the bar's button on a window
+    /// with a popover, and closes it again.
+    Future<void> searchFor(WidgetTester tester, String text) async {
+      await tester.tap(inBar(find.byTooltip(button)));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), text);
+      await tester.pumpAndSettle();
+      await tester.tap(inBar(find.byTooltip('$button · 1 active')));
+      await tester.pumpAndSettle();
+    }
+
+    /// Opens the bar's button, reads which search its panel holds, and
+    /// closes it again: the popover with its own button, the sheet by
+    /// popping it. Null where the bar has no button.
+    Future<String?> panelHint(WidgetTester tester, List<String> hints) async {
+      final open = inBar(find.byTooltip(button));
+      if (open.evaluate().isEmpty) return null;
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+      final hint = [
+        for (final h in hints)
+          if (find.text(h).evaluate().isNotEmpty) h,
+      ];
+      if (find.byType(BottomSheet).evaluate().isNotEmpty ||
+          tester.view.physicalSize.width < 600) {
+        Navigator.of(tester.element(find.text('Sort'))).pop();
+      } else {
+        await tester.tap(open);
+      }
+      await tester.pumpAndSettle();
+      return hint.isEmpty ? null : hint.single;
+    }
+
+    for (final width in const [400.0, 800.0, 1200.0]) {
+      testWidgets('${width.toInt()} px: one button, the search inside it', (
         tester,
       ) async {
         await onShares(tester, Size(width, 800));
-        expect(inBar(find.text('Search links')), findsOneWidget);
-        expect(inBar(find.byTooltip('Filter and sort')), findsOneWidget);
-        expect(find.text('Search links'), findsOneWidget);
+        // No field by default, in the bar or above the list.
+        expect(find.byType(TextField), findsNothing);
+        expect(inBar(find.byTooltip(button)), findsOneWidget);
+        // Labelled only beside the sidebar.
+        expect(
+          inBar(find.text(button)),
+          width >= 1024 ? findsOneWidget : findsNothing,
+        );
 
-        await tester.enterText(inBar(find.byType(TextField)), 'bank');
+        await tester.tap(inBar(find.byTooltip(button)));
+        await tester.pumpAndSettle();
+        // Open to type, search first, then the order and the filters.
+        expect(find.text('Search links'), findsOneWidget);
+        expect(find.text('Sort'), findsOneWidget);
+        await tester.enterText(find.byType(TextField), 'bank');
+        await tester.pumpAndSettle();
+
+        if (width < 600) {
+          Navigator.of(tester.element(find.text('Sort'))).pop();
+        } else {
+          await tester.tap(inBar(find.byTooltip('$button · 1 active')));
+        }
         await tester.pumpAndSettle();
         expect(find.text('Landlord'), findsNothing);
         expect(find.text('Bank'), findsOneWidget);
+        // With the field out of sight the search shows as a chip and in the
+        // button's count.
+        expect(find.text('“bank”'), findsOneWidget);
+        expect(inBar(find.byTooltip('$button · 1 active')), findsOneWidget);
+
+        await tester.tap(find.bySemanticsLabel('Remove “bank”'));
+        await tester.pumpAndSettle();
+        expect(find.text('Landlord'), findsOneWidget);
+        expect(inBar(find.byTooltip(button)), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
 
-    testWidgets('phone: an icon that turns the bar into the search', (
-      tester,
-    ) async {
-      await onShares(tester, const Size(400, 800));
-      expect(find.byType(TextField), findsNothing);
-      await tester.tap(find.byTooltip('Search links'));
+    testWidgets('Reset in the panel clears the search too', (tester) async {
+      await onShares(tester, const Size(1200, 800));
+      await tester.tap(inBar(find.byTooltip(button)));
       await tester.pumpAndSettle();
-      expect(inBar(find.byType(TextField)), findsOneWidget);
-
       await tester.enterText(find.byType(TextField), 'bank');
       await tester.pumpAndSettle();
-      expect(find.text('Landlord'), findsNothing);
-
-      await tester.tap(find.byTooltip('Close search'));
+      await tester.tap(find.text('Reset'));
       await tester.pumpAndSettle();
-      expect(find.byType(TextField), findsNothing);
+      await tester.tap(inBar(find.byTooltip(button)));
+      await tester.pumpAndSettle();
+      expect(find.text('“bank”'), findsNothing);
       expect(find.text('Landlord'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a detail page does not show its list\'s search', (
@@ -366,7 +427,7 @@ void main() {
       final router = await onShares(tester, const Size(800, 800));
       router.go(AppRoutes.shareDetailFor('a'));
       await tester.pumpAndSettle();
-      expect(inBar(find.text('Search links')), findsNothing);
+      expect(inBar(find.byTooltip(button)), findsNothing);
     });
 
     for (final size in const [
@@ -382,39 +443,69 @@ void main() {
             Contact.fromJson({'id': 'c1', 'name': 'Ada', 'email': 'a@x.org'}),
           ]),
         );
-        final phone = size.width < 600;
-        Finder search(String hint) =>
-            phone ? find.byTooltip(hint) : inBar(find.text(hint));
+        const hints = ['Search contacts', 'Search links'];
         for (var i = 0; i < 3; i++) {
           router.go(AppRoutes.contacts);
           await tester.pumpAndSettle();
-          expect(search('Search contacts'), findsOneWidget, reason: 'round $i');
-          expect(search('Search links'), findsNothing, reason: 'round $i');
+          expect(
+            await panelHint(tester, hints),
+            'Search contacts',
+            reason: 'round $i',
+          );
           router.go(AppRoutes.shared);
           await tester.pumpAndSettle();
-          expect(search('Search links'), findsOneWidget, reason: 'round $i');
-          expect(search('Search contacts'), findsNothing, reason: 'round $i');
+          expect(
+            await panelHint(tester, hints),
+            'Search links',
+            reason: 'round $i',
+          );
           // A screen without a list has none.
           router.go(AppRoutes.settings);
           await tester.pumpAndSettle();
-          expect(search('Search links'), findsNothing, reason: 'round $i');
+          expect(await panelHint(tester, hints), isNull, reason: 'round $i');
           router.go(AppRoutes.shared);
           await tester.pumpAndSettle();
-          expect(search('Search links'), findsOneWidget, reason: 'round $i');
+          expect(
+            await panelHint(tester, hints),
+            'Search links',
+            reason: 'round $i',
+          );
         }
         expect(tester.takeException(), isNull);
       });
     }
 
     for (final size in const [Size(400, 800), Size(1200, 800)]) {
-      testWidgets('${size.width.toInt()} px: an empty list has no search', (
+      testWidgets('${size.width.toInt()} px: an empty list keeps the button', (
         tester,
       ) async {
         final router = await signedIn(tester, size: size);
         router.go(AppRoutes.requests);
         await tester.pumpAndSettle();
-        expect(find.byTooltip('Search requests'), findsNothing);
+        // Nothing listed (empty, or the first load failed), and still the
+        // button in the same place as on a full list, holding that list's search.
+        expect(
+          await panelHint(tester, const ['Search requests']),
+          'Search requests',
+        );
         expect(inBar(find.byType(TextField)), findsNothing);
+        for (final (route, hint) in const [
+          (AppRoutes.vault, 'Search records'),
+          (AppRoutes.contacts, 'Search contacts'),
+          (AppRoutes.attestations, 'Search held attestations'),
+        ]) {
+          router.go(route);
+          await tester.pumpAndSettle();
+          expect(await panelHint(tester, [hint]), hint, reason: route);
+        }
+        // Each tab its own, empty or not.
+        await tester.tap(find.textContaining('Checked'));
+        await tester.pumpAndSettle();
+        expect(
+          await panelHint(tester, const ['Search checks']),
+          'Search checks',
+        );
+        expect(tester.takeException(), isNull);
       });
     }
 
@@ -460,7 +551,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Club members'), findsOneWidget);
-      await tester.enterText(inBar(find.byType(TextField)), 'tenant');
+      await searchFor(tester, 'tenant');
       await tester.pumpAndSettle();
       expect(find.text('Tenant details'), findsOneWidget);
       expect(find.text('Club members'), findsNothing);
@@ -492,8 +583,7 @@ void main() {
       await tester.tap(find.textContaining('Issued').first);
       await tester.pumpAndSettle();
       expect(find.text('Employment'), findsOneWidget);
-      await tester.enterText(inBar(find.byType(TextField)), 'member');
-      await tester.pumpAndSettle();
+      await searchFor(tester, 'member');
       expect(find.text('Membership'), findsOneWidget);
       expect(find.text('Employment'), findsNothing);
     });
@@ -521,7 +611,7 @@ void main() {
         ]);
       });
       await tester.pumpAndSettle();
-      await tester.enterText(inBar(find.byType(TextField)), 'tenant');
+      await searchFor(tester, 'tenant');
       await tester.pumpAndSettle();
       expect(find.text('Club members'), findsNothing);
       expect(find.text('Tenant details'), findsOneWidget);
@@ -551,7 +641,7 @@ void main() {
           ]);
       });
       await tester.pumpAndSettle();
-      await tester.enterText(inBar(find.byType(TextField)), 'employ');
+      await searchFor(tester, 'employ');
       await tester.pumpAndSettle();
       expect(find.text('membership'), findsNothing);
       expect(find.text('employment'), findsOneWidget);
@@ -559,19 +649,19 @@ void main() {
 
     testWidgets('the other tab has its own search', (tester) async {
       await onShares(tester, const Size(1200, 800));
-      await tester.enterText(inBar(find.byType(TextField)), 'bank');
-      await tester.pumpAndSettle();
+      await searchFor(tester, 'bank');
       await tester.tap(find.text('Received'));
       await tester.pumpAndSettle();
-      // Received has nothing yet, so nothing to search; the Sent list's
+      // Received has nothing yet, but keeps its own button; the Sent list's
       // query is not carried over.
-      expect(inBar(find.byType(TextField)), findsNothing);
-      expect(find.text('bank'), findsNothing);
+      expect(inBar(find.byTooltip(button)), findsOneWidget);
+      expect(await panelHint(tester, const ['Search shares']), 'Search shares');
+      expect(find.text('“bank”'), findsNothing);
 
       // Back on Sent, its own query is still there.
       await tester.tap(find.text('Sent'));
       await tester.pumpAndSettle();
-      expect(find.text('bank'), findsOneWidget);
+      expect(find.text('“bank”'), findsOneWidget);
     });
   });
 }

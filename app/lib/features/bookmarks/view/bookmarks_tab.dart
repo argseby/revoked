@@ -173,11 +173,16 @@ class _BookmarksTabState extends State<BookmarksTab> {
               ],
       ),
       builder: (_) {
+        // Nothing to list still keeps Search and filter in the top bar.
+        Widget bare(Widget child) =>
+            AppListEmpty(toolbar: _toolbar(const []), child: child);
         if (store.error != null && store.bookmarks.isEmpty) {
-          return AppLoadError(
-            title: store.error!.title,
-            message: store.error!.description,
-            onRetry: store.load,
+          return bare(
+            AppLoadError(
+              title: store.error!.title,
+              message: store.error!.description,
+              onRetry: store.load,
+            ),
           );
         }
         final mine = [
@@ -185,45 +190,49 @@ class _BookmarksTabState extends State<BookmarksTab> {
             if (b.kind == kind) b,
         ];
         if (mine.isEmpty && _asks) {
-          return AppEmptyState(
-            icon: AppIcons.askFor,
-            title: 'Nothing to answer',
-            subtitle:
-                'Requests others send to this account, and ones saved from a '
-                'link, wait here until they are answered from the vault.',
-            action: AppButton(
-              icon: AppIcons.link,
-              label: 'Open a link',
-              style: AppButtonStyle.accent,
-              onTap: () => openLinkSearchSheet(context),
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.askFor,
+              title: 'Nothing to answer',
+              subtitle:
+                  'Requests others send to this account, and ones saved from a '
+                  'link, wait here until they are answered from the vault.',
+              action: AppButton(
+                icon: AppIcons.link,
+                label: 'Open a link',
+                style: AppButtonStyle.accent,
+                onTap: () => openLinkSearchSheet(context),
+              ),
+              learnMoreLabel: 'About requests',
+              learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
             ),
-            learnMoreLabel: 'About requests',
-            learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
           );
         }
         if (mine.isEmpty) {
-          return AppEmptyState(
-            icon: AppIcons.bookmark,
-            title: 'Nothing received',
-            subtitle:
-                'Shares from others are kept here as shortcuts, not copies. '
-                'Passwords and identity checks still apply, and revoked links '
-                'stay closed.',
-            steps: const [
-              AppEmptyStep('Received link', 'Opened from a message'),
-              AppEmptyStep('Bookmark', 'Saved from the open link'),
-              AppEmptyStep('Bookmarks list', 'Optionally sorted into groups'),
-            ],
-            action: AppButton(
-              icon: AppIcons.link,
-              label: 'Open a link',
-              style: AppButtonStyle.accent,
-              onTap: () => openLinkSearchSheet(context),
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.bookmark,
+              title: 'Nothing received',
+              subtitle:
+                  'Shares from others are kept here as shortcuts, not copies. '
+                  'Passwords and identity checks still apply, and revoked links '
+                  'stay closed.',
+              steps: const [
+                AppEmptyStep('Received link', 'Opened from a message'),
+                AppEmptyStep('Bookmark', 'Saved from the open link'),
+                AppEmptyStep('Bookmarks list', 'Optionally sorted into groups'),
+              ],
+              action: AppButton(
+                icon: AppIcons.link,
+                label: 'Open a link',
+                style: AppButtonStyle.accent,
+                onTap: () => openLinkSearchSheet(context),
+              ),
+              learnMoreLabel: 'About bookmarks',
+              learnMoreUrl:
+                  '${AppConfig.docsUrl}/guide/sharing/'
+                  '#bookmarking-a-share-you-received',
             ),
-            learnMoreLabel: 'About bookmarks',
-            learnMoreUrl:
-                '${AppConfig.docsUrl}/guide/sharing/'
-                '#bookmarking-a-share-you-received',
           );
         }
         // What the search, Filter and Sort let through, in the sorted order;

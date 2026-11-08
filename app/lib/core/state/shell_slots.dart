@@ -58,14 +58,15 @@ class ShellSlots {
   /// being edited.
   static final ShellSlot action = ShellSlot();
 
-  /// The search of the list on screen, shown in the top bar beside New.
+  /// The search of the list on screen, behind one button in the top bar
+  /// beside New.
   static final ShellSearchSlot search = ShellSearchSlot();
 }
 
 /// The list search in the shell's top bar. A list claims it while it is the
 /// one in view — its page current, its tab the selected one — and the bar
-/// shows the claim's search pill with its Filter and sort; the chips of what
-/// is active stay above the list itself.
+/// shows the claim's Search and filter button; the chips of what is active,
+/// the search included, stay above the list itself.
 ///
 /// It holds the toolbar itself rather than a builder: the list rebuilds it
 /// with its current counts and selection, and claims again after each build.

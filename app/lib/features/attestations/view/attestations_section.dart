@@ -81,14 +81,16 @@ class _TabList extends StatelessWidget {
       builder: (_) {
         final failure = state.error;
         if (!hasAny) {
-          if (failure != null) {
-            return AppLoadError(
-              title: 'The list could not be loaded',
-              message: failure,
-              onRetry: onRetry,
-            );
-          }
-          return empty;
+          return AppListEmpty(
+            toolbar: toolbar,
+            child: failure != null
+                ? AppLoadError(
+                    title: 'The list could not be loaded',
+                    message: failure,
+                    onRetry: onRetry,
+                  )
+                : empty,
+          );
         }
         return AppListPage(
           toolbar: toolbar,

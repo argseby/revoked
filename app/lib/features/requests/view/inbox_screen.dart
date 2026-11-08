@@ -172,54 +172,61 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
         ],
       ),
       builder: (_) {
+        // Nothing to list still keeps Search and filter in the top bar.
+        Widget bare(Widget child) =>
+            AppListEmpty(toolbar: _toolbar(const {}), child: child);
         if (reqStore.requests.isEmpty && reqStore.loadState.error != null) {
-          return AppLoadError(
-            title: 'Requests could not be loaded',
-            message: reqStore.loadState.error!,
-            onRetry: reqStore.loadRequests,
+          return bare(
+            AppLoadError(
+              title: 'Requests could not be loaded',
+              message: reqStore.loadState.error!,
+              onRetry: reqStore.loadRequests,
+            ),
           );
         }
 
         if (reqStore.requests.isEmpty) {
-          return AppEmptyState(
-            icon: AppIcons.inboxFill,
-            title: 'No requests',
-            subtitle:
-                'Requests collect details from others through a form. Answers '
-                'stay current and can be withdrawn by the respondent.',
-            example: const AppEmptyExample(
-              title: 'Tenant details',
-              detail: '4 fields',
-              badge: '2 responses',
-            ),
-            steps: const [
-              AppEmptyStep(
-                'Fields',
-                'Defined by a template: a name, an address or a file',
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.inboxFill,
+              title: 'No requests',
+              subtitle:
+                  'Requests collect details from others through a form. Answers '
+                  'stay current and can be withdrawn by the respondent.',
+              example: const AppEmptyExample(
+                title: 'Tenant details',
+                detail: '4 fields',
+                badge: '2 responses',
               ),
-              AppEmptyStep(
-                'Link',
-                'Optionally restricted to verified identities',
+              steps: const [
+                AppEmptyStep(
+                  'Fields',
+                  'Defined by a template: a name, an address or a file',
+                ),
+                AppEmptyStep(
+                  'Link',
+                  'Optionally restricted to verified identities',
+                ),
+                AppEmptyStep('Responses', 'Listed or shown as a spreadsheet'),
+              ],
+              action: AppButton(
+                icon: AppIcons.plus,
+                label: 'New request',
+                onTap: () => openRequestCreateSheet(
+                  context: context,
+                  store: Stores.requests,
+                  authStore: Stores.auth,
+                ),
               ),
-              AppEmptyStep('Responses', 'Listed or shown as a spreadsheet'),
-            ],
-            action: AppButton(
-              icon: AppIcons.plus,
-              label: 'New request',
-              onTap: () => openRequestCreateSheet(
-                context: context,
-                store: Stores.requests,
-                authStore: Stores.auth,
+              secondaryAction: AppButton(
+                icon: AppIcons.fileText,
+                label: 'Templates',
+                style: AppButtonStyle.accent,
+                onTap: () => goReturning(context, AppRoutes.templates),
               ),
+              learnMoreLabel: 'How requests work',
+              learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
             ),
-            secondaryAction: AppButton(
-              icon: AppIcons.fileText,
-              label: 'Templates',
-              style: AppButtonStyle.accent,
-              onTap: () => goReturning(context, AppRoutes.templates),
-            ),
-            learnMoreLabel: 'How requests work',
-            learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
           );
         }
 

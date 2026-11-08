@@ -73,7 +73,9 @@ class AppListPage extends StatelessWidget {
     final pinned = <Widget>[
       ?header,
       if (toolbar != null && !inShell) toolbar.pill(),
-      ?toolbar?.chips(context),
+      // In the shell the search is behind the top bar's button, so what was
+      // typed shows here with the rest.
+      ?toolbar?.chips(context, withQuery: inShell),
     ];
     Widget page = pinned.isEmpty
         ? body
@@ -96,6 +98,24 @@ class AppListPage extends StatelessWidget {
           );
     if (inShell) page = _SearchClaim(toolbar: toolbar, child: page);
     return page;
+  }
+}
+
+/// What a list shows while it has nothing to list — its empty state, or the
+/// error of a first load — with its [toolbar] still in the shell's top bar,
+/// so Search and filter sits in the same place on every list, empty or not.
+/// Outside the shell it is only [child]: a field above an empty state would
+/// have nothing to search.
+class AppListEmpty extends StatelessWidget {
+  final AppListToolbar toolbar;
+  final Widget child;
+
+  const AppListEmpty({super.key, required this.toolbar, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!ShellSearchHost.contains(context)) return child;
+    return _SearchClaim(toolbar: toolbar, child: child);
   }
 }
 

@@ -56,15 +56,23 @@ class AppSortOption<T> {
 
 /// A list's search, Filter and sort:
 ///
-///   top bar:   Shares        [🔍 Search links …… ⚟ Filter and sort ②] [+ New]
-///   the list:  (Status: Active ×) (Oldest first ×)
+///   top bar:   Shares                       [⚟ Search and filter ③] [+ New]
+///   the list:  ("bank" ×) (Status: Active ×) (Oldest first ×)
 ///
-/// One [pill] holds the search and, at its end, the button to the Filter and
-/// sort panel — a popover on a wider window, a sheet on a phone, where the
-/// button keeps only its icon. In the shell the pill sits in the top bar
-/// beside New (on a phone behind a search icon there); `AppListPage` hands it
-/// up. What narrows or reorders the list shows above the list as [chips],
-/// each removed with its ×, so a list that looks short always says why.
+/// In the shell all of it sits behind one [button] in the top bar beside
+/// New: it opens a panel with the search field first, then Sort and the
+/// filters — a popover on a wider window, a sheet on a phone. The button is
+/// labelled where the sidebar shows and keeps only its icon below that; its
+/// count says how much is active, the search included. `AppListPage` hands
+/// it up.
+///
+/// Outside the shell — a sheet, a picker — the [pill] holds the search with
+/// a Filter and sort button at its end, since there the field is the point.
+///
+/// What narrows or reorders the list shows above the list as [chips], each
+/// removed with its ×, so a list that looks short always says why; behind
+/// the shell's button the search is one of them, as its field is out of
+/// sight.
 ///
 /// This narrows the list it sits above. The shell's "Open link or go to" is
 /// the other search: across everything, and it opens what it finds.
@@ -113,14 +121,21 @@ class AppListToolbar extends StatelessWidget {
     return null;
   }
 
-  int _activeCount() =>
+  /// What narrows or reorders the list; with [withQuery], a typed search
+  /// counts too.
+  int _activeCount({bool withQuery = false}) =>
       sections().fold<int>(0, (n, s) => n + s.selected.length) +
-      (_sortLabel == null ? 0 : 1);
+      (_sortLabel == null ? 0 : 1) +
+      (withQuery && query.trim().isNotEmpty ? 1 : 0);
 
-  void _reset() {
+  void _reset({bool withQuery = false}) {
     onClearFilters();
     onSort(defaultSort);
+    if (withQuery) onQueryChanged('');
   }
+
+  /// Search, Filter and sort behind one button, for the shell's top bar.
+  Widget button() => _FilterSortButton(toolbar: this, withSearch: true);
 
   /// The search pill with its Filter and sort button — in the shell's top
   /// bar, or above the list outside the shell. [autofocus] for the phone's
@@ -145,9 +160,15 @@ class AppListToolbar extends StatelessWidget {
 
   /// What narrows or reorders the list, one chip each; null while nothing
   /// does. Always above the list, so the list says why it is short.
-  Widget? chips(BuildContext context) {
+  ///
+  /// [withQuery] adds the typed search, for the shell, where the field is
+  /// behind the top bar's [button].
+  Widget? chips(BuildContext context, {bool withQuery = false}) {
     final narrow = AppSpacing.isNarrow(context);
+    final typed = query.trim();
     final chips = <Widget>[
+      if (withQuery && typed.isNotEmpty)
+        _ActiveChip(label: '“$typed”', onRemove: () => onQueryChanged('')),
       for (final s in sections())
         for (final item in s.items)
           if (s.selected.contains(item.id))
@@ -259,16 +280,25 @@ class _AppListSearchFieldState extends State<AppListSearchField> {
   }
 }
 
-/// The button at the end of the pill. Labelled where there is room; on a
-/// phone its icon and the count say it.
 /// The narrowest pill whose button still carries its label.
 const double _labelledFrom = 360;
 
+/// The button at the end of the pill, or with [withSearch] the shell's one
+/// button that holds the search too. Labelled where there is room; on a
+/// phone its icon and the count say it.
 class _FilterSortButton extends StatefulWidget {
   final AppListToolbar toolbar;
   final bool labelled;
 
-  const _FilterSortButton({required this.toolbar, required this.labelled});
+  /// The panel opens with the search field first, and the count, the chips
+  /// and Reset take the search in.
+  final bool withSearch;
+
+  const _FilterSortButton({
+    required this.toolbar,
+    this.labelled = false,
+    this.withSearch = false,
+  });
 
   @override
   State<_FilterSortButton> createState() => _FilterSortButtonState();
@@ -283,12 +313,42 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
 
   AppListToolbar get _t => widget.toolbar;
 
+  bool get _withSearch => widget.withSearch;
+
+  String get _label => _withSearch ? 'Search and filter' : 'Filter and sort';
+
+  /// The shell's button: a ghost button like its neighbours in the bar,
+  /// labelled beside the sidebar, the count on its corner.
+  Widget _barTrigger(BuildContext context, int active, VoidCallback onTap) {
+    final labelled = MediaQuery.sizeOf(context).width >= AppSpacing.wideWidth;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AppButton(
+          icon: AppIcons.sliders,
+          label: labelled ? _label : null,
+          style: AppButtonStyle.ghost,
+          size: labelled ? AppButtonSize.small : AppButtonSize.normal,
+          tooltip: active > 0 ? '$_label · $active active' : _label,
+          onTap: onTap,
+        ),
+        if (active > 0)
+          PositionedDirectional(
+            top: labelled ? -AppSpacing.xxs : AppSpacing.xxs,
+            end: labelled ? -AppSpacing.xxs : AppSpacing.xxs,
+            child: IgnorePointer(child: _CountBadge(active)),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final narrow = AppSpacing.isNarrow(context);
-    final active = _t._activeCount();
-    const label = 'Filter and sort';
+    final active = _t._activeCount(withQuery: _withSearch);
+    final label = _label;
     Widget trigger(VoidCallback onTap) {
+      if (_withSearch) return _barTrigger(context, active, onTap);
       final scheme = Theme.of(context).colorScheme;
       return Tooltip(
         message: active > 0 ? '$label · $active active' : label,
@@ -308,7 +368,7 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
                     const Icon(AppIcons.sliders, size: 16),
                     if (widget.labelled) ...[
                       AppSpacing.gapXs,
-                      const AppText(label).small,
+                      AppText(label).small,
                     ],
                     if (active > 0) ...[AppSpacing.gapXs, _CountBadge(active)],
                   ],
@@ -353,12 +413,13 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
     ),
   );
 
-  /// The same panel in the popover and the sheet: Sort first, one order
-  /// picked; then each filter section's boxes with their counts.
+  /// The same panel in the popover and the sheet: the search first where
+  /// the button holds it, then Sort, one order picked; then each filter
+  /// section's boxes with their counts.
   Widget _panel(BuildContext context) {
     final sections = _t.sections();
     final current = _t.sort();
-    final active = _t._activeCount();
+    final active = _t._activeCount(withQuery: _withSearch);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -372,18 +433,36 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
           ),
           child: Row(
             children: [
-              const Expanded(child: Text('Filter and sort')),
+              Expanded(child: Text(_label)),
               AppButton(
                 icon: AppIcons.arrowClockwise,
                 label: 'Reset',
                 style: AppButtonStyle.ghost,
                 size: AppButtonSize.small,
-                onTap: active > 0 ? _t._reset : null,
+                onTap: active > 0
+                    ? () => _t._reset(withQuery: _withSearch)
+                    : null,
               ),
             ],
           ),
         ),
         const AppDivider(),
+        if (_withSearch)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+              0,
+            ),
+            // Open to type: searching stays one tap away.
+            child: AppListSearchField(
+              value: _t.query,
+              hint: _t.searchHint,
+              autofocus: true,
+              onChanged: _t.onQueryChanged,
+            ),
+          ),
         const _PanelHeading('Sort'),
         for (final o in _t.sortOptions)
           _PanelRow(

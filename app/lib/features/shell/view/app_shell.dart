@@ -8,14 +8,11 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/core/widgets/app_search_field.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
@@ -76,10 +73,6 @@ class _AppShellState extends State<AppShell> {
   /// The destination last shown, so the bottom bar still has one to sit on
   /// while Settings is open.
   String _lastRoot = AppRoutes.vault;
-
-  /// The page whose search the phone's top bar was opened into, from its
-  /// search icon; on any other page the bar is the usual one again.
-  final Local<String?> _phoneSearchFor = Local(null);
 
   @override
   void initState() {
@@ -189,32 +182,6 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  /// The screen's title with the list's search pill after it, on the right
-  /// of the bar beside the page's New. The pill takes up to [_listSearchWidth]
-  /// and gives way before the title does.
-  ///
-  /// Only while the list on screen has something to search: an empty list
-  /// shows its empty state, with its own way to start, and no dead control.
-  Widget _titleWithSearch(String? root, AppListToolbar? search) {
-    if (search == null) return _title(root);
-    return Row(
-      children: [
-        Expanded(flex: 2, child: _title(root)),
-        AppSpacing.gapMd,
-        Expanded(
-          flex: 3,
-          child: Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _listSearchWidth),
-              child: search.pill(),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Which places show follows the feature store, so the frame is reactive.
@@ -247,12 +214,9 @@ class _AppShellState extends State<AppShell> {
     String path, {
     required bool isSubPage,
   }) {
-    // The list's search, behind an icon: opened, the bar becomes the search
-    // bar, and a typed query keeps it open.
+    // The list's search, filters and order, behind one button that opens
+    // them in a sheet; an empty list keeps it too, so it never moves.
     final search = isSubPage ? null : ShellSlots.search.toolbarFor(root);
-    final searching =
-        search != null &&
-        (_phoneSearchFor.value == path || search.query.isNotEmpty);
     return Scaffold(
       floatingActionButtonLocation: .endFloat,
       // Yields while any sheet is up, so it never overlaps a sheet's actions,
@@ -279,62 +243,37 @@ class _AppShellState extends State<AppShell> {
           );
         },
       ),
-      appBar: searching
-          ? AppBar(
-              automaticallyImplyLeading: false,
-              leading: AppButton(
-                icon: AppIcons.arrowLeft,
-                style: AppButtonStyle.ghost,
-                tooltip: 'Close search',
-                onTap: () {
-                  search.onQueryChanged('');
-                  _phoneSearchFor.value = null;
-                },
-              ),
-              titleSpacing: 0,
-              title: Padding(
-                padding: const EdgeInsets.only(right: AppSpacing.lg),
-                child: search.pill(autofocus: _phoneSearchFor.value == path),
-              ),
-            )
-          : AppBar(
-              automaticallyImplyLeading: false,
-              leadingWidth: isSubPage
-                  ? null
-                  : AppSpacing.lg + AppButton.normalExtent + AppSpacing.xs,
-              leading: isSubPage
-                  ? null
-                  : const Padding(
-                      padding: EdgeInsets.only(
-                        left: AppSpacing.lg,
-                        right: AppSpacing.xs,
-                      ),
-                      child: Center(child: AccountMenu()),
-                    ),
-              titleSpacing: isSubPage ? AppSpacing.lg : AppSpacing.xs,
-              title: _title(root),
-              actions: [
-                _slot(ShellSlots.action),
-                // Only while the list has something to search.
-                if (search != null)
-                  AppButton(
-                    icon: AppIcons.search,
-                    style: AppButtonStyle.ghost,
-                    tooltip: search.searchHint,
-                    onTap: () => _phoneSearchFor.value = path,
-                  ),
-                AppButton(
-                  // The link, not a magnifier: a magnifier is a list's own search.
-                  icon: AppIcons.link,
-                  style: AppButtonStyle.ghost,
-                  tooltip: 'Open link or go to',
-                  onTap: () => openLinkSearchSheet(context),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leadingWidth: isSubPage
+            ? null
+            : AppSpacing.lg + AppButton.normalExtent + AppSpacing.xs,
+        leading: isSubPage
+            ? null
+            : const Padding(
+                padding: EdgeInsets.only(
+                  left: AppSpacing.lg,
+                  right: AppSpacing.xs,
                 ),
-                AppSpacing.gapXs,
-                const _NotificationBell(),
-                AppSpacing.gapXs,
-              ],
-            ),
+                child: Center(child: AccountMenu()),
+              ),
+        titleSpacing: isSubPage ? AppSpacing.lg : AppSpacing.xs,
+        title: _title(root),
+        actions: [
+          _slot(ShellSlots.action),
+          ?search?.button(),
+          AppButton(
+            // The link, not a magnifier: a magnifier is a list's own search.
+            icon: AppIcons.link,
+            style: AppButtonStyle.ghost,
+            tooltip: 'Open link or go to',
+            onTap: () => openLinkSearchSheet(context),
+          ),
+          AppSpacing.gapXs,
+          const _NotificationBell(),
+          AppSpacing.gapXs,
+        ],
+      ),
       body: _body(path),
       bottomNavigationBar: _bottomBar(destination),
     );
@@ -446,15 +385,15 @@ class _AppShellState extends State<AppShell> {
             child: Scaffold(
               appBar: AppBar(
                 titleSpacing: AppSpacing.screenH(context),
-                title: _titleWithSearch(root, listSearch),
+                title: _title(root),
                 actions: [
                   _slot(ShellSlots.action),
                   if (!sidebar) const _NotificationBell(),
                   // The sidebar carries its own "Open link or go to", so it is not repeated.
                   // A mid-sized window keeps the bar's room for the title and
                   // the page's action, and searches from an icon.
-                  // Beside a list's search the pill would be a second one, so
-                  // it stays an icon there.
+                  // Beside a list's Search and filter a field would read as
+                  // the list's own search, so it stays an icon there.
                   if (!sidebar && (!roomForSearchField || listSearch != null))
                     AppButton(
                       icon: AppIcons.link,
@@ -473,6 +412,13 @@ class _AppShellState extends State<AppShell> {
                         ),
                         child: _SearchField(),
                       ),
+                    ),
+                  // The list's search, filters and order, behind one button
+                  // that opens them under it; an empty list keeps it too.
+                  if (listSearch != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.xs),
+                      child: listSearch.button(),
                     ),
                   if (pageAction case final action?)
                     Padding(
@@ -499,8 +445,9 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// The wide layout's navigation: the workspace and account on top, then Home
-/// and notifications, New and search, the lists, and settings at the bottom.
+/// The wide layout's navigation: the workspace and account on top with the
+/// notifications bell, then New and "Open link or go to" in one row, Home
+/// under Overview, the lists under Lists, and settings at the bottom.
 class _Sidebar extends StatelessWidget {
   final List<_Destination> shown;
   final int? destination;
@@ -546,8 +493,40 @@ class _Sidebar extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AccountMenu(expanded: true),
+              // The workspace, with the bell beside it: notifications are
+              // about the whole account, not one more place.
+              Row(
+                children: [
+                  const Expanded(child: AccountMenu(expanded: true)),
+                  AppSpacing.gapXxs,
+                  _NotificationBell(selected: onNotifications),
+                ],
+              ),
               AppSpacing.gapSm,
+              // The tools in one row, ahead of the places: New, and
+              // "Open link or go to" behind its icon (`/` opens it too).
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      size: .small,
+                      style: .accent,
+                      icon: AppIcons.plus,
+                      label: 'New',
+                      tooltip: 'Create something new (N)',
+                      onTap: onNew,
+                    ),
+                  ),
+                  AppSpacing.gapXs,
+                  AppButton(
+                    size: .small,
+                    style: .accent,
+                    icon: AppIcons.search,
+                    tooltip: 'Open link or go to (/)',
+                    onTap: () => openLinkSearchSheet(context),
+                  ),
+                ],
+              ),
               Semantics(
                 container: true,
                 explicitChildNodes: true,
@@ -555,50 +534,22 @@ class _Sidebar extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const _SidebarHeading('Overview'),
                     for (var i = 0; i < shown.length; i++)
                       if (_isHome(i)) _item(i),
-                    Observer(
-                      builder: (context) {
-                        final unread = Stores.notifications.unreadCount;
-                        return _SidebarItem(
-                          icon: AppIcons.bell,
-                          label: 'Notifications',
-                          selected: onNotifications,
-                          semanticsLabel: unread > 0
-                              ? 'Notifications, $unread unread'
-                              : 'Notifications',
-                          trailing: unread > 0
-                              ? AppBadge(
-                                  label: '$unread',
-                                  variant: AppBadgeVariant.primary,
-                                )
-                              : null,
-                          onTap: () => context.go(AppRoutes.notifications),
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
-              AppSpacing.gapSm,
-              AppButton(
-                size: .small,
-                style: .accent,
-                icon: AppIcons.plus,
-                label: 'New',
-                tooltip: 'Create something new (N)',
-                onTap: onNew,
-              ),
-              AppSpacing.gapXs,
-              const _SearchField(),
-              AppSpacing.gapMd,
               Semantics(
                 container: true,
                 explicitChildNodes: true,
                 label: 'Main navigation',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: _navigation(context),
+                  children: [
+                    const _SidebarHeading('Lists'),
+                    ..._navigation(context),
+                  ],
                 ),
               ),
               const Spacer(),
@@ -619,9 +570,6 @@ class _Sidebar extends StatelessWidget {
 /// The narrowest window whose rail layout keeps the search field in the top
 /// bar; below it the field becomes an icon.
 const double _searchFieldMinWindow = 900;
-
-/// The most a list's search pill takes in the top bar.
-const double _listSearchWidth = 420;
 
 /// How much room the trigger takes in a top bar — enough for the hint, but
 /// not so much that it crowds the bar on a mid-sized window.
@@ -644,21 +592,35 @@ class _SearchField extends StatelessWidget {
   }
 }
 
+/// A small muted name over a group of the sidebar's rows.
+class _SidebarHeading extends StatelessWidget {
+  final String title;
+
+  const _SidebarHeading(this.title);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.md,
+      AppSpacing.md,
+      AppSpacing.xxs,
+    ),
+    child: ExcludeSemantics(child: AppText(title).small.muted),
+  );
+}
+
 class _SidebarItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String? semanticsLabel;
   final bool selected;
-  final Widget? trailing;
   final VoidCallback onTap;
 
   const _SidebarItem({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.semanticsLabel,
     this.selected = false,
-    this.trailing,
   });
 
   @override
@@ -671,7 +633,7 @@ class _SidebarItem extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: selected,
-        label: semanticsLabel ?? label,
+        label: label,
         excludeSemantics: true,
         child: AppFocusRing(
           child: Material(
@@ -699,7 +661,6 @@ class _SidebarItem extends StatelessWidget {
                     Icon(icon, size: 20, color: foreground),
                     AppSpacing.gapMd,
                     Expanded(child: selected ? text.bold : text),
-                    ?trailing,
                   ],
                 ),
               ),
@@ -711,10 +672,13 @@ class _SidebarItem extends StatelessWidget {
   }
 }
 
-/// Top-bar notifications bell with an unread dot, on layouts without the
-/// sidebar.
+/// The notifications bell with an unread dot: in the top bar without the
+/// sidebar, beside the workspace in it. [selected] while Notifications is
+/// open, as the sidebar marks the page on screen.
 class _NotificationBell extends StatelessWidget {
-  const _NotificationBell();
+  final bool selected;
+
+  const _NotificationBell({this.selected = false});
 
   @override
   Widget build(BuildContext context) {
@@ -725,6 +689,16 @@ class _NotificationBell extends StatelessWidget {
         return Stack(
           clipBehavior: Clip.none,
           children: [
+            // The current page's fill, as on the sidebar's own rows.
+            if (selected)
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.secondaryContainer,
+                    borderRadius: AppRadius.allMd,
+                  ),
+                ),
+              ),
             AppButton(
               icon: AppIcons.bell,
               style: AppButtonStyle.ghost,

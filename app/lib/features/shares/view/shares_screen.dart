@@ -256,11 +256,16 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         ],
       ),
       builder: (_) {
+        // Nothing to list still keeps Search and filter in the top bar.
+        Widget bare(Widget child) =>
+            AppListEmpty(toolbar: _toolbar(), child: child);
         if (store.shares.isEmpty && store.loadState.error != null) {
-          return AppLoadError(
-            title: 'Links could not be loaded',
-            message: store.loadState.error!,
-            onRetry: store.loadShares,
+          return bare(
+            AppLoadError(
+              title: 'Links could not be loaded',
+              message: store.loadState.error!,
+              onRetry: store.loadShares,
+            ),
           );
         }
 
@@ -278,38 +283,40 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
             style: vaultEmpty ? AppButtonStyle.accent : AppButtonStyle.primary,
             onTap: () => openShareCreateSheet(context: context),
           );
-          return AppEmptyState(
-            icon: AppIcons.share,
-            title: 'No links',
-            subtitle:
-                'Links share records without handing over a copy. Recipients '
-                'see the current version until the link is revoked.',
-            example: const AppEmptyExample(
-              title: 'Onboarding pack',
-              detail: '3 records',
-              badge: 'active',
-            ),
-            steps: const [
-              AppEmptyStep('Records or a section', 'From the vault'),
-              AppEmptyStep(
-                'Access control',
-                'Password, identifier or verified identity',
+          return bare(
+            AppEmptyState(
+              icon: AppIcons.share,
+              title: 'No links',
+              subtitle:
+                  'Links share records without handing over a copy. Recipients '
+                  'see the current version until the link is revoked.',
+              example: const AppEmptyExample(
+                title: 'Onboarding pack',
+                detail: '3 records',
+                badge: 'active',
               ),
-              AppEmptyStep('Revocation', 'Paused, expired or revoked'),
-            ],
-            notice: vaultEmpty
-                ? 'The vault is empty. Only existing records can be shared.'
-                : null,
-            action: vaultEmpty
-                ? AppButton(
-                    icon: AppIcons.plus,
-                    label: 'Add a record',
-                    onTap: () => openVaultCreateSheet(context),
-                  )
-                : newLink,
-            secondaryAction: vaultEmpty ? newLink : null,
-            learnMoreLabel: 'How sharing works',
-            learnMoreUrl: '${AppConfig.docsUrl}/guide/sharing/',
+              steps: const [
+                AppEmptyStep('Records or a section', 'From the vault'),
+                AppEmptyStep(
+                  'Access control',
+                  'Password, identifier or verified identity',
+                ),
+                AppEmptyStep('Revocation', 'Paused, expired or revoked'),
+              ],
+              notice: vaultEmpty
+                  ? 'The vault is empty. Only existing records can be shared.'
+                  : null,
+              action: vaultEmpty
+                  ? AppButton(
+                      icon: AppIcons.plus,
+                      label: 'Add a record',
+                      onTap: () => openVaultCreateSheet(context),
+                    )
+                  : newLink,
+              secondaryAction: vaultEmpty ? newLink : null,
+              learnMoreLabel: 'How sharing works',
+              learnMoreUrl: '${AppConfig.docsUrl}/guide/sharing/',
+            ),
           );
         }
 

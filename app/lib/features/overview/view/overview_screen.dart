@@ -165,7 +165,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
         ),
         AppSpacing.gapLg,
         AppListGroup(
-          title: 'Needs you',
+          title: 'Current',
           noun: 'items',
           previewCount: 6,
           trailing: needs.isEmpty
@@ -175,7 +175,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
               ? [
                   AppListRow(
                     icon: AppIcons.checkCircle,
-                    title: 'Nothing needs you right now',
+                    title: ' There is nothing to do',
                   ),
                 ]
               : [
