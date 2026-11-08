@@ -45,13 +45,8 @@ class _Destination {
 const _places = [
   _Destination(AppRoutes.overview, AppIcons.dashboard, 'Overview'),
   _Destination(AppRoutes.vault, AppIcons.safe, 'Vault'),
-  _Destination(AppRoutes.shared, AppIcons.share, 'Shares', underVault: true),
-  _Destination(
-    AppRoutes.requests,
-    AppIcons.inboxFill,
-    'Requests',
-    underVault: true,
-  ),
+  _Destination(AppRoutes.shared, AppIcons.share, 'Shares'),
+  _Destination(AppRoutes.requests, AppIcons.inboxFill, 'Requests'),
   _Destination(AppRoutes.attestations, AppIcons.attestation, 'Attestations'),
   _Destination(AppRoutes.contacts, AppIcons.person, 'Contacts'),
 ];
