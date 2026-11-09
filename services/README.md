@@ -49,6 +49,10 @@ The file has no other fields. Texts and permissions are never read from it.
 To opt out of being listed, the service adds `"listed": false` to the file,
 or asks for removal in an issue.
 
+Services built by the Revoked project (`built_by_revoked: true`) count as
+verified without a proof file. The flag is accepted only for origins on
+revoked.link.
+
 A weekly check fetches every origin and proof file. Findings are collected in
 one issue for the owner:
 
@@ -97,6 +101,7 @@ stores:                             # what it keeps on its own servers
   en: Nothing from the vault.
   de: Nichts aus dem Tresor.
 maintainers: [github-account]       # who may propose changes for the service
+built_by_revoked: false             # only for origins on revoked.link; counts as verified
 verified: false                     # set by the owner once the proof file matches
 status: listed                      # listed or unavailable
 reviewed: 2026-11-09                # set by the owner when merging

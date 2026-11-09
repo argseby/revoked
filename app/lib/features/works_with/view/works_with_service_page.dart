@@ -61,7 +61,8 @@ class _WorksWithServicePageState extends State<WorksWithServicePage> {
           return AppEmptyState(
             icon: AppIcons.worksWith,
             title: 'Service not listed',
-            subtitle: 'It may have been removed from Works with Revoked.',
+            subtitle:
+                'The listing may have been removed from Works with Revoked.',
             action: AppButton(
               icon: AppIcons.arrowLeft,
               label: 'Back to the list',
@@ -141,16 +142,15 @@ List<Widget> worksWithServiceSections(
       Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.xl),
         child: AppText(
-          'Not confirmed by ${service.host}. The listing was reviewed, but '
-          'the service has not confirmed it on its own website.',
+          'Reviewed, but not yet confirmed on ${service.host} itself.',
         ).small.muted,
       ),
     AppListGroup(
       title: 'What it can see',
       trailing: quiet,
       footer: const Text(
-        'The address above identifies the service. Proposals from it are '
-        'checked against this listing on this device.',
+        'Proposals from this address are compared with the listing on this '
+        'device. The service learns nothing about the comparison.',
       ),
       children: [
         AppDetailRow(
@@ -162,7 +162,7 @@ List<Widget> worksWithServiceSections(
         ),
         const AppDetailRow(
           icon: AppIcons.server,
-          label: 'Your server',
+          label: 'The server',
           value: 'Everything, as with all data it holds',
         ),
         if (service.does.contains(ServiceKind.share))
@@ -178,8 +178,8 @@ List<Widget> worksWithServiceSections(
         title: 'May ask for',
         trailing: quiet,
         footer: const Text(
-          'When it asks for anything not listed here, the connect screen '
-          'says so and leaves that switch off.',
+          'A request beyond this list is pointed out on the connect screen, '
+          'and its switch starts off.',
         ),
         children: [
           for (final p in service.permissions)

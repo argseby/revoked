@@ -49,6 +49,7 @@ nav = [
     { "Contacts" = "guide/contacts.md" },
     { "Workspaces & members" = "guide/workspaces.md" },
     { "Tools & link proposals" = "guide/tools.md" },
+    { "Works with Revoked" = "guide/works-with.md" },
     { "Your AI assistant" = "guide/assistant.md" },
     { "Appearance" = "guide/appearance.md" },
     { "Features" = "guide/features.md" },

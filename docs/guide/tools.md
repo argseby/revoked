@@ -18,6 +18,10 @@ wants the data sends a form, and the owner fills it in.
 [Notfallkarte](notfallkarte.md) is a complete example: a web page that
 turns a proposal into a wallet-sized emergency card.
 
+Tools built on Revoked are listed in [Works with Revoked](works-with.md), a
+tab in the app. A listed tool's address carries a **Listed** chip on its
+proposals, and a request beyond its listing is pointed out.
+
 ## Reviewing a proposal
 
 A proposal opens the app on **Link proposal from …**. The name after

@@ -91,7 +91,7 @@ class ConnectionsList extends StatelessWidget {
                 learnMoreUrl: '${AppConfig.docsUrl}/guide/tools/',
                 action: AppButton(
                   icon: AppIcons.worksWith,
-                  label: 'Browse Works with Revoked',
+                  label: 'Works with Revoked',
                   onTap: () => context.go(AppRoutes.worksWith),
                 ),
               ),
@@ -137,7 +137,7 @@ class ConnectionsList extends StatelessWidget {
                   ),
                 AppListRow(
                   icon: AppIcons.worksWith,
-                  title: 'Find more in Works with Revoked',
+                  title: 'More services in Works with Revoked',
                   onTap: () => context.go(AppRoutes.worksWith),
                 ),
               ],

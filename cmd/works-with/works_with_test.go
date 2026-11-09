@@ -302,3 +302,19 @@ func TestRunCheckReportsStaleCatalog(t *testing.T) {
 		t.Fatalf("check after build: exit %d: %s", code, stderr.String())
 	}
 }
+
+func TestBuiltByRevoked(t *testing.T) {
+	outside := parse(t, validEntry+"built_by_revoked: true\n")
+	if p := strings.Join(outside.Validate("example", ParseBlocklist("")), "\n"); !strings.Contains(p, "only for services on revoked.link") {
+		t.Fatalf("built_by_revoked outside revoked.link must be refused, got:\n%s", p)
+	}
+
+	own := parse(t, strings.Replace(validEntry, "https://tool.example.org", "https://tool.revoked.link", -1)+"built_by_revoked: true\n")
+	if p := own.Validate("example", ParseBlocklist("")); len(p) != 0 {
+		t.Fatalf("expected no problems, got %v", p)
+	}
+	out, _ := Build([]*Entry{own}).Encode()
+	if !strings.Contains(string(out), `"verified": true`) {
+		t.Fatal("a service built by Revoked is verified in the catalog")
+	}
+}

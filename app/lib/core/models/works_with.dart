@@ -227,7 +227,8 @@ class WorksWithService {
       ],
       stores: LocalizedText.fromJson(raw['stores']),
       builtByRevoked: raw['built_by_revoked'] == true,
-      verified: raw['verified'] == true,
+      // The project's own services count as verified without a proof file.
+      verified: raw['verified'] == true || raw['built_by_revoked'] == true,
       unavailable: raw['status'] == 'unavailable',
       reviewed: _line(raw['reviewed']),
     );

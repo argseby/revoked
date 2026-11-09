@@ -121,7 +121,7 @@ enum NewKind {
   service(
     NewGroup.services,
     AppIcons.worksWith,
-    'Use a service',
+    'Service',
     'A tool built on Revoked, such as an emergency card.',
     'w',
     feature: Feature.tools,

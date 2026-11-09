@@ -79,6 +79,11 @@ func (c *Checker) Check(ctx context.Context, e *Entry) Finding {
 	f.Proof = c.proof(ctx, e)
 
 	switch {
+	case e.BuiltByRevoked:
+		// Verified by being built here; the proof file plays no part.
+		if !f.Reachable && e.Status != "unavailable" {
+			f.Problem = "the origin does not answer; set status: unavailable, and remove the entry after 30 days"
+		}
 	case f.Proof == ProofOptOut:
 		f.Problem = "the service opted out (listed: false); remove the entry"
 	case e.Verified && f.Proof != ProofMatches:

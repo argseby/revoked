@@ -72,7 +72,7 @@
         "de": "Adressen und Stand der Wohnungen, nur im Browser. Nie einen Wert, ein Dokument oder einen Link."
       },
       "built_by_revoked": true,
-      "verified": false,
+      "verified": true,
       "status": "listed",
       "reviewed": "2026-11-09"
     },
@@ -145,7 +145,7 @@
         "de": "Kartennamen und die angehakten Gruppen, nur im Browser. Nie einen Wert aus dem Tresor."
       },
       "built_by_revoked": true,
-      "verified": false,
+      "verified": true,
       "status": "listed",
       "reviewed": "2026-11-09"
     }

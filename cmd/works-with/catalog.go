@@ -63,6 +63,10 @@ func Build(entries []*Entry) *Catalog {
 		if c.Status == "" {
 			c.Status = "listed"
 		}
+		// The project's own services are verified by being built here.
+		if c.BuiltByRevoked {
+			c.Verified = true
+		}
 		c.Servers = nonNil(c.Servers)
 		c.Languages = sorted(c.Languages)
 		c.Categories = nonNil(c.Categories)

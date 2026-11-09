@@ -40,8 +40,8 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
 
   static const _defaultSort = 'name_asc';
   static const intro =
-      'Services and tools that work with Revoked. Each listing is reviewed; '
-      'the address identifies the service.';
+      'Services and tools built on Revoked. Each listing is reviewed before '
+      'it appears here, and a service is identified by its address.';
 
   @override
   void initState() {
@@ -181,7 +181,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
         toolbar: _toolbar(const []),
         child: AppEmptyState(
           icon: AppIcons.worksWith,
-          title: 'No services listed yet',
+          title: 'No services listed',
           subtitle: intro,
           action: AppButton(
             icon: AppIcons.boxArrowUpRight,
@@ -217,7 +217,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
           ),
         if (rest.isNotEmpty)
           AppListGroup(
-            title: mine.isEmpty ? 'Listed' : 'More services',
+            title: mine.isEmpty ? 'Listed' : 'Other listed services',
             footer: Text.rich(
               TextSpan(
                 text:

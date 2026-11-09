@@ -61,7 +61,7 @@ class WorksWithChip extends StatelessWidget {
         return Tooltip(
           message: service.verified
               ? 'Listed in Works with Revoked'
-              : 'Listed in Works with Revoked, not confirmed by its website',
+              : 'Listed in Works with Revoked, not yet confirmed on its website',
           child: Semantics(
             button: true,
             label: 'Works with Revoked: ${service.name}',
@@ -115,14 +115,14 @@ class WorksWithMismatchAlert extends StatelessWidget {
     return AppAlert(
       tone: AppAlertTone.warning,
       leading: const Icon(AppIcons.exclamationTriangle),
-      title: Text('More than ${service.name} is listed for'),
+      title: const Text('Not covered by the listing'),
       content: Text(
         keys
-            ? 'Works with Revoked lists ${service.name} without these '
-                  'records: $names. They start unticked and can still be '
-                  'included.'
-            : 'Works with Revoked lists ${service.name} without: $names. '
-                  '${extra.length == 1 ? 'This switch starts' : 'These switches start'} '
+            ? '${service.name} is listed in Works with Revoked without '
+                  'these records: $names. They start unticked and can still '
+                  'be included.'
+            : '${service.name} is listed in Works with Revoked without: '
+                  '$names. ${extra.length == 1 ? 'This switch starts' : 'These switches start'} '
                   'off and can still be turned on.',
       ),
     );

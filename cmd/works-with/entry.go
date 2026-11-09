@@ -224,6 +224,13 @@ func (e *Entry) Validate(slug string, blocked *Blocklist) []string {
 			add("maintainers: %q is not a GitHub account name", m)
 		}
 	}
+	// Built by Revoked counts as verified without a proof file, so the mark is
+	// only accepted where the project's own domain already vouches for it.
+	if e.BuiltByRevoked {
+		if h := hostOf(e.Origin); h != officialDomain && !strings.HasSuffix(h, "."+officialDomain) {
+			add("built_by_revoked is only for services on %s", officialDomain)
+		}
+	}
 	if e.Status != "" && !slices.Contains(statuses, e.Status) {
 		add("status must be one of %s", strings.Join(statuses, ", "))
 	}
