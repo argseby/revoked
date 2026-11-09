@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -345,7 +346,8 @@ func watermarkPDF(data []byte, line string) ([]byte, error) {
 	conf.Limits.MaxObjectCount = 200_000
 	conf.Limits.MaxXRefEntries = 200_000
 
-	dims, err := api.PageDims(bytes.NewReader(data), conf)
+	ctx := context.Background()
+	dims, err := api.PageDims(ctx, bytes.NewReader(data), conf)
 	if err != nil || len(dims) == 0 || len(dims) > maxWatermarkPages {
 		return nil, ErrNotWatermarkable
 	}
@@ -355,9 +357,9 @@ func watermarkPDF(data []byte, line string) ([]byte, error) {
 		for _, at := range pdfStampGrid(d.Width, d.Height, line) {
 			// On top of the content: a scanned page is one opaque image, and a
 			// stamp underneath it would never be seen.
-			wm, err := api.TextWatermark(line, fmt.Sprintf(
+			wm, err := api.TextWatermark(ctx, line, fmt.Sprintf(
 				"fontname:Helvetica, points:%g, scalefactor:1 abs, rotation:%g, opacity:0.3, fillcolor:#1e1e1e, rendermode:0, position:c, offset:%.1f %.1f",
-				pdfStampPoints, pdfStampDegrees, at[0], at[1]), true, false, types.POINTS)
+				pdfStampPoints, pdfStampDegrees, at[0], at[1]), true, false, types.POINTS, conf)
 			if err != nil {
 				return nil, err
 			}
@@ -366,7 +368,7 @@ func watermarkPDF(data []byte, line string) ([]byte, error) {
 	}
 
 	var out bytes.Buffer
-	if err := api.AddWatermarksSliceMap(bytes.NewReader(data), &out, stamps, conf); err != nil {
+	if err := api.AddWatermarksSliceMap(ctx, bytes.NewReader(data), &out, stamps, conf); err != nil {
 		return nil, ErrNotWatermarkable
 	}
 	return out.Bytes(), nil
