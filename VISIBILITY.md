@@ -515,7 +515,8 @@ Where the build differs from the design above, or goes further:
   `000053` does. A later change to those rules needs its own reconcile
   migration; `TestAccessRegistryMatchesRules` now checks the read rules too.
 - **Not built:** admins changing the audience of a section whose owner has
-  left (§4.3).
+  left (§4.3). Per-group publishing rights (who may publish to which group)
+  are a later step: today one permission covers every group.
 
 ### Phase 2
 
@@ -644,4 +645,38 @@ Where the build differs from the design above, or goes further:
   the record is), and a colleague's share or request (edit, pause, revoke,
   delete; not its contents, and not who sees it). The app asks
   `GET /api/access/...` for `canEdit` rather than guessing.
+
+### Entries, publishing and shares of published data
+
+Built after the owner's scenarios (a company's root vault; HR's onboarding
+request and its answers; a family whose medical shares are seen by all):
+
+- **Entries carry a visibility of their own** (`records.audienceKind`,
+  `audienceGroups`, `editing`; `000100`), next to the sections holding them.
+  An entry is seen by its owner, its own audience, and the audiences of its
+  owner's sections that hold it. Files, aliases and answers stay private.
+  Other members' entries visible on their own are listed by
+  `/api/shared/vault` under `entries`, and in the app as **Shared entries**.
+- **The shared vault is locked.** `record:publish` (permission **Publish to
+  the workspace vault**) is needed to make a vault entry or section visible
+  beyond its owner, and to edit one that is: the audience's editors must
+  hold it beside the edit permission. A workspace default that would publish
+  gives way to private for a member without it; asking for it outright is a
+  403. `000100` hands it to admins and to members who already owned a
+  section visible beyond them. No invite preset includes it.
+- **Shares may hold what their creator sees**, not only what they own: the
+  company's published address can go into any member's share; a colleague's
+  private entry still cannot (`validateLinkContentOwner`,
+  `authorizeVaultReads`). The app's share picker lists them under
+  **From the workspace**.
+- **Create sheets** offer **Groups** beside Private and Workspace (sections,
+  entries, shares, requests), and the entry sheet offers the choice at all.
+  An encrypted entry is created private through its own route and widened
+  right after.
+- **Who has access** shows on every share and request row ("Private",
+  "Workspace", or the groups' names).
+- **Answers still follow their request**, which is the binary rule the owner
+  asked for: whoever sees a request (and may read collected data) sees its
+  answers; nobody sees answers to a request they do not see. What others
+  send to a member (their tray, a saved share) stays personal for now.
 

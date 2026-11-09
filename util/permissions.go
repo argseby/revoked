@@ -20,6 +20,7 @@ type Permission struct {
 const (
 	PermVaultRead         = "vault:read"
 	PermVaultWrite        = "vault:write"
+	PermVaultPublish      = "vault:publish"
 	PermResponsesRead     = "responses:read"
 	PermResponsesManage   = "responses:manage"
 	PermSharesRead        = "shares:read"
@@ -57,6 +58,12 @@ var Permissions = []Permission{
 			ScopeRecordCreate, ScopeRecordUpdate, ScopeRecordDelete,
 			ScopeSectionCreate, ScopeSectionUpdate, ScopeSectionDelete,
 		},
+	},
+	{
+		Key: PermVaultPublish, Label: "Publish to the workspace vault",
+		Description: "Make vault entries and sections visible to the whole workspace or its groups, and change those that are.",
+		MembersOnly: true,
+		Scopes:      []string{ScopeRecordPublish},
 	},
 	{
 		Key: PermResponsesRead, Label: "Read collected data",

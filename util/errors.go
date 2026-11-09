@@ -3,7 +3,7 @@ package util
 import (
 	"errors"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 // ErrInviteAlreadySpent is returned when a concurrent redemption took the last
@@ -1015,7 +1015,7 @@ var Errors = struct {
 	},
 	LinkContentNotOwned: AppError{
 		ErrorCode: "link_content_not_owned",
-		ErrorText: "A share can hold only the creator's own records and sections.",
+		ErrorText: "A share can hold only records and sections its creator owns or sees.",
 	},
 	SealedRecordUnsupported: AppError{
 		ErrorCode: "sealed_record_unsupported",

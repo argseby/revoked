@@ -23,7 +23,26 @@ func newSharedFixture(t *testing.T) sharedFixture {
 	t.Helper()
 	f := newSealedFixture(t)
 	member := addWorkspaceMember(t, f)
-	return sharedFixture{f.app, f.baseURL, testutils.NewPBClient(t, f.baseURL), f.party, member}
+	sf := sharedFixture{f.app, f.baseURL, testutils.NewPBClient(t, f.baseURL), f.party, member}
+	// The member may publish to the workspace vault, as its owner may.
+	sf.grant(t, util.PermVaultRead, util.PermVaultWrite, util.PermVaultPublish)
+	return sf
+}
+
+// grant sets the member's permissions.
+func (f sharedFixture) grant(t *testing.T, perms ...string) {
+	t.Helper()
+	m := util.Fields.WorkspaceMember
+	row, err := f.app.FindFirstRecordByFilter(util.Coll.WorkspaceMembers,
+		m.Workspace+" = {:w} && "+m.User+" = {:u}", dbx.Params{"w": f.owner.workspace, "u": f.member.id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scopes, _ := util.ExpandPermissions(perms)
+	row.Set(m.Permissions, scopes)
+	if err := f.app.Save(row); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // readOnly takes the member down to reading the vault.

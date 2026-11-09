@@ -351,11 +351,17 @@ func sealedState(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		return re.InternalServerError("Failed to read keys.", err)
 	}
+	// null, not {}, before any device made one: the router's JSON encoder
+	// writes a nil map as an empty object, which reads as a key that exists.
+	var accountJSON any
+	if account != nil {
+		accountJSON = account
+	}
 
 	return re.JSON(http.StatusOK, map[string]any{
 		"devices":    devices,
 		"workspaces": workspaces,
-		"account":    account,
+		"account":    accountJSON,
 	})
 }
 

@@ -98,6 +98,24 @@ func listSharedVault(app core.App, re *core.RequestEvent) error {
 			"canEdit":        services.CanEdit(app, re.Auth.Id, section),
 		})
 	}
+	// Entries shared on their own, outside any section shared with this
+	// member: listed by id under entries.
+	direct, err := services.DirectlySharedRecords(app, workspace, re.Auth.Id)
+	if err != nil {
+		return re.InternalServerError("Failed to read entries.", err)
+	}
+	entries := make([]map[string]any, 0, len(direct))
+	for _, rec := range direct {
+		owner := rec.GetString(util.Fields.Record.User)
+		entries = append(entries, map[string]any{
+			"id": rec.Id, "user": owner, "ownerEmail": ownerEmail(owner),
+			"canEdit": services.CanEdit(app, re.Auth.Id, rec),
+		})
+		if !seen[rec.Id] {
+			seen[rec.Id] = true
+			records = append(records, sharedRecordJSON(rec))
+		}
+	}
 	slices.SortStableFunc(records, func(a, b map[string]any) int {
 		if a["label"].(string) < b["label"].(string) {
 			return -1
@@ -107,7 +125,7 @@ func listSharedVault(app core.App, re *core.RequestEvent) error {
 		}
 		return 0
 	})
-	return re.JSON(http.StatusOK, map[string]any{"sections": sections, "records": records})
+	return re.JSON(http.StatusOK, map[string]any{"sections": sections, "records": records, "entries": entries})
 }
 
 func nonNilIds(ids []string) []string {

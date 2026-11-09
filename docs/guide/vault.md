@@ -95,6 +95,28 @@ shows how many members see the section and how many may change it.
 - [Encrypted records](encryption.md#access) in a visible section open only
   for members whose devices were given the workspace's key.
 
+### Who sees an entry {#entries}
+
+An entry can be made visible on its own, without a section: **Visible to**
+when it is created, or **Visibility** on its page later. **Workspace** suits
+what the whole company relies on (its address, phone number or managing
+director), **Groups** what only some teams need. Every member who can read the
+vault then finds it under **Shared entries**, and can put it in their own
+shares. A private entry of someone else never appears there, and never goes
+into anyone else's share.
+
+### Publishing to the workspace vault {#publishing}
+
+Making an entry or section visible beyond its owner, and changing one that
+is, takes the permission **Publish to the workspace vault**. Without it a
+member's entries stay their own: **Visible to** offers only **Private**, and a
+workspace default that would publish gives way to private for them. Admins
+hold the permission; it is granted to others like any other permission, and
+none of the invite presets include it. Members who published sections before
+the permission existed kept it.
+
+Files stay with their owner for now, as do aliases and answers to requests.
+
 ## Creating records from a template {#start-from-a-template}
 
 **New → From a template** creates a complete set of sections and records

@@ -5,7 +5,6 @@ go 1.27
 require (
 	github.com/descope/virtualwebauthn v1.0.5
 	github.com/gavv/httpexpect/v2 v2.17.0
-	github.com/go-ozzo/ozzo-validation/v4 v4.5.0
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -13,6 +12,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pdfcpu/pdfcpu v0.16.4
 	github.com/pocketbase/dbx v1.12.0
+	github.com/pocketbase/ozzo-validation/v4 v4.3.0
 	github.com/pocketbase/pocketbase v0.40.6
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -56,7 +56,6 @@ require (
 	github.com/molecule-man/go-brrr v1.3.1 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect
 	github.com/philhofer/fwd v1.2.1 // indirect
-	github.com/pocketbase/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/sanity-io/litter v1.5.8 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
@@ -83,9 +82,9 @@ require (
 	golang.org/x/time v0.16.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	modernc.org/libc v1.80.2 // indirect
+	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
-	modernc.org/sqlite v1.62.0 // indirect
+	modernc.org/sqlite v1.60.1 // indirect
 	moul.io/http2curl/v2 v2.3.0 // indirect
 )

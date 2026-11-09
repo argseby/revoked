@@ -6,10 +6,14 @@ const (
 	// answering a request is governed by response:* instead, so "browse the
 	// vault" and "read what people submitted to me" can be granted separately.
 	// The two are told apart by requestedBy being set.
-	ScopeRecordRead   = "record:read"
-	ScopeRecordCreate = "record:create"
-	ScopeRecordUpdate = "record:update"
-	ScopeRecordDelete = "record:delete"
+	// ScopeRecordPublish makes vault entries and sections visible beyond
+	// their owner (the workspace, its groups), and changes those that are
+	// (VISIBILITY.md). Without it a member's vault stays their own.
+	ScopeRecordPublish = "record:publish"
+	ScopeRecordRead    = "record:read"
+	ScopeRecordCreate  = "record:create"
+	ScopeRecordUpdate  = "record:update"
+	ScopeRecordDelete  = "record:delete"
 
 	ScopeResponseRead   = "response:read"
 	ScopeResponseUpdate = "response:update"
@@ -123,6 +127,7 @@ var AllScopes = []string{
 	ScopeContactUpdate,
 	ScopeContactDelete,
 	ScopeWebhookManage,
+	ScopeRecordPublish,
 }
 
 // AttestationScopes are the scopes added with attestations, for the migration

@@ -75,11 +75,10 @@ func BindLinkHooks(app core.App) {
 }
 
 // validateLinkContentOwner refuses a share naming a record or section its
-// creator doesn't own. Members now see each other's shared sections and
-// records (VISIBILITY.md), and their ids with them; seeing an item is not a
-// licence to hand it to someone outside the workspace. Whether a share of a
-// colleague's item should ever be allowed is phase 2's question. Only ids
-// added by this save are checked, so existing shares keep working.
+// creator neither owns nor sees (VISIBILITY.md). What the workspace published
+// for everyone, such as the company's address in its root vault, may go into
+// any member's share; a colleague's private entry never can. Only ids added
+// by this save are checked, so existing shares keep working.
 func validateLinkContentOwner(app core.App, rec, before *core.Record) error {
 	owner := rec.GetString(util.Fields.Link.User)
 	check := func(field, collection string) error {
@@ -92,7 +91,8 @@ func validateLinkContentOwner(app core.App, rec, before *core.Record) error {
 				continue
 			}
 			item, err := app.FindRecordById(collection, id)
-			if err != nil || item == nil || item.GetString(util.FieldUser) != owner {
+			if err != nil || item == nil ||
+				(item.GetString(util.FieldUser) != owner && !services.CanSee(app, owner, item)) {
 				return util.AsFieldValidationError(field, util.Errors.LinkContentNotOwned)
 			}
 		}

@@ -60,8 +60,9 @@ func BindVisibilityHooks(app core.App) {
 		// workspace, which is no change of audience: an API key may create
 		// one.
 		var before services.Audience
+		named := e.Record.GetString(s.AudienceKind) != ""
+		workspace := e.Record.GetString(s.Workspace)
 		if isCreate {
-			workspace := e.Record.GetString(s.Workspace)
 			if workspace == "" && e.Auth != nil {
 				switch e.Auth.Collection().Name {
 				case util.Coll.Users:
@@ -77,6 +78,30 @@ func BindVisibilityHooks(app core.App) {
 		}
 		normalizeAudienceFields(e.Record)
 		after := services.SectionAudience(e.Record)
+
+		// The shared vault is locked: putting a vault entry or section before
+		// anyone beside its owner takes the permission to publish
+		// (VISIBILITY.md). A default that would publish quietly gives way to
+		// private for a member without it; asking for it outright is refused.
+		coll := e.Record.Collection().Name
+		if (coll == util.Coll.Sections || coll == util.Coll.Records) && after.Kind != util.AudiencePrivate &&
+			(isCreate || !sameAudience(before, after)) {
+			mayPublish := e.Auth != nil && e.Auth.Collection().Name == util.Coll.Users &&
+				services.HoldsPermission(e.App, workspace, e.Auth.Id, util.ScopeRecordPublish)
+			if !mayPublish {
+				if isCreate && !named {
+					e.Record.Set(s.AudienceKind, util.AudiencePrivate)
+					e.Record.Set(s.Editing, util.EditingOwner)
+					normalizeAudienceFields(e.Record)
+					return e.Next()
+				}
+				appErr := util.Errors.MissingPermission
+				return e.RequestEvent.JSON(http.StatusForbidden, map[string]any{
+					"code": appErr.ErrorCode, "message": "Publishing to the workspace vault takes its permission.",
+					"status": http.StatusForbidden,
+				})
+			}
+		}
 		if sameAudience(before, after) {
 			return e.Next()
 		}
@@ -102,7 +127,7 @@ func BindVisibilityHooks(app core.App) {
 		return nil
 	}
 	audienced := []string{
-		util.Coll.Sections, util.Coll.Links, util.Coll.Requests,
+		util.Coll.Sections, util.Coll.Records, util.Coll.Links, util.Coll.Requests,
 		util.Coll.Templates, util.Coll.Contacts, util.Coll.Attestations,
 	}
 	app.OnRecordCreateRequest(audienced...).BindFunc(func(e *core.RecordRequestEvent) error {
@@ -169,6 +194,13 @@ func BindVisibilityHooks(app core.App) {
 	})
 
 	recomputeRecord := func(e *core.RecordEvent) error {
+		if e.Record.IsNew() {
+			applyDefaultAudience(nil, e.Record, "")
+		}
+		normalizeAudienceFields(e.Record)
+		if err := validateAudience(e.App, e.Record); err != nil {
+			return err
+		}
 		if err := e.Next(); err != nil {
 			return err
 		}
@@ -312,8 +344,15 @@ func validateAudience(app core.App, rec *core.Record) error {
 	s := util.Fields.Section
 	kind := rec.GetString(s.AudienceKind)
 	groups := rec.GetStringSlice(s.AudienceGroups)
-	if rec.Collection().Name == util.Coll.Sections && rec.GetString(s.RequestedBy) != "" &&
+	coll := rec.Collection().Name
+	if (coll == util.Coll.Sections || coll == util.Coll.Records) && rec.GetString(s.RequestedBy) != "" &&
 		kind != util.AudiencePrivate {
+		return util.AsFieldValidationError(s.AudienceKind, util.Errors.AudienceInvalid)
+	}
+	// An alias would show a record its owner never published, and a file has
+	// no member download path yet: both stay with their owner.
+	if coll == util.Coll.Records && kind != util.AudiencePrivate &&
+		(rec.GetString(util.Fields.Record.AliasOf) != "" || rec.GetString(util.Fields.Record.Type) == util.TypeFile) {
 		return util.AsFieldValidationError(s.AudienceKind, util.Errors.AudienceInvalid)
 	}
 	workspace := rec.GetString(s.Workspace)

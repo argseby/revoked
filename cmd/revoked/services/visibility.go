@@ -44,6 +44,10 @@ type audienceArea struct {
 	// edit is the permission the audience, or the owner where owning is not
 	// enough, needs to change it.
 	edit string
+	// publish is a further permission the audience needs to change an item
+	// that is visible beyond its owner: the shared vault is locked to those
+	// who may publish to it (record:publish).
+	publish string
 	// ownerNeedsPermission marks an area where owning the row is not enough
 	// to change it: an attestation speaks for the domain, so whoever issued
 	// it still needs the permission to revoke it.
@@ -62,7 +66,8 @@ var (
 // audienceAreas are the collections whose rows carry an audience of their
 // own, and the permissions that go with them.
 var audienceAreas = map[string]audienceArea{
-	util.Coll.Sections:     {read: util.ScopeSectionRead, edit: util.ScopeSectionUpdate, defaultAudience: privateByDefault},
+	util.Coll.Sections:     {read: util.ScopeSectionRead, edit: util.ScopeSectionUpdate, publish: util.ScopeRecordPublish, defaultAudience: privateByDefault},
+	util.Coll.Records:      {read: util.ScopeRecordRead, edit: util.ScopeRecordUpdate, publish: util.ScopeRecordPublish, defaultAudience: privateByDefault},
 	util.Coll.Links:        {read: util.ScopeLinkRead, edit: util.ScopeLinkUpdate, defaultAudience: privateByDefault},
 	util.Coll.Requests:     {read: util.ScopeRequestRead, edit: util.ScopeRequestUpdate, defaultAudience: privateByDefault},
 	util.Coll.Templates:    {edit: util.ScopeTemplateUpdate, defaultAudience: workspaceByDefault},
@@ -239,7 +244,7 @@ func (v *workspaceView) inAudience(user string, a Audience) bool {
 
 // audienceAccess lists who reads and who edits under one audience, beside
 // the owner, with the given read and edit permissions.
-func (v *workspaceView) audienceAccess(a Audience, readScope, editScope string, readers, editors map[string]bool) {
+func (v *workspaceView) audienceAccess(a Audience, readScope, editScope, publishScope string, readers, editors map[string]bool) {
 	if a.Kind == util.AudiencePrivate {
 		return
 	}
@@ -248,7 +253,7 @@ func (v *workspaceView) audienceAccess(a Audience, readScope, editScope string, 
 			continue
 		}
 		readers[user] = true
-		if a.Editing == util.EditingAudience && v.holds(user, editScope) {
+		if a.Editing == util.EditingAudience && v.holds(user, editScope) && v.holds(user, publishScope) {
 			editors[user] = true
 		}
 	}
@@ -267,7 +272,7 @@ func (v *workspaceView) ownAccess(item *core.Record, area audienceArea) (readers
 	answers := item.Collection().Name == util.Coll.Sections &&
 		item.GetString(util.Fields.Section.RequestedBy) != ""
 	if !answers {
-		v.audienceAccess(SectionAudience(item), area.read, area.edit, r, e)
+		v.audienceAccess(SectionAudience(item), area.read, area.edit, area.publish, r, e)
 	}
 	return sortedKeys(r), sortedKeys(e)
 }
@@ -313,11 +318,14 @@ func (v *workspaceView) recordAccess(rec *core.Record) (readers, editors []strin
 		r[owner], e[owner] = true, true
 	}
 	if recordSharesThroughSections(rec) {
+		// Its own visibility, set when it was made or since (an entry of the
+		// company's root vault, say), and that of every section holding it.
+		v.audienceAccess(SectionAudience(rec), util.ScopeRecordRead, util.ScopeRecordUpdate, util.ScopeRecordPublish, r, e)
 		for _, sec := range sectionsHolding(v.app, rec) {
 			if sec.GetString(util.Fields.Section.RequestedBy) != "" {
 				continue
 			}
-			v.audienceAccess(SectionAudience(sec), util.ScopeRecordRead, util.ScopeRecordUpdate, r, e)
+			v.audienceAccess(SectionAudience(sec), util.ScopeRecordRead, util.ScopeRecordUpdate, util.ScopeRecordPublish, r, e)
 		}
 	}
 	return sortedKeys(r), sortedKeys(e)
@@ -331,11 +339,11 @@ func ExpectedAccess(app core.App, item *core.Record) (readers, editors []string)
 
 func (v *workspaceView) access(item *core.Record) (readers, editors []string) {
 	name := item.Collection().Name
-	if area, ok := audienceAreas[name]; ok {
-		return v.ownAccess(item, area)
-	}
 	if name == util.Coll.Records {
 		return v.recordAccess(item)
+	}
+	if area, ok := audienceAreas[name]; ok {
+		return v.ownAccess(item, area)
 	}
 	return nil, nil
 }
@@ -640,4 +648,32 @@ func LeaveWorkspaceGroups(app core.App, workspace, user string) error {
 		}
 	}
 	return nil
+}
+
+// DirectlySharedRecords lists other members' vault entries a member sees
+// through the entry's own visibility (the company's root vault, say), as
+// opposed to through a section holding it. Sorted by label.
+func DirectlySharedRecords(app core.App, workspace, user string) ([]*core.Record, error) {
+	v := loadWorkspaceView(app, workspace)
+	if !v.isMember(user) {
+		return nil, nil
+	}
+	r := util.Fields.Record
+	rows, err := app.FindRecordsByFilter(util.Coll.Records,
+		r.Workspace+" = {:w} && "+r.User+" != {:me} && "+util.Fields.Section.AudienceKind+" != {:private}",
+		r.Label, 0, 0,
+		dbx.Params{"w": workspace, "me": user, "private": util.AudiencePrivate})
+	if err != nil {
+		return nil, err
+	}
+	out := []*core.Record{}
+	for _, rec := range rows {
+		if !recordSharesThroughSections(rec) {
+			continue
+		}
+		if readers, _ := v.recordAccess(rec); slices.Contains(readers, user) {
+			out = append(out, rec)
+		}
+	}
+	return out, nil
 }

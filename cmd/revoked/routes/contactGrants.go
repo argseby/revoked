@@ -259,11 +259,11 @@ func authorizeVaultReads(app core.App, re *core.RequestEvent, workspace, collect
 	read := util.AccessSpec{Kind: util.AccessWorkspaceSelf, Scope: scope}
 	for _, id := range ids {
 		rec, err := app.FindRecordById(collection, id)
-		// Only the sender's own items: a colleague's record seen through a
-		// shared section is not theirs to send (VISIBILITY.md).
+		// The sender's own items, or what the workspace published to them
+		// (VISIBILITY.md); a colleague's private entry is not there for them.
 		if err != nil || rec == nil ||
 			rec.GetString(util.FieldWorkspace) != workspace ||
-			rec.GetString(util.FieldUser) != re.Auth.Id {
+			(rec.GetString(util.FieldUser) != re.Auth.Id && !services.CanSee(app, re.Auth.Id, rec)) {
 			return denyGate(re, http.StatusNotFound, &util.Errors.RecordNotFound)
 		}
 		if collection == util.Coll.Records && services.IsSealedThroughAlias(app, rec) {

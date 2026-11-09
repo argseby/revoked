@@ -43,6 +43,9 @@ func newVisibilityFixture(t *testing.T) visibilityFixture {
 	f.noVault = addWorkspaceMember(t, sf)
 	f.setPermissions(t, f.noVault.id, util.PermSharesRead)
 	f.grouped = addWorkspaceMember(t, sf)
+	// Both may publish to the workspace vault, and so edit what is there.
+	f.setPermissions(t, f.member.id, util.PermVaultRead, util.PermVaultWrite, util.PermVaultPublish)
+	f.setPermissions(t, f.grouped.id, util.PermVaultRead, util.PermVaultWrite, util.PermVaultPublish)
 	f.removed = addWorkspaceMember(t, sf)
 	f.outsider = newContactParty(t, sf.baseURL)
 	f.group = f.newGroup(t, "hr", f.grouped.id)
@@ -369,7 +372,9 @@ func TestAccessRoute(t *testing.T) {
 		WithHeader("Authorization", f.readOnly.token).Expect().Status(http.StatusOK).JSON().Object()
 	member.Value("canEdit").IsEqual(false)
 	member.Value("canChangeAudience").IsEqual(false)
-	member.Value("audience").IsNull()
+	// An entry reports its own visibility, private here: it is seen through
+	// its section.
+	member.Value("audience").Object().Value("kind").IsEqual(util.AudiencePrivate)
 	member.Value("readers").Object().NotContainsKey("members")
 
 	get(f.noVault.token, "sections", sec, http.StatusNotFound)
@@ -1092,4 +1097,77 @@ func TestGroupsAPI(t *testing.T) {
 	call("PATCH", "/api/groups/"+id, f.owner.token, map[string]any{"name": "Desk"}).
 		Status(http.StatusOK).JSON().Object().Value("name").IsEqual("Desk")
 	call("DELETE", "/api/groups/"+id, f.owner.token, nil).Status(http.StatusNoContent)
+}
+
+// The shared vault is locked: publishing an entry or section beyond its
+// owner, and changing one that is, takes the permission to publish.
+func TestVaultPublishing(t *testing.T) {
+	f := newVisibilityFixture(t)
+	s := util.Fields.Section
+	// The member may write the vault but not publish to it.
+	f.setPermissions(t, f.member.id, util.PermVaultRead, util.PermVaultWrite)
+
+	t.Run("an entry can be published on its own", func(t *testing.T) {
+		rec := f.record(t, f.owner.token, f.owner.id, "phone"+randomSuffix()[:6], "+49 30 1234",
+			map[string]any{s.AudienceKind: util.AudienceWorkspace, s.Editing: util.EditingAudience})
+		f.api.Get(util.Coll.Records, rec, f.readOnly.token).Expect().Status(http.StatusOK)
+		f.api.Get(util.Coll.Records, rec, f.noVault.token).Expect().Status(http.StatusNotFound)
+		// It is listed among the entries shared with the member.
+		body := testutils.NewExpect(t, f.baseURL).GET("/api/shared/vault").
+			WithHeader("Authorization", f.member.token).Expect().Status(http.StatusOK).JSON().Object()
+		found := false
+		for _, e := range body.Value("entries").Array().Iter() {
+			if e.Object().Value("id").String().Raw() == rec {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatal("the published entry is not among the shared entries")
+		}
+		// Editing open to the audience, but the member may not publish: no.
+		f.api.Update(util.Coll.Records, rec, f.member.token, map[string]any{util.Fields.Record.Value: "x"}).
+			Expect().Status(http.StatusForbidden)
+		// The grouped member may publish, so may change it.
+		f.api.Update(util.Coll.Records, rec, f.grouped.token, map[string]any{util.Fields.Record.Value: "+49 30 9876"}).
+			Expect().Status(http.StatusOK)
+	})
+
+	t.Run("without the permission nothing is published", func(t *testing.T) {
+		f.api.Create(util.Coll.Records, f.member.token, map[string]any{
+			util.Fields.Record.Key: "k" + randomSuffix()[:6], util.Fields.Record.Value: "v",
+			util.Fields.Record.Label: "k", util.Fields.Record.Type: util.TypeText,
+			util.Fields.Record.Format: util.FormatDefault, util.Fields.Record.Workspace: f.owner.workspace,
+			s.AudienceKind: util.AudienceWorkspace,
+		}).Expect().Status(http.StatusForbidden)
+		sec := f.section(t, f.member.token, f.member.id, "mine"+randomSuffix()[:6], false)
+		f.api.Update(util.Coll.Sections, sec, f.member.token, map[string]any{s.AudienceKind: util.AudienceWorkspace}).
+			Expect().Status(http.StatusForbidden)
+		// A workspace default to publish gives way to private for them.
+		f.api.Update(util.Coll.Workspaces, f.owner.workspace, f.owner.token, map[string]any{
+			util.Fields.Workspace.DefaultAudience: map[string]string{"records": "workspace"},
+		}).Expect().Status(http.StatusOK)
+		id := f.record(t, f.member.token, f.member.id, "d"+randomSuffix()[:6], "v", nil)
+		row, _ := f.app.FindRecordById(util.Coll.Records, id)
+		if a := services.SectionAudience(row); a.Kind != util.AudiencePrivate {
+			t.Fatalf("an entry of a member who may not publish became %+v", a)
+		}
+	})
+
+	t.Run("a published entry goes into anyone's share; a private one does not", func(t *testing.T) {
+		f.setPermissions(t, f.member.id, util.PermVaultRead, util.PermVaultWrite, util.PermSharesManage)
+		published := f.record(t, f.owner.token, f.owner.id, "addr"+randomSuffix()[:6], "Main St 1",
+			map[string]any{s.AudienceKind: util.AudienceWorkspace})
+		// Named private: the default for entries is the workspace by now.
+		private := f.record(t, f.owner.token, f.owner.id, "pin"+randomSuffix()[:6], "1234",
+			map[string]any{s.AudienceKind: util.AudiencePrivate})
+		l := util.Fields.Link
+		f.api.Create(util.Coll.Links, f.member.token, map[string]any{
+			l.Slug: "co" + randomSuffix()[:8], l.Label: "company", l.Status: util.StatusActive,
+			l.Workspace: f.owner.workspace, l.Records: []string{published},
+		}).Expect().Status(http.StatusOK)
+		f.api.Create(util.Coll.Links, f.member.token, map[string]any{
+			l.Slug: "pn" + randomSuffix()[:8], l.Label: "pin", l.Status: util.StatusActive,
+			l.Workspace: f.owner.workspace, l.Records: []string{private},
+		}).Expect().Status(http.StatusBadRequest)
+	})
 }
