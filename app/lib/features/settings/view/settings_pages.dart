@@ -12,6 +12,7 @@ import 'package:revoked_app/core/models/workspace.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -32,6 +33,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_trust_badge.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
+import 'package:revoked_app/features/settings/view/groups_sheet.dart';
 import 'package:revoked_app/features/api_keys/view/api_keys_group.dart';
 import 'package:revoked_app/features/connections/view/connections_section.dart';
 import 'package:revoked_app/features/identities/view/identity_replace_sheet.dart';
@@ -320,6 +322,29 @@ class _WorkspacesPage extends StatelessWidget {
             AppToast.success(context, 'Workspace ID copied');
           },
         ),
+        // The active workspace's groups; listing them is open to everyone.
+        if (active)
+          AppSheetAction(
+            icon: AppIcons.person,
+            label: 'Groups',
+            onTap: () => openGroupsSheet(context),
+          ),
+        if (Stores.settings.canManageWorkspace(ws.id, Stores.invites.catalogue))
+          AppSheetAction(
+            icon: AppIcons.personWorkspace,
+            label: 'Default visibility',
+            onTap: () => openDefaultVisibilitySheet(
+              context,
+              workspaceId: ws.id,
+              current: {
+                for (final key in Workspace.builtInAudience.keys)
+                  key: ws.audienceFor(key),
+              },
+              save: (defaults) =>
+                  Stores.settings.setDefaultAudience(ws.id, defaults),
+              saveError: () => Stores.settings.errorMessage,
+            ),
+          ),
         if (Stores.settings.canManageWorkspace(ws.id, Stores.invites.catalogue))
           AppSheetAction(
             icon: AppIcons.trash,
@@ -838,6 +863,28 @@ class _TemplatesPage extends StatelessWidget {
                     initialTemplate: template,
                   ),
                 ),
+                // Only the owner sets who sees it; older templates have none.
+                if (template.owner == Stores.auth.userId)
+                  AppSheetAction(
+                    icon: AppIcons.personWorkspace,
+                    label: 'Visibility',
+                    onTap: () => openAccessSheet(
+                      context,
+                      area: AccessArea.templates,
+                      id: template.id,
+                      name: template.name,
+                      audienceKind: template.audienceKind,
+                      editing: template.editing,
+                      save: (kind, editing, groups) =>
+                          Stores.templates.setTemplateAudience(
+                            template.id,
+                            kind: kind,
+                            editing: editing,
+                            groups: groups,
+                          ),
+                      saveError: () => Stores.templates.errorMessage,
+                    ),
+                  ),
                 AppSheetAction(
                   icon: AppIcons.trash,
                   label: 'Delete',

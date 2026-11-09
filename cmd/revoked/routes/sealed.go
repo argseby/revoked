@@ -1172,6 +1172,7 @@ func authorizeSealedUpdate(app core.App, re *core.RequestEvent, rec *core.Record
 		RecordWorkspace:  rec.GetString(util.Fields.Record.Workspace),
 		RecordUser:       rec.GetString(util.Fields.Record.User),
 		RecordIsResponse: rec.GetString(util.Fields.Record.RequestedBy) != "",
+		RecordEditors:    rec.GetStringSlice(util.Fields.Record.Editors),
 	})
 	if len(errs) > 0 {
 		return denyGate(re, http.StatusNotFound, &util.Errors.RecordNotFound)

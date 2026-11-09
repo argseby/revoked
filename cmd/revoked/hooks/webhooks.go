@@ -100,7 +100,7 @@ func bindRequestWebhooks(app core.App) {
 		if err := e.Next(); err != nil {
 			return err
 		}
-		services.EmitWebhookEvent(e.App, e.Record.GetString(f.Workspace), util.WebhookRequestCreated, data(e.Record))
+		services.EmitWebhookEventAbout(e.App, e.Record, util.WebhookRequestCreated, data(e.Record), "")
 		return nil
 	})
 	app.OnRecordUpdate(util.Coll.Requests).BindFunc(func(e *core.RecordEvent) error {
@@ -123,10 +123,11 @@ func bindRequestWebhooks(app core.App) {
 		default:
 			return nil
 		}
-		services.EmitWebhookEvent(e.App, e.Record.GetString(f.Workspace), eventType, data(e.Record))
+		services.EmitWebhookEventAbout(e.App, e.Record, eventType, data(e.Record), "")
 		return nil
 	})
 	app.OnRecordDelete(util.Coll.Requests).BindFunc(func(e *core.RecordEvent) error {
+		readers, _ := services.ExpectedAccess(e.App, e.Record)
 		if err := e.Next(); err != nil {
 			return err
 		}
@@ -134,7 +135,7 @@ func bindRequestWebhooks(app core.App) {
 			d := data(e.Record)
 			d["status"] = util.StatusRevoked
 			d["deleted"] = true
-			services.EmitWebhookEvent(e.App, e.Record.GetString(f.Workspace), util.WebhookRequestClosed, d)
+			services.EmitWebhookEventFor(e.App, e.Record.GetString(f.Workspace), util.WebhookRequestClosed, d, readers, "")
 		}
 		return nil
 	})
@@ -184,7 +185,7 @@ func bindRecordWebhooks(app core.App) {
 		if err := e.Next(); err != nil {
 			return err
 		}
-		services.EmitWebhookEvent(e.App, e.Record.GetString(f.Workspace), util.WebhookRecordCreated, data(e.Record))
+		services.EmitWebhookEventAbout(e.App, e.Record, util.WebhookRecordCreated, data(e.Record), "")
 		return nil
 	})
 	app.OnRecordUpdate(util.Coll.Records).BindFunc(func(e *core.RecordEvent) error {
@@ -194,7 +195,7 @@ func bindRecordWebhooks(app core.App) {
 			return err
 		}
 		if changed {
-			services.EmitWebhookEvent(e.App, e.Record.GetString(f.Workspace), util.WebhookRecordUpdated, data(e.Record))
+			services.EmitWebhookEventAbout(e.App, e.Record, util.WebhookRecordUpdated, data(e.Record), "")
 			services.WebhookRecordChanged(e.App, e.Record.Id)
 		}
 		return nil
@@ -203,10 +204,12 @@ func bindRecordWebhooks(app core.App) {
 	// aliases that led to it.
 	app.OnRecordDelete(util.Coll.Records).BindFunc(func(e *core.RecordEvent) error {
 		links := services.GrantLinksForRecord(e.App, e.Record.Id)
+		// Worked out while the sections still name it.
+		readers, _ := services.ExpectedAccess(e.App, e.Record)
 		if err := e.Next(); err != nil {
 			return err
 		}
-		services.EmitWebhookEvent(e.App, e.Record.GetString(f.Workspace), util.WebhookRecordDeleted, data(e.Record))
+		services.EmitWebhookEventFor(e.App, e.Record.GetString(f.Workspace), util.WebhookRecordDeleted, data(e.Record), readers, "")
 		services.WebhookRecordDeleted(e.App, e.Record.Id, links)
 		return nil
 	})
@@ -250,12 +253,12 @@ func bindIdentityWebhooks(app core.App) {
 		default:
 			return nil
 		}
-		services.EmitWebhookEvent(e.App, e.Record.GetString(at.Workspace), eventType, map[string]any{
+		services.EmitWebhookEventAbout(e.App, e.Record, eventType, map[string]any{
 			"object": "attestation",
 			"id":     e.Record.Id,
 			"type":   e.Record.GetString(at.Type),
 			"status": after,
-		})
+		}, "")
 		return nil
 	})
 }

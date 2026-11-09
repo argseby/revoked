@@ -87,8 +87,10 @@ func TestSharedSections(t *testing.T) {
 		records.Value(0).Object().Value("id").IsEqual(shown)
 		records.Value(0).Object().Value("value").IsEqual("hunter2")
 
-		// The collection API stays self-only.
-		f.api.Get(util.Coll.Records, shown, f.member.token).Expect().Status(http.StatusNotFound)
+		// The collection API opens the shared record, not the private one.
+		f.api.Get(util.Coll.Records, shown, f.member.token).Expect().Status(http.StatusOK).
+			JSON().Object().Value("value").IsEqual("hunter2")
+		f.api.Get(util.Coll.Records, private, f.member.token).Expect().Status(http.StatusNotFound)
 		// And the owner is not shown their own sections here.
 		f.shared(t, f.owner.token).Value("sections").Array().Length().IsEqual(0)
 	})
@@ -148,18 +150,32 @@ func TestSharedSections(t *testing.T) {
 		testutils.NewExpect(t, f.baseURL).GET("/api/shared/vault").Expect().Status(http.StatusUnauthorized)
 	})
 
-	t.Run("only its owner can share a section", func(t *testing.T) {
+	t.Run("only its owner can change who sees a section", func(t *testing.T) {
 		f := newSharedFixture(t)
 		section := f.section(t, f.owner.token, f.owner.id, "office", false)
-		// The member may manage the vault, so may change the section, but not
-		// widen who reads it.
+		// A private section is not the member's to change at all.
 		f.api.Update(util.Coll.Sections, section, f.member.token, map[string]any{
 			util.Fields.Section.Shared: true,
 		}).Expect().Status(http.StatusForbidden).
-			JSON().Object().Value("code").IsEqual(util.Errors.SectionShareByPersonOnly.ErrorCode)
+			JSON().Object().Value("data").Object().Value("user").Object().
+			Value("code").IsEqual(util.Errors.NotRecordEditor.ErrorCode)
 		f.api.Update(util.Coll.Sections, section, f.owner.token, map[string]any{
 			util.Fields.Section.Shared: true,
 		}).Expect().Status(http.StatusOK)
 		f.shared(t, f.member.token).Value("sections").Array().Length().IsEqual(1)
+
+		// Shared, the member may manage the vault and so may change it, but
+		// not narrow or widen who reads it.
+		f.api.Update(util.Coll.Sections, section, f.member.token, map[string]any{
+			util.Fields.Section.Name: "renamed",
+		}).Expect().Status(http.StatusOK)
+		f.api.Update(util.Coll.Sections, section, f.member.token, map[string]any{
+			util.Fields.Section.AudienceKind: util.AudiencePrivate,
+		}).Expect().Status(http.StatusForbidden).
+			JSON().Object().Value("code").IsEqual(util.Errors.AudienceByOwnerOnly.ErrorCode)
+		f.api.Update(util.Coll.Sections, section, f.member.token, map[string]any{
+			util.Fields.Section.Editing: util.EditingOwner,
+		}).Expect().Status(http.StatusForbidden).
+			JSON().Object().Value("code").IsEqual(util.Errors.AudienceByOwnerOnly.ErrorCode)
 	})
 }

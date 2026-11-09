@@ -195,7 +195,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
         ),
         AppSpacing.gapLg,
         AppListGroup(
-          title: 'Current',
+          title: 'Important',
           noun: 'items',
           previewCount: 6,
           trailing: needs.isEmpty
@@ -205,7 +205,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
               ? [
                   AppListRow(
                     icon: AppIcons.checkCircle,
-                    title: ' There is nothing to do',
+                    title: 'Nothing requires your attention',
                   ),
                 ]
               : [
@@ -487,6 +487,7 @@ class _FigureCell extends StatelessWidget {
         borderRadius: BorderRadius.zero,
         child: InkWell(
           onTap: () => context.go(figure.route),
+          borderRadius: BorderRadius.zero,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,

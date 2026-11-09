@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/models/group.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
@@ -7,6 +9,7 @@ import 'package:revoked_app/core/widgets/trust_panel.dart' show TrustCheckState;
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/workspace.dart';
+import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/models/workspace_member.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 
@@ -260,6 +263,97 @@ abstract class _SettingsStore with Store {
 
   @observable
   bool isDeletingWorkspace = false;
+
+  /// The groups of the active workspace (VISIBILITY.md §6).
+  final ObservableList<WorkspaceGroup> groups =
+      ObservableList<WorkspaceGroup>();
+
+  /// Whether this person may create, change and fill groups.
+  final Local<bool> canManageGroups = Local(false);
+
+  /// What went wrong with the last change to a group, if anything did.
+  final Local<String?> groupsError = Local(null);
+
+  Future<void> loadGroups() async {
+    try {
+      final data = await _api.get('/api/groups') as Map<String, dynamic>;
+      runInAction(() {
+        groups
+          ..clear()
+          ..addAll([
+            for (final g in (data['groups'] as List<dynamic>? ?? const []))
+              WorkspaceGroup.fromJson(g as Map<String, dynamic>),
+          ]);
+      });
+      canManageGroups.value = data['canManage'] == true;
+    } catch (e) {
+      groupsError.value = describeError(e);
+    }
+  }
+
+  Future<bool> _groupCall(Future<dynamic> Function() call) async {
+    groupsError.value = null;
+    try {
+      await call();
+      await loadGroups();
+      return true;
+    } catch (e) {
+      groupsError.value = describeError(e);
+      return false;
+    }
+  }
+
+  Future<bool> createGroup(String name) =>
+      _groupCall(() => _api.post('/api/groups', body: {'name': name}));
+
+  Future<bool> renameGroup(String id, String name) =>
+      _groupCall(() => _api.patch('/api/groups/$id', body: {'name': name}));
+
+  Future<bool> deleteGroup(String id) =>
+      _groupCall(() => _api.delete('/api/groups/$id'));
+
+  Future<bool> setGroupMember(String id, String user, bool inGroup) =>
+      _groupCall(
+        () => inGroup
+            ? _api.put('/api/groups/$id/members/$user')
+            : _api.delete('/api/groups/$id/members/$user'),
+      );
+
+  /// The name being typed for a new or renamed group.
+  final ObservableTextController groupName = ObservableTextController();
+
+  /// Who sees a new item of [collection] in the active workspace, as its
+  /// defaults say (VISIBILITY.md §4.4).
+  String defaultAudienceFor(String collection) {
+    final active = Stores.auth.activeWorkspace;
+    for (final ws in workspaces) {
+      if (ws.id == active) return ws.audienceFor(collection);
+    }
+    return Workspace.builtInAudience[collection] ?? 'private';
+  }
+
+  /// Saves who sees new items of each area in a workspace. Existing items keep
+  /// theirs; a default never grants anything by itself.
+  @action
+  Future<bool> setDefaultAudience(
+    String workspaceId,
+    Map<String, String> defaults,
+  ) async {
+    errorMessage = null;
+    try {
+      final data = await _api.patch(
+        '/api/collections/${AppConfig.workspacesCollection}/records/$workspaceId',
+        body: {'defaultAudience': defaults},
+      );
+      final updated = Workspace.fromJson(data as Map<String, dynamic>);
+      final idx = workspaces.indexWhere((w) => w.id == workspaceId);
+      if (idx != -1) workspaces[idx] = updated;
+      return true;
+    } catch (e) {
+      errorMessage = describeError(e);
+      return false;
+    }
+  }
 
   @action
   Future<bool> createWorkspace({

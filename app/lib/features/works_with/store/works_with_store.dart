@@ -28,7 +28,11 @@ abstract class _WorksWithStore with Store {
     Future<String> Function(String)? loadAsset,
     DateTime Function()? now,
   }) : _http = httpClient ?? http.Client(),
-       _loadAsset = loadAsset ?? rootBundle.loadString,
+       // Uncached: the file is read once per start anyway, and a cached
+       // future belongs to the zone that first asked, which a widget test
+       // throws away between cases.
+       _loadAsset =
+           loadAsset ?? ((key) => rootBundle.loadString(key, cache: false)),
        _now = now ?? DateTime.now;
 
   static const asset = 'assets/works_with/catalog.json';

@@ -122,6 +122,16 @@ The header value is in double quotes on purpose: `'$TOKEN'` in single quotes
 is sent as the six literal characters, since the shell expands variables only
 inside double quotes.
 
+### What a key reaches {#key-visibility}
+
+A key acts as the member who created it, narrowed by its scopes. On every
+collection with a visibility (sections, records, shares, requests,
+templates, contacts, attestations), a key reads only rows its creator may
+read and changes only rows its creator may change. It never sees another
+member's private items, and loses access with its creator. Webhooks follow
+the same rule: an endpoint hears about an item only when the member who made
+it sees that item.
+
 ## Connection tokens
 
 A connection token is issued at `POST /api/connect/token`, in exchange for a

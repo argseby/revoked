@@ -9,6 +9,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
@@ -105,6 +106,14 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
   final _submitting = Local<bool>(false);
   final _submitError = Local<String?>(null);
   final _createdSlug = Local<String?>(null);
+
+  /// Who sees the share: the tool's suggestion, else the workspace's
+  /// default. The owner decides (VISIBILITY.md §7).
+  late final _visibility = Local<String>(
+    (widget.proposal?.visibility ?? '').isNotEmpty
+        ? widget.proposal!.visibility
+        : Stores.settings.defaultAudienceFor('links'),
+  );
 
   /// Values the tool suggested, by key: offered prefilled for keys the vault
   /// does not hold yet, and saved only when the owner saves them.
@@ -517,6 +526,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       connection: connectionId,
       ref: p.ref,
       handedOver: handOver,
+      audienceKind: _visibility.value,
     );
     _submitting.value = false;
     if (ok) {
@@ -888,6 +898,19 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 ),
               ),
             for (final item in items) _itemRow(context, item),
+          ],
+        ),
+        AppListGroup(
+          title: 'Who sees it',
+          trailing: const SizedBox.shrink(),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: VisibleToField(
+                value: _visibility,
+                suggestedByTool: p.visibility.isNotEmpty,
+              ),
+            ),
           ],
         ),
         if (p.stamp.isNotEmpty)

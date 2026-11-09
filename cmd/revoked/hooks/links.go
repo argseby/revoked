@@ -18,6 +18,9 @@ func BindLinkHooks(app core.App) {
 		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
 			return err
 		}
+		if err := validateLinkContentOwner(e.App, e.Record, nil); err != nil {
+			return err
+		}
 		if err := validateLinkConnection(e.App, e.Record, ""); err != nil {
 			return err
 		}
@@ -34,6 +37,9 @@ func BindLinkHooks(app core.App) {
 			return err
 		}
 		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
+			return err
+		}
+		if err := validateLinkContentOwner(e.App, e.Record, e.Record.Original()); err != nil {
 			return err
 		}
 		if err := validateLinkConnection(e.App, e.Record,
@@ -66,6 +72,36 @@ func BindLinkHooks(app core.App) {
 		}
 		return e.Next()
 	})
+}
+
+// validateLinkContentOwner refuses a share naming a record or section its
+// creator doesn't own. Members now see each other's shared sections and
+// records (VISIBILITY.md), and their ids with them; seeing an item is not a
+// licence to hand it to someone outside the workspace. Whether a share of a
+// colleague's item should ever be allowed is phase 2's question. Only ids
+// added by this save are checked, so existing shares keep working.
+func validateLinkContentOwner(app core.App, rec, before *core.Record) error {
+	owner := rec.GetString(util.Fields.Link.User)
+	check := func(field, collection string) error {
+		var had []string
+		if before != nil {
+			had = before.GetStringSlice(field)
+		}
+		for _, id := range rec.GetStringSlice(field) {
+			if slices.Contains(had, id) {
+				continue
+			}
+			item, err := app.FindRecordById(collection, id)
+			if err != nil || item == nil || item.GetString(util.FieldUser) != owner {
+				return util.AsFieldValidationError(field, util.Errors.LinkContentNotOwned)
+			}
+		}
+		return nil
+	}
+	if err := check(util.Fields.Link.Records, util.Coll.Records); err != nil {
+		return err
+	}
+	return check(util.Fields.Link.Sections, util.Coll.Sections)
 }
 
 // requireApplicationWatermark refuses an application link that would hand its

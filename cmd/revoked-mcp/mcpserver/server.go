@@ -137,11 +137,12 @@ type StatusResult struct {
 }
 
 type ProposeInput struct {
-	Label    string   `json:"label" jsonschema:"what the share is for, up to 120 characters"`
-	Keys     []string `json:"keys" jsonschema:"record keys to include, 1-50, each [a-z0-9_-]{1,64}"`
-	Template string   `json:"template,omitempty" jsonschema:"template name describing the keys, so the app can ask for one the vault lacks"`
-	Days     int      `json:"days,omitempty" jsonschema:"expiry in days, 1-365; left out, the share does not expire"`
-	Ref      string   `json:"ref,omitempty" jsonschema:"your own reference, up to 80 characters, returned by list_shares"`
+	Label      string   `json:"label" jsonschema:"what the share is for, up to 120 characters"`
+	Keys       []string `json:"keys" jsonschema:"record keys to include, 1-50, each [a-z0-9_-]{1,64}"`
+	Template   string   `json:"template,omitempty" jsonschema:"template name describing the keys, so the app can ask for one the vault lacks"`
+	Days       int      `json:"days,omitempty" jsonschema:"expiry in days, 1-365; left out, the share does not expire"`
+	Ref        string   `json:"ref,omitempty" jsonschema:"your own reference, up to 80 characters, returned by list_shares"`
+	Visibility string   `json:"visibility,omitempty" jsonschema:"optional: who in the owner's workspace should see it, private or workspace. Only a suggestion: the owner picks in the app, and anything a tool creates directly stays private"`
 	// Values are suggestions the owner gave in this conversation, offered
 	// prefilled for keys their vault lacks. They go to the owner's server, held
 	// there for an hour in memory, never in the link.
@@ -356,6 +357,11 @@ func proposalLink(cfg Config, in ProposeInput) (string, error) {
 	if in.Ref != "" {
 		q = append(q, "ref="+escape(in.Ref))
 	}
+	v, err := visibilityQuery(in.Visibility)
+	if err != nil {
+		return "", err
+	}
+	q = append(q, v...)
 	return "revoked://p?" + strings.Join(q, "&"), nil
 }
 

@@ -19,10 +19,26 @@ const _workspace = 'wspace00000000a';
 /// colleague shared.
 class _Server {
   final patched = <Map<String, dynamic>>[];
-  bool ownShared = false;
+  final queries = <String, Map<String, String>>{};
+  String ownAudience = 'private';
+  String ownEditing = 'owner';
 
   Future<http.Response> handle(http.Request request) async {
     final path = request.url.path;
+    queries[path] = request.url.queryParameters;
+    if (path == '/api/access/sections/section0000mine') {
+      final shared = ownAudience != 'private';
+      return _json({
+        'collection': 'sections',
+        'id': 'section0000mine',
+        'owner': {'id': _me, 'email': 'ada@example.com'},
+        'readers': {'count': shared ? 3 : 1},
+        'editors': {'count': shared && ownEditing == 'audience' ? 2 : 1},
+        'canEdit': true,
+        'canChangeAudience': true,
+        'audience': {'kind': ownAudience, 'groups': [], 'editing': ownEditing},
+      });
+    }
     if (path == '/api/collections/records/records') {
       return _json({
         'items': [
@@ -43,7 +59,8 @@ class _Server {
         request.method == 'PATCH') {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       patched.add(body);
-      ownShared = body['shared'] == true;
+      ownAudience = body['audienceKind'] as String? ?? ownAudience;
+      ownEditing = body['editing'] as String? ?? ownEditing;
       return _json(_ownSection());
     }
     if (path == '/api/collections/sections/records') {
@@ -63,6 +80,9 @@ class _Server {
             'workspace': _workspace,
             'records': ['record000000wifi'],
             'shared': true,
+            'audienceKind': 'workspace',
+            'editing': 'owner',
+            'canEdit': false,
           },
         ],
         'records': [
@@ -94,7 +114,9 @@ class _Server {
     'user': _me,
     'workspace': _workspace,
     'records': ['record00000mine'],
-    'shared': ownShared,
+    'shared': ownAudience == 'workspace',
+    'audienceKind': ownAudience,
+    'editing': ownEditing,
   };
 
   static http.Response _json(Map<String, dynamic> body) =>
@@ -145,21 +167,50 @@ void main() {
     expect(find.text('Delete'), findsNothing);
   });
 
-  testWidgets('an own section can be shared with members', (tester) async {
+  testWidgets('only own items are listed from the collections', (tester) async {
+    final server = await _pump(tester);
+    for (final coll in ['records', 'sections']) {
+      expect(
+        server.queries['/api/collections/$coll/records']?['filter'],
+        'user = "$_me"',
+      );
+    }
+  });
+
+  testWidgets('an own section is opened to the workspace from its access', (
+    tester,
+  ) async {
     final server = await _pump(tester);
     await tester.tap(find.byTooltip('Section actions'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Share with members'));
-    await tester.pumpAndSettle();
-    expect(find.text('Share "Mine" with members?'), findsOneWidget);
     await tester.runAsync(() async {
-      await tester.tap(find.text('Share with members').last);
+      await tester.tap(find.text('Visibility'));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Visibility of "Mine"'), findsOneWidget);
+    expect(
+      find.text('Seen by the owner only · changed by the owner only.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Workspace'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Members who manage the vault'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Save visibility'));
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
     await tester.pumpAndSettle();
     expect(server.patched, [
-      {'shared': true},
+      {
+        'audienceKind': 'workspace',
+        'editing': 'audience',
+        'audienceGroups': [],
+      },
     ]);
     expect(find.text('Members'), findsOneWidget);
   });

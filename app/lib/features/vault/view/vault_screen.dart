@@ -16,6 +16,7 @@ import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/tool_tag.dart';
 import 'package:revoked_app/core/utils/people.dart';
@@ -42,6 +43,7 @@ import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/tool_reach_confirm.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 
@@ -1051,7 +1053,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 'Shared by ${section.ownerEmail ?? 'another member'} in '
-                '"${_sectionName(section)}". Only they can change it.',
+                '"${_sectionName(section)}".'
+                '${section.canEdit ? ' It can be changed here as well.' : ' Only they can change it.'}',
               ).muted.small,
               const SizedBox(height: AppSpacing.lg),
               if (r.isLocked)
@@ -1078,6 +1081,12 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                         AppToast.success(sheetContext, 'Copied to clipboard');
                       },
                     ),
+                    if (section.canEdit && !r.isFile && !r.isLocked)
+                      AppButton(
+                        icon: AppIcons.pencil,
+                        label: 'Edit value',
+                        onTap: () => _editSharedRecord(sheetContext, r),
+                      ),
                     if (r.isHidden)
                       AppButton(
                         icon: revealed ? AppIcons.eyeSlash : AppIcons.eye,
@@ -1095,43 +1104,50 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     ),
   );
 
-  Future<void> _toggleSectionShared(
-    BuildContext context,
-    Section section,
-  ) async {
-    final sharing = !section.shared;
-    final ok = await showAppDialog(
+  /// Changes the value of a colleague's record, in a section they opened
+  /// for editing (VISIBILITY.md). An encrypted one is written encrypted.
+  Future<void> _editSharedRecord(BuildContext context, models.Record r) async {
+    final store = Stores.vault;
+    store.sharedEditValue.text = r.value;
+    final save = await showAppEditSheet(
       context: context,
-      title: sharing
-          ? 'Share "${_sectionName(section)}" with members?'
-          : 'Stop sharing "${_sectionName(section)}"?',
-      message: sharing
-          ? 'Every member who can read the vault sees its records and their '
-                'values from now on, as they change. Encrypted records open '
-                'only for members given access to encryption. Members who may '
-                'manage the vault can also change them.'
-          : 'Members stop seeing its records. Anything they already read or '
-                'copied stays with them.',
-      confirmLabel: sharing ? 'Share with members' : 'Stop sharing',
-      confirmIcon: sharing ? AppIcons.personWorkspace : AppIcons.x,
-      destructive: !sharing,
+      title: 'Edit ${r.label.isEmpty ? r.key : r.label}',
+      controller: store.sharedEditValue,
     );
-    if (!ok || !context.mounted) return;
-    final done = await Stores.vault.setSectionShared(section.id, sharing);
+    if (!save || !context.mounted) return;
+    final ok = await store.updateRecord(r.id, {
+      'value': store.sharedEditValue.text,
+    });
     if (!context.mounted) return;
-    if (done) {
-      AppToast.success(
-        context,
-        sharing ? 'Shared with members' : 'No longer shared',
-      );
+    if (ok) {
+      AppToast.success(context, 'Value saved');
+      Navigator.of(context).maybePop();
     } else {
       AppToast.error(
         context,
-        'The section could not be changed',
-        subtitle: Stores.vault.errorMessage,
+        'The value could not be saved',
+        subtitle: store.errorMessage,
       );
     }
   }
+
+  /// Who sees and who edits one of this person's sections (VISIBILITY.md).
+  void _openVisibility(BuildContext context, Section section) =>
+      openAccessSheet(
+        context,
+        area: AccessArea.sections,
+        id: section.id,
+        name: _sectionName(section),
+        audienceKind: section.audienceKind,
+        editing: section.editing,
+        save: (kind, editing, groups) => Stores.vault.setSectionAudience(
+          section.id,
+          kind: kind,
+          editing: editing,
+          groups: groups,
+        ),
+        saveError: () => Stores.vault.errorMessage,
+      );
 
   Widget _sectionMenu(BuildContext context, Section section, int shown) {
     final store = Stores.vault;
@@ -1177,10 +1193,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             if (!section.isRequested)
               AppMenuItem(
                 icon: AppIcons.personWorkspace,
-                label: section.shared
-                    ? 'Stop sharing with members'
-                    : 'Share with members',
-                onSelected: () => _toggleSectionShared(context, section),
+                label: 'Visibility',
+                onSelected: () => _openVisibility(context, section),
               ),
             AppMenuItem(
               icon: AppIcons.pen,

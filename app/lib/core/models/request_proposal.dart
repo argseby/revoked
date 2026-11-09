@@ -18,11 +18,17 @@ class RequestProposal {
 
   final ToolProposer proposer;
 
+  /// Who in the owner's workspace the tool suggests should see the request
+  /// and its answers: `private`, `workspace`, or empty for no suggestion.
+  /// Only pre-fills the choice; the owner confirms (VISIBILITY.md §7).
+  final String visibility;
+
   const RequestProposal({
     required this.template,
     this.label = '',
     this.days,
     this.proposer = ToolProposer.none,
+    this.visibility = '',
   });
 
   static const maxLabel = 120;
@@ -51,11 +57,18 @@ class RequestProposal {
     }
     final proposer = ToolProposer.fromQuery(query);
     if (proposer == null) return null;
+    final visibility = query['visibility'] ?? '';
+    if (visibility.isNotEmpty &&
+        visibility != 'private' &&
+        visibility != 'workspace') {
+      return null;
+    }
     return RequestProposal(
       template: template,
       label: label,
       days: days,
       proposer: proposer,
+      visibility: visibility,
     );
   }
 
@@ -64,5 +77,6 @@ class RequestProposal {
     if (label.isNotEmpty) 'label': label,
     if (days != null) 'days': '$days',
     ...proposer.toQuery(),
+    if (visibility.isNotEmpty) 'visibility': visibility,
   };
 }

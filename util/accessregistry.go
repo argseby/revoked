@@ -24,26 +24,29 @@ const OwnerImmutable = "@request.body.user:isset = false"
 // deliberately absent: PocketBase rejects those before anything here is read.
 var CollectionAccess = map[string]map[string]AccessSpec{
 	// Create always writes a vault entry: request-collected rows are minted
-	// server-side, never through the collection API.
+	// server-side, never through the collection API. Update and delete admit
+	// the owner and the members listed in editors (VISIBILITY.md).
 	Coll.Records: {
 		ActionCreate: {Kind: AccessWorkspaceSelf, Scope: ScopeRecordCreate},
-		ActionUpdate: {Kind: AccessWorkspaceSplitOrigin, Scope: ScopeRecordUpdate, ResponseScope: ScopeResponseUpdate},
-		ActionDelete: {Kind: AccessWorkspaceSplitOrigin, Scope: ScopeRecordDelete, ResponseScope: ScopeResponseDelete},
+		ActionUpdate: {Kind: AccessWorkspaceAudience, Scope: ScopeRecordUpdate, ResponseScope: ScopeResponseUpdate},
+		ActionDelete: {Kind: AccessWorkspaceAudience, Scope: ScopeRecordDelete, ResponseScope: ScopeResponseDelete},
 	},
 	Coll.Sections: {
 		ActionCreate: {Kind: AccessWorkspaceSelf, Scope: ScopeSectionCreate},
-		ActionUpdate: {Kind: AccessWorkspaceSplitOrigin, Scope: ScopeSectionUpdate, ResponseScope: ScopeResponseUpdate},
-		ActionDelete: {Kind: AccessWorkspaceSplitOrigin, Scope: ScopeSectionDelete, ResponseScope: ScopeResponseDelete},
+		ActionUpdate: {Kind: AccessWorkspaceAudience, Scope: ScopeSectionUpdate, ResponseScope: ScopeResponseUpdate},
+		ActionDelete: {Kind: AccessWorkspaceAudience, Scope: ScopeSectionDelete, ResponseScope: ScopeResponseDelete},
 	},
+	// Shares and requests carry an audience (VISIBILITY.md, phase 2): update
+	// and delete admit the owner and the members listed in editors.
 	Coll.Links: {
 		ActionCreate: {Kind: AccessWorkspaceSelf, Scope: ScopeLinkCreate},
-		ActionUpdate: {Kind: AccessWorkspaceSelf, Scope: ScopeLinkUpdate},
-		ActionDelete: {Kind: AccessWorkspaceSelf, Scope: ScopeLinkDelete},
+		ActionUpdate: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeLinkUpdate},
+		ActionDelete: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeLinkDelete},
 	},
 	Coll.Requests: {
 		ActionCreate: {Kind: AccessWorkspaceSelf, Scope: ScopeRequestCreate},
-		ActionUpdate: {Kind: AccessWorkspaceSelf, Scope: ScopeRequestUpdate},
-		ActionDelete: {Kind: AccessWorkspaceSelf, Scope: ScopeRequestDelete},
+		ActionUpdate: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeRequestUpdate},
+		ActionDelete: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeRequestDelete},
 	},
 	Coll.Identities: {
 		ActionCreate: {Kind: AccessWorkspaceSelf, Scope: ScopeIdentityCreate},
@@ -56,8 +59,8 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 	},
 	Coll.Templates: {
 		ActionCreate: {Kind: AccessWorkspaceAdmin, Scope: ScopeTemplateCreate},
-		ActionUpdate: {Kind: AccessWorkspaceAdmin, Scope: ScopeTemplateUpdate},
-		ActionDelete: {Kind: AccessWorkspaceAdmin, Scope: ScopeTemplateDelete},
+		ActionUpdate: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeTemplateUpdate},
+		ActionDelete: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeTemplateDelete},
 	},
 	Coll.Workspaces: {
 		ActionUpdate: {Kind: AccessWorkspaceAdmin, Scope: ScopeWorkspacesUpdate, WorkspaceField: "id"},
@@ -103,8 +106,8 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 	// permission was withdrawn must not keep issuing through rows they made.
 	Coll.Attestations: {
 		ActionCreate: {Kind: AccessWorkspaceAdmin, Scope: ScopeAttestationCreate},
-		ActionUpdate: {Kind: AccessWorkspaceAdmin, Scope: ScopeAttestationUpdate},
-		ActionDelete: {Kind: AccessWorkspaceAdmin, Scope: ScopeAttestationDelete},
+		ActionUpdate: {Kind: AccessWorkspaceAudienceAdmin, Scope: ScopeAttestationUpdate},
+		ActionDelete: {Kind: AccessWorkspaceAudienceAdmin, Scope: ScopeAttestationDelete},
 	},
 	// Personal, like the vault: a credential carries everything it states
 	// about its holder. It is written by the claim route alone; its owner may
@@ -124,8 +127,8 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 	// address up as a verified peer for a co-member to send the vault to.
 	Coll.Contacts: {
 		ActionCreate: {Kind: AccessWorkspaceSelf, Scope: ScopeContactCreate},
-		ActionUpdate: {Kind: AccessWorkspaceSelf, Scope: ScopeContactUpdate},
-		ActionDelete: {Kind: AccessWorkspaceSelf, Scope: ScopeContactDelete},
+		ActionUpdate: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeContactUpdate, OwnerField: Fields.Contact.CreatedBy},
+		ActionDelete: {Kind: AccessWorkspaceAudienceSelf, Scope: ScopeContactDelete, OwnerField: Fields.Contact.CreatedBy},
 	},
 	// Personal, like bookmarks: who a person refuses deliveries from is
 	// theirs, not their workspace's, and no API key speaks for it. A block is
@@ -134,6 +137,20 @@ var CollectionAccess = map[string]map[string]AccessSpec{
 		ActionCreate: {Kind: AccessUserSelf},
 		ActionDelete: {Kind: AccessUserSelf},
 	},
+}
+
+// AudienceReadRules are the list/view rules of the collections with an
+// audience. They are not part of the write registry above; the registry test
+// checks them against the deployed rules all the same.
+var AudienceReadRules = map[string]string{
+	Coll.Records:  WorkspaceAudienceRead(ScopeRecordRead),
+	Coll.Sections: WorkspaceAudienceRead(ScopeSectionRead),
+	Coll.Links:    WorkspaceAudienceRead(ScopeLinkRead),
+	Coll.Requests: WorkspaceAudienceRead(ScopeRequestRead),
+	// Built-in templates (no workspace) stay readable by anyone signed in.
+	Coll.Templates:    WorkspaceAudienceRead(ScopeTemplateRead) + " || (@request.auth.id != '' && workspace = '')",
+	Coll.Contacts:     WorkspaceAudienceReadBy(Fields.Contact.CreatedBy, ScopeContactRead),
+	Coll.Attestations: WorkspaceAudienceRead(ScopeAttestationRead),
 }
 
 // AccessSpecFor returns the requirement for a collection action, if declared.

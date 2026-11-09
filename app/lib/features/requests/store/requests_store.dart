@@ -66,6 +66,7 @@ class RequestsStore extends _RequestsStore with _$RequestsStore {
     bool allowExtraFields = false,
     String connection = '',
     String ref = '',
+    String audienceKind = '',
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -89,6 +90,8 @@ class RequestsStore extends _RequestsStore with _$RequestsStore {
         'allowExtraFields': allowExtraFields,
         'user': user,
         'workspace': workspace,
+        // Who sees it; empty leaves it to the workspace's default.
+        if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
         if (connection.isNotEmpty) 'connection': connection,
         if (connection.isNotEmpty && ref.isNotEmpty) 'ref': ref,
       },
@@ -121,7 +124,49 @@ abstract class _RequestsStore with Store {
 
   _RequestsStore(this._api);
 
+  /// This person's own requests.
   final ObservableList<DataRequest> requests = ObservableList<DataRequest>();
+
+  /// Requests other members opened to this person (VISIBILITY.md). Listed
+  /// apart, and read-only here; their answers show when this person may read
+  /// collected data.
+  final ObservableList<DataRequest> sharedRequests =
+      ObservableList<DataRequest>();
+
+  /// Whether this person may change a colleague's request, as the server
+  /// answers (VISIBILITY.md). Their own they always may.
+  Future<bool> canEditRequest(String id) async {
+    try {
+      final access = await Stores.vault.loadAccess('requests', id);
+      return access['canEdit'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// A request by id, among this person's own or those opened to them.
+  DataRequest? findById(String id) {
+    for (final r in requests) {
+      if (r.id == id) return r;
+    }
+    for (final r in sharedRequests) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  /// Sets who sees one of this person's requests (and its answers) beside
+  /// them, and whether those members may change it. Only the owner can.
+  Future<bool> setRequestAudience(
+    String id, {
+    required String kind,
+    required String editing,
+    List<String> groups = const [],
+  }) => updateRequest(id, {
+    'audienceKind': kind,
+    'editing': editing,
+    'audienceGroups': groups,
+  });
 
   /// Responses grouped by request id. Filled on demand by [loadResponses].
   final ObservableMap<String, List<Map<String, dynamic>>> responsesByRequest =
@@ -406,12 +451,26 @@ abstract class _RequestsStore with Store {
     errorMessage = null;
     final ticket = loadState.begin();
     try {
-      final reqs = await getAll();
+      final me = Stores.auth.userId;
+      final reqs = await getAll(filter: me.isEmpty ? null : 'user = "$me"');
       if (!loadState.isCurrent(ticket)) return;
       requests
         ..clear()
         ..addAll(reqs);
       loadState.succeed(ticket);
+      // Its own failure: the person's own requests still show.
+      if (me.isNotEmpty) {
+        try {
+          final others = await getAll(filter: 'user != "$me"');
+          if (loadState.isCurrent(ticket)) {
+            sharedRequests
+              ..clear()
+              ..addAll(others);
+          }
+        } catch (_) {
+          sharedRequests.clear();
+        }
+      }
     } catch (e) {
       if (!loadState.isCurrent(ticket)) return;
       errorMessage = describeError(e);
@@ -456,6 +515,7 @@ abstract class _RequestsStore with Store {
     bool requireHandshake = false,
     String identityScope = 'any',
     bool allowExtraFields = false,
+    String audienceKind = '',
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -481,6 +541,7 @@ abstract class _RequestsStore with Store {
         allowExtraFields: allowExtraFields,
         connection: connection,
         ref: proposer.ref,
+        audienceKind: audienceKind,
       );
       requests.insert(0, req);
       return true;
@@ -538,6 +599,9 @@ abstract class _RequestsStore with Store {
       if (idx != -1) {
         requests[idx] = req;
       }
+      // A colleague's request, changed by someone it is open to for editing.
+      final shared = sharedRequests.indexWhere((r) => r.id == id);
+      if (shared != -1) sharedRequests[shared] = req;
       return true;
     } catch (e) {
       errorMessage = describeError(e);
@@ -550,6 +614,7 @@ abstract class _RequestsStore with Store {
     try {
       await delete(id);
       requests.removeWhere((r) => r.id == id);
+      sharedRequests.removeWhere((r) => r.id == id);
       responsesByRequest.remove(id);
       return true;
     } catch (e) {
@@ -567,6 +632,7 @@ abstract class _RequestsStore with Store {
   Future<List<DataRequest>> getAll({
     int page = 1,
     int perPage = AppConfig.listPageSize,
+    String? filter,
   }) async {
     final data = await _api.get(
       _requestsPath,
@@ -574,6 +640,7 @@ abstract class _RequestsStore with Store {
         'page': page.toString(),
         'perPage': perPage.toString(),
         'sort': '-created',
+        'filter': ?filter,
       },
     );
     final items = (data['items'] as List<dynamic>?) ?? [];
@@ -598,7 +665,9 @@ abstract class _RequestsStore with Store {
     final data = await _api.get(
       '/api/collections/${AppConfig.linksCollection}/records',
       queryParams: {
-        'filter': 'request = "$requestId"',
+        // Pinned to this person: a colleague's answer to the same request
+        // can be visible to them too now.
+        'filter': 'request = "$requestId" && user = "${Stores.auth.userId}"',
         'perPage': '1',
         'sort': '-created',
       },
@@ -708,7 +777,9 @@ abstract class _RequestsStore with Store {
     final data = await _api.get(
       '/api/collections/${AppConfig.linksCollection}/records',
       queryParams: {
-        'filter': 'remoteDomain = "$domain" && remoteRequest = "$slug"',
+        'filter':
+            'remoteDomain = "$domain" && remoteRequest = "$slug" && '
+            'user = "${Stores.auth.userId}"',
         'perPage': '1',
         'sort': '-created',
       },
@@ -736,6 +807,7 @@ abstract class _RequestsStore with Store {
     bool allowExtraFields = false,
     String connection = '',
     String ref = '',
+    String audienceKind = '',
   }) async {
     final spec = RequestsStore.createRequestSpec(
       slug: slug,
@@ -755,6 +827,7 @@ abstract class _RequestsStore with Store {
       allowExtraFields: allowExtraFields,
       connection: connection,
       ref: ref,
+      audienceKind: audienceKind,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return DataRequest.fromJson(data as Map<String, dynamic>);

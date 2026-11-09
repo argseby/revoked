@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/audience.dart';
+
 /// Represents a public link from the PocketBase `links` collection.
 class Link {
   final String id;
@@ -8,6 +10,14 @@ class Link {
   final String user;
   final String workspace;
   final String status; // active, paused, revoked, expired
+
+  /// Who sees it beside its owner: `private`, `workspace` or `groups`.
+  /// Only the owner changes it.
+  final String audienceKind;
+
+  /// Whether the members who see it may also change it: `owner` or
+  /// `audience`.
+  final String editing;
   final String? created;
   final String? updated;
 
@@ -68,6 +78,8 @@ class Link {
     required this.user,
     required this.workspace,
     required this.status,
+    this.audienceKind = 'private',
+    this.editing = 'owner',
     this.created,
     this.updated,
     this.viewCount = 0,
@@ -93,6 +105,9 @@ class Link {
   /// leaked copy carrying it points back at this share.
   String get watermarkTag =>
       (id.length > 6 ? id.substring(0, 6) : id).toLowerCase();
+
+  /// Whether the whole workspace sees it.
+  bool get openToWorkspace => audienceKind == 'workspace';
 
   /// True when this link was created by approving a request (vs a manual share).
   bool get isFromRequest => request.isNotEmpty;
@@ -139,6 +154,8 @@ class Link {
       user: json['user'] as String? ?? '',
       workspace: json['workspace'] as String? ?? '',
       status: json['status'] as String? ?? 'active',
+      audienceKind: audienceKindFrom(json['audienceKind']),
+      editing: json['editing'] == 'audience' ? 'audience' : 'owner',
       created: json['created'] as String?,
       updated: json['updated'] as String?,
       viewCount: viewCount,
@@ -167,6 +184,8 @@ class Link {
     String? user,
     String? workspace,
     String? status,
+    String? audienceKind,
+    String? editing,
     String? created,
     String? updated,
     int? viewCount,
@@ -193,6 +212,8 @@ class Link {
       user: user ?? this.user,
       workspace: workspace ?? this.workspace,
       status: status ?? this.status,
+      audienceKind: audienceKind ?? this.audienceKind,
+      editing: editing ?? this.editing,
       created: created ?? this.created,
       updated: updated ?? this.updated,
       viewCount: viewCount ?? this.viewCount,

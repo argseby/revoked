@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/models/works_with.dart';
@@ -228,6 +229,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
                     alignment: PlaceholderAlignment.baseline,
                     baseline: TextBaseline.alphabetic,
                     child: InkWell(
+                      borderRadius: AppRadius.allMd,
                       onTap: _openRepo,
                       child: Text(
                         'How services are listed',

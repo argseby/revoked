@@ -7,7 +7,6 @@ import (
 	"revoked/cmd/revoked/services"
 	"revoked/util"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -16,11 +15,11 @@ import (
 //	GET /api/shared/vault   the sections shared in the active workspace by
 //	                        anyone else, and the records in them
 //
-// Read-only: changing a record stays with its owner, through the collection
-// rules that were never widened for this. Membership and the vault-read
-// permission are checked here, in Go, because a rule cannot follow a record
-// into the sections that hold it (ACCESS.md). For people only: a key or a tool
-// reaches the vault through /api/vault.
+// Who sees what comes from services.Access (VISIBILITY.md). The same rows are
+// also open through the collection API, whose rules match the readers and
+// editors the server keeps; this route groups them by section and names the
+// owner, which the app shows. For people only: a key or a tool reaches the
+// vault through /api/vault.
 //
 // Encrypted records come as ciphertext, readable on devices given the
 // workspace key. Files and aliases are left out: a file's bytes have no
@@ -43,23 +42,19 @@ func SharedVaultRoute(app core.App) {
 
 func listSharedVault(app core.App, re *core.RequestEvent) error {
 	workspace := re.Auth.GetString(util.Fields.User.ActiveWorkspace)
-	member, isMember := util.WorkspaceMemberOf(app, workspace, re.Auth.Id)
+	_, isMember := util.WorkspaceMemberOf(app, workspace, re.Auth.Id)
 	if workspace == "" || !isMember {
 		return appErrorResponse(re, http.StatusForbidden, &util.Errors.NotWorkspaceMember)
 	}
-	if !services.MemberCanReadRecords(member) {
-		return appErrorResponse(re, http.StatusForbidden, &util.Errors.MissingPermission)
-	}
 
-	s := util.Fields.Section
-	rows, err := app.FindRecordsByFilter(util.Coll.Sections,
-		s.Workspace+" = {:w} && "+s.Shared+" = true && "+s.User+" != {:me}", s.Name, 0, 0,
-		dbx.Params{"w": workspace, "me": re.Auth.Id})
+	// Who sees what is services.Access's answer (VISIBILITY.md): the section's
+	// audience, the member's permissions, the owner's own records only.
+	rows, held, err := services.SharedWithMember(app, workspace, re.Auth.Id)
 	if err != nil {
 		return re.InternalServerError("Failed to read sections.", err)
 	}
 
-	r := util.Fields.Record
+	s := util.Fields.Section
 	owners := map[string]string{}
 	ownerEmail := func(id string) string {
 		if email, ok := owners[id]; ok {
@@ -79,15 +74,7 @@ func listSharedVault(app core.App, re *core.RequestEvent) error {
 	for _, section := range rows {
 		owner := section.GetString(s.User)
 		ids := []string{}
-		for _, id := range section.GetStringSlice(s.Records) {
-			rec, err := app.FindRecordById(util.Coll.Records, id)
-			// Only the section owner's own records in this workspace: a section
-			// naming someone else's record shares nothing of theirs.
-			if err != nil || rec == nil ||
-				rec.GetString(r.Workspace) != workspace || rec.GetString(r.User) != owner ||
-				rec.GetString(r.Type) == util.TypeFile || rec.GetString(r.AliasOf) != "" {
-				continue
-			}
+		for _, rec := range held[section.Id] {
 			ids = append(ids, rec.Id)
 			if seen[rec.Id] {
 				continue
@@ -95,15 +82,20 @@ func listSharedVault(app core.App, re *core.RequestEvent) error {
 			seen[rec.Id] = true
 			records = append(records, sharedRecordJSON(rec))
 		}
+		a := services.SectionAudience(section)
 		sections = append(sections, map[string]any{
-			"id":         section.Id,
-			"key":        section.GetString(s.Key),
-			"name":       section.GetString(s.Name),
-			"user":       owner,
-			"ownerEmail": ownerEmail(owner),
-			"workspace":  workspace,
-			"records":    ids,
-			"shared":     true,
+			"id":             section.Id,
+			"key":            section.GetString(s.Key),
+			"name":           section.GetString(s.Name),
+			"user":           owner,
+			"ownerEmail":     ownerEmail(owner),
+			"workspace":      workspace,
+			"records":        ids,
+			"shared":         a.Kind == util.AudienceWorkspace,
+			"audienceKind":   a.Kind,
+			"audienceGroups": nonNilIds(a.Groups),
+			"editing":        a.Editing,
+			"canEdit":        services.CanEdit(app, re.Auth.Id, section),
 		})
 	}
 	slices.SortStableFunc(records, func(a, b map[string]any) int {
@@ -116,6 +108,13 @@ func listSharedVault(app core.App, re *core.RequestEvent) error {
 		return 0
 	})
 	return re.JSON(http.StatusOK, map[string]any{"sections": sections, "records": records})
+}
+
+func nonNilIds(ids []string) []string {
+	if ids == nil {
+		return []string{}
+	}
+	return ids
 }
 
 // sharedRecordJSON is a record as the collection API would show its owner, minus

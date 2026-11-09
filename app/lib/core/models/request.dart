@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/audience.dart';
+
 /// Represents a request from the PocketBase `requests` collection.
 ///
 /// Schema introduced by migration 000020. The owning workspace defines a
@@ -31,8 +33,19 @@ class DataRequest {
 
   /// The connected tool that proposed it, or empty.
   final String connection;
+
+  /// Who sees it beside its owner: `private`, `workspace` or `groups`.
+  /// Only the owner changes it. Its answers follow it.
+  final String audienceKind;
+
+  /// Whether the members who see it may also change it: `owner` or
+  /// `audience`.
+  final String editing;
   final String? created;
   final String? updated;
+
+  /// Whether the whole workspace sees it.
+  bool get openToWorkspace => audienceKind == 'workspace';
 
   DataRequest({
     required this.id,
@@ -53,6 +66,8 @@ class DataRequest {
     required this.user,
     required this.workspace,
     this.connection = '',
+    this.audienceKind = 'private',
+    this.editing = 'owner',
     this.created,
     this.updated,
   });
@@ -80,6 +95,8 @@ class DataRequest {
       user: json['user'] as String? ?? '',
       workspace: json['workspace'] as String? ?? '',
       connection: json['connection'] as String? ?? '',
+      audienceKind: audienceKindFrom(json['audienceKind']),
+      editing: json['editing'] == 'audience' ? 'audience' : 'owner',
       created: json['created'] as String?,
       updated: json['updated'] as String?,
     );
@@ -103,6 +120,9 @@ class DataRequest {
     bool? allowExtraFields,
     String? user,
     String? workspace,
+    String? connection,
+    String? audienceKind,
+    String? editing,
     String? created,
     String? updated,
   }) {
@@ -124,6 +144,9 @@ class DataRequest {
       allowExtraFields: allowExtraFields ?? this.allowExtraFields,
       user: user ?? this.user,
       workspace: workspace ?? this.workspace,
+      connection: connection ?? this.connection,
+      audienceKind: audienceKind ?? this.audienceKind,
+      editing: editing ?? this.editing,
       created: created ?? this.created,
       updated: updated ?? this.updated,
     );

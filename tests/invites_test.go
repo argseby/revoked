@@ -293,8 +293,8 @@ func TestInvitedMemberPermissionsAreEnforced(t *testing.T) {
 		api.Update(util.Coll.Records, adminRecord, inviteeToken, map[string]any{
 			util.Fields.Record.Value: "tampered",
 		}).Expect().Status(http.StatusForbidden).JSON().Object().
-			Value("data").Object().Value(util.Fields.WorkspaceMember.Permissions).Object().
-			Value("code").String().IsEqual(util.Errors.MissingPermission.ErrorCode)
+			Value("data").Object().Value(util.Fields.Record.User).Object().
+			Value("code").String().IsEqual(util.Errors.NotRecordEditor.ErrorCode)
 	})
 
 	t.Run("not granted: cannot invite anyone", func(t *testing.T) {

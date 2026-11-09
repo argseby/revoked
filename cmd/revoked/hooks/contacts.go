@@ -23,6 +23,7 @@ var serverSetContactFields = []string{
 	util.Fields.Contact.PeerFingerprint,
 	util.Fields.Contact.LastUsedAt,
 	util.Fields.Contact.User,
+	util.Fields.Contact.CreatedBy,
 }
 
 // BindContactHooks holds the fields that say a contact is proven, and refuses
@@ -31,6 +32,16 @@ func BindContactHooks(app core.App) {
 	app.OnRecordCreateRequest(util.Coll.Contacts).BindFunc(func(e *core.RecordRequestEvent) error {
 		if err := util.RestrictFields(e, serverSetContactFields...); err != nil {
 			return err
+		}
+		// Who added it owns it (VISIBILITY.md): a person, or the person a
+		// key belongs to.
+		if e.Auth != nil {
+			switch e.Auth.Collection().Name {
+			case util.Coll.Users:
+				e.Record.Set(util.Fields.Contact.CreatedBy, e.Auth.Id)
+			case util.Coll.ApiKeys:
+				e.Record.Set(util.Fields.Contact.CreatedBy, e.Auth.GetString(util.Fields.ApiKey.User))
+			}
 		}
 		return e.Next()
 	})

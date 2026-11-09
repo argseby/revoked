@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -88,6 +90,14 @@ class _RequestCreateForm extends StatefulWidget {
 
 class _RequestCreateFormState extends State<_RequestCreateForm> {
   RequestsStore get _store => Stores.requests;
+
+  /// Who sees the new request and its answers: a tool's suggestion, else the
+  /// workspace's default. The owner decides (VISIBILITY.md).
+  late final Local<String> _visibility = Local(
+    (widget.proposal?.visibility ?? '').isNotEmpty
+        ? widget.proposal!.visibility
+        : Stores.settings.defaultAudienceFor('requests'),
+  );
 
   @override
   void initState() {
@@ -257,6 +267,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
           ? _store.draftIdentityScope
           : 'any',
       allowExtraFields: _store.draftAllowExtraFields,
+      audienceKind: _visibility.value,
     );
     if (!mounted) return false;
     if (ok) {
@@ -363,6 +374,21 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                     // Required, so it stays in view until one is picked.
                     if (_store.draftIdentityId == null) _buildIdentityRow(),
                     _buildAccessSummary(),
+                    // An existing request changes who sees it from its page.
+                    if (widget.editRequest == null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.sm,
+                          AppSpacing.xl,
+                          0,
+                        ),
+                        child: VisibleToField(
+                          value: _visibility,
+                          suggestedByTool:
+                              (widget.proposal?.visibility ?? '').isNotEmpty,
+                        ),
+                      ),
 
                     AppFormAdvanced(
                       summary:
@@ -490,6 +516,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
           ? _store.draftIdentityScope
           : 'any',
       allowExtraFields: _store.draftAllowExtraFields,
+      audienceKind: _visibility.value,
     );
   }
 

@@ -113,7 +113,9 @@ func diagnoseAccess(app core.App, e *core.RequestEvent, spec util.AccessSpec, co
 		return nil
 	}
 	subject.RecordWorkspace = existing.GetString(util.FieldWorkspace)
-	subject.RecordUser = existing.GetString(util.FieldUser)
+	subject.RecordUser = existing.GetString(spec.OwnerColumn())
+	subject.RecordIsResponse = existing.GetString(util.Fields.Record.RequestedBy) != ""
+	subject.RecordEditors = existing.GetStringSlice(util.Fields.Record.Editors)
 	if collection == util.Coll.Workspaces {
 		subject.RecordWorkspace = existing.Id
 	}

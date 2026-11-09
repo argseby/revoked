@@ -67,6 +67,11 @@ type collectionSchema struct {
 	// It outlives the attestation row, so deleting a workspace cannot turn a
 	// revoked credential back into a valid one.
 	AttestationStatus string
+	// Groups name parts of a workspace (HR, Service, Techs) that an item's
+	// audience can list. GroupMembers says who is in each. Superuser-only
+	// until groups can be managed from the app (VISIBILITY.md §6).
+	Groups       string
+	GroupMembers string
 	// Credentials are attestations a person holds about one of their own
 	// identities, issued by this server or any other.
 	Credentials string
@@ -129,6 +134,10 @@ type recordFields struct {
 	Key, Value, User, Workspace, Label, Type, Format, RequestedBy, AliasOf,
 	File, Filename, ContentHash, HashSalt, Mime, Size, Created, Updated,
 	Sealed, SealedValue, SealedVersion, KeyEpoch, KeyWrap, WrittenBy, WrittenByName string
+	// Readers and Editors are the members who may see and change the record,
+	// worked out by services.Access from the sections holding it. The server
+	// alone writes them; the collection rules match them.
+	Readers, Editors string
 }
 
 type deviceKeyFields struct {
@@ -158,9 +167,22 @@ type accountKeyWrapFields struct {
 
 type sectionFields struct {
 	Key, Name, User, Workspace, Records, RequestedBy, Created, Updated string
-	// Shared lets every member who can read the vault read the section's
-	// records, through /api/shared/vault. Only its owner can change it.
+	// Shared is the section's audience as it was before audiences existed:
+	// true for "workspace". Kept in step with AudienceKind for one release.
 	Shared string
+	// AudienceKind and AudienceGroups say who sees the section (private,
+	// workspace or groups); Editing says whether that audience may change it.
+	// Only the owner changes them. Readers and Editors are worked out from
+	// them by services.Access and written by the server alone.
+	AudienceKind, AudienceGroups, Editing, Readers, Editors string
+}
+
+type groupFields struct {
+	Workspace, Key, Name, Created, Updated string
+}
+
+type groupMemberFields struct {
+	Group, User, Created string
 }
 
 type linkFields struct {
@@ -173,6 +195,10 @@ type linkFields struct {
 
 type workspaceFields struct {
 	Name, Slug, Type, Created, Updated string
+	// DefaultAudience is who sees a new item of each area that names no
+	// audience: {"links": "private", "templates": "workspace", …}
+	// (VISIBILITY.md §4.4). An area left out keeps its built-in default.
+	DefaultAudience string
 }
 
 type userFields struct {
@@ -199,6 +225,9 @@ type auditLogFields struct {
 
 type templateFields struct {
 	Name, Description, Schema, Workspace, Created, Updated string
+	// User is who made the template, set since templates carry an audience
+	// (VISIBILITY.md, phase 3). Empty on older ones and on built-ins.
+	User string
 }
 
 type identityFields struct {
@@ -285,6 +314,10 @@ type reminderFields struct {
 type contactFields struct {
 	Workspace, Name, User, Email, PeerDomain, PeerFingerprint,
 	TrustState, VerifiedAt, LastUsedAt, Created, Updated string
+	// CreatedBy is the member who added the contact, its owner for who sees
+	// it (VISIBILITY.md). User is someone else: the account the contact
+	// points to. Empty on contacts older than audiences.
+	CreatedBy string
 }
 
 type contactDeliveryFields struct {
@@ -393,6 +426,8 @@ var Coll = collectionSchema{
 	WebhookEvents:       "webhookEvents",
 	WebhookDeliveries:   "webhookDeliveries",
 	WebhookAttempts:     "webhookAttempts",
+	Groups:              "groups",
+	GroupMembers:        "groupMembers",
 }
 
 // Fields holds the field (column) names for each collection.
@@ -408,6 +443,8 @@ var Fields = struct {
 	AccountKeyEpoch    accountKeyEpochFields
 	AccountKeyWrap     accountKeyWrapFields
 	Section            sectionFields
+	Group              groupFields
+	GroupMember        groupMemberFields
 	Link               linkFields
 	AuditLog           auditLogFields
 	Template           templateFields
@@ -448,6 +485,8 @@ var Fields = struct {
 		Type:    "type",
 		Created: "created",
 		Updated: "updated",
+
+		DefaultAudience: "defaultAudience",
 	},
 	User: userFields{
 		ActiveWorkspace: "activeWorkspace",
@@ -509,6 +548,8 @@ var Fields = struct {
 		KeyWrap:       "keyWrap",
 		WrittenBy:     "writtenBy",
 		WrittenByName: "writtenByName",
+		Readers:       "readers",
+		Editors:       "editors",
 	},
 	DeviceKey: deviceKeyFields{
 		User:             "user",
@@ -575,6 +616,24 @@ var Fields = struct {
 		Created:     "created",
 		Updated:     "updated",
 		Shared:      "shared",
+
+		AudienceKind:   "audienceKind",
+		AudienceGroups: "audienceGroups",
+		Editing:        "editing",
+		Readers:        "readers",
+		Editors:        "editors",
+	},
+	Group: groupFields{
+		Workspace: "workspace",
+		Key:       "key",
+		Name:      "name",
+		Created:   "created",
+		Updated:   "updated",
+	},
+	GroupMember: groupMemberFields{
+		Group:   "group",
+		User:    "user",
+		Created: "created",
 	},
 	Link: linkFields{
 		Slug:             "slug",
@@ -629,6 +688,7 @@ var Fields = struct {
 		Workspace:   "workspace",
 		Created:     "created",
 		Updated:     "updated",
+		User:        "user",
 	},
 	Identity: identityFields{
 		Name:            "name",
@@ -938,6 +998,7 @@ var Fields = struct {
 		LastUsedAt:      "lastUsedAt",
 		Created:         "created",
 		Updated:         "updated",
+		CreatedBy:       "createdBy",
 	},
 	ContactDelivery: contactDeliveryFields{
 		Sender:    "sender",

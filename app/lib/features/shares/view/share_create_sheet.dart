@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -71,6 +73,11 @@ class _ShareCreateForm extends StatefulWidget {
 
 class _ShareCreateFormState extends State<_ShareCreateForm> {
   SharesStore get _store => Stores.shares;
+
+  /// Who sees the new share, from the workspace's default (VISIBILITY.md).
+  final Local<String> _visibility = Local(
+    Stores.settings.defaultAudienceFor('links'),
+  );
 
   String _generateRandomSlug() {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -220,6 +227,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       requireHandshake: _store.draftRequireHandshake,
       watermark: _store.draftWatermark,
       watermarkText: _store.draftWatermarkText.text.trim(),
+      audienceKind: _visibility.value,
     );
   }
 
@@ -275,6 +283,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       requireHandshake: _store.draftRequireHandshake,
       watermark: _store.draftWatermark,
       watermarkText: _store.draftWatermarkText.text.trim(),
+      audienceKind: _visibility.value,
     );
     if (!mounted) return false;
     if (!ok) {
@@ -374,6 +383,17 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                     _buildLabelRow(),
                     _buildExpiryRow(),
                     _buildPasswordRow(),
+                    // An existing share changes who sees it from its page.
+                    if (!isEdit)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.sm,
+                          AppSpacing.xl,
+                          0,
+                        ),
+                        child: VisibleToField(value: _visibility),
+                      ),
                     if (Stores.identities.loadState.hasLoaded &&
                         Stores.identities.identities.isEmpty)
                       Padding(

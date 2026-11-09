@@ -21,12 +21,17 @@ class AttestationAsk {
   /// The tool that sent the ask, when one did. Its name is [name].
   final ToolProposer proposer;
 
+  /// Who in the workspace the tool suggests should see the attestation:
+  /// `private`, `workspace`, or empty. Only pre-fills the choice.
+  final String visibility;
+
   const AttestationAsk({
     required this.type,
     required this.claims,
     required this.fingerprint,
     this.name = '',
     this.proposer = ToolProposer.none,
+    this.visibility = '',
   });
 
   static final _type = RegExp(r'^[\x21-\x7e]{1,255}$');
@@ -56,7 +61,14 @@ class AttestationAsk {
     final namesTool =
         (q['client'] ?? '').isNotEmpty || (q['ref'] ?? '').isNotEmpty;
     if (proposer == null && namesTool) return null;
+    final visibility = q['visibility'] ?? '';
+    if (visibility.isNotEmpty &&
+        visibility != 'private' &&
+        visibility != 'workspace') {
+      return null;
+    }
     return AttestationAsk(
+      visibility: visibility,
       type: type,
       claims: claims,
       fingerprint: fingerprint,
@@ -72,6 +84,7 @@ class AttestationAsk {
     if (name.isNotEmpty) 'name': name,
     if (!proposer.isEmpty) 'client': proposer.client,
     if (proposer.ref.isNotEmpty) 'ref': proposer.ref,
+    if (visibility.isNotEmpty) 'visibility': visibility,
   };
 
   String get link => Uri(

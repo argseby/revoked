@@ -159,3 +159,12 @@ undone. Deleting an issued attestation also revokes it.
 
 A domain is trusted by whoever chooses to trust it. An attestation is worth
 what the issuing domain's word is worth to the service reading it.
+
+### Who sees an attestation {#members}
+
+An issued attestation is seen by every member who can view attestations.
+**Visibility** in its options, offered to whoever issued it, keeps it to them
+instead (**Private**), and sets whether other members who may issue
+attestations can revoke it. Owning an attestation is not enough to revoke
+it: that always takes the permission to issue, since an attestation speaks
+for the server's domain.

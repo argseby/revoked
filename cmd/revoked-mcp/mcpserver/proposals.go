@@ -13,17 +13,19 @@ import (
 )
 
 type ProposeRequestInput struct {
-	Template string `json:"template" jsonschema:"the name of the owner's template saying what the request asks for"`
-	Label    string `json:"label,omitempty" jsonschema:"the request's title, up to 120 characters; left out, the template's name"`
-	Days     int    `json:"days,omitempty" jsonschema:"days until the request closes, 1-365; left out, it stays open"`
-	Ref      string `json:"ref,omitempty" jsonschema:"your own reference, up to 80 characters, returned by list_requests"`
+	Template   string `json:"template" jsonschema:"the name of the owner's template saying what the request asks for"`
+	Label      string `json:"label,omitempty" jsonschema:"the request's title, up to 120 characters; left out, the template's name"`
+	Days       int    `json:"days,omitempty" jsonschema:"days until the request closes, 1-365; left out, it stays open"`
+	Ref        string `json:"ref,omitempty" jsonschema:"your own reference, up to 80 characters, returned by list_requests"`
+	Visibility string `json:"visibility,omitempty" jsonschema:"optional: who in the owner's workspace should see it, private or workspace. Only a suggestion: the owner picks in the app, and anything a tool creates directly stays private"`
 }
 
 type ProposeAttestationInput struct {
-	Type   string   `json:"type" jsonschema:"the kind of attestation, one word or a URI, e.g. membership"`
-	Claims []string `json:"claims,omitempty" jsonschema:"claim names to fill in, letters, digits and underscores; the owner sets every value"`
-	For    string   `json:"for" jsonschema:"the subject's identity fingerprint, 64 hex characters, e.g. a holder fingerprint from list_checks"`
-	Ref    string   `json:"ref,omitempty" jsonschema:"your own reference, up to 80 characters, returned by list_attestations"`
+	Type       string   `json:"type" jsonschema:"the kind of attestation, one word or a URI, e.g. membership"`
+	Claims     []string `json:"claims,omitempty" jsonschema:"claim names to fill in, letters, digits and underscores; the owner sets every value"`
+	For        string   `json:"for" jsonschema:"the subject's identity fingerprint, 64 hex characters, e.g. a holder fingerprint from list_checks"`
+	Ref        string   `json:"ref,omitempty" jsonschema:"your own reference, up to 80 characters, returned by list_attestations"`
+	Visibility string   `json:"visibility,omitempty" jsonschema:"optional: who in the owner's workspace should see it, private or workspace. Only a suggestion: the owner picks in the app, and anything a tool creates directly stays private"`
 }
 
 type ProposeCheckInput struct {
@@ -160,6 +162,19 @@ func addProposalTools(s *mcp.Server, c *client) {
 	})
 }
 
+// visibilityQuery is the optional visibility parameter of a proposal link
+// (VISIBILITY.md §7): a suggestion the app pre-fills, which the owner can
+// change before confirming. Groups follow once they can be named.
+func visibilityQuery(v string) ([]string, error) {
+	switch strings.TrimSpace(v) {
+	case "":
+		return nil, nil
+	case "private", "workspace":
+		return []string{"visibility=" + strings.TrimSpace(v)}, nil
+	}
+	return nil, errors.New("visibility must be private or workspace")
+}
+
 func actOn(ctx context.Context, c *client, kind, id, verb string, out any) error {
 	if strings.TrimSpace(id) == "" {
 		return errors.New("id is required")
@@ -190,6 +205,11 @@ func requestLink(cfg Config, in ProposeRequestInput) (string, error) {
 		q = append(q, "days="+strconv.Itoa(in.Days))
 	}
 	q = append(q, toolQuery(cfg, "from", in.Ref)...)
+	v, err := visibilityQuery(in.Visibility)
+	if err != nil {
+		return "", err
+	}
+	q = append(q, v...)
 	return "revoked://pr?" + strings.Join(q, "&"), nil
 }
 
@@ -213,6 +233,11 @@ func attestationLink(cfg Config, in ProposeAttestationInput) (string, error) {
 		q = append(q, "claims="+strings.Join(claims, ","))
 	}
 	q = append(q, toolQuery(cfg, "name", in.Ref)...)
+	v, err := visibilityQuery(in.Visibility)
+	if err != nil {
+		return "", err
+	}
+	q = append(q, v...)
 	return "revoked://attest?" + strings.Join(q, "&"), nil
 }
 

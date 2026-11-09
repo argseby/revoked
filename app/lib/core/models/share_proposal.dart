@@ -65,6 +65,11 @@ class ShareProposal {
   /// server hands it only to the owner of the tool's connection.
   final String draft;
 
+  /// Who in the owner's workspace the tool suggests should see the share:
+  /// `private`, `workspace`, or empty for no suggestion. Only pre-fills the
+  /// choice; the owner confirms (VISIBILITY.md §7).
+  final String visibility;
+
   const ShareProposal({
     required this.label,
     required this.keys,
@@ -81,6 +86,7 @@ class ShareProposal {
     this.reasons = const ToolReasons(),
     this.poll = '',
     this.draft = '',
+    this.visibility = '',
   });
 
   static const maxKeys = 50;
@@ -186,7 +192,15 @@ class ShareProposal {
       return null;
     }
 
+    final visibility = query['visibility'] ?? '';
+    if (visibility.isNotEmpty &&
+        visibility != 'private' &&
+        visibility != 'workspace') {
+      return null;
+    }
+
     return ShareProposal(
+      visibility: visibility,
       label: label,
       keys: keys,
       stamp: stamp,
@@ -222,5 +236,6 @@ class ShareProposal {
     ...reasons.toQuery(),
     if (poll.isNotEmpty) 'poll': poll,
     if (draft.isNotEmpty) 'draft': draft,
+    if (visibility.isNotEmpty) 'visibility': visibility,
   };
 }

@@ -252,7 +252,10 @@ abstract final class Stores {
       vault.sharedRecords.clear();
       vault.sharedSections.clear();
       shares.shares.clear();
+      shares.sharedShares.clear();
+      settings.groups.clear();
       requests.requests.clear();
+      requests.sharedRequests.clear();
       requests.responsesByRequest.clear();
       bookmarks.bookmarks.clear();
       bookmarks.groups.clear();

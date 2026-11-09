@@ -871,9 +871,11 @@ func TestSealedRoutesKeepPeopleApart(t *testing.T) {
 
 	t.Run("a member who holds no key cannot write or rotate", func(t *testing.T) {
 		member := addWorkspaceMember(t, f)
+		// The record is the owner's and private, so to the member it is not
+		// there at all.
 		f.request("PUT", "/api/sealed/records/"+id, member.token, f.put(id, 1, map[string]any{
 			"expectedVersion": 1,
-		})).Expect().Status(http.StatusForbidden)
+		})).Expect().Status(http.StatusNotFound)
 		f.request("POST", "/api/sealed/workspaces/"+f.party.workspace+"/epochs", member.token, map[string]any{
 			"epoch": 2, "priorWrap": sealedKeyWrap, "wraps": []any{map[string]any{
 				"deviceSeq": 1, "wrap": sealedKeyWrap, "signerSeq": 1, "chainSeq": 2, "signature": sealedSignature,

@@ -87,6 +87,7 @@ class VaultStore extends _VaultStore with _$VaultStore {
     required List<String> records,
     required String user,
     required String workspace,
+    String audienceKind = '',
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -97,6 +98,8 @@ class VaultStore extends _VaultStore with _$VaultStore {
         'records': records,
         'user': user,
         'workspace': workspace,
+        // Who sees it; empty leaves it to the workspace's default.
+        if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
       },
     );
   }
@@ -524,10 +527,17 @@ abstract class _VaultStore with Store {
     // encrypted records is shown above the list, and must not wait for a
     // list that may fail.
     unawaited(Stores.keys.ensureLoaded());
+    // Only this person's own: what other members share also passes the
+    // server's rules now, and is listed apart through loadShared.
+    final me = Stores.auth.userId;
+    final ownOnly = me.isEmpty
+        ? const <String, String>{}
+        : {'filter': 'user = "$me"'};
     try {
       final recordsData = await _api.get(
         '/api/collections/${AppConfig.recordsCollection}/records',
         queryParams: {
+          ...ownOnly,
           'page': '1',
           'perPage': '${AppConfig.listPageSize}',
           'sort': '-created',
@@ -546,6 +556,7 @@ abstract class _VaultStore with Store {
       final sectionsData = await _api.get(
         '/api/collections/${AppConfig.sectionsCollection}/records',
         queryParams: {
+          ...ownOnly,
           'page': '1',
           'perPage': '${AppConfig.listPageSize}',
           'sort': '-created',
@@ -596,6 +607,25 @@ abstract class _VaultStore with Store {
   @action
   Future<bool> setSectionShared(String id, bool shared) =>
       updateSection(id, {'shared': shared});
+
+  /// Sets who sees one of this person's sections beside them, and whether
+  /// those members may change it (VISIBILITY.md). Only the owner can.
+  Future<bool> setSectionAudience(
+    String id, {
+    required String kind,
+    required String editing,
+    List<String> groups = const [],
+  }) => updateSection(id, {
+    'audienceKind': kind,
+    'editing': editing,
+    'audienceGroups': groups,
+  });
+
+  /// Who sees and who edits a section or record, as the server computes it:
+  /// `owner`, `readers` and `editors` (each a `count`, with `members` when
+  /// this person may see them), `canEdit`, `canChangeAudience`, `audience`.
+  Future<Map<String, dynamic>> loadAccess(String collection, String id) async =>
+      await _api.get('/api/access/$collection/$id') as Map<String, dynamic>;
 
   /// The operator's per-file cap from GET /api/server, cached for the session.
   /// Negative means the operator set none.
@@ -757,7 +787,14 @@ abstract class _VaultStore with Store {
   void _replaceInList(models.Record record) {
     final index = records.indexWhere((r) => r.id == record.id);
     if (index != -1) records[index] = record;
+    // A colleague's record, changed by someone they opened editing to.
+    final shared = sharedRecords.indexWhere((r) => r.id == record.id);
+    if (shared != -1) sharedRecords[shared] = record;
   }
+
+  /// The value being typed for a colleague's record, when its section is
+  /// open for this person to edit (VISIBILITY.md).
+  final ObservableTextController sharedEditValue = ObservableTextController();
 
   static String _friendlyError(Object e) => describeError(e);
 
@@ -1051,18 +1088,7 @@ abstract class _VaultStore with Store {
       for (var i = 0; i < sections.length; i++) {
         final s = sections[i];
         if (!s.records.contains(id)) continue;
-        sections[i] = Section(
-          id: s.id,
-          key: s.key,
-          name: s.name,
-          records: s.records.where((r) => r != id).toList(),
-          user: s.user,
-          workspace: s.workspace,
-          created: s.created,
-          updated: s.updated,
-          requestedBy: s.requestedBy,
-          shared: s.shared,
-        );
+        sections[i] = s.withRecords(s.records.where((r) => r != id).toList());
       }
       return true;
     } catch (e) {
@@ -1101,10 +1127,7 @@ abstract class _VaultStore with Store {
         cancelToken: token,
       );
       final updated = models.Record.fromJson(data as Map<String, dynamic>);
-      final index = records.indexWhere((r) => r.id == id);
-      if (index != -1) {
-        records[index] = updated;
-      }
+      _replaceInList(updated);
       return true;
     } catch (e) {
       errorMessage = describeError(e);
@@ -1221,6 +1244,7 @@ abstract class _VaultStore with Store {
     required List<String> recordIds,
     required String user,
     required String workspace,
+    String audienceKind = '',
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -1231,6 +1255,7 @@ abstract class _VaultStore with Store {
         records: recordIds,
         user: user,
         workspace: workspace,
+        audienceKind: audienceKind,
       );
       sections.insert(0, section);
       return true;
@@ -1448,6 +1473,7 @@ abstract class _VaultStore with Store {
     required List<String> records,
     required String user,
     required String workspace,
+    String audienceKind = '',
   }) async {
     final spec = VaultStore.createSectionSpec(
       key: key,
@@ -1455,6 +1481,7 @@ abstract class _VaultStore with Store {
       records: records,
       user: user,
       workspace: workspace,
+      audienceKind: audienceKind,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return Section.fromJson(data as Map<String, dynamic>);

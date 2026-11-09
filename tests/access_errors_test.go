@@ -45,6 +45,18 @@ func TestAccessRegistryMatchesRules(t *testing.T) {
 			}
 		}
 	}
+
+	for collName, rule := range util.AudienceReadRules {
+		coll, err := app.FindCollectionByNameOrId(collName)
+		if err != nil {
+			t.Fatalf("collection %q with an audience does not exist: %v", collName, err)
+		}
+		for name, deployed := range map[string]*string{"list": coll.ListRule, "view": coll.ViewRule} {
+			if deployed == nil || *deployed != rule {
+				t.Errorf("%s.%s read rule drift:\n  registry: %s\n  deployed: %v", collName, name, rule, deployed)
+			}
+		}
+	}
 }
 
 // The richer denial errors must not become a cross-tenant existence oracle:

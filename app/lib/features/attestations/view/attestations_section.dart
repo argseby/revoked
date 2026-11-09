@@ -9,6 +9,7 @@ import 'package:revoked_app/core/models/attestation_check.dart';
 import 'package:revoked_app/core/models/credential.dart';
 import 'package:revoked_app/core/state/load_state.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
@@ -539,6 +540,26 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
             label: a.isOffered ? 'Withdraw offer' : 'Revoke',
             destructive: true,
             onTap: () => _revoke(context, a),
+          ),
+        if (a.owner.isNotEmpty && a.owner == Stores.auth.userId)
+          AppSheetAction(
+            icon: AppIcons.personWorkspace,
+            label: 'Visibility',
+            onTap: () => openAccessSheet(
+              context,
+              area: AccessArea.attestations,
+              id: a.id,
+              name: a.title,
+              audienceKind: a.audienceKind,
+              editing: a.editing,
+              save: (kind, editing, groups) => Stores.attestations.setAudience(
+                a.id,
+                kind: kind,
+                editing: editing,
+                groups: groups,
+              ),
+              saveError: () => Stores.attestations.error?.description,
+            ),
           ),
         AppSheetAction(
           icon: AppIcons.trash,

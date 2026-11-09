@@ -34,7 +34,7 @@ func EmitLinkWebhook(app core.App, link *core.Record, eventType string, extra ma
 	for k, v := range extra {
 		data[k] = v
 	}
-	EmitWebhookEvent(app, link.GetString(util.Fields.Link.Workspace), eventType, data)
+	EmitWebhookEventAbout(app, link, eventType, data, "")
 }
 
 // EmitResponseWebhook announces an answer event to the workspace that asked.
@@ -58,7 +58,9 @@ func EmitResponseWebhook(app core.App, link *core.Record, eventType string, extr
 	for k, v := range extra {
 		data[k] = v
 	}
-	EmitWebhookEvent(app, req.GetString(util.Fields.Request.Workspace), eventType, data)
+	// The answer follows its request: the members who see the request and
+	// may read collected data.
+	EmitWebhookEventAbout(app, req, eventType, data, util.ScopeResponseRead)
 }
 
 // EmitRemoteResponseWebhook announces an event about an answer kept on another
@@ -69,13 +71,13 @@ func EmitRemoteResponseWebhook(app core.App, rg *core.Record, eventType string) 
 	if err != nil || req == nil {
 		return
 	}
-	EmitWebhookEvent(app, req.GetString(util.Fields.Request.Workspace), eventType, map[string]any{
+	EmitWebhookEventAbout(app, req, eventType, map[string]any{
 		"object":  "response",
 		"id":      rg.Id,
 		"request": req.Id,
 		"status":  rg.GetString(f.Status),
 		"server":  rg.GetString(f.Domain),
-	})
+	}, util.ScopeResponseRead)
 }
 
 // WebhookLinkStatusChanged announces a link moving between states, to its own

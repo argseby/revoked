@@ -245,3 +245,14 @@ var ReminderKinds = []string{ReminderKindDate, ReminderKindChange}
 
 // ContactTrustStates lists the valid contact trust states.
 var ContactTrustStates = []string{ContactUnverified, ContactVerified, ContactRevoked}
+
+// Who sees an item inside its workspace, and who may change it
+// (VISIBILITY.md). An empty audience kind reads as private.
+const (
+	AudiencePrivate   = "private"
+	AudienceWorkspace = "workspace"
+	AudienceGroups    = "groups"
+
+	EditingOwner    = "owner"
+	EditingAudience = "audience"
+)

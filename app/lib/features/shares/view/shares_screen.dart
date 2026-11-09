@@ -401,6 +401,26 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               'Closed',
               collapsed: !statuses.contains(LinkGroup.closed),
             ),
+            // Shares other members opened to this person, apart from their
+            // own and outside the filters, which are about their own links.
+            if (store.sharedShares.isNotEmpty &&
+                statuses.isEmpty &&
+                people.isEmpty)
+              AppListGroup(
+                title: 'Shared by members',
+                noun: 'links',
+                previewCount: 5,
+                children: [
+                  for (final l in store.sharedShares)
+                    _LinkRow(
+                      share: l,
+                      selected: l.id == widget.selectedId,
+                      attention: null,
+                      showStatus: true,
+                      onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
+                    ),
+                ],
+              ),
           ],
         );
       },

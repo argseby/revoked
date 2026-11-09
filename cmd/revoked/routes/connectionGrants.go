@@ -178,6 +178,10 @@ func ensureOwnSection(app core.App, conn *core.Record, g connectionGrant) error 
 		return err
 	}
 	section := core.NewRecord(coll)
+	// A tool's own section is its owner's alone until they widen it, whatever
+	// the workspace's default (VISIBILITY.md).
+	section.Set(util.Fields.Section.AudienceKind, util.AudiencePrivate)
+	section.Set(util.Fields.Section.Editing, util.EditingOwner)
 	section.Set(util.Fields.Section.Key, key)
 	section.Set(util.Fields.Section.Name, name)
 	section.Set(util.Fields.Section.User, conn.GetString(f.User))
@@ -278,6 +282,10 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 			}
 			lf := util.Fields.Link
 			link := core.NewRecord(coll)
+			// What a tool creates is its owner's alone until they widen it
+			// in the app, whatever the workspace's default (VISIBILITY.md).
+			link.Set(util.Fields.Section.AudienceKind, util.AudiencePrivate)
+			link.Set(util.Fields.Section.Editing, util.EditingOwner)
 			link.Set(lf.Slug, slug)
 			link.Set(lf.Label, label)
 			link.Set(lf.User, c.User)
@@ -339,7 +347,9 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 					t, err = app.FindFirstRecordByFilter(util.Coll.Templates,
 						"workspace = {:ws} && name = {:name}", dbx.Params{"ws": workspace, "name": body.Template})
 				}
-				if err != nil || t == nil || t.GetString(util.Fields.Template.Workspace) != workspace {
+				// The tool acts for its owner, so it may use what they see.
+				if err != nil || t == nil || t.GetString(util.Fields.Template.Workspace) != workspace ||
+					!services.CanSee(app, conn.GetString(util.Fields.Connection.User), t) {
 					return appErrorResponse(re, http.StatusForbidden, &util.Errors.TemplateNotOwned)
 				}
 				template = t.Id
@@ -371,6 +381,9 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 			}
 			rf := util.Fields.Request
 			req := core.NewRecord(coll)
+			// Private, as everything a tool creates (VISIBILITY.md).
+			req.Set(util.Fields.Section.AudienceKind, util.AudiencePrivate)
+			req.Set(util.Fields.Section.Editing, util.EditingOwner)
 			req.Set(rf.Slug, slug)
 			req.Set(rf.Label, label)
 			req.Set(rf.Status, util.StatusActive)

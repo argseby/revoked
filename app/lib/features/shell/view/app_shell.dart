@@ -377,7 +377,18 @@ class _AppShellState extends State<AppShell> {
                 for (final d in shown)
                   NavigationRailDestination(
                     icon: Icon(d.icon),
-                    label: Text(d.label),
+                    // The rail is as wide as its longest label, so a long
+                    // name ("Works with Revoked") wraps instead of taking
+                    // the room the top bar needs.
+                    label: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 80),
+                      child: Text(
+                        d.label,
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
               ],
             ),

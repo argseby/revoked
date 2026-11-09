@@ -289,6 +289,23 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
               'Closed',
               collapsed: !picked.contains(RequestGroup.closed),
             ),
+            // Requests other members opened to this person, apart from their
+            // own and outside the groups, which are about their own requests.
+            if (reqStore.sharedRequests.isNotEmpty && picked.isEmpty)
+              AppListGroup(
+                title: 'Shared by members',
+                noun: 'requests',
+                previewCount: 5,
+                children: [
+                  for (final r in reqStore.sharedRequests)
+                    _RequestRow(
+                      request: r,
+                      unread: 0,
+                      now: now,
+                      onTap: () => context.go(AppRoutes.requestDetailFor(r.id)),
+                    ),
+                ],
+              ),
           ],
         );
       },
