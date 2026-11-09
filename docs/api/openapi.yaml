@@ -1114,6 +1114,10 @@ paths:
 
         A remote answer whose server could not be asked carries
         `unreachable: true` and no values, rather than a stale copy.
+
+        Open to the request's owner, and to members who see the request (its
+        audience) and hold `responses:read`. Anyone else gets 404, or 403
+        `missing_permission` inside the audience without that permission.
       security:
         - Session: []
         - ApiKey: []
@@ -1135,19 +1139,124 @@ paths:
       tags: [Encrypted records]
       summary: Read the sections other members shared with you
       description: |
-        The sections in the caller's active workspace that other members
-        shared (`shared: true`), each with `ownerEmail` and the ids of its
-        records, and those records in the collection API's form. Only records
-        the section's owner created; files and aliases are left out. Encrypted
-        records come as ciphertext. Read-only: changes go through the
-        collection API, whose rules are unchanged. Needs the vault-read
-        permission; people only.
+        The sections in the caller's active workspace that belong to other
+        members and are visible to the caller: their audience is the workspace
+        (or a group the caller is in) and the caller holds the vault-read
+        permission. Each comes with `ownerEmail`, `audienceKind`,
+        `audienceGroups`, `editing`, `canEdit` and the ids of its records, and
+        those records in the collection API's form. Only records the section's
+        owner created; files, aliases and request answers are left out.
+        Encrypted records come as ciphertext. The same records are also open
+        through the collection API, where members listed as editors can
+        change them. People only.
       security:
         - Session: []
       responses:
         "200": { description: "`sections` and `records`." }
         "401": { description: Not signed in. }
-        "403": { description: "An API key, not a member, or `missing_permission`." }
+        "403": { description: "An API key, or not a member." }
+  /api/access/{collection}/{id}:
+    get:
+      tags: [Encrypted records]
+      summary: Read who sees and who edits an item of the workspace
+      description: |
+        `collection` is `sections`, `records`, `links`, `requests`,
+        `templates`, `contacts` or `attestations`. Answers only for a member who
+        sees the item; anyone else gets 404. Returns `owner`, `readers` and
+        `editors` (each `count`, plus `members` with `id` and `email` for the
+        owner and for members who may view members), `canEdit`,
+        `canChangeAudience`, and for everything but a record `audience` (`kind`: `private`,
+        `workspace` or `groups`; `groups`; `editing`: `owner` or `audience`).
+        People only.
+      security:
+        - Session: []
+      parameters:
+        - { name: collection, in: path, required: true, schema: { type: string, enum: [sections, records, links, requests, templates, contacts, attestations] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: The item's access summary. }
+        "401": { description: Not signed in. }
+        "403": { description: An API key. }
+        "404": { description: "`record_not_found`: missing, or not visible to the caller." }
+  /api/groups:
+    get:
+      tags: [Encrypted records]
+      summary: List the groups of the active workspace
+      description: |
+        Every group (`id`, `key`, `name`, `members` with `id` and `email`),
+        and `canManage`: whether the caller may change them. Any member may
+        list them. People only.
+      security:
+        - Session: []
+      responses:
+        "200": { description: "`groups` and `canManage`." }
+        "401": { description: Not signed in. }
+        "403": { description: "An API key, or not a member." }
+    post:
+      tags: [Encrypted records]
+      summary: Create a group
+      description: |
+        `{name}`, 1 to 80 characters; the key is derived from it. Needs the
+        permission to invite members. People only.
+      security:
+        - Session: []
+      responses:
+        "201": { description: The group. }
+        "400": { description: "`group_name_invalid`." }
+        "403": { description: "`missing_permission`, an API key, or not a member." }
+  /api/groups/{id}:
+    patch:
+      tags: [Encrypted records]
+      summary: Rename a group
+      security:
+        - Session: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: The group. }
+        "400": { description: "`group_name_invalid`." }
+        "403": { description: "`missing_permission`." }
+        "404": { description: "`group_not_found`." }
+    delete:
+      tags: [Encrypted records]
+      summary: Delete a group
+      description: |
+        Items whose audience named only this group are seen by their owner
+        alone from then on.
+      security:
+        - Session: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted. }
+        "403": { description: "`missing_permission`." }
+        "404": { description: "`group_not_found`." }
+  /api/groups/{id}/members/{user}:
+    put:
+      tags: [Encrypted records]
+      summary: Add a member of the workspace to a group
+      security:
+        - Session: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: user, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: The group. }
+        "400": { description: "`not_workspace_member`: the user is not in this workspace." }
+        "403": { description: "`missing_permission`." }
+        "404": { description: "`group_not_found`." }
+    delete:
+      tags: [Encrypted records]
+      summary: Take someone out of a group
+      security:
+        - Session: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: user, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: The group. }
+        "403": { description: "`missing_permission`." }
+        "404": { description: "`group_not_found`." }
   /api/sealed/state:
     get:
       tags: [Encrypted records]
@@ -1987,6 +2096,97 @@ paths:
           description: "`connection_revoke_not_allowed`, or `connection_paused` while the owner has the tool paused."
         "404":
           description: Not a link of this tool.
+  /api/connection/drafts:
+    post:
+      tags: [Connections]
+      summary: Suggest values for a proposal (the tool)
+      description: |
+        Holds text values the tool heard from the owner, so a share proposal
+        can offer them prefilled. Returns a draft id for the proposal link
+        (`draft=<id>`); the link never carries the values. Drafts are kept in
+        the server's memory only, for one hour, and are gone on restart.
+        Nothing is saved to the vault: the app offers a value only for a key
+        the vault does not hold yet, and the owner saves it. The audit log
+        (`tool_drafted_values`) names the keys, never the values. At most 20
+        open drafts per connection.
+      security:
+        - Connection: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [values]
+              properties:
+                values:
+                  type: object
+                  description: 1-50 keys (`[a-z0-9_-]{1,64}`), each non-empty text of at most 4000 characters without control characters other than line breaks and tabs.
+                  additionalProperties: { type: string }
+      responses:
+        "200":
+          description: The draft.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, description: 24 characters, a-z and 0-9. }
+                  expiresAt: { type: string, format: date-time }
+        "400":
+          description: The values are refused whole when any part is malformed.
+        "401":
+          description: "`connection_unauthorized` or `connection_expired`."
+        "403":
+          description: "`connection_paused` while the owner has the tool paused."
+        "429":
+          description: Too many open drafts for this connection.
+  /api/connections/drafts/{id}:
+    get:
+      tags: [Connections]
+      summary: Read a tool's suggested values (the owner)
+      description: |
+        The values a connected tool suggested, for the proposal screen. Only
+        the owner of the tool's connection reads them, and not while the
+        connection is paused or expired.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The draft.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  connection: { type: string }
+                  clientName: { type: string }
+                  values:
+                    type: object
+                    additionalProperties: { type: string }
+                  expiresAt: { type: string, format: date-time }
+        "401":
+          description: Not signed in.
+        "404":
+          description: No such draft for this person, or it expired.
+    delete:
+      tags: [Connections]
+      summary: Discard a tool's suggested values (the owner)
+      description: Drops the draft once the proposal is created or declined. Succeeds when it is already gone.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204":
+          description: Discarded, or already gone.
+        "401":
+          description: Not signed in.
   /api/connection/vault:
     get:
       tags: [Connections]

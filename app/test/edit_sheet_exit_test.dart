@@ -64,7 +64,17 @@ void main() {
         authStore: Stores.auth,
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Advanced'));
+      // Further down the sheet, below who sees the new entry.
+      await tester.scrollUntilVisible(
+        find.text('Advanced'),
+        200,
+        scrollable: find
+            .ancestor(
+              of: find.text('Visible to'),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Advanced'));
       await tester.pumpAndSettle();

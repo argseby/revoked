@@ -121,6 +121,26 @@ void main() {
     final challenge = 'a' * 43;
     const tool = 'https://mietunterlagen.example.com';
 
+    test('carries the id of the values it suggested, never the values', () {
+      final draft = 'a1' * 12;
+      final p = parse('revoked://p?label=x&keys=a&client=$tool&draft=$draft')!;
+      expect(p.draft, draft);
+      expect(ShareProposal.fromQuery(p.toQuery())!.draft, draft);
+    });
+
+    test('a draft without its tool, or of another shape, is refused', () {
+      final draft = 'a1' * 12;
+      expect(parse('revoked://p?label=x&keys=a&draft=$draft'), isNull);
+      expect(
+        parse('revoked://p?label=x&keys=a&client=$tool&draft=short'),
+        isNull,
+      );
+      expect(
+        parse('revoked://p?label=x&keys=a&client=$tool&draft=${'A1' * 12}'),
+        isNull,
+      );
+    });
+
     test('carries its origin, way back, state and reference', () {
       final p = parse(
         'revoked://p?label=x&keys=a&from=Tool&client=$tool'

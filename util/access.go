@@ -3,8 +3,8 @@ package util
 import (
 	"slices"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/dbx"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -25,6 +25,15 @@ const (
 	// AccessWorkspaceSplitOrigin — like AccessWorkspaceSelf, but vault entries
 	// and request-collected data are governed by different scopes.
 	AccessWorkspaceSplitOrigin
+	// AccessWorkspaceAudience — like AccessWorkspaceSplitOrigin, but a member
+	// other than the owner must also be listed in the row's editors.
+	AccessWorkspaceAudience
+	// AccessWorkspaceAudienceSelf — like AccessWorkspaceSelf, but a member
+	// other than the owner must also be listed in the row's editors.
+	AccessWorkspaceAudienceSelf
+	// AccessWorkspaceAudienceAdmin — a member listed in the row's editors,
+	// holding the permission; owning the row is not enough.
+	AccessWorkspaceAudienceAdmin
 )
 
 // AccessSpec declares who may perform an action on a collection.
@@ -47,6 +56,18 @@ type AccessSpec struct {
 	// ResponseScope governs rows created by answering a request, where Scope
 	// governs the rest. Only meaningful for AccessWorkspaceSplitOrigin.
 	ResponseScope string
+	// OwnerField is the column naming the row's owner; empty means "user".
+	// Contacts keep theirs in createdBy, since their user is the account they
+	// point to.
+	OwnerField string
+}
+
+// OwnerColumn is the column naming a row's owner under this spec.
+func (s AccessSpec) OwnerColumn() string {
+	if s.OwnerField == "" {
+		return FieldUser
+	}
+	return s.OwnerField
 }
 
 func (s AccessSpec) workspaceField() string {
@@ -72,6 +93,12 @@ func (s AccessSpec) Rule() string {
 		base = WorkspaceAdminSelfOnly(s.Scope, s.workspaceField())
 	case AccessWorkspaceSplitOrigin:
 		base = WorkspaceSplitOrigin(s.Scope, s.ResponseScope)
+	case AccessWorkspaceAudience:
+		base = WorkspaceAudienceSplit(s.Scope, s.ResponseScope)
+	case AccessWorkspaceAudienceSelf:
+		base = WorkspaceAudienceWriteBy(s.OwnerColumn(), s.Scope)
+	case AccessWorkspaceAudienceAdmin:
+		base = WorkspaceAudienceEditorsOnly(s.Scope)
 	}
 	if s.Extra != "" {
 		return "(" + base + ") && " + s.Extra
@@ -90,11 +117,14 @@ type AccessSubject struct {
 	// RecordIsResponse marks a row that exists because someone answered a
 	// request, selecting ResponseScope over Scope on a split-origin spec.
 	RecordIsResponse bool
+	// RecordEditors are the members listed in the row's editors column, for
+	// specs of kind AccessWorkspaceAudience.
+	RecordEditors []string
 }
 
 // requiredScope is the scope this spec demands for the subject's record.
 func (s AccessSpec) requiredScope(subj AccessSubject) string {
-	if s.Kind == AccessWorkspaceSplitOrigin && subj.RecordIsResponse {
+	if (s.Kind == AccessWorkspaceSplitOrigin || s.Kind == AccessWorkspaceAudience) && subj.RecordIsResponse {
 		return s.ResponseScope
 	}
 	return s.Scope
@@ -167,6 +197,9 @@ func (s AccessSpec) diagnoseUser(app core.App, subj AccessSubject, errs validati
 	needsActiveContext := s.Kind == AccessWorkspaceMember ||
 		s.Kind == AccessWorkspaceSelf ||
 		s.Kind == AccessWorkspaceSplitOrigin ||
+		s.Kind == AccessWorkspaceAudience ||
+		s.Kind == AccessWorkspaceAudienceSelf ||
+		s.Kind == AccessWorkspaceAudienceAdmin ||
 		s.Kind == AccessWorkspaceAdminSelf
 
 	if needsActiveContext {
@@ -207,6 +240,17 @@ func (s AccessSpec) diagnoseUser(app core.App, subj AccessSubject, errs validati
 	isAdminRole := member.GetString(Fields.WorkspaceMember.Role) == RoleAdmin
 
 	switch s.Kind {
+	case AccessWorkspaceAudienceAdmin:
+		if !slices.Contains(subj.RecordEditors, subj.Auth.Id) {
+			errs[FieldUser] = AsValidationError(Errors.NotRecordEditor)
+			return
+		}
+		if !legacy && !hasScopeValue(permissions, s.Scope) {
+			errs[Fields.WorkspaceMember.Permissions] = validation.NewError(
+				Errors.MissingPermission.ErrorCode,
+				"Workspace access does not include: "+s.Scope+".",
+			)
+		}
 	case AccessWorkspaceAdmin:
 		if legacy {
 			if !isAdminRole {
@@ -218,10 +262,20 @@ func (s AccessSpec) diagnoseUser(app core.App, subj AccessSubject, errs validati
 				"Workspace access does not include: "+s.Scope+".",
 			)
 		}
-	case AccessWorkspaceSelf, AccessWorkspaceSplitOrigin:
+	case AccessWorkspaceSelf, AccessWorkspaceSplitOrigin, AccessWorkspaceAudience, AccessWorkspaceAudienceSelf:
 		// Owning the row is always enough; otherwise the grant decides.
 		owned := subj.RecordUser != "" && subj.RecordUser == subj.Auth.Id
-		if owned || legacy {
+		if owned {
+			return
+		}
+		// On an existing row with an audience, the rule admits only the
+		// members listed in editors, and so must the explanation.
+		if (s.Kind == AccessWorkspaceAudience || s.Kind == AccessWorkspaceAudienceSelf) && subj.RecordUser != "" &&
+			!slices.Contains(subj.RecordEditors, subj.Auth.Id) {
+			errs[FieldUser] = AsValidationError(Errors.NotRecordEditor)
+			return
+		}
+		if legacy {
 			return
 		}
 		if want := s.requiredScope(subj); !hasScopeValue(permissions, want) {

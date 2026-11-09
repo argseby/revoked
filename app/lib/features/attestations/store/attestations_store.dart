@@ -7,6 +7,7 @@ import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/state/load_state.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/stores.dart';
 
@@ -179,6 +180,10 @@ abstract class _AttestationsStore with Store {
   @observable
   AttestationAsk? draftAsk;
 
+  /// Who sees the attestation being drafted: an ask's suggestion, else the
+  /// workspace's default (VISIBILITY.md).
+  final Local<String> draftVisibility = Local('workspace');
+
   /// Starts a new draft, filled in from [ask] when someone asked for it:
   /// the type, the claims named without their values, and the identity.
   @action
@@ -195,6 +200,9 @@ abstract class _AttestationsStore with Store {
     }
     if (draftClaims.isEmpty) draftClaims.add(ClaimDraft());
     draftAsk = ask;
+    draftVisibility.value = (ask?.visibility ?? '').isNotEmpty
+        ? ask!.visibility
+        : Stores.settings.defaultAudienceFor('attestations');
     isCreating = false;
     createError = null;
     lastCreatedToken = null;
@@ -267,6 +275,7 @@ abstract class _AttestationsStore with Store {
         body: {
           'user': user,
           'workspace': workspace,
+          'audienceKind': draftVisibility.value,
           'type': typeController.text.trim(),
           'label': labelController.text.trim(),
           'claims': {
@@ -297,6 +306,36 @@ abstract class _AttestationsStore with Store {
       return false;
     } finally {
       isCreating = false;
+    }
+  }
+
+  /// Sets who sees one of this person's attestations beside them, and
+  /// whether those members who may issue may also change it (VISIBILITY.md).
+  /// Only the owner can.
+  @action
+  Future<bool> setAudience(
+    String id, {
+    required String kind,
+    required String editing,
+    List<String> groups = const [],
+  }) async {
+    error = null;
+    try {
+      final data = await _api.patch(
+        '$_basePath/$id',
+        body: {
+          'audienceKind': kind,
+          'editing': editing,
+          'audienceGroups': groups,
+        },
+      );
+      final updated = Attestation.fromJson(data as Map<String, dynamic>);
+      final idx = attestations.indexWhere((a) => a.id == id);
+      if (idx != -1) attestations[idx] = updated;
+      return true;
+    } catch (e) {
+      error = AppErrorMessage.fromException(e);
+      return false;
     }
   }
 

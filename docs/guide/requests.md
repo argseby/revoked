@@ -38,6 +38,18 @@ The following options are under **Advanced**:
 - A **Callback URL** forwards each response to an external system as it
   arrives. See [Callbacks](../api/callbacks.md).
 
+### Who in the workspace sees a request {#members}
+
+A request is otherwise seen only by the member who created it. **Visibility** on
+the request's page sets who else in the workspace sees it: **Private** or
+**Workspace** (every member who can view requests). Its answers follow the
+request: they are shown to those members who may also read collected data.
+
+For a request visible to the workspace, **Editing** sets whether members who
+may manage requests can also close and change it. Other members' requests
+appear under **Shared by members** and open read-only. Only the owner can
+change who sees a request, and only from the app.
+
 ## Responding to a request
 
 Responding requires a Revoked account. The response is kept in the

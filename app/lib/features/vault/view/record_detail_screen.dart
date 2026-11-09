@@ -14,6 +14,7 @@ import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/tool_tag.dart';
 import 'package:revoked_app/core/utils/people.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
@@ -235,6 +236,32 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             style: AppButtonStyle.accent,
             onTap: () =>
                 openShareCreateSheet(context: context, records: [r.id]),
+          ),
+        // Its own visibility, for its owner, when they may publish: an alias,
+        // a file and an answer stay with them.
+        if (r.user == Stores.auth.userId &&
+            Stores.settings.canPublishVault &&
+            !r.isFile &&
+            !r.isAlias &&
+            r.requestedBy == null)
+          AppButton(
+            icon: AppIcons.personWorkspace,
+            tooltip: 'Visibility',
+            style: AppButtonStyle.accent,
+            onTap: () => openAccessSheet(
+              context,
+              area: AccessArea.records,
+              id: r.id,
+              name: r.label.isEmpty ? r.key : r.label,
+              audienceKind: r.audienceKind,
+              editing: r.editing,
+              save: (kind, editing, groups) => store.updateRecord(r.id, {
+                'audienceKind': kind,
+                'editing': editing,
+                'audienceGroups': groups,
+              }),
+              saveError: () => store.errorMessage,
+            ),
           ),
         if (!r.isLocked && !r.unsealedElsewhere)
           AppButton(

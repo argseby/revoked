@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"image"
 	"image/color"
 	"image/png"
@@ -195,5 +196,5 @@ func TestWatermarkTextReplacesTheLabelAndStaysOneLine(t *testing.T) {
 }
 
 func pdfPageCount(pdf []byte) (int, error) {
-	return api.PageCount(bytes.NewReader(pdf), nil)
+	return api.PageCount(context.Background(), bytes.NewReader(pdf), nil)
 }

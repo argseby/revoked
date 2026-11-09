@@ -48,6 +48,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # services/*.yaml are the Works with Revoked entries; the catalog the
+      # app bundles must be what they build to.
+      - name: Works with Revoked entries
+        run: go run ./cmd/works-with check
+
       # The suite boots a real PocketBase instance on 127.0.0.1:5559 and drives
       # it over HTTP, so it needs no external services — but it does bind a
       # port, which is why it runs single-package-at-a-time (-p 1).

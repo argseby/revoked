@@ -61,12 +61,9 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
   }
 
   String _requestLabel() {
-    for (final req in Stores.requests.requests) {
-      if (req.id == widget.requestId) {
-        return req.label.isEmpty ? req.slug : req.label;
-      }
-    }
-    return 'Request';
+    final req = Stores.requests.findById(widget.requestId);
+    if (req == null) return 'Request';
+    return req.label.isEmpty ? req.slug : req.label;
   }
 
   Widget _title(BuildContext context) {
@@ -115,12 +112,8 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
   }
 
   bool _requestClosed() {
-    for (final req in Stores.requests.requests) {
-      if (req.id == widget.requestId) {
-        return req.status == 'revoked' || req.status == 'expired';
-      }
-    }
-    return false;
+    final req = Stores.requests.findById(widget.requestId);
+    return req != null && (req.status == 'revoked' || req.status == 'expired');
   }
 
   /// Collapses the request's responses into one row per responder and the

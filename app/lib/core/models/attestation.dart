@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/audience.dart';
+
 /// A statement this workspace signs about someone's identity, in the name of
 /// the server's domain.
 ///
@@ -28,6 +30,17 @@ class Attestation {
   /// The connected tool that proposed it, or empty.
   final String connection;
 
+  /// The member who issued it. Owning it is not enough to revoke it: that
+  /// takes the permission to issue.
+  final String owner;
+
+  /// Who sees it beside its owner: `private`, `workspace` or `groups`.
+  final String audienceKind;
+
+  /// Whether the members who see it, and may issue, may also change it:
+  /// `owner` or `audience`.
+  final String editing;
+
   const Attestation({
     required this.id,
     required this.type,
@@ -43,6 +56,9 @@ class Attestation {
     this.revokedAt,
     this.created,
     this.connection = '',
+    this.owner = '',
+    this.audienceKind = 'workspace',
+    this.editing = 'audience',
   });
 
   factory Attestation.fromJson(Map<String, dynamic> json) {
@@ -62,6 +78,12 @@ class Attestation {
       revokedAt: _date(json['revokedAt']),
       created: _date(json['created']),
       connection: json['connection'] as String? ?? '',
+      owner: json['user'] as String? ?? '',
+      // Attestations were workspace data: one that says nothing is shared.
+      audienceKind: json['audienceKind'] == null
+          ? 'workspace'
+          : audienceKindFrom(json['audienceKind']),
+      editing: json['editing'] == 'owner' ? 'owner' : 'audience',
     );
   }
 

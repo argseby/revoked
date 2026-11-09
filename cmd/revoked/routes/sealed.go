@@ -351,11 +351,17 @@ func sealedState(app core.App, re *core.RequestEvent) error {
 	if err != nil {
 		return re.InternalServerError("Failed to read keys.", err)
 	}
+	// null, not {}, before any device made one: the router's JSON encoder
+	// writes a nil map as an empty object, which reads as a key that exists.
+	var accountJSON any
+	if account != nil {
+		accountJSON = account
+	}
 
 	return re.JSON(http.StatusOK, map[string]any{
 		"devices":    devices,
 		"workspaces": workspaces,
-		"account":    account,
+		"account":    accountJSON,
 	})
 }
 
@@ -1172,6 +1178,7 @@ func authorizeSealedUpdate(app core.App, re *core.RequestEvent, rec *core.Record
 		RecordWorkspace:  rec.GetString(util.Fields.Record.Workspace),
 		RecordUser:       rec.GetString(util.Fields.Record.User),
 		RecordIsResponse: rec.GetString(util.Fields.Record.RequestedBy) != "",
+		RecordEditors:    rec.GetStringSlice(util.Fields.Record.Editors),
 	})
 	if len(errs) > 0 {
 		return denyGate(re, http.StatusNotFound, &util.Errors.RecordNotFound)

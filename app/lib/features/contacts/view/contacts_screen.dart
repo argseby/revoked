@@ -6,6 +6,7 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/contact.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -279,6 +280,27 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
           label: 'Rename',
           onTap: () => _rename(context, c),
         ),
+        // Only who added it sets who sees it; older contacts have nobody.
+        if (c.createdBy.isNotEmpty && c.createdBy == Stores.auth.userId)
+          AppSheetAction(
+            icon: AppIcons.personWorkspace,
+            label: 'Visibility',
+            onTap: () => openAccessSheet(
+              context,
+              area: AccessArea.contacts,
+              id: c.id,
+              name: c.name,
+              audienceKind: c.audienceKind,
+              editing: c.editing,
+              save: (kind, editing, groups) => Stores.contacts.setAudience(
+                c.id,
+                kind: kind,
+                editing: editing,
+                groups: groups,
+              ),
+              saveError: () => Stores.contacts.error?.description,
+            ),
+          ),
         AppSheetAction(
           icon: AppIcons.trash,
           label: 'Remove',

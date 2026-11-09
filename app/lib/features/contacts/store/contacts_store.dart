@@ -296,6 +296,19 @@ abstract class _ContactsStore with Store {
   Future<bool> rename(String id) =>
       _patch(id, {'name': renameName.text.trim()});
 
+  /// Sets who sees one of this person's contacts beside them, and whether
+  /// those members may change it (VISIBILITY.md). Only the owner can.
+  Future<bool> setAudience(
+    String id, {
+    required String kind,
+    required String editing,
+    List<String> groups = const [],
+  }) => _patch(id, {
+    'audienceKind': kind,
+    'editing': editing,
+    'audienceGroups': groups,
+  });
+
   @action
   Future<bool> remove(String id) async {
     error = null;

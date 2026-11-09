@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,6 +62,44 @@ func EmitWebhookEvent(app core.App, workspace, eventType string, data map[string
 		return
 	}
 	endpoints := subscribedEndpoints(app, workspace, eventType)
+	if len(endpoints) == 0 {
+		return
+	}
+	event, err := createWebhookEvent(app, workspace, eventType, data, false)
+	if err != nil {
+		app.Logger().Error("Failed to record webhook event", "error", err, "type", eventType)
+		return
+	}
+	for _, ep := range endpoints {
+		if _, err := queueWebhookDelivery(app, event, ep); err != nil {
+			app.Logger().Error("Failed to queue webhook delivery", "error", err, "endpoint", ep.Id)
+		}
+	}
+}
+
+// EmitWebhookEventAbout announces an event about one item of the workspace:
+// only to endpoints whose creator sees the item (VISIBILITY.md), and holds
+// scope too when one is given (an answer needs responses:read). An endpoint
+// acts as the member who made it, as an API key does.
+func EmitWebhookEventAbout(app core.App, item *core.Record, eventType string, data map[string]any, scope string) {
+	readers, _ := ExpectedAccess(app, item)
+	EmitWebhookEventFor(app, item.GetString(util.FieldWorkspace), eventType, data, readers, scope)
+}
+
+// EmitWebhookEventFor is EmitWebhookEventAbout with the readers worked out
+// beforehand, for an item that is gone by the time the event is sent.
+func EmitWebhookEventFor(app core.App, workspace, eventType string, data map[string]any, readers []string, scope string) {
+	if workspace == "" {
+		return
+	}
+	v := loadWorkspaceView(app, workspace)
+	var endpoints []*core.Record
+	for _, ep := range subscribedEndpoints(app, workspace, eventType) {
+		user := ep.GetString(util.Fields.WebhookEndpoint.User)
+		if slices.Contains(readers, user) && v.holds(user, scope) {
+			endpoints = append(endpoints, ep)
+		}
+	}
 	if len(endpoints) == 0 {
 		return
 	}

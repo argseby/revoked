@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/audience.dart';
+
 /// Whether a contact's key material has been shown to be whose it claims to
 /// be. Set by the server alone — an address someone typed in proves nothing
 /// about who reads it.
@@ -34,6 +36,18 @@ class Contact {
   final String? lastUsedAt;
   final String? created;
 
+  /// The member who added it, its owner for who sees it; empty on older
+  /// contacts, which stay with the workspace. Not [user], which is the
+  /// account the contact points to.
+  final String createdBy;
+
+  /// Who sees it beside its owner: `private`, `workspace` or `groups`.
+  final String audienceKind;
+
+  /// Whether the members who see it may also change it: `owner` or
+  /// `audience`.
+  final String editing;
+
   const Contact({
     required this.id,
     required this.workspace,
@@ -46,6 +60,9 @@ class Contact {
     this.verifiedAt,
     this.lastUsedAt,
     this.created,
+    this.createdBy = '',
+    this.audienceKind = 'workspace',
+    this.editing = 'audience',
   });
 
   factory Contact.fromJson(Map<String, dynamic> json) {
@@ -61,6 +78,12 @@ class Contact {
       verifiedAt: json['verifiedAt'] as String?,
       lastUsedAt: json['lastUsedAt'] as String?,
       created: json['created'] as String?,
+      createdBy: json['createdBy'] as String? ?? '',
+      // Contacts were workspace data: one that says nothing is shared.
+      audienceKind: json['audienceKind'] == null
+          ? 'workspace'
+          : audienceKindFrom(json['audienceKind']),
+      editing: json['editing'] == 'owner' ? 'owner' : 'audience',
     );
   }
 

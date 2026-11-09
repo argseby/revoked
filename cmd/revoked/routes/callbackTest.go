@@ -52,7 +52,8 @@ func CallbackTestRoute(app core.App) {
 				if err != nil || req == nil {
 					return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
 				}
-				if req.GetString(util.Fields.Request.User) != re.Auth.Id {
+				// Whoever may change the request may try its callback.
+				if !services.CanEdit(app, re.Auth.Id, req) {
 					return re.ForbiddenError("Not your request", nil)
 				}
 				requestID = req.Id

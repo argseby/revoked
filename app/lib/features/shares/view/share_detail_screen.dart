@@ -19,6 +19,7 @@ import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -65,12 +66,45 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     super.dispose();
   }
 
-  Link? get _share {
-    for (final s in Stores.shares.shares) {
-      if (s.id == widget.shareId) return s;
-    }
-    return null;
+  Link? get _share => Stores.shares.findById(widget.shareId);
+
+  /// Whether this person may change a colleague's share: asked of the server
+  /// once the share is known, null until then.
+  final Local<bool?> _canEdit = Local(null);
+  bool _askedCanEdit = false;
+
+  void _askCanEdit(Link share) {
+    if (_askedCanEdit || _mine(share)) return;
+    _askedCanEdit = true;
+    Stores.shares.canEditShare(share.id).then((v) {
+      if (mounted) _canEdit.value = v;
+    });
   }
+
+  /// The owner, or a member the share is open to for editing.
+  bool _editable(Link share) => _mine(share) || _canEdit.value == true;
+
+  /// Whether this person owns the share. A colleague's share, opened to them
+  /// (VISIBILITY.md), can be changed here only when it is also open to them
+  /// for editing ([_editable]); who sees it stays its owner's.
+  bool _mine(Link share) =>
+      Stores.auth.userId.isEmpty || share.user == Stores.auth.userId;
+
+  void _openAccess(BuildContext context, Link share) => openAccessSheet(
+    context,
+    area: AccessArea.shares,
+    id: share.id,
+    name: share.label,
+    audienceKind: share.audienceKind,
+    editing: share.editing,
+    save: (kind, editing, groups) => Stores.shares.setShareAudience(
+      share.id,
+      kind: kind,
+      editing: editing,
+      groups: groups,
+    ),
+    saveError: () => Stores.shares.errorMessage,
+  );
 
   void _back() => context.go(AppRoutes.shared);
 
@@ -114,12 +148,21 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
           );
         }
 
+        final mine = _mine(share);
+        _askCanEdit(share);
         return AppDetailPage(
           header: _header(context, share),
           sections: [
             _summary(share),
-            _contents(context, share),
-            _manage(context, share),
+            if (mine) ...[
+              _contents(context, share),
+              _manage(context, share),
+            ] else ...[
+              _othersContents(share),
+              // Open to this member for editing: pause, revoke and delete,
+              // though not what it holds, which is its owner's.
+              if (_editable(share)) _manage(context, share),
+            ],
           ],
           aside: [_access(share), _origin(share)],
         );
@@ -133,37 +176,51 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     final status = share.status;
     final busy = _busy.value != null;
 
-    final Widget primary = switch (status) {
-      'active' => AppButton(
-        icon: AppIcons.share,
-        label: 'Share link',
-        onTap: () => showShareSheet(
-          context: context,
-          slug: share.slug,
-          title: share.label,
-          isRequest: false,
-          apiTarget: _apiTarget(share),
-        ),
-      ),
-      'paused' => AppButton(
-        icon: AppIcons.play,
-        label: 'Activate',
-        busy: _busy.value == 'active',
-        onTap: busy ? null : () => _setStatus(share, 'active'),
-      ),
-      // A revoked link can never open again; a copy of it can.
-      _ => AppButton(
-        icon: AppIcons.duplicate,
-        label: 'Duplicate',
-        onTap: () =>
-            openShareCreateSheet(context: context, initialShare: share),
-      ),
-    };
+    final mine = _mine(share);
+    final editable = _editable(share);
+    // A colleague's share can be passed on while active and, by an editor,
+    // reactivated; a copy of it would hold their records, which is refused.
+    final Widget? primary =
+        !mine && !(status == 'active' || (editable && status == 'paused'))
+        ? null
+        : switch (status) {
+            'active' => AppButton(
+              icon: AppIcons.share,
+              label: 'Share link',
+              onTap: () => showShareSheet(
+                context: context,
+                slug: share.slug,
+                title: share.label,
+                isRequest: false,
+                apiTarget: _apiTarget(share),
+              ),
+            ),
+            'paused' => AppButton(
+              icon: AppIcons.play,
+              label: 'Activate',
+              busy: _busy.value == 'active',
+              onTap: busy ? null : () => _setStatus(share, 'active'),
+            ),
+            // A revoked link can never open again; a copy of it can.
+            _ => AppButton(
+              icon: AppIcons.duplicate,
+              label: 'Duplicate',
+              onTap: () =>
+                  openShareCreateSheet(context: context, initialShare: share),
+            ),
+          };
 
     final full = Stores.features.visible(Feature.developer);
     return AppDetailHeader(
       badges: [
         StatusLabel(status),
+        if (!mine)
+          const AppBadge(
+            icon: AppIcons.personWorkspace,
+            label: 'Shared by a member',
+          )
+        else if (share.openToWorkspace)
+          const AppBadge(icon: AppIcons.personWorkspace, label: 'Members'),
         if (attention != null)
           AppBadge(
             icon: AppIcons.clock,
@@ -177,20 +234,54 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       subtitleMono: true,
       primaryAction: primary,
       secondaryActions: [
-        AppButton(
-          icon: AppIcons.pencil,
-          tooltip: 'Edit',
-          style: AppButtonStyle.accent,
-          onTap: () => openShareCreateSheet(context: context, editShare: share),
-        ),
-        if (status == 'active' || status == 'paused')
+        if (mine) ...[
           AppButton(
-            icon: AppIcons.duplicate,
-            tooltip: 'Duplicate',
+            icon: AppIcons.personWorkspace,
+            tooltip: 'Visibility',
+            style: AppButtonStyle.accent,
+            onTap: () => _openAccess(context, share),
+          ),
+          AppButton(
+            icon: AppIcons.pencil,
+            tooltip: 'Edit',
             style: AppButtonStyle.accent,
             onTap: () =>
-                openShareCreateSheet(context: context, initialShare: share),
+                openShareCreateSheet(context: context, editShare: share),
           ),
+          if (status == 'active' || status == 'paused')
+            AppButton(
+              icon: AppIcons.duplicate,
+              tooltip: 'Duplicate',
+              style: AppButtonStyle.accent,
+              onTap: () =>
+                  openShareCreateSheet(context: context, initialShare: share),
+            ),
+        ] else if (editable)
+          AppButton(
+            icon: AppIcons.pencil,
+            tooltip: 'Edit',
+            style: AppButtonStyle.accent,
+            onTap: () =>
+                openShareCreateSheet(context: context, editShare: share),
+          ),
+      ],
+    );
+  }
+
+  /// A colleague's share holds records of their vault, not this person's, so
+  /// they are not listed against this vault. Opening the link shows them.
+  Widget _othersContents(Link share) {
+    final n = share.records.length + share.sections.length;
+    return AppListGroup(
+      title: 'Contents',
+      children: [
+        AppDetailRow(
+          icon: AppIcons.info,
+          label: n == 0
+              ? 'Nothing selected'
+              : '$n ${n == 1 ? 'item' : 'items'} of its owner\'s vault, shown '
+                    'to whoever opens the link',
+        ),
       ],
     );
   }
@@ -201,7 +292,11 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   /// keeps its room.
   Widget _contents(BuildContext context, Link share) {
     final vault = Stores.vault;
-    final byId = {for (final r in vault.records) r.id: r};
+    // A share may hold entries the workspace published, beside its own.
+    final byId = {
+      for (final r in vault.sharedRecords) r.id: r,
+      for (final r in vault.records) r.id: r,
+    };
     final rows = <Widget>[];
     final placed = <String>{};
 

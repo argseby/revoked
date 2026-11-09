@@ -1,0 +1,64 @@
+name: Works with Revoked
+
+# Checks every listed service against its own domain: whether it still
+# answers, and whether its proof file (/.well-known/revoked-listing.json)
+# still matches the entry. Nothing is changed automatically: every change to
+# a listing is a reviewed pull request, so findings land in one issue for the
+# owner to act on.
+#
+# Pull requests that touch services/ get the same check, so a new entry shows
+# whether its proof file is in place before review.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  pull_request:
+    paths:
+      - "services/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: works-with-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check entries
+        run: go run ./cmd/works-with check
+
+      - name: Check origins and proof files
+        id: online
+        continue-on-error: ${{ github.event_name == 'schedule' }}
+        run: |
+          set -o pipefail
+          go run ./cmd/works-with online | tee findings.txt
+
+      # One open issue holds the latest findings; it is updated, never
+      # duplicated, and closed by the owner once the entries are fixed.
+      - name: Report findings
+        if: github.event_name == 'schedule' && steps.online.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Works with Revoked: entries need attention"
+          body=$(printf 'The weekly check found entries that no longer match their service.\n\n%s\n\nEach change goes through a pull request to `services/`.' "$(cat findings.txt)")
+          number=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

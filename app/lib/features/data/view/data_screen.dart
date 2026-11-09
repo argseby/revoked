@@ -243,12 +243,10 @@ class _DataScreenState extends State<DataScreen> {
   }
 
   String _activeRequestLabel() {
-    for (final req in Stores.requests.requests) {
-      if (req.id == widget.requestId) {
-        return req.label.isEmpty ? req.slug : req.label;
-      }
-    }
-    return widget.requestId ?? '';
+    final id = widget.requestId;
+    final req = id == null ? null : Stores.requests.findById(id);
+    if (req == null) return id ?? '';
+    return req.label.isEmpty ? req.slug : req.label;
   }
 
   /// The List/Sheet switch shown in both response views so it's always clear

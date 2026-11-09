@@ -60,6 +60,16 @@ class ShareProposal {
   /// proposal, as an origin; empty when it waits to be sent back instead.
   final String poll;
 
+  /// Values the tool suggests, held on the owner's server under this id —
+  /// never in the link. Only a tool that names itself can leave one, and the
+  /// server hands it only to the owner of the tool's connection.
+  final String draft;
+
+  /// Who in the owner's workspace the tool suggests should see the share:
+  /// `private`, `workspace`, or empty for no suggestion. Only pre-fills the
+  /// choice; the owner confirms (VISIBILITY.md §7).
+  final String visibility;
+
   const ShareProposal({
     required this.label,
     required this.keys,
@@ -75,6 +85,8 @@ class ShareProposal {
     this.ref = '',
     this.reasons = const ToolReasons(),
     this.poll = '',
+    this.draft = '',
+    this.visibility = '',
   });
 
   static const maxKeys = 50;
@@ -91,6 +103,7 @@ class ShareProposal {
   static const purposes = {'application'};
 
   static final _keyPattern = RegExp(r'^[a-z0-9_-]{1,64}$');
+  static final _draftPattern = RegExp(r'^[a-z0-9]{24}$');
   static final _controlChars = RegExp(r'[\x00-\x1F\x7F]');
 
   /// One line of plain text: control characters become spaces, runs of
@@ -173,7 +186,21 @@ class ShareProposal {
     final poll = ToolClient.pollOrigin(query['poll']);
     if (poll == null || (poll.isNotEmpty && client.isEmpty)) return null;
 
+    final draft = query['draft'] ?? '';
+    if (draft.isNotEmpty &&
+        (client.isEmpty || !_draftPattern.hasMatch(draft))) {
+      return null;
+    }
+
+    final visibility = query['visibility'] ?? '';
+    if (visibility.isNotEmpty &&
+        visibility != 'private' &&
+        visibility != 'workspace') {
+      return null;
+    }
+
     return ShareProposal(
+      visibility: visibility,
       label: label,
       keys: keys,
       stamp: stamp,
@@ -188,6 +215,7 @@ class ShareProposal {
       ref: ref,
       reasons: reasons,
       poll: poll,
+      draft: draft,
     );
   }
 
@@ -207,5 +235,7 @@ class ShareProposal {
     if (ref.isNotEmpty) 'ref': ref,
     ...reasons.toQuery(),
     if (poll.isNotEmpty) 'poll': poll,
+    if (draft.isNotEmpty) 'draft': draft,
+    if (visibility.isNotEmpty) 'visibility': visibility,
   };
 }

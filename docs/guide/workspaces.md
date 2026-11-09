@@ -22,6 +22,32 @@ Any member who can invite is an **admin**; the role is not assigned
 separately. A workspace always retains at least one member who can both
 invite and remove, so it cannot be locked permanently.
 
+## Who sees what {#visibility}
+
+Each vault section, share, request, template, contact and attestation has a
+**Visibility**: **Private** (its owner only), **Workspace** (every member
+with the matching permission) or **Groups** (members of the chosen groups).
+The owner sets it, from the item's page or options; the guides for each area
+describe what it means there.
+
+### Default visibility {#defaults}
+
+**Default visibility** in a workspace's options sets what new items of each
+area start with. Vault sections, shares and requests start **Private** and
+templates, contacts and attestations **Workspace** unless the workspace says
+otherwise. The choice is shown, and can be changed, when an item is created.
+Existing items keep theirs, and a default never grants anything by itself.
+What the server creates on its own, such as an answer to a request or a
+sign-in's share, stays private.
+
+### Groups {#groups}
+
+**Groups** in the active workspace's options lists its groups, such as HR,
+Service or Techs. Every member sees them; members who can invite create,
+rename and delete groups and choose who is in them. Only members of the
+workspace can be in a group, and leaving the workspace leaves its groups.
+Deleting a group leaves items visible to it alone with their owner.
+
 ## Invites
 
 **New invite** under **Settings → Invites** creates a key, which can be

@@ -66,23 +66,56 @@ Sections can be renamed, duplicated and shared as one. A shared section
 always reflects its current contents: a record added later becomes visible
 to everyone with the link.
 
-### Sharing a section with members {#members}
+### Who sees a section {#members}
 
-Records are otherwise seen only by the member who created them. **Share with
-members** in a section's menu makes its records visible to every member of
-the workspace who can read the vault, with their current values; the section
-then carries a **Members** badge. **Stop sharing with members** hides them
-again, though anything already read or copied stays with whoever read it.
+Records are otherwise seen only by the member who created them. **Visibility**
+in a section's menu sets who else sees it:
+
+- **Private**: seen by the owner only.
+- **Workspace**: seen by every member who can read the vault, with current
+  values. The section then carries a **Members** badge.
+
+For a section visible to the workspace, **Editing** sets whether others may
+change it. With **Owner only**, they open its records read-only. With
+**Members who manage the vault**, members who see it and hold that
+permission can change its records and the section itself. The sheet also
+shows how many members see the section and how many may change it.
 
 - Other members see the section below their own, marked **Shared by** its
-  owner, and open its records read-only. Members who may manage the vault
-  can also change them, as everywhere in the workspace.
-- Only the section's owner can share it or stop, and only from the app: an
+  owner.
+- Only the section's owner can change who sees it, and only from the app: an
   API key or a connected tool cannot change who reads it.
-- Only records the owner created are shown. Files and aliases are left out
-  for now.
-- [Encrypted records](encryption.md#access) in a shared section open only for
-  members whose devices were given the workspace's key.
+- Only records the owner created are shown. Files, aliases and answers to
+  requests are left out for now.
+- A share can hold only its creator's own records and sections, so a record
+  seen through a colleague's section cannot be passed on through a link.
+- Taking the section back to **Private**, or taking away a member's
+  permission to read the vault, hides it again at once. Anything already
+  read or copied stays with whoever read it.
+- [Encrypted records](encryption.md#access) in a visible section open only
+  for members whose devices were given the workspace's key.
+
+### Who sees an entry {#entries}
+
+An entry can be made visible on its own, without a section: **Visible to**
+when it is created, or **Visibility** on its page later. **Workspace** suits
+what the whole company relies on (its address, phone number or managing
+director), **Groups** what only some teams need. Every member who can read the
+vault then finds it under **Shared entries**, and can put it in their own
+shares. A private entry of someone else never appears there, and never goes
+into anyone else's share.
+
+### Publishing to the workspace vault {#publishing}
+
+Making an entry or section visible beyond its owner, and changing one that
+is, takes the permission **Publish to the workspace vault**. Without it a
+member's entries stay their own: **Visible to** offers only **Private**, and a
+workspace default that would publish gives way to private for them. Admins
+hold the permission; it is granted to others like any other permission, and
+none of the invite presets include it. Members who published sections before
+the permission existed kept it.
+
+Files stay with their owner for now, as do aliases and answers to requests.
 
 ## Creating records from a template {#start-from-a-template}
 

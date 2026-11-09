@@ -10,6 +10,7 @@ import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/network/api_client.dart';
+import 'package:revoked_app/core/stores.dart';
 
 part 'shares_store.g.dart';
 
@@ -254,8 +255,14 @@ abstract class _SharesStore with Store {
     _sharedFileBytes.clear();
   }
 
+  /// This person's own shares.
   @observable
   ObservableList<Link> shares = ObservableList<Link>();
+
+  /// Shares other members opened to this person (VISIBILITY.md). Listed
+  /// apart, and read-only here.
+  @observable
+  ObservableList<Link> sharedShares = ObservableList<Link>();
 
   @observable
   bool isLoading = false;
@@ -288,10 +295,22 @@ abstract class _SharesStore with Store {
     errorMessage = null;
     final ticket = loadState.begin();
     try {
-      final result = await getAll();
+      final me = Stores.auth.userId;
+      final result = await getAll(filter: me.isEmpty ? null : 'user = "$me"');
       if (!loadState.isCurrent(ticket)) return;
       shares = ObservableList.of(result);
       loadState.succeed(ticket);
+      // Its own failure: the person's own shares still show.
+      if (me.isNotEmpty) {
+        try {
+          final others = await getAll(filter: 'user != "$me"');
+          if (loadState.isCurrent(ticket)) {
+            sharedShares = ObservableList.of(others);
+          }
+        } catch (_) {
+          sharedShares = ObservableList<Link>();
+        }
+      }
     } catch (e) {
       if (!loadState.isCurrent(ticket)) return;
       errorMessage = describeError(e);
@@ -321,6 +340,8 @@ abstract class _SharesStore with Store {
     String connection = '',
     String ref = '',
     bool handedOver = false,
+    String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -344,6 +365,8 @@ abstract class _SharesStore with Store {
         connection: connection,
         ref: ref,
         handedOver: handedOver,
+        audienceKind: audienceKind,
+        audienceGroups: audienceGroups,
       );
       shares.insert(0, link);
       return true;
@@ -363,6 +386,9 @@ abstract class _SharesStore with Store {
       if (idx != -1) {
         shares[idx] = updated;
       }
+      // A colleague's share, changed by someone it is open to for editing.
+      final shared = sharedShares.indexWhere((s) => s.id == id);
+      if (shared != -1) sharedShares[shared] = updated;
       return true;
     } catch (e) {
       errorMessage = describeError(e);
@@ -375,6 +401,7 @@ abstract class _SharesStore with Store {
     try {
       await delete(id);
       shares.removeWhere((s) => s.id == id);
+      sharedShares.removeWhere((s) => s.id == id);
       return true;
     } catch (e) {
       errorMessage = describeError(e);
@@ -390,6 +417,7 @@ abstract class _SharesStore with Store {
   Future<List<Link>> getAll({
     int page = 1,
     int perPage = AppConfig.listPageSize,
+    String? filter,
   }) async {
     final data = await _api.get(
       _basePath,
@@ -397,11 +425,47 @@ abstract class _SharesStore with Store {
         'page': page.toString(),
         'perPage': perPage.toString(),
         'sort': '-created',
+        'filter': ?filter,
       },
     );
     final items = (data['items'] as List<dynamic>?) ?? [];
     return items.map((e) => Link.fromJson(e as Map<String, dynamic>)).toList();
   }
+
+  /// Whether this person may change a colleague's share, as the server
+  /// answers (VISIBILITY.md); null until asked. Their own they always may.
+  Future<bool> canEditShare(String id) async {
+    try {
+      final access = await Stores.vault.loadAccess('links', id);
+      return access['canEdit'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// A share by id, among this person's own or those opened to them.
+  Link? findById(String id) {
+    for (final l in shares) {
+      if (l.id == id) return l;
+    }
+    for (final l in sharedShares) {
+      if (l.id == id) return l;
+    }
+    return null;
+  }
+
+  /// Sets who sees one of this person's shares beside them, and whether
+  /// those members may change it (VISIBILITY.md). Only the owner can.
+  Future<bool> setShareAudience(
+    String id, {
+    required String kind,
+    required String editing,
+    List<String> groups = const [],
+  }) => updateShare(id, {
+    'audienceKind': kind,
+    'editing': editing,
+    'audienceGroups': groups,
+  });
 
   /// Owner-side single fetch (sees viewCount, expiresAt, etc.).
   Future<Link> getById(String id) async {
@@ -463,6 +527,8 @@ abstract class _SharesStore with Store {
     String connection = '',
     String ref = '',
     bool handedOver = false,
+    String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     final spec = createShareSpec(
       slug: slug,
@@ -483,6 +549,8 @@ abstract class _SharesStore with Store {
       connection: connection,
       ref: ref,
       handedOver: handedOver,
+      audienceKind: audienceKind,
+      audienceGroups: audienceGroups,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return Link.fromJson(data as Map<String, dynamic>);
@@ -546,6 +614,8 @@ abstract class _SharesStore with Store {
     String connection = '',
     String ref = '',
     bool handedOver = false,
+    String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -555,6 +625,9 @@ abstract class _SharesStore with Store {
         'label': label,
         'user': user,
         'workspace': workspace,
+        // Who sees it; empty leaves it to the workspace's default.
+        if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
+        if (audienceGroups.isNotEmpty) 'audienceGroups': audienceGroups,
         'sections': sections,
         'records': records,
         'status': status,

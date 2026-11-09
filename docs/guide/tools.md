@@ -18,6 +18,10 @@ wants the data sends a form, and the owner fills it in.
 [Notfallkarte](notfallkarte.md) is a complete example: a web page that
 turns a proposal into a wallet-sized emergency card.
 
+Tools built on Revoked are listed in [Works with Revoked](works-with.md), a
+tab in the app. A listed tool's address carries a **Listed** chip on its
+proposals, and a request beyond its listing is pointed out.
+
 ## Reviewing a proposal
 
 A proposal opens the app on **Link proposal from …**. The name after
@@ -60,6 +64,14 @@ still open and how many responses it has, whether an attestation was
 accepted, and the result of a check, including what the person chose to
 disclose. It never sees the responses to a request or the values in an
 attestation.
+
+### Suggested visibility {#visibility}
+
+A proposed share, request or attestation can suggest who in the workspace
+sees it, **Private** or **Workspace**. The suggestion pre-fills the choice on
+the proposal, marked as suggested by the tool, and the owner confirms or
+changes it. What a tool creates directly, without a proposal, is always
+private until the owner changes it.
 
 ## Connecting a tool
 

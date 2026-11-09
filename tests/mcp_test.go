@@ -231,6 +231,12 @@ func TestMCPAssistantFollowsRequestsAttestationsAndChecks(t *testing.T) {
 			t.Fatalf("unexpected request proposal %s", p.Link)
 		}
 		h.call("propose_request", map[string]any{"template": ""}, true)
+		// Who should see it is only a suggestion, and only one of two.
+		h.decode("propose_request", map[string]any{"template": "Event registration", "visibility": "workspace"}, &p)
+		if got, _ := url.Parse(p.Link); got.Query().Get("visibility") != "workspace" {
+			t.Fatalf("visibility not carried: %s", p.Link)
+		}
+		h.call("propose_request", map[string]any{"template": "Event registration", "visibility": "everyone"}, true)
 
 		slug, id := setupRequest(t, f.baseURL, f.issuerToken, f.issuerID, f.issuerWs, f.askerIdentity, map[string]any{
 			util.Fields.Request.Connection: connID, util.Fields.Request.Ref: "summer",

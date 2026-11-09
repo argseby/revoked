@@ -97,6 +97,16 @@ Selecting a contact opens its options. **Rename** changes only the name.
 keeps working until it is revoked from [Sharing](sharing.md) or
 [Requests](requests.md).
 
+## Who sees a contact {#members}
+
+A new contact is seen by every member of the workspace, who can send to it
+and ask from it, as contacts always were. **Visibility** in a contact's
+options, offered to whoever added it, keeps it to them instead
+(**Private**); other members then find neither the contact nor a way to send
+to it. It also sets whether members who may manage contacts can rename and
+remove it. Contacts added before this setting existed stay with the
+workspace.
+
 ## Permissions
 
 Viewing contacts requires **View contacts**; adding, renaming and removing

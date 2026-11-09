@@ -188,6 +188,35 @@ abstract class _TemplatesStore with Store {
     }
   }
 
+  /// Sets who sees one of this person's templates beside them, and whether
+  /// those members may change it (VISIBILITY.md). Only the owner can.
+  @action
+  Future<bool> setTemplateAudience(
+    String id, {
+    required String kind,
+    required String editing,
+    List<String> groups = const [],
+  }) async {
+    errorMessage = null;
+    try {
+      final data = await _api.patch(
+        '/api/collections/${AppConfig.templatesCollection}/records/$id',
+        body: {
+          'audienceKind': kind,
+          'editing': editing,
+          'audienceGroups': groups,
+        },
+      );
+      final updated = Template.fromJson(data as Map<String, dynamic>);
+      final idx = templates.indexWhere((t) => t.id == id);
+      if (idx != -1) templates[idx] = updated;
+      return true;
+    } catch (e) {
+      errorMessage = describeError(e);
+      return false;
+    }
+  }
+
   @action
   Future<bool> updateTemplate(
     String id, {

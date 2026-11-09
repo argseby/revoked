@@ -96,6 +96,12 @@ abstract class AppIcons {
   static const IconData tag = Icons.sell_outlined;
   static const IconData table = Icons.table_chart_outlined;
   static const IconData globe = Icons.public_outlined;
+  static const IconData worksWith = Icons.apps_outlined;
+  static const IconData health = Icons.medical_services_outlined;
+  static const IconData work = Icons.work_outline;
+  static const IconData finance = Icons.account_balance_outlined;
+  static const IconData games = Icons.sports_esports_outlined;
+  static const IconData flag = Icons.outlined_flag;
   static const IconData threeDots = Icons.more_horiz;
   static const IconData threeDotsVertical = Icons.more_vert;
   static const IconData toggleOn = Icons.toggle_on_outlined;

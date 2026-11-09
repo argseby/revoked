@@ -131,3 +131,89 @@ func WorkspaceAdminSelfOnly(scope string, targetField string) string {
 	}
 	return userPart + " || " + apiKeyBranch(targetField, scope)
 }
+
+// apiKeyAudienceBranch admits an API key holding scope only to rows whose
+// readers (or editors) list the member who made the key: a key acts as its
+// creator, narrowed by its scopes, and never sees more than they do
+// (VISIBILITY.md, phase 4). It loses that access with them.
+func apiKeyAudienceBranch(scope, column string) string {
+	return fmt.Sprintf("(%s && workspace = @request.auth.workspace.id && %s && %s.id ?= @request.auth.user)",
+		authIsApiKey, apiKeyHasScope(scope), column)
+}
+
+// audienceUserPart admits a member of the active workspace who owns the row or
+// is listed in its server-maintained audience column (readers or editors).
+//
+// The column holds the outcome of services.Access, permissions included, so
+// the rule never has to evaluate a permission itself (see above). It is
+// matched through the relation (`readers.id ?=`): the bare `readers ?=` form
+// compares against the stored JSON text and never matches.
+func audienceUserPart(column string) string {
+	return audienceUserPartBy("user", column)
+}
+
+// audienceUserPartBy is audienceUserPart for a collection whose owner is held
+// in ownerField rather than user (contacts: createdBy).
+func audienceUserPartBy(ownerField, column string) string {
+	return fmt.Sprintf("(%s && workspace = @request.auth.activeWorkspace && %s && (%s = @request.auth.id || %s.id ?= @request.auth.id))",
+		authIsUser, memberRowMatches("workspace"), ownerField, column)
+}
+
+// WorkspaceAudienceRead is the list/view rule for collections with an
+// audience: the owner, or a member listed in readers. A non-empty scope also
+// admits API keys holding it, as before audiences existed.
+func WorkspaceAudienceRead(scope string) string {
+	return WorkspaceAudienceReadBy("user", scope)
+}
+
+// WorkspaceAudienceReadBy is WorkspaceAudienceRead for a collection whose
+// owner is held in ownerField.
+func WorkspaceAudienceReadBy(ownerField, scope string) string {
+	userPart := audienceUserPartBy(ownerField, "readers")
+	if scope == "" {
+		return userPart
+	}
+	return userPart + " || " + apiKeyAudienceBranch(scope, "readers")
+}
+
+// WorkspaceAudienceSplit is WorkspaceSplitOrigin narrowed to the owner and the
+// members listed in editors, so a member can never change a row they can't
+// see. The API-key branch is unchanged.
+func WorkspaceAudienceSplit(vaultScope, responseScope string) string {
+	keyPart := fmt.Sprintf("(%s && workspace = @request.auth.workspace.id && ((%s && %s) || (%s && %s)) && editors.id ?= @request.auth.user)",
+		authIsApiKey,
+		apiKeyHasScope(vaultScope), originVault,
+		apiKeyHasScope(responseScope), originResponse)
+
+	return audienceUserPart("editors") + " || " + keyPart
+}
+
+// WorkspaceAudienceWrite is WorkspaceSelfOnly narrowed to the owner and the
+// members listed in editors, for collections with an audience and no
+// request-collected rows (shares, requests). The API-key branch is unchanged.
+func WorkspaceAudienceWrite(scope string) string {
+	return WorkspaceAudienceWriteBy("user", scope)
+}
+
+// WorkspaceAudienceWriteBy is WorkspaceAudienceWrite for a collection whose
+// owner is held in ownerField.
+func WorkspaceAudienceWriteBy(ownerField, scope string) string {
+	userPart := audienceUserPartBy(ownerField, "editors")
+	if scope == "" {
+		return userPart
+	}
+	return userPart + " || " + apiKeyAudienceBranch(scope, "editors")
+}
+
+// WorkspaceAudienceEditorsOnly admits only the members listed in editors, and
+// API keys holding the scope: for areas where owning a row is not enough to
+// change it (attestations), the owner is listed only while they hold the
+// permission.
+func WorkspaceAudienceEditorsOnly(scope string) string {
+	userPart := fmt.Sprintf("(%s && workspace = @request.auth.activeWorkspace && %s && editors.id ?= @request.auth.id)",
+		authIsUser, memberRowMatches("workspace"))
+	if scope == "" {
+		return userPart
+	}
+	return userPart + " || " + apiKeyAudienceBranch(scope, "editors")
+}

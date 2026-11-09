@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:go_router/go_router.dart';
@@ -401,6 +402,26 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               'Closed',
               collapsed: !statuses.contains(LinkGroup.closed),
             ),
+            // Shares other members opened to this person, apart from their
+            // own and outside the filters, which are about their own links.
+            if (store.sharedShares.isNotEmpty &&
+                statuses.isEmpty &&
+                people.isEmpty)
+              AppListGroup(
+                title: 'Shared by members',
+                noun: 'links',
+                previewCount: 5,
+                children: [
+                  for (final l in store.sharedShares)
+                    _LinkRow(
+                      share: l,
+                      selected: l.id == widget.selectedId,
+                      attention: null,
+                      showStatus: true,
+                      onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
+                    ),
+                ],
+              ),
           ],
         );
       },
@@ -476,6 +497,8 @@ class _LinkRow extends StatelessWidget {
     parts.add(
       share.viewCount == 0 ? 'not viewed' : 'viewed ${share.viewCount}×',
     );
+    // Who in the workspace has access to it.
+    parts.add(audienceSummary(share.audienceKind, share.audienceGroups));
     return parts.join(' · ');
   }
 }

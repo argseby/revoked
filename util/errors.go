@@ -3,7 +3,7 @@ package util
 import (
 	"errors"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
+	validation "github.com/pocketbase/ozzo-validation/v4"
 )
 
 // ErrInviteAlreadySpent is returned when a concurrent redemption took the last
@@ -209,6 +209,13 @@ var Errors = struct {
 	SealedKeyMissing              AppError
 	SealedIdentityKeysPending     AppError
 	SectionShareByPersonOnly      AppError
+	AudienceByOwnerOnly           AppError
+	AudienceInvalid               AppError
+	DefaultAudienceInvalid        AppError
+	GroupNotFound                 AppError
+	GroupNameInvalid              AppError
+	NotRecordEditor               AppError
+	LinkContentNotOwned           AppError
 	SealedRecordUnsupported       AppError
 	SealedLinksAffected           AppError
 	WebhookNotFound               AppError
@@ -981,6 +988,34 @@ var Errors = struct {
 	SectionShareByPersonOnly: AppError{
 		ErrorCode: "section_share_by_person_only",
 		ErrorText: "Only the section's owner can share it with members, from the app.",
+	},
+	AudienceByOwnerOnly: AppError{
+		ErrorCode: "audience_by_owner_only",
+		ErrorText: "Only the owner can change who sees this, from the app.",
+	},
+	AudienceInvalid: AppError{
+		ErrorCode: "audience_invalid",
+		ErrorText: "The audience must be private, workspace or groups of this workspace.",
+	},
+	DefaultAudienceInvalid: AppError{
+		ErrorCode: "default_audience_invalid",
+		ErrorText: "Defaults name sections, links, requests, templates, contacts or attestations, each private or workspace.",
+	},
+	GroupNotFound: AppError{
+		ErrorCode: "group_not_found",
+		ErrorText: "Group not found.",
+	},
+	GroupNameInvalid: AppError{
+		ErrorCode: "group_name_invalid",
+		ErrorText: "A group's name is 1 to 80 characters.",
+	},
+	NotRecordEditor: AppError{
+		ErrorCode: "not_record_editor",
+		ErrorText: "This item can be changed only by its owner and the members it is opened to for editing.",
+	},
+	LinkContentNotOwned: AppError{
+		ErrorCode: "link_content_not_owned",
+		ErrorText: "A share can hold only records and sections its creator owns or sees.",
 	},
 	SealedRecordUnsupported: AppError{
 		ErrorCode: "sealed_record_unsupported",

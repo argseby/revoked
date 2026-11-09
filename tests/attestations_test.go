@@ -701,7 +701,9 @@ func TestIssuingNeedsThePermission(t *testing.T) {
 			Value("code").String().IsEqual(util.Errors.MissingPermission.ErrorCode)
 		api.E.GET("/api/collections/"+util.Coll.Attestations+"/records").
 			WithHeader("Authorization", memberToken).Expect().Status(http.StatusForbidden)
-		api.Get(util.Coll.Attestations, id, memberToken).Expect().Status(http.StatusForbidden)
+		// Without the permission the member is not among its readers, so the
+		// rule answers before the hook: it is not there for them.
+		api.Get(util.Coll.Attestations, id, memberToken).Expect().Status(http.StatusNotFound)
 		api.Update(util.Coll.Attestations, id, memberToken, map[string]any{a.Status: util.StatusRevoked}).
 			Expect().Status(http.StatusForbidden)
 	})

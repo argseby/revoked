@@ -45,6 +45,8 @@ import 'package:revoked_app/features/onboarding/view/workspace_onboarding_screen
 import 'package:revoked_app/features/two_factor/view/two_factor_gate_screen.dart';
 import 'package:revoked_app/features/contacts/view/contacts_screen.dart';
 import 'package:revoked_app/features/overview/view/overview_screen.dart';
+import 'package:revoked_app/features/works_with/view/works_with_screen.dart';
+import 'package:revoked_app/features/works_with/view/works_with_service_page.dart';
 
 abstract class AppRoutes {
   static const login = '/login';
@@ -97,6 +99,11 @@ abstract class AppRoutes {
 
   /// The people this workspace sends to and asks from.
   static const contacts = '/contacts';
+
+  /// Works with Revoked: services and tools built on Revoked, from the
+  /// reviewed list in the repository's `services/` folder.
+  static const worksWith = '/works-with';
+  static String worksWithServiceFor(String slug) => '$worksWith/$slug';
   static const settings = '/settings';
 
   /// What happened that the person should know about.
@@ -158,6 +165,8 @@ abstract class AppRoutes {
     requests,
     attestations,
     contacts,
+    // Last, so every place before it stays where people learned it.
+    worksWith,
   ];
 
   /// The places the shell's navigation leads to right now: those of
@@ -641,6 +650,22 @@ class AppRouter {
               path: AppRoutes.contacts,
               pageBuilder: (context, state) =>
                   const NoTransitionPage(child: ContactsScreen()),
+            ),
+            GoRoute(
+              path: AppRoutes.worksWith,
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: WorksWithScreen()),
+              routes: [
+                GoRoute(
+                  path: ':slug',
+                  pageBuilder: (context, state) => NoTransitionPage(
+                    child: WorksWithServicePage(
+                      key: ValueKey(state.pathParameters['slug']),
+                      slug: state.pathParameters['slug']!,
+                    ),
+                  ),
+                ),
+              ],
             ),
             GoRoute(
               path: AppRoutes.attestations,

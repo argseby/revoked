@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -88,6 +90,17 @@ class _SectionCreateDrawer extends StatefulWidget {
 class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
   VaultStore get _store => widget.store;
 
+  /// Who sees the new section, from the workspace's default (VISIBILITY.md).
+  final Local<String> _visibility = Local(
+    Stores.settings.defaultAudienceFor('sections'),
+  );
+  final Local<Set<String>> _groups = Local(const {});
+  ({String kind, List<String> groups}) get _audience => chosenAudience(
+    _visibility,
+    _groups,
+    canPublish: Stores.settings.canPublishVault,
+  );
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +158,8 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       recordIds: widget.initialSection?.records ?? const [],
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
 
     if (!mounted) return;
@@ -205,6 +220,15 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                 const AppFormSectionHeader('Details'),
                 _buildNameRow(),
                 _buildKeyRow(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.sm,
+                    AppSpacing.xl,
+                    0,
+                  ),
+                  child: VisibleToField(value: _visibility),
+                ),
                 ApiPreviewSection(
                   spec: VaultStore.createSectionSpec(
                     key: _store.sectionKey.text.trim(),
@@ -212,6 +236,8 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                     records: widget.initialSection?.records ?? const [],
                     user: widget.authStore.userId,
                     workspace: widget.authStore.activeWorkspace ?? '',
+                    audienceKind: _audience.kind,
+                    audienceGroups: _audience.groups,
                   ),
                 ),
               ],

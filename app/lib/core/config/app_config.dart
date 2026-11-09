@@ -78,6 +78,16 @@ class AppConfig {
   static const String blockedDomainsUrl =
       'https://raw.githubusercontent.com/argseby/revoked/main/blocked-domains.txt';
 
+  /// The reviewed list of Works with Revoked, built from `services/` by
+  /// `cmd/works-with`. Read from the repository like the list above, so a
+  /// newly listed service reaches every installed app without a release.
+  static const String worksWithCatalogUrl =
+      'https://raw.githubusercontent.com/argseby/revoked/main/app/assets/works_with/catalog.json';
+
+  /// Where a listing is proposed, changed or reported.
+  static const String worksWithRepoUrl = '$repoUrl/tree/main/services';
+  static const String worksWithIssueUrl = '$repoUrl/issues/new';
+
   static bool isOfficialDomain(String host) {
     final h = host.toLowerCase();
     return h == officialDomain || h.endsWith('.$officialDomain');

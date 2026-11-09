@@ -39,6 +39,7 @@ const _places = [
   _Destination(AppRoutes.requests, AppIcons.inboxFill, 'Requests'),
   _Destination(AppRoutes.attestations, AppIcons.attestation, 'Attestations'),
   _Destination(AppRoutes.contacts, AppIcons.person, 'Contacts'),
+  _Destination(AppRoutes.worksWith, AppIcons.worksWith, 'Works with Revoked'),
 ];
 
 /// The places the person has on, in their fixed order: a feature turned off
@@ -376,7 +377,18 @@ class _AppShellState extends State<AppShell> {
                 for (final d in shown)
                   NavigationRailDestination(
                     icon: Icon(d.icon),
-                    label: Text(d.label),
+                    // The rail is as wide as its longest label, so a long
+                    // name ("Works with Revoked") wraps instead of taking
+                    // the room the top bar needs.
+                    label: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 80),
+                      child: Text(
+                        d.label,
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
               ],
             ),

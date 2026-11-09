@@ -9,6 +9,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
@@ -35,6 +36,7 @@ import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:revoked_app/features/connections/tool_return.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/template_field_fill.dart';
+import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 
 /// Owner-facing screen for a `revoked://p?…` link: a tool proposes a share,
 /// the owner sees exactly what it would contain and creates it — or not.
@@ -105,6 +107,21 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
   final _submitError = Local<String?>(null);
   final _createdSlug = Local<String?>(null);
 
+  /// Who sees the share: the tool's suggestion, else the workspace's
+  /// default. The owner decides (VISIBILITY.md §7).
+  late final _visibility = Local<String>(
+    (widget.proposal?.visibility ?? '').isNotEmpty
+        ? widget.proposal!.visibility
+        : Stores.settings.defaultAudienceFor('links'),
+  );
+  final Local<Set<String>> _groups = Local(const {});
+  ({String kind, List<String> groups}) get _audience =>
+      chosenAudience(_visibility, _groups, canPublish: true);
+
+  /// Values the tool suggested, by key: offered prefilled for keys the vault
+  /// does not hold yet, and saved only when the owner saves them.
+  final _suggestions = Local<Map<String, String>>(const {});
+
   // The tool behind the proposal, when it names itself.
   final _connection = Local<Connection?>(null);
   final _connectNow = Local<bool>(true);
@@ -145,9 +162,21 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       _isFile(r) &&
       !_stampableMimes.contains((r.mime ?? '').split(';').first);
 
-  /// Hidden values and files the stamp would refuse start unticked: the owner
-  /// opts them in, the tool cannot.
-  bool _includedByDefault(models.Record r) => !_isHidden(r) && !_unstampable(r);
+  /// The tool's entry in Works with Revoked, matched by its address on this
+  /// device; null for a tool that is not listed or names no address.
+  late final _listing = (_proposal?.client.isNotEmpty ?? false)
+      ? Stores.worksWith.forOrigin(_proposal!.client)
+      : null;
+
+  /// Keys the proposal names beyond the tool's reviewed entry.
+  late final List<String> _undeclaredKeys =
+      _listing?.undeclaredKeys(_proposal!.keys) ?? const [];
+
+  /// Hidden values, files the stamp would refuse, and records a listed tool
+  /// is not listed for start unticked: the owner opts them in, the tool
+  /// cannot.
+  bool _includedByDefault(models.Record r) =>
+      !_isHidden(r) && !_unstampable(r) && !_undeclaredKeys.contains(r.key);
 
   Future<void> _load() async {
     final workspace = Stores.auth.activeWorkspace ?? '';
@@ -165,8 +194,56 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         _proposal!.client,
       );
     }
+    await _loadSuggestions();
     await _refresh(selectAll: true);
     _loading.value = false;
+  }
+
+  /// Fetches the values the tool suggested. Only a tool already connected can
+  /// have left them, and only the draft of that very connection is used: a
+  /// link naming someone else's draft gets nothing.
+  Future<void> _loadSuggestions() async {
+    final draft = _proposal!.draft;
+    final conn = _connection.value;
+    if (draft.isEmpty || conn == null) return;
+    try {
+      final data = await Stores.api.get('/api/connections/drafts/$draft');
+      if (data is! Map<String, dynamic> || data['connection'] != conn.id) {
+        return;
+      }
+      final raw = data['values'];
+      if (raw is! Map) return;
+      final keys = _proposal!.keys.toSet();
+      _suggestions.value = {
+        for (final e in raw.entries)
+          if (e.key is String && e.value is String && keys.contains(e.key))
+            e.key as String: e.value as String,
+      };
+    } catch (_) {
+      // Expired or gone: the proposal still works, just without suggestions.
+    }
+  }
+
+  /// Drops the suggestions on the server once the proposal is done with,
+  /// created or declined. They expire on their own as well.
+  Future<void> _discardSuggestions() async {
+    final draft = _proposal?.draft ?? '';
+    if (draft.isEmpty) return;
+    _suggestions.value = const {};
+    try {
+      await Stores.api.delete('/api/connections/drafts/$draft');
+    } catch (_) {}
+  }
+
+  /// A suggestion is offered for typed values only: a date, a yes/no or a
+  /// file is still picked by the owner.
+  String? _suggestionFor(_Item item) {
+    if (item.record != null) return null;
+    final type = item.field?.type ?? 'text';
+    if (item.field?.isFile == true || type == 'datetime' || type == 'boolean') {
+      return null;
+    }
+    return _suggestions.value[item.key];
   }
 
   /// The proposal names its template; a built-in one wins over a workspace
@@ -319,15 +396,22 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
 
   /// A key no template describes can hold either kind of value, so it is
   /// offered both ways.
-  TemplateField _adhoc(String key, {required bool file}) => TemplateField(
-    key: key,
-    label: _Item.humanize(key),
-    type: file ? 'file' : 'text',
-    format: 'default',
-    value: '',
-    reason: '',
-    group: '',
-  );
+  TemplateField _adhoc(String key, {required bool file, String? value}) =>
+      TemplateField(
+        key: key,
+        label: _Item.humanize(key),
+        type: file ? 'file' : 'text',
+        format: 'default',
+        value: value ?? '',
+        reason: value != null ? _suggestionReason : '',
+        group: '',
+      );
+
+  /// Shown above a prefilled value: whose suggestion it is, and that nothing
+  /// is saved until the owner saves it.
+  String get _suggestionReason =>
+      'Suggested by $_toolName. Check it before saving — '
+      'nothing is saved until you do.';
 
   void _toggle(String id, bool on) {
     final next = {..._selected.value};
@@ -445,6 +529,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       connection: connectionId,
       ref: p.ref,
       handedOver: handOver,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
     _submitting.value = false;
     if (ok) {
@@ -454,6 +540,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           .firstOrNull;
       _handedOver = handOver;
       _createdSlug.value = slug;
+      await _discardSuggestions();
       // Handed over, the tool can take it from here: straight back to it,
       // unless its page is watching and finds the link by itself.
       if (handOver && p.redirect.isNotEmpty && !_polls) await _backToTool();
@@ -473,6 +560,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
 
   /// Leaving without creating: a tool waiting for an answer hears "declined".
   Future<void> _leave(BuildContext context) async {
+    await _discardSuggestions();
     final p = _proposal;
     if (p != null &&
         p.redirect.isNotEmpty &&
@@ -637,6 +725,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
               icon: AppIcons.globe,
               label: 'Address',
               value: Uri.parse(p.client).host,
+              badge: WorksWithChip(origin: p.client),
             ),
             AppDetailRow(icon: AppIcons.tag, label: 'Name', value: p.from),
           ],
@@ -753,6 +842,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           icon: AppIcons.globe,
           label: 'Address',
           value: Uri.parse(p.client).host,
+          badge: WorksWithChip(origin: p.client),
         ),
         AppDetailRow(icon: AppIcons.link, label: 'Connection', value: status),
         Padding(
@@ -786,6 +876,14 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     return AppPageBody(
       bottomPadding: AppSpacing.xxl,
       children: [
+        if (_listing != null && _undeclaredKeys.isNotEmpty) ...[
+          WorksWithMismatchAlert(
+            service: _listing,
+            extra: _undeclaredKeys,
+            keys: true,
+          ),
+          AppSpacing.gapLg,
+        ],
         AppListGroup(
           title: 'Link contents · $selected of ${items.length}',
           trailing: const SizedBox.shrink(),
@@ -804,6 +902,20 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 ),
               ),
             for (final item in items) _itemRow(context, item),
+          ],
+        ),
+        AppListGroup(
+          title: 'Who sees it',
+          trailing: const SizedBox.shrink(),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: VisibleToField(
+                value: _visibility,
+                groups: _groups,
+                suggestedByTool: p.visibility.isNotEmpty,
+              ),
+            ),
           ],
         ),
         if (p.stamp.isNotEmpty)
@@ -989,8 +1101,13 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     final scheme = Theme.of(context).colorScheme;
     final field = item.field;
     final busy = Stores.vault.isFillingField;
+    final suggestion = _suggestionFor(item);
     Widget add(TemplateField f) => AppButton(
-      label: f.isFile ? 'Add file' : 'Add',
+      label: f.isFile
+          ? 'Add file'
+          : suggestion != null
+          ? 'Review'
+          : 'Add',
       icon: f.isFile ? AppIcons.filePlus : AppIcons.plus,
       style: AppButtonStyle.accent,
       size: AppButtonSize.small,
@@ -1024,10 +1141,17 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.title),
-                DefaultTextStyle.merge(
-                  style: TextStyle(color: scheme.warning),
-                  child: const Text('Not in the vault').small,
-                ),
+                if (suggestion != null)
+                  Text(
+                    '$_toolName suggests: $suggestion',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ).small.muted
+                else
+                  DefaultTextStyle.merge(
+                    style: TextStyle(color: scheme.warning),
+                    child: const Text('Not in the vault').small,
+                  ),
               ],
             ),
           ),
@@ -1039,12 +1163,14 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 label: item.title,
                 type: field.type,
                 format: field.format,
-                value: field.value,
-                reason: field.reason,
+                value: suggestion ?? field.value,
+                reason: suggestion != null ? _suggestionReason : field.reason,
                 group: field.group,
                 sectionKey: field.sectionKey,
               ),
             )
+          else if (suggestion != null)
+            add(_adhoc(item.key, file: false, value: suggestion))
           else
             Wrap(
               spacing: AppSpacing.xs,

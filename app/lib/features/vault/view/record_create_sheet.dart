@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -83,6 +85,21 @@ class _RecordCreateDrawer extends StatefulWidget {
 
 class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   VaultStore get _store => widget.store;
+
+  /// Who sees the new entry: the workspace's default, else private. Only a
+  /// member who may publish to the workspace vault can choose more.
+  final Local<String> _visibility = Local(
+    Stores.settings.canPublishVault
+        ? Stores.settings.defaultAudienceFor('records')
+        : 'private',
+  );
+  final Local<Set<String>> _groups = Local(const {});
+
+  ({String kind, List<String> groups}) get _audience => chosenAudience(
+    _visibility,
+    _groups,
+    canPublish: Stores.settings.canPublishVault && !_isFileType,
+  );
 
   @override
   void initState() {
@@ -184,6 +201,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       workspace: widget.authStore.activeWorkspace ?? '',
       file: _isFileType ? _store.pickedFile : null,
       sealed: !_isFileType && _store.recordSealed,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
 
     if (!mounted) return;
@@ -280,6 +299,21 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                 if (_isFileType) const VaultFileRow() else _buildValueField(),
                 _hiddenToggle(),
                 if (!_isFileType && Stores.keys.isAvailable) _sealedToggle(),
+                // A file stays with its owner for now.
+                if (!_isFileType)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.sm,
+                      AppSpacing.xl,
+                      0,
+                    ),
+                    child: VisibleToField(
+                      value: _visibility,
+                      groups: _groups,
+                      canPublish: Stores.settings.canPublishVault,
+                    ),
+                  ),
 
                 AppFormAdvanced(
                   summary: 'Key and API preview',
@@ -389,6 +423,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
               format: _store.recordFormat,
               user: widget.authStore.userId,
               workspace: widget.authStore.activeWorkspace ?? '',
+              audienceKind: _audience.kind,
+              audienceGroups: _audience.groups,
             ),
           ),
   );

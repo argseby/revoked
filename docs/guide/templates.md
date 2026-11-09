@@ -23,6 +23,14 @@ a request using the template cannot be sent without it.
 A field whose `format` is set to `hidden` in the JSON stores its answer as
 a hidden record, which suits secrets.
 
+### Who sees a template {#members}
+
+A new template is seen by every member of the workspace, who can ask with
+it, as templates always were. **Visibility** in a template's options, offered
+to whoever made it, keeps it to its owner instead (**Private**), and sets
+whether members who may manage templates can change and delete it. Templates
+made before this setting existed have no owner and stay with the workspace.
+
 ## Built-in templates
 
 Every server ships with ready-made templates: Wi-Fi access, API

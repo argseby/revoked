@@ -85,15 +85,15 @@ func init() {
 		read := util.AccessSpec{Kind: util.AccessWorkspaceSelf, Scope: util.ScopeContactRead}
 		contacts.ListRule = types.Pointer(read.Rule())
 		contacts.ViewRule = types.Pointer(read.Rule())
-		for action, target := range map[string]**string{
-			util.ActionCreate: &contacts.CreateRule,
-			util.ActionUpdate: &contacts.UpdateRule,
-			util.ActionDelete: &contacts.DeleteRule,
+		// The specs as they stood here, not the live registry: a later change
+		// to it (000097 gave contacts an audience) must not reach back into
+		// this migration (see applyFrozenRules).
+		for target, scope := range map[**string]string{
+			&contacts.CreateRule: util.ScopeContactCreate,
+			&contacts.UpdateRule: util.ScopeContactUpdate,
+			&contacts.DeleteRule: util.ScopeContactDelete,
 		} {
-			spec, ok := util.AccessSpecFor(util.Coll.Contacts, action)
-			if !ok {
-				continue
-			}
+			spec := util.AccessSpec{Kind: util.AccessWorkspaceSelf, Scope: scope}
 			*target = types.Pointer(spec.Rule())
 		}
 		if err := app.Save(contacts); err != nil {

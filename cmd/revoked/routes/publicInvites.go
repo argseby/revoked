@@ -257,7 +257,10 @@ func permissionDetails(scopes []string) []map[string]any {
 
 // inviteFeatureDetails labels the starting feature set an invite carries, or
 // nothing when it leaves the choice to the person.
-func inviteFeatureDetails(invite *core.Record) []map[string]any {
+// inviteFeatureDetails is null when the invite carries no starting set, which
+// leaves the choice to the person; an empty list would turn everything off.
+// The untyped nil matters: the router's JSON encoder writes a nil slice as [].
+func inviteFeatureDetails(invite *core.Record) any {
 	keys, carried := util.StoredFeatures(invite, util.Fields.Invite.Features)
 	if !carried {
 		return nil

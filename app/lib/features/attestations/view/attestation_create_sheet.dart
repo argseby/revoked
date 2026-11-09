@@ -3,6 +3,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/tool_proposal_alert.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -186,6 +187,19 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                         size: AppButtonSize.small,
                         onTap: _store.addClaim,
                       ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.screenH(context),
+                      AppSpacing.sm,
+                      AppSpacing.screenH(context),
+                      0,
+                    ),
+                    child: VisibleToField(
+                      value: _store.draftVisibility,
+                      suggestedByTool:
+                          (_store.draftAsk?.visibility ?? '').isNotEmpty,
                     ),
                   ),
                   const AppFormSectionHeader('Recipient and validity'),

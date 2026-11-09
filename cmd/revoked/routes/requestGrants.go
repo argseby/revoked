@@ -11,8 +11,9 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// RequestGrantsRoute exposes GET /api/requests/{id}/links, the request owner's view
-// of the links minted under it. Resolution to the responder's current values happens
+// RequestGrantsRoute exposes GET /api/requests/{id}/links: the links minted
+// under a request, for its owner and for the members who see the request and
+// may read collected data. Resolution to the responder's current values happens
 // server-side because the requester cannot read those vault records directly.
 func RequestGrantsRoute(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
@@ -24,8 +25,15 @@ func RequestGrantsRoute(app core.App) {
 			if err != nil || req == nil {
 				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
 			}
-			if req.GetString(util.Fields.Request.User) != re.Auth.Id {
-				return re.ForbiddenError("Not your request", nil)
+			// The answers follow the request (VISIBILITY.md): its owner, and the
+			// members who see it and may read collected data.
+			if req.GetString(util.FieldWorkspace) != re.Auth.GetString(util.Fields.User.ActiveWorkspace) ||
+				!services.CanSee(app, re.Auth.Id, req) {
+				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
+			}
+			if req.GetString(util.Fields.Request.User) != re.Auth.Id &&
+				!services.HoldsPermission(app, req.GetString(util.FieldWorkspace), re.Auth.Id, util.ScopeResponseRead) {
+				return appErrorResponse(re, http.StatusForbidden, &util.Errors.MissingPermission)
 			}
 
 			links, err := app.FindRecordsByFilter(

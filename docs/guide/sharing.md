@@ -29,6 +29,21 @@ These options can be combined freely:
 **Maximum views** is under **Advanced**, together with the link's address,
 the watermark, the signature and the API preview.
 
+## Who in the workspace sees a share {#members}
+
+A share is otherwise seen only by the member who created it. **Visibility** on
+the share's page sets who else in the workspace sees it:
+
+- **Private**: seen by the owner only.
+- **Workspace**: seen by every member who can view shares. Whoever sees a
+  share can open its link, and with it everything the link holds.
+
+For a share visible to the workspace, **Editing** sets whether members who
+may manage shares can also pause, revoke and change it. Other members' shares
+appear under **Shared by members** and open read-only. A share holds only its
+creator's own records and sections. Only the owner can change who sees a
+share, and only from the app.
+
 ## Verification
 
 Under **Advanced → Verification**:

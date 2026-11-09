@@ -141,7 +141,8 @@ func askContact(app core.App, re *core.RequestEvent, root *server.RootKey) error
 	if body.Template != "" {
 		template, err := app.FindRecordById(util.Coll.Templates, body.Template)
 		if err != nil || template == nil ||
-			template.GetString(util.Fields.Template.Workspace) != workspace {
+			template.GetString(util.Fields.Template.Workspace) != workspace ||
+			!services.CanSee(app, re.Auth.Id, template) {
 			return appErrorResponse(re, http.StatusForbidden, &util.Errors.TemplateNotOwned)
 		}
 	}
@@ -219,7 +220,9 @@ func authorizeContactGrant(app core.App, re *core.RequestEvent, coll string) (*c
 	}
 
 	contact, err := app.FindRecordById(util.Coll.Contacts, re.Request.PathValue("id"))
-	if err != nil || contact == nil {
+	// A colleague's private contact is not there for this member
+	// (VISIBILITY.md).
+	if err != nil || contact == nil || !services.CanSee(app, re.Auth.Id, contact) {
 		return nil, denyGate(re, http.StatusNotFound, &util.Errors.ContactNotFound)
 	}
 
@@ -256,8 +259,11 @@ func authorizeVaultReads(app core.App, re *core.RequestEvent, workspace, collect
 	read := util.AccessSpec{Kind: util.AccessWorkspaceSelf, Scope: scope}
 	for _, id := range ids {
 		rec, err := app.FindRecordById(collection, id)
+		// The sender's own items, or what the workspace published to them
+		// (VISIBILITY.md); a colleague's private entry is not there for them.
 		if err != nil || rec == nil ||
-			rec.GetString(util.FieldWorkspace) != workspace {
+			rec.GetString(util.FieldWorkspace) != workspace ||
+			(rec.GetString(util.FieldUser) != re.Auth.Id && !services.CanSee(app, re.Auth.Id, rec)) {
 			return denyGate(re, http.StatusNotFound, &util.Errors.RecordNotFound)
 		}
 		if collection == util.Coll.Records && services.IsSealedThroughAlias(app, rec) {

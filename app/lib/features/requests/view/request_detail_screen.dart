@@ -14,6 +14,7 @@ import 'package:revoked_app/core/utils/deadline.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -62,12 +63,47 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     super.dispose();
   }
 
-  DataRequest? get _request {
-    for (final r in Stores.requests.requests) {
-      if (r.id == widget.requestId) return r;
-    }
-    return null;
+  DataRequest? get _request => Stores.requests.findById(widget.requestId);
+
+  /// Whether this person owns the request. A colleague's request, opened to
+  /// them (VISIBILITY.md), can be changed here only when it is also open to
+  /// them for editing ([_editable]); who sees it stays its owner's.
+  bool _mine(DataRequest request) =>
+      Stores.auth.userId.isEmpty || request.user == Stores.auth.userId;
+
+  /// Whether this person may change a colleague's request: asked of the
+  /// server once the request is known, null until then.
+  final Local<bool?> _canEdit = Local(null);
+  bool _askedCanEdit = false;
+
+  void _askCanEdit(DataRequest request) {
+    if (_askedCanEdit || _mine(request)) return;
+    _askedCanEdit = true;
+    Stores.requests.canEditRequest(request.id).then((v) {
+      if (mounted) _canEdit.value = v;
+    });
   }
+
+  /// The owner, or a member the request is open to for editing.
+  bool _editable(DataRequest request) =>
+      _mine(request) || _canEdit.value == true;
+
+  void _openAccess(BuildContext context, DataRequest request) =>
+      openAccessSheet(
+        context,
+        area: AccessArea.requests,
+        id: request.id,
+        name: request.label,
+        audienceKind: request.audienceKind,
+        editing: request.editing,
+        save: (kind, editing, groups) => Stores.requests.setRequestAudience(
+          request.id,
+          kind: kind,
+          editing: editing,
+          groups: groups,
+        ),
+        saveError: () => Stores.requests.errorMessage,
+      );
 
   void _back() => context.go(AppRoutes.requests);
 
@@ -105,10 +141,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           );
         }
 
+        _askCanEdit(request);
         return AppDetailPage(
           header: _header(context, request),
           sections: [_asked(request), _access(request)],
-          aside: [_details(request), _manage(context, request)],
+          aside: [
+            _details(request),
+            if (_editable(request)) _manage(context, request),
+          ],
         );
       },
     );
@@ -121,9 +161,17 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         ? null
         : expiryNotice(request.expiresAt, DateTime.now());
 
+    final mine = _mine(request);
     return AppDetailHeader(
       badges: [
         StatusLabel(request.status),
+        if (!mine)
+          const AppBadge(
+            icon: AppIcons.personWorkspace,
+            label: 'Shared by a member',
+          )
+        else if (request.openToWorkspace)
+          const AppBadge(icon: AppIcons.personWorkspace, label: 'Members'),
         if (unread > 0)
           AppBadge(label: '$unread new', accent: theme.colorScheme.primary),
         if (expiry != null)
@@ -166,17 +214,36 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
               isRequest: true,
             ),
           ),
-        AppButton(
-          icon: AppIcons.pencil,
-          tooltip: 'Edit',
-          style: AppButtonStyle.accent,
-          onTap: () => openRequestCreateSheet(
-            context: context,
-            store: Stores.requests,
-            authStore: Stores.auth,
-            editRequest: request,
+        if (mine) ...[
+          AppButton(
+            icon: AppIcons.personWorkspace,
+            tooltip: 'Visibility',
+            style: AppButtonStyle.accent,
+            onTap: () => _openAccess(context, request),
           ),
-        ),
+          AppButton(
+            icon: AppIcons.pencil,
+            tooltip: 'Edit',
+            style: AppButtonStyle.accent,
+            onTap: () => openRequestCreateSheet(
+              context: context,
+              store: Stores.requests,
+              authStore: Stores.auth,
+              editRequest: request,
+            ),
+          ),
+        ] else if (_editable(request))
+          AppButton(
+            icon: AppIcons.pencil,
+            tooltip: 'Edit',
+            style: AppButtonStyle.accent,
+            onTap: () => openRequestCreateSheet(
+              context: context,
+              store: Stores.requests,
+              authStore: Stores.auth,
+              editRequest: request,
+            ),
+          ),
       ],
     );
   }

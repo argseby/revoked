@@ -27,6 +27,7 @@ import 'package:revoked_app/features/connections/view/day_label.dart';
 import 'package:revoked_app/features/connections/view/sign_in_picker.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 
 /// Screen for a `revoked://signin?…` link: a service asks to sign its user in.
 /// The request is opened on the server the app is signed into, and the person
@@ -515,7 +516,12 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
             'just started there.',
           ),
           children: [
-            AppDetailRow(icon: AppIcons.globe, label: 'Address', value: host),
+            AppDetailRow(
+              icon: AppIcons.globe,
+              label: 'Address',
+              value: host,
+              badge: WorksWithChip(origin: c.client),
+            ),
             AppDetailRow(
               icon: AppIcons.person,
               label: 'Your account',
