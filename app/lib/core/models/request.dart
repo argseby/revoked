@@ -41,6 +41,9 @@ class DataRequest {
   /// Whether the members who see it may also change it: `owner` or
   /// `audience`.
   final String editing;
+
+  /// The groups that see it, when [audienceKind] is `groups`.
+  final List<String> audienceGroups;
   final String? created;
   final String? updated;
 
@@ -68,6 +71,7 @@ class DataRequest {
     this.connection = '',
     this.audienceKind = 'private',
     this.editing = 'owner',
+    this.audienceGroups = const [],
     this.created,
     this.updated,
   });
@@ -97,6 +101,11 @@ class DataRequest {
       connection: json['connection'] as String? ?? '',
       audienceKind: audienceKindFrom(json['audienceKind']),
       editing: json['editing'] == 'audience' ? 'audience' : 'owner',
+      audienceGroups:
+          (json['audienceGroups'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList() ??
+          const [],
       created: json['created'] as String?,
       updated: json['updated'] as String?,
     );
@@ -123,6 +132,7 @@ class DataRequest {
     String? connection,
     String? audienceKind,
     String? editing,
+    List<String>? audienceGroups,
     String? created,
     String? updated,
   }) {
@@ -147,6 +157,7 @@ class DataRequest {
       connection: connection ?? this.connection,
       audienceKind: audienceKind ?? this.audienceKind,
       editing: editing ?? this.editing,
+      audienceGroups: audienceGroups ?? this.audienceGroups,
       created: created ?? this.created,
       updated: updated ?? this.updated,
     );

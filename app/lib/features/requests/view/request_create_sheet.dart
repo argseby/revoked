@@ -98,6 +98,9 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
         ? widget.proposal!.visibility
         : Stores.settings.defaultAudienceFor('requests'),
   );
+  final Local<Set<String>> _groups = Local(const {});
+  ({String kind, List<String> groups}) get _audience =>
+      chosenAudience(_visibility, _groups, canPublish: true);
 
   @override
   void initState() {
@@ -267,7 +270,8 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
           ? _store.draftIdentityScope
           : 'any',
       allowExtraFields: _store.draftAllowExtraFields,
-      audienceKind: _visibility.value,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
     if (!mounted) return false;
     if (ok) {
@@ -385,6 +389,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
                         ),
                         child: VisibleToField(
                           value: _visibility,
+                          groups: _groups,
                           suggestedByTool:
                               (widget.proposal?.visibility ?? '').isNotEmpty,
                         ),
@@ -516,7 +521,8 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
           ? _store.draftIdentityScope
           : 'any',
       allowExtraFields: _store.draftAllowExtraFields,
-      audienceKind: _visibility.value,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
   }
 

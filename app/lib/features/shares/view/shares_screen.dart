@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:go_router/go_router.dart';
@@ -496,6 +497,8 @@ class _LinkRow extends StatelessWidget {
     parts.add(
       share.viewCount == 0 ? 'not viewed' : 'viewed ${share.viewCount}×',
     );
+    // Who in the workspace has access to it.
+    parts.add(audienceSummary(share.audienceKind, share.audienceGroups));
     return parts.join(' · ');
   }
 }

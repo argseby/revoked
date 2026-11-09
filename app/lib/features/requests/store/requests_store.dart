@@ -67,6 +67,7 @@ class RequestsStore extends _RequestsStore with _$RequestsStore {
     String connection = '',
     String ref = '',
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -92,6 +93,7 @@ class RequestsStore extends _RequestsStore with _$RequestsStore {
         'workspace': workspace,
         // Who sees it; empty leaves it to the workspace's default.
         if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
+        if (audienceGroups.isNotEmpty) 'audienceGroups': audienceGroups,
         if (connection.isNotEmpty) 'connection': connection,
         if (connection.isNotEmpty && ref.isNotEmpty) 'ref': ref,
       },
@@ -516,6 +518,7 @@ abstract class _RequestsStore with Store {
     String identityScope = 'any',
     bool allowExtraFields = false,
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -542,6 +545,7 @@ abstract class _RequestsStore with Store {
         connection: connection,
         ref: proposer.ref,
         audienceKind: audienceKind,
+        audienceGroups: audienceGroups,
       );
       requests.insert(0, req);
       return true;
@@ -808,6 +812,7 @@ abstract class _RequestsStore with Store {
     String connection = '',
     String ref = '',
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     final spec = RequestsStore.createRequestSpec(
       slug: slug,
@@ -828,6 +833,7 @@ abstract class _RequestsStore with Store {
       connection: connection,
       ref: ref,
       audienceKind: audienceKind,
+      audienceGroups: audienceGroups,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return DataRequest.fromJson(data as Map<String, dynamic>);

@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/models/audience.dart';
+
 import 'package:revoked_app/core/models/connection.dart';
 
 /// Represents a record from the PocketBase `records` collection.
@@ -87,7 +89,16 @@ class Record {
     this.unsealedElsewhere = false,
     this.writtenBy = '',
     this.writtenByName = '',
+    this.audienceKind = 'private',
+    this.editing = 'owner',
   });
+
+  /// Who sees it on its own, beside the sections holding it: `private`,
+  /// `workspace` or `groups` (VISIBILITY.md). Only its owner changes it.
+  final String audienceKind;
+
+  /// Whether the members who see it, and may publish, may also change it.
+  final String editing;
 
   factory Record.fromJson(Map<String, dynamic> json) {
     final requestedByRaw = json['requestedBy'];
@@ -121,6 +132,8 @@ class Record {
       keyWrap: json['keyWrap'] as String? ?? '',
       writtenBy: json['writtenBy'] as String? ?? '',
       writtenByName: json['writtenByName'] as String? ?? '',
+      audienceKind: audienceKindFrom(json['audienceKind']),
+      editing: json['editing'] == 'audience' ? 'audience' : 'owner',
     );
   }
 
@@ -158,6 +171,8 @@ class Record {
     unsealedElsewhere: unsealedElsewhere ?? this.unsealedElsewhere,
     writtenBy: writtenBy,
     writtenByName: writtenByName,
+    audienceKind: audienceKind,
+    editing: editing,
   );
 
   /// This record as decrypted. The label, type and format come from inside the

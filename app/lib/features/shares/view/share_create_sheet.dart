@@ -78,6 +78,9 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   final Local<String> _visibility = Local(
     Stores.settings.defaultAudienceFor('links'),
   );
+  final Local<Set<String>> _groups = Local(const {});
+  ({String kind, List<String> groups}) get _audience =>
+      chosenAudience(_visibility, _groups, canPublish: true);
 
   String _generateRandomSlug() {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -227,7 +230,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       requireHandshake: _store.draftRequireHandshake,
       watermark: _store.draftWatermark,
       watermarkText: _store.draftWatermarkText.text.trim(),
-      audienceKind: _visibility.value,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
   }
 
@@ -283,7 +287,8 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       requireHandshake: _store.draftRequireHandshake,
       watermark: _store.draftWatermark,
       watermarkText: _store.draftWatermarkText.text.trim(),
-      audienceKind: _visibility.value,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
     if (!mounted) return false;
     if (!ok) {

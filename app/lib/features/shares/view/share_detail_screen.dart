@@ -292,7 +292,11 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   /// keeps its room.
   Widget _contents(BuildContext context, Link share) {
     final vault = Stores.vault;
-    final byId = {for (final r in vault.records) r.id: r};
+    // A share may hold entries the workspace published, beside its own.
+    final byId = {
+      for (final r in vault.sharedRecords) r.id: r,
+      for (final r in vault.records) r.id: r,
+    };
     final rows = <Widget>[];
     final placed = <String>{};
 

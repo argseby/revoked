@@ -697,7 +697,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           constraints: const BoxConstraints(maxWidth: 220),
           child: AppBadge(
             icon: AppIcons.person,
-            label: 'Shared by ${s.ownerEmail ?? 'another member'}',
+            label: s.id == VaultStore.sharedEntriesId
+                ? 'Published to the workspace'
+                : 'Shared by ${s.ownerEmail ?? 'another member'}',
           ),
         );
         body = [
@@ -1002,7 +1004,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         constraints: const BoxConstraints(maxWidth: 220),
         child: AppBadge(
           icon: AppIcons.person,
-          label: 'Shared by ${section.ownerEmail ?? 'another member'}',
+          label: section.id == VaultStore.sharedEntriesId
+              ? 'Published to the workspace'
+              : 'Shared by ${section.ownerEmail ?? 'another member'}',
         ),
       ),
       children: [
@@ -1052,9 +1056,13 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               Text(r.label.isEmpty ? r.key : r.label).header,
               const SizedBox(height: AppSpacing.xxs),
               Text(
-                'Shared by ${section.ownerEmail ?? 'another member'} in '
-                '"${_sectionName(section)}".'
-                '${section.canEdit ? ' It can be changed here as well.' : ' Only they can change it.'}',
+                section.id == VaultStore.sharedEntriesId
+                    ? 'Published by '
+                          '${Stores.vault.sharedEntryOwners[r.id]?.isNotEmpty == true ? Stores.vault.sharedEntryOwners[r.id] : 'another member'}.'
+                          '${Stores.vault.canEditShared(section, r) ? ' It can be changed here as well.' : ' Only members who may publish can change it.'}'
+                    : 'Shared by ${section.ownerEmail ?? 'another member'} in '
+                          '"${_sectionName(section)}".'
+                          '${Stores.vault.canEditShared(section, r) ? ' It can be changed here as well.' : ' Only they can change it.'}',
               ).muted.small,
               const SizedBox(height: AppSpacing.lg),
               if (r.isLocked)
@@ -1081,7 +1089,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                         AppToast.success(sheetContext, 'Copied to clipboard');
                       },
                     ),
-                    if (section.canEdit && !r.isFile && !r.isLocked)
+                    if (Stores.vault.canEditShared(section, r) &&
+                        !r.isFile &&
+                        !r.isLocked)
                       AppButton(
                         icon: AppIcons.pencil,
                         label: 'Edit value',

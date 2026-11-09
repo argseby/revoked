@@ -75,6 +75,18 @@ void main() {
     await open(tester, openVaultCreateSheet);
 
     expect(find.text('Key'), findsNothing);
+    // Further down the sheet, below who sees the new entry.
+    await tester.scrollUntilVisible(
+      find.text('Advanced'),
+      200,
+      scrollable: find
+          .ancestor(
+            of: find.text('Visible to'),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Advanced'));
     await tester.pumpAndSettle();
     expect(find.text('Key'), findsOneWidget);

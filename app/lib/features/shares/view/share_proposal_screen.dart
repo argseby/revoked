@@ -114,6 +114,9 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         ? widget.proposal!.visibility
         : Stores.settings.defaultAudienceFor('links'),
   );
+  final Local<Set<String>> _groups = Local(const {});
+  ({String kind, List<String> groups}) get _audience =>
+      chosenAudience(_visibility, _groups, canPublish: true);
 
   /// Values the tool suggested, by key: offered prefilled for keys the vault
   /// does not hold yet, and saved only when the owner saves them.
@@ -526,7 +529,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       connection: connectionId,
       ref: p.ref,
       handedOver: handOver,
-      audienceKind: _visibility.value,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
     _submitting.value = false;
     if (ok) {
@@ -908,6 +912,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
               padding: const EdgeInsets.all(AppSpacing.sm),
               child: VisibleToField(
                 value: _visibility,
+                groups: _groups,
                 suggestedByTool: p.visibility.isNotEmpty,
               ),
             ),

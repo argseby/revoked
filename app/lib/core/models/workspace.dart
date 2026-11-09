@@ -23,6 +23,7 @@ class Workspace {
   /// Built-in defaults: what was private before audiences stays private, what
   /// was workspace data stays the workspace's.
   static const builtInAudience = {
+    'records': 'private',
     'sections': 'private',
     'links': 'private',
     'requests': 'private',

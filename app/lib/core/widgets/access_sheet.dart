@@ -50,6 +50,19 @@ class AccessArea {
         'and the section.',
   );
 
+  static const records = AccessArea(
+    collection: 'records',
+    workspaceHint:
+        'Seen by every member who can read the vault, with its current '
+        'value, and usable in their shares. Encrypted entries open only for '
+        'members given access to encryption.',
+    audienceEditLabel: 'Members who publish',
+    ownerEditHint: 'Others can read it and share it, but not change it.',
+    audienceEditHint:
+        'Members who see it and may publish to the workspace vault can '
+        'change it.',
+  );
+
   static const shares = AccessArea(
     collection: 'links',
     workspaceHint:
@@ -375,46 +388,113 @@ class VisibleToField extends StatelessWidget {
   final Local<String> value;
   final bool suggestedByTool;
 
+  /// The groups ticked when [value] is `groups`; null leaves groups out.
+  final Local<Set<String>>? groups;
+
+  /// False keeps the choice at Private, with the reason: the vault is locked
+  /// to those who may publish to it.
+  final bool canPublish;
+
   const VisibleToField({
     super.key,
     required this.value,
     this.suggestedByTool = false,
+    this.groups,
+    this.canPublish = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return Observer(
-      builder: (_) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Visible to').small.muted,
-          const SizedBox(height: AppSpacing.xs),
-          AppSegmented<String>(
-            value: value.value == 'workspace' ? 'workspace' : 'private',
-            expand: true,
-            items: const [
-              AppSegmentedItem(
-                value: 'private',
-                label: 'Private',
-                icon: AppIcons.lock,
-              ),
-              AppSegmentedItem(
-                value: 'workspace',
-                label: 'Workspace',
-                icon: AppIcons.building,
-              ),
-            ],
-            onChanged: (v) => value.value = v,
-          ),
-          if (suggestedByTool) ...[
+      builder: (_) {
+        final offerGroups = groups != null && Stores.settings.groups.isNotEmpty;
+        final kind = !canPublish
+            ? 'private'
+            : (value.value == 'workspace' ||
+                  (value.value == 'groups' && offerGroups))
+            ? value.value
+            : 'private';
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Visible to').small.muted,
             const SizedBox(height: AppSpacing.xs),
-            const Text('Suggested by the tool.').small.muted,
+            AppSegmented<String>(
+              value: kind,
+              expand: true,
+              items: [
+                const AppSegmentedItem(
+                  value: 'private',
+                  label: 'Private',
+                  icon: AppIcons.lock,
+                ),
+                if (canPublish) ...[
+                  const AppSegmentedItem(
+                    value: 'workspace',
+                    label: 'Workspace',
+                    icon: AppIcons.building,
+                  ),
+                  if (offerGroups)
+                    const AppSegmentedItem(
+                      value: 'groups',
+                      label: 'Groups',
+                      icon: AppIcons.person,
+                    ),
+                ],
+              ],
+              onChanged: (v) => value.value = v,
+            ),
+            if (!canPublish) ...[
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                'Publishing to the workspace vault takes its permission, '
+                'which an admin grants.',
+              ).small.muted,
+            ],
+            if (kind == 'groups' && groups != null)
+              for (final g in Stores.settings.groups)
+                Row(
+                  children: [
+                    AppCheckbox(
+                      value: groups!.value.contains(g.id),
+                      onChanged: (on) => groups!.value = on == true
+                          ? {...groups!.value, g.id}
+                          : ({...groups!.value}..remove(g.id)),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(child: Text(g.name)),
+                  ],
+                ),
+            if (suggestedByTool) ...[
+              const SizedBox(height: AppSpacing.xs),
+              const Text('Suggested by the tool.').small.muted,
+            ],
           ],
-        ],
-      ),
+        );
+      },
     );
   }
+}
+
+/// The audience a create request names from a [VisibleToField]: the kind,
+/// and the groups when it is `groups` (falling back to private without any).
+({String kind, List<String> groups}) chosenAudience(
+  Local<String> value,
+  Local<Set<String>>? groups, {
+  bool canPublish = true,
+}) {
+  if (!canPublish) return (kind: 'private', groups: const []);
+  if (value.value == 'groups') {
+    final picked = groups?.value.toList() ?? const <String>[];
+    return picked.isEmpty
+        ? (kind: 'private', groups: const [])
+        : (kind: 'groups', groups: picked);
+  }
+  return (
+    kind: value.value == 'workspace' ? 'workspace' : 'private',
+    groups: const [],
+  );
 }
 
 /// Opens who sees new items of each area in a workspace (VISIBILITY.md §4.4).
@@ -452,6 +532,7 @@ class _DefaultVisibilitySheet extends StatefulWidget {
 
 class _DefaultVisibilitySheetState extends State<_DefaultVisibilitySheet> {
   static const _areas = [
+    ('records', 'Vault entries'),
     ('sections', 'Vault sections'),
     ('links', 'Shares'),
     ('requests', 'Requests and answers'),
@@ -544,4 +625,20 @@ class _DefaultVisibilitySheetState extends State<_DefaultVisibilitySheet> {
       ),
     );
   }
+}
+
+/// Who has access to an item, in a few words for a list row: "Private",
+/// "Workspace", or the names of its groups.
+String audienceSummary(String kind, List<String> groups) {
+  switch (kind) {
+    case 'workspace':
+      return 'Workspace';
+    case 'groups':
+      final names = [
+        for (final g in Stores.settings.groups)
+          if (groups.contains(g.id)) g.name,
+      ];
+      return names.isEmpty ? 'Groups' : names.join(', ');
+  }
+  return 'Private';
 }

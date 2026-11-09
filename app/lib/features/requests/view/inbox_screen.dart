@@ -8,6 +8,7 @@ import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
@@ -337,7 +338,10 @@ class _RequestRow extends StatelessWidget {
     return AppListRow(
       icon: AppIcons.inboxFill,
       title: request.label,
-      subtitle: requestSummary(request, unread, now),
+      // What came in, and who in the workspace has access to it.
+      subtitle:
+          '${requestSummary(request, unread, now)} · '
+          '${audienceSummary(request.audienceKind, request.audienceGroups)}',
       trailing: unread > 0
           ? AppBadge(
               label: '$unread new',

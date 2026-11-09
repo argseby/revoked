@@ -25,6 +25,8 @@ String shareContentsSummary({Set<String>? records, Set<String>? sections}) {
       if (pickedSections.contains(s.id)) s.name,
     for (final r in Stores.vault.records)
       if (pickedRecords.contains(r.id)) recordTitle(r),
+    for (final r in Stores.vault.sharedRecords)
+      if (pickedRecords.contains(r.id)) recordTitle(r),
   ];
   if (names.isEmpty) return '';
   if (names.length == 1) return names.first;
@@ -122,6 +124,22 @@ Future<void> openShareContentsPicker(
                           subtitle: r.isFile
                               ? 'File'
                               : (r.isHidden ? 'Hidden value' : null),
+                          value: pickedRecords.contains(r.id),
+                          onChanged: (_) => onRecord(r.id),
+                        ),
+                    ],
+                    // What other members shared or published to this person
+                    // may go into their shares too (VISIBILITY.md).
+                    if (vault.sharedRecords.any((r) => !r.sealed)) ...[
+                      const _GroupLabel('From the workspace'),
+                      for (final r in vault.sharedRecords.where(
+                        (r) => !r.sealed,
+                      ))
+                        AppCheckRow(
+                          label: recordTitle(r),
+                          subtitle: r.isHidden
+                              ? 'Hidden value · shared by a member'
+                              : 'Shared by a member',
                           value: pickedRecords.contains(r.id),
                           onChanged: (_) => onRecord(r.id),
                         ),

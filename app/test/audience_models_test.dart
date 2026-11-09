@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/models/attestation.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/models/contact.dart';
@@ -132,5 +135,45 @@ void main() {
     expect(g.contains('u1'), isTrue);
     expect(g.contains('u2'), isFalse);
     expect(g.members.single.email, 'ada@example.com');
+  });
+
+  test('an entry reads its own visibility', () {
+    final r = models.Record.fromJson({
+      'id': 'r1',
+      'key': 'phone',
+      'value': '+49',
+      'label': 'Phone',
+      'type': 'text',
+      'format': 'default',
+      'user': 'u1',
+      'workspace': 'w1',
+      'audienceKind': 'workspace',
+      'editing': 'audience',
+    });
+    expect(r.audienceKind, 'workspace');
+    expect(r.editing, 'audience');
+    final link = Link.fromJson({
+      'id': 'l1',
+      'slug': 's',
+      'label': 'l',
+      'audienceKind': 'groups',
+      'audienceGroups': ['g1'],
+    });
+    expect(link.audienceGroups, ['g1']);
+  });
+
+  test('the chosen audience falls back to private when it must', () {
+    final kind = Local('groups');
+    final groups = Local<Set<String>>(const {});
+    // Groups without a group ticked: private.
+    expect(chosenAudience(kind, groups).kind, 'private');
+    groups.value = {'g1'};
+    final picked = chosenAudience(kind, groups);
+    expect(picked.kind, 'groups');
+    expect(picked.groups, ['g1']);
+    // Without the permission to publish, private whatever was picked.
+    expect(chosenAudience(kind, groups, canPublish: false).kind, 'private');
+    kind.value = 'workspace';
+    expect(chosenAudience(kind, groups).kind, 'workspace');
   });
 }

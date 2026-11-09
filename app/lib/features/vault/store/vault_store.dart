@@ -36,6 +36,10 @@ class VaultStore extends _VaultStore with _$VaultStore {
   /// The exact API request [createRecord] issues — the single source of truth
   /// shared with the in-app API preview, so what the UI shows is what the app
   /// sends.
+  /// The id of the group holding entries other members published on their
+  /// own, beside the sections they shared.
+  static const sharedEntriesId = '__shared_entries__';
+
   static ApiRequestSpec createRecordSpec({
     required String key,
     required String value,
@@ -44,6 +48,8 @@ class VaultStore extends _VaultStore with _$VaultStore {
     required String format,
     required String user,
     required String workspace,
+    String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -56,6 +62,9 @@ class VaultStore extends _VaultStore with _$VaultStore {
         'format': format,
         'user': user,
         'workspace': workspace,
+        // Who sees it; empty leaves it to the workspace's default.
+        if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
+        if (audienceGroups.isNotEmpty) 'audienceGroups': audienceGroups,
       },
     );
   }
@@ -88,6 +97,7 @@ class VaultStore extends _VaultStore with _$VaultStore {
     required String user,
     required String workspace,
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -100,6 +110,7 @@ class VaultStore extends _VaultStore with _$VaultStore {
         'workspace': workspace,
         // Who sees it; empty leaves it to the workspace's default.
         if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
+        if (audienceGroups.isNotEmpty) 'audienceGroups': audienceGroups,
       },
     );
   }
@@ -579,6 +590,18 @@ abstract class _VaultStore with Store {
     }
   }
 
+  /// Who published each entry of [sharedEntriesId], by entry id.
+  final ObservableMap<String, String> sharedEntryOwners =
+      ObservableMap<String, String>();
+
+  /// Entries of other members this person may change (VISIBILITY.md).
+  final ObservableSet<String> sharedEditable = ObservableSet<String>();
+
+  /// Whether this person may change a colleague's entry: through a section
+  /// open to them for editing, or on its own.
+  bool canEditShared(Section section, models.Record r) =>
+      section.canEdit || sharedEditable.contains(r.id);
+
   /// What other members shared with this person. Its failure is its own: the
   /// vault still shows.
   @action
@@ -592,11 +615,38 @@ abstract class _VaultStore with Store {
         ),
       );
       sharedRecords = ObservableList.of(opened);
-      sharedSections = ObservableList.of(
-        ((data['sections'] as List<dynamic>?) ?? const []).map(
+      // Entries other members published on their own (the company's root
+      // vault): shown as one more shared group, after the sections.
+      final entries = ((data['entries'] as List<dynamic>?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      sharedEntryOwners
+        ..clear()
+        ..addAll({
+          for (final e in entries)
+            e['id'] as String: e['ownerEmail'] as String? ?? '',
+        });
+      sharedEditable
+        ..clear()
+        ..addAll([
+          for (final e in entries)
+            if (e['canEdit'] == true) e['id'] as String,
+        ]);
+      sharedSections = ObservableList.of([
+        ...((data['sections'] as List<dynamic>?) ?? const []).map(
           (e) => Section.fromJson(e as Map<String, dynamic>),
         ),
-      );
+        if (entries.isNotEmpty)
+          Section(
+            id: VaultStore.sharedEntriesId,
+            key: 'shared_entries',
+            name: 'Shared entries',
+            records: [for (final e in entries) e['id'] as String],
+            user: '',
+            workspace: Stores.auth.activeWorkspace ?? '',
+            audienceKind: 'workspace',
+          ),
+      ]);
     } catch (e) {
       sharedError = describeError(e);
     }
@@ -982,6 +1032,8 @@ abstract class _VaultStore with Store {
     required String workspace,
     PendingUpload? file,
     bool sealed = false,
+    String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -992,17 +1044,29 @@ abstract class _VaultStore with Store {
             .where((r) => r.key == key && r.requestedBy == null)
             .toList();
         if (existing.isEmpty) {
-          records.insert(
-            0,
-            await _createSealed(
-              key: key,
-              value: value,
-              label: label,
-              type: type,
-              format: format,
-              workspace: workspace,
-            ),
+          var created = await _createSealed(
+            key: key,
+            value: value,
+            label: label,
+            type: type,
+            format: format,
+            workspace: workspace,
           );
+          // An encrypted entry is made private through its own route, and
+          // widened right after; never the other way round.
+          if (audienceKind.isNotEmpty && audienceKind != 'private') {
+            final spec = VaultStore.updateRecordSpec(created.id, {
+              'audienceKind': audienceKind,
+              'audienceGroups': audienceGroups,
+            });
+            created = _open(
+              models.Record.fromJson(
+                await _api.patch(spec.path, body: spec.body)
+                    as Map<String, dynamic>,
+              ),
+            );
+          }
+          records.insert(0, created);
           return true;
         }
         final current = existing.first;
@@ -1068,6 +1132,9 @@ abstract class _VaultStore with Store {
         user: user,
         workspace: workspace,
         file: file,
+        // A file stays with its owner: it has no member download path yet.
+        audienceKind: file == null ? audienceKind : '',
+        audienceGroups: file == null ? audienceGroups : const [],
       );
       records.insert(0, record);
       return true;
@@ -1245,6 +1312,7 @@ abstract class _VaultStore with Store {
     required String user,
     required String workspace,
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -1256,6 +1324,7 @@ abstract class _VaultStore with Store {
         user: user,
         workspace: workspace,
         audienceKind: audienceKind,
+        audienceGroups: audienceGroups,
       );
       sections.insert(0, section);
       return true;
@@ -1426,6 +1495,8 @@ abstract class _VaultStore with Store {
     required String user,
     required String workspace,
     PendingUpload? file,
+    String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     final spec = VaultStore.createRecordSpec(
       key: key,
@@ -1435,6 +1506,8 @@ abstract class _VaultStore with Store {
       format: format,
       user: user,
       workspace: workspace,
+      audienceKind: audienceKind,
+      audienceGroups: audienceGroups,
     );
     final dynamic data;
     if (file != null) {
@@ -1474,6 +1547,7 @@ abstract class _VaultStore with Store {
     required String user,
     required String workspace,
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     final spec = VaultStore.createSectionSpec(
       key: key,
@@ -1482,6 +1556,7 @@ abstract class _VaultStore with Store {
       user: user,
       workspace: workspace,
       audienceKind: audienceKind,
+      audienceGroups: audienceGroups,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return Section.fromJson(data as Map<String, dynamic>);

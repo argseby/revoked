@@ -341,6 +341,7 @@ abstract class _SharesStore with Store {
     String ref = '',
     bool handedOver = false,
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -365,6 +366,7 @@ abstract class _SharesStore with Store {
         ref: ref,
         handedOver: handedOver,
         audienceKind: audienceKind,
+        audienceGroups: audienceGroups,
       );
       shares.insert(0, link);
       return true;
@@ -526,6 +528,7 @@ abstract class _SharesStore with Store {
     String ref = '',
     bool handedOver = false,
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) async {
     final spec = createShareSpec(
       slug: slug,
@@ -547,6 +550,7 @@ abstract class _SharesStore with Store {
       ref: ref,
       handedOver: handedOver,
       audienceKind: audienceKind,
+      audienceGroups: audienceGroups,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return Link.fromJson(data as Map<String, dynamic>);
@@ -611,6 +615,7 @@ abstract class _SharesStore with Store {
     String ref = '',
     bool handedOver = false,
     String audienceKind = '',
+    List<String> audienceGroups = const [],
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -622,6 +627,7 @@ abstract class _SharesStore with Store {
         'workspace': workspace,
         // Who sees it; empty leaves it to the workspace's default.
         if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
+        if (audienceGroups.isNotEmpty) 'audienceGroups': audienceGroups,
         'sections': sections,
         'records': records,
         'status': status,

@@ -94,6 +94,12 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
   final Local<String> _visibility = Local(
     Stores.settings.defaultAudienceFor('sections'),
   );
+  final Local<Set<String>> _groups = Local(const {});
+  ({String kind, List<String> groups}) get _audience => chosenAudience(
+    _visibility,
+    _groups,
+    canPublish: Stores.settings.canPublishVault,
+  );
 
   @override
   void initState() {
@@ -152,7 +158,8 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       recordIds: widget.initialSection?.records ?? const [],
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
-      audienceKind: _visibility.value,
+      audienceKind: _audience.kind,
+      audienceGroups: _audience.groups,
     );
 
     if (!mounted) return;
@@ -229,7 +236,8 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                     records: widget.initialSection?.records ?? const [],
                     user: widget.authStore.userId,
                     workspace: widget.authStore.activeWorkspace ?? '',
-                    audienceKind: _visibility.value,
+                    audienceKind: _audience.kind,
+                    audienceGroups: _audience.groups,
                   ),
                 ),
               ],

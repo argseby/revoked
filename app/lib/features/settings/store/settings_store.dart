@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/models/group.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
@@ -185,6 +187,8 @@ abstract class _SettingsStore with Store {
       workspaces
         ..clear()
         ..addAll(spaces);
+      // The groups the create sheets offer; their failure is their own.
+      unawaited(loadGroups());
     } catch (e) {
       errorMessage = describeError(e);
     } finally {
@@ -223,6 +227,18 @@ abstract class _SettingsStore with Store {
   /// Whether this account may delete [workspaceId], asked of the catalogue
   /// rather than by matching scope strings here — the server stores grants
   /// expanded, and naming them back is the catalogue's job.
+  /// Whether this person may publish to the active workspace's vault: make
+  /// entries and sections visible beyond themselves (VISIBILITY.md). A
+  /// membership with no permissions listed predates them and holds all.
+  bool get canPublishVault {
+    final active = Stores.auth.activeWorkspace;
+    for (final m in memberships) {
+      if (m.workspace != active) continue;
+      return m.permissions.isEmpty || m.permissions.contains('record:publish');
+    }
+    return false;
+  }
+
   bool canManageWorkspace(
     String workspaceId,
     List<InvitePermission> catalogue,
