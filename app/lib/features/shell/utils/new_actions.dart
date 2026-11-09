@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/feature.dart';
@@ -25,7 +26,8 @@ enum NewGroup {
   people('Contacts'),
   give('Sharing'),
   ask('Requests'),
-  received('Received links');
+  received('Received links'),
+  services('Works with Revoked');
 
   const NewGroup(this.title);
   final String title;
@@ -115,6 +117,14 @@ enum NewKind {
     'Open or scan a link',
     'A pasted or scanned link, opened after the sender is checked.',
     'o',
+  ),
+  service(
+    NewGroup.services,
+    AppIcons.worksWith,
+    'Use a service',
+    'A tool built on Revoked, such as an emergency card.',
+    'w',
+    feature: Feature.tools,
   );
 
   const NewKind(
@@ -298,5 +308,7 @@ Future<void> startNew(BuildContext context, NewKind kind) async {
       await openAttestationCheckSheet(context);
     case NewKind.openLink:
       await openLinkSearchSheet(context);
+    case NewKind.service:
+      context.go(AppRoutes.worksWith);
   }
 }

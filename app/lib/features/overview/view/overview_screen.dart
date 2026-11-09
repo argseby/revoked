@@ -152,15 +152,45 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
       children: [
         _Stats(
           figures: [
-            _Figure(active, 'active link', 'active links', AppRoutes.shared),
-            _Figure(recipients.length, 'person', 'people', AppRoutes.shared),
-            _Figure(recordCount, 'record', 'records', AppRoutes.vault),
+            _Figure(
+              active,
+              'active link',
+              'active links',
+              AppRoutes.shared,
+              AppIcons.link,
+            ),
+            _Figure(
+              recipients.length,
+              'person',
+              'people',
+              AppRoutes.shared,
+              AppIcons.person,
+            ),
+            _Figure(
+              recordCount,
+              'record',
+              'records',
+              AppRoutes.vault,
+              AppIcons.lock,
+            ),
             // Tools and keys are for the few who build on the API; a zero
             // there says nothing to everyone else.
             if (tools.isNotEmpty)
-              _Figure(tools.length, 'tool', 'tools', AppRoutes.connectedTools),
+              _Figure(
+                tools.length,
+                'tool',
+                'tools',
+                AppRoutes.connectedTools,
+                AppIcons.plug,
+              ),
             if (keys.isNotEmpty)
-              _Figure(keys.length, 'API key', 'API keys', AppRoutes.apiKeys),
+              _Figure(
+                keys.length,
+                'API key',
+                'API keys',
+                AppRoutes.apiKeys,
+                AppIcons.key,
+              ),
           ],
         ),
         AppSpacing.gapLg,
@@ -250,6 +280,25 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
                   ),
                   onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
                 ),
+            ],
+          ),
+        // While nothing is connected, a way to find what can be: on a phone
+        // the Works with Revoked tab sits behind More.
+        if (tools.isEmpty &&
+            Stores.features.visible(Feature.tools) &&
+            Stores.worksWith.services.isNotEmpty)
+          AppListGroup(
+            title: 'Works with Revoked',
+            trailing: _AllButton(route: AppRoutes.worksWith),
+            children: [
+              AppListRow(
+                icon: AppIcons.worksWith,
+                title: 'Services that work with Revoked',
+                subtitle: [
+                  for (final s in Stores.worksWith.services.take(3)) s.name,
+                ].join(', '),
+                onTap: () => context.go(AppRoutes.worksWith),
+              ),
             ],
           ),
         if (keys.isNotEmpty)
@@ -362,14 +411,16 @@ class _Figure {
   final String one;
   final String many;
   final String route;
+  final IconData icon;
 
-  const _Figure(this.count, this.one, this.many, this.route);
+  const _Figure(this.count, this.one, this.many, this.route, this.icon);
 
-  String get label => '$count ${count == 1 ? one : many}';
+  String get words => count == 1 ? one : many;
+  String get label => '$count $words';
 }
 
-/// The counts on one bordered line, each opening the list it counts. Wraps
-/// onto a second line on a phone rather than shrinking.
+/// The counts in one bordered card split into equal cells, each opening the
+/// list it counts. One row on a wide screen; two columns on a phone.
 class _Stats extends StatelessWidget {
   final List<_Figure> figures;
 
@@ -377,33 +428,57 @@ class _Stats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final narrow = AppSpacing.isNarrow(context);
+    final columns = AppSpacing.isNarrow(context) ? 2 : figures.length;
+    final line = Theme.of(context).colorScheme.outlineVariant;
+    final rows = [
+      for (var i = 0; i < figures.length; i += columns)
+        figures.sublist(i, (i + columns).clamp(0, figures.length)),
+    ];
     return AppCard(
-      padding: EdgeInsets.symmetric(
-        horizontal: narrow ? AppSpacing.xs : AppSpacing.sm,
-        vertical: AppSpacing.xxs,
-      ),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
+      padding: EdgeInsets.zero,
+      child: Column(
         children: [
-          for (var i = 0; i < figures.length; i++) ...[
-            if (i > 0) const AppText('·').muted,
-            _FigureLink(figure: figures[i]),
-          ],
+          for (var r = 0; r < rows.length; r++)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                border: r == 0 ? null : Border(top: BorderSide(color: line)),
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var c = 0; c < columns; c++)
+                      Expanded(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: c == 0
+                                ? null
+                                : Border(left: BorderSide(color: line)),
+                          ),
+                          child: c < rows[r].length
+                              ? _FigureCell(figure: rows[r][c])
+                              : const SizedBox.shrink(),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _FigureLink extends StatelessWidget {
+class _FigureCell extends StatelessWidget {
   final _Figure figure;
 
-  const _FigureLink({required this.figure});
+  const _FigureCell({required this.figure});
 
   @override
   Widget build(BuildContext context) {
-    final words = figure.label.substring('${figure.count}'.length);
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     return Semantics(
       button: true,
       label: figure.label,
@@ -412,27 +487,38 @@ class _FigureLink extends StatelessWidget {
         borderRadius: BorderRadius.zero,
         child: InkWell(
           onTap: () => context.go(figure.route),
-          borderRadius: BorderRadius.zero,
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xs,
-              vertical: AppSpacing.xs,
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
             ),
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '${figure.count}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+            child: Row(
+              children: [
+                Icon(figure.icon, size: 18, color: muted),
+                AppSpacing.gapSm,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${figure.count}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        figure.words,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                        ),
+                      ),
+                    ],
                   ),
-                  TextSpan(
-                    text: words,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

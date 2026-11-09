@@ -1,0 +1,52 @@
+# Works with Revoked entry. Everything the app and the website show about this
+# service comes from this file and is reviewed in a pull request. The format
+# is described in services/README.md.
+schema: 1
+slug: mietunterlagen
+origin: https://mietunterlagen.revoked.link
+name: Mietunterlagen
+description:
+  en: Rental application documents for each flat as one link, from the viewing to the signed lease. A link ends when its flat is removed from the list.
+  de: Mietunterlagen für jede Wohnung als ein Link, von der Besichtigung bis zum Mietvertrag. Ein Link endet, wenn seine Wohnung aus der Liste entfernt wird.
+operator:
+  name: Revoked
+  security: https://github.com/argseby/revoked/security
+privacy_policy: https://revoked.link/privacy
+self_hostable: true
+languages: [de, en]
+pricing: free
+categories: [housing]
+does: [share, connect]
+proposes:
+  shares:
+    templates: [Tenant application]
+    keys:
+      - full_name
+      - email
+      - phone
+      - current_address
+      - household_size
+      - employer
+      - occupation
+      - net_income
+      - move_in_date
+      - pets
+      - proof_of_income
+      - credit_report
+      - id_document
+      - rent_debt_certificate
+permissions:
+  - key: receive_links
+    reason:
+      en: So a link can be copied here and sent to the landlord.
+      de: Damit ein Link hier kopiert und dem Vermieter geschickt werden kann.
+  - key: revoke_links
+    reason:
+      en: So a link ends when its flat is removed from the list.
+      de: Damit ein Link endet, wenn seine Wohnung aus der Liste entfernt wird.
+stores:
+  en: Flat addresses and stages, in the browser only. Never a value, a document or a link.
+  de: Adressen und Stand der Wohnungen, nur im Browser. Nie einen Wert, ein Dokument oder einen Link.
+maintainers: [skiunke]
+built_by_revoked: true
+reviewed: 2026-11-09

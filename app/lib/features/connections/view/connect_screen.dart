@@ -19,6 +19,7 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/connections/tool_return.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
+import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 
 /// Owner-facing screen for a `revoked://connect?…` link: a tool asks to be
 /// connected, the owner reads exactly what that allows, and agrees or not.
@@ -41,10 +42,28 @@ class _ConnectScreenState extends State<ConnectScreen> {
   final _allowHandOver = Local<bool>(true);
   // Reading the vault is never on until the owner turns it on.
   final _allowVaultRead = Local<bool>(false);
-  // What the tool asked for starts given; the owner takes away what they
-  // don't want it to have.
-  late final _granted = Local<Set<String>>({...?widget.request?.permissions});
-  late final _ownSection = Local<bool>(widget.request?.section ?? false);
+
+  /// The tool's entry in Works with Revoked, matched by its address on this
+  /// device; null for a tool that is not listed.
+  late final _listing = widget.request == null
+      ? null
+      : Stores.worksWith.forOrigin(widget.request!.client);
+
+  /// What the tool asks for beyond its reviewed entry. Those switches start
+  /// off, and the screen says why.
+  late final List<String> _undeclared = widget.request == null
+      ? const []
+      : _listing?.undeclaredForConnect(widget.request!) ?? const [];
+
+  // What the tool asked for starts given, except what its listing does not
+  // declare; the owner takes away what they don't want it to have.
+  late final _granted = Local<Set<String>>({
+    for (final k in widget.request?.permissions ?? const <String>[])
+      if (!_undeclared.contains(k)) k,
+  });
+  late final _ownSection = Local<bool>(
+    (widget.request?.section ?? false) && !_undeclared.contains('section'),
+  );
   // Adding records unless the tool asked only to read.
   late final _sectionWrite = Local<bool>(
     !_asks('vault:read') || _asks('vault:write'),
@@ -382,10 +401,18 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   /// The address is the one fact here the tool can't choose; its name is a
   /// claim, so the owner is pointed at the address.
-  Widget _requester(ConnectRequest r) => Text(
-    'Tool names are chosen by the tool. Continue only if '
-    '${Uri.parse(r.client).host} is recognised.',
-  ).muted.small;
+  Widget _requester(ConnectRequest r) => Wrap(
+    spacing: AppSpacing.sm,
+    runSpacing: AppSpacing.xs,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: [
+      Text(
+        'Tool names are chosen by the tool. Continue only if '
+        '${Uri.parse(r.client).host} is recognised.',
+      ).muted.small,
+      WorksWithChip(origin: r.client),
+    ],
+  );
 
   Widget _consent(BuildContext context, ConnectRequest r) {
     final joining = _joining.value;
@@ -404,6 +431,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
         for (final child in <Widget>[
           _requester(r),
           if (_polls) ToolCheckCode(name: r.name, challenge: r.challenge),
+          if (!joining && _listing != null && _undeclared.isNotEmpty)
+            WorksWithMismatchAlert(service: _listing, extra: _undeclared),
           if (!joining)
             ToolPermissions(
               name: r.name,

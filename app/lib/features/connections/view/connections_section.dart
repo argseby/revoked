@@ -37,6 +37,7 @@ import 'package:revoked_app/features/connections/view/day_label.dart';
 import 'package:revoked_app/features/connections/view/sign_ins_section.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:revoked_app/features/requests/view/request_groups.dart';
+import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 
 /// The tools connected to this workspace, one row each; a row opens the
 /// tool's own page, which answers "what can this tool do, and what has it
@@ -88,6 +89,11 @@ class ConnectionsList extends StatelessWidget {
                 ],
                 learnMoreLabel: 'How tools connect',
                 learnMoreUrl: '${AppConfig.docsUrl}/guide/tools/',
+                action: AppButton(
+                  icon: AppIcons.worksWith,
+                  label: 'Browse Works with Revoked',
+                  onTap: () => context.go(AppRoutes.worksWith),
+                ),
               ),
             ],
           );
@@ -122,11 +128,18 @@ class ConnectionsList extends StatelessWidget {
                         else if (c.isExpired)
                           const AppBadge(label: 'Expired'),
                         AppSpacing.gapXxs,
+                        WorksWithChip(origin: c.clientId),
+                        AppSpacing.gapXxs,
                         ToolIdChip(c.id),
                       ],
                     ),
                     onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
                   ),
+                AppListRow(
+                  icon: AppIcons.worksWith,
+                  title: 'Find more in Works with Revoked',
+                  onTap: () => context.go(AppRoutes.worksWith),
+                ),
               ],
             ),
             const SignInServicesGroup(),

@@ -1,0 +1,50 @@
+# Works with Revoked entry. Everything the app and the website show about this
+# service comes from this file and is reviewed in a pull request. The format
+# is described in services/README.md.
+schema: 1
+slug: notfallkarte
+origin: https://notfallkarte.revoked.link
+name: Notfallkarte
+description:
+  en: A wallet-sized emergency card. Its QR code shows the emergency contact, allergies and medication as the vault holds them at that moment.
+  de: Eine Notfallkarte im Scheckkartenformat. Ihr QR-Code zeigt Notfallkontakt, Allergien und Medikamente so, wie sie gerade im Tresor stehen.
+operator:
+  name: Revoked
+  security: https://github.com/argseby/revoked/security
+privacy_policy: https://revoked.link/privacy
+self_hostable: true
+languages: [de, en]
+pricing: free
+categories: [health]
+does: [share, connect]
+proposes:
+  shares:
+    templates: [Medical emergency card]
+    keys:
+      - full_name
+      - contact_name
+      - contact_phone
+      - contact_relation
+      - blood_type
+      - allergies
+      - medications
+      - doctor_name
+      - doctor_phone
+      - insurance_provider
+      - insurance_number
+      - organ_donor
+permissions:
+  - key: receive_links
+    reason:
+      en: The card's QR code is drawn from the link.
+      de: Der QR-Code der Karte wird aus dem Link erzeugt.
+  - key: revoke_links
+    reason:
+      en: Removing a card revokes its link.
+      de: Wird eine Karte entfernt, wird ihr Link widerrufen.
+stores:
+  en: Card names and the ticked groups, in the browser only. Never a value from the vault.
+  de: Kartennamen und die angehakten Gruppen, nur im Browser. Nie einen Wert aus dem Tresor.
+maintainers: [skiunke]
+built_by_revoked: true
+reviewed: 2026-11-09

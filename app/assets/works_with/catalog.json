@@ -1,0 +1,153 @@
+{
+  "schema": 1,
+  "services": [
+    {
+      "slug": "mietunterlagen",
+      "origin": "https://mietunterlagen.revoked.link",
+      "name": "Mietunterlagen",
+      "description": {
+        "en": "Rental application documents for each flat as one link, from the viewing to the signed lease. A link ends when its flat is removed from the list.",
+        "de": "Mietunterlagen für jede Wohnung als ein Link, von der Besichtigung bis zum Mietvertrag. Ein Link endet, wenn seine Wohnung aus der Liste entfernt wird."
+      },
+      "operator": {
+        "name": "Revoked",
+        "security": "https://github.com/argseby/revoked/security"
+      },
+      "privacy_policy": "https://revoked.link/privacy",
+      "self_hostable": true,
+      "servers": [],
+      "languages": [
+        "de",
+        "en"
+      ],
+      "pricing": "free",
+      "categories": [
+        "housing"
+      ],
+      "does": [
+        "share",
+        "connect"
+      ],
+      "proposes": {
+        "shares": {
+          "templates": [
+            "Tenant application"
+          ],
+          "keys": [
+            "full_name",
+            "email",
+            "phone",
+            "current_address",
+            "household_size",
+            "employer",
+            "occupation",
+            "net_income",
+            "move_in_date",
+            "pets",
+            "proof_of_income",
+            "credit_report",
+            "id_document",
+            "rent_debt_certificate"
+          ]
+        }
+      },
+      "permissions": [
+        {
+          "key": "receive_links",
+          "reason": {
+            "en": "So a link can be copied here and sent to the landlord.",
+            "de": "Damit ein Link hier kopiert und dem Vermieter geschickt werden kann."
+          }
+        },
+        {
+          "key": "revoke_links",
+          "reason": {
+            "en": "So a link ends when its flat is removed from the list.",
+            "de": "Damit ein Link endet, wenn seine Wohnung aus der Liste entfernt wird."
+          }
+        }
+      ],
+      "stores": {
+        "en": "Flat addresses and stages, in the browser only. Never a value, a document or a link.",
+        "de": "Adressen und Stand der Wohnungen, nur im Browser. Nie einen Wert, ein Dokument oder einen Link."
+      },
+      "built_by_revoked": true,
+      "verified": false,
+      "status": "listed",
+      "reviewed": "2026-11-09"
+    },
+    {
+      "slug": "notfallkarte",
+      "origin": "https://notfallkarte.revoked.link",
+      "name": "Notfallkarte",
+      "description": {
+        "en": "A wallet-sized emergency card. Its QR code shows the emergency contact, allergies and medication as the vault holds them at that moment.",
+        "de": "Eine Notfallkarte im Scheckkartenformat. Ihr QR-Code zeigt Notfallkontakt, Allergien und Medikamente so, wie sie gerade im Tresor stehen."
+      },
+      "operator": {
+        "name": "Revoked",
+        "security": "https://github.com/argseby/revoked/security"
+      },
+      "privacy_policy": "https://revoked.link/privacy",
+      "self_hostable": true,
+      "servers": [],
+      "languages": [
+        "de",
+        "en"
+      ],
+      "pricing": "free",
+      "categories": [
+        "health"
+      ],
+      "does": [
+        "share",
+        "connect"
+      ],
+      "proposes": {
+        "shares": {
+          "templates": [
+            "Medical emergency card"
+          ],
+          "keys": [
+            "full_name",
+            "contact_name",
+            "contact_phone",
+            "contact_relation",
+            "blood_type",
+            "allergies",
+            "medications",
+            "doctor_name",
+            "doctor_phone",
+            "insurance_provider",
+            "insurance_number",
+            "organ_donor"
+          ]
+        }
+      },
+      "permissions": [
+        {
+          "key": "receive_links",
+          "reason": {
+            "en": "The card's QR code is drawn from the link.",
+            "de": "Der QR-Code der Karte wird aus dem Link erzeugt."
+          }
+        },
+        {
+          "key": "revoke_links",
+          "reason": {
+            "en": "Removing a card revokes its link.",
+            "de": "Wird eine Karte entfernt, wird ihr Link widerrufen."
+          }
+        }
+      ],
+      "stores": {
+        "en": "Card names and the ticked groups, in the browser only. Never a value from the vault.",
+        "de": "Kartennamen und die angehakten Gruppen, nur im Browser. Nie einen Wert aus dem Tresor."
+      },
+      "built_by_revoked": true,
+      "verified": false,
+      "status": "listed",
+      "reviewed": "2026-11-09"
+    }
+  ]
+}

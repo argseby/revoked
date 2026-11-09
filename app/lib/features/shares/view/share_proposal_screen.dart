@@ -35,6 +35,7 @@ import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:revoked_app/features/connections/tool_return.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/template_field_fill.dart';
+import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 
 /// Owner-facing screen for a `revoked://p?…` link: a tool proposes a share,
 /// the owner sees exactly what it would contain and creates it — or not.
@@ -149,9 +150,21 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       _isFile(r) &&
       !_stampableMimes.contains((r.mime ?? '').split(';').first);
 
-  /// Hidden values and files the stamp would refuse start unticked: the owner
-  /// opts them in, the tool cannot.
-  bool _includedByDefault(models.Record r) => !_isHidden(r) && !_unstampable(r);
+  /// The tool's entry in Works with Revoked, matched by its address on this
+  /// device; null for a tool that is not listed or names no address.
+  late final _listing = (_proposal?.client.isNotEmpty ?? false)
+      ? Stores.worksWith.forOrigin(_proposal!.client)
+      : null;
+
+  /// Keys the proposal names beyond the tool's reviewed entry.
+  late final List<String> _undeclaredKeys =
+      _listing?.undeclaredKeys(_proposal!.keys) ?? const [];
+
+  /// Hidden values, files the stamp would refuse, and records a listed tool
+  /// is not listed for start unticked: the owner opts them in, the tool
+  /// cannot.
+  bool _includedByDefault(models.Record r) =>
+      !_isHidden(r) && !_unstampable(r) && !_undeclaredKeys.contains(r.key);
 
   Future<void> _load() async {
     final workspace = Stores.auth.activeWorkspace ?? '';
@@ -698,6 +711,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
               icon: AppIcons.globe,
               label: 'Address',
               value: Uri.parse(p.client).host,
+              badge: WorksWithChip(origin: p.client),
             ),
             AppDetailRow(icon: AppIcons.tag, label: 'Name', value: p.from),
           ],
@@ -814,6 +828,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           icon: AppIcons.globe,
           label: 'Address',
           value: Uri.parse(p.client).host,
+          badge: WorksWithChip(origin: p.client),
         ),
         AppDetailRow(icon: AppIcons.link, label: 'Connection', value: status),
         Padding(
@@ -847,6 +862,14 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     return AppPageBody(
       bottomPadding: AppSpacing.xxl,
       children: [
+        if (_listing != null && _undeclaredKeys.isNotEmpty) ...[
+          WorksWithMismatchAlert(
+            service: _listing,
+            extra: _undeclaredKeys,
+            keys: true,
+          ),
+          AppSpacing.gapLg,
+        ],
         AppListGroup(
           title: 'Link contents · $selected of ${items.length}',
           trailing: const SizedBox.shrink(),

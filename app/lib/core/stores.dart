@@ -41,6 +41,7 @@ import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/webhooks/store/webhooks_store.dart';
+import 'package:revoked_app/features/works_with/store/works_with_store.dart';
 
 /// The one access point for every store and stateless service.
 ///
@@ -84,6 +85,7 @@ abstract final class Stores {
   static late UpdatesStore updates;
   static late LinkSearchStore linkSearch;
   static late OnboardingStore onboarding;
+  static late WorksWithStore worksWith;
 
   /// [httpClient] replaces the network, for tests that play a server, and
   /// [unlock] the system's fingerprint, face or PIN prompt.
@@ -188,6 +190,13 @@ abstract final class Stores {
     );
     linkSearch = LinkSearchStore();
     onboarding = OnboardingStore();
+    // The shipped list, before any proposal screen can open: a deep link may
+    // mount one in the frame init finishes. The newer copy follows later.
+    worksWith = WorksWithStore(httpClient: httpClient);
+    await worksWith.loadLocal().timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {},
+    );
 
     // Whenever a session begins, by signing in or by restoring one, the
     // server's DNS check and release are asked for. On a new device nothing

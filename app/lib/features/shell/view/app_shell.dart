@@ -39,6 +39,7 @@ const _places = [
   _Destination(AppRoutes.requests, AppIcons.inboxFill, 'Requests'),
   _Destination(AppRoutes.attestations, AppIcons.attestation, 'Attestations'),
   _Destination(AppRoutes.contacts, AppIcons.person, 'Contacts'),
+  _Destination(AppRoutes.worksWith, AppIcons.worksWith, 'Works with Revoked'),
 ];
 
 /// The places the person has on, in their fixed order: a feature turned off

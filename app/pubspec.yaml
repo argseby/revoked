@@ -81,6 +81,7 @@ flutter:
     - assets/icon/revoced-mark-redacted-black-on-white.svg
     - assets/icon/revoced-mark-redacted-white-on-black.svg
     - assets/fonts/OFL.txt
+    - assets/works_with/catalog.json
 
   fonts:
     - family: Geist
