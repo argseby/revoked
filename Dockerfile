@@ -12,24 +12,20 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
 
-# git lets the toolchain stamp the release from .git (see util.Version), so a
-# server reports what it was built from without anyone passing a version.
+# The repository version file is written by CI and included in Docker builds.
+# Local Git builds can still derive the release from tags in the checkout.
 RUN apk add --no-cache git
 
 # CGO off: the SQLite driver is modernc's pure-Go one, so the result is a static
 # binary and the runtime image needs nothing but CA certificates.
-# Without .git the toolchain stamps nothing, so the release workflow passes the
-# release in instead.
-# A stack built from a git checkout (Portainer, `docker compose up --build`)
-# passes nothing, so the release is read from the checkout's tags here: the
-# toolchain's own stamp is a pseudo-version, or nothing at all when the clone is
-# shallow, and the server would report `dev`. Set REVOKED_VERSION in the stack's
-# environment when the checkout has no .git.
+# REVOKED_VERSION can be supplied by operators or release CI. Otherwise use
+# the CI version file, then Git tags when available.
 ARG REVOKED_VERSION=""
 ARG TARGETOS TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     VERSION="$REVOKED_VERSION"; \
+    if [ -z "$VERSION" ] && [ -f VERSION ]; then VERSION="$(cat VERSION)"; fi; \
     if [ -z "$VERSION" ] && [ -d .git ]; then \
       git config --global --add safe.directory /src; \
       VERSION="$(git describe --tags --always 2>/dev/null || true)"; \

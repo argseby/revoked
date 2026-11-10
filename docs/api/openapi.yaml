@@ -177,10 +177,9 @@ paths:
                   version:
                     type: string
                     description: |
-                      The release this server was built from, stamped from the
-                      git checkout: `v0.22.0` on a tagged commit, a
-                      pseudo-version past one otherwise, `dev` when run with
-                      `go run`.
+                      The backend build identifier. Release images and source
+                      builds can stamp a release or commit identifier; local
+                      builds without a stamp report `dev`.
                     examples: ["v0.22.0"]
                   fingerprint: { type: string, description: SHA-256 fingerprint of the root public key. }
                   publicKey: { type: string, description: Root public key, PEM encoded. }

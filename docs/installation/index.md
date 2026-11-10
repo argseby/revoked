@@ -40,6 +40,17 @@ other address:
 curl http://localhost:3000/healthz
 ```
 
+To see which backend build is running, query its public server metadata:
+
+```bash
+curl -fsS http://localhost:3000/api/server | jq -r .version
+```
+
+Published images and tagged CI builds carry their release version. When
+building a source archive without Git metadata, set `REVOKED_VERSION` in the
+stack environment to the release or commit identifier before rebuilding; an
+unstamped local build reports `dev`.
+
 The app can use `http://localhost:3000` as its server on that machine, sign-in
 included. From another computer, an SSH tunnel brings the same address there:
 
