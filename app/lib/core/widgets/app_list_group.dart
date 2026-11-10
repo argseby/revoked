@@ -44,6 +44,9 @@ class AppListGroup extends StatefulWidget {
   /// A note under the card — what the rows mean, or what happens next.
   final Widget? footer;
 
+  /// A tag right after the title, such as who sees a vault section.
+  final Widget? badge;
+
   const AppListGroup({
     super.key,
     required this.title,
@@ -53,6 +56,7 @@ class AppListGroup extends StatefulWidget {
     this.collapsed = false,
     this.noun = 'items',
     this.footer,
+    this.badge,
   });
 
   @override
@@ -116,6 +120,7 @@ class _AppListGroupState extends State<AppListGroup> {
         children: [
           AppListHeader(
             title: w.title,
+            badge: w.badge,
             trailing: w.trailing ?? AppText('$total').small.muted,
           ),
           AppListCard(children: rows),
@@ -149,7 +154,16 @@ class AppListHeader extends StatelessWidget {
   final String title;
   final Widget? trailing;
 
-  const AppListHeader({super.key, required this.title, this.trailing});
+  /// A tag right after the title, before the space that pushes [trailing]
+  /// to the end.
+  final Widget? badge;
+
+  const AppListHeader({
+    super.key,
+    required this.title,
+    this.trailing,
+    this.badge,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -161,12 +175,28 @@ class AppListHeader extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: AppButton.smallExtent),
         child: Row(
           children: [
-            Expanded(
-              child: Semantics(
-                header: true,
-                child: AppText(title).small.bold.muted,
+            if (badge == null)
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: AppText(title).small.bold.muted,
+                ),
+              )
+            else ...[
+              Flexible(
+                child: Semantics(
+                  header: true,
+                  child: AppText(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ).small.bold.muted,
+                ),
               ),
-            ),
+              AppSpacing.gapSm,
+              badge!,
+              const Spacer(),
+            ],
             ?trailing,
           ],
         ),

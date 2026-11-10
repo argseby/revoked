@@ -20,6 +20,7 @@ import 'package:revoked_app/core/utils/people.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
@@ -183,6 +184,16 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       // The type is a fact about the record, not a state, so it reads with
       // the key rather than among the badges.
       badges: [
+        // Everyone who sees it: its own audience and its sections' together.
+        // The Sections list below says which section opens it to whom.
+        AudienceTag(
+          Audience.combined([
+            Audience(r.audienceKind, r.audienceGroups),
+            for (final s in store.sections)
+              if (s.records.contains(r.id))
+                Audience(s.audienceKind, s.audienceGroups),
+          ]),
+        ),
         if (r.isHidden)
           const AppBadge(icon: AppIcons.eyeSlash, label: 'Hidden'),
         if (r.sealed)
@@ -572,6 +583,9 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                       value:
                           '${s.records.length} '
                           '${s.records.length == 1 ? 'record' : 'records'}',
+                      badge: AudienceTag(
+                        Audience(s.audienceKind, s.audienceGroups),
+                      ),
                     ),
                 ],
         ),

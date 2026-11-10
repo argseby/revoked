@@ -18,6 +18,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -218,9 +219,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
           const AppBadge(
             icon: AppIcons.personWorkspace,
             label: 'Shared by a member',
-          )
-        else if (share.openToWorkspace)
-          const AppBadge(icon: AppIcons.personWorkspace, label: 'Members'),
+          ),
+        AudienceTag(Audience(share.audienceKind, share.audienceGroups)),
         if (attention != null)
           AppBadge(
             icon: AppIcons.clock,

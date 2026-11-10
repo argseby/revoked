@@ -300,7 +300,7 @@ class _AccessSheetState extends State<_AccessSheet> {
                     const AppSegmentedItem(
                       value: 'groups',
                       label: 'Groups',
-                      icon: AppIcons.person,
+                      icon: AppIcons.group,
                     ),
                 ],
                 onChanged: (v) => _kind.value = v,
@@ -439,7 +439,7 @@ class VisibleToField extends StatelessWidget {
                     const AppSegmentedItem(
                       value: 'groups',
                       label: 'Groups',
-                      icon: AppIcons.person,
+                      icon: AppIcons.group,
                     ),
                 ],
               ],
@@ -625,20 +625,4 @@ class _DefaultVisibilitySheetState extends State<_DefaultVisibilitySheet> {
       ),
     );
   }
-}
-
-/// Who has access to an item, in a few words for a list row: "Private",
-/// "Workspace", or the names of its groups.
-String audienceSummary(String kind, List<String> groups) {
-  switch (kind) {
-    case 'workspace':
-      return 'Workspace';
-    case 'groups':
-      final names = [
-        for (final g in Stores.settings.groups)
-          if (groups.contains(g.id)) g.name,
-      ];
-      return names.isEmpty ? 'Groups' : names.join(', ');
-  }
-  return 'Private';
 }

@@ -243,8 +243,10 @@ class AppLoadFade extends StatelessWidget {
           duration: AppMotion.of(context),
           switchInCurve: AppMotion.curve,
           switchOutCurve: AppMotion.curve,
-          layoutBuilder: (current, previous) =>
-              Stack(fit: StackFit.expand, children: [...previous, ?current]),
+          layoutBuilder: (current, previous) => Stack(
+            fit: StackFit.expand,
+            children: [..._newestPerKey(previous, current?.key), ?current],
+          ),
           child: KeyedSubtree(
             key: ValueKey(waiting),
             child: waiting ? skeleton : builder(context),
@@ -253,4 +255,19 @@ class AppLoadFade extends StatelessWidget {
       },
     );
   }
+}
+
+/// The outgoing children of [AppLoadFade], with at most one per key and none
+/// with the incoming child's [currentKey].
+///
+/// There are only two keys, loading and loaded. When loading flips several
+/// times within one fade, two outgoing copies with the same key would sit side
+/// by side, duplicating their key and every GlobalKey inside the page. The
+/// newest copy of each is kept.
+List<Widget> _newestPerKey(List<Widget> previous, Key? currentKey) {
+  final seen = <Key?>{currentKey};
+  return [
+    for (final child in previous.reversed)
+      if (seen.add(child.key)) child,
+  ].reversed.toList();
 }

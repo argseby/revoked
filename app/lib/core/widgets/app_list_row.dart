@@ -5,16 +5,18 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
 
 /// One compact line in an [AppListGroup]: what the thing is, one sentence on
-/// where it stands, and at most one badge.
+/// where it stands, who sees it, and at most one badge.
 ///
-///   [icon]  Title                               [badge]  ›
+///   [icon]  Title                      [audience]  [badge]  ›
 ///           One plain line of status
 ///
 /// Everything else a thing carries — slugs, flags, counts — belongs on its
 /// detail page. A row that grows a second badge has started turning back into
-/// the card it replaced.
+/// the card it replaced. The audience is not one: who sees an item is the
+/// one fact every list in a workspace answers, in the same place.
 class AppListRow extends StatelessWidget {
   final IconData? icon;
 
@@ -33,6 +35,14 @@ class AppListRow extends StatelessWidget {
   /// A single badge, typically the status.
   final Widget? trailing;
 
+  /// Who sees the item, an `AudienceTag`, just before [trailing].
+  final Widget? audience;
+
+  /// Tints the icon for a row that needs a look, a link about to expire or
+  /// a request with unread answers, so it is found from the left edge too
+  /// and not only by its badge.
+  final Color? accent;
+
   /// The row whose page is open beside the list, in a split. Marked by a
   /// tint and an ink bar, and announced as selected.
   final bool selected;
@@ -48,6 +58,8 @@ class AppListRow extends StatelessWidget {
     this.subtitle,
     this.subtitleWidget,
     this.trailing,
+    this.audience,
+    this.accent,
     this.selected = false,
     this.onTap,
     this.showChevron = true,
@@ -56,12 +68,15 @@ class AppListRow extends StatelessWidget {
   /// A row that toggles in place rather than opening a page drops the chevron.
   final bool showChevron;
 
+  /// Below this the row shows the audience as its icon only.
+  static const double _fullAudienceWidth = 480;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final hasSubtitle = subtitle != null && subtitle!.isNotEmpty;
 
-    final row = Padding(
+    final padded = Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.sm,
@@ -75,10 +90,16 @@ class AppListRow extends StatelessWidget {
                 leading ??
                 DecoratedBox(
                   decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHighest,
+                    color:
+                        accent?.withValues(alpha: 0.12) ??
+                        scheme.surfaceContainerHighest,
                     borderRadius: AppRadius.allMd,
                   ),
-                  child: Icon(icon, size: 18, color: scheme.onSurfaceVariant),
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: accent ?? scheme.onSurfaceVariant,
+                  ),
                 ),
           ),
           AppSpacing.gapMd,
@@ -99,6 +120,14 @@ class AppListRow extends StatelessWidget {
               ],
             ),
           ),
+          if (audience != null) ...[
+            AppSpacing.gapSm,
+            // Room for two group names; the tag says the rest in its tooltip.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: audience!,
+            ),
+          ],
           if (trailing != null) ...[AppSpacing.gapSm, trailing!],
           if (onTap != null && showChevron) ...[
             AppSpacing.gapXs,
@@ -111,6 +140,17 @@ class AppListRow extends StatelessWidget {
         ],
       ),
     );
+
+    // A list beside an open page is narrow on a wide window; there the
+    // audience gives its words up to the title, as on a phone.
+    final row = audience == null
+        ? padded
+        : LayoutBuilder(
+            builder: (context, box) => AudienceCompact(
+              compact: box.maxWidth < _fullAudienceWidth,
+              child: padded,
+            ),
+          );
 
     final marked = selected
         ? DecoratedBox(

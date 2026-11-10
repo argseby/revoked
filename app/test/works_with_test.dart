@@ -286,6 +286,45 @@ void main() {
       expect(find.text('Card'), findsNothing);
     });
 
+    testWidgets('a card names the access and what the service does', (
+      tester,
+    ) async {
+      await pump(tester, const WorksWithScreen());
+      // None of the three declares a section or vault reading.
+      expect(find.text('Never reads the vault'), findsNWidgets(3));
+      expect(find.text('tool.example.org'), findsOneWidget);
+      expect(find.text('Sign in'), findsOneWidget);
+      expect(find.text('Built by Revoked'), findsOneWidget);
+    });
+
+    testWidgets('a chip narrows the list to what a service does', (
+      tester,
+    ) async {
+      await pump(tester, const WorksWithScreen());
+      expect(find.text('All 3'), findsOneWidget);
+      expect(find.text('Share 2'), findsOneWidget);
+      // A kind with no service has no chip.
+      expect(find.textContaining('Prove'), findsNothing);
+
+      await tester.tap(find.text('Sign in 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Game'), findsOneWidget);
+      expect(find.text('Example'), findsNothing);
+      expect(find.text('Card'), findsNothing);
+
+      await tester.tap(find.text('All 3'));
+      await tester.pumpAndSettle();
+      expect(find.text('Example'), findsOneWidget);
+    });
+
+    testWidgets('the cards fit a phone', (tester) async {
+      await pump(tester, const WorksWithScreen());
+      tester.view.physicalSize = const Size(720, 4800);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Game'), findsOneWidget);
+    });
+
     testWidgets('the chip shows only for a listed address', (tester) async {
       await pump(
         tester,

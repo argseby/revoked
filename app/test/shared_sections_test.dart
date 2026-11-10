@@ -195,7 +195,9 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.text('Workspace'));
+    // The audience tags behind the sheet say Workspace too; the sheet's
+    // option is the last.
+    await tester.tap(find.text('Workspace').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Members who manage the vault'));
     await tester.pumpAndSettle();
