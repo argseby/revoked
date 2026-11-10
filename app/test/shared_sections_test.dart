@@ -214,6 +214,14 @@ void main() {
         'audienceGroups': [],
       },
     ]);
-    expect(find.text('Members'), findsOneWidget);
+    // The audience tag beside the section's title now says who sees it.
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Tooltip &&
+            (w.message ?? '').startsWith('Visible to the workspace'),
+      ),
+      findsWidgets,
+    );
   });
 }
