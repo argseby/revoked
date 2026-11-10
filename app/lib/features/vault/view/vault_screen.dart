@@ -18,7 +18,8 @@ import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/tool_tag.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
+import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/utils/people.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -91,6 +92,24 @@ class _UnsortedPane extends _Pane {
 class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   late TableStore<models.Record> _tableController;
   final Local<Set<_VaultFilter>> _filters = Local(const {});
+
+  /// Who sees a record, as the Filter's "Visible to" ticks it (`private`,
+  /// `workspace`, `group:<id>`); none ticked lets all through. A record
+  /// counts as seen by its own audience and by each section holding it.
+  final Local<Set<String>> _audiences = Local(const {});
+
+  static Audience _sectionAudience(Section s) =>
+      Audience(s.audienceKind, s.audienceGroups);
+
+  static Audience _recordAudience(models.Record r) =>
+      Audience(r.audienceKind, r.audienceGroups);
+
+  /// A record's own audience and those of the sections holding it.
+  List<Audience> _audiencesOf(models.Record r) => [
+    _recordAudience(r),
+    for (final s in Stores.vault.sections)
+      if (s.records.contains(r.id)) _sectionAudience(s),
+  ];
 
   /// The left pane's selection on a wide window.
   final Local<_Pane> _pane = Local(const _AllPane());
@@ -169,7 +188,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       query: _tableController.query,
       onQueryChanged: _tableController.setQuery,
       searchHint: 'Search records',
-      onClearFilters: () => _filters.value = const {},
+      onClearFilters: () {
+        _filters.value = const {};
+        _audiences.value = const {};
+      },
       sections: () => [
         AppChecklistSection(
           title: 'Show',
@@ -197,6 +219,13 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               count: matches.where((r) => r.isHidden).length,
             ),
           ],
+        ),
+        ?audienceFilterSection(
+          items: [for (final r in matches) _audiencesOf(r)],
+          selected: _audiences.value,
+          onToggle: (id, on) => _audiences.value = on
+              ? {..._audiences.value, id}
+              : ({..._audiences.value}..remove(id)),
         ),
       ],
       sort: () => _tableController.sortBy,
@@ -325,10 +354,15 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             (filters.contains(_VaultFilter.files) && r.isFile) ||
             (filters.contains(_VaultFilter.hidden) && r.isHidden);
 
+        final audiences = _audiences.value;
         final toolbar = _toolbar(matches, links);
         final searching = _tableController.query.trim().isNotEmpty;
 
-        var records = matches.where(kind).toList();
+        var records = matches
+            .where(
+              (r) => kind(r) && audienceMatches(audiences, _audiencesOf(r)),
+            )
+            .toList();
 
         // Picking a section's records: every record once, ticked if the
         // section holds it.
@@ -405,14 +439,25 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         final byId = {for (final r in records) r.id: r};
         final visibleSections = <(Section, List<models.Record>)>[];
         for (final section in sectionsSource) {
+          // Under "Visible to", a record shows in a section when the section
+          // or the record itself is seen by the ticked audience.
           final sectionRecords = [
             for (final id in section.records)
-              if (byId[id] != null) byId[id]!,
+              if (byId[id] case final r?)
+                if (audienceMatches(audiences, [
+                  _sectionAudience(section),
+                  _recordAudience(r),
+                ]))
+                  r,
           ];
           // Unfiltered, a section shows even when empty, so the vault's shape
           // stays visible; a search or filter narrows to the ones holding a
           // match.
-          if ((filters.isEmpty && !searching) || sectionRecords.isNotEmpty) {
+          final unfiltered =
+              filters.isEmpty &&
+              !searching &&
+              audienceMatches(audiences, [_sectionAudience(section)]);
+          if (unfiltered || sectionRecords.isNotEmpty) {
             visibleSections.add((section, sectionRecords));
           }
         }
@@ -432,6 +477,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
         final filterKey = [
           ...(filters.map((f) => f.name).toList()..sort()),
+          ...(audiences.toList()..sort()),
           if (searching) 'q',
         ].join();
         final groups = <Widget>[
@@ -439,6 +485,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             AppListGroup(
               key: ValueKey('${section.id}-$filterKey'),
               title: _sectionName(section),
+              badge: _sectionBadges(context, section),
               noun: 'records',
               previewCount: 5,
               trailing: shareEdit != null
@@ -474,13 +521,14 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               shareEdit == null &&
               _sharedVisible(filters))
             for (final section in store.sharedSections)
-              ?_sharedGroup(
-                context,
-                section,
-                filters,
-                filterKey,
-                searching: searching,
-              ),
+              if (audienceMatches(audiences, [_sectionAudience(section)]))
+                ?_sharedGroup(
+                  context,
+                  section,
+                  filters,
+                  filterKey,
+                  searching: searching,
+                ),
         ];
 
         return AppListPage(
@@ -562,6 +610,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     final store = Stores.vault;
     final scheme = Theme.of(context).colorScheme;
     final filters = _filters.value;
+    final audiences = _audiences.value;
     final query = _tableController.query;
 
     // A section deleted or unshared since it was picked: back to all.
@@ -611,8 +660,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             if (sections.isNotEmpty) const _PaneHeading('Sections'),
             for (final (s, _) in sections)
               _PaneItem(
-                icon: AppIcons.folder,
+                // A tool's section is told apart while scanning the pane.
+                icon: _originOf(s)?.icon ?? AppIcons.folder,
                 label: _sectionName(s),
+                audience: _sectionAudience(s),
                 count: s.records.length,
                 selected: pane is _SectionPane && pane.id == s.id,
                 onTap: () => _pane.value = _SectionPane(s.id),
@@ -623,6 +674,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               _PaneItem(
                 icon: AppIcons.personWorkspace,
                 label: _sectionName(s),
+                audience: _sectionAudience(s),
                 count: s.records.length,
                 selected: pane is _SharedPane && pane.id == s.id,
                 onTap: () => _pane.value = _SharedPane(s.id),
@@ -640,10 +692,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               icon: AppIcons.plus,
               label: 'Section',
               muted: true,
-              onTap: () => openSectionCreateSheet(
-                context: context,
-                store: store,
-                authStore: Stores.auth,
+              onTap: () => openVaultCreateSheet(
+                context,
+                initialTab: VaultCreateTab.section,
               ),
             ),
           ],
@@ -655,14 +706,33 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     final searched = records;
     final String title;
     Widget? headerTrailing;
+
+    /// Before the title: where the section came from, when not by hand.
+    IconData? headerIcon;
     final List<Widget> body;
     switch (pane) {
       case _SectionPane():
         final s = section!;
         final byId = {for (final r in searched) r.id: r};
-        final shown = [for (final id in s.records) ?byId[id]];
+        final shown = [
+          for (final id in s.records)
+            if (byId[id] case final r?)
+              if (audienceMatches(audiences, [
+                _sectionAudience(s),
+                _recordAudience(r),
+              ]))
+                r,
+        ];
         title = _sectionName(s);
-        headerTrailing = _sectionMenu(context, s, shown.length);
+        headerIcon = _originOf(s)?.icon;
+        headerTrailing = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _sectionBadges(context, s),
+            AppSpacing.gapSm,
+            _sectionMenu(context, s, shown.length),
+          ],
+        );
         body = [
           AppListGroup(
             title: 'Records',
@@ -688,19 +758,27 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           for (final id in s.records)
             if (byId[id] case final r?)
               if (_sharedVisible(filters) &&
+                  audienceMatches(audiences, [_sectionAudience(s)]) &&
                   _sharedMatches(r, filters) &&
                   _tableController.matchesQuery(r))
                 r,
         ];
         title = _sectionName(s);
-        headerTrailing = ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 220),
-          child: AppBadge(
-            icon: AppIcons.person,
-            label: s.id == VaultStore.sharedEntriesId
-                ? 'Published to the workspace'
-                : 'Shared by ${s.ownerEmail ?? 'another member'}',
-          ),
+        headerTrailing = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AudienceTag(_sectionAudience(s)),
+            AppSpacing.gapSm,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: AppBadge(
+                icon: AppIcons.person,
+                label: s.id == VaultStore.sharedEntriesId
+                    ? 'Published to the workspace'
+                    : 'Shared by ${s.ownerEmail ?? 'another member'}',
+              ),
+            ),
+          ],
         );
         body = [
           AppListGroup(
@@ -758,6 +836,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         height: AppButton.smallExtent,
         child: Row(
           children: [
+            if (headerIcon != null) ...[
+              Icon(headerIcon, size: 20, color: scheme.onSurfaceVariant),
+              AppSpacing.gapSm,
+            ],
             Expanded(
               child: AppText(
                 title,
@@ -771,7 +853,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       ),
       banners: banners,
       emptyMessage: body.isEmpty
-          ? (query.trim().isNotEmpty || filters.isNotEmpty
+          ? (query.trim().isNotEmpty ||
+                    filters.isNotEmpty ||
+                    audiences.isNotEmpty
                 ? 'Nothing matches the search or filters.'
                 : 'No records here.')
           : null,
@@ -820,6 +904,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       title: r.label.isEmpty ? r.key : r.label,
       subtitle: _preview(r),
       subtitleWidget: _hiddenPreview(r),
+      // Everyone who sees it: its own audience and its sections' together,
+      // so a private record in a workspace section reads as the workspace's.
+      audience: AudienceTag(Audience.combined(_audiencesOf(r))),
       // Text, not a badge: most records are shared somewhere, and a badge on
       // every row is the noise this list is meant to be rid of. But who can
       // read a record is the vault's one question, so it is not muted.
@@ -903,6 +990,35 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         ),
       );
     }
+    // The tool that manages it, and those that read it, each with what it may
+    // do here; the row opens the tool's page.
+    final manager = _managerOf(section);
+    if (manager != null) {
+      final email = memberEmail(manager.user);
+      rows.add(
+        AppListRow(
+          icon: AppIcons.plug,
+          title: 'Managed by ${manager.name}',
+          subtitle: [
+            _managerDoes(manager),
+            'ID ${manager.shortId}',
+            if (email != null) 'connected by $email',
+          ].join(' · '),
+          onTap: () => context.go(AppRoutes.connectedToolFor(manager.id)),
+        ),
+      );
+    }
+    for (final c in Stores.connections.connections) {
+      if (c.section == section.id || !c.reaches(section.id)) continue;
+      rows.add(
+        AppListRow(
+          icon: AppIcons.eye,
+          title: 'Read by ${c.name}',
+          subtitle: 'Reads its records, never changes them · ID ${c.shortId}',
+          onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
+        ),
+      );
+    }
     return rows.isEmpty ? null : rows;
   }
 
@@ -920,62 +1036,85 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     context.go(AppRoutes.settingsPage(SettingsPage.connectedTools.slug));
   }
 
-  /// The tools behind a section, as chips in its header: the one that keeps
-  /// it, and those that may read it. Each opens the tool's page.
-  List<Widget> _toolChips(BuildContext context, Section section) {
-    final connections = Stores.connections.connections;
-    final chips = <Widget>[];
-    for (final c in connections) {
-      if (c.section != section.id) continue;
-      final email = memberEmail(c.user);
-      chips.add(
-        ToolIdChip(
-          c.id,
-          icon: AppIcons.plug,
-          label: c.sectionOff ? '${c.shortId} · off' : null,
-          tooltip: [
-            'Kept by ${c.name}',
-            c.sectionOff
-                ? 'Switched off for this section'
-                : c.vaultAccess == 'read'
-                ? 'Read access'
-                : 'Adds records and changes only its own',
-            if (email != null) 'Connected by $email',
-          ].join(' · '),
-          onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
-        ),
+  /// The tool that manages [section] as its own, if one does.
+  static Connection? _managerOf(Section section) {
+    for (final c in Stores.connections.connections) {
+      if (c.section == section.id) return c;
+    }
+    return null;
+  }
+
+  /// What the managing tool does here, in a few words.
+  static String _managerDoes(Connection c) => c.sectionOff
+      ? 'Switched off for this section'
+      : c.vaultAccess == 'read'
+      ? 'Reads this section'
+      : 'Adds records here and changes only its own';
+
+  /// Where a section came from when it was not made by hand: a tool that
+  /// manages it, a sign-in at a service, or a request answered. Null for one
+  /// made by hand. The same icon stands in the pane and before its title.
+  static _SectionOrigin? _originOf(Section section) {
+    final manager = _managerOf(section);
+    if (manager != null) {
+      final name = manager.name.isEmpty ? manager.shortId : manager.name;
+      return _SectionOrigin(
+        icon: AppIcons.plug,
+        label: 'Managed by $name${manager.sectionOff ? ' · off' : ''}',
+        tooltip: '${_managerDoes(manager)} · ID ${manager.id}',
+        muted: manager.sectionOff,
       );
     }
-    final readers = [
-      for (final c in connections)
-        if (c.section != section.id && c.reaches(section.id)) c,
-    ];
-    if (readers.length == 1) {
-      final c = readers.single;
-      chips.add(
-        ToolIdChip(
-          c.id,
-          icon: AppIcons.eye,
-          tooltip: 'Read by ${c.name}',
-          onTap: () => context.go(AppRoutes.connectedToolFor(c.id)),
-        ),
+    if (section.isSignIn) {
+      return _SectionOrigin(
+        icon: AppIcons.globe,
+        label: 'Sign-in · ${section.requestedBy}',
+        tooltip: 'Shared with ${section.requestedBy} when signing in there',
       );
-    } else if (readers.length > 1) {
-      chips.add(
-        ToolIdChip(
-          '',
-          icon: AppIcons.eye,
-          label: '${readers.length} tools',
-          tooltip: 'Read by ${readers.length} tools',
-          onTap: () => context.go(
-            AppRoutes.settingsPage(SettingsPage.connectedTools.slug),
+    }
+    if (section.isRequested) {
+      return _SectionOrigin(
+        icon: AppIcons.inboxFill,
+        label: 'Requested by ${section.requestedBy}',
+        tooltip: 'Sent in response to a request',
+      );
+    }
+    return null;
+  }
+
+  /// Opens what a section came from: the tool's page, the service signed in
+  /// to, or the requests answered.
+  void _openOrigin(BuildContext context, Section section) {
+    final manager = _managerOf(section);
+    if (manager != null) {
+      context.go(AppRoutes.connectedToolFor(manager.id));
+    } else if (section.isSignIn) {
+      _openSignInService(context, section);
+    } else if (section.isRequested) {
+      context.go(AppRoutes.requestsReceived);
+    }
+  }
+
+  /// Beside a section's title: where it came from, when not made by hand,
+  /// and who sees it — so a tool's or a sign-in's section never reads like
+  /// one made by hand.
+  Widget _sectionBadges(BuildContext context, Section section) {
+    final origin = _originOf(section);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (origin != null) ...[
+          Flexible(
+            child: _OriginBadge(
+              origin,
+              onTap: () => _openOrigin(context, section),
+            ),
           ),
-        ),
-      );
-    }
-    return [
-      for (final chip in chips) ...[chip, AppSpacing.gapXs],
-    ];
+          AppSpacing.gapXs,
+        ],
+        AudienceTag(_sectionAudience(section)),
+      ],
+    );
   }
 
   /// A section another member shared: its records, read-only.
@@ -998,6 +1137,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     return AppListGroup(
       key: ValueKey('shared-${section.id}-$filterKey'),
       title: _sectionName(section),
+      badge: AudienceTag(_sectionAudience(section)),
       noun: 'records',
       previewCount: 5,
       trailing: ConstrainedBox(
@@ -1028,6 +1168,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         title: r.label.isEmpty ? r.key : r.label,
         subtitle: _preview(r),
         subtitleWidget: _hiddenPreview(r),
+        audience: AudienceTag(
+          Audience.combined([_sectionAudience(section), _recordAudience(r)]),
+        ),
         trailing: r.sealed ? const _EncryptedMark() : null,
         onTap: () => _openSharedRecord(context, section, r),
       );
@@ -1053,7 +1196,20 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(r.label.isEmpty ? r.key : r.label).header,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(r.label.isEmpty ? r.key : r.label).header,
+                  ),
+                  AppSpacing.gapSm,
+                  AudienceTag(
+                    Audience.combined([
+                      _sectionAudience(section),
+                      _recordAudience(r),
+                    ]),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.xxs),
               Text(
                 section.id == VaultStore.sharedEntriesId
@@ -1165,11 +1321,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ..._toolChips(context, section),
-        if (section.shared) ...[
-          const AppBadge(icon: AppIcons.personWorkspace, label: 'Members'),
-          AppSpacing.gapXs,
-        ],
+        // Who sees it and where it came from are beside the title; tools
+        // reading it are rows at the top of the section.
         AppText('${section.records.length}').small.muted,
         AppSpacing.gapXs,
         AppMenuButton(
@@ -1218,12 +1371,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             AppMenuItem(
               icon: AppIcons.duplicate,
               label: 'Duplicate',
-              onSelected: () => openSectionCreateSheet(
-                context: context,
-                store: store,
-                authStore: Stores.auth,
-                initialSection: section,
-              ),
+              onSelected: () =>
+                  openVaultCreateSheet(context, duplicateSection: section),
             ),
             null,
             AppMenuItem(
@@ -1275,16 +1424,33 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     } else {
       newRecords.remove(record.id);
     }
-    await Stores.shares.updateShare(share.id, {'records': newRecords});
-    if (mounted) {
-      AppToast.success(
+    final ok = await Stores.shares.updateShare(share.id, {
+      'records': newRecords,
+    });
+    if (!mounted) return;
+    if (!ok) {
+      AppToast.error(
         context,
         selected
-            ? 'Record added to the share'
-            : 'Record removed from the share',
+            ? 'The record could not be added to the share.'
+            : 'The record could not be removed from the share.',
+        subtitle: Stores.shares.errorMessage,
       );
+      return;
     }
+    AppToast.success(
+      context,
+      selected ? 'Record added to the share' : 'Record removed from the share',
+      subtitle: _addressNote(share),
+    );
   }
+
+  /// A link that just got its first encrypted record has a longer address
+  /// from now on, which whoever already holds the old one has to be given.
+  String? _addressNote(Link share) => Stores.shares.takeAddressChanged(share.id)
+      ? 'The link now ends in a key. Copies handed out earlier do not open '
+            'the encrypted records.'
+      : null;
 
   /// Sharing a whole section also lists its records on the link, as the old
   /// section toggle did, so the share's record list stays complete.
@@ -1306,10 +1472,23 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         newRecords.remove(rId);
       }
     }
-    await Stores.shares.updateShare(share.id, {
+    final ok = await Stores.shares.updateShare(share.id, {
       'sections': newSections,
       'records': newRecords,
     });
+    if (!mounted) return;
+    if (!ok) {
+      AppToast.error(
+        context,
+        'The share could not be changed.',
+        subtitle: Stores.shares.errorMessage,
+      );
+      return;
+    }
+    final note = _addressNote(share);
+    if (note != null) {
+      AppToast.success(context, 'Section shared', subtitle: note);
+    }
   }
 
   Future<void> _confirmDeleteSection(
@@ -1480,7 +1659,7 @@ class _WholeSectionToggle extends StatelessWidget {
 }
 
 /// Only this person's devices can read the record, so it takes the place of a
-/// link count: an encrypted record can't be on a link.
+/// link count: the mark identifies end-to-end encrypted records.
 class _EncryptedMark extends StatelessWidget {
   const _EncryptedMark();
 
@@ -1553,10 +1732,14 @@ class _PaneItem extends StatelessWidget {
   final bool muted;
   final VoidCallback onTap;
 
+  /// Who sees a section, as an icon before its count.
+  final Audience? audience;
+
   const _PaneItem({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.audience,
     this.count,
     this.selected = false,
     this.muted = false,
@@ -1605,8 +1788,68 @@ class _PaneItem extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (audience case final a?) ...[
+                  AudienceTag(a, compact: true),
+                  AppSpacing.gapXs,
+                ],
                 if (count != null) AppText('$count').small.muted,
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Where a section came from, for [_OriginBadge] and the icons in the pane
+/// and before its title.
+class _SectionOrigin {
+  final IconData icon;
+  final String label;
+  final String tooltip;
+
+  /// A tool switched off for the section: still named, less loudly.
+  final bool muted;
+
+  const _SectionOrigin({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    this.muted = false,
+  });
+}
+
+/// "Managed by Claude Desktop" or "Sign-in · shop.example" beside a
+/// section's title: what the section came from, by name, so it is told apart
+/// from one made by hand at a glance. A tool's tooltip carries its ID, as two
+/// tools may share a name. Opens what it names.
+class _OriginBadge extends StatelessWidget {
+  final _SectionOrigin origin;
+  final VoidCallback onTap;
+
+  const _OriginBadge(this.origin, {required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: origin.tooltip,
+      child: Semantics(
+        button: true,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppRadius.allMd,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: AppBadge(
+                icon: origin.icon,
+                label: origin.label,
+                variant: origin.muted
+                    ? AppBadgeVariant.outline
+                    : AppBadgeVariant.primary,
+              ),
             ),
           ),
         ),

@@ -6,7 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/user.dart';
+import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
@@ -20,6 +22,9 @@ const _workspace = 'wspace00000000a';
 class _Server {
   final patched = <Map<String, dynamic>>[];
   bool ownShared = false;
+
+  /// Adds a section made by signing in to a service.
+  bool withSignIn = false;
 
   Future<http.Response> handle(http.Request request) async {
     final path = request.url.path;
@@ -58,7 +63,19 @@ class _Server {
     }
     if (path == '/api/collections/sections/records') {
       return _json({
-        'items': [_ownSection()],
+        'items': [
+          _ownSection(),
+          if (withSignIn)
+            {
+              'id': 'section00signin',
+              'key': 'signin_shop',
+              'name': 'Shop',
+              'user': _me,
+              'workspace': _workspace,
+              'records': <String>[],
+              'requestedBy': 'shop.example',
+            },
+        ],
       });
     }
     if (path == '/api/shared/vault') {
@@ -111,10 +128,10 @@ class _Server {
       http.Response(jsonEncode(body), 200);
 }
 
-Future<_Server> _pump(WidgetTester tester) async {
+Future<_Server> _pump(WidgetTester tester, {bool withSignIn = false}) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({});
-  final server = _Server();
+  final server = _Server()..withSignIn = withSignIn;
   await Stores.init(httpClient: MockClient(server.handle));
   runInAction(
     () => Stores.auth.currentUser = User.fromJson({
@@ -168,6 +185,68 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Office Wi-Fi'), findsOneWidget);
     expect(find.text('Shared by bob@example.com'), findsOneWidget);
+  });
+
+  testWidgets('a section a tool manages names the tool, not only its ID', (
+    tester,
+  ) async {
+    await _pump(tester);
+    runInAction(
+      () => Stores.connections.connections = ObservableList.of([
+        const Connection(
+          id: 'conn0000claude1',
+          clientId: 'https://claude.example',
+          clientName: 'Claude Desktop',
+          vaultAccess: 'write',
+          section: 'section0000mine',
+        ),
+        const Connection(
+          id: 'conn000reader01',
+          clientId: 'https://reader.example',
+          clientName: 'Notfallkarte',
+          vaultAccess: 'read',
+          sections: ['section0000mine'],
+        ),
+      ]),
+    );
+    await tester.pumpAndSettle();
+
+    // A plug instead of a folder, already in the pane.
+    expect(
+      find.descendant(
+        of: find.ancestor(of: _pane('Mine'), matching: find.byType(Row)).first,
+        matching: find.byIcon(AppIcons.plug),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(_pane('Mine'));
+    await tester.pumpAndSettle();
+    // The badge beside the title and the row on top of the section.
+    expect(find.text('Managed by Claude Desktop'), findsNWidgets(2));
+    expect(
+      find.text('Adds records here and changes only its own · ID conn00'),
+      findsOneWidget,
+    );
+    expect(find.text('Read by Notfallkarte'), findsOneWidget);
+  });
+
+  testWidgets('a section from a sign-in says so in the pane and title', (
+    tester,
+  ) async {
+    await _pump(tester, withSignIn: true);
+    expect(
+      find.descendant(
+        of: find.ancestor(of: _pane('Shop'), matching: find.byType(Row)).first,
+        matching: find.byIcon(AppIcons.globe),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(_pane('Shop'));
+    await tester.pumpAndSettle();
+    expect(find.text('Sign-in · shop.example'), findsOneWidget);
+    expect(find.text('From signing in to shop.example'), findsOneWidget);
   });
 
   testWidgets('wide, the search narrows the selected records', (tester) async {

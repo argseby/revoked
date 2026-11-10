@@ -12,12 +12,15 @@ import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/router/held_link_keys.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -193,6 +196,9 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
                 title: share.label,
                 isRequest: false,
                 apiTarget: _apiTarget(share),
+                linkKey: Stores.shares.linkKeyText(share),
+                keyUnreadable:
+                    share.hasKey && Stores.shares.linkKeyText(share) == null,
               ),
             ),
             'paused' => AppButton(
@@ -218,9 +224,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
           const AppBadge(
             icon: AppIcons.personWorkspace,
             label: 'Shared by a member',
-          )
-        else if (share.openToWorkspace)
-          const AppBadge(icon: AppIcons.personWorkspace, label: 'Members'),
+          ),
+        AudienceTag(Audience(share.audienceKind, share.audienceGroups)),
         if (attention != null)
           AppBadge(
             icon: AppIcons.clock,
@@ -234,6 +239,20 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       subtitleMono: true,
       primaryAction: primary,
       secondaryActions: [
+        if (status == 'active')
+          AppButton(
+            icon: AppIcons.eye,
+            tooltip: 'View as recipient',
+            style: AppButtonStyle.accent,
+            onTap: () {
+              final key = Stores.shares.linkKeyText(share);
+              HeldLinkKeys.hold(
+                slug: share.slug,
+                key: key == null ? null : SealedFormats.parseLinkKey(key),
+              );
+              context.push('/s/${share.slug}');
+            },
+          ),
         if (mine) ...[
           AppButton(
             icon: AppIcons.personWorkspace,
@@ -498,6 +517,16 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
 
     return AppDetailManage(
       actions: [
+        if (_mine(share) &&
+            share.hasKey &&
+            (status == 'active' || status == 'paused'))
+          AppButton(
+            icon: AppIcons.key,
+            label: 'Replace link key',
+            style: AppButtonStyle.accent,
+            busy: busy == 'key',
+            onTap: locked ? null : () => _replaceKey(share),
+          ),
         if (status == 'active')
           AppButton(
             icon: AppIcons.pause,
@@ -522,6 +551,40 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
           onTap: locked ? null : () => _confirmDelete(context, share),
         ),
       ],
+    );
+  }
+
+  Future<void> _replaceKey(Link share) async {
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Replace this link’s key?',
+      message:
+          'Existing copies of this address will no longer open its encrypted entries. '
+          'Plain entries stay accessible. The new complete address can be shared afterward. '
+          'Values already copied by a recipient remain with them.',
+      confirmLabel: 'Replace key',
+      confirmIcon: AppIcons.key,
+    );
+    if (!confirmed || !mounted) return;
+    _busy.value = 'key';
+    final ok = await Stores.shares.replaceLinkKey(share.id);
+    _busy.value = null;
+    if (!mounted) return;
+    if (!ok) {
+      AppToast.error(
+        context,
+        'The link key could not be replaced.',
+        subtitle: Stores.shares.errorMessage,
+      );
+      return;
+    }
+    final updated = Stores.shares.findById(share.id)!;
+    await showShareSheet(
+      context: context,
+      slug: updated.slug,
+      title: updated.label,
+      isRequest: false,
+      linkKey: Stores.shares.linkKeyText(updated),
     );
   }
 

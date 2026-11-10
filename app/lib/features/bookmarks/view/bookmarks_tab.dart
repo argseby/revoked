@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -522,11 +523,23 @@ class _BookmarkRow extends StatelessWidget {
           AppMenuItem(
             icon: AppIcons.copy,
             label: 'Copy link',
-            onSelected: () {
+            onSelected: () async {
               // Copied links travel to other servers, so they name this one.
-              final link = bookmark.deepLink(
+              final key = await Stores.bookmarks.keyFor(bookmark);
+              if (!context.mounted) return;
+              if (bookmark.sealedKey.isNotEmpty && key == null) {
+                AppToast.error(
+                  context,
+                  'The saved link key is not readable on this device.',
+                );
+                return;
+              }
+              final base = bookmark.deepLink(
                 ownServer ? Stores.api.originAuthority : bookmark.origin,
               );
+              final link = key == null
+                  ? base
+                  : '$base#k=${SealedFormats.linkKeyText(key)}';
               Clipboard.setData(ClipboardData(text: link));
               AppToast.success(context, 'Link copied');
             },

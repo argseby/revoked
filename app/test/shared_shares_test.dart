@@ -244,7 +244,15 @@ void main() {
       'editing': 'owner',
       'audienceGroups': [],
     });
-    expect(find.text('Members'), findsOneWidget);
+    // The header's audience tag now says who sees it.
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Tooltip &&
+            (w.message ?? '').startsWith('Visible to the workspace'),
+      ),
+      findsWidgets,
+    );
   });
 
   testWidgets('a colleague\'s share open for editing can be paused, not '

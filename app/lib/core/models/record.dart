@@ -90,12 +90,16 @@ class Record {
     this.writtenBy = '',
     this.writtenByName = '',
     this.audienceKind = 'private',
+    this.audienceGroups = const [],
     this.editing = 'owner',
   });
 
   /// Who sees it on its own, beside the sections holding it: `private`,
   /// `workspace` or `groups` (VISIBILITY.md). Only its owner changes it.
   final String audienceKind;
+
+  /// The groups that see it, when [audienceKind] is `groups`.
+  final List<String> audienceGroups;
 
   /// Whether the members who see it, and may publish, may also change it.
   final String editing;
@@ -133,6 +137,11 @@ class Record {
       writtenBy: json['writtenBy'] as String? ?? '',
       writtenByName: json['writtenByName'] as String? ?? '',
       audienceKind: audienceKindFrom(json['audienceKind']),
+      audienceGroups:
+          (json['audienceGroups'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList() ??
+          const [],
       editing: json['editing'] == 'audience' ? 'audience' : 'owner',
     );
   }
@@ -172,6 +181,7 @@ class Record {
     writtenBy: writtenBy,
     writtenByName: writtenByName,
     audienceKind: audienceKind,
+    audienceGroups: audienceGroups,
     editing: editing,
   );
 

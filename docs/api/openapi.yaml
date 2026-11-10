@@ -177,10 +177,9 @@ paths:
                   version:
                     type: string
                     description: |
-                      The release this server was built from, stamped from the
-                      git checkout: `v0.22.0` on a tagged commit, a
-                      pseudo-version past one otherwise, `dev` when run with
-                      `go run`.
+                      The backend build identifier. Release images and source
+                      builds can stamp a release or commit identifier; local
+                      builds without a stamp report `dev`.
                     examples: ["v0.22.0"]
                   fingerprint: { type: string, description: SHA-256 fingerprint of the root public key. }
                   publicKey: { type: string, description: Root public key, PEM encoded. }
@@ -488,6 +487,14 @@ paths:
 
         Values are resolved at read time, so what comes back is what the record
         holds now — not what it held when the share was created.
+
+        An end-to-end encrypted entry comes back with `sealed: true` and no
+        `value`: `sealedValue` and `sealedVersion` are the entry as members
+        hold it, and `viewerWrap` is its value key wrapped for this share. The
+        key to that wrap is derived from the part of the share's address after
+        `#`, which never reaches the server. An entry marked `unavailable`
+        carries none of the three: the share has not caught up with it. An
+        encrypted entry the share holds no key for is left out.
       security: []
       parameters:
         - $ref: "#/components/parameters/Slug"
@@ -1404,8 +1411,9 @@ paths:
       summary: Create an end-to-end encrypted entry
       description: |
         Experimental. The client chooses the id, because the ciphertext is bound
-        to it. The entry's `value` stays empty; it does not appear in links,
-        short links, sign-in grants or request answers.
+        to it. The entry's `value` stays empty. A link serves it as ciphertext,
+        and only once it holds a seal for it (`PUT /api/sealed/links/{id}`); it
+        does not appear in short links, sign-in grants or request answers.
       security:
         - Session: []
       responses:
@@ -1421,8 +1429,26 @@ paths:
         Experimental. `expectedVersion` is compared atomically: 0 encrypts a
         plain entry, and a higher number replaces that version.
 
-        Encrypting an entry that live links read is refused with
-        `sealed_links_affected` and a `links` count, unless `dropLinks` is true.
+        `carryLinks: true` preserves existing live links during encryption.
+        For each link whose key the device can open, `linkSeals` supplies
+        `link`, `viewerWrap`, `writerWrap`, `expectedKeyWraps` (the complete
+        previous scope map, or `{}`) and, for a first key, `keyWraps`.
+        A section's entry is added explicitly to the carried link. The seals,
+        keys and entry commit together. Aliases and server-created grants
+        cannot be carried. Remaining links require `dropLinks: true`; without
+        confirmation the response is `sealed_links_affected` with a count,
+        and nothing changes. Their owners receive an in-app notification.
+        Without `carryLinks`, the previous explicit-drop behavior remains.
+
+        Replacing the value of an entry that live links carry takes
+        `linkSeals`: for each link listed by
+        `GET /api/sealed/records/{id}/links`, an object with `link`,
+        `viewerWrap` and `writerWrap`, made for the version this write
+        produces, plus `expectedWriterWrap` copied from the read. This
+        comparison prevents a concurrent key replacement being undone by a
+        stale record writer. Entry and seals are saved together. A write that leaves one
+        of those links out is refused with `sealed_link_seals_missing` and the
+        ids of the links it missed in `links`, and changes nothing.
       security:
         - Session: []
       parameters:
@@ -1435,7 +1461,102 @@ paths:
         "400": { description: "`sealed_invalid` or `sealed_record_unsupported`." }
         "403": { description: "`sealed_key_missing`." }
         "404": { description: No such entry, or not one the caller may change. }
-        "409": { description: "`sealed_version_conflict`, `sealed_epoch_stale` or `sealed_links_affected`." }
+        "409": { description: "`sealed_version_conflict`, `sealed_epoch_stale`, `sealed_links_affected` or `sealed_link_seals_missing`." }
+  /api/sealed/records/{id}/links:
+    get:
+      tags: [Encrypted records]
+      summary: List the links a write to an encrypted entry has to renew
+      description: |
+        Experimental. Answers with the entry's `version` and, in `links`, one
+        object per link that carries the entry, can still be opened and holds
+        a seal of that version: its `link` id and the `writerWrap`, which the
+        entry's current value key opens. Paused links are included; revoked
+        and expired ones are not.
+
+        For encrypted entries the caller learns that those links exist,
+        including other members' private ones, and nothing else about them.
+        For plain entries this instead returns only visible live links that
+        can carry the entry during encryption: `id`, `user`, `workspace`,
+        `audienceKind` and `sealedKeyWraps`. Private links of other members
+        are never disclosed. Aliases and server-created grants are omitted.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: "`record`, `version` and `links`." }
+        "404": { description: No such entry, or not one the caller may change. }
+  /api/sealed/links/{id}:
+    get:
+      tags: [Encrypted records]
+      summary: Read what a link holds for encrypted entries
+      description: |
+        Experimental. For a member who sees the link: `keyWraps`, the link's
+        key per scope (the owner's account scope, and the workspace's id while
+        the link is seen by more than its owner), each with `epoch` and
+        `wrap`; and `seals`, one per encrypted entry with `record`, `version`
+        and `current`. A seal that is not `current` was made for an older
+        version of the entry and is not served to viewers.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: "`link`, `keyWraps` and `seals`." }
+        "404": { description: No such link, or not one the caller sees. }
+    put:
+      tags: [Encrypted records]
+      summary: Put encrypted entries on a link
+      description: |
+        Experimental. `seals` holds one object per entry: `record`, the
+        entry's current `version`, `viewerWrap` (the entry's value key for the
+        link's viewers) and `writerWrap` (the key to that wrap, for whoever
+        writes the entry next). Each entry joins the link's records in the
+        same transaction. The collection API keeps refusing an encrypted
+        entry on a link; taking one off a link stays with it, and removes the
+        seal.
+
+        `keyWraps` stores the link's key, which otherwise exists only in the
+        link's address after `#`, per scope as `{epoch, wrap}`. The owner's
+        account scope (`account:<user id>`) is written by the owner and is
+        required as soon as the link holds a seal. The workspace's id is
+        accepted while the link is seen by more than its owner, and is
+        removed by the server when the link becomes private again.
+
+        `replaceKey: true` replaces all scope wraps and encrypted-entry seals
+        atomically, for the owner only. `expectedKeyWraps` must match the
+        complete previous scope map, every encrypted entry must be covered
+        at its current version, and no new entry may be added. The owner's
+        wrap, and the workspace wrap for a wider audience, are required.
+        A stale state or partial replacement changes nothing. The slug and
+        plaintext entries stay as they were; old fragment keys no longer open
+        encrypted entries.
+
+        The server opens none of these. It checks that each one has the
+        length its content gives it, that the caller holds the workspace's
+        key and sees every entry, and that the link's owner sees them too.
+        Links made by the server (request answers, sign-in shares) are
+        refused.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: "`link`, its `records`, and the `seals` written." }
+        "400": { description: "`sealed_invalid` (a malformed wrap, or a scope the link does not allow), `sealed_link_content` (not an encrypted entry the caller sees, or no owner's copy of the key) or `sealed_record_unsupported`." }
+        "403": { description: "`sealed_key_missing`, or an owner's key wrap sent by someone else." }
+        "404": { description: No such link, or not one the caller may change. }
+        "409": { description: "`sealed_version_conflict` (the entry changed first), `sealed_epoch_stale`, or `sealed_link_content` when the entry is on too many links." }
+        "410": { description: The link is revoked or expired. }
   /api/sealed/records/{id}/unseal:
     post:
       tags: [Encrypted records]
@@ -4923,6 +5044,13 @@ paths:
       tags: [Records]
       summary: List records
       description: |
+        For the owner-only `bookmarks` collection, optional `sealedKey`
+        and `keyEpoch` retain an address key wrapped under the owner's account
+        key. They are either empty/zero, or a version-1 AEAD envelope of 32
+        bytes at a positive epoch. Request bookmarks cannot carry these fields.
+        The associated-data format and local replay checks are documented in
+        `/api/encrypted-links/`. Raw address keys are never stored here.
+
         Standard record listing. Results are already narrowed to what the
         caller may see, so an empty page means "nothing you can read", not
         "nothing exists".
@@ -4967,6 +5095,12 @@ paths:
           foreign one is exactly the impersonation this product exists to stop.
         - Vault records are created here; request-collected rows are minted
           server-side and never through this endpoint.
+
+        A share bookmark can include `sealedKey` and `keyEpoch`: an address
+        key wrapped under its owner's account key, never the raw `#k=` key.
+        Both must be empty/zero or a correctly sized version-1 envelope at a
+        positive epoch. Request bookmarks cannot carry them. The cryptographic
+        context is described in the Encrypted links and saved keys guide.
 
         File records are sent as `multipart/form-data` with the bytes in a
         `file` part. Stream them: the operator's size cap is advertised at
@@ -5020,6 +5154,9 @@ paths:
       description: |
         Updating a record updates every share that points at it, on their next
         read — that is the rotation gesture, not a side effect.
+
+        Bookmark `sealedKey` and `keyEpoch` change together; clearing them
+        uses an empty key and epoch zero. The owner-only rules still apply.
 
         Some transitions are one-way: an identity may go from active to
         revoked and never back, because a revocation is a statement already

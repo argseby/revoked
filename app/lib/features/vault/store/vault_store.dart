@@ -834,6 +834,17 @@ abstract class _VaultStore with Store {
     return null;
   }
 
+  /// A record this person sees by id: their own, or one a member shared or
+  /// published to them.
+  models.Record? visibleRecord(String id) {
+    final own = _byId(id);
+    if (own != null) return own;
+    for (final r in sharedRecords) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
   void _replaceInList(models.Record record) {
     final index = records.indexWhere((r) => r.id == record.id);
     if (index != -1) records[index] = record;
@@ -907,6 +918,33 @@ abstract class _VaultStore with Store {
     ).withOpened(value: value, label: label, type: type, format: format);
   }
 
+  /// The live links that carry an encrypted [record], each with the key to
+  /// what it holds for the record's current version
+  /// (design/e2ee-sharing.md §3.3). The server names them; that a wrap opens
+  /// with the record's own value key is what says a link is real.
+  Future<List<Map<String, dynamic>>> _linksToRenew(models.Record record) async {
+    if (!record.sealed) return const [];
+    final dynamic data;
+    try {
+      data = await _api.get('/api/sealed/records/${record.id}/links');
+    } on ApiException catch (e) {
+      // A server from before links could carry encrypted records has no such
+      // route, and no link to renew either. A record that is really gone
+      // fails the write itself.
+      if (e.statusCode == 404) return const [];
+      rethrow;
+    }
+    final links = data is Map ? data['links'] : null;
+    return [
+      if (links is List)
+        for (final link in links)
+          if (link is Map &&
+              link['link'] is String &&
+              link['writerWrap'] is String)
+            Map<String, dynamic>.from(link),
+    ];
+  }
+
   /// Writes [value] encrypted, as this record's next version. The server sees
   /// only ciphertext, and clears any plain value the record held. What gets
   /// remembered is what this device sent, not what the server answered: a reply
@@ -923,8 +961,12 @@ abstract class _VaultStore with Store {
     final newType = type ?? record.type;
     final newFormat = format ?? record.format;
     final version = record.sealedVersion + 1;
+    var links = await _linksToRenew(record);
+    final initialLinks = record.sealed
+        ? <Map<String, dynamic>>[]
+        : await Stores.shares.prepareRecordLinks(record.id);
     late SealedPayload payload;
-    final data = await _withFreshKeys(() {
+    Future<dynamic> write() => _withFreshKeys(() {
       payload = Stores.keys.sealValue(
         workspace: record.workspace,
         record: record.id,
@@ -935,19 +977,59 @@ abstract class _VaultStore with Store {
         type: newType,
         format: newFormat,
       );
+      // Each live link carrying the record moves to the new version in the
+      // same request, or the server refuses the write: a link never shows a
+      // value older than the vault holds.
+      final seals = [
+        for (final link in initialLinks)
+          {
+            ...Stores.keys.initialLinkSeal(
+              linkKey: link['key'] as Uint8List,
+              link: link['link'] as String,
+              record: record,
+              valueKey: payload.valueKey!,
+              version: version,
+            ),
+            'expectedKeyWraps': link['expectedKeyWraps'],
+            'keyWraps': ?link['keyWraps'],
+          },
+        for (final link in links)
+          Stores.keys.renewLinkSeal(
+                link: link['link'] as String,
+                writerWrap: link['writerWrap'] as String,
+                record: record,
+                nextValueKey: payload.valueKey!,
+                nextVersion: version,
+              ) ??
+              (throw const SealingException(
+                'A link carrying this record could not be renewed on this '
+                'device.',
+              )),
+      ];
       return _api.put(
         '/api/sealed/records/${record.id}',
         body: {
           ...payload.toJson(),
           'expectedVersion': record.sealedVersion,
           'dropLinks': dropLinks,
+          if (!record.sealed) 'carryLinks': true,
           'key': record.key,
           'label': newLabel,
           'type': newType,
           'format': newFormat,
+          if (seals.isNotEmpty) 'linkSeals': seals,
         },
       );
     });
+    dynamic data;
+    try {
+      data = await write();
+    } on ApiException catch (e) {
+      // A link started carrying the record after the list was read.
+      if (e.code != AppErrorCode.sealedLinkSealsMissing) rethrow;
+      links = await _linksToRenew(record);
+      data = await write();
+    }
     Stores.keys.noteWritten(
       record.id,
       version: version,
@@ -961,8 +1043,8 @@ abstract class _VaultStore with Store {
     );
   }
 
-  /// Encrypts an existing plain record. Live links would stop showing it, so
-  /// the first attempt reports that rather than doing it.
+  /// Encrypts a plain record while carrying the links whose keys this device
+  /// holds. Losing other links requires an explicit second attempt.
   @action
   Future<SealOutcome> sealRecord(String id, {bool dropLinks = false}) async {
     errorMessage = null;
@@ -972,6 +1054,7 @@ abstract class _VaultStore with Store {
       _replaceInList(
         await _writeSealed(record, record.value, dropLinks: dropLinks),
       );
+      await Stores.shares.loadShares();
       return SealOutcome.sealed;
     } on ApiException catch (e) {
       if (e.code == AppErrorCode.sealedLinksAffected) {

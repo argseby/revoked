@@ -19,6 +19,9 @@ class Section {
   /// Only the owner changes it.
   final String audienceKind;
 
+  /// The groups that see it, when [audienceKind] is `groups`.
+  final List<String> audienceGroups;
+
   /// Whether the members who see it may also change it, with the permission
   /// to manage the vault: `owner` or `audience`.
   final String editing;
@@ -43,6 +46,7 @@ class Section {
     this.updated,
     this.requestedBy,
     this.audienceKind = 'private',
+    this.audienceGroups = const [],
     this.editing = 'owner',
     this.canEdit = false,
     this.ownerEmail,
@@ -67,6 +71,11 @@ class Section {
           ? requestedByRaw
           : null,
       audienceKind: _audienceKind(json),
+      audienceGroups:
+          (json['audienceGroups'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList() ??
+          const [],
       editing: json['editing'] == 'audience' ? 'audience' : 'owner',
       canEdit: json['canEdit'] == true,
       ownerEmail: json['ownerEmail'] as String?,
@@ -91,6 +100,7 @@ class Section {
     updated: updated,
     requestedBy: requestedBy,
     audienceKind: audienceKind,
+    audienceGroups: audienceGroups,
     editing: editing,
     canEdit: canEdit,
     ownerEmail: ownerEmail,

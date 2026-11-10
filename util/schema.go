@@ -114,6 +114,12 @@ type collectionSchema struct {
 	// under, so a workspace key shared with other members never opens them.
 	AccountKeyEpochs string
 	AccountKeyWraps  string
+	// LinkSeals carry an encrypted record on a link: per link and record, the
+	// record's current value key wrapped for the link's viewers, and the key
+	// to that wrap for whoever writes the record next
+	// (design/e2ee-sharing.md §3). Reached through /api/sealed/* and the
+	// public link read only.
+	LinkSeals string
 	// WebhookEndpoints are where a workspace wants its events sent.
 	// WebhookEvents record what happened, WebhookDeliveries carry one event
 	// to one endpoint, and WebhookAttempts keep every try so a failing
@@ -165,6 +171,12 @@ type accountKeyWrapFields struct {
 	User, Epoch, DeviceSeq, Wrap, SignerSeq, ChainSeq, Signature, Created string
 }
 
+// linkSealFields: Version is the record version both wraps were made for. A
+// seal of an older version is never served.
+type linkSealFields struct {
+	Link, Record, Version, ViewerWrap, WriterWrap, Created, Updated string
+}
+
 type sectionFields struct {
 	Key, Name, User, Workspace, Records, RequestedBy, Created, Updated string
 	// Shared is the section's audience as it was before audiences existed:
@@ -191,6 +203,10 @@ type linkFields struct {
 	Request, Grants, Data, SenderName, Identifier, Watermark, WatermarkText,
 	Purpose, Connection, Ref, HandedOver, ProposedBy, HeldPaused,
 	RemoteDomain, RemoteRequest, GrantTokenHash, SignInClient, Created, Updated string
+	// SealedKeyWraps holds the link's key, which otherwise exists only in its
+	// address, for the devices that may show that address again:
+	// {scope: {epoch, wrap}}. Written through /api/sealed/links only.
+	SealedKeyWraps string
 }
 
 type workspaceFields struct {
@@ -268,7 +284,7 @@ type identityRevocationFields struct {
 }
 
 type bookmarkFields struct {
-	User, Sender, Origin, Slug, Kind, Label, Groups, Created, Updated string
+	User, Sender, Origin, Slug, Kind, Label, Groups, SealedKey, KeyEpoch, Created, Updated string
 }
 
 type bookmarkGroupFields struct {
@@ -422,6 +438,7 @@ var Coll = collectionSchema{
 	WorkspaceKeyWraps:   "workspaceKeyWraps",
 	AccountKeyEpochs:    "accountKeyEpochs",
 	AccountKeyWraps:     "accountKeyWraps",
+	LinkSeals:           "linkSeals",
 	WebhookEndpoints:    "webhookEndpoints",
 	WebhookEvents:       "webhookEvents",
 	WebhookDeliveries:   "webhookDeliveries",
@@ -442,6 +459,7 @@ var Fields = struct {
 	WorkspaceKeyWrap   workspaceKeyWrapFields
 	AccountKeyEpoch    accountKeyEpochFields
 	AccountKeyWrap     accountKeyWrapFields
+	LinkSeal           linkSealFields
 	Section            sectionFields
 	Group              groupFields
 	GroupMember        groupMemberFields
@@ -606,6 +624,15 @@ var Fields = struct {
 		Signature: "signature",
 		Created:   "created",
 	},
+	LinkSeal: linkSealFields{
+		Link:       "link",
+		Record:     "record",
+		Version:    "version",
+		ViewerWrap: "viewerWrap",
+		WriterWrap: "writerWrap",
+		Created:    "created",
+		Updated:    "updated",
+	},
 	Section: sectionFields{
 		Key:         "key",
 		Name:        "name",
@@ -668,6 +695,7 @@ var Fields = struct {
 		HeldPaused:       "heldPaused",
 		Created:          "created",
 		Updated:          "updated",
+		SealedKeyWraps:   "sealedKeyWraps",
 	},
 	AuditLog: auditLogFields{
 		User:       "user",
@@ -790,6 +818,7 @@ var Fields = struct {
 		Updated:     "updated",
 	},
 	Bookmark: bookmarkFields{
+		SealedKey: "sealedKey", KeyEpoch: "keyEpoch",
 		User:    "user",
 		Sender:  "sender",
 		Origin:  "origin",

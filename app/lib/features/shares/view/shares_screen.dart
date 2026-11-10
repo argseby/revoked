@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
-import 'package:revoked_app/core/widgets/access_sheet.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +13,7 @@ import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -60,6 +61,10 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   /// The recipients the Filter lets through, by [_personKey]. The `recipient`
   /// route parameter ticks its person.
   late final Local<Set<String>> _people = Local(_peopleFrom(widget.recipient));
+
+  /// Who sees a link, as the Filter's "Visible to" ticks it (`private`,
+  /// `workspace`, `group:<id>`); none ticked lets all through.
+  final Local<Set<String>> _audiences = Local(const {});
 
   @override
   void initState() {
@@ -158,6 +163,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   void _clearFilters() {
     _statuses.value = const {};
     _people.value = const {};
+    _audiences.value = const {};
   }
 
   static const _groupTitles = {
@@ -216,8 +222,21 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               ),
           ],
         ),
+      ?audienceFilterSection(
+        items: [
+          for (final l in [...links, ...Stores.shares.sharedShares])
+            [_audienceOf(l)],
+        ],
+        selected: _audiences.value,
+        onToggle: (id, on) => _audiences.value = on
+            ? {..._audiences.value, id}
+            : ({..._audiences.value}..remove(id)),
+      ),
     ];
   }
+
+  static Audience _audienceOf(Link l) =>
+      Audience(l.audienceKind, l.audienceGroups);
 
   /// The one recipient ticked, as they named the link; null unless exactly
   /// one is.
@@ -324,14 +343,29 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         final now = DateTime.now();
         final statuses = _statuses.value;
         final people = _people.value;
+        final audiences = _audiences.value;
         final recipient = _singlePerson();
         final matches = _table.filteredItems
             .where(
               (l) =>
                   (statuses.isEmpty || statuses.contains(linkGroup(l, now))) &&
-                  (people.isEmpty || people.contains(_personKey(l.label))),
+                  (people.isEmpty || people.contains(_personKey(l.label))) &&
+                  audienceMatches(audiences, [_audienceOf(l)]),
             )
             .toList();
+        final sharedShown = store.sharedShares
+            .where((l) => audienceMatches(audiences, [_audienceOf(l)]))
+            .toList();
+        // What each status holds under the search and the other filters, so
+        // a chip says what picking it would show.
+        final statusCounts = {for (final g in LinkGroup.values) g: 0};
+        for (final l in _table.filteredItems) {
+          if ((people.isEmpty || people.contains(_personKey(l.label))) &&
+              audienceMatches(audiences, [_audienceOf(l)])) {
+            final g = linkGroup(l, now);
+            statusCounts[g] = statusCounts[g]! + 1;
+          }
+        }
         final byGroup = {for (final g in LinkGroup.values) g: <Link>[]};
         for (final l in matches) {
           byGroup[linkGroup(l, now)]!.add(l);
@@ -362,10 +396,24 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
           );
         }
 
-        final nothingShown = matches.isEmpty;
+        final nothingShown =
+            matches.isEmpty &&
+            (sharedShown.isEmpty || statuses.isNotEmpty || people.isNotEmpty);
 
         return AppListPage(
           toolbar: _toolbar(),
+          filters: AppStatusChips<LinkGroup>(
+            selected: statuses,
+            onChanged: (v) => _statuses.value = v,
+            options: [
+              for (final g in LinkGroup.values)
+                AppFilterOption(
+                  value: g,
+                  label: _groupTitles[g]!,
+                  count: statusCounts[g]!,
+                ),
+            ],
+          ).orNull,
           banners: [
             if (store.loadState.error != null)
               AppRefreshFailed(onRetry: store.loadShares),
@@ -404,15 +452,13 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
             ),
             // Shares other members opened to this person, apart from their
             // own and outside the filters, which are about their own links.
-            if (store.sharedShares.isNotEmpty &&
-                statuses.isEmpty &&
-                people.isEmpty)
+            if (sharedShown.isNotEmpty && statuses.isEmpty && people.isEmpty)
               AppListGroup(
                 title: 'Shared by members',
                 noun: 'links',
                 previewCount: 5,
                 children: [
-                  for (final l in store.sharedShares)
+                  for (final l in sharedShown)
                     _LinkRow(
                       share: l,
                       selected: l.id == widget.selectedId,
@@ -462,7 +508,9 @@ class _LinkRow extends StatelessWidget {
           : AppIcons.link,
       title: share.label,
       selected: selected,
+      accent: attention != null ? theme.colorScheme.warning : null,
       subtitle: attention?.reason ?? _summary(),
+      audience: AudienceTag(Audience(share.audienceKind, share.audienceGroups)),
       trailing: attention != null
           ? AppBadge(label: attention.short, accent: theme.colorScheme.warning)
           : showStatus
@@ -497,8 +545,6 @@ class _LinkRow extends StatelessWidget {
     parts.add(
       share.viewCount == 0 ? 'not viewed' : 'viewed ${share.viewCount}×',
     );
-    // Who in the workspace has access to it.
-    parts.add(audienceSummary(share.audienceKind, share.audienceGroups));
     return parts.join(' · ');
   }
 }

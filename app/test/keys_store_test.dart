@@ -2598,4 +2598,104 @@ void main() {
       expect(fresh.openRecord(record), _canary);
     });
   });
+
+  group('a link\'s key', () {
+    const link = 'link00000000001';
+
+    test('comes back on the owner\'s other device, and on nobody '
+        'else\'s', () async {
+      final server = _FakeServer();
+      final (first, _) = await _setUp(server);
+      expect(await first.ensureAccountKey(), isTrue);
+      final linkKey = first.newLinkKey();
+      final wraps = first.wrapLinkKey(
+        linkKey: linkKey,
+        link: link,
+        workspace: _workspace,
+      )!;
+      expect(wraps.keys, [_accountScope]);
+
+      final second = await _addDevice(server, first);
+      Uint8List? open(KeysStore keys, {String on = link}) =>
+          keys.openLinkKey(link: on, workspace: _workspace, wraps: wraps);
+      expect(open(second), linkKey);
+      // Moved to another link's row, it opens nothing.
+      expect(open(second, on: 'link00000000002'), isNull);
+
+      // A device of another account holds neither key.
+      final stranger = KeysStore(
+        ApiClient(httpClient: _FakeServer().client),
+        currentUser: () => 'user000000000zz',
+        storage: _DeviceStorage(),
+      );
+      await stranger.load();
+      expect(
+        stranger.openLinkKey(link: link, workspace: _workspace, wraps: wraps),
+        isNull,
+      );
+    });
+
+    test('is also kept for the workspace only when asked for', () async {
+      final server = _FakeServer();
+      final (keys, _) = await _setUp(server);
+      expect(await keys.ensureAccountKey(), isTrue);
+      final linkKey = keys.newLinkKey();
+      final wraps = keys.wrapLinkKey(
+        linkKey: linkKey,
+        link: link,
+        workspace: _workspace,
+        forWorkspace: true,
+      )!;
+      expect(wraps.keys, unorderedEquals([_accountScope, _workspace]));
+      // The workspace's copy alone is enough for a member holding its key.
+      expect(
+        keys.openLinkKey(
+          link: link,
+          workspace: _workspace,
+          wraps: {_workspace: wraps[_workspace]},
+        ),
+        linkKey,
+      );
+    });
+
+    test('is not made without an account key to keep it under', () async {
+      final server = _FakeServer();
+      final (keys, _) = await _setUp(server);
+      expect(
+        keys.wrapLinkKey(
+          linkKey: keys.newLinkKey(),
+          link: link,
+          workspace: _workspace,
+        ),
+        isNull,
+      );
+    });
+
+    test('a record this device cannot open gets no seal', () async {
+      final server = _FakeServer();
+      final (keys, _) = await _setUp(server);
+      final record = _sealedRecord(keys);
+      final stale = _recordFrom(
+        record.id,
+        1,
+        SealedPayload(
+          sealedValue: record.sealedValue,
+          keyEpoch: 9,
+          keyWrap: record.keyWrap,
+        ),
+      );
+      expect(
+        keys.sealForLink(linkKey: keys.newLinkKey(), link: link, record: stale),
+        isNull,
+      );
+      expect(
+        keys.sealForLink(
+          linkKey: keys.newLinkKey(),
+          link: link,
+          record: record,
+        ),
+        isNotNull,
+      );
+    });
+  });
 }

@@ -446,6 +446,9 @@ abstract class _InvitesStore with Store {
         body: {'permissions': permissions},
       );
       await loadMembers(workspaceId);
+      // The vault's publish check reads the account's membership scopes,
+      // while the member page reads the named permission roster.
+      await Stores.settings.loadWorkspaces(Stores.auth.userId);
       return true;
     } catch (e) {
       error = AppErrorMessage.fromException(e);

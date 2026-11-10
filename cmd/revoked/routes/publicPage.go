@@ -434,6 +434,10 @@ animation: rise .4s var(--ease) both;
 
 .mono { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; color: var(--fg-muted); margin-top: 4px; }
 .muted { color: var(--fg-muted); }
+.seal-note {
+padding: 10px 12px; font-size: 14px; line-height: 1.45;
+border-left: 3px solid var(--control); background: var(--surface-subtle); color: var(--fg-muted);
+}
 [hidden] { display: none !important; }
 
 .toast {
@@ -867,6 +871,33 @@ setServer('unverified', 'No DNS record confirms this server\'s key.');
 }, 5000);
 }
 
+` + pageSealingScript + `
+var linkKey = sealLinkKeyFrom(location.hash);
+
+// The way into the app is rendered by the server, which never sees the key,
+// so it is added here: the app then opens the same entries.
+function keyAppLinks() {
+Array.prototype.forEach.call(document.querySelectorAll('a[href^="revoked://s/"]'), function(a) {
+var base = a.getAttribute('href').split('#')[0];
+a.setAttribute('href', linkKey ? base + '#k=' + sealKeyText(linkKey) : base);
+});
+}
+keyAppLinks();
+
+// Said in place of a value that stays closed, and once above the entries.
+var LOCKED = {
+incomplete: ['This link is incomplete',
+'Some entries on this link are end-to-end encrypted. The key that opens them is the end of the link\'s address, after “#k=”, and it is missing here, for example because only part of the address was copied. The complete link opens them.'],
+replaced: ['The key of this link was replaced',
+'Some entries on this link are end-to-end encrypted, and the key in this address does not open them. It was replaced, or the address was changed on the way. The current link comes from the sender.'],
+unavailable: ['Encrypted · not available on this link right now',
+'An encrypted entry was changed and has not been renewed for this link yet. Until then it is not shown, rather than an older version of it.'],
+insecure: ['Encrypted · opens over HTTPS or in the app',
+'Some entries on this link are end-to-end encrypted. A browser decrypts them only on a secure (HTTPS) connection; the Revoked app opens them as well.'],
+damaged: ['This entry could not be decrypted',
+'An encrypted entry on this link could not be decrypted: what the server sent does not match the key in this address.']
+};
+
 // ---- What a value is --------------------------------------------------------
 var KINDS = {
 phone: { icon: 'phone', tone: 'ok' },
@@ -993,7 +1024,7 @@ function renderRecordItem(r) {
 var item = el('div', 'item');
 var row = el('div', 'rec');
 var kind = kindOf(r);
-var meta = KINDS[kind];
+var meta = r.locked ? { icon: 'lock', tone: 'neutral' } : KINDS[kind];
 var label = r.label || r.key || 'Record';
 
 var tile = el('div', 'tile tone-' + meta.tone);
@@ -1018,6 +1049,10 @@ setTimeout(function() { dl.disabled = false; }, 2000);
 });
 acts.appendChild(dl);
 }
+} else if (r.locked) {
+// Encrypted and not opened here: the row says why in place of a value, and
+// never shows an older one.
+tx.appendChild(el('div', 'v muted', (LOCKED[r.locked] || LOCKED.damaged)[0]));
 } else {
 var raw = r.value == null ? '' : String(r.value);
 var value = raw.trim();
@@ -1311,6 +1346,13 @@ watermarkLine = data.watermark || '';
 var rootRecords = data.records || [];
 var sections = data.sections || [];
 var isApplication = data.purpose === 'application';
+
+// Why encrypted entries stay closed, once, ahead of the rows that say it.
+var closed = {};
+rootRecords.forEach(function(r) { if (r && r.locked) closed[LOCKED[r.locked] ? r.locked : 'damaged'] = true; });
+Object.keys(LOCKED).forEach(function(why) {
+if (closed[why]) out.appendChild(el('div', 'seal-note sec', LOCKED[why][1]));
+});
 var hasRootFile = rootRecords.some(function(r) { return r.type === 'file'; });
 if (data.archiveToken && !(isApplication && hasRootFile)) {
 var files = rootRecords.filter(function(r) { return r.type === 'file'; }).length;
@@ -1384,6 +1426,21 @@ requestAnimationFrame(function() { gate.classList.add('gone'); });
 setTimeout(function() { gate.remove(); }, 600);
 }
 
+// What the server returned, kept as it came: a corrected address opens the
+// same answer again without spending another view.
+var resolved = null;
+function showShare() {
+var data = resolved;
+return sealOpenShare(data, linkKey).then(function(opened) {
+if (data === resolved) render(opened);
+});
+}
+window.addEventListener('hashchange', function() {
+linkKey = sealLinkKeyFrom(location.hash);
+keyAppLinks();
+if (resolved) showShare();
+});
+
 var btn = document.getElementById('reveal');
 if (btn) {
 btn.addEventListener('click', function() {
@@ -1409,7 +1466,8 @@ var vt = document.getElementById('views-text');
 if (vt) vt.textContent = Math.min(viewCount + 1, maxViews) + ' of ' + maxViews + ' views used';
 }
 document.getElementById('strip').hidden = false;
-render(res.body);
+resolved = res.body;
+return showShare();
 })
 .catch(function() {
 btn.disabled = false;

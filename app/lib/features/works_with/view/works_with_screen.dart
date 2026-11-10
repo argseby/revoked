@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/models/works_with.dart';
@@ -14,11 +16,13 @@ import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
-import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 
 /// Works with Revoked: the services and tools built on Revoked, as reviewed
@@ -206,80 +210,310 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
 
     return AppListPage(
       toolbar: _toolbar(searched),
-      filters: const Text(intro).muted.small,
+      filters: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(intro).muted.small,
+          AppSpacing.gapMd,
+          _doesChips(searched),
+        ],
+      ),
       emptyMessage: shown.isEmpty
           ? 'No service matches the search or filters.'
           : null,
       groups: [
         if (mine.isNotEmpty)
-          AppListGroup(
+          _ServiceGroup(
             title: 'Connected',
-            children: [for (final s in mine) _row(context, s, connected: true)],
+            // A connected service is the one most often opened, so it takes
+            // the full width.
+            maxColumns: 1,
+            children: [
+              for (final s in mine)
+                _ServiceCard(s, connected: true, onTap: () => _open(s)),
+            ],
           ),
         if (rest.isNotEmpty)
-          AppListGroup(
+          _ServiceGroup(
             title: mine.isEmpty ? 'Listed' : 'Other listed services',
-            footer: Text.rich(
-              TextSpan(
-                text:
-                    'Services are added and changed through a reviewed pull '
-                    'request. ',
-                children: [
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.baseline,
-                    baseline: TextBaseline.alphabetic,
-                    child: InkWell(
-                      borderRadius: AppRadius.allMd,
-                      onTap: _openRepo,
-                      child: Text(
-                        'How services are listed',
-                        style: TextStyle(
-                          decoration: TextDecoration.underline,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            children: [for (final s in rest) _row(context, s)],
+            children: [
+              for (final s in rest) _ServiceCard(s, onTap: () => _open(s)),
+            ],
+          ),
+        _ListingNote(onTap: _openRepo),
+      ],
+    );
+  }
+
+  /// "What it does" as chips above the list, the filter reached for most.
+  /// They show and change the same selection as that section of Filter and
+  /// sort; with several ticked there, no chip is the selected one.
+  Widget _doesChips(List<WorksWithService> searched) {
+    final on = _on(_Section.does);
+    return AppFilterChips<String>(
+      selected: switch (on.length) {
+        0 => '',
+        1 => on.first,
+        _ => '\u0000',
+      },
+      onSelected: (key) => _selected.value = {
+        ..._selected.value,
+        _Section.does: {if (key.isNotEmpty) key},
+      },
+      options: [
+        AppFilterOption(value: '', label: 'All', count: searched.length),
+        for (final k in ServiceKind.values)
+          AppFilterOption(
+            value: k.key,
+            label: k.label,
+            count: searched.where((s) => s.does.contains(k)).length,
           ),
       ],
     );
   }
 
-  Widget _row(
-    BuildContext context,
-    WorksWithService s, {
-    bool connected = false,
-  }) {
-    final description = s.description.text;
-    return AppListRow(
-      icon: _iconFor(s),
-      title: s.name,
-      subtitle: [
-        s.host,
-        s.does.map((k) => k.label).join(', '),
-        if (description.isNotEmpty) description,
-      ].join(' · '),
-      trailing: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        children: [
-          if (connected)
-            const AppBadge(icon: AppIcons.plug, label: 'Connected'),
-          WorksWithMark(s),
-        ],
-      ),
-      onTap: () => context.go(AppRoutes.worksWithServiceFor(s.slug)),
-    );
-  }
+  void _open(WorksWithService s) =>
+      context.go(AppRoutes.worksWithServiceFor(s.slug));
 
   Future<void> _openRepo() async {
     await launchUrl(
       Uri.parse(AppConfig.worksWithRepoUrl),
       mode: LaunchMode.externalApplication,
+    );
+  }
+}
+
+/// A titled grid of service cards: two beside each other where the page is
+/// wide enough, one on a phone. Cards in a row share the taller one's height,
+/// so the access lines at their feet line up.
+class _ServiceGroup extends StatelessWidget {
+  final String title;
+  final int maxColumns;
+  final List<Widget> children;
+
+  const _ServiceGroup({
+    required this.title,
+    required this.children,
+    this.maxColumns = 2,
+  });
+
+  /// Below this a card is too narrow for its address on one line.
+  static const double _twoColumnWidth = 640;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppListHeader(
+            title: title,
+            trailing: AppText('${children.length}').small.muted,
+          ),
+          LayoutBuilder(
+            builder: (context, box) {
+              final columns = box.maxWidth >= _twoColumnWidth ? maxColumns : 1;
+              return Column(
+                children: [
+                  for (var i = 0; i < children.length; i += columns) ...[
+                    if (i > 0) AppSpacing.gapMd,
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (var j = i; j < i + columns; j++) ...[
+                            if (j > i) AppSpacing.gapMd,
+                            Expanded(
+                              child: j < children.length
+                                  ? children[j]
+                                  : const SizedBox.shrink(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One listed service: what it is, where it lives, what it does, and at its
+/// foot the most of the vault it may ask for.
+class _ServiceCard extends StatelessWidget {
+  final WorksWithService service;
+  final bool connected;
+  final VoidCallback onTap;
+
+  const _ServiceCard(
+    this.service, {
+    this.connected = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final s = service;
+    final scheme = Theme.of(context).colorScheme;
+    final description = s.description.text;
+    final (accessIcon, accessColor) = switch (s.access) {
+      ServiceAccess.linksOnly => (AppIcons.lock, scheme.success),
+      ServiceAccess.ownSection => (AppIcons.folder, scheme.onSurfaceVariant),
+      ServiceAccess.readsVault => (AppIcons.eye, scheme.warning),
+    };
+    return Semantics(
+      button: true,
+      child: AppCard(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: AppRadius.allMd,
+                  ),
+                  child: Icon(
+                    _iconFor(s),
+                    size: 20,
+                    color: s.unavailable
+                        ? scheme.onSurfaceVariant
+                        : scheme.onSurface,
+                  ),
+                ),
+                AppSpacing.gapMd,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: AppSpacing.sm,
+                        runSpacing: AppSpacing.xxs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          s.unavailable
+                              ? AppText(s.name).bold.muted
+                              : AppText(s.name).bold,
+                          if (connected)
+                            AppBadge(
+                              icon: AppIcons.plug,
+                              label: 'Connected',
+                              accent: scheme.success,
+                            ),
+                          WorksWithMark(s),
+                          if (s.builtByRevoked)
+                            const AppBadge(
+                              label: 'Built by Revoked',
+                              variant: AppBadgeVariant.outline,
+                            ),
+                        ],
+                      ),
+                      AppText(
+                        s.host,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ).small.mono.muted,
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (description.isNotEmpty) ...[
+              AppSpacing.gapMd,
+              AppText(
+                description,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ).small.muted,
+            ],
+            AppSpacing.gapMd,
+            Wrap(
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xxs,
+              children: [
+                for (final k in s.does)
+                  AppBadge(label: k.label, variant: AppBadgeVariant.sunken),
+                for (final c in s.categories)
+                  AppBadge(label: c.label, variant: AppBadgeVariant.outline),
+              ],
+            ),
+            const Spacer(),
+            AppSpacing.gapMd,
+            const AppDivider(),
+            AppSpacing.gapMd,
+            Row(
+              children: [
+                Icon(accessIcon, size: 14, color: accessColor),
+                AppSpacing.gapXs,
+                Expanded(
+                  child: Text(
+                    s.access.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: accessColor,
+                      fontSize: AppTextSize.small,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Under the list: how a service comes to be on it, and that one which is
+/// not works exactly as well.
+class _ListingNote extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ListingNote({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AppDivider(),
+        AppSpacing.gapMd,
+        Wrap(
+          spacing: AppSpacing.lg,
+          runSpacing: AppSpacing.sm,
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: const Text(
+                'Services are added and changed through a reviewed pull '
+                'request. A service that is not listed works exactly as well.',
+              ).small.muted,
+            ),
+            AppButton(
+              icon: AppIcons.boxArrowUpRight,
+              label: 'How services are listed',
+              style: AppButtonStyle.accent,
+              size: AppButtonSize.small,
+              onTap: onTap,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

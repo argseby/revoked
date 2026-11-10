@@ -1,0 +1,22 @@
+{
+  "linkKey": "CxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM_W3eQ",
+  "workspace": "wsreadvector001",
+  "entry": {
+    "id": "recreadvector01",
+    "key": "smtp_password",
+    "label": "What the server states",
+    "type": "url",
+    "format": "default",
+    "updated": "2026-11-10 09:00:00.000Z",
+    "sealed": true,
+    "sealedValue": "AZ0_1Zoz066t_DPgnpw42S1dmO7Sx8oRXE5MPyB3a7-fyKj3n1rYHWFyAoIUPo_ffdQb7z5ya8ySnv244UsHdxvKwoPuGf828BadzcrYGMww0LKzRez80Z5PA3xWyAg9bVsp8s_gufaRs9mycKJYN1yxQVK-4R_xU19lQAfb_5f18NSdxW_-vjxu3Ali3HgrzxogVXrk5aCWulF6Lr2uM4_pg2vlaifbUcpaLkRzwS54J-Oy_MRoTufIM-NPy4a6hQYUOuHQ5VjlVls-6E21gARUgtPbUO65IoB73np4a85APjrhPi13uNnGQRYysmtzKhXpbrDtYmqf4QPDB0UHcyduvOH_tT_wP5aptrd46JKaf3VI43aTtVgcD_XD",
+    "sealedVersion": 6,
+    "viewerWrap": "ARinFexkYCNtyRRqeK1QEqFBeBri9Rk_yBA7Gp9tGkcOJndOh5DIoapUn24XH-fzEGy5GPEffCQ3kGjoJ0WMJp0yzOVJBFBJn733UA=="
+  },
+  "content": {
+    "v": "smtp.example.com:587 passwörd ✓",
+    "l": "SMTP-Zugang (Büro)",
+    "t": "text",
+    "f": "hidden"
+  }
+}

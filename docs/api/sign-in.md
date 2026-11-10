@@ -197,6 +197,16 @@ error, so the panel says the app is needed.
 | `email` | `email`, `email_verified` |
 | `revoked_identity` | `revoked_identity` — the fingerprint of the person's primary identity, the same at every service |
 
+`email_verified` means that the issuing server reports that the person
+confirmed access to that email address. It does not make the address a
+globally trusted identity: any self-hosted server can issue claims for its
+own users, and a service must decide which issuers it trusts before relying
+on an email address for account lookup, recovery or authorization. A service
+that accepts arbitrary Revoked issuers should use `(iss, sub)` to identify an
+account, not the email address. Email confirmation proves mailbox access at
+the time of confirmation; it does not establish a person's legal identity or
+continued control of the address.
+
 `name` is the name the person chose for this service: one of their identities'
 names, or a vault entry. A person can give each service a different name, or
 none, in which case `profile` is left out of the granted scopes. There is no

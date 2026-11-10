@@ -30,7 +30,7 @@ services:
     # (ghcr.io/argseby/revoked:v0.35.0) so an upgrade is a deliberate change of
     # tag; a pinned tag not yet on the host is pulled on the next `up`.
     # `docker compose up -d --build` builds this checkout under the same name
-    # instead.
+    # instead. Set REVOKED_VERSION for source archives without .git metadata.
     image: ${REVOKED_IMAGE:-ghcr.io/argseby/revoked:latest}
     build:
       context: .

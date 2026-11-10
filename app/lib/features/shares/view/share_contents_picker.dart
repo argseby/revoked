@@ -116,12 +116,17 @@ Future<void> openShareContentsPicker(
                           onChanged: (_) => onSection(s.id),
                         ),
                     ],
-                    if (vault.records.any((r) => !r.sealed)) ...[
+                    // An encrypted record goes on a link from a device that
+                    // can open it: the link gets its value key, wrapped
+                    // (design/e2ee-sharing.md §3).
+                    if (vault.records.any((r) => !r.isLocked)) ...[
                       const _GroupLabel('Records'),
-                      for (final r in vault.records.where((r) => !r.sealed))
+                      for (final r in vault.records.where((r) => !r.isLocked))
                         AppCheckRow(
                           label: recordTitle(r),
-                          subtitle: r.isFile
+                          subtitle: r.sealed
+                              ? 'End-to-end encrypted'
+                              : r.isFile
                               ? 'File'
                               : (r.isHidden ? 'Hidden value' : null),
                           value: pickedRecords.contains(r.id),
@@ -130,14 +135,16 @@ Future<void> openShareContentsPicker(
                     ],
                     // What other members shared or published to this person
                     // may go into their shares too (VISIBILITY.md).
-                    if (vault.sharedRecords.any((r) => !r.sealed)) ...[
+                    if (vault.sharedRecords.any((r) => !r.isLocked)) ...[
                       const _GroupLabel('From the workspace'),
                       for (final r in vault.sharedRecords.where(
-                        (r) => !r.sealed,
+                        (r) => !r.isLocked,
                       ))
                         AppCheckRow(
                           label: recordTitle(r),
-                          subtitle: r.isHidden
+                          subtitle: r.sealed
+                              ? 'End-to-end encrypted · shared by a member'
+                              : r.isHidden
                               ? 'Hidden value · shared by a member'
                               : 'Shared by a member',
                           value: pickedRecords.contains(r.id),

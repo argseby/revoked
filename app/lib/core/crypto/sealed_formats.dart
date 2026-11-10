@@ -180,6 +180,229 @@ abstract final class SealedFormats {
     decode(wrapped),
   );
 
+  /// The key a link's viewer opens one record with, derived from the link key
+  /// that travels in the address (design/e2ee-sharing.md §3.2). One per record,
+  /// so whoever is handed one learns nothing about the link key or about the
+  /// other records on the link.
+  static Uint8List linkCopyKey({
+    required Uint8List linkKey,
+    required String record,
+  }) {
+    if (linkKey.length != Sealing.keyLength) {
+      throw const SealingException('This link\'s key is not usable.');
+    }
+    return Sealing.deriveKey(
+      linkKey,
+      Sealing.context('revoked-link-copy-v1', [record]),
+    );
+  }
+
+  /// A link key as it travels in the address, after `#k=`. Without padding:
+  /// an address is retyped, wrapped by mail clients and drawn as a QR code.
+  static String linkKeyText(Uint8List linkKey) =>
+      base64Url.encode(linkKey).replaceAll('=', '');
+
+  /// The key an address carries, or null for anything that is not one.
+  static Uint8List? parseLinkKey(String text) {
+    try {
+      final key = decode(text);
+      return key.length == Sealing.keyLength ? key : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// A saved share key, bound to this account and the exact saved address.
+  static Uint8List bookmarkAad({
+    required String user,
+    required String server,
+    required String origin,
+    required String slug,
+    required int epoch,
+  }) => Sealing.context('revoked-bookmark-key-v1', [
+    user,
+    server,
+    origin,
+    slug,
+    epoch,
+  ]);
+
+  static String wrapBookmarkKey({
+    required Uint8List accountKey,
+    required Uint8List linkKey,
+    required String user,
+    required String server,
+    required String origin,
+    required String slug,
+    required int epoch,
+  }) => encode(
+    Sealing.aeadSeal(
+      accountKey,
+      bookmarkAad(
+        user: user,
+        server: server,
+        origin: origin,
+        slug: slug,
+        epoch: epoch,
+      ),
+      linkKey,
+    ),
+  );
+
+  static Uint8List openBookmarkKey({
+    required Uint8List accountKey,
+    required String wrapped,
+    required String user,
+    required String server,
+    required String origin,
+    required String slug,
+    required int epoch,
+  }) {
+    final key = Sealing.aeadOpen(
+      accountKey,
+      bookmarkAad(
+        user: user,
+        server: server,
+        origin: origin,
+        slug: slug,
+        epoch: epoch,
+      ),
+      decode(wrapped),
+    );
+    if (key.length != Sealing.keyLength) {
+      throw const FormatException('Invalid saved link key');
+    }
+    return key;
+  }
+
+  static Uint8List _linkViewerAad(String record, int version) =>
+      Sealing.context('revoked-link-viewer-v1', [record, version]);
+
+  static Uint8List _linkWriterAad(
+    String workspace,
+    String link,
+    String record,
+    int version,
+  ) => Sealing.context('revoked-link-writer-v1', [
+    workspace,
+    link,
+    record,
+    version,
+  ]);
+
+  static Uint8List _linkKeyAad(String scope, String link, int epoch) =>
+      Sealing.context('revoked-link-key-v1', [scope, link, epoch]);
+
+  /// What a link's viewer opens: this version's value key, then the workspace
+  /// the value is bound to. The workspace travels inside because a viewer
+  /// needs it to open the value and the server never names it in public.
+  static String wrapLinkViewer({
+    required Uint8List copyKey,
+    required Uint8List valueKey,
+    required String workspace,
+    required String record,
+    required int version,
+  }) {
+    if (valueKey.length != Sealing.keyLength) {
+      throw const SealingException('This value key is not usable.');
+    }
+    return encode(
+      Sealing.aeadSeal(
+        copyKey,
+        _linkViewerAad(record, version),
+        Uint8List.fromList([...valueKey, ...utf8.encode(workspace)]),
+      ),
+    );
+  }
+
+  static LinkViewerSeal openLinkViewer({
+    required Uint8List copyKey,
+    required String wrapped,
+    required String record,
+    required int version,
+  }) {
+    final plain = Sealing.aeadOpen(
+      copyKey,
+      _linkViewerAad(record, version),
+      decode(wrapped),
+    );
+    if (plain.length <= Sealing.keyLength) {
+      throw const SealingException('This link holds no key for this entry.');
+    }
+    return LinkViewerSeal(
+      valueKey: Uint8List.sublistView(plain, 0, Sealing.keyLength),
+      workspace: utf8.decode(Uint8List.sublistView(plain, Sealing.keyLength)),
+    );
+  }
+
+  /// What lets the next writer renew a link: the copy key, under the value key
+  /// of this version. Only someone who could open this version can have made
+  /// it, so the server cannot attach a link of its own to a record.
+  static String wrapLinkWriter({
+    required Uint8List valueKey,
+    required Uint8List copyKey,
+    required String workspace,
+    required String link,
+    required String record,
+    required int version,
+  }) => encode(
+    Sealing.aeadSeal(
+      valueKey,
+      _linkWriterAad(workspace, link, record, version),
+      copyKey,
+    ),
+  );
+
+  static Uint8List openLinkWriter({
+    required Uint8List valueKey,
+    required String wrapped,
+    required String workspace,
+    required String link,
+    required String record,
+    required int version,
+  }) {
+    final copyKey = Sealing.aeadOpen(
+      valueKey,
+      _linkWriterAad(workspace, link, record, version),
+      decode(wrapped),
+    );
+    if (copyKey.length != Sealing.keyLength) {
+      throw const SealingException('This link holds no key for this entry.');
+    }
+    return copyKey;
+  }
+
+  /// A link key for the devices that hold [scopeKey]: the owner's account key
+  /// ([accountScope]), or the workspace's key while the link is seen by more
+  /// than its owner.
+  static String wrapLinkKey({
+    required Uint8List scopeKey,
+    required Uint8List linkKey,
+    required String scope,
+    required String link,
+    required int epoch,
+  }) => encode(
+    Sealing.aeadSeal(scopeKey, _linkKeyAad(scope, link, epoch), linkKey),
+  );
+
+  static Uint8List openLinkKey({
+    required Uint8List scopeKey,
+    required String wrapped,
+    required String scope,
+    required String link,
+    required int epoch,
+  }) {
+    final linkKey = Sealing.aeadOpen(
+      scopeKey,
+      _linkKeyAad(scope, link, epoch),
+      decode(wrapped),
+    );
+    if (linkKey.length != Sealing.keyLength) {
+      throw const SealingException('This link\'s key is not usable.');
+    }
+    return linkKey;
+  }
+
   /// An identity's private key for the owner's other devices, under the
   /// workspace key of [epoch]. Padded: the ciphertext should not say how long
   /// the PEM is.
@@ -400,6 +623,15 @@ abstract final class SealedFormats {
     rootHash,
     credentialId,
   ]);
+}
+
+/// What a link's viewer is handed for one record: the key its current value
+/// opens with, and the workspace that value is bound to.
+class LinkViewerSeal {
+  final Uint8List valueKey;
+  final String workspace;
+
+  const LinkViewerSeal({required this.valueKey, required this.workspace});
 }
 
 /// The keys a passkey holds, derived from what its PRF extension returns. The

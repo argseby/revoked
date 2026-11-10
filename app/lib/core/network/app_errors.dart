@@ -122,6 +122,8 @@ abstract class AppErrorCode {
   static const webhookDisabled = 'webhook_disabled';
   static const sealedRecordUnsupported = 'sealed_record_unsupported';
   static const sealedLinksAffected = 'sealed_links_affected';
+  static const sealedLinkSealsMissing = 'sealed_link_seals_missing';
+  static const sealedLinkContent = 'sealed_link_content';
 }
 
 /// A failure whose message was written for the reader, so it can be shown as is.
@@ -779,6 +781,20 @@ class AppErrorMessage {
         return AppErrorMessage(
           title: 'Links share this record',
           description: 'Links stop showing this record once it is encrypted.',
+          code: e.code,
+        );
+      case AppErrorCode.sealedLinkSealsMissing:
+        return AppErrorMessage(
+          title: 'A link was added in between',
+          description:
+              'A link started carrying this record while it was being saved. Saving again includes it.',
+          code: e.code,
+        );
+      case AppErrorCode.sealedLinkContent:
+        return AppErrorMessage(
+          title: 'Not added to the link',
+          description:
+              'An encrypted record goes onto a link only from a device that can open it, and the first one only from the link\'s owner.',
           code: e.code,
         );
       case AppErrorCode.remoteIdentityInvalid:

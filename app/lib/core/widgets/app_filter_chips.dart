@@ -51,6 +51,60 @@ class AppFilterChips<T> extends StatelessWidget {
   }
 }
 
+/// [AppFilterChips] over a list's Status filter, which may hold several
+/// values: "All 14 · Needs attention 2 · Active 6 · Closed 5". The chips show
+/// and change the same selection as that section of Filter and sort. One
+/// value ticked selects its chip, none selects All, and with several ticked
+/// no chip is the selected one.
+///
+/// Shows nothing while the choice would change nothing: fewer than two
+/// values hold anything and none is ticked.
+class AppStatusChips<T> extends StatelessWidget {
+  /// Each value with its label and how many items it holds.
+  final List<AppFilterOption<T>> options;
+  final Set<T> selected;
+  final ValueChanged<Set<T>> onChanged;
+
+  const AppStatusChips({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  /// Null while the chips would show nothing, so a page leaves out the
+  /// space around them too.
+  AppStatusChips<T>? get orNull =>
+      options.where((o) => o.count > 0).length < 2 && selected.isEmpty
+      ? null
+      : this;
+
+  @override
+  Widget build(BuildContext context) {
+    if (orNull == null) return const SizedBox.shrink();
+    final total = options.fold(0, (n, o) => n + o.count);
+    final single = selected.length == 1 ? selected.single : null;
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
+      children: [
+        _Pill(
+          label: 'All $total',
+          selected: selected.isEmpty,
+          onTap: () => onChanged(const {}),
+        ),
+        for (final o in options)
+          if (o.count > 0 || selected.contains(o.value))
+            _Pill(
+              label: '${o.label} ${o.count}',
+              selected: o.value == single,
+              onTap: () => onChanged({o.value}),
+            ),
+      ],
+    );
+  }
+}
+
 class _Pill extends StatelessWidget {
   final String label;
   final bool selected;

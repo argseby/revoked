@@ -28,15 +28,24 @@ Future<void> showShareSheet({
   required String title,
   required bool isRequest,
   ApiAccessTarget? apiTarget,
+
+  /// For a share carrying end-to-end encrypted records: what follows `#k=`
+  /// in its address (design/e2ee-sharing.md §3). It never reaches the
+  /// server, so it is only ever part of what this sheet hands out.
+  String? linkKey,
+
+  /// The share has such a key, and this device can't open it.
+  bool keyUnreadable = false,
 }) {
   final origin = Stores.api.originAuthority;
+  final key = isRequest || linkKey == null ? '' : '#k=$linkKey';
   // A request collects data, so it has no browser page and gets no web link:
   // the one surface that accepts input is the app, which verifies the server
   // it is talking to before anything is typed.
-  final webUrl = isRequest ? null : '${Stores.api.baseUrl}/s/$slug';
+  final webUrl = isRequest ? null : '${Stores.api.baseUrl}/s/$slug$key';
   final appUrl = isRequest
       ? DeepLinks.request(slug, origin: origin)
-      : DeepLinks.share(slug, origin: origin);
+      : '${DeepLinks.share(slug, origin: origin)}$key';
 
   return showAppSheet(
     context: context,
@@ -47,6 +56,13 @@ Future<void> showShareSheet({
       appUrl: appUrl,
       apiTarget: apiTarget,
       invitation: isRequest ? requestInvitation(title, appUrl) : null,
+      keyNote: keyUnreadable
+          ? 'The key of this link is not readable on this device. The link '
+                'below opens everything except the encrypted records.'
+          : key.isNotEmpty
+          ? 'Encrypted records open only with the whole link, including '
+                'the part after #.'
+          : null,
     ),
   );
 }
@@ -72,12 +88,17 @@ class _ShareSheet extends StatelessWidget {
   /// For a request: the message to send with the link.
   final String? invitation;
 
+  /// For a share carrying encrypted records: what its address has to do
+  /// with them.
+  final String? keyNote;
+
   const _ShareSheet({
     required this.title,
     required this.webUrl,
     required this.appUrl,
     required this.apiTarget,
     this.invitation,
+    this.keyNote,
   });
 
   @override
@@ -110,6 +131,10 @@ class _ShareSheet extends StatelessWidget {
                       ? 'Anyone who opens this in the Revoked app can answer until the request is closed.'
                       : 'Anyone with the link can view the shared data until the link is paused or revoked.',
                 ).muted.small,
+                if (keyNote != null) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(keyNote!).muted.small,
+                ],
               ],
             ),
           ),

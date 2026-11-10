@@ -18,26 +18,6 @@ import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 
-/// Opens the section create / duplicate drawer.
-void openSectionCreateSheet({
-  required BuildContext context,
-  required VaultStore store,
-  required AuthStore authStore,
-  Section? initialSection,
-}) {
-  store.clearError();
-  store.startSectionDraft(from: initialSection);
-  showAppSheet(
-    context: context,
-    builder: (drawerContext) => _SectionCreateDrawer(
-      parentContext: context,
-      store: store,
-      authStore: authStore,
-      initialSection: initialSection,
-    ),
-  );
-}
-
 /// Opens the rename drawer for an existing section.
 void openSectionRenameSheet({
   required BuildContext context,
@@ -56,15 +36,18 @@ void openSectionRenameSheet({
   );
 }
 
-/// The section form on its own, for the vault's combined create drawer.
-Widget sectionCreateForm({required BuildContext parentContext}) =>
-    _SectionCreateDrawer(
-      parentContext: parentContext,
-      store: Stores.vault,
-      authStore: Stores.auth,
-      initialSection: null,
-      embedded: true,
-    );
+/// The section form, the Section tab of the vault's create drawer
+/// (`openVaultCreateSheet`), which is the only way to it: a new section, or
+/// with [duplicateOf] a copy of one under a new key.
+Widget sectionCreateForm({
+  required BuildContext parentContext,
+  Section? duplicateOf,
+}) => _SectionCreateDrawer(
+  parentContext: parentContext,
+  store: Stores.vault,
+  authStore: Stores.auth,
+  initialSection: duplicateOf,
+);
 
 class _SectionCreateDrawer extends StatefulWidget {
   final BuildContext parentContext;
@@ -72,15 +55,11 @@ class _SectionCreateDrawer extends StatefulWidget {
   final AuthStore authStore;
   final Section? initialSection;
 
-  /// Rendered inside a drawer that already has a title and its own tabs.
-  final bool embedded;
-
   const _SectionCreateDrawer({
     required this.parentContext,
     required this.store,
     required this.authStore,
     required this.initialSection,
-    this.embedded = false,
   });
 
   @override
@@ -104,12 +83,10 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
   @override
   void initState() {
     super.initState();
-    // Embedded there is no opener to start the draft, and the tab is built
+    // The drawer has no opener to start the draft, and the tab is built
     // whether or not it is the one on screen.
-    if (widget.embedded) {
-      _store.clearError();
-      _store.startSectionDraft();
-    }
+    _store.clearError();
+    _store.startSectionDraft(from: widget.initialSection);
     // A duplicate opens with `<key>_1` already filled, so the collision check
     // has to run before the user touches anything.
     if (_store.sectionKey.text.isNotEmpty) {
@@ -197,22 +174,13 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       child: Column(
-        // Embedded, the form fills its tab so the footer sits on the drawer's
-        // bottom edge rather than floating above a gap.
-        mainAxisSize: widget.embedded ? MainAxisSize.max : MainAxisSize.min,
+        // The form fills its tab so the footer sits on the drawer's bottom
+        // edge rather than floating above a gap.
+        mainAxisSize: MainAxisSize.max,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!widget.embedded) ...[
-            _SheetHeader(
-              title: isDup ? 'Duplicate section' : 'New section',
-              description: isDup
-                  ? 'Creates a copy of this section under a new key.'
-                  : 'Groups related records.',
-            ),
-            const AppDivider(),
-          ],
           Flexible(
-            fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
+            fit: FlexFit.tight,
             child: ListView(
               shrinkWrap: true,
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),

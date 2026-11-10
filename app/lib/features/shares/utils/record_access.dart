@@ -78,9 +78,10 @@ List<RecordAccess> accessForRecord(
   required Iterable<models.Record> records,
 }) {
   // The record itself, then every alias pointing at it.
+  final encrypted = records.any((r) => r.id == recordId && r.sealed);
   final carriers = <String, String?>{recordId: null};
   for (final r in records) {
-    if (r.aliasOf == recordId) carriers[r.id] = _recordName(r);
+    if (!encrypted && r.aliasOf == recordId) carriers[r.id] = _recordName(r);
   }
 
   final result = <String, RecordAccess>{};
@@ -103,6 +104,9 @@ List<RecordAccess> accessForRecord(
         add(l, viaAlias: entry.value);
         continue;
       }
+      // Encrypted entries are served only through an explicit link seal;
+      // a section or an alias left behind during encryption is not access.
+      if (encrypted) continue;
       for (final s in holding) {
         if (l.sections.contains(s.id)) {
           add(l, viaSection: _sectionName(s), viaAlias: entry.value);

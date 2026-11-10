@@ -223,6 +223,33 @@ class SealedContent {
       format: json['f'] as String,
     );
   }
+
+  /// The same for text this device did not write, such as what a link's
+  /// address opened: null for anything that is not a value with its label,
+  /// type and format.
+  static SealedContent? tryDecode(String text) {
+    final Object? json;
+    try {
+      json = jsonDecode(text);
+    } on FormatException {
+      return null;
+    }
+    if (json is! Map<String, dynamic>) return null;
+    final value = json['v'], label = json['l'];
+    final type = json['t'], format = json['f'];
+    if (value is! String ||
+        label is! String ||
+        type is! String ||
+        format is! String) {
+      return null;
+    }
+    return SealedContent(
+      value: value,
+      label: label,
+      type: type,
+      format: format,
+    );
+  }
 }
 
 /// What goes on the wire for one sealed value.
@@ -231,10 +258,16 @@ class SealedPayload {
   final int keyEpoch;
   final String keyWrap;
 
+  /// The key this value was just encrypted under. It stays on this device and
+  /// is not part of [toJson]: the caller needs it once, to renew what the
+  /// record's links hold for the new version.
+  final Uint8List? valueKey;
+
   const SealedPayload({
     required this.sealedValue,
     required this.keyEpoch,
     required this.keyWrap,
+    this.valueKey,
   });
 
   Map<String, dynamic> toJson() => {
@@ -2316,6 +2349,7 @@ abstract class _KeysStore with Store {
     final epoch = held.currentEpoch;
     final valueKey = Sealing.newSymmetricKey();
     return SealedPayload(
+      valueKey: valueKey,
       sealedValue: SealedFormats.sealValue(
         valueKey: valueKey,
         value: SealedContent(
@@ -2339,6 +2373,56 @@ abstract class _KeysStore with Store {
         epoch: epoch,
       ),
     );
+  }
+
+  ({String wrap, int epoch})? sealBookmarkKey({
+    required Uint8List linkKey,
+    required String server,
+    required String origin,
+    required String slug,
+  }) {
+    final held = _workspaces[_accountScope];
+    if (held == null || !held.writable || !_trusted) return null;
+    final epoch = held.currentEpoch;
+    return (
+      wrap: SealedFormats.wrapBookmarkKey(
+        accountKey: held.keys[epoch]!,
+        linkKey: linkKey,
+        user: _currentUser(),
+        server: server,
+        origin: origin,
+        slug: slug,
+        epoch: epoch,
+      ),
+      epoch: epoch,
+    );
+  }
+
+  Uint8List? openBookmarkKey({
+    required String wrap,
+    required int epoch,
+    required String server,
+    required String origin,
+    required String slug,
+  }) {
+    if (status != SealingStatus.ready || !_trusted) return null;
+    final key = _workspaces[_accountScope]?.keys[epoch];
+    if (key == null) return null;
+    try {
+      return SealedFormats.openBookmarkKey(
+        accountKey: key,
+        wrapped: wrap,
+        user: _currentUser(),
+        server: server,
+        origin: origin,
+        slug: slug,
+        epoch: epoch,
+      );
+    } on SealingException {
+      return null;
+    } on FormatException {
+      return null;
+    }
   }
 
   /// Encrypts an identity's private key for the owner's other devices, under
@@ -2404,6 +2488,222 @@ abstract class _KeysStore with Store {
     } on FormatException {
       return null;
     }
+  }
+
+  /// The key this version of [record] is encrypted under, or null when this
+  /// device can't open it. The same refusals as [openContent]: no key for its
+  /// epoch, or a version or epoch older than this device has already seen.
+  Uint8List? _valueKeyOf(models.Record record) {
+    if (status != SealingStatus.ready || !record.sealed) return null;
+    final key = _workspaces[record.workspace]?.keys[record.keyEpoch];
+    if (key == null) return null;
+    if (record.sealedVersion < (_pins.versions[record.id] ?? 0)) return null;
+    if (record.keyEpoch < (_pins.recordEpochs[record.id] ?? 0)) return null;
+    try {
+      final valueKey = SealedFormats.openValueKey(
+        workspaceKey: key,
+        wrapped: record.keyWrap,
+        workspace: record.workspace,
+        record: record.id,
+        version: record.sealedVersion,
+        epoch: record.keyEpoch,
+      );
+      return valueKey.length == Sealing.keyLength ? valueKey : null;
+    } on SealingException {
+      return null;
+    } on FormatException {
+      return null;
+    } on RangeError {
+      return null;
+    }
+  }
+
+  /// A key for a link that is about to carry its first encrypted record. It
+  /// travels in the link's address and never reaches the server
+  /// (design/e2ee-sharing.md §3).
+  Uint8List newLinkKey() => Sealing.newSymmetricKey();
+
+  /// What [link] holds for [record] once it carries it: the record's current
+  /// value key for whoever opens the link with [linkKey], and the key to that
+  /// for whoever writes the record next. Null when this device can't open the
+  /// record.
+  Map<String, dynamic>? sealForLink({
+    required Uint8List linkKey,
+    required String link,
+    required models.Record record,
+  }) {
+    final valueKey = _valueKeyOf(record);
+    if (valueKey == null) return null;
+    return {
+      'record': record.id,
+      'version': record.sealedVersion,
+      ..._linkWraps(
+        copyKey: SealedFormats.linkCopyKey(linkKey: linkKey, record: record.id),
+        valueKey: valueKey,
+        workspace: record.workspace,
+        link: link,
+        record: record.id,
+        version: record.sealedVersion,
+      ),
+    };
+  }
+
+  /// A record's first encrypted version, while the payload is still in memory.
+  Map<String, dynamic> initialLinkSeal({
+    required Uint8List linkKey,
+    required String link,
+    required models.Record record,
+    required Uint8List valueKey,
+    required int version,
+  }) => {
+    'link': link,
+    ..._linkWraps(
+      copyKey: SealedFormats.linkCopyKey(linkKey: linkKey, record: record.id),
+      valueKey: valueKey,
+      workspace: record.workspace,
+      link: link,
+      record: record.id,
+      version: version,
+    ),
+  };
+
+  /// Carries [link] over to the version of [record] being written, whose
+  /// value is under [nextValueKey]. [writerWrap] is what the link held for
+  /// the version this device is replacing; it opens only with that version's
+  /// value key, which is why a link the server made up can't be renewed.
+  /// Null when it doesn't open.
+  Map<String, dynamic>? renewLinkSeal({
+    required String link,
+    required String writerWrap,
+    required models.Record record,
+    required Uint8List nextValueKey,
+    required int nextVersion,
+  }) {
+    final valueKey = _valueKeyOf(record);
+    if (valueKey == null) return null;
+    try {
+      final copyKey = SealedFormats.openLinkWriter(
+        valueKey: valueKey,
+        wrapped: writerWrap,
+        workspace: record.workspace,
+        link: link,
+        record: record.id,
+        version: record.sealedVersion,
+      );
+      return {
+        'link': link,
+        'expectedWriterWrap': writerWrap,
+        ..._linkWraps(
+          copyKey: copyKey,
+          valueKey: nextValueKey,
+          workspace: record.workspace,
+          link: link,
+          record: record.id,
+          version: nextVersion,
+        ),
+      };
+    } on SealingException {
+      return null;
+    } on FormatException {
+      return null;
+    } on RangeError {
+      return null;
+    }
+  }
+
+  Map<String, String> _linkWraps({
+    required Uint8List copyKey,
+    required Uint8List valueKey,
+    required String workspace,
+    required String link,
+    required String record,
+    required int version,
+  }) => {
+    'viewerWrap': SealedFormats.wrapLinkViewer(
+      copyKey: copyKey,
+      valueKey: valueKey,
+      workspace: workspace,
+      record: record,
+      version: version,
+    ),
+    'writerWrap': SealedFormats.wrapLinkWriter(
+      valueKey: valueKey,
+      copyKey: copyKey,
+      workspace: workspace,
+      link: link,
+      record: record,
+      version: version,
+    ),
+  };
+
+  /// [linkKey] for the devices that may show the link's address again: under
+  /// this person's account key, and under the workspace's key when
+  /// [forWorkspace] is set, which is for a link seen by more than its owner.
+  /// Null when this device holds no writable key for a scope it was asked
+  /// for ([ensureAccountKey] first).
+  Map<String, dynamic>? wrapLinkKey({
+    required Uint8List linkKey,
+    required String link,
+    required String workspace,
+    bool forAccount = true,
+    bool forWorkspace = false,
+  }) {
+    if (!_trusted) return null;
+    final out = <String, dynamic>{};
+    for (final scope in [
+      if (forAccount) _accountScope,
+      if (forWorkspace) workspace,
+    ]) {
+      final held = _workspaces[scope];
+      if (held == null || !held.writable) return null;
+      final epoch = held.currentEpoch;
+      out[scope] = {
+        'epoch': epoch,
+        'wrap': SealedFormats.wrapLinkKey(
+          scopeKey: held.keys[epoch]!,
+          linkKey: linkKey,
+          scope: scope,
+          link: link,
+          epoch: epoch,
+        ),
+      };
+    }
+    return out;
+  }
+
+  /// The key of [link] from what the server keeps of it in [wraps], or null
+  /// when none of them opens on this device: its owner's copy opens for the
+  /// owner alone, the workspace's for whoever holds the workspace's key.
+  Uint8List? openLinkKey({
+    required String link,
+    required String workspace,
+    required Map<String, dynamic> wraps,
+  }) {
+    if (status != SealingStatus.ready || !_trusted) return null;
+    for (final scope in [_accountScope, workspace]) {
+      final entry = wraps[scope];
+      if (entry is! Map) continue;
+      final epoch = (entry['epoch'] as num?)?.toInt();
+      final wrap = entry['wrap'];
+      final key = _workspaces[scope]?.keys[epoch];
+      if (epoch == null || wrap is! String || key == null) continue;
+      try {
+        return SealedFormats.openLinkKey(
+          scopeKey: key,
+          wrapped: wrap,
+          scope: scope,
+          link: link,
+          epoch: epoch,
+        );
+      } on SealingException {
+        continue;
+      } on FormatException {
+        continue;
+      } on RangeError {
+        continue;
+      }
+    }
+    return null;
   }
 
   /// The key new values go under, when this device may write in [workspace].

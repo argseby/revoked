@@ -7,6 +7,7 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/files/file_opener.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/router/held_link_keys.dart';
 import 'package:revoked_app/core/services/deep_link_service.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
@@ -67,7 +68,10 @@ class _RevokedAppState extends State<RevokedApp> {
       return;
     }
     final location = DeepLinks.locationFor(uri);
-    if (location != null) AppRouter.openLink(_router, location);
+    if (location == null) return;
+    // A share's key stays out of the location and waits for its screen.
+    HeldLinkKeys.holdFrom(uri);
+    AppRouter.openLink(_router, location);
   }
 
   /// Ctrl+V with no field focused: if the clipboard holds a revoked link,

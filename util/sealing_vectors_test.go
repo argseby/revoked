@@ -362,3 +362,131 @@ func TestDartGrantSignatureVerifiesInGo(t *testing.T) {
 		t.Fatal("a grant verified for someone it does not name")
 	}
 }
+
+// A link carries an encrypted record as three small envelopes, and the link
+// page opens them in a browser with HKDF and AES-GCM alone. Go opening each one
+// with its own primitives is what says a third implementation can
+// (design/e2ee-sharing.md §3.2).
+func TestLinkFormatsOpenInGo(t *testing.T) {
+	raw, err := os.ReadFile("../app/test/fixtures/sealing_link_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		Workspace, Link, Record, Scope       string
+		Version, Epoch                       int
+		LinkKey, ValueKey, ScopeKey, CopyKey string
+		ViewerWrap, WriterWrap, LinkKeyWrap  string
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+
+	copyKey, err := hkdf.Expand(sha256.New, mustExtract(t, mustHex(t, v.LinkKey)),
+		string(sealingContext("revoked-link-copy-v1", v.Record)), 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hex.EncodeToString(copyKey) != v.CopyKey {
+		t.Fatalf("copy key differs: %x", copyKey)
+	}
+
+	// The viewer: value key first, then the workspace its value is bound to.
+	viewer := openEnvelope(t, copyKey,
+		sealingContext("revoked-link-viewer-v1", v.Record, v.Version), v.ViewerWrap)
+	if len(viewer) <= 32 || hex.EncodeToString(viewer[:32]) != v.ValueKey || string(viewer[32:]) != v.Workspace {
+		t.Fatalf("viewer wrap opened to something else: %x", viewer)
+	}
+
+	// The next writer: the copy key, under the value key of this version.
+	writer := openEnvelope(t, mustHex(t, v.ValueKey),
+		sealingContext("revoked-link-writer-v1", v.Workspace, v.Link, v.Record, v.Version), v.WriterWrap)
+	if hex.EncodeToString(writer) != v.CopyKey {
+		t.Fatalf("writer wrap opened to something else: %x", writer)
+	}
+
+	linkKey := openEnvelope(t, mustHex(t, v.ScopeKey),
+		sealingContext("revoked-link-key-v1", v.Scope, v.Link, v.Epoch), v.LinkKeyWrap)
+	if hex.EncodeToString(linkKey) != v.LinkKey {
+		t.Fatalf("link key wrap opened to something else: %x", linkKey)
+	}
+
+	// What the server checks without a key: each envelope has exactly the
+	// length its content gives it.
+	for name, c := range map[string]struct {
+		wrap string
+		size int
+	}{
+		"viewerWrap":  {v.ViewerWrap, SealedEnvelopeOverhead + 32 + len(v.Workspace)},
+		"writerWrap":  {v.WriterWrap, SealedEnvelopeOverhead + 32},
+		"linkKeyWrap": {v.LinkKeyWrap, SealedEnvelopeOverhead + 32},
+	} {
+		raw, err := base64.URLEncoding.DecodeString(c.wrap)
+		if err != nil || len(raw) != c.size {
+			t.Fatalf("%s is %d bytes, expected %d", name, len(raw), c.size)
+		}
+	}
+}
+
+// What a reader with nothing but a link's address does, end to end: from the
+// key the address ends in and one entry as the public read returns it, to the
+// value with the label, type and format that were encrypted with it. The link
+// page does this in a browser (routes/publicPageSealing.go) and the app in its
+// own view of a link; Go doing it with its own primitives is what holds the
+// three to one format (design/e2ee-sharing.md §3).
+func TestLinkReadVectorOpensInGo(t *testing.T) {
+	raw, err := os.ReadFile("../app/test/fixtures/sealing_link_read_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		LinkKey, Workspace string
+		Entry              struct {
+			ID, Key, SealedValue, ViewerWrap string
+			SealedVersion                    int
+		}
+		Content map[string]string
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+
+	// In an address the key is base64url without padding.
+	linkKey, err := base64.RawURLEncoding.DecodeString(v.LinkKey)
+	if err != nil || len(linkKey) != 32 {
+		t.Fatalf("link key: %v, %d bytes", err, len(linkKey))
+	}
+	copyKey, err := hkdf.Expand(sha256.New, mustExtract(t, linkKey),
+		string(sealingContext("revoked-link-copy-v1", v.Entry.ID)), 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewer := openEnvelope(t, copyKey,
+		sealingContext("revoked-link-viewer-v1", v.Entry.ID, v.Entry.SealedVersion), v.Entry.ViewerWrap)
+	if len(viewer) <= 32 || string(viewer[32:]) != v.Workspace {
+		t.Fatalf("viewer wrap opened to something else: %x", viewer)
+	}
+
+	padded := openEnvelope(t, viewer[:32],
+		sealingContext("revoked-record-v1", string(viewer[32:]), v.Entry.ID, v.Entry.Key, v.Entry.SealedVersion),
+		v.Entry.SealedValue)
+	end := len(padded) - 1
+	for end > 0 && padded[end] == 0 {
+		end--
+	}
+	if padded[end] != 0x80 {
+		t.Fatalf("padding marker missing: %x", padded[end])
+	}
+	var content map[string]string
+	if err := json.Unmarshal(padded[:end], &content); err != nil {
+		t.Fatalf("content is not JSON: %v: %q", err, padded[:end])
+	}
+	if len(content) != 4 {
+		t.Fatalf("content has %d fields: %v", len(content), content)
+	}
+	for _, field := range []string{"v", "l", "t", "f"} {
+		if content[field] != v.Content[field] || content[field] == "" {
+			t.Fatalf("content %q differs: %q, expected %q", field, content[field], v.Content[field])
+		}
+	}
+}

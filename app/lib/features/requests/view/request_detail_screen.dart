@@ -13,6 +13,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deadline.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -169,9 +170,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           const AppBadge(
             icon: AppIcons.personWorkspace,
             label: 'Shared by a member',
-          )
-        else if (request.openToWorkspace)
-          const AppBadge(icon: AppIcons.personWorkspace, label: 'Members'),
+          ),
+        AudienceTag(Audience(request.audienceKind, request.audienceGroups)),
         if (unread > 0)
           AppBadge(label: '$unread new', accent: theme.colorScheme.primary),
         if (expiry != null)

@@ -325,6 +325,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         slug: created.slug,
         title: created.label,
         isRequest: false,
+        linkKey: Stores.shares.linkKeyText(created),
       );
     }
   }

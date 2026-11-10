@@ -1,4 +1,8 @@
+import 'dart:typed_data';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
+import 'package:revoked_app/features/bookmarks/store/saved_link_state.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/network/api_client.dart';
@@ -17,6 +21,77 @@ abstract class _BookmarksStore with Store {
   final ApiClient _api;
 
   _BookmarksStore(this._api);
+  final SavedLinkState _saved = SavedLinkState();
+
+  String _address(String origin, String slug) => SavedLinkState.address(
+    Stores.auth.userId,
+    _api.baseUrl.toLowerCase(),
+    origin.toLowerCase(),
+    slug,
+  );
+
+  Future<Uint8List?> keyFor(Bookmark bookmark) async {
+    if (bookmark.kind != BookmarkKind.share) return null;
+    if (bookmark.sealedKey.isNotEmpty) {
+      await Stores.keys.ensureLoaded();
+      return Stores.keys.openBookmarkKey(
+        wrap: bookmark.sealedKey,
+        epoch: bookmark.keyEpoch,
+        server: _api.baseUrl.toLowerCase(),
+        origin: bookmark.origin.toLowerCase(),
+        slug: bookmark.slug,
+      );
+    }
+    return _saved.key(_address(bookmark.origin, bookmark.slug));
+  }
+
+  Future<Map<String, dynamic>> checkRead(
+    String origin,
+    String slug,
+    Map<String, dynamic> served,
+    Map<String, dynamic> opened,
+  ) => _saved.checkRead(_address(origin, slug), served, opened);
+
+  /// Stores only a wrapped key on the server. Without account encryption it
+  /// stays in this device's secure storage, including across app restarts.
+  Future<bool> rememberKey(Bookmark bookmark, Uint8List key) async {
+    final address = _address(bookmark.origin, bookmark.slug);
+    final user = Stores.auth.userId;
+    final existing = await keyFor(bookmark);
+    if (bookmark.sealedKey.isNotEmpty &&
+        existing != null &&
+        SealedFormats.linkKeyText(existing) == SealedFormats.linkKeyText(key)) {
+      return true;
+    }
+    await Stores.keys.ensureLoaded();
+    final ready = await Stores.keys.ensureAccountKey();
+    final wrapped = ready
+        ? Stores.keys.sealBookmarkKey(
+            linkKey: key,
+            server: _api.baseUrl.toLowerCase(),
+            origin: bookmark.origin.toLowerCase(),
+            slug: bookmark.slug,
+          )
+        : null;
+    if (user != Stores.auth.userId) return false;
+    if (wrapped != null) {
+      if (!await _patch(bookmark.id, {
+        'sealedKey': wrapped.wrap,
+        'keyEpoch': wrapped.epoch,
+      })) {
+        return false;
+      }
+      await _saved.deleteKey(address);
+    } else {
+      if (bookmark.sealedKey.isNotEmpty) {
+        // An unreadable synced key must not silently be replaced with a local
+        // one while other devices keep the previous address.
+        return false;
+      }
+      await _saved.saveKey(address, key);
+    }
+    return true;
+  }
 
   String get _basePath =>
       '/api/collections/${AppConfig.bookmarksCollection}/records';
@@ -122,10 +197,28 @@ abstract class _BookmarksStore with Store {
     required String slug,
     required String label,
     BookmarkKind kind = BookmarkKind.share,
+    Uint8List? linkKey,
   }) async {
     isSaving = true;
     error = null;
     try {
+      final address = _address(origin, slug);
+      ({String wrap, int epoch})? wrapped;
+      if (linkKey != null && kind == BookmarkKind.share) {
+        await Stores.keys.ensureLoaded();
+        if (await Stores.keys.ensureAccountKey()) {
+          wrapped = Stores.keys.sealBookmarkKey(
+            linkKey: linkKey,
+            server: _api.baseUrl.toLowerCase(),
+            origin: origin.toLowerCase(),
+            slug: slug,
+          );
+        }
+        if (wrapped == null) await _saved.saveKey(address, linkKey);
+      }
+      if (user != Stores.auth.userId) {
+        throw const FormatException('The signed-in account changed.');
+      }
       final data = await _api.post(
         _basePath,
         body: {
@@ -134,9 +227,24 @@ abstract class _BookmarksStore with Store {
           'slug': slug,
           'kind': kind.wire,
           'label': label,
+          if (wrapped != null) 'sealedKey': wrapped.wrap,
+          if (wrapped != null) 'keyEpoch': wrapped.epoch,
         },
       );
-      bookmarks.insert(0, Bookmark.fromJson(data as Map<String, dynamic>));
+      final bookmark = Bookmark.fromJson(data as Map<String, dynamic>);
+      if (wrapped != null &&
+          (bookmark.sealedKey != wrapped.wrap ||
+              bookmark.keyEpoch != wrapped.epoch)) {
+        // Older servers may ignore fields they do not know. The key remains
+        // usable on this device, and the save confirmation says so.
+        if (bookmark.sealedKey.isNotEmpty) {
+          throw const FormatException(
+            'The server did not retain the saved link key.',
+          );
+        }
+        await _saved.saveKey(address, linkKey!);
+      }
+      bookmarks.insert(0, bookmark);
       return true;
     } catch (e) {
       error = AppErrorMessage.fromException(e);
@@ -225,6 +333,10 @@ abstract class _BookmarksStore with Store {
             label: b.label,
             groups: b.groups.where((g) => g != id).toList(),
             created: b.created,
+            kind: b.kind,
+            sender: b.sender,
+            sealedKey: b.sealedKey,
+            keyEpoch: b.keyEpoch,
           );
         }
       }
@@ -239,6 +351,13 @@ abstract class _BookmarksStore with Store {
     error = null;
     try {
       final data = await _api.patch('$_basePath/$id', body: body);
+      if (body.containsKey('sealedKey') &&
+          (data['sealedKey'] != body['sealedKey'] ||
+              data['keyEpoch'] != body['keyEpoch'])) {
+        throw const FormatException(
+          'The server did not retain the saved link key.',
+        );
+      }
       final idx = bookmarks.indexWhere((b) => b.id == id);
       if (idx != -1) {
         bookmarks[idx] = Bookmark.fromJson(data as Map<String, dynamic>);
@@ -281,6 +400,10 @@ abstract class _BookmarksStore with Store {
     error = null;
     try {
       await _api.delete('$_basePath/$id');
+      final bookmark = bookmarks.where((b) => b.id == id).firstOrNull;
+      if (bookmark != null) {
+        await _saved.deleteKey(_address(bookmark.origin, bookmark.slug));
+      }
       bookmarks.removeWhere((b) => b.id == id);
       return true;
     } catch (e) {

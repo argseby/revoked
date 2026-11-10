@@ -8,9 +8,10 @@ import 'package:revoked_app/core/models/request_proposal.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/access_sheet.dart';
+import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -45,6 +46,13 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
 
   /// The groups the Filter lets through; none ticked lets all through.
   final Local<Set<RequestGroup>> _groups = Local(const {});
+
+  /// Who sees a request, as the Filter's "Visible to" ticks it (`private`,
+  /// `workspace`, `group:<id>`); none ticked lets all through.
+  final Local<Set<String>> _audiences = Local(const {});
+
+  static Audience _audienceOf(DataRequest r) =>
+      Audience(r.audienceKind, r.audienceGroups);
 
   static const _groupTitles = {
     RequestGroup.fresh: 'New responses',
@@ -117,7 +125,10 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     query: _table.query,
     onQueryChanged: _table.setQuery,
     searchHint: 'Search requests',
-    onClearFilters: () => _groups.value = const {},
+    onClearFilters: () {
+      _groups.value = const {};
+      _audiences.value = const {};
+    },
     sections: () => [
       AppChecklistSection(
         title: 'Status',
@@ -136,6 +147,19 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
               count: counts[g],
             ),
         ],
+      ),
+      ?audienceFilterSection(
+        items: [
+          for (final r in [
+            ...Stores.requests.requests,
+            ...Stores.requests.sharedRequests,
+          ])
+            [_audienceOf(r)],
+        ],
+        selected: _audiences.value,
+        onToggle: (id, on) => _audiences.value = on
+            ? {..._audiences.value, id}
+            : ({..._audiences.value}..remove(id)),
       ),
     ],
     sort: () => _table.sortBy,
@@ -233,7 +257,13 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
 
         final now = DateTime.now();
         final notifications = Stores.notifications;
-        final searched = _table.filteredItems;
+        final audiences = _audiences.value;
+        final searched = _table.filteredItems
+            .where((r) => audienceMatches(audiences, [_audienceOf(r)]))
+            .toList();
+        final sharedShown = reqStore.sharedRequests
+            .where((r) => audienceMatches(audiences, [_audienceOf(r)]))
+            .toList();
         final picked = _groups.value;
         final byGroup = {
           for (final g in RequestGroup.values) g: <DataRequest>[],
@@ -247,7 +277,9 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
           counts[g] = counts[g]! + 1;
           if (picked.isEmpty || picked.contains(g)) byGroup[g]!.add(r);
         }
-        final nothingShown = byGroup.values.every((l) => l.isEmpty);
+        final nothingShown =
+            byGroup.values.every((l) => l.isEmpty) &&
+            (sharedShown.isEmpty || picked.isNotEmpty);
         // The groups are the filter: each says how many it holds, and the
         // closed ones stay folded until asked for.
         Widget group(RequestGroup g, String title, {bool collapsed = false}) {
@@ -275,6 +307,18 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
 
         return AppListPage(
           toolbar: _toolbar(counts),
+          filters: AppStatusChips<RequestGroup>(
+            selected: picked,
+            onChanged: (v) => _groups.value = v,
+            options: [
+              for (final g in RequestGroup.values)
+                AppFilterOption(
+                  value: g,
+                  label: _groupTitles[g]!,
+                  count: counts[g]!,
+                ),
+            ],
+          ).orNull,
           banners: [
             if (reqStore.loadState.error != null)
               AppRefreshFailed(onRetry: reqStore.loadRequests),
@@ -292,13 +336,13 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
             ),
             // Requests other members opened to this person, apart from their
             // own and outside the groups, which are about their own requests.
-            if (reqStore.sharedRequests.isNotEmpty && picked.isEmpty)
+            if (sharedShown.isNotEmpty && picked.isEmpty)
               AppListGroup(
                 title: 'Shared by members',
                 noun: 'requests',
                 previewCount: 5,
                 children: [
-                  for (final r in reqStore.sharedRequests)
+                  for (final r in sharedShown)
                     _RequestRow(
                       request: r,
                       unread: 0,
@@ -338,10 +382,11 @@ class _RequestRow extends StatelessWidget {
     return AppListRow(
       icon: AppIcons.inboxFill,
       title: request.label,
-      // What came in, and who in the workspace has access to it.
-      subtitle:
-          '${requestSummary(request, unread, now)} · '
-          '${audienceSummary(request.audienceKind, request.audienceGroups)}',
+      accent: unread > 0 ? Theme.of(context).colorScheme.primary : null,
+      subtitle: requestSummary(request, unread, now),
+      audience: AudienceTag(
+        Audience(request.audienceKind, request.audienceGroups),
+      ),
       trailing: unread > 0
           ? AppBadge(
               label: '$unread new',

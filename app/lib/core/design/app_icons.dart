@@ -117,6 +117,9 @@ abstract class AppIcons {
   static const IconData person = Icons.person_outline;
   static const IconData place = Icons.place_outlined;
   static const IconData building = Icons.business_outlined;
+
+  /// A workspace group as an item's audience.
+  static const IconData group = Icons.group_outlined;
   static const IconData image = Icons.image_outlined;
   static const IconData filePdf = Icons.picture_as_pdf_outlined;
   static const IconData notes = Icons.notes;

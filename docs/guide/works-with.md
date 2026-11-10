@@ -11,9 +11,15 @@ The tab sits after Contacts. On a phone it is reached through **More**, from
 the card on **Home** while no tool is connected, or from **New → Service**.
 It belongs to the *Connected tools* feature and is hidden with it.
 
+Each service is shown as a card with its name, address, description, what
+it does and its category. The line at the foot of a card names the most of
+the vault the service may ask for: **Never reads the vault**, **Own section
+only** or **Reads the vault**.
+
 Services are searched by name, address, description and the records they
-propose. **Filter and sort** narrows the list by what a service does (share,
-collect, prove, sign in, connect), its category, the access it may ask for,
+propose. The chips above the list narrow it by what a service does (share,
+collect, prove, sign in, connect). **Filter and sort** holds the same
+choice and also narrows by category, the access a service may ask for,
 where it runs, its languages and its listing mark. Services already
 connected are listed first and marked **Connected**.
 

@@ -14,7 +14,7 @@ import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/permission_check_row.dart';
+import 'package:revoked_app/features/invites/view/permission_sections.dart';
 
 /// Edits what one member may do.
 ///
@@ -164,21 +164,16 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
                       ),
                     ),
 
-                  const AppFormSectionHeader('Permissions'),
-                  for (final permission in grantable)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xl,
-                      ),
-                      child: PermissionCheckRow(
-                        permission: permission,
-                        selected: Stores.invites.memberDraft.contains(
-                          permission.key,
-                        ),
-                        onChanged: (on) => Stores.invites
-                            .toggleMemberPermission(permission.key, on),
-                      ),
+                  PermissionSections(
+                    permissions: grantable,
+                    selected: (permission) => Stores.invites.memberDraft
+                        .contains(permission.key),
+                    onChanged: (change) => Stores.invites.toggleMemberPermission(
+                      change.permission.key,
+                      change.selected,
                     ),
+                    showEmpty: true,
+                  ),
 
                   const AppFormSectionHeader('Visible features'),
                   AppTile(

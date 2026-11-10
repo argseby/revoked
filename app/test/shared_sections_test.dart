@@ -195,7 +195,9 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.text('Workspace'));
+    // The audience tags behind the sheet say Workspace too; the sheet's
+    // option is the last.
+    await tester.tap(find.text('Workspace').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Members who manage the vault'));
     await tester.pumpAndSettle();
@@ -212,6 +214,14 @@ void main() {
         'audienceGroups': [],
       },
     ]);
-    expect(find.text('Members'), findsOneWidget);
+    // The audience tag beside the section's title now says who sees it.
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Tooltip &&
+            (w.message ?? '').startsWith('Visible to the workspace'),
+      ),
+      findsWidgets,
+    );
   });
 }

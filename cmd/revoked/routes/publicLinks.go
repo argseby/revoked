@@ -133,6 +133,9 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 
 			for _, rec := range granted {
 				if services.IsSealedThroughAlias(app, rec) {
+					if entry := sealedLinkEntry(app, link, rec); entry != nil {
+						records = append(records, entry)
+					}
 					continue
 				}
 				entry := sanitizeRecord(rec)
@@ -285,6 +288,39 @@ func linkSections(app core.App, link *core.Record) []map[string]any {
 }
 
 // sanitizeRecord returns only public-safe fields from a section/record entity.
+// sealedLinkEntry is how a link serves an end-to-end encrypted record: the
+// ciphertext members see, and the record's value key wrapped for this link.
+// The key to that wrap is derived from the part of the address that never
+// reaches this server, so nothing here can be opened by it
+// (design/e2ee-sharing.md §3).
+//
+// A record the link holds no seal for is left out, as every sealed record was
+// before links could carry them. One whose seal is of an older version is
+// named but carries nothing to open: a reader is told there is something it
+// cannot show yet, never shown yesterday's value. The workspace's id stays out
+// here as everywhere in public output; a viewer finds it inside the wrap.
+func sealedLinkEntry(app core.App, link, rec *core.Record) map[string]any {
+	if !services.IsSealed(rec) {
+		return nil
+	}
+	seal := services.LinkSeal(app, link.Id, rec.Id)
+	if seal == nil {
+		return nil
+	}
+	f := util.Fields.Record
+	entry := sanitizeRecord(rec)
+	delete(entry, f.Value)
+	entry["sealed"] = true
+	if seal.GetInt(util.Fields.LinkSeal.Version) != rec.GetInt(f.SealedVersion) {
+		entry["unavailable"] = true
+		return entry
+	}
+	entry["sealedValue"] = rec.GetString(f.SealedValue)
+	entry["sealedVersion"] = rec.GetInt(f.SealedVersion)
+	entry["viewerWrap"] = seal.GetString(util.Fields.LinkSeal.ViewerWrap)
+	return entry
+}
+
 func sanitizeRecord(rec *core.Record) map[string]any {
 	out := map[string]any{
 		"id": rec.Id,

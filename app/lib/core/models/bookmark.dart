@@ -25,6 +25,8 @@ class Bookmark {
   /// Whether it is something to read or something to answer.
   final BookmarkKind kind;
   final String label;
+  final String sealedKey;
+  final int keyEpoch;
 
   /// The account that put this in the tray, for one that was handed over;
   /// empty for a bookmark saved by its owner. Written by the server alone —
@@ -42,6 +44,8 @@ class Bookmark {
     required this.label,
     this.kind = BookmarkKind.share,
     this.sender = '',
+    this.sealedKey = '',
+    this.keyEpoch = 0,
     this.groups = const [],
     this.created,
   });
@@ -53,6 +57,8 @@ class Bookmark {
       slug: json['slug'] as String,
       kind: BookmarkKind.parse(json['kind'] as String?),
       label: json['label'] as String? ?? '',
+      sealedKey: json['sealedKey'] as String? ?? '',
+      keyEpoch: (json['keyEpoch'] as num?)?.toInt() ?? 0,
       sender: json['sender'] as String? ?? '',
       groups: (json['groups'] as List<dynamic>? ?? const [])
           .whereType<String>()

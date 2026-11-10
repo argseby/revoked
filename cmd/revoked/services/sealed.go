@@ -2,6 +2,7 @@ package services
 
 import (
 	"slices"
+	"sort"
 
 	"revoked/util"
 
@@ -128,8 +129,8 @@ func RevokeSealedAccess(app core.App, userID, workspaceID string) error {
 	return MarkKeyRotationDue(app, workspaceID)
 }
 
-// DetachSealedRecord takes a newly sealed record off every link that names it,
-// directly or through an alias. Reads would drop it anyway, but leaving the id
+// DetachSealedRecord takes a newly sealed record off links without a current
+// seal, directly or through an alias. Carried links keep their explicit grant. Reads would drop it anyway, but leaving the id
 // behind means unsealing it later would quietly share it on links its owner
 // had given up on. A link reading a whole section still shows it again if it is
 // ever unsealed, because that link shares the section as it stands.
@@ -151,6 +152,12 @@ func DetachSealedRecord(app core.App, recordID string) error {
 			return err
 		}
 		for _, link := range links {
+			if id == recordID {
+				rec, err := app.FindRecordById(util.Coll.Records, recordID)
+				if err == nil && CurrentLinkSeal(app, link.Id, rec) != nil {
+					continue
+				}
+			}
 			link.Set(f.Records, slices.DeleteFunc(link.GetStringSlice(f.Records),
 				func(r string) bool { return r == id }))
 			// An answer also holds a snapshot of what it granted. Once the grant
@@ -191,6 +198,11 @@ func NotifySealingReset(app core.App, userID, workspaceID string) {
 // LiveLinksReading counts the active or paused links that would stop showing a
 // record once it is sealed, directly, through a section or through an alias.
 func LiveLinksReading(app core.App, recordID string) int {
+	return len(LinksReadingRecord(app, recordID))
+}
+
+// LinksReadingRecord returns the live links affected when this value is encrypted.
+func LinksReadingRecord(app core.App, recordID string) []*core.Record {
 	f := util.Fields.Link
 	ids := []string{recordID}
 	aliases, _ := app.FindRecordsByFilter(util.Coll.Records,
@@ -199,13 +211,15 @@ func LiveLinksReading(app core.App, recordID string) int {
 		ids = append(ids, a.Id)
 	}
 
-	counted := map[string]bool{}
+	counted := map[string]*core.Record{}
 	count := func(field, id string) {
 		links, _ := app.FindRecordsByFilter(util.Coll.Links,
 			field+" ~ {:id} && ("+f.Status+" = {:a} || "+f.Status+" = {:p})", "", 0, 0,
 			dbx.Params{"id": id, "a": util.StatusActive, "p": util.StatusPaused})
 		for _, l := range links {
-			counted[l.Id] = true
+			if LinkIsLive(l) {
+				counted[l.Id] = l
+			}
 		}
 	}
 	for _, id := range ids {
@@ -216,5 +230,10 @@ func LiveLinksReading(app core.App, recordID string) int {
 			count(f.Sections, s.Id)
 		}
 	}
-	return len(counted)
+	out := make([]*core.Record, 0, len(counted))
+	for _, link := range counted {
+		out = append(out, link)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Id < out[j].Id })
+	return out
 }

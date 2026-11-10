@@ -161,6 +161,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.settings.loadWorkspaces(auth.userId);
         Stores.invites.loadCatalogue();
       case SettingsPage.members:
+        Stores.settings.loadWorkspaces(auth.userId);
         if (ws.isNotEmpty) Stores.invites.loadMembers(ws);
         // The total is what "3 of 16" is measured against.
         Stores.invites.loadCatalogue();
