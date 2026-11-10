@@ -3,7 +3,7 @@
 # ---- build ------------------------------------------------------------------
 # The build stage runs natively and cross-compiles, so a multi-platform image
 # does not compile Go under emulation.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 
 WORKDIR /src
 
