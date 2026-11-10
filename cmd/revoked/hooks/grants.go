@@ -128,4 +128,7 @@ var serverSetLinkFields = []string{
 	util.Fields.Link.GrantTokenHash,
 	util.Fields.Link.SignInClient,
 	util.Fields.Link.HeldPaused,
+	// A link's key for its owner's devices lands with the seals it opens,
+	// through /api/sealed/links only.
+	util.Fields.Link.SealedKeyWraps,
 }

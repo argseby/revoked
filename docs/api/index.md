@@ -59,3 +59,6 @@ denial, so a 403 tells you which scope or grant you lack.
 Error messages may echo values you sent, but never server-held state. That is
 deliberate: an error outlives the credential that produced it and ends up in
 logs, tickets and screenshots read by people who hold no key.
+
+[Encrypted links and saved keys](encrypted-links.md) describes the client-side
+formats, saved-share protection and explicit tool hand-over.

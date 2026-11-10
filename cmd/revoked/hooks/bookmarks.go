@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"encoding/base64"
 	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -38,6 +39,15 @@ func BindBookmarkHooks(app core.App) {
 // in API responses, so without this a bookmark could be filed into a stranger's
 // group.
 func validateBookmarkGroups(app core.App, bookmark *core.Record) error {
+	f := util.Fields.Bookmark
+	wrapped, epoch := bookmark.GetString(f.SealedKey), bookmark.GetInt(f.KeyEpoch)
+	if wrapped != "" || epoch != 0 {
+		raw, err := base64.URLEncoding.DecodeString(wrapped)
+		if err != nil || len(raw) != util.SealedEnvelopeOverhead+util.SealedKeyLength || raw[0] != 1 || epoch < 1 || bookmark.GetString(f.Kind) == "request" {
+			return util.AsFieldValidationError(f.SealedKey, util.Errors.SealedInvalid)
+		}
+	}
+
 	owner := bookmark.GetString(util.Fields.Bookmark.User)
 	for _, id := range bookmark.GetStringSlice(util.Fields.Bookmark.Groups) {
 		group, err := app.FindRecordById(util.Coll.BookmarkGroups, id)

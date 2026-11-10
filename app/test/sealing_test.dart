@@ -786,4 +786,146 @@ void main() {
       );
     });
   });
+
+  group('a link', () {
+    final v =
+        jsonDecode(
+              File(
+                'test/fixtures/sealing_link_vectors.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final workspace = v['workspace'] as String;
+    final link = v['link'] as String;
+    final record = v['record'] as String;
+    final version = v['version'] as int;
+    final epoch = v['epoch'] as int;
+    final scope = v['scope'] as String;
+    final linkKey = _unhex(v['linkKey'] as String);
+    final valueKey = _unhex(v['valueKey'] as String);
+    final scopeKey = _unhex(v['scopeKey'] as String);
+    final copyKey = _unhex(v['copyKey'] as String);
+
+    LinkViewerSeal viewer({Uint8List? key, String? ofRecord, int? at}) =>
+        SealedFormats.openLinkViewer(
+          copyKey: key ?? copyKey,
+          wrapped: v['viewerWrap'] as String,
+          record: ofRecord ?? record,
+          version: at ?? version,
+        );
+
+    Uint8List writer({
+      Uint8List? key,
+      String? inWorkspace,
+      String? onLink,
+      String? ofRecord,
+      int? at,
+    }) => SealedFormats.openLinkWriter(
+      valueKey: key ?? valueKey,
+      wrapped: v['writerWrap'] as String,
+      workspace: inWorkspace ?? workspace,
+      link: onLink ?? link,
+      record: ofRecord ?? record,
+      version: at ?? version,
+    );
+
+    test('derives the same copy key, and another one per record', () {
+      expect(
+        _hex(SealedFormats.linkCopyKey(linkKey: linkKey, record: record)),
+        v['copyKey'],
+      );
+      expect(
+        _hex(
+          SealedFormats.linkCopyKey(
+            linkKey: linkKey,
+            record: 'anotherrecord01',
+          ),
+        ),
+        isNot(v['copyKey']),
+      );
+      expect(
+        () => SealedFormats.linkCopyKey(linkKey: Uint8List(16), record: record),
+        throwsA(isA<SealingException>()),
+      );
+    });
+
+    test('hands a viewer the value key and the workspace', () {
+      final seal = viewer();
+      expect(_hex(seal.valueKey), v['valueKey']);
+      expect(seal.workspace, workspace);
+    });
+
+    test('a viewer wrap does not open for another record, version or key', () {
+      expect(() => viewer(ofRecord: 'anotherrecord01'), throwsA(anything));
+      expect(() => viewer(at: version + 1), throwsA(anything));
+      expect(() => viewer(key: valueKey), throwsA(anything));
+    });
+
+    test('hands the next writer the copy key', () {
+      expect(_hex(writer()), v['copyKey']);
+    });
+
+    test('a writer wrap moved to another link, record, version or '
+        'workspace does not open', () {
+      expect(() => writer(onLink: 'anotherlink0001'), throwsA(anything));
+      expect(() => writer(ofRecord: 'anotherrecord01'), throwsA(anything));
+      expect(() => writer(at: version - 1), throwsA(anything));
+      expect(() => writer(inWorkspace: 'anotherwspace01'), throwsA(anything));
+      expect(() => writer(key: copyKey), throwsA(anything));
+    });
+
+    test('a writer renews a link without ever holding the link key', () {
+      final nextValueKey = Sealing.newSymmetricKey();
+      final carried = writer();
+      final nextViewer = SealedFormats.wrapLinkViewer(
+        copyKey: carried,
+        valueKey: nextValueKey,
+        workspace: workspace,
+        record: record,
+        version: version + 1,
+      );
+      final nextWriter = SealedFormats.wrapLinkWriter(
+        valueKey: nextValueKey,
+        copyKey: carried,
+        workspace: workspace,
+        link: link,
+        record: record,
+        version: version + 1,
+      );
+      // The viewer derives its key from the address alone.
+      final seal = SealedFormats.openLinkViewer(
+        copyKey: SealedFormats.linkCopyKey(linkKey: linkKey, record: record),
+        wrapped: nextViewer,
+        record: record,
+        version: version + 1,
+      );
+      expect(seal.valueKey, nextValueKey);
+      expect(
+        SealedFormats.openLinkWriter(
+          valueKey: nextValueKey,
+          wrapped: nextWriter,
+          workspace: workspace,
+          link: link,
+          record: record,
+          version: version + 1,
+        ),
+        carried,
+      );
+    });
+
+    test('a link key opens for its scope, link and epoch only', () {
+      Uint8List open({String? forScope, String? onLink, int? at}) =>
+          SealedFormats.openLinkKey(
+            scopeKey: scopeKey,
+            wrapped: v['linkKeyWrap'] as String,
+            scope: forScope ?? scope,
+            link: onLink ?? link,
+            epoch: at ?? epoch,
+          );
+      expect(_hex(open()), v['linkKey']);
+      expect(() => open(forScope: workspace), throwsA(anything));
+      expect(() => open(onLink: 'anotherlink0001'), throwsA(anything));
+      expect(() => open(at: epoch + 1), throwsA(anything));
+    });
+  });
 }

@@ -218,6 +218,8 @@ var Errors = struct {
 	LinkContentNotOwned           AppError
 	SealedRecordUnsupported       AppError
 	SealedLinksAffected           AppError
+	SealedLinkSealsMissing        AppError
+	SealedLinkContent             AppError
 	WebhookNotFound               AppError
 	WebhookDeliveryNotFound       AppError
 	WebhookUrlInvalid             AppError
@@ -1024,6 +1026,14 @@ var Errors = struct {
 	SealedLinksAffected: AppError{
 		ErrorCode: "sealed_links_affected",
 		ErrorText: "This entry is shared by links, which would stop showing it once encrypted.",
+	},
+	SealedLinkSealsMissing: AppError{
+		ErrorCode: "sealed_link_seals_missing",
+		ErrorText: "This entry is on links that need its new key along with the change.",
+	},
+	SealedLinkContent: AppError{
+		ErrorCode: "sealed_link_content",
+		ErrorText: "A link can carry an encrypted entry only with a key for it, made by a device that can open the entry.",
 	},
 	WebhookNotFound: AppError{
 		ErrorCode: "webhook_not_found",

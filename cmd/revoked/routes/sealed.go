@@ -190,6 +190,24 @@ func SealedRoute(app core.App) {
 			}
 			return unsealRecord(app, re)
 		})
+		e.Router.GET("/api/sealed/records/{id}/links", func(re *core.RequestEvent) error {
+			if !authorizeSealed(re) {
+				return nil
+			}
+			return sealedRecordLinks(app, re)
+		})
+		e.Router.GET("/api/sealed/links/{id}", func(re *core.RequestEvent) error {
+			if !authorizeSealed(re) {
+				return nil
+			}
+			return sealedLinkState(app, re)
+		})
+		e.Router.PUT("/api/sealed/links/{id}", func(re *core.RequestEvent) error {
+			if !authorizeSealed(re) {
+				return nil
+			}
+			return writeSealedLink(app, re)
+		})
 		e.Router.POST("/api/sealed/sessions/revoke", func(re *core.RequestEvent) error {
 			if !authorizeSealed(re) {
 				return nil
@@ -1198,12 +1216,17 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		sealedPayload
 		ExpectedVersion int    `json:"expectedVersion"`
 		DropLinks       bool   `json:"dropLinks"`
+		CarryLinks      bool   `json:"carryLinks"`
 		Key             string `json:"key"`
 		Label           string `json:"label"`
 		Type            string `json:"type"`
 		Format          string `json:"format"`
+		// LinkSeals renews, for the version this write makes, what each live
+		// link carrying the record holds for it.
+		LinkSeals []recordLinkSealInput `json:"linkSeals"`
 	}
-	if err := re.BindBody(&body); err != nil || !body.valid() || body.ExpectedVersion < 0 {
+	if err := re.BindBody(&body); err != nil || !body.valid() || body.ExpectedVersion < 0 ||
+		len(body.LinkSeals) > services.MaxLinkSealsPerRecord {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
 	}
 
@@ -1219,6 +1242,7 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 	f := util.Fields.Record
 	var saved *core.Record
 	var before map[string]any
+	var dropped []*core.Record
 	err = app.RunInTransaction(func(tx core.App) error {
 		rec, err := tx.FindRecordById(util.Coll.Records, id)
 		if err != nil {
@@ -1235,7 +1259,7 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		if refusal := checkSealedWrite(tx, rec.GetString(f.Workspace), re.Auth.Id, body.KeyEpoch); refusal != nil {
 			return refusal
 		}
-		if !services.IsSealed(rec) && !body.DropLinks {
+		if !services.IsSealed(rec) && !body.DropLinks && !body.CarryLinks {
 			if links := services.LiveLinksReading(tx, id); links > 0 {
 				refusal := refuse(http.StatusConflict, &util.Errors.SealedLinksAffected)
 				refusal.extra = map[string]any{"links": links}
@@ -1244,6 +1268,20 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		}
 		before = rec.PublicExport()
 		newlySealed := !services.IsSealed(rec)
+		// While rec still reads as the version being replaced: its seals move
+		// to the new one in this transaction, or the write does not happen.
+		if refusal := renewLinkSeals(tx, rec, body.ExpectedVersion+1, body.LinkSeals); refusal != nil {
+			return refusal
+		}
+		if newlySealed && body.CarryLinks {
+			var failure *sealedRefusal
+			dropped, failure = carryPlainRecord(tx, rec, re.Auth.Id, body.ExpectedVersion+1, body.LinkSeals, body.DropLinks)
+			if failure != nil {
+				return failure
+			}
+		} else if newlySealed {
+			dropped = services.LinksReadingRecord(tx, rec.Id)
+		}
 		applySealed(rec, body.sealedPayload, body.ExpectedVersion+1)
 		// These travel inside the ciphertext too, which is what clients believe.
 		// The copies here must land with it or the list shows yesterday's name.
@@ -1275,6 +1313,16 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		return re.BadRequestError("Failed to save.", err)
 	}
 
+	for _, link := range dropped {
+		owner := link.GetString(util.FieldUser)
+		if owner == re.Auth.Id {
+			continue
+		}
+		services.EmitNotification(app, owner, saved.GetString(f.Workspace), util.NotificationSealedLinkChanged,
+			"An entry on this link was encrypted",
+			"An entry was encrypted and is no longer shown on this link. It can be added again from a device that can read it.",
+			util.Coll.Links, link.Id)
+	}
 	auditSealedRecord(app, re, util.AuditActionUpdate, before, saved)
 	return re.JSON(http.StatusOK, saved)
 }
@@ -1339,6 +1387,10 @@ func unsealRecord(app core.App, re *core.RequestEvent) error {
 		rec.Set(f.KeyEpoch, 0)
 		rec.Set(f.KeyWrap, "")
 		if err := tx.Save(rec); err != nil {
+			return err
+		}
+		// Its links serve the plain value from here on.
+		if err := services.DeleteLinkSealsOfRecord(tx, id); err != nil {
 			return err
 		}
 		saved = rec

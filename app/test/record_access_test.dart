@@ -57,6 +57,35 @@ void main() {
   final records = [iban, alias, other];
   final banking = section('banking', ['iban']);
 
+  test(
+    'encrypted entries have direct access only, never an old section or alias',
+    () {
+      final encrypted = models.Record(
+        id: 'iban',
+        key: 'iban',
+        value: 'secret',
+        label: 'IBAN',
+        type: 'text',
+        format: 'hidden',
+        user: 'u',
+        workspace: 'w',
+        sealed: true,
+        opened: true,
+      );
+      final found = accessForRecord(
+        'iban',
+        records: [encrypted, alias],
+        sections: [banking],
+        links: [
+          link('direct', records: ['iban']),
+          link('section', sections: ['banking']),
+          link('alias', records: ['bank']),
+        ],
+      );
+      expect(found.map((a) => a.link.id), ['direct']);
+    },
+  );
+
   test('finds direct, section and alias routes, open links first', () {
     final access = accessForRecord(
       'iban',

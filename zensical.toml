@@ -62,6 +62,7 @@ nav = [
     { "Ways to connect" = "api/connect.md" },
     { "Authentication" = "api/authentication.md" },
     { "Building a tool" = "api/tools.md" },
+    { "Encrypted links and saved keys" = "api/encrypted-links.md" },
     { "MCP server" = "api/mcp.md" },
     { "Sign in with Revoked" = "api/sign-in.md" },
     { "Attestations" = "api/attestations.md" },

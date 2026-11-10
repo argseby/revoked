@@ -12,7 +12,9 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/router/held_link_keys.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
@@ -164,7 +166,17 @@ class _TourScreenState extends State<TourScreen> {
   }
 
   /// The recipient's view, on top of the tour so closing it comes back here.
-  void _openAsRecipient() => context.push('/s/${_link.value!.slug}');
+  void _openAsRecipient() {
+    final link = _link.value!;
+    // As a recipient holding the whole address would: with the link's key,
+    // when it carries anything encrypted.
+    final key = Stores.shares.linkKeyText(link);
+    HeldLinkKeys.hold(
+      slug: link.slug,
+      key: key == null ? null : SealedFormats.parseLinkKey(key),
+    );
+    context.push('/s/${link.slug}');
+  }
 
   Future<void> _openInBrowser() async {
     final ok = await launchUrl(

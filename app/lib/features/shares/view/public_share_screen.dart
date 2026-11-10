@@ -15,6 +15,7 @@ import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/router/held_link_keys.dart';
 import 'package:revoked_app/core/services/handshake_service.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/value_kind.dart';
@@ -34,6 +35,7 @@ import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/requirement_list.dart';
 import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
+import 'package:revoked_app/features/shares/store/shared_link_reader.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -49,6 +51,7 @@ class PublicShareScreen extends StatefulWidget {
 
 class _PublicShareScreenState extends State<PublicShareScreen> {
   SharesStore get _store => Stores.shares;
+  Map<String, dynamic>? _lastServed;
 
   bool get _requiresHandshake =>
       _store.shareProbe?['requireHandshake'] as bool? ?? false;
@@ -61,9 +64,15 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         Uri.tryParse('https://${widget.origin!}')?.host ?? '',
       );
     }
+    // The key the address ended in waits in memory for this screen and goes
+    // no further than the view's own state: it is in no route and no storage.
+    final linkKey = HeldLinkKeys.take(
+      slug: widget.shareSlug,
+      origin: widget.origin,
+    );
     _store.resetShareView();
+    _store.shareLinkKey = linkKey;
     _probeLink();
-    if (Stores.auth.isAuthenticated) Stores.bookmarks.load();
   }
 
   bool get _isForeign => !Stores.api.isOwnOrigin(widget.origin);
@@ -90,13 +99,31 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       origin: _bookmarkOrigin,
       slug: widget.shareSlug,
       label: _store.shareProbe?['label'] as String? ?? '',
+      linkKey: _store.shareLinkKey,
     );
     if (!mounted) return;
     if (ok) {
+      if (_lastServed != null && _store.shareData != null) {
+        await bookmarks.checkRead(
+          _bookmarkOrigin,
+          widget.shareSlug,
+          _lastServed!,
+          _store.shareData!,
+        );
+      }
+      if (!mounted) return;
       AppToast.success(
         context,
         'Saved to Shares → Received',
-        subtitle: 'Groups can be assigned there.',
+        subtitle:
+            _store.shareLinkKey != null &&
+                (bookmarks
+                        .find(origin: _bookmarkOrigin, slug: widget.shareSlug)
+                        ?.sealedKey
+                        .isEmpty ??
+                    true)
+            ? 'The key is saved on this device only.'
+            : 'Groups can be assigned there.',
       );
     } else {
       AppToast.error(
@@ -284,6 +311,16 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
     });
 
     try {
+      if (Stores.auth.isAuthenticated) {
+        await Stores.bookmarks.loadIfDue();
+        final saved = Stores.bookmarks.find(
+          origin: _bookmarkOrigin,
+          slug: widget.shareSlug,
+        );
+        if (saved != null && _store.shareLinkKey == null) {
+          _store.shareLinkKey = await Stores.bookmarks.keyFor(saved);
+        }
+      }
       _store.shareProbe = await Stores.shares.getPublicLinkProbe(
         widget.shareSlug,
         origin: widget.origin,
@@ -358,8 +395,39 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         await _persistHandshake(newHandshake);
       }
 
+      // Encrypted entries are opened here, with the key from the address and
+      // nothing an account holds, so the rest of the screen sees ordinary
+      // records whether or not anyone is signed in.
+      final served = response.body as Map<String, dynamic>;
+      var data = SharedLinkReader.open(
+        response.body as Map<String, dynamic>,
+        _store.shareLinkKey,
+      );
+      _lastServed = served;
+      if (Stores.auth.isAuthenticated) {
+        final saved = Stores.bookmarks.find(
+          origin: _bookmarkOrigin,
+          slug: widget.shareSlug,
+        );
+        if (saved != null) {
+          data = await Stores.bookmarks.checkRead(
+            _bookmarkOrigin,
+            widget.shareSlug,
+            served,
+            data,
+          );
+          final rows = data['records'] as List? ?? const [];
+          if (_store.shareLinkKey != null &&
+              rows.any(
+                (r) =>
+                    r is Map && r['encrypted'] == true && r['closed'] == null,
+              )) {
+            await Stores.bookmarks.rememberKey(saved, _store.shareLinkKey!);
+          }
+        }
+      }
       runInAction(() {
-        _store.shareData = response.body as Map<String, dynamic>;
+        _store.shareData = data;
         _store.isUnlockingShare = false;
         _store.isLoadingShare = false;
       });
@@ -652,6 +720,20 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
             ],
           );
 
+    // Why encrypted entries stay closed, once, ahead of the rows that say it.
+    final closed = {for (final r in records) ?ClosedEntry.of(r)};
+    final notes = [
+      for (final why in ClosedEntry.values)
+        if (closed.contains(why))
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+            child: AppAlert(
+              leading: const Icon(AppIcons.lock),
+              content: Text(why.detail),
+            ),
+          ),
+    ];
+
     final sender = _section('Sender', TrustPanel(checks: _shareTrustChecks()));
     // Side by side on a wide window: the shared values, and who sent them.
     final wide = MediaQuery.sizeOf(context).width >= 1000;
@@ -662,13 +744,20 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 3, child: content),
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [...notes, content],
+                ),
+              ),
               const SizedBox(width: AppSpacing.xl),
               Expanded(flex: 2, child: sender),
             ],
           )
         else ...[
           sender,
+          ...notes,
           content,
         ],
       ],
@@ -859,6 +948,17 @@ class _SharedRecordRow extends StatelessWidget {
       mime: mime,
       filename: filename,
     );
+
+    // Encrypted and not opened here: the row says why in place of a value,
+    // and never shows an older one.
+    final closed = ClosedEntry.of(record);
+    if (closed != null) {
+      return AppDetailRow(
+        icon: AppIcons.lock,
+        label: label,
+        value: closed.title,
+      );
+    }
 
     if (type != 'file') {
       return AppValueRow(

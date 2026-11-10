@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/models/attestation_ask.dart';
 import 'package:revoked_app/core/models/check_proposal.dart';
 import 'package:revoked_app/core/models/presentation_request.dart';
@@ -59,6 +62,12 @@ import 'package:revoked_app/core/models/tool_client.dart';
 /// code, which is an answer rather than a destination:
 ///
 ///   `revoked://auth?code=…&state=…`
+///
+/// A share that carries end-to-end encrypted records ends in the key that
+/// opens them, `#k=<key>`. It is not part of the location: a location is
+/// what the router keeps, shows and may hold for later, and the key is none
+/// of its business. [linkKey] reads it, and `HeldLinkKeys` carries it to the
+/// screen in memory.
 class DeepLinks {
   DeepLinks._();
 
@@ -105,6 +114,43 @@ class DeepLinks {
       return null;
     }
     return (kind: kind, slug: segments[1], origin: origin);
+  }
+
+  /// The key a share's address ends in, after `#k=`, or null: none, or not a
+  /// whole one, as when only part of the address was copied.
+  static Uint8List? linkKey(Uri uri) {
+    for (final part in uri.fragment.split('&')) {
+      if (!part.startsWith('k=')) continue;
+      var text = part.substring(2);
+      try {
+        text = Uri.decodeComponent(text);
+      } on ArgumentError {
+        // Read as it stands.
+      }
+      return SealedFormats.parseLinkKey(text);
+    }
+    return null;
+  }
+
+  /// A share's web address, `https://<host[:port]>/s/<slug>`, as the app
+  /// link for the same share, key included. Null for anything else.
+  ///
+  /// Only for an address a person pastes into the app: [parse] and
+  /// [locationFor] still answer to nothing but `revoked://`, so no web page
+  /// opens the app at a place of its choosing through this.
+  static Uri? fromWebAddress(Uri uri) {
+    if (uri.scheme != 'https' && uri.scheme != 'http') return null;
+    if (uri.host.isEmpty || uri.userInfo.isNotEmpty || uri.hasQuery) {
+      return null;
+    }
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (segments.length != 2 || segments[0] != 's') return null;
+    final origin = uri.hasPort ? '${uri.host}:${uri.port}' : uri.host;
+    final link = Uri.tryParse(
+      '${share(segments[1], origin: origin)}'
+      '${uri.hasFragment ? '#${uri.fragment}' : ''}',
+    );
+    return link != null && parse(link) != null ? link : null;
   }
 
   /// Reads an invite key out of whatever a person pasted: the bare token, or

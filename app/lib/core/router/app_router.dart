@@ -9,6 +9,7 @@ import 'package:revoked_app/core/models/presentation_request.dart';
 import 'package:revoked_app/core/models/share_proposal.dart';
 import 'package:revoked_app/core/models/sign_in_request.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
+import 'package:revoked_app/core/router/held_link_keys.dart';
 import 'package:revoked_app/core/router/resume_location.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -245,6 +246,9 @@ class AppRouter {
         // all, and no route matches that. It stays out of history as well as
         // the route table: a held location must be one the router can open.
         if (state.uri.scheme == DeepLinks.scheme) {
+          // A share's key goes no further than this: the location that
+          // replaces the link is the one that is kept, and it has none.
+          HeldLinkKeys.holdFrom(state.uri);
           return DeepLinks.locationFor(state.uri) ?? AppRoutes.overview;
         }
         bool isPublic(String s) =>

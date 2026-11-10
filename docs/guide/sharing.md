@@ -16,6 +16,10 @@ content, and the link expires after 30 days. Another date can be chosen,
 or the date cleared for a link that does not expire. Once created, the
 link is ready to copy or send.
 
+Encrypted entries require the complete address, including `#k=…`. They open
+in the app and HTTPS browsers; [encrypted links](encryption.md#links)
+explains missing keys, replacement and saved shares.
+
 ## Access controls
 
 These options can be combined freely:
@@ -124,7 +128,11 @@ When signed in, **Bookmark** on an opened share saves it under
 message. Shares someone on the same server hands over are listed there
 too, first, under **Handed to you**.
 
-A bookmark stores only where the link is, never its data. Opening a
+A bookmark stores where the link is, never its values. For an encrypted
+share, its address key is stored wrapped under the viewer’s account key,
+or on this device only when encryption is off. Saved shares also keep local
+version history; [encrypted sharing](encryption.md#saved-shares) explains
+the protection and its limits. Opening a
 bookmark behaves like opening the link: the password, identity check and
 view limit still apply, and a paused or revoked share stays closed.
 Bookmarks are private to their owner; neither other workspace members nor

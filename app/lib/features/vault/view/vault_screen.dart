@@ -1424,16 +1424,33 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     } else {
       newRecords.remove(record.id);
     }
-    await Stores.shares.updateShare(share.id, {'records': newRecords});
-    if (mounted) {
-      AppToast.success(
+    final ok = await Stores.shares.updateShare(share.id, {
+      'records': newRecords,
+    });
+    if (!mounted) return;
+    if (!ok) {
+      AppToast.error(
         context,
         selected
-            ? 'Record added to the share'
-            : 'Record removed from the share',
+            ? 'The record could not be added to the share.'
+            : 'The record could not be removed from the share.',
+        subtitle: Stores.shares.errorMessage,
       );
+      return;
     }
+    AppToast.success(
+      context,
+      selected ? 'Record added to the share' : 'Record removed from the share',
+      subtitle: _addressNote(share),
+    );
   }
+
+  /// A link that just got its first encrypted record has a longer address
+  /// from now on, which whoever already holds the old one has to be given.
+  String? _addressNote(Link share) => Stores.shares.takeAddressChanged(share.id)
+      ? 'The link now ends in a key. Copies handed out earlier do not open '
+            'the encrypted records.'
+      : null;
 
   /// Sharing a whole section also lists its records on the link, as the old
   /// section toggle did, so the share's record list stays complete.
@@ -1455,10 +1472,23 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         newRecords.remove(rId);
       }
     }
-    await Stores.shares.updateShare(share.id, {
+    final ok = await Stores.shares.updateShare(share.id, {
       'sections': newSections,
       'records': newRecords,
     });
+    if (!mounted) return;
+    if (!ok) {
+      AppToast.error(
+        context,
+        'The share could not be changed.',
+        subtitle: Stores.shares.errorMessage,
+      );
+      return;
+    }
+    final note = _addressNote(share);
+    if (note != null) {
+      AppToast.success(context, 'Section shared', subtitle: note);
+    }
   }
 
   Future<void> _confirmDeleteSection(
@@ -1629,7 +1659,7 @@ class _WholeSectionToggle extends StatelessWidget {
 }
 
 /// Only this person's devices can read the record, so it takes the place of a
-/// link count: an encrypted record can't be on a link.
+/// link count: the mark identifies end-to-end encrypted records.
 class _EncryptedMark extends StatelessWidget {
   const _EncryptedMark();
 

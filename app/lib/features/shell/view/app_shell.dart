@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -571,12 +572,57 @@ class _Sidebar extends StatelessWidget {
                 selected: onSettings,
                 onTap: () => context.go(AppRoutes.settings),
               ),
+              const _ConnectionSummary(),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// The connection in effect, always visible below Settings in the sidebar.
+class _ConnectionSummary extends StatelessWidget {
+  const _ConnectionSummary();
+
+  @override
+  Widget build(BuildContext context) => Observer(
+    builder: (_) {
+      final server = Stores.serverSettings;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm,
+          AppSpacing.xs,
+          AppSpacing.sm,
+          AppSpacing.xs,
+        ),
+        child: Tooltip(
+          message:
+              '${server.savedBaseUrl}\n'
+              'Backend ${server.serverVersion ?? 'unknown'} · '
+              'Frontend ${AppConfig.appVersion}',
+          child: Row(
+            children: [
+              Icon(
+                AppIcons.server,
+                size: 14,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              AppSpacing.gapXs,
+              Expanded(
+                child: Text(
+                  server.savedLabel,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                ).small.muted,
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 /// The narrowest window whose rail layout keeps the search field in the top

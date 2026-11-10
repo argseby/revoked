@@ -93,7 +93,11 @@ abstract class _LinkSearchStore with Store {
   @action
   ClipboardAdoption _adoptIfLink(String text, {bool markClipboard = true}) {
     if (text.isEmpty) return ClipboardAdoption.none;
-    final uri = Uri.tryParse(text);
+    final pasted = Uri.tryParse(text);
+    // A share's web address is the same share, so it is taken as its link.
+    final uri = pasted == null
+        ? null
+        : DeepLinks.fromWebAddress(pasted) ?? pasted;
     if (uri == null ||
         (DeepLinks.parse(uri) == null && DeepLinks.locationFor(uri) == null)) {
       return ClipboardAdoption.none;
@@ -124,8 +128,13 @@ abstract class _LinkSearchStore with Store {
     }
   }
 
+  /// What the field holds for [value]: the link without its scheme. A share's
+  /// web address, `https://<host>/s/<slug>`, becomes the link for the same
+  /// share, with the key it ends in.
   String stripScheme(String value) {
     var path = value;
+    final web = DeepLinks.fromWebAddress(Uri.tryParse(value.trim()) ?? Uri());
+    if (web != null) path = web.toString();
     final prefix = '${DeepLinks.scheme}://';
     if (path.toLowerCase().startsWith(prefix)) {
       path = path.substring(prefix.length);

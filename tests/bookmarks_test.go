@@ -257,3 +257,26 @@ func TestBookmarkGroups(t *testing.T) {
 		}
 	})
 }
+
+func TestBookmarksStoreOnlyShapedWrappedKeys(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+	owner, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrap := sealedEnvelope(t, util.SealedKeyLength)
+	body := bookmarkBody(owner, "encrypted-saved")
+	body[util.Fields.Bookmark.SealedKey] = wrap
+	body[util.Fields.Bookmark.KeyEpoch] = 1
+	id := extractID(t, baseURL, util.Coll.Bookmarks, token, body)
+	api.Get(util.Coll.Bookmarks, id, token).Expect().Status(http.StatusOK).
+		JSON().Object().Value("sealedKey").IsEqual(wrap)
+	for _, invalid := range []map[string]any{
+		{"sealedKey": "plain-key"}, {"keyEpoch": 0}, {"keyEpoch": -1},
+		{"sealedKey": sealedEnvelope(t, 31)}, {"kind": "request"},
+	} {
+		api.Update(util.Coll.Bookmarks, id, token, invalid).Expect().Status(http.StatusBadRequest)
+	}
+	api.Update(util.Coll.Bookmarks, id, token, map[string]any{"sealedKey": "", "keyEpoch": 0}).Expect().Status(http.StatusOK)
+}

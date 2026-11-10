@@ -8,3 +8,15 @@ formats.
 `sealing_grant_vectors.json` pins how a workspace key is handed to another
 member: the app's encryption of it, and the signature this server checks
 (`util.SealedGrantPayload`). The same rule applies: never regenerate it.
+
+`sealing_link_vectors.json` pins how an encrypted record is carried on a link
+(design/e2ee-sharing.md §3.2): the copy key derived from the link key, what a
+viewer and the next writer open, and the link key for its owner's devices.
+`util/sealing_vectors_test.go` opens each of them with Go's own primitives.
+The same rule applies: never regenerate it.
+
+`sealing_link_read_vectors.json` pins a complete public read, from the key in
+the address through the viewer wrap to the authenticated value and metadata.
+Dart's share reader, Go's primitives and the actual page WebCrypto script
+(`TestPageScriptOpensTheVectors`, when Node is installed) open the same vector.
+The same rule applies: never regenerate it.

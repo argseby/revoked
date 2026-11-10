@@ -14,6 +14,7 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/trust_verdict.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/core/router/held_link_keys.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -96,6 +97,7 @@ class LinkSearchSheet extends StatelessWidget {
     bool canVerify,
     String slug,
     String? origin,
+    Uri uri,
   })?
   _resolve() {
     final path = _store.stripScheme(_controller.text.trim());
@@ -116,6 +118,7 @@ class LinkSearchSheet extends StatelessWidget {
         canVerify: false,
         slug: '',
         origin: null,
+        uri: uri,
       );
     }
     return (
@@ -125,6 +128,7 @@ class LinkSearchSheet extends StatelessWidget {
       canVerify: true,
       slug: link.slug,
       origin: link.origin,
+      uri: uri,
     );
   }
 
@@ -148,6 +152,8 @@ class LinkSearchSheet extends StatelessWidget {
     // Capture the router before popping — the sheet's context is gone after.
     final router = GoRouter.of(context);
     Navigator.of(context).pop();
+    // A share's key stays out of the location and waits for its screen.
+    HeldLinkKeys.holdFrom(resolved.uri);
     AppRouter.openLink(router, resolved.location);
   }
 

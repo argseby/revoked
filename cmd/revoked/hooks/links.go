@@ -50,11 +50,18 @@ func BindLinkHooks(app core.App) {
 		e.Record.Set(util.Fields.Link.ProposedBy,
 			e.Record.Original().GetString(util.Fields.Link.ProposedBy))
 		resolvePasswordWrite(e.Record, util.Fields.Link.Password)
+		// A link seen by its owner alone keeps its key for the owner alone.
+		services.TrimLinkKeyWraps(e.Record)
 		// The transition is only visible before the save, and may only be
 		// announced once it commits. Auto-revoke by max-views notifies on its
 		// own path.
 		revoked := isNewlyRevoked(e.App, e.Record)
 		if err := e.Next(); err != nil {
+			return err
+		}
+		// A record taken off the link takes its seal along: put back later,
+		// it needs a seal made for that day's version, not this one.
+		if err := services.PruneLinkSeals(e.App, e.Record); err != nil {
 			return err
 		}
 		if revoked {

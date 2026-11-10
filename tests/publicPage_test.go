@@ -252,3 +252,33 @@ func TestPublicPageHandoffPointsWhereTheReaderIs(t *testing.T) {
 		}
 	}
 }
+
+// An end-to-end encrypted entry is opened by the page itself, with the key
+// from the part of the address no server is sent. The shell carries the
+// reader for that, and the reader needs nothing the policy did not already
+// allow: no new host to reach, and no way to run text as code.
+func TestPublicPageCarriesTheReaderWithinItsPolicy(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	wsID := activeWorkspaceOf(t, api, userID, token)
+	slug, _ := pageShare(t, baseURL, token, userID, wsID, nil)
+
+	page := api.E.GET("/s/"+slug).WithHeader("Accept", browserAccept).Expect().Status(http.StatusOK)
+	page.Body().Contains("function sealOpenShare(")
+	page.Body().Contains("sealLinkKeyFrom(location.hash)")
+
+	csp := page.Header("Content-Security-Policy").Raw()
+	if !strings.Contains(csp, "connect-src 'self' https://cloudflare-dns.com https://dns.google;") {
+		t.Fatalf("the page may reach somewhere new: %s", csp)
+	}
+	for _, widened := range []string{"unsafe-eval", "script-src 'self'", "script-src *", "connect-src *"} {
+		if strings.Contains(csp, widened) {
+			t.Fatalf("CSP allows %q: %s", widened, csp)
+		}
+	}
+}

@@ -18,6 +18,16 @@ var ErrSealedChainInvalid = errors.New("sealed device entry is not valid")
 // for everything it added, and every new key is wrapped to every entry.
 const MaxSealedLiveEntries = 32
 
+// SealedKeyLength is the size of every symmetric key the app makes.
+// SealedEnvelopeOverhead is what the app's Sealing.aeadSeal adds around a
+// plaintext: a format byte, a nonce and a tag. The server never opens an
+// envelope, but it knows how long one holding a key must be, and refuses
+// anything else before storing it where a client would trip over it.
+const (
+	SealedKeyLength        = 32
+	SealedEnvelopeOverhead = 1 + 12 + 16
+)
+
 // SealedContext is the app's Sealing.context: strings and byte slices are
 // length-prefixed and ints are a fixed eight bytes, so no two different contexts
 // encode alike.

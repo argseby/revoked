@@ -348,6 +348,7 @@ IconData _iconFor(String type) => switch (type) {
   'callback_failed' => AppIcons.exclamationTriangle,
   'invite_accepted' => AppIcons.personPlus,
   'sealing_reset' => AppIcons.shieldSlash,
+  'sealed_link_changed' => AppIcons.lock,
   'sealing_access_granted' => AppIcons.key,
   'reminder' => AppIcons.clock,
   'attestation_accepted' => AppIcons.attestation,

@@ -104,9 +104,14 @@ func refuseStaleRecordWrite(app core.App, rec *core.Record) error {
 	return nil
 }
 
-// refuseNewSealedRecords stops a plain link from naming a sealed record. Only
-// additions are checked: sealing a record already on a link must not make every
-// later save of that link fail, and reads drop it from the link anyway.
+// refuseNewSealedRecords stops a link from naming a sealed record it holds no
+// key for. A link carries one only together with a seal for the record's
+// current version, which /api/sealed/links writes in the same transaction
+// before it saves the link (design/e2ee-sharing.md §3.3); a save that names
+// one without it, as the collection API would, is refused. An alias of a
+// sealed record is refused either way. Only additions are checked: sealing a
+// record already on a link must not make every later save of that link fail,
+// and reads drop it from the link anyway.
 func refuseNewSealedRecords(app core.App, link *core.Record) error {
 	f := util.Fields.Link
 	before := link.Original().GetStringSlice(f.Records)
@@ -115,7 +120,10 @@ func refuseNewSealedRecords(app core.App, link *core.Record) error {
 			continue
 		}
 		rec, err := app.FindRecordById(util.Coll.Records, id)
-		if err == nil && services.IsSealedThroughAlias(app, rec) {
+		if err != nil || !services.IsSealedThroughAlias(app, rec) {
+			continue
+		}
+		if link.IsNew() || services.CurrentLinkSeal(app, link.Id, rec) == nil {
 			return util.AsFieldValidationError(f.Records, util.Errors.SealedRecordUnsupported)
 		}
 	}

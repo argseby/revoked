@@ -26,14 +26,22 @@ Future<bool> returnToTool({
   required String status,
   String? code,
   String? linkId,
+  String? encryptedLink,
 }) {
-  final uri = ToolClient.returnUri(redirect, {
+  final base = ToolClient.returnUri(redirect, {
     if (state.isNotEmpty) 'state': state,
     'status': status,
     'server': Stores.api.baseUrl,
     'code': ?code,
     'link': ?linkId,
   });
+  // Only an explicitly approved complete address enters the fragment. It
+  // never becomes a query parameter, request body or server-stored field.
+  final uri = encryptedLink == null
+      ? base
+      : base.replace(
+          fragment: Uri(queryParameters: {'revoked_link': encryptedLink}).query,
+        );
   // A tool that cannot be reached is not the owner's problem: the link exists
   // either way, and the screen still offers the way back.
   return launchUrl(

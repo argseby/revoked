@@ -4,9 +4,9 @@ import 'package:revoked_app/core/models/tool_client.dart';
 /// `revoked://p?label=…&keys=…` link.
 ///
 /// The tool names only record keys and the share's settings — never values —
-/// and never learns the link: the app creates the share on the owner's own
-/// server and hands the URL to the owner alone. That is what lets a tool
-/// organise sharing without ever holding the data it organises.
+/// while the app creates the share on the owner's own server. Whether its
+/// address is handed to the tool is the owner's decision; encrypted shares
+/// require a separate per-proposal choice that no query parameter enables.
 ///
 /// Every field is untrusted input from whoever built the link, so a proposal
 /// that is malformed in any part is refused whole rather than repaired.

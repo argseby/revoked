@@ -60,16 +60,17 @@ const (
 	// been signed yet, and nobody holds a credential for it.
 	StatusOffered = "offered"
 
-	NotificationRequestResponse = "request_response"
-	NotificationLinkExpired     = "link_expired"
-	NotificationLinkRevoked     = "link_revoked"
-	NotificationLinkMaxViews    = "link_max_views"
-	NotificationRequestExpired  = "request_expired"
-	NotificationRequestComplete = "request_complete"
-	NotificationCallbackFailed  = "callback_failed"
-	NotificationInviteAccepted  = "invite_accepted"
-	NotificationLinkOpened      = "link_opened"
-	NotificationSealingReset    = "sealing_reset"
+	NotificationRequestResponse   = "request_response"
+	NotificationLinkExpired       = "link_expired"
+	NotificationLinkRevoked       = "link_revoked"
+	NotificationLinkMaxViews      = "link_max_views"
+	NotificationRequestExpired    = "request_expired"
+	NotificationRequestComplete   = "request_complete"
+	NotificationCallbackFailed    = "callback_failed"
+	NotificationInviteAccepted    = "invite_accepted"
+	NotificationLinkOpened        = "link_opened"
+	NotificationSealedLinkChanged = "sealed_link_changed"
+	NotificationSealingReset      = "sealing_reset"
 	// A member handed this person the key to a workspace's encrypted records.
 	NotificationSealingAccessGranted = "sealing_access_granted"
 	NotificationReminder             = "reminder"
@@ -200,6 +201,7 @@ var NotificationTypes = []string{
 	NotificationInviteAccepted,
 	NotificationLinkOpened,
 	NotificationSealingReset,
+	NotificationSealedLinkChanged,
 	NotificationSealingAccessGranted,
 	NotificationReminder,
 	NotificationAttestationAccepted,

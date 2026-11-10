@@ -532,7 +532,8 @@ void main() {
   });
 
   group('share picker', () {
-    testWidgets('does not offer an encrypted record', (tester) async {
+    testWidgets('offers an encrypted record this device can open, and not '
+        'one it cannot', (tester) async {
       await _start(tester);
       runInAction(() {
         Stores.vault.records = ObservableList.of([
@@ -558,6 +559,17 @@ void main() {
             sealed: true,
             opened: true,
           ),
+          models.Record(
+            id: 'l',
+            key: 'locked_one',
+            value: '',
+            label: 'Locked one',
+            type: 'text',
+            format: 'default',
+            user: _user,
+            workspace: _workspace,
+            sealed: true,
+          ),
         ]);
       });
       await tester.pumpWidget(
@@ -578,7 +590,11 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       expect(find.text('Plain one'), findsOneWidget);
-      expect(find.text('Sealed one'), findsNothing);
+      // It goes on the link with its key wrapped for the link
+      // (design/e2ee-sharing.md §3), which takes a device that can open it.
+      expect(find.text('Sealed one'), findsOneWidget);
+      expect(find.text('End-to-end encrypted'), findsOneWidget);
+      expect(find.text('Locked one'), findsNothing);
     });
   });
 }

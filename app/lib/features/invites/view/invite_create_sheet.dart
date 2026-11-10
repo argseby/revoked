@@ -18,7 +18,7 @@ import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/core/widgets/permission_check_row.dart';
+import 'package:revoked_app/features/invites/view/permission_sections.dart';
 import 'package:revoked_app/features/settings/view/features_page.dart';
 
 /// Opens the new-invite form for the active workspace.
@@ -207,25 +207,21 @@ class _InviteCreateSheetState extends State<InviteCreateForm> {
               // A draft no preset describes is only readable in here.
               initiallyOpen: _store.draftPreset == null,
               children: [
-                const AppFormSectionHeader('Permissions'),
                 if (store.catalogue.isEmpty)
                   const Padding(
                     padding: EdgeInsets.all(AppSpacing.xl),
                     child: Text('Loading permissions…'),
                   )
                 else
-                  for (final p in store.catalogue)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xl,
-                      ),
-                      child: PermissionCheckRow(
-                        permission: p,
-                        selected: _store.draftPermissions.contains(p.key),
-                        onChanged: (on) =>
-                            _store.toggleDraftPermission(p.key, on),
-                      ),
+                  PermissionSections(
+                    permissions: store.catalogue,
+                    selected: (permission) =>
+                        _store.draftPermissions.contains(permission.key),
+                    onChanged: (change) => _store.toggleDraftPermission(
+                      change.permission.key,
+                      change.selected,
                     ),
+                  ),
                 const AppFormSectionHeader('Initial features'),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(

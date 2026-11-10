@@ -72,6 +72,15 @@ class Link {
   /// for any other link.
   final String signInClient;
 
+  /// The link's key, encrypted for the devices that may show its address
+  /// again: `{scope: {epoch, wrap}}`. Empty until the link carries an
+  /// end-to-end encrypted record (design/e2ee-sharing.md §3).
+  final Map<String, dynamic> sealedKeyWraps;
+
+  /// Whether the link's address ends in a key, without which its encrypted
+  /// records do not open.
+  bool get hasKey => sealedKeyWraps.isNotEmpty;
+
   Link({
     required this.id,
     required this.slug,
@@ -100,6 +109,7 @@ class Link {
     this.handedOver = false,
     this.proposedBy = '',
     this.signInClient = '',
+    this.sealedKeyWraps = const {},
   });
 
   /// Legacy alias used by older UI code. Prefer [viewCount].
@@ -181,6 +191,9 @@ class Link {
       handedOver: json['handedOver'] as bool? ?? false,
       proposedBy: json['proposedBy'] as String? ?? '',
       signInClient: json['signInClient'] as String? ?? '',
+      sealedKeyWraps: json['sealedKeyWraps'] is Map
+          ? Map<String, dynamic>.from(json['sealedKeyWraps'] as Map)
+          : const {},
     );
   }
 
@@ -212,6 +225,7 @@ class Link {
     bool? handedOver,
     String? proposedBy,
     String? signInClient,
+    Map<String, dynamic>? sealedKeyWraps,
   }) {
     return Link(
       id: id ?? this.id,
@@ -241,6 +255,7 @@ class Link {
       handedOver: handedOver ?? this.handedOver,
       proposedBy: proposedBy ?? this.proposedBy,
       signInClient: signInClient ?? this.signInClient,
+      sealedKeyWraps: sealedKeyWraps ?? this.sealedKeyWraps,
     );
   }
 }

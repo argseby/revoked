@@ -54,8 +54,29 @@ revoked://p?label=Wi-Fi%20for%20guests&keys=network_name,wifi_password&template=
 ```
 
 `wifi_password` is a hidden record in the *Wi-Fi access* template. A share
-that includes a hidden record or a file is never handed to a tool, connected
-or not — such a link is copied by the owner.
+that includes a plain hidden record or a file is never handed to a tool,
+connected or not — such a link is copied by the owner. Encrypted records
+start unticked and their address key is never handed over by default. A
+separate per-proposal choice can explicitly hand an encrypted link to a
+connected tool allowed to receive links. This gives the tool access to all
+encrypted values on that link.
+
+### Explicit encrypted-link hand-over
+
+After explicit approval, a valid same-origin `redirect` receives the complete
+share URL in the callback fragment parameter `revoked_link`. Existing
+`state`, `status`, `server`, `code` and link-id query parameters are unchanged.
+For example, callback JavaScript can read it with
+`new URLSearchParams(location.hash.slice(1)).get('revoked_link')`.
+The nested share URL itself ends in `#k=…`. Neither key nor complete address
+is put in an HTTP query, request body, connection listing or polling answer.
+The tool's client code receives a decryption capability and can read or copy
+the values; encrypted values still remain absent from server-format exports.
+
+Polling cannot convey this key. With explicit approval the app opens the
+callback even when `poll` is set; without a valid callback the encrypted
+hand-over choice is unavailable. It is off by default, resets when the
+selection changes, and does not change the connection's general permissions.
 
 ### Suggested values
 

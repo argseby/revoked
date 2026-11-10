@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/models/tool_client.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -41,9 +42,8 @@ import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 /// Owner-facing screen for a `revoked://p?…` link: a tool proposes a share,
 /// the owner sees exactly what it would contain and creates it — or not.
 ///
-/// The tool named keys, not values, and it never receives the link: the share
-/// is created on the owner's server and its URL is shown here alone. So a tool
-/// can organise what goes where without ever holding the data or the link.
+/// The tool names keys, not values. It receives a link only when the owner
+/// hands it over; encrypted links require a separate per-proposal choice.
 ///
 /// A key the vault does not hold yet is filled in right here — typed, picked
 /// or attached — never by leaving to set it up elsewhere. The answer is saved
@@ -139,6 +139,8 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
   String? _code;
   String? _linkId;
   bool _handedOver = false;
+  final _allowEncryptedHandOver = Local<bool>(false);
+  String? _encryptedReturn;
 
   ShareProposal? get _proposal => widget.proposal;
 
@@ -152,7 +154,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     if (_proposal != null) _load();
   }
 
-  bool _isHidden(models.Record r) => r.format == 'hidden';
+  bool _isHidden(models.Record r) => r.sealed || r.format == 'hidden';
 
   bool _isFile(models.Record r) => r.type == 'file';
 
@@ -276,10 +278,26 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         '/api/collections/${AppConfig.recordsCollection}/records',
         queryParams: {'filter': filter, 'perPage': '200', 'sort': '-updated'},
       );
-      final records = ((data['items'] as List<dynamic>?) ?? [])
-          .map((e) => models.Record.fromJson(e as Map<String, dynamic>))
-          .where((r) => !r.sealed)
-          .toList();
+      await Stores.keys.ensureLoaded();
+      final records = <models.Record>[];
+      for (final raw in (data['items'] as List<dynamic>?) ?? const []) {
+        final r = models.Record.fromJson(raw as Map<String, dynamic>);
+        if (!r.sealed) {
+          records.add(r);
+          continue;
+        }
+        final content = Stores.keys.openContent(r);
+        if (content != null) {
+          records.add(
+            r.withOpened(
+              value: content.value,
+              label: content.label,
+              type: content.type,
+              format: content.format,
+            ),
+          );
+        }
+      }
       // Newest first, so a key held twice resolves to its latest record.
       final byKey = <String, models.Record>{};
       for (final r in records) {
@@ -414,6 +432,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       'nothing is saved until you do.';
 
   void _toggle(String id, bool on) {
+    _allowEncryptedHandOver.value = false;
     final next = {..._selected.value};
     if (on) {
       next.add(id);
@@ -473,6 +492,25 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         _isSensitive(i.record!),
   );
 
+  bool get _encryptedSelected => _items.value.any(
+    (i) => i.record?.sealed == true && _selected.value.contains(i.record!.id),
+  );
+  bool get _plainSensitiveSelected => _items.value.any(
+    (i) =>
+        i.record != null &&
+        !i.record!.sealed &&
+        _selected.value.contains(i.record!.id) &&
+        _isSensitive(i.record!),
+  );
+  bool get _canReturnEncrypted =>
+      _proposal!.client.isNotEmpty &&
+      _proposal!.redirect.isNotEmpty &&
+      ToolClient.redirectWithin(_proposal!.redirect, _proposal!.client);
+  bool get _encryptedApproved =>
+      _encryptedSelected &&
+      _canReturnEncrypted &&
+      _allowEncryptedHandOver.value;
+
   Future<void> _create() async {
     final p = _proposal!;
     final ids = [
@@ -508,7 +546,10 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
       connectionId = grant.connectionId;
     }
     final handOver =
-        connectionId.isNotEmpty && _canHandOver && !_sensitiveSelected;
+        connectionId.isNotEmpty &&
+        _canHandOver &&
+        !_plainSensitiveSelected &&
+        (!_encryptedSelected || _encryptedApproved);
 
     final slug = _randomSlug();
     final identity = _sign.value ? Stores.identities.primaryIdentity : null;
@@ -539,11 +580,22 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           .map((l) => l.id)
           .firstOrNull;
       _handedOver = handOver;
+      if (handOver && _encryptedApproved) {
+        final link = Stores.shares.shares.firstWhere((l) => l.id == _linkId);
+        final key = Stores.shares.linkKeyText(link);
+        if (key != null) {
+          _encryptedReturn = '${Stores.api.baseUrl}/s/$slug#k=$key';
+        }
+      }
       _createdSlug.value = slug;
       await _discardSuggestions();
       // Handed over, the tool can take it from here: straight back to it,
       // unless its page is watching and finds the link by itself.
-      if (handOver && p.redirect.isNotEmpty && !_polls) await _backToTool();
+      if (handOver &&
+          p.redirect.isNotEmpty &&
+          (!_polls || _encryptedReturn != null)) {
+        await _backToTool();
+      }
     } else {
       _submitError.value =
           Stores.shares.errorMessage ?? 'The link could not be created.';
@@ -556,6 +608,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     status: 'created',
     code: _code,
     linkId: _linkId,
+    encryptedLink: _encryptedReturn,
   );
 
   /// Leaving without creating: a tool waiting for an answer hears "declined".
@@ -659,7 +712,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
 
   Widget _buildCreated(BuildContext context, ShareProposal p, String slug) {
     // A page that is watching needs nothing opened to carry on.
-    final back = p.redirect.isNotEmpty && !_polls;
+    final back = p.redirect.isNotEmpty && (!_polls || _encryptedReturn != null);
     return AppStatusMessage(
       icon: AppIcons.checkCircle,
       accent: Theme.of(context).colorScheme.success,
@@ -680,6 +733,11 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             slug: slug,
             title: p.label,
             isRequest: false,
+            linkKey: _linkId == null
+                ? null
+                : Stores.shares.linkKeyText(
+                    Stores.shares.shares.firstWhere((l) => l.id == _linkId),
+                  ),
           ),
         ),
         if (back)
@@ -807,6 +865,10 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     } else if (!_canHandOver) {
       outcome =
           '${p.from} will see this link’s status, but not the link itself.';
+    } else if (_encryptedSelected && !_plainSensitiveSelected) {
+      outcome = _encryptedApproved
+          ? '${p.from} will receive the complete link, including its key, and can read and copy the encrypted values.'
+          : '${p.from} will see this link’s status. Its encrypted values and the address key are not handed over.';
     } else if (_sensitiveSelected) {
       outcome =
           '${p.from} will see this link’s status, but not the link itself: '
@@ -935,6 +997,18 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             ],
           ),
         if (p.client.isNotEmpty) _toolOutcome(p),
+        if (_encryptedSelected &&
+            _toolAttached &&
+            _canHandOver &&
+            _canReturnEncrypted &&
+            !_plainSensitiveSelected)
+          AppCheckRow(
+            label: 'Hand this encrypted link to ${p.from}',
+            subtitle:
+                'The tool receives the address key and can read, copy or store every encrypted value on this link. This choice applies to this link only.',
+            value: _allowEncryptedHandOver.value,
+            onChanged: (v) => _allowEncryptedHandOver.value = v,
+          ),
         if (identity != null)
           AppListGroup(
             title: 'Signature',

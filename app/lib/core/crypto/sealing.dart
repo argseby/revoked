@@ -260,6 +260,11 @@ abstract final class Sealing {
         length,
       );
 
+  /// HKDF-SHA256 with a [context] as its info, for a key derived from another
+  /// key and bound to what it is for.
+  static Uint8List deriveKey(Uint8List secret, Uint8List info) =>
+      _hkdfExpand(_hkdfExtract(Uint8List(0), secret), info, keyLength);
+
   /// Whether [key] is a usable public key. A bad one on a device list would
   /// otherwise make every later wrap to that list fail.
   static bool isValidPublicKey(Uint8List key) {

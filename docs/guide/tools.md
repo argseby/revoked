@@ -93,7 +93,7 @@ tool gave for asking is shown beneath the switches:
 | **Manage shares** | The tool shares the contents of its section without per-share confirmation. Every share is visible in the app and can be stopped. |
 | **Manage requests** | The tool sends requests in the owner's name without per-request confirmation. Available only when confirmed on this device, never with a code. |
 | **Revoke its links** | The tool can revoke the links and requests it proposed, for example when a printed card is discarded. A notification is sent as for any other revocation. |
-| **Receive links** | When a proposed link is created, the tool receives it directly instead of it being copied over. Links with files or hidden values are always handed over manually. |
+| **Receive links** | When a proposed link is created, the tool receives it directly instead of it being copied over. Links with files or plain hidden values are handed over manually. Encrypted links require a separate, default-off choice for that one proposal, which gives the tool the address key and access to the values. |
 | **Read vault** | Available only when the tool asks for it, and off by default. The tool can read record values, except encrypted records, and cannot change anything. What it has read cannot be taken back. [Your AI assistant](assistant.md#let-it-read-your-vault) describes the trade-offs. |
 
 Switches marked **Sensitive** allow actions that cannot be reversed:

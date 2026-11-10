@@ -143,10 +143,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           sections: [
             if (record.unsealedElsewhere) _unsealedElsewhereAlert(record),
             _valueSection(record),
-            if (record.sealed)
-              _readableBy(record)
-            else
-              _sharedIn(context, record),
+            if (record.sealed) _readableBy(record),
+            _sharedIn(context, record),
             _reminders(context, record),
           ],
           aside: [
@@ -240,7 +238,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             style: AppButtonStyle.accent,
             onTap: () => _downloadFile(r),
           ),
-        if (!r.sealed)
+        if (!r.isLocked)
           AppButton(
             icon: AppIcons.share,
             tooltip: 'Share',
@@ -312,11 +310,11 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     if (outcome == SealOutcome.linksAffected) {
       final go = await showAppDialog(
         context: context,
-        title: 'Remove this record from links?',
+        title: 'Some links cannot keep this record',
         message:
-            'Links cannot show an encrypted record, so it is removed from them. '
-            'In a shared section, it reappears only if encryption is turned '
-            'off.',
+            'Links whose keys are readable on this device keep the encrypted entry. '
+            'Other links stop showing it, and their owners are notified. '
+            'Copies of addresses that gain a key need the complete new address.',
         confirmLabel: 'Encrypt',
         confirmIcon: AppIcons.lock,
       );
@@ -329,7 +327,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         context: context,
         title: 'Encrypted',
         message:
-            'The server can no longer read this value. Its backups may still hold '
+            'Links kept during encryption now require their complete address, including '
+            'the key after #. The server can no longer read this value. Its backups may still hold '
             'the old value. Sensitive secrets should be rotated.',
         confirmLabel: 'OK',
         confirmIcon: AppIcons.check,
@@ -438,8 +437,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     );
   }
 
-  /// An encrypted record is read by this person's devices and nothing else, so
-  /// the links section would be empty. This says who those devices are.
+  /// This account's devices, alongside the links that carry this record.
   Widget _readableBy(models.Record r) {
     final keys = Stores.keys;
     final chain = keys.chain;
@@ -450,7 +448,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       title: 'Who can read this',
       trailing: const SizedBox.shrink(),
       footer: const Text(
-        'Not readable by the server, links or other workspace members.',
+        'Not readable by the server. Shared links open with their address key; '
+        'workspace members need encryption access.',
       ).muted.small,
       children: chain.entries.isEmpty
           ? [
@@ -526,8 +525,12 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
                     icon: AppIcons.lock,
                     title: 'Only you',
                     subtitle: 'Not shared through any link',
-                    onTap: () =>
-                        openShareCreateSheet(context: context, records: [r.id]),
+                    onTap: r.isLocked
+                        ? null
+                        : () => openShareCreateSheet(
+                            context: context,
+                            records: [r.id],
+                          ),
                     trailing: const AppBadge(
                       icon: AppIcons.share,
                       label: 'Share',

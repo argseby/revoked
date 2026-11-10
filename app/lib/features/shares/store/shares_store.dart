@@ -7,8 +7,11 @@ import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:mobx/mobx.dart';
 
 import 'package:revoked_app/core/api/api_request_spec.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/models/link.dart';
+import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/stores.dart';
 
@@ -141,6 +144,10 @@ abstract class _SharesStore with Store {
   /// Origin the open link named; null when it lives on the signed-in server.
   String? shareOrigin;
 
+  /// The key the open link's address ended in, which opens its end-to-end
+  /// encrypted entries. In memory only, for as long as the view is open.
+  Uint8List? shareLinkKey;
+
   /// The DNS walk over the sharer's signing identity. Null while unchecked;
   /// an unsigned share never produces one.
   @observable
@@ -245,6 +252,7 @@ abstract class _SharesStore with Store {
     isUnlockingShare = false;
     shareProbe = null;
     shareOrigin = null;
+    shareLinkKey = null;
     shareTrustVerdict = null;
     isVerifyingShareTrust = false;
     shareData = null;
@@ -461,11 +469,294 @@ abstract class _SharesStore with Store {
     required String kind,
     required String editing,
     List<String> groups = const [],
-  }) => updateShare(id, {
-    'audienceKind': kind,
-    'editing': editing,
-    'audienceGroups': groups,
-  });
+  }) async {
+    final ok = await updateShare(id, {
+      'audienceKind': kind,
+      'editing': editing,
+      'audienceGroups': groups,
+    });
+    if (ok) await _offerLinkKeyToAudience(id);
+    return ok;
+  }
+
+  /// Gives the members who now see a link the means to show its address: the
+  /// link's key under the workspace's key. Left undone when this device
+  /// can't, which costs those members the full address and nothing else; the
+  /// server takes that copy away by itself once the link is private again.
+  Future<void> _offerLinkKeyToAudience(String id) async {
+    final link = findById(id);
+    if (link == null ||
+        !link.hasKey ||
+        link.audienceKind == 'private' ||
+        link.sealedKeyWraps.containsKey(link.workspace)) {
+      return;
+    }
+    final keys = Stores.keys;
+    final linkKey = keys.openLinkKey(
+      link: link.id,
+      workspace: link.workspace,
+      wraps: link.sealedKeyWraps,
+    );
+    if (linkKey == null) return;
+    final wraps = keys.wrapLinkKey(
+      linkKey: linkKey,
+      link: link.id,
+      workspace: link.workspace,
+      forAccount: false,
+      forWorkspace: true,
+    );
+    if (wraps == null) return;
+    try {
+      await _api.put(
+        '/api/sealed/links/$id',
+        body: {'keyWraps': wraps, 'expectedKeyWraps': link.sealedKeyWraps},
+      );
+      _replaceInLists(await getById(id));
+    } catch (_) {
+      // The link itself is as its owner set it.
+    }
+  }
+
+  void _replaceInLists(Link link) {
+    final own = shares.indexWhere((s) => s.id == link.id);
+    if (own != -1) shares[own] = link;
+    final shared = sharedShares.indexWhere((s) => s.id == link.id);
+    if (shared != -1) sharedShares[shared] = link;
+  }
+
+  /// What follows `#k=` in a link's address, or null: the link carries
+  /// nothing encrypted, or its key does not open on this device. Check
+  /// [Link.hasKey] to tell the two apart.
+  String? linkKeyText(Link link) {
+    if (!link.hasKey) return null;
+    final key = Stores.keys.openLinkKey(
+      link: link.id,
+      workspace: link.workspace,
+      wraps: link.sealedKeyWraps,
+    );
+    return key == null ? null : SealedFormats.linkKeyText(key);
+  }
+
+  String? _addressChanged;
+
+  /// Whether the last change gave this existing link a key, and with it a
+  /// longer address: copies handed out before do not open what is encrypted.
+  /// Answers once, so that one screen says so once.
+  bool takeAddressChanged(String id) {
+    final changed = _addressChanged == id;
+    if (changed) _addressChanged = null;
+    return changed;
+  }
+
+  /// The end-to-end encrypted records among [ids], as this device holds them.
+  List<models.Record> _sealedAmong(Iterable<String> ids) {
+    final sealed = <models.Record>[];
+    for (final id in ids) {
+      final record = Stores.vault.visibleRecord(id);
+      if (record == null || !record.sealed) continue;
+      if (record.isLocked) {
+        throw const UserFacingException(
+          'An encrypted record that is not readable on this device cannot '
+          'be shared from it.',
+        );
+      }
+      sealed.add(record);
+    }
+    return sealed;
+  }
+
+  /// Puts encrypted records on [link] (design/e2ee-sharing.md §3.3): for
+  /// each, its current value key wrapped for the link, sent together with
+  /// the link's key for its owner's devices when this is the link's first.
+  /// The server adds the records in the same transaction.
+  Future<Link> _sealOnto(
+    Link link,
+    List<models.Record> sealed, {
+    required bool existing,
+  }) async {
+    final keys = Stores.keys;
+    var linkKey = keys.openLinkKey(
+      link: link.id,
+      workspace: link.workspace,
+      wraps: link.sealedKeyWraps,
+    );
+    Map<String, dynamic>? keyWraps;
+    if (linkKey == null) {
+      if (link.hasKey) {
+        throw const UserFacingException(
+          'The key of this link is not readable on this device, so nothing '
+          'encrypted can be added from it.',
+        );
+      }
+      if (link.user != Stores.auth.userId) {
+        throw const UserFacingException(
+          'The first encrypted record of a link is added by the link\'s '
+          'owner.',
+        );
+      }
+      if (!await keys.ensureAccountKey()) {
+        throw const UserFacingException(
+          'Encryption is not ready on this device.',
+        );
+      }
+      linkKey = keys.newLinkKey();
+      keyWraps =
+          keys.wrapLinkKey(
+            linkKey: linkKey,
+            link: link.id,
+            workspace: link.workspace,
+            forWorkspace: link.audienceKind != 'private',
+          ) ??
+          keys.wrapLinkKey(
+            linkKey: linkKey,
+            link: link.id,
+            workspace: link.workspace,
+          );
+      if (keyWraps == null) {
+        throw const UserFacingException(
+          'Encryption is not ready on this device.',
+        );
+      }
+    }
+    final seals = [
+      for (final record in sealed)
+        keys.sealForLink(linkKey: linkKey, link: link.id, record: record) ??
+            (throw const UserFacingException(
+              'An encrypted record that is not readable on this device '
+              'cannot be shared from it.',
+            )),
+    ];
+    await _api.put(
+      '/api/sealed/links/${link.id}',
+      body: {
+        'seals': seals,
+        'keyWraps': ?keyWraps,
+        'expectedKeyWraps': link.sealedKeyWraps,
+      },
+    );
+    if (existing && keyWraps != null) _addressChanged = link.id;
+    return getById(link.id);
+  }
+
+  /// Prepares links already holding a plain record for its first encrypted
+  /// version. Invisible links are never returned; a link whose key cannot
+  /// be opened is left to the server's explicit drop confirmation.
+  Future<List<Map<String, dynamic>>> prepareRecordLinks(String record) async {
+    final dynamic data;
+    try {
+      data = await _api.get('/api/sealed/records/$record/links');
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return const [];
+      rethrow;
+    }
+    final prepared = <Map<String, dynamic>>[];
+    for (final raw
+        in (data as Map<String, dynamic>)['links'] as List? ?? const []) {
+      final link = Link.fromJson({
+        'slug': '',
+        'label': '',
+        ...raw as Map<String, dynamic>,
+      });
+      final keys = Stores.keys;
+      var key = keys.openLinkKey(
+        link: link.id,
+        workspace: link.workspace,
+        wraps: link.sealedKeyWraps,
+      );
+      Map<String, dynamic>? wraps;
+      if (key == null) {
+        if (link.hasKey || link.user != Stores.auth.userId) continue;
+        if (!await keys.ensureAccountKey()) continue;
+        key = keys.newLinkKey();
+        wraps = keys.wrapLinkKey(
+          linkKey: key,
+          link: link.id,
+          workspace: link.workspace,
+          forWorkspace: link.audienceKind != 'private',
+        );
+        if (wraps == null) continue;
+      }
+      prepared.add({
+        'link': link.id,
+        'key': key,
+        'expectedKeyWraps': link.sealedKeyWraps,
+        'keyWraps': ?wraps,
+      });
+    }
+    return prepared;
+  }
+
+  /// Replaces one link's address key and every encrypted entry atomically.
+  Future<bool> replaceLinkKey(String id) async {
+    errorMessage = null;
+    try {
+      final link = await getById(id);
+      if (link.user != Stores.auth.userId || !link.hasKey) {
+        throw const UserFacingException(
+          'Only the owner can replace this link’s key.',
+        );
+      }
+      await Stores.vault.loadRecords();
+      if (Stores.vault.errorMessage != null) {
+        throw UserFacingException(Stores.vault.errorMessage!);
+      }
+      final records = <models.Record>[];
+      for (final recordID in link.records) {
+        final record = Stores.vault.visibleRecord(recordID);
+        if (record == null || record.isLocked) {
+          throw const UserFacingException(
+            'Every entry on this link must be readable on this device before its key can be replaced.',
+          );
+        }
+        if (record.sealed) records.add(record);
+      }
+      final keys = Stores.keys;
+      if (!await keys.ensureAccountKey()) {
+        throw const UserFacingException(
+          'Encryption is not ready on this device.',
+        );
+      }
+      final key = keys.newLinkKey();
+      final wraps = keys.wrapLinkKey(
+        linkKey: key,
+        link: link.id,
+        workspace: link.workspace,
+        forWorkspace: link.audienceKind != 'private',
+      );
+      if (wraps == null) {
+        throw const UserFacingException(
+          'Encryption is not ready on this device.',
+        );
+      }
+      final seals = [
+        for (final record in records)
+          keys.sealForLink(linkKey: key, link: link.id, record: record) ??
+              (throw const UserFacingException(
+                'An encrypted entry could not be opened on this device.',
+              )),
+      ];
+      await _api.put(
+        '/api/sealed/links/$id',
+        body: {
+          'replaceKey': true,
+          'expectedKeyWraps': link.sealedKeyWraps,
+          'keyWraps': wraps,
+          'seals': seals,
+        },
+      );
+      _replaceInLists(await getById(id));
+      return true;
+    } catch (e) {
+      errorMessage = describeError(e);
+      return false;
+    }
+  }
+
+  /// The server appends what it adds; the owner's order is put back.
+  Future<Link> _inOrder(Link link, List<String> wanted) async =>
+      listEquals(link.records, wanted)
+      ? link
+      : _patch(link.id, {'records': wanted});
 
   /// Owner-side single fetch (sees viewCount, expiresAt, etc.).
   Future<Link> getById(String id) async {
@@ -530,13 +821,20 @@ abstract class _SharesStore with Store {
     String audienceKind = '',
     List<String> audienceGroups = const [],
   }) async {
+    // Encrypted records join the link in a second request, each with its
+    // key for the link: the server takes none without one.
+    final sealed = _sealedAmong(records);
+    final sealedIds = {for (final r in sealed) r.id};
     final spec = createShareSpec(
       slug: slug,
       label: label,
       user: user,
       workspace: workspace,
       sections: sections,
-      records: records,
+      records: [
+        for (final id in records)
+          if (!sealedIds.contains(id)) id,
+      ],
       status: status,
       identityId: identityId,
       password: password,
@@ -553,12 +851,49 @@ abstract class _SharesStore with Store {
       audienceGroups: audienceGroups,
     );
     final data = await _api.post(spec.path, body: spec.body);
-    return Link.fromJson(data as Map<String, dynamic>);
+    final link = Link.fromJson(data as Map<String, dynamic>);
+    if (sealed.isEmpty) return link;
+    try {
+      return await _inOrder(
+        await _sealOnto(link, sealed, existing: false),
+        records,
+      );
+    } catch (_) {
+      // Nobody holds its address yet, and it would lack what it was made
+      // to share.
+      try {
+        await delete(link.id);
+      } catch (_) {}
+      rethrow;
+    }
   }
 
   /// Pass an empty-string `password` to clear it (the hook skips hashing);
   /// omit the key entirely to leave it unchanged.
+  ///
+  /// Encrypted records added by [body] go on in a request of their own, each
+  /// with its key for the link; everything else is one update as before.
   Future<Link> update(String id, Map<String, dynamic> body) async {
+    final wanted = body['records'];
+    if (wanted is! List) return _patch(id, body);
+    final records = wanted.cast<String>().toList();
+    final current = findById(id) ?? await getById(id);
+    final added = _sealedAmong(
+      records.where((r) => !current.records.contains(r)),
+    );
+    if (added.isEmpty) return _patch(id, body);
+    final addedIds = {for (final r in added) r.id};
+    final link = await _patch(id, {
+      ...body,
+      'records': [
+        for (final r in records)
+          if (!addedIds.contains(r)) r,
+      ],
+    });
+    return _inOrder(await _sealOnto(link, added, existing: true), records);
+  }
+
+  Future<Link> _patch(String id, Map<String, dynamic> body) async {
     final spec = updateShareSpec(id, body);
     final data = await _api.patch(spec.path, body: spec.body);
     return Link.fromJson(data as Map<String, dynamic>);
