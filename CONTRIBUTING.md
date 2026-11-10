@@ -57,6 +57,9 @@ Write [Conventional Commits](https://www.conventionalcommits.org) as
 `type(scope): message`. The **type** sets the version. The scope is a free
 label (`app`, `api`, `docs`, `site`, …) and never does.
 
+**Allowed labels are: 
+app, api, docs ci, site, core, tests**
+
 | Type | Version bump | Lands in the changelog as |
 |---|---|---|
 | `breaking:` (or `breaking!:`) | major (minor while still 0.x) | ⚠️ Breaking Changes |
