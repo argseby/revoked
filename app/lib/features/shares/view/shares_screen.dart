@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
@@ -279,7 +282,9 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         // Nothing to list still keeps Search and filter in the top bar.
         Widget bare(Widget child) =>
             AppListEmpty(toolbar: _toolbar(), child: child);
-        if (store.shares.isEmpty && store.loadState.error != null) {
+        if (store.shares.isEmpty &&
+            store.sharedShares.isEmpty &&
+            store.loadState.error != null) {
           return bare(
             AppLoadError(
               title: 'Links could not be loaded',
@@ -289,7 +294,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
           );
         }
 
-        if (store.shares.isEmpty) {
+        if (store.shares.isEmpty && store.sharedShares.isEmpty) {
           final vault = Stores.vault;
           // A link points at vault records; with none there is nothing to
           // pick, so the first step is the vault, not the link form.
@@ -400,7 +405,9 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
             matches.isEmpty &&
             (sharedShown.isEmpty || statuses.isNotEmpty || people.isNotEmpty);
 
-        return AppListPage(
+        return _sharingPage(
+          context,
+          now: now,
           toolbar: _toolbar(),
           filters: AppStatusChips<LinkGroup>(
             selected: statuses,
@@ -473,6 +480,135 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
       },
     );
   }
+
+  Widget _sharingPage(
+    BuildContext context, {
+    required DateTime now,
+    required AppListToolbar toolbar,
+    required Widget? filters,
+    required List<Widget> banners,
+    required String? emptyMessage,
+    required List<Widget> groups,
+  }) {
+    final shares = Stores.shares.shares;
+    final compact = widget.selectedId != null;
+    final totals = {for (final g in LinkGroup.values) g: 0};
+    for (final link in shares) {
+      final group = linkGroup(link, now);
+      totals[group] = totals[group]! + 1;
+    }
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppText(compact ? 'Your links' : 'Your sharing').title,
+        AppSpacing.gapSm,
+        AppText(
+          compact
+              ? 'Choose a link to manage its access.'
+              : 'Share from your Vault. Stay in control of access.',
+        ).small.muted,
+      ],
+    );
+    final create = AppButton(
+      icon: AppIcons.plus,
+      label: 'Share items',
+      onTap: () => openShareCreateSheet(context: context),
+    );
+    return AppPageBody(
+      bottomPadding: AppSpacing.gigantic,
+      children: [
+        AppSpacing.gapLg,
+        LayoutBuilder(
+          builder: (context, box) =>
+              box.maxWidth < 600 ||
+                  MediaQuery.textScalerOf(context).scale(16) > 24
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [heading, AppSpacing.gapLg, create],
+                )
+              : Row(
+                  children: [
+                    Expanded(child: heading),
+                    AppSpacing.gapLg,
+                    create,
+                  ],
+                ),
+        ),
+        AppSpacing.gapXxl,
+        if (!compact && shares.isNotEmpty) ...[
+          LayoutBuilder(
+            builder: (context, box) {
+              final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+              final columns = (box.maxWidth / (180 * scale)).floor().clamp(
+                1,
+                3,
+              );
+              final width =
+                  (box.maxWidth - AppSpacing.md * (columns - 1)) / columns;
+              return Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.md,
+                children: [
+                  for (final g in [
+                    LinkGroup.active,
+                    LinkGroup.paused,
+                    LinkGroup.closed,
+                  ])
+                    SizedBox(
+                      width: width,
+                      child: _SharingStatusTile(
+                        group: g,
+                        compact: columns == 1,
+                        count:
+                            totals[g]! +
+                            (g == LinkGroup.active
+                                ? totals[LinkGroup.attention]!
+                                : 0),
+                        selected: g == LinkGroup.active
+                            ? _statuses.value.length == 2 &&
+                                  _statuses.value.containsAll({
+                                    LinkGroup.active,
+                                    LinkGroup.attention,
+                                  })
+                            : _statuses.value.length == 1 &&
+                                  _statuses.value.contains(g),
+                        onTap: () {
+                          final next = g == LinkGroup.active
+                              ? {LinkGroup.active, LinkGroup.attention}
+                              : {g};
+                          _statuses.value =
+                              _statuses.value.length == next.length &&
+                                  _statuses.value.containsAll(next)
+                              ? const {}
+                              : next;
+                        },
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          AppSpacing.gapXxl,
+        ],
+
+        if (filters != null) ...[filters, AppSpacing.gapLg],
+        toolbar.pill(),
+        if (toolbar.chips(context) case final chips?) ...[
+          AppSpacing.gapSm,
+          chips,
+        ],
+        AppSpacing.gapXl,
+        for (final banner in banners) ...[banner, AppSpacing.gapLg],
+        if (emptyMessage != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
+            child: AppText(emptyMessage).muted,
+          )
+        else
+          ...groups,
+      ],
+    );
+  }
 }
 
 /// One link in the list: what it is, one line on where it stands, and a badge
@@ -506,10 +642,26 @@ class _LinkRow extends StatelessWidget {
           : share.isFromRequest
           ? AppIcons.inboxFill
           : AppIcons.link,
-      title: share.label,
+      title: share.label.trim().isEmpty ? 'Unnamed link' : share.label,
       selected: selected,
       accent: attention != null ? theme.colorScheme.warning : null,
-      subtitle: attention?.reason ?? _summary(),
+      subtitleWidget: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_contentsSummary().isNotEmpty)
+            AppText(
+              _contentsSummary(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ).small,
+          AppText(
+            attention?.reason ?? _summary(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ).small.muted,
+        ],
+      ),
       audience: AudienceTag(Audience(share.audienceKind, share.audienceGroups)),
       trailing: attention != null
           ? AppBadge(label: attention.short, accent: theme.colorScheme.warning)
@@ -518,6 +670,30 @@ class _LinkRow extends StatelessWidget {
           : null,
       onTap: onTap,
     );
+  }
+
+  String _contentsSummary() {
+    final own = Stores.auth.userId.isEmpty || share.user == Stores.auth.userId;
+    if (!own) return 'Shared by a workspace member';
+    final vault = Stores.vault;
+    final byId = {
+      for (final r in [...vault.sharedRecords, ...vault.records]) r.id: r,
+    };
+    final sections = {
+      for (final s in [...vault.sharedSections, ...vault.sections]) s.id: s,
+    };
+    final ids = <String>{...share.records};
+    for (final id in share.sections) {
+      ids.addAll(sections[id]?.records ?? const <String>[]);
+    }
+    final names = [
+      for (final id in ids)
+        if (byId[id] case final r?) r.label.isEmpty ? r.key : r.label,
+    ];
+    if (names.isEmpty) return '';
+    final preview = names.take(2).toList();
+    final remaining = ids.length - preview.length;
+    return '${preview.join(', ')}${remaining > 0 ? ' +$remaining more' : ''}';
   }
 
   /// "From notfallkarte.example · 3 records · viewed 2×"
@@ -546,5 +722,95 @@ class _LinkRow extends StatelessWidget {
       share.viewCount == 0 ? 'not viewed' : 'viewed ${share.viewCount}×',
     );
     return parts.join(' · ');
+  }
+}
+
+/// Access states are destinations: live links, reversible pauses, and history.
+class _SharingStatusTile extends StatelessWidget {
+  final LinkGroup group;
+  final int count;
+  final bool selected;
+  final bool compact;
+  final VoidCallback onTap;
+
+  const _SharingStatusTile({
+    required this.group,
+    required this.count,
+    required this.selected,
+    required this.compact,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (title, description, icon, color) = switch (group) {
+      LinkGroup.active => (
+        'Active links',
+        'Manage current sharing',
+        AppIcons.link,
+        scheme.success,
+      ),
+      LinkGroup.paused => (
+        'Paused links',
+        'Access is on hold',
+        AppIcons.pauseCircle,
+        scheme.warning,
+      ),
+      _ => (
+        'Closed links',
+        'Revoked or expired',
+        AppIcons.linkSlash,
+        scheme.onSurfaceVariant,
+      ),
+    };
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected
+            ? scheme.secondaryContainer
+            : scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allMd,
+          side: BorderSide(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: compact
+                ? Row(
+                    children: [
+                      Icon(icon, size: 20, color: color),
+                      AppSpacing.gapMd,
+                      Expanded(child: AppText(title).small.bold),
+                      AppSpacing.gapMd,
+                      AppText('$count').header,
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(icon, size: 20, color: color),
+                          const Spacer(),
+                          AppText('$count').header,
+                        ],
+                      ),
+                      AppSpacing.gapMd,
+                      AppText(title).bold,
+                      AppSpacing.gapXxs,
+                      AppText(description).small.muted,
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
   }
 }

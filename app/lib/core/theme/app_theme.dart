@@ -177,6 +177,12 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         modalElevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadius.lg),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -194,6 +200,18 @@ class AppTheme {
           surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
           side: WidgetStatePropertyAll(outline),
           elevation: const WidgetStatePropertyAll(0),
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+          ),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: AppRadius.allSm,
+        ),
+        textStyle: textTheme.bodySmall?.copyWith(
+          color: scheme.onInverseSurface,
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
@@ -269,7 +287,7 @@ class AppTheme {
         toolbarHeight: 56,
         shape: Border(bottom: outline),
       ),
-      // The current destination is an inverted ink square behind the icon: a
+      // The current destination is a rounded ink marker behind the icon: a
       // state marker strong enough to meet 3:1 against the bar, not a tint.
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,

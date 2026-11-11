@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -41,6 +42,9 @@ import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 /// rows it lets through, [hasAny] whether there is anything at all.
 class _TabList extends StatelessWidget {
   final String intro;
+  final String title;
+  final String listTitle;
+  final Widget action;
   final LoadState state;
   final VoidCallback onRetry;
   final Widget empty;
@@ -50,6 +54,9 @@ class _TabList extends StatelessWidget {
 
   const _TabList({
     required this.intro,
+    required this.title,
+    required this.listTitle,
+    required this.action,
     required this.state,
     required this.onRetry,
     required this.empty,
@@ -82,25 +89,33 @@ class _TabList extends StatelessWidget {
       builder: (_) {
         final failure = state.error;
         if (!hasAny) {
-          return AppListEmpty(
-            toolbar: toolbar,
-            child: failure != null
-                ? AppLoadError(
-                    title: 'The list could not be loaded',
-                    message: failure,
-                    onRetry: onRetry,
-                  )
-                : empty,
+          return AppPageBody(
+            children: [
+              AppCollectionHeader(title: title, description: intro),
+              if (failure != null)
+                AppLoadError(
+                  title: 'The list could not be loaded',
+                  message: failure,
+                  onRetry: onRetry,
+                )
+              else
+                empty,
+            ],
           );
         }
         return AppListPage(
           toolbar: toolbar,
+          inlineToolbar: true,
           banners: [if (failure != null) AppRefreshFailed(onRetry: onRetry)],
-          filters: Text(intro).muted.small,
+          filters: AppCollectionHeader(
+            title: title,
+            description: intro,
+            action: action,
+          ),
           emptyMessage: children.isEmpty
               ? 'Nothing matches the search or filters.'
               : null,
-          groups: [AppListCard(children: children)],
+          groups: [AppListGroup(title: listTitle, children: children)],
         );
       },
     );
@@ -221,11 +236,17 @@ class _HeldAttestationsState extends State<HeldAttestations> {
       builder: (_) {
         final searched = _tools.searched;
         return _TabList(
+          title: 'Attestations about you',
+          listTitle: 'Your attestations',
+          action: AppButton(
+            icon: AppIcons.askFor,
+            label: 'Ask for attestation',
+            onTap: () => openAskAttestationSheet(context),
+          ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.credentials.isNotEmpty,
           intro:
-              'Attestations confirmed by others. Nothing is shown unless '
-              'selected, detail by detail.',
+              'Facts about you, confirmed by others. Choose the details you share.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(
@@ -257,7 +278,7 @@ class _HeldAttestationsState extends State<HeldAttestations> {
             for (final c in _tools.shown(searched))
               AppListRow(
                 icon: AppIcons.shieldCheck,
-                title: c.type,
+                title: c.type.isEmpty ? 'Attestation' : c.type,
                 subtitleWidget: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -266,10 +287,7 @@ class _HeldAttestationsState extends State<HeldAttestations> {
                     ).muted.small,
                     if (c.disclosures.isNotEmpty)
                       Text(
-                        [
-                          for (final d in c.disclosures)
-                            '${d.name}: ${claimText(d.value)}',
-                        ].join(' · '),
+                        [for (final d in c.disclosures) d.name].join(' · '),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ).small,
@@ -579,11 +597,16 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
         final off = store.issuingAllowed == false;
         final searched = _tools.searched;
         return _TabList(
+          title: 'Attestations you issue',
+          listTitle: 'Issued attestations',
+          action: AppButton(
+            icon: AppIcons.attestation,
+            label: 'Issue attestation',
+            onTap: off ? null : () => showAttestationCreateSheet(context),
+          ),
           toolbar: _tools.toolbar(searched),
           hasAny: !off && store.attestations.isNotEmpty,
-          intro:
-              'Attestations issued by this workspace in its domain’s name. '
-              'Anyone who trusts the domain can rely on them.',
+          intro: 'Confirm a membership, role or fact in this workspace’s name.',
           state: store.loadState,
           onRetry: store.load,
           empty: off
@@ -628,7 +651,11 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
             if (!off)
               for (final a in _tools.shown(searched))
                 AppListRow(
-                  icon: AppIcons.shieldLock,
+                  icon: a.isRevoked
+                      ? AppIcons.shieldSlash
+                      : a.isOffered
+                      ? AppIcons.send
+                      : AppIcons.attestation,
                   title: a.title,
                   subtitle: issuedAttestationSubtitle(a),
                   trailing: issuedAttestationBadge(a),
@@ -720,11 +747,17 @@ class _CheckedAttestationsState extends State<CheckedAttestations> {
       builder: (_) {
         final searched = _tools.searched;
         return _TabList(
+          title: 'Attestation checks',
+          listTitle: 'Checks and answers',
+          action: AppButton(
+            icon: AppIcons.shieldCheck,
+            label: 'Check attestation',
+            onTap: () => openAttestationCheckSheet(context),
+          ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.checks.isNotEmpty,
           intro:
-              'Attestations shown by others in answer to a check. Each answer '
-              'reflects the state at that moment.',
+              'Ask someone to show an attestation and review the verified answer.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(
@@ -761,7 +794,7 @@ class _CheckedAttestationsState extends State<CheckedAttestations> {
           children: [
             for (final c in _tools.shown(searched))
               AppListRow(
-                icon: AppIcons.shieldCheck,
+                icon: c.isAnswered ? AppIcons.shieldCheck : AppIcons.clock,
                 title: c.title,
                 subtitle: checkSubtitle(c),
                 trailing: checkBadge(context, c),

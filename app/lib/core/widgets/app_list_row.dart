@@ -153,7 +153,7 @@ class AppListRow extends StatelessWidget {
           );
 
     final marked = selected
-        ? DecoratedBox(
+        ? Ink(
             decoration: BoxDecoration(
               color: scheme.secondaryContainer,
               border: Border(left: BorderSide(color: scheme.primary, width: 3)),
@@ -161,19 +161,20 @@ class AppListRow extends StatelessWidget {
             child: row,
           )
         : row;
-    if (onTap == null) return marked;
-    // Square on purpose: the row spans its card, whose rounded clip trims the
-    // highlight on the first and last row.
+    // Own the ink surface: library rows can sit directly on the page, so
+    // they cannot rely on an enclosing card to round hover or selection.
+    final surface = Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.allMd,
+      clipBehavior: Clip.antiAlias,
+      child: onTap == null
+          ? marked
+          : InkWell(onTap: onTap, borderRadius: AppRadius.allMd, child: marked),
+    );
+    if (onTap == null) return surface;
     return Semantics(
       selected: selected,
-      child: AppFocusRing(
-        borderRadius: BorderRadius.zero,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.zero,
-          child: marked,
-        ),
-      ),
+      child: AppFocusRing(borderRadius: AppRadius.allMd, child: surface),
     );
   }
 }

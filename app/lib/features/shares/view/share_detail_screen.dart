@@ -233,7 +233,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
             accent: theme.colorScheme.warning,
           ),
       ],
-      title: share.label,
+      title: share.label.trim().isEmpty ? 'Unnamed link' : share.label,
       // The slug is for whoever scripts against it; the label names it.
       subtitle: full ? share.slug : null,
       subtitleMono: true,
@@ -401,9 +401,19 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         ? '${share.records.length} '
               '${share.records.length == 1 ? 'record' : 'records'}'
         : 'the records listed below';
+    final requirements = [
+      if (share.hasPassword) 'the password',
+      if (share.identity?.isNotEmpty == true)
+        'the required identity'
+      else if (share.requireHandshake)
+        'viewer verification',
+    ];
+    final audience = requirements.isEmpty
+        ? 'Anyone with this link'
+        : 'Viewers with this link and ${requirements.join(' and ')}';
     final sentence = switch (share.status) {
       'active' =>
-        'Anyone with this link can see $what, always the latest '
+        '$audience can see $what, always the latest '
             'version. Access can be paused or revoked.',
       'paused' =>
         'This link is paused and cannot be opened until it is activated '
@@ -480,6 +490,8 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
 
     return AppListGroup(
       title: 'Details',
+      collapsed: true,
+      noun: 'details',
       trailing: const SizedBox.shrink(),
       children: [
         AppDetailRow(icon: AppIcons.nodePlus, label: 'Origin', value: origin),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/router/return_to.dart';
@@ -11,7 +13,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -198,9 +199,19 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
       ),
       builder: (_) {
         // Nothing to list still keeps Search and filter in the top bar.
-        Widget bare(Widget child) =>
-            AppListEmpty(toolbar: _toolbar(const {}), child: child);
-        if (reqStore.requests.isEmpty && reqStore.loadState.error != null) {
+        Widget bare(Widget child) => AppPageBody(
+          children: [
+            const AppCollectionHeader(
+              title: 'Your requests',
+              description:
+                  'Ask for information. Review the answers in one place.',
+            ),
+            child,
+          ],
+        );
+        if (reqStore.requests.isEmpty &&
+            reqStore.sharedRequests.isEmpty &&
+            reqStore.loadState.error != null) {
           return bare(
             AppLoadError(
               title: 'Requests could not be loaded',
@@ -210,7 +221,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
           );
         }
 
-        if (reqStore.requests.isEmpty) {
+        if (reqStore.requests.isEmpty && reqStore.sharedRequests.isEmpty) {
           return bare(
             AppEmptyState(
               icon: AppIcons.inboxFill,
@@ -307,18 +318,52 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
 
         return AppListPage(
           toolbar: _toolbar(counts),
-          filters: AppStatusChips<RequestGroup>(
-            selected: picked,
-            onChanged: (v) => _groups.value = v,
-            options: [
-              for (final g in RequestGroup.values)
-                AppFilterOption(
-                  value: g,
-                  label: _groupTitles[g]!,
-                  count: counts[g]!,
+          inlineToolbar: true,
+          filters: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppCollectionHeader(
+                title: 'Your requests',
+                description:
+                    'Ask for information. Review the answers in one place.',
+                action: AppButton(
+                  icon: AppIcons.plus,
+                  label: 'New request',
+                  onTap: () => openRequestCreateSheet(
+                    context: context,
+                    store: reqStore,
+                    authStore: Stores.auth,
+                  ),
                 ),
+              ),
+              AppCollectionGrid(
+                children: [
+                  for (final g in RequestGroup.values)
+                    AppCollectionTile(
+                      title: _groupTitles[g]!,
+                      value:
+                          '${reqStore.requests.where((r) => requestGroup(r, notifications.unreadResponses(r.id)) == g).length}',
+                      description: switch (g) {
+                        RequestGroup.fresh => 'Answers ready to review',
+                        RequestGroup.open => 'Still collecting information',
+                        RequestGroup.closed => 'Finished or stopped',
+                      },
+                      icon: switch (g) {
+                        RequestGroup.fresh => AppIcons.inboxFill,
+                        RequestGroup.open => AppIcons.askFor,
+                        RequestGroup.closed => AppIcons.checkCircle,
+                      },
+                      selected: picked.length == 1 && picked.contains(g),
+                      onTap: () => _groups.value =
+                          picked.length == 1 && picked.contains(g)
+                          ? const {}
+                          : {g},
+                    ),
+                ],
+              ),
+              AppSpacing.gapXxl,
             ],
-          ).orNull,
+          ),
           banners: [
             if (reqStore.loadState.error != null)
               AppRefreshFailed(onRetry: reqStore.loadRequests),
@@ -381,7 +426,7 @@ class _RequestRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppListRow(
       icon: AppIcons.inboxFill,
-      title: request.label,
+      title: request.label.trim().isEmpty ? 'Unnamed request' : request.label,
       accent: unread > 0 ? Theme.of(context).colorScheme.primary : null,
       subtitle: requestSummary(request, unread, now),
       audience: AudienceTag(

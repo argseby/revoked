@@ -9,6 +9,7 @@ import (
 	"revoked/cmd/revoked/services"
 	"revoked/util"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
@@ -17,6 +18,7 @@ import (
 //
 //	POST /api/contacts/{id}/send   share named vault entries with them
 //	POST /api/contacts/{id}/ask    ask them for data
+//	POST /api/contacts/{id}/deliver deliver an existing share or request
 //
 // Both mint the grant in the caller's own workspace, so the caller keeps the
 // side they can pause and revoke, and both answer with the slug. Where the
@@ -32,8 +34,62 @@ func ContactGrantsRoute(app core.App, root *server.RootKey) {
 		e.Router.POST("/api/contacts/{id}/ask", func(re *core.RequestEvent) error {
 			return askContact(app, re, root)
 		})
+		e.Router.POST("/api/contacts/{id}/deliver", func(re *core.RequestEvent) error {
+			return deliverExistingToContact(app, re, root)
+		})
 		return e.Next()
 	})
+}
+
+// Existing delivery keeps the original slug, protections and response inbox.
+// Only its owner may hand it over, and only within the contact's workspace.
+func deliverExistingToContact(app core.App, re *core.RequestEvent, root *server.RootKey) error {
+	var body struct {
+		Kind   string `json:"kind"`
+		ID     string `json:"id"`
+		Locale string `json:"locale"`
+	}
+	if err := re.BindBody(&body); err != nil || body.ID == "" {
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ValidationFieldRequired)
+	}
+	collection := util.Coll.Links
+	if body.Kind == util.BookmarkKindRequest {
+		collection = util.Coll.Requests
+	} else if body.Kind != util.BookmarkKindShare {
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ValidationFieldRequired)
+	}
+	contact, allowed := authorizeContactGrant(app, re, collection)
+	if !allowed {
+		return nil
+	}
+	grant, err := app.FindRecordById(collection, body.ID)
+	if err != nil || grant == nil || grant.GetString("user") != re.Auth.Id ||
+		grant.GetString("workspace") != contact.GetString(util.Fields.Contact.Workspace) {
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.NotAuthorized)
+	}
+	var unusable *util.AppError
+	if body.Kind == util.BookmarkKindRequest {
+		unusable = services.RefreshRequestStatus(app, grant)
+	} else {
+		unusable = services.RefreshLinkStatus(app, grant)
+	}
+	if unusable != nil {
+		return appErrorResponse(re, http.StatusBadRequest, unusable)
+	}
+	h := contactHandOver{
+		contact: contact, grant: grant, collection: collection, kind: body.Kind,
+		action: util.AuditActionSend, slug: grant.GetString("slug"),
+		label: grant.GetString("label"), locale: body.Locale, root: root, existing: true,
+	}
+	if body.Kind == util.BookmarkKindRequest {
+		h.action = util.AuditActionAsk
+		h.identityId = grant.GetString(util.Fields.Request.Identity)
+	} else if len(services.LinkKeyWraps(grant)) > 0 {
+		// The fragment key belongs on devices, never in server mail or a
+		// plain bookmark. Return manual delivery rather than an unusable link.
+		return re.JSON(http.StatusOK, contactGrantAnswer(h, true, false, false))
+	}
+	return answerContactGrant(app, re, h)
 }
 
 func sendToContact(app core.App, re *core.RequestEvent, root *server.RootKey) error {
@@ -316,6 +372,7 @@ func parseGrantExpiry(re *core.RequestEvent, raw string) (types.DateTime, bool) 
 
 // contactHandOver is one minted grant on its way to a contact.
 type contactHandOver struct {
+	existing   bool
 	contact    *core.Record
 	grant      *core.Record
 	collection string
@@ -424,6 +481,18 @@ func contactGrantAnswer(h contactHandOver, precise, delivered, emailed bool) map
 // `emailed` means queued, not accepted by a relay.
 func emailContactGrant(app core.App, h contactHandOver, workspace string) (bool, string) {
 	address := h.contact.GetString(util.Fields.Contact.Email)
+	if h.existing {
+		f := util.Fields.GrantDelivery
+		// A retry must not queue a second copy of the same invitation.
+		previous, err := app.FindFirstRecordByFilter(util.Coll.GrantDeliveries,
+			f.Kind+" = {:kind} && "+f.Target+" = {:target} && "+f.Payload+".grant = {:grant} && "+
+				f.Payload+".collection = {:collection} && "+f.FailedAt+" = ''",
+			dbx.Params{"kind": util.DeliveryKindEmail, "target": services.NormalizeEmail(address),
+				"grant": h.grant.Id, "collection": h.collection})
+		if err == nil && previous != nil {
+			return true, ""
+		}
+	}
 	if strings.TrimSpace(address) == "" {
 		return false, ""
 	}

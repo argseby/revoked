@@ -35,6 +35,9 @@ class AppButton extends StatelessWidget {
   final AppButtonStyle style;
   final AppButtonSize size;
 
+  /// A grouped control can match its enclosing surface without changing the app default.
+  final BorderRadius borderRadius;
+
   /// Replaces the content with a spinner and disables the button, so every
   /// in-flight action looks the same.
   final bool busy;
@@ -64,6 +67,7 @@ class AppButton extends StatelessWidget {
     this.onLongPress,
     this.style = AppButtonStyle.primary,
     this.size = AppButtonSize.normal,
+    this.borderRadius = AppRadius.allMd,
     this.busy = false,
     this.tooltip,
     this.showTooltip = true,
@@ -132,7 +136,7 @@ class AppButton extends StatelessWidget {
                 : EdgeInsets.symmetric(
                     horizontal: small ? AppSpacing.md : AppSpacing.lg,
                   ),
-            shape: const RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+            shape: RoundedRectangleBorder(borderRadius: borderRadius),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.standard,
           ).copyWith(

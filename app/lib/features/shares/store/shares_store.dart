@@ -328,6 +328,9 @@ abstract class _SharesStore with Store {
     }
   }
 
+  /// The exact object returned by the last create, independent of list ordering.
+  Link? lastCreatedShare;
+
   @action
   Future<bool> createShare({
     required String slug,
@@ -351,6 +354,7 @@ abstract class _SharesStore with Store {
     String audienceKind = '',
     List<String> audienceGroups = const [],
   }) async {
+    lastCreatedShare = null;
     isLoading = true;
     errorMessage = null;
     try {
@@ -376,6 +380,7 @@ abstract class _SharesStore with Store {
         audienceKind: audienceKind,
         audienceGroups: audienceGroups,
       );
+      lastCreatedShare = link;
       shares.insert(0, link);
       return true;
     } catch (e) {

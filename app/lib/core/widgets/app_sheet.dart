@@ -138,9 +138,14 @@ Future<T?> _sidePanel<T>(
         height: double.infinity,
         child: Material(
           color: scheme.surface,
-          shape: BorderDirectional(
-            start: BorderSide(color: scheme.outlineVariant),
+          shape: RoundedRectangleBorder(
+            borderRadius: const BorderRadiusDirectional.only(
+              topStart: Radius.circular(AppRadius.lg),
+              bottomStart: Radius.circular(AppRadius.lg),
+            ),
+            side: BorderSide(color: scheme.outlineVariant),
           ),
+          clipBehavior: Clip.antiAlias,
           child: SafeArea(
             left: false,
             child: Padding(

@@ -16,7 +16,13 @@ class AppSearchTrigger extends StatelessWidget {
   final VoidCallback onTap;
   final Widget? trailing;
 
-  /// Before the hint. Not a magnifier, which marks a list's own search.
+  /// Makes a navigation search stand apart from destination rows.
+  final bool outlined;
+  final bool compact;
+  final BorderRadius borderRadius;
+  final double height;
+
+  /// Optional leading icon describing what this search opens.
   final IconData? icon;
 
   const AppSearchTrigger({
@@ -25,6 +31,10 @@ class AppSearchTrigger extends StatelessWidget {
     required this.onTap,
     this.trailing,
     this.icon,
+    this.outlined = false,
+    this.compact = false,
+    this.borderRadius = AppRadius.allMd,
+    this.height = _searchHeight,
   });
 
   @override
@@ -35,16 +45,18 @@ class AppSearchTrigger extends StatelessWidget {
       label: hint,
       excludeSemantics: true,
       child: AppFocusRing(
+        borderRadius: borderRadius,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             onTap: onTap,
-            borderRadius: AppRadius.allMd,
+            borderRadius: borderRadius,
             child: Ink(
-              height: _searchHeight,
+              height: height,
               decoration: BoxDecoration(
                 color: scheme.surfaceContainerHighest,
-                borderRadius: AppRadius.allMd,
+                borderRadius: borderRadius,
+                border: outlined ? Border.all(color: scheme.outline) : null,
               ),
               child: Row(
                 children: [
@@ -58,6 +70,7 @@ class AppSearchTrigger extends StatelessWidget {
                   Expanded(
                     child: AppText(
                       hint,
+                      small: compact,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ).muted,

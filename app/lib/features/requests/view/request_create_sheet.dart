@@ -30,7 +30,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_tile.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
-import 'package:revoked_app/core/widgets/share_sheet.dart';
+import 'package:revoked_app/features/contacts/view/contact_delivery_sheet.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/core/widgets/tool_proposal_alert.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
@@ -294,18 +294,13 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       _store.setSubmittingRequest(false);
       return;
     }
-    final slug = _store.draftSlug.text.trim();
-    final title = _effectiveLabel;
-    Navigator.of(context).pop();
-    // A new request is made to be passed on: hand its link over at once.
+    final created = widget.editRequest == null
+        ? _store.lastCreatedRequest
+        : null;
     final parent = widget.parentContext;
-    if (widget.editRequest == null && parent.mounted) {
-      await showShareSheet(
-        context: parent,
-        slug: slug,
-        title: title,
-        isRequest: true,
-      );
+    Navigator.of(context).pop();
+    if (created != null && parent.mounted) {
+      await openContactDeliverySheet(parent, request: created);
     }
   }
 

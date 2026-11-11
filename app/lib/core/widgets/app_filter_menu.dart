@@ -619,8 +619,8 @@ class _PanelRow extends StatelessWidget {
       inMutuallyExclusiveGroup: radio,
       child: InkWell(
         onTap: onTap,
-        // Full-width rows of the panel: square, edge to edge.
-        borderRadius: BorderRadius.zero,
+        // Filter rows use the same rounded interaction shape as items.
+        borderRadius: AppRadius.allMd,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,

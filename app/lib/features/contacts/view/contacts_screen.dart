@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
+import 'package:revoked_app/core/widgets/app_avatar.dart';
 
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/contact.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -170,36 +172,97 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
         final failure = store.loadState.error;
         if (store.contacts.isEmpty) {
           // Nothing to list still keeps Search and filter in the top bar.
-          return AppListEmpty(
-            toolbar: _toolbar(const []),
-            child: failure != null
-                ? AppLoadError(
-                    title: 'Contacts could not be loaded',
-                    message: failure,
-                    onRetry: store.load,
-                  )
-                : _empty(context),
+          return AppPageBody(
+            children: [
+              const AppCollectionHeader(
+                title: 'Your contacts',
+                description: 'People you share with and ask for information.',
+              ),
+              failure != null
+                  ? AppLoadError(
+                      title: 'Contacts could not be loaded',
+                      message: failure,
+                      onRetry: store.load,
+                    )
+                  : _empty(context),
+            ],
           );
         }
         final searched = _table.filteredItems;
         final shown = searched.where(_passes).toList();
         return AppListPage(
           toolbar: _toolbar(searched),
+          inlineToolbar: true,
           banners: [if (failure != null) AppRefreshFailed(onRetry: store.load)],
-          filters: const Text(
-            'Contacts receive records and requests directly. Sent records '
-            'stay accessible until revoked.',
-          ).muted.small,
+          filters: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppCollectionHeader(
+                title: 'Your contacts',
+                description: 'People you share with and ask for information.',
+                action: AppButton(
+                  icon: AppIcons.personPlus,
+                  label: 'Add contact',
+                  onTap: () => openContactCreateSheet(context),
+                ),
+              ),
+              AppCollectionGrid(
+                children: [
+                  AppCollectionTile(
+                    title: 'All contacts',
+                    value: '${store.contacts.length}',
+                    description: 'Everyone in your address book',
+                    icon: AppIcons.person,
+                    selected: _where.value.isEmpty && !_verifiedOnly.value,
+                    onTap: () {
+                      _where.value = const {};
+                      _verifiedOnly.value = false;
+                    },
+                  ),
+                  AppCollectionTile(
+                    title: 'Verified contacts',
+                    value:
+                        '${store.contacts.where((c) => c.trust == ContactTrust.verified).length}',
+                    description: 'Identity confirmed',
+                    icon: AppIcons.shieldCheck,
+                    selected: _verifiedOnly.value,
+                    onTap: () => _verifiedOnly.value = !_verifiedOnly.value,
+                  ),
+                  AppCollectionTile(
+                    title: 'Email contacts',
+                    value:
+                        '${store.contacts.where((c) => c.isEmailOnly).length}',
+                    description: 'Reached by email',
+                    icon: AppIcons.mail,
+                    selected:
+                        _where.value.length == 1 &&
+                        _where.value.contains(_Where.email),
+                    onTap: () => _where.value =
+                        _where.value.length == 1 &&
+                            _where.value.contains(_Where.email)
+                        ? const {}
+                        : {_Where.email},
+                  ),
+                ],
+              ),
+              AppSpacing.gapXxl,
+            ],
+          ),
           emptyMessage: shown.isEmpty
               ? 'No contacts match the search or filters.'
               : null,
           groups: [
-            AppListCard(
+            AppListGroup(
+              title: 'Contacts',
+              noun: 'contacts',
               children: [
                 for (final c in shown)
                   AppListRow(
-                    icon: _icon(c),
-                    title: c.name,
+                    leading: AppAvatar(
+                      source: c.name.isEmpty ? c.email : c.name,
+                      size: AppAvatarSize.small,
+                    ),
+                    title: c.name.isEmpty ? c.email : c.name,
                     subtitle: _subtitle(c),
                     trailing: c.trust == ContactTrust.verified
                         ? const AppBadge(
@@ -241,12 +304,6 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       onTap: () => openContactCreateSheet(context),
     ),
   );
-
-  IconData _icon(Contact c) {
-    if (c.isHere) return AppIcons.person;
-    if (c.isPeer) return AppIcons.server;
-    return AppIcons.envelope;
-  }
 
   /// Where they are, and when you last sent them something.
   String _subtitle(Contact c) {

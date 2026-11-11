@@ -198,6 +198,16 @@ func contactDeliveries(app core.App, senderId, recipientId string, window time.D
 // accounts on this server: a cross-server push would accept deliveries from
 // anywhere, with nobody's consent anywhere in it.
 func DeliverToContact(app core.App, sender *core.Record, recipient *core.Record, kind, slug, label, from string) error {
+	if sender != nil {
+		f := util.Fields.Bookmark
+		existing, err := app.FindFirstRecordByFilter(util.Coll.Bookmarks,
+			f.User+" = {:user} && "+f.Sender+" = {:sender} && "+f.Kind+" = {:kind} && "+
+				f.Slug+" = {:slug} && "+f.Origin+" = ''",
+			dbx.Params{"user": recipient.Id, "sender": sender.Id, "kind": kind, "slug": slug})
+		if err == nil && existing != nil {
+			return nil
+		}
+	}
 	col, err := app.FindCollectionByNameOrId(util.Coll.Bookmarks)
 	if err != nil {
 		return err

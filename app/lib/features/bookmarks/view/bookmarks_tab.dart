@@ -1,5 +1,6 @@
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/utils/dates.dart';
@@ -175,8 +176,17 @@ class _BookmarksTabState extends State<BookmarksTab> {
       ),
       builder: (_) {
         // Nothing to list still keeps Search and filter in the top bar.
-        Widget bare(Widget child) =>
-            AppListEmpty(toolbar: _toolbar(const []), child: child);
+        Widget bare(Widget child) => AppPageBody(
+          children: [
+            AppCollectionHeader(
+              title: _asks ? 'Requests to answer' : 'Shared with you',
+              description: _asks
+                  ? 'Information others have asked you to share.'
+                  : 'Links from others, kept together for easy access.',
+            ),
+            child,
+          ],
+        );
         if (store.error != null && store.bookmarks.isEmpty) {
           return bare(
             AppLoadError(
@@ -278,19 +288,31 @@ class _BookmarksTabState extends State<BookmarksTab> {
         final nothingShown =
             narrowed && handed.isEmpty && saved.isEmpty && groups.isEmpty;
         return AppListPage(
+          inlineToolbar: true,
           toolbar: _toolbar(mine),
           emptyMessage: nothingShown
               ? 'Nothing matches the search or filters.'
               : null,
-          filters: Align(
-            alignment: Alignment.centerRight,
-            child: AppButton(
-              icon: AppIcons.plus,
-              label: 'New group',
-              style: AppButtonStyle.accent,
-              size: AppButtonSize.small,
-              onTap: () => _newGroup(context),
-            ),
+          filters: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppCollectionHeader(
+                title: _asks ? 'Requests to answer' : 'Shared with you',
+                description: _asks
+                    ? 'Information others have asked you to share.'
+                    : 'Links from others, kept together for easy access.',
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: AppButton(
+                  icon: AppIcons.plus,
+                  label: 'New group',
+                  style: AppButtonStyle.accent,
+                  size: AppButtonSize.small,
+                  onTap: () => _newGroup(context),
+                ),
+              ),
+            ],
           ),
           groups: [
             if (handed.isNotEmpty)

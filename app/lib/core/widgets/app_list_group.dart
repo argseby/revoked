@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -244,7 +245,7 @@ class _ToggleRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.zero,
+      borderRadius: AppRadius.allMd,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
