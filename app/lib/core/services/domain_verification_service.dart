@@ -62,9 +62,8 @@ class DomainVerificationService {
 
   DomainVerificationService({
     http.Client? httpClient,
-    required CryptoService crypto,
-  }) : _http = httpClient ?? http.Client(),
-       _crypto = crypto;
+    required this._crypto,
+  }) : _http = httpClient ?? http.Client();
 
   /// Verdicts already reached, by domain+fingerprint, surviving restarts.
   ///

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The app's only animation: 200 ms ease-out. Every fade, size change or
 /// slide uses exactly this; navigation does not animate at all.

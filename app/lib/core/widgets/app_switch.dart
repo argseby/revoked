@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The app's only switch. Exists so the toggle inside a settings row and the
 /// toggle sitting inline in a table are the same control at the same density.

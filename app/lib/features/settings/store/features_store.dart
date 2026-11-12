@@ -24,16 +24,14 @@ abstract class _FeaturesStore with Store {
   final void Function(User user) _userChanged;
   final List<WorkspaceMemberDetail> Function() _members;
 
-  /// [user] is the signed-in account and [members] the active workspace's
+  /// [_user] is the signed-in account and [_members] the active workspace's
   /// roster, both read live so a change in either shows at once.
   _FeaturesStore(
     this._api, {
-    required User? Function() user,
-    required void Function(User user) userChanged,
-    required List<WorkspaceMemberDetail> Function() members,
-  }) : _user = user,
-       _userChanged = userChanged,
-       _members = members;
+    required this._user,
+    required this._userChanged,
+    required this._members,
+  });
 
   final ObservableList<FeatureInfo> catalogue = ObservableList<FeatureInfo>();
   final ObservableList<FeaturePreset> presets = ObservableList<FeaturePreset>();

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';

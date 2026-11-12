@@ -19,7 +19,7 @@ publish_to: 'none'
 version: 0.12.0+120
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.13.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^1.5.0
 
   # The following adds the Cupertino Icons font to your application.
   mobx: ^2.6.0

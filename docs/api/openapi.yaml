@@ -1718,6 +1718,87 @@ paths:
         "404": { $ref: "#/components/responses/AppError" }
         "429": { $ref: "#/components/responses/AppError" }
 
+  /api/contacts/{id}/deliver:
+    post:
+      tags: [Contacts]
+      summary: Deliver an existing share or request to a contact
+      description: |
+        Hands an existing grant to a contact without creating a new share or
+        request. Its id, slug, protections and response inbox are preserved.
+
+        A user session is required; API keys are refused. The contact must be
+        visible to the caller, and the grant must be owned by the caller in
+        the contact's workspace. The caller must also have permission to
+        create the corresponding kind of grant in that workspace. Missing,
+        inaccessible, other-owner and other-workspace grants return 404.
+        Paused, revoked, expired or completed grants, and grants whose view or
+        response cap has been reached, return 400.
+
+        Delivery uses the same tray, email, blocking, per-pair limits and
+        privacy-preserving response rules as `/api/contacts/{id}/send` and
+        `/api/contacts/{id}/ask`. `handed_over` does not confirm whether the
+        address has an account or whether delivery was refused. A repeated
+        delivery does not queue a second successful email invitation for the
+        same grant and recipient address.
+
+        Shares with encrypted link-key wraps always return `channel: manual`,
+        with `delivered` and `emailed` false. Their fragment keys stay on the
+        caller's devices; the caller must share the complete address manually.
+      security:
+        - Session: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          description: Contact receiving the existing grant.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, id]
+              properties:
+                kind:
+                  type: string
+                  enum: [share, request]
+                id:
+                  type: string
+                  description: Existing link or request id, owned by the caller.
+                locale:
+                  type: string
+                  description: Optional language hint for the email invitation.
+      responses:
+        "200":
+          description: The original grant and the permitted delivery outcome.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, id, slug, kind, channel, delivered, emailed]
+                properties:
+                  ok: { type: boolean }
+                  id: { type: string }
+                  slug: { type: string }
+                  kind: { type: string, enum: [share, request] }
+                  channel:
+                    type: string
+                    enum: [account, email, manual, handed_over]
+                  delivered:
+                    type: boolean
+                    description: >-
+                      In the recipient's tray; only true with `channel: account`.
+                  emailed:
+                    type: boolean
+                    description: >-
+                      Queued for email; only true with `channel: email`.
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/AppError" }
+
   /api/contacts/{id}/ask:
     post:
       tags: [Contacts]

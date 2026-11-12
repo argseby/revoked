@@ -1,7 +1,7 @@
 import 'dart:ffi' show Abi;
 import 'dart:io' show Platform;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/config/app_config.dart';

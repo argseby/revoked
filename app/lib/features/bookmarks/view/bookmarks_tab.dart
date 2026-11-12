@@ -1,5 +1,5 @@
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter/services.dart';

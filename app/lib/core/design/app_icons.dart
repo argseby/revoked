@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Maps the Bootstrap icon names the app used (via shadcn_flutter) onto the
 /// closest Material Icons. Keeping the original camelCase names means the

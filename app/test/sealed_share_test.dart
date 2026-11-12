@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:revoked_app/core/crypto/sealing.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
