@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/features/requests/view/request_actions.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/utils/dates.dart';
@@ -11,21 +12,17 @@ import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deadline.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
-import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
-import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
-import 'package:revoked_app/features/requests/store/requests_store.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_groups.dart';
 
@@ -420,69 +417,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     );
   }
 
-  Future<void> _confirmRevoke(BuildContext context, DataRequest req) async {
-    final store = Stores.requests;
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Revoke this request?',
-      message:
-          'The link stops working immediately and accepts no new '
-          'responses. Existing responses are kept.',
-      content: ApiPreview(
-        spec: RequestsStore.updateRequestSpec(req.id, const {
-          'status': 'revoked',
-        }),
-        title: 'API request · revoke',
-      ),
-      confirmLabel: 'Revoke',
-      confirmIcon: AppIcons.xCircle,
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    _busy.value = 'revoke';
-    final ok = await store.updateRequest(req.id, {'status': 'revoked'});
-    _busy.value = null;
-    if (!context.mounted) return;
-    if (ok) {
-      AppToast.success(context, 'Request revoked');
-    } else {
-      AppToast.error(
-        context,
-        'The request could not be revoked.',
-        subtitle: store.errorMessage,
-      );
-    }
-  }
+  RequestActions get _actions => RequestActions(
+    context,
+    onBusy: (busy) => _busy.value = busy,
+    onDeleted: _back,
+  );
 
-  Future<void> _confirmDelete(BuildContext context, DataRequest req) async {
-    final store = Stores.requests;
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Delete this request?',
-      message:
-          'The request and its responses are deleted permanently. This '
-          'cannot be undone.',
-      content: ApiPreview(
-        spec: RequestsStore.deleteRequestSpec(req.id),
-        title: 'API request · delete',
-      ),
-      confirmLabel: 'Delete',
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    _busy.value = 'delete';
-    final ok = await store.deleteRequest(req.id);
-    _busy.value = null;
-    if (!context.mounted) return;
-    if (ok) {
-      AppToast.success(context, 'Request deleted');
-      _back();
-    } else {
-      AppToast.error(
-        context,
-        'The request could not be deleted.',
-        subtitle: store.errorMessage,
-      );
-    }
-  }
+  Future<void> _confirmRevoke(BuildContext context, DataRequest req) =>
+      _actions.revoke(req);
+  Future<void> _confirmDelete(BuildContext context, DataRequest req) =>
+      _actions.delete(req);
 }

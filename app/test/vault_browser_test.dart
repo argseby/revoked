@@ -11,6 +11,7 @@ import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -170,13 +171,53 @@ Finder _pane(String label) => find.descendant(
 );
 
 void main() {
+  testWidgets('vault library exposes record options on long press', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.longPress(find.text('Loose note'));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy value'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Duplicate'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'vault has one filter row and All items resets view and filters',
+    (tester) async {
+      await _pump(tester);
+      expect(find.byType(AppFilterChips<String>), findsOneWidget);
+      expect(find.text('All 2'), findsNothing);
+      await tester.tap(find.text('Not in a section 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Loose note'), findsOneWidget);
+      expect(find.text('My PIN'), findsNothing);
+      expect(
+        find.bySemanticsLabel('Remove View: Not in a section'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('All items 2'));
+      await tester.pumpAndSettle();
+      expect(find.text('Loose note'), findsOneWidget);
+      expect(find.text('My PIN'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Remove View: Not in a section'),
+        findsNothing,
+      );
+      expect(find.byType(AppFilterChips<String>), findsOneWidget);
+    },
+  );
+
   testWidgets('wide, the vault browses one section at a time', (tester) async {
     await _pump(tester);
     expect(find.text('Your vault'), findsOneWidget);
-    expect(find.text('All items'), findsOneWidget);
+    expect(find.text('All items 2'), findsOneWidget);
     expect(_pane('Mine'), findsOneWidget);
     expect(_pane('Office'), findsOneWidget);
-    expect(find.text('Not in a section'), findsOneWidget);
+    expect(find.text('Not in a section 1'), findsOneWidget);
     expect(find.text('New section'), findsOneWidget);
     expect(find.text('My PIN'), findsOneWidget);
     expect(find.text('Loose note'), findsOneWidget);
@@ -192,7 +233,7 @@ void main() {
     expect(find.text('Loose note'), findsNothing);
     expect(find.byTooltip('Section actions'), findsOneWidget);
 
-    await tester.tap(find.text('Not in a section'));
+    await tester.tap(find.text('Not in a section 1'));
     await tester.pumpAndSettle();
     expect(find.text('My PIN'), findsNothing);
     expect(find.text('Loose note'), findsOneWidget);
@@ -294,11 +335,11 @@ void main() {
       // A link listing both the item and its section counts only once.
       expect(find.text('Shared · 1 link'), findsOneWidget);
       expect(find.text('Only you'), findsOneWidget);
-      await tester.tap(find.text('Shared by you'));
+      await tester.tap(find.text('Shared by you 1'));
       await tester.pumpAndSettle();
       expect(find.text('My PIN'), findsOneWidget);
       expect(find.text('Loose note'), findsNothing);
-      await tester.tap(find.text('Shared by you'));
+      await tester.tap(find.text('Shared by you 1'));
       await tester.pumpAndSettle();
       expect(find.text('Loose note'), findsOneWidget);
     },

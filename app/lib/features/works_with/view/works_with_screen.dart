@@ -17,9 +17,9 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
@@ -135,6 +135,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
     );
     return AppListToolbar(
       key: const ValueKey('works-with-toolbar'),
+      totalCount: searched.length,
       query: _query.value,
       onQueryChanged: (q) => _query.value = q,
       searchHint: 'Search services',
@@ -182,18 +183,25 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
   Widget _build(BuildContext context) {
     final all = Stores.worksWith.services;
     if (all.isEmpty) {
-      return AppListEmpty(
+      return AppListPage(
         toolbar: _toolbar(const []),
-        child: AppEmptyState(
-          icon: AppIcons.worksWith,
-          title: 'No services listed',
-          subtitle: intro,
-          action: AppButton(
-            icon: AppIcons.boxArrowUpRight,
-            label: 'How services are listed',
-            onTap: () => _openRepo(),
-          ),
+        inlineToolbar: true,
+        filters: const AppCollectionHeader(
+          title: 'Works with Revoked',
+          description: intro,
         ),
+        groups: [
+          AppEmptyState(
+            icon: AppIcons.worksWith,
+            title: 'No services listed',
+            subtitle: intro,
+            action: AppButton(
+              icon: AppIcons.boxArrowUpRight,
+              label: 'How services are listed',
+              onTap: _openRepo,
+            ),
+          ),
+        ],
       );
     }
     final searched = all.where(_matchesQuery).toList();
@@ -210,13 +218,10 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
 
     return AppListPage(
       toolbar: _toolbar(searched),
-      filters: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(intro).muted.small,
-          AppSpacing.gapMd,
-          _doesChips(searched),
-        ],
+      inlineToolbar: true,
+      filters: const AppCollectionHeader(
+        title: 'Works with Revoked',
+        description: intro,
       ),
       emptyMessage: shown.isEmpty
           ? 'No service matches the search or filters.'
@@ -241,33 +246,6 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
             ],
           ),
         _ListingNote(onTap: _openRepo),
-      ],
-    );
-  }
-
-  /// "What it does" as chips above the list, the filter reached for most.
-  /// They show and change the same selection as that section of Filter and
-  /// sort; with several ticked there, no chip is the selected one.
-  Widget _doesChips(List<WorksWithService> searched) {
-    final on = _on(_Section.does);
-    return AppFilterChips<String>(
-      selected: switch (on.length) {
-        0 => '',
-        1 => on.first,
-        _ => '\u0000',
-      },
-      onSelected: (key) => _selected.value = {
-        ..._selected.value,
-        _Section.does: {if (key.isNotEmpty) key},
-      },
-      options: [
-        AppFilterOption(value: '', label: 'All', count: searched.length),
-        for (final k in ServiceKind.values)
-          AppFilterOption(
-            value: k.key,
-            label: k.label,
-            count: searched.where((s) => s.does.contains(k)).length,
-          ),
       ],
     );
   }

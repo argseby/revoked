@@ -16,6 +16,7 @@ import 'package:revoked_app/core/services/crypto_service.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/utils/sd_jwt.dart';
@@ -390,10 +391,17 @@ void main() {
       tester,
       const Scaffold(body: SizedBox(height: 1200, child: IssuedAttestations())),
     );
-    // This server's operator did not switch issuing on, and the tab says so
-    // in place of a list, with nothing to start.
+    // The action stays in the header, disabled when issuing is unavailable.
     expect(find.textContaining('does not issue attestations'), findsOneWidget);
-    expect(find.text('Issue attestation'), findsNothing);
+    expect(find.text('Issue attestation'), findsOneWidget);
+    expect(
+      tester
+          .widget<AppButton>(
+            find.widgetWithText(AppButton, 'Issue attestation'),
+          )
+          .onTap,
+      isNull,
+    );
 
     await open(
       tester,
@@ -401,8 +409,8 @@ void main() {
     );
     expect(find.text('membership'), findsOneWidget);
     expect(find.text('From fixture.test · held by Ada'), findsOneWidget);
-    // What it states is on the row, before it is opened.
-    expect(find.textContaining('member_no: 42'), findsOneWidget);
+    // The list names available claims; values are shown in the detail sheet.
+    expect(find.textContaining('member_no'), findsOneWidget);
     expect(find.text('Verified'), findsOneWidget);
 
     await tester.tap(find.text('membership'));

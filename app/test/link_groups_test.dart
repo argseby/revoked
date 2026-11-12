@@ -130,6 +130,13 @@ void main() {
       await tester.tap(find.text('Show 8 links'));
       await tester.pump();
       expect(find.text('Row 7'), findsOneWidget);
+      await tester.tap(find.text('Hide 8 links'));
+      await tester.pump();
+      expect(find.text('Row 0'), findsNothing);
+      expect(find.text('Show 8 links'), findsOneWidget);
+      await tester.tap(find.text('Show 8 links'));
+      await tester.pump();
+      expect(find.text('Row 7'), findsOneWidget);
     });
 
     testWidgets('a collapsed group of one says it in the singular', (

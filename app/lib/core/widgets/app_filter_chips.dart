@@ -9,11 +9,13 @@ class AppFilterOption<T> {
   final T value;
   final String label;
   final int count;
+  final bool alwaysVisible;
 
   const AppFilterOption({
     required this.value,
     required this.label,
     required this.count,
+    this.alwaysVisible = false,
   });
 }
 
@@ -24,12 +26,14 @@ class AppFilterOption<T> {
 class AppFilterChips<T> extends StatelessWidget {
   final List<AppFilterOption<T>> options;
   final T selected;
+  final Set<T>? selectedValues;
   final ValueChanged<T> onSelected;
 
   const AppFilterChips({
     super.key,
     required this.options,
     required this.selected,
+    this.selectedValues,
     required this.onSelected,
   });
 
@@ -40,10 +44,13 @@ class AppFilterChips<T> extends StatelessWidget {
       runSpacing: AppSpacing.xs,
       children: [
         for (final o in options)
-          if (o.count > 0 || o.value == selected)
+          if (o.alwaysVisible ||
+              o.count > 0 ||
+              (selectedValues?.contains(o.value) ?? o.value == selected))
             _Pill(
               label: '${o.label} ${o.count}',
-              selected: o.value == selected,
+              selected:
+                  selectedValues?.contains(o.value) ?? o.value == selected,
               onTap: () => onSelected(o.value),
             ),
       ],

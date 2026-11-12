@@ -88,6 +88,19 @@ void main() {
   String location(GoRouter router) =>
       router.routerDelegate.currentConfiguration.uri.toString();
 
+  testWidgets(
+    'Works with Revoked owns its heading and visible search on desktop',
+    (tester) async {
+      final router = await signedIn(tester, size: const Size(1280, 900));
+      router.go(AppRoutes.worksWith);
+      await tester.pumpAndSettle();
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.text('Search services'), findsOneWidget);
+      expect(find.byTooltip('Search and filter'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('a signed-in start lands on the overview', (tester) async {
     final router = await signedIn(tester, size: const Size(400, 800));
     expect(location(router), AppRoutes.overview);
@@ -416,7 +429,9 @@ void main() {
       await tester.ensureVisible(filter);
       await tester.tap(filter);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Label A–Z'));
+      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Label A–Z').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Reset'));
       await tester.pumpAndSettle();

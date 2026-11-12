@@ -160,22 +160,12 @@ class _Command extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest,
-                borderRadius: AppRadius.allMd,
-              ),
-              child: Text(text).mono.small.selectable,
-            ),
-          ),
+          Expanded(child: Text(text).mono.small.selectable),
           AppSpacing.gapSm,
           AppButton(
             icon: AppIcons.copy,
@@ -209,7 +199,22 @@ class _Step extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: AppSpacing.xl, child: Text('$number').muted),
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: AppRadius.allMd,
+            ),
+            child: Text(
+              '$number',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
+              ),
+            ).small.bold,
+          ),
+          AppSpacing.gapMd,
           Expanded(child: Text(text)),
         ],
       ),

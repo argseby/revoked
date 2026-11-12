@@ -38,6 +38,9 @@ class AppListGroup extends StatefulWidget {
   /// Starts folded down to a single "Show N [noun]" row.
   final bool collapsed;
 
+  /// Also offers Hide after opening. [collapsed] implies this behavior.
+  final bool collapsible;
+
   /// What the rows are, for the folded row: "links", "requests". A regular
   /// plural: one row reads "Show 1 link".
   final String noun;
@@ -55,6 +58,7 @@ class AppListGroup extends StatefulWidget {
     this.trailing,
     this.previewCount = 0,
     this.collapsed = false,
+    this.collapsible = false,
     this.noun = 'items',
     this.footer,
     this.badge,
@@ -112,6 +116,19 @@ class _AppListGroupState extends State<AppListGroup> {
             onTap: () => _showAll.value = false,
           ),
       ];
+    }
+
+    if (open && (w.collapsed || w.collapsible)) {
+      rows.add(
+        _ToggleRow(
+          icon: AppIcons.chevronUp,
+          label: 'Hide $total ${total == 1 ? _singular(w.noun) : w.noun}',
+          onTap: () {
+            _open.value = false;
+            _showAll.value = false;
+          },
+        ),
+      );
     }
 
     return Padding(
@@ -245,7 +262,7 @@ class _ToggleRow extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: AppRadius.allMd,
+      borderRadius: AppRadius.row,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,

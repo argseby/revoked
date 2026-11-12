@@ -22,6 +22,10 @@ abstract final class AppRadius {
   /// Fully rounded ends. Avatars, progress tracks, round affordances.
   static const double pill = 999;
 
+  /// Rows are contiguous slices of a list/menu, rather than separate pills.
+  /// Their enclosing card or menu clips the outer corners.
+  static const BorderRadius row = BorderRadius.zero;
+
   static const BorderRadius allXs = BorderRadius.all(Radius.circular(xs));
   static const BorderRadius allSm = BorderRadius.all(Radius.circular(sm));
   static const BorderRadius allMd = BorderRadius.all(Radius.circular(md));

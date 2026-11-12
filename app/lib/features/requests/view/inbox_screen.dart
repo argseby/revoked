@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/features/requests/view/request_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/request_proposal.dart';
@@ -121,8 +120,23 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
   }
 
   /// Search, a Filter by where a request stands, and a Sort.
+  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
+    title: 'Your requests',
+    description: 'Ask for information. Review the answers in one place.',
+    action: AppButton(
+      icon: AppIcons.plus,
+      label: 'New request',
+      onTap: () => openRequestCreateSheet(
+        context: context,
+        store: Stores.requests,
+        authStore: Stores.auth,
+      ),
+    ),
+  );
+
   AppListToolbar _toolbar(Map<RequestGroup, int> counts) => AppListToolbar(
     key: const ValueKey('requests-toolbar'),
+    totalCount: _table.filteredItems.length,
     query: _table.query,
     onQueryChanged: _table.setQuery,
     searchHint: 'Search requests',
@@ -180,35 +194,37 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     return AppLoadFade(
       loading: () =>
           reqStore.loadState.isFirstLoad && reqStore.requests.isEmpty,
-      skeleton: const AppListSkeleton(
-        group: 'Open',
-        rows: [
-          AppSkeletonRow(
-            'Tenant details',
-            '4 fields · 2 responses',
-            icon: AppIcons.inboxFill,
-            badge: '2 new',
-          ),
-          AppSkeletonRow('New starters', '6 fields', icon: AppIcons.inboxFill),
-          AppSkeletonRow(
-            'Club members',
-            '3 fields · 8 responses',
-            icon: AppIcons.inboxFill,
+      skeleton: AppPageBody(
+        children: [
+          _collectionHeader(context),
+          AppListSkeleton(
+            embedded: true,
+            group: 'Open',
+            rows: [
+              AppSkeletonRow(
+                'Tenant details',
+                '4 fields · 2 responses',
+                icon: AppIcons.inboxFill,
+                badge: '2 new',
+              ),
+              AppSkeletonRow(
+                'New starters',
+                '6 fields',
+                icon: AppIcons.inboxFill,
+              ),
+              AppSkeletonRow(
+                'Club members',
+                '3 fields · 8 responses',
+                icon: AppIcons.inboxFill,
+              ),
+            ],
           ),
         ],
       ),
       builder: (_) {
         // Nothing to list still keeps Search and filter in the top bar.
-        Widget bare(Widget child) => AppPageBody(
-          children: [
-            const AppCollectionHeader(
-              title: 'Your requests',
-              description:
-                  'Ask for information. Review the answers in one place.',
-            ),
-            child,
-          ],
-        );
+        Widget bare(Widget child) =>
+            AppPageBody(children: [_collectionHeader(context), child]);
         if (reqStore.requests.isEmpty &&
             reqStore.sharedRequests.isEmpty &&
             reqStore.loadState.error != null) {
@@ -245,21 +261,6 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
                 ),
                 AppEmptyStep('Responses', 'Listed or shown as a spreadsheet'),
               ],
-              action: AppButton(
-                icon: AppIcons.plus,
-                label: 'New request',
-                onTap: () => openRequestCreateSheet(
-                  context: context,
-                  store: Stores.requests,
-                  authStore: Stores.auth,
-                ),
-              ),
-              secondaryAction: AppButton(
-                icon: AppIcons.fileText,
-                label: 'Templates',
-                style: AppButtonStyle.accent,
-                onTap: () => goReturning(context, AppRoutes.templates),
-              ),
               learnMoreLabel: 'How requests work',
               learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
             ),
@@ -321,48 +322,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
           inlineToolbar: true,
           filters: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppCollectionHeader(
-                title: 'Your requests',
-                description:
-                    'Ask for information. Review the answers in one place.',
-                action: AppButton(
-                  icon: AppIcons.plus,
-                  label: 'New request',
-                  onTap: () => openRequestCreateSheet(
-                    context: context,
-                    store: reqStore,
-                    authStore: Stores.auth,
-                  ),
-                ),
-              ),
-              AppCollectionGrid(
-                children: [
-                  for (final g in RequestGroup.values)
-                    AppCollectionTile(
-                      title: _groupTitles[g]!,
-                      value:
-                          '${reqStore.requests.where((r) => requestGroup(r, notifications.unreadResponses(r.id)) == g).length}',
-                      description: switch (g) {
-                        RequestGroup.fresh => 'Answers ready to review',
-                        RequestGroup.open => 'Still collecting information',
-                        RequestGroup.closed => 'Finished or stopped',
-                      },
-                      icon: switch (g) {
-                        RequestGroup.fresh => AppIcons.inboxFill,
-                        RequestGroup.open => AppIcons.askFor,
-                        RequestGroup.closed => AppIcons.checkCircle,
-                      },
-                      selected: picked.length == 1 && picked.contains(g),
-                      onTap: () => _groups.value =
-                          picked.length == 1 && picked.contains(g)
-                          ? const {}
-                          : {g},
-                    ),
-                ],
-              ),
-              AppSpacing.gapXxl,
-            ],
+            children: [_collectionHeader(context)],
           ),
           banners: [
             if (reqStore.loadState.error != null)
@@ -441,6 +401,7 @@ class _RequestRow extends StatelessWidget {
           ? StatusLabel(request.status)
           : null,
       onTap: onTap,
+      contextActions: () => requestContextActions(context, request),
     );
   }
 }

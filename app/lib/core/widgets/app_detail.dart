@@ -233,7 +233,7 @@ class AppDetailRow extends StatelessWidget {
 
     if (onTap == null) return row;
     // Match the shared item-row hover shape, including outside a card.
-    return InkWell(onTap: onTap, borderRadius: AppRadius.allMd, child: row);
+    return InkWell(onTap: onTap, borderRadius: AppRadius.row, child: row);
   }
 }
 

@@ -67,7 +67,7 @@ class AppCheckRow extends StatelessWidget {
     final enabled = onChanged != null;
     return InkWell(
       onTap: enabled ? () => onChanged!(!value) : null,
-      borderRadius: AppRadius.allMd,
+      borderRadius: AppRadius.row,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
         child: Row(

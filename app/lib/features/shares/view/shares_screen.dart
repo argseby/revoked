@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
+import 'package:revoked_app/features/shares/view/share_actions.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -15,8 +16,9 @@ import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_dialog.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
-import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -29,7 +31,6 @@ import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
-import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
 
 class SharesScreen extends StatefulWidget {
@@ -59,6 +60,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   late final TableStore<Link> _table;
 
   /// The statuses the Filter lets through; none ticked lets all through.
+  final Local<bool> _deletingClosed = Local(false);
   final Local<Set<LinkGroup>> _statuses = Local(const {});
 
   /// The recipients the Filter lets through, by [_personKey]. The `recipient`
@@ -145,8 +147,67 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   /// grouping stays.
   Widget _sent(BuildContext context) => _myLinks(context);
 
+  Future<void> _deleteClosed(List<Link> shown) async {
+    if (_deletingClosed.value) return;
+    final ids = shown
+        .where((link) => link.status == 'revoked' || link.status == 'expired')
+        .map((link) => link.id)
+        .toSet();
+    if (ids.isEmpty) return;
+    final count = ids.length;
+    final confirmed = await showAppDialog(
+      context: context,
+      title: 'Delete $count ${count == 1 ? 'link' : 'links'}?',
+      message:
+          'Deletes the revoked or expired links in this group that match your current search and filters. '
+          'Your vault records are kept. This cannot be undone.',
+      confirmLabel: 'Delete ${count == 1 ? 'link' : '$count links'}',
+      confirmIcon: AppIcons.trash,
+      destructive: true,
+    );
+    if (!confirmed || !mounted || _deletingClosed.value) return;
+    _deletingClosed.value = true;
+    var deleted = 0;
+    var failed = 0;
+    String? error;
+    try {
+      final store = Stores.shares;
+      for (final id in ids) {
+        // Recheck the current list after confirmation, keeping live links out
+        // even if the data changed while the dialog was open.
+        final current = store.shares.where((link) => link.id == id).firstOrNull;
+        if (current == null ||
+            (current.status != 'revoked' && current.status != 'expired')) {
+          continue;
+        }
+        if (await store.deleteShare(id)) {
+          deleted++;
+        } else {
+          failed++;
+          error ??= store.errorMessage;
+        }
+      }
+    } finally {
+      _deletingClosed.value = false;
+    }
+    if (!mounted) return;
+    if (failed > 0) {
+      AppToast.error(
+        context,
+        '$deleted deleted · $failed could not be deleted',
+        subtitle: error,
+      );
+    } else if (deleted > 0) {
+      AppToast.success(
+        context,
+        '$deleted ${deleted == 1 ? 'link' : 'links'} deleted',
+      );
+    }
+  }
+
   AppListToolbar _toolbar() => AppListToolbar(
     key: const ValueKey('shares-toolbar'),
+    totalCount: _table.filteredItems.length,
     query: _table.query,
     onQueryChanged: _table.setQuery,
     searchHint: 'Search links',
@@ -173,14 +234,15 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     LinkGroup.attention: 'Needs attention',
     LinkGroup.active: 'Active',
     LinkGroup.paused: 'Paused',
-    LinkGroup.closed: 'Closed',
+    LinkGroup.closed: 'Revoked or expired',
   };
 
   List<AppChecklistSection> _filterSections() {
     final links = Stores.shares.shares.toList();
+    final matches = _table.filteredItems;
     final now = DateTime.now();
     final counts = {for (final g in LinkGroup.values) g: 0};
-    for (final l in links) {
+    for (final l in matches) {
       counts[linkGroup(l, now)] = counts[linkGroup(l, now)]! + 1;
     }
     final people = groupByRecipient(links)
@@ -199,15 +261,19 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               : ({..._statuses.value}..remove(g));
         },
         items: [
-          for (final g in LinkGroup.values)
+          for (final g in LinkGroup.values.where(
+            (g) => g != LinkGroup.attention,
+          ))
             AppChecklistItem(
               id: g.name,
               label: _groupTitles[g]!,
-              count: counts[g],
+              count:
+                  counts[g]! +
+                  (g == LinkGroup.active ? counts[LinkGroup.attention]! : 0),
             ),
         ],
       ),
-      if (people.isNotEmpty)
+      if (people.isNotEmpty || _people.value.isNotEmpty)
         AppChecklistSection(
           title: 'Person',
           selected: _people.value,
@@ -261,27 +327,33 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
 
     return AppLoadFade(
       loading: () => store.loadState.isFirstLoad && store.shares.isEmpty,
-      skeleton: const AppListSkeleton(
-        group: 'Active',
-        rows: [
-          AppSkeletonRow(
-            'Landlord',
-            '3 records · opened twice',
-            icon: AppIcons.link,
+      skeleton: AppPageBody(
+        children: [
+          _collectionHeader(context),
+          AppListSkeleton(
+            embedded: true,
+            group: 'Active',
+            rows: [
+              AppSkeletonRow(
+                'Landlord',
+                '3 records · opened twice',
+                icon: AppIcons.link,
+              ),
+              AppSkeletonRow('Employer HR', '5 records', icon: AppIcons.link),
+              AppSkeletonRow(
+                'Insurance',
+                '2 records · expires soon',
+                icon: AppIcons.link,
+              ),
+              AppSkeletonRow('Bank', '1 record', icon: AppIcons.link),
+            ],
           ),
-          AppSkeletonRow('Employer HR', '5 records', icon: AppIcons.link),
-          AppSkeletonRow(
-            'Insurance',
-            '2 records · expires soon',
-            icon: AppIcons.link,
-          ),
-          AppSkeletonRow('Bank', '1 record', icon: AppIcons.link),
         ],
       ),
       builder: (_) {
         // Nothing to list still keeps Search and filter in the top bar.
         Widget bare(Widget child) =>
-            AppListEmpty(toolbar: _toolbar(), child: child);
+            AppPageBody(children: [_collectionHeader(context), child]);
         if (store.shares.isEmpty &&
             store.sharedShares.isEmpty &&
             store.loadState.error != null) {
@@ -302,12 +374,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               !vault.isLoading &&
               vault.records.isEmpty &&
               vault.sections.isEmpty;
-          final newLink = AppButton(
-            icon: AppIcons.plus,
-            label: 'New link',
-            style: vaultEmpty ? AppButtonStyle.accent : AppButtonStyle.primary,
-            onTap: () => openShareCreateSheet(context: context),
-          );
           return bare(
             AppEmptyState(
               icon: AppIcons.share,
@@ -331,14 +397,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               notice: vaultEmpty
                   ? 'The vault is empty. Only existing records can be shared.'
                   : null,
-              action: vaultEmpty
-                  ? AppButton(
-                      icon: AppIcons.plus,
-                      label: 'Add a record',
-                      onTap: () => openVaultCreateSheet(context),
-                    )
-                  : newLink,
-              secondaryAction: vaultEmpty ? newLink : null,
               learnMoreLabel: 'How sharing works',
               learnMoreUrl: '${AppConfig.docsUrl}/guide/sharing/',
             ),
@@ -353,7 +411,10 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         final matches = _table.filteredItems
             .where(
               (l) =>
-                  (statuses.isEmpty || statuses.contains(linkGroup(l, now))) &&
+                  (statuses.isEmpty ||
+                      statuses.contains(linkGroup(l, now)) ||
+                      (statuses.contains(LinkGroup.active) &&
+                          linkGroup(l, now) == LinkGroup.attention)) &&
                   (people.isEmpty || people.contains(_personKey(l.label))) &&
                   audienceMatches(audiences, [_audienceOf(l)]),
             )
@@ -361,16 +422,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         final sharedShown = store.sharedShares
             .where((l) => audienceMatches(audiences, [_audienceOf(l)]))
             .toList();
-        // What each status holds under the search and the other filters, so
-        // a chip says what picking it would show.
-        final statusCounts = {for (final g in LinkGroup.values) g: 0};
-        for (final l in _table.filteredItems) {
-          if ((people.isEmpty || people.contains(_personKey(l.label))) &&
-              audienceMatches(audiences, [_audienceOf(l)])) {
-            final g = linkGroup(l, now);
-            statusCounts[g] = statusCounts[g]! + 1;
-          }
-        }
         final byGroup = {for (final g in LinkGroup.values) g: <Link>[]};
         for (final l in matches) {
           byGroup[linkGroup(l, now)]!.add(l);
@@ -386,6 +437,25 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
             noun: 'links',
             previewCount: g == LinkGroup.attention ? 0 : 5,
             collapsed: collapsed,
+            collapsible: g == LinkGroup.closed,
+            trailing: g == LinkGroup.closed
+                ? AppButton(
+                    icon: AppIcons.trash,
+                    label:
+                        MediaQuery.sizeOf(context).width < 600 ||
+                            MediaQuery.textScalerOf(context).scale(16) > 24
+                        ? null
+                        : 'Delete all',
+                    tooltip: 'Delete all revoked or expired links shown',
+                    emphasizeLabel: false,
+                    style: AppButtonStyle.danger,
+                    size: AppButtonSize.small,
+                    busy: _deletingClosed.value,
+                    onTap: _deletingClosed.value
+                        ? null
+                        : () => _deleteClosed(links),
+                  )
+                : null,
             children: [
               for (final l in links)
                 _LinkRow(
@@ -409,18 +479,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
           context,
           now: now,
           toolbar: _toolbar(),
-          filters: AppStatusChips<LinkGroup>(
-            selected: statuses,
-            onChanged: (v) => _statuses.value = v,
-            options: [
-              for (final g in LinkGroup.values)
-                AppFilterOption(
-                  value: g,
-                  label: _groupTitles[g]!,
-                  count: statusCounts[g]!,
-                ),
-            ],
-          ).orNull,
           banners: [
             if (store.loadState.error != null)
               AppRefreshFailed(onRetry: store.loadShares),
@@ -454,7 +512,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
             group(LinkGroup.paused, 'Paused'),
             group(
               LinkGroup.closed,
-              'Closed',
+              'Revoked or expired',
               collapsed: !statuses.contains(LinkGroup.closed),
             ),
             // Shares other members opened to this person, apart from their
@@ -481,122 +539,31 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     );
   }
 
+  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
+    title: widget.selectedId != null ? 'Your links' : 'Your sharing',
+    description: widget.selectedId != null
+        ? 'Choose a link to manage its access.'
+        : 'Share from your Vault. Stay in control of access.',
+    action: AppButton(
+      icon: AppIcons.plus,
+      label: 'Share items',
+      onTap: () => openShareCreateSheet(context: context),
+    ),
+  );
+
   Widget _sharingPage(
     BuildContext context, {
     required DateTime now,
     required AppListToolbar toolbar,
-    required Widget? filters,
     required List<Widget> banners,
     required String? emptyMessage,
     required List<Widget> groups,
   }) {
-    final shares = Stores.shares.shares;
-    final compact = widget.selectedId != null;
-    final totals = {for (final g in LinkGroup.values) g: 0};
-    for (final link in shares) {
-      final group = linkGroup(link, now);
-      totals[group] = totals[group]! + 1;
-    }
-    final heading = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppText(compact ? 'Your links' : 'Your sharing').title,
-        AppSpacing.gapSm,
-        AppText(
-          compact
-              ? 'Choose a link to manage its access.'
-              : 'Share from your Vault. Stay in control of access.',
-        ).small.muted,
-      ],
-    );
-    final create = AppButton(
-      icon: AppIcons.plus,
-      label: 'Share items',
-      onTap: () => openShareCreateSheet(context: context),
-    );
     return AppPageBody(
       bottomPadding: AppSpacing.gigantic,
       children: [
-        AppSpacing.gapLg,
-        LayoutBuilder(
-          builder: (context, box) =>
-              box.maxWidth < 600 ||
-                  MediaQuery.textScalerOf(context).scale(16) > 24
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [heading, AppSpacing.gapLg, create],
-                )
-              : Row(
-                  children: [
-                    Expanded(child: heading),
-                    AppSpacing.gapLg,
-                    create,
-                  ],
-                ),
-        ),
-        AppSpacing.gapXxl,
-        if (!compact && shares.isNotEmpty) ...[
-          LayoutBuilder(
-            builder: (context, box) {
-              final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-              final columns = (box.maxWidth / (180 * scale)).floor().clamp(
-                1,
-                3,
-              );
-              final width =
-                  (box.maxWidth - AppSpacing.md * (columns - 1)) / columns;
-              return Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.md,
-                children: [
-                  for (final g in [
-                    LinkGroup.active,
-                    LinkGroup.paused,
-                    LinkGroup.closed,
-                  ])
-                    SizedBox(
-                      width: width,
-                      child: _SharingStatusTile(
-                        group: g,
-                        compact: columns == 1,
-                        count:
-                            totals[g]! +
-                            (g == LinkGroup.active
-                                ? totals[LinkGroup.attention]!
-                                : 0),
-                        selected: g == LinkGroup.active
-                            ? _statuses.value.length == 2 &&
-                                  _statuses.value.containsAll({
-                                    LinkGroup.active,
-                                    LinkGroup.attention,
-                                  })
-                            : _statuses.value.length == 1 &&
-                                  _statuses.value.contains(g),
-                        onTap: () {
-                          final next = g == LinkGroup.active
-                              ? {LinkGroup.active, LinkGroup.attention}
-                              : {g};
-                          _statuses.value =
-                              _statuses.value.length == next.length &&
-                                  _statuses.value.containsAll(next)
-                              ? const {}
-                              : next;
-                        },
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          AppSpacing.gapXxl,
-        ],
-
-        if (filters != null) ...[filters, AppSpacing.gapLg],
-        toolbar.pill(),
-        if (toolbar.chips(context) case final chips?) ...[
-          AppSpacing.gapSm,
-          chips,
-        ],
+        _collectionHeader(context),
+        toolbar,
         AppSpacing.gapXl,
         for (final banner in banners) ...[banner, AppSpacing.gapLg],
         if (emptyMessage != null)
@@ -669,6 +636,7 @@ class _LinkRow extends StatelessWidget {
           ? StatusLabel(share.status)
           : null,
       onTap: onTap,
+      contextActions: () => shareContextActions(context, share),
     );
   }
 
@@ -726,91 +694,3 @@ class _LinkRow extends StatelessWidget {
 }
 
 /// Access states are destinations: live links, reversible pauses, and history.
-class _SharingStatusTile extends StatelessWidget {
-  final LinkGroup group;
-  final int count;
-  final bool selected;
-  final bool compact;
-  final VoidCallback onTap;
-
-  const _SharingStatusTile({
-    required this.group,
-    required this.count,
-    required this.selected,
-    required this.compact,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (title, description, icon, color) = switch (group) {
-      LinkGroup.active => (
-        'Active links',
-        'Manage current sharing',
-        AppIcons.link,
-        scheme.success,
-      ),
-      LinkGroup.paused => (
-        'Paused links',
-        'Access is on hold',
-        AppIcons.pauseCircle,
-        scheme.warning,
-      ),
-      _ => (
-        'Closed links',
-        'Revoked or expired',
-        AppIcons.linkSlash,
-        scheme.onSurfaceVariant,
-      ),
-    };
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: Material(
-        color: selected
-            ? scheme.secondaryContainer
-            : scheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.allMd,
-          side: BorderSide(
-            color: selected ? scheme.primary : scheme.outlineVariant,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: compact
-                ? Row(
-                    children: [
-                      Icon(icon, size: 20, color: color),
-                      AppSpacing.gapMd,
-                      Expanded(child: AppText(title).small.bold),
-                      AppSpacing.gapMd,
-                      AppText('$count').header,
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(icon, size: 20, color: color),
-                          const Spacer(),
-                          AppText('$count').header,
-                        ],
-                      ),
-                      AppSpacing.gapMd,
-                      AppText(title).bold,
-                      AppSpacing.gapXxs,
-                      AppText(description).small.muted,
-                    ],
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-}

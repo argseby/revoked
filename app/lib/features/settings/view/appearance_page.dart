@@ -11,8 +11,7 @@ import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_select.dart';
-import 'package:revoked_app/core/widgets/app_switch.dart';
-import 'package:revoked_app/core/widgets/ledger_header.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
 
 /// Theme, text size, motion and how dates read — the settings that decide whether the app
 /// is comfortable to read and use at all.
@@ -28,61 +27,49 @@ class AppearancePage extends StatelessWidget {
       builder: (context) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const LedgerHeader('Theme'),
-          AppSegmented<ThemeMode>(
-            value: Stores.theme.mode,
-            onChanged: Stores.theme.setMode,
-            items: const [
-              AppSegmentedItem(
-                value: ThemeMode.system,
-                label: 'System',
-                icon: AppIcons.brightnessAuto,
-              ),
-              AppSegmentedItem(
-                value: ThemeMode.light,
-                label: 'Light',
-                icon: AppIcons.brightnessLight,
-              ),
-              AppSegmentedItem(
-                value: ThemeMode.dark,
-                label: 'Dark',
-                icon: AppIcons.brightnessDark,
-              ),
-            ],
+          _AppearanceSection(
+            title: 'Theme',
+            footer: 'System follows the device setting.',
+            child: _ResponsiveChoice<ThemeMode>(
+              value: Stores.theme.mode,
+              onChanged: Stores.theme.setMode,
+              items: const [
+                AppSegmentedItem(
+                  value: ThemeMode.system,
+                  label: 'System',
+                  icon: AppIcons.brightnessAuto,
+                ),
+                AppSegmentedItem(
+                  value: ThemeMode.light,
+                  label: 'Light',
+                  icon: AppIcons.brightnessLight,
+                ),
+                AppSegmentedItem(
+                  value: ThemeMode.dark,
+                  label: 'Dark',
+                  icon: AppIcons.brightnessDark,
+                ),
+              ],
+            ),
           ),
-          AppSpacing.gapXs,
-          const Text('System follows the device setting.').small.muted,
-
-          const LedgerHeader('Dates and times'),
-          const _DatesAndTimes(),
-
-          const LedgerHeader('Text size'),
-          _TextSize(scale: DisplayPreferences.textScale),
-
-          const LedgerHeader('Motion'),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Reduce motion'),
-                    const Text(
-                      'Disables fades and slides. Always on when the device '
-                      'requests reduced motion.',
-                    ).small.muted,
-                  ],
-                ),
-              ),
-              AppSpacing.gapMd,
-              Semantics(
-                label: 'Reduce motion',
-                child: AppSwitch(
-                  value: DisplayPreferences.reduceMotion,
-                  onChanged: DisplayPreferences.setReduceMotion,
-                ),
-              ),
-            ],
+          const _AppearanceSection(
+            title: 'Dates and times',
+            child: _DatesAndTimes(),
+          ),
+          _AppearanceSection(
+            title: 'Text size',
+            child: _TextSize(scale: DisplayPreferences.textScale),
+          ),
+          _AppearanceSection(
+            title: 'Motion',
+            child: AppFormToggleRow(
+              label: 'Reduce motion',
+              subtitle:
+                  'Disables fades and slides. Always on when the device requests reduced motion.',
+              value: DisplayPreferences.reduceMotion,
+              onChanged: DisplayPreferences.setReduceMotion,
+              inset: false,
+            ),
           ),
         ],
       ),
@@ -175,7 +162,7 @@ class _DatesAndTimes extends StatelessWidget {
         AppSpacing.gapMd,
         const Text('Clock'),
         AppSpacing.gapXs,
-        AppSegmented<ClockStyle>(
+        _ResponsiveChoice<ClockStyle>(
           value: DateTimePreferences.clockStyle,
           onChanged: DateTimePreferences.setClockStyle,
           items: const [
@@ -207,4 +194,65 @@ class _DatesAndTimes extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Controls sit in the same themed surface as other settings groups.
+class _AppearanceSection extends StatelessWidget {
+  final String title;
+  final String? footer;
+  final Widget child;
+
+  const _AppearanceSection({
+    required this.title,
+    required this.child,
+    this.footer,
+  });
+
+  @override
+  Widget build(BuildContext context) => AppListGroup(
+    title: title,
+    trailing: const SizedBox.shrink(),
+    footer: footer == null ? null : Text(footer!),
+    children: [
+      Padding(padding: const EdgeInsets.all(AppSpacing.lg), child: child),
+    ],
+  );
+}
+
+/// Keep all choices readable on a small phone or with enlarged text.
+class _ResponsiveChoice<T> extends StatelessWidget {
+  final T value;
+  final ValueChanged<T> onChanged;
+  final List<AppSegmentedItem<T>> items;
+
+  const _ResponsiveChoice({
+    required this.value,
+    required this.onChanged,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+      if (box.maxWidth < 360 * scale) {
+        return AppSelect<T>(
+          value: value,
+          onChanged: (next) {
+            if (next != null) onChanged(next);
+          },
+          items: [
+            for (final item in items)
+              AppSelectItem(item.value, Text(item.label!)),
+          ],
+        );
+      }
+      return AppSegmented<T>(
+        value: value,
+        onChanged: onChanged,
+        items: items,
+        expand: true,
+      );
+    },
+  );
 }

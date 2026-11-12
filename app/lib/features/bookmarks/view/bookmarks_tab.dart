@@ -1,5 +1,6 @@
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -81,6 +82,7 @@ class _BookmarksTabState extends State<BookmarksTab> {
 
   AppListToolbar _toolbar(List<Bookmark> all) => AppListToolbar(
     key: ValueKey('bookmarks-toolbar-${kind.name}'),
+    totalCount: all.length,
     query: _table.query,
     onQueryChanged: _table.setQuery,
     searchHint: _asks ? 'Search requests' : 'Search shares',
@@ -141,52 +143,61 @@ class _BookmarksTabState extends State<BookmarksTab> {
     }
   }
 
+  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
+    title: _asks ? 'Requests to answer' : 'Shared with you',
+    description: _asks
+        ? 'Information others have asked you to share.'
+        : 'Links from others, kept together for easy access.',
+    action: AppButton(
+      icon: AppIcons.link,
+      label: 'Open a link',
+      onTap: () => openLinkSearchSheet(context),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final store = Stores.bookmarks;
     return AppLoadFade(
       loading: () => store.loadState.isFirstLoad && store.bookmarks.isEmpty,
-      skeleton: AppListSkeleton(
-        group: 'Saved',
-        rows: _asks
-            ? const [
-                AppSkeletonRow(
-                  'Club membership',
-                  'From a club',
-                  icon: AppIcons.askFor,
-                ),
-                AppSkeletonRow(
-                  'Payroll details',
-                  'From an employer',
-                  icon: AppIcons.askFor,
-                ),
-              ]
-            : const [
-                AppSkeletonRow(
-                  'Lease details',
-                  'From a landlord',
-                  icon: AppIcons.bookmark,
-                ),
-                AppSkeletonRow(
-                  'Pay slip',
-                  'From an employer',
-                  icon: AppIcons.bookmark,
-                ),
-              ],
+      skeleton: AppPageBody(
+        children: [
+          _collectionHeader(context),
+          AppListSkeleton(
+            embedded: true,
+            group: 'Saved',
+            rows: _asks
+                ? const [
+                    AppSkeletonRow(
+                      'Club membership',
+                      'From a club',
+                      icon: AppIcons.askFor,
+                    ),
+                    AppSkeletonRow(
+                      'Payroll details',
+                      'From an employer',
+                      icon: AppIcons.askFor,
+                    ),
+                  ]
+                : const [
+                    AppSkeletonRow(
+                      'Lease details',
+                      'From a landlord',
+                      icon: AppIcons.bookmark,
+                    ),
+                    AppSkeletonRow(
+                      'Pay slip',
+                      'From an employer',
+                      icon: AppIcons.bookmark,
+                    ),
+                  ],
+          ),
+        ],
       ),
       builder: (_) {
         // Nothing to list still keeps Search and filter in the top bar.
-        Widget bare(Widget child) => AppPageBody(
-          children: [
-            AppCollectionHeader(
-              title: _asks ? 'Requests to answer' : 'Shared with you',
-              description: _asks
-                  ? 'Information others have asked you to share.'
-                  : 'Links from others, kept together for easy access.',
-            ),
-            child,
-          ],
-        );
+        Widget bare(Widget child) =>
+            AppPageBody(children: [_collectionHeader(context), child]);
         if (store.error != null && store.bookmarks.isEmpty) {
           return bare(
             AppLoadError(
@@ -208,12 +219,6 @@ class _BookmarksTabState extends State<BookmarksTab> {
               subtitle:
                   'Requests others send to this account, and ones saved from a '
                   'link, wait here until they are answered from the vault.',
-              action: AppButton(
-                icon: AppIcons.link,
-                label: 'Open a link',
-                style: AppButtonStyle.accent,
-                onTap: () => openLinkSearchSheet(context),
-              ),
               learnMoreLabel: 'About requests',
               learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
             ),
@@ -233,12 +238,6 @@ class _BookmarksTabState extends State<BookmarksTab> {
                 AppEmptyStep('Bookmark', 'Saved from the open link'),
                 AppEmptyStep('Bookmarks list', 'Optionally sorted into groups'),
               ],
-              action: AppButton(
-                icon: AppIcons.link,
-                label: 'Open a link',
-                style: AppButtonStyle.accent,
-                onTap: () => openLinkSearchSheet(context),
-              ),
               learnMoreLabel: 'About bookmarks',
               learnMoreUrl:
                   '${AppConfig.docsUrl}/guide/sharing/'
@@ -296,12 +295,7 @@ class _BookmarksTabState extends State<BookmarksTab> {
           filters: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AppCollectionHeader(
-                title: _asks ? 'Requests to answer' : 'Shared with you',
-                description: _asks
-                    ? 'Information others have asked you to share.'
-                    : 'Links from others, kept together for easy access.',
-              ),
+              _collectionHeader(context),
               Align(
                 alignment: Alignment.centerRight,
                 child: AppButton(
@@ -535,63 +529,78 @@ class _BookmarkRow extends StatelessWidget {
           bookmark.sender.isNotEmpty ? 'received $saved' : 'saved $saved',
       ].nonNulls.join(' · '),
       onTap: () => context.push(bookmark.location),
+      contextActions: () => [
+        for (final item in _menuItems(context))
+          AppSheetAction(
+            icon: item.icon ?? AppIcons.threeDotsVertical,
+            label: item.label,
+            destructive: item.destructive,
+            enabled: item.onSelected != null,
+            onTap: item.onSelected ?? () {},
+          ),
+      ],
       showChevron: false,
       trailing: AppMenuButton(
         icon: AppIcons.threeDotsVertical,
         tooltip: 'Bookmark actions',
         size: AppButtonSize.small,
         chevron: false,
-        items: [
-          AppMenuItem(
-            icon: AppIcons.copy,
-            label: 'Copy link',
-            onSelected: () async {
-              // Copied links travel to other servers, so they name this one.
-              final key = await Stores.bookmarks.keyFor(bookmark);
-              if (!context.mounted) return;
-              if (bookmark.sealedKey.isNotEmpty && key == null) {
-                AppToast.error(
-                  context,
-                  'The saved link key is not readable on this device.',
-                );
-                return;
-              }
-              final base = bookmark.deepLink(
-                ownServer ? Stores.api.originAuthority : bookmark.origin,
-              );
-              final link = key == null
-                  ? base
-                  : '$base#k=${SealedFormats.linkKeyText(key)}';
-              Clipboard.setData(ClipboardData(text: link));
-              AppToast.success(context, 'Link copied');
-            },
-          ),
-          AppMenuItem(
-            icon: AppIcons.folder,
-            label: 'Groups',
-            onSelected: () =>
-                showBookmarkGroupsSheet(context, bookmarkId: bookmark.id),
-          ),
-          AppMenuItem(
-            icon: AppIcons.pencil,
-            label: 'Rename',
-            onSelected: () => _rename(context),
-          ),
-          if (bookmark.sender.isNotEmpty)
-            AppMenuItem(
-              icon: AppIcons.shieldSlash,
-              label: 'Refuse sender',
-              destructive: true,
-              onSelected: () => _blockSender(context),
-            ),
-          AppMenuItem(
-            icon: AppIcons.trash,
-            label: 'Remove',
-            destructive: true,
-            onSelected: () => _remove(context),
-          ),
-        ],
+        items: _menuItems(context),
       ),
     );
+  }
+
+  List<AppMenuItem> _menuItems(BuildContext context) {
+    final ownServer = Stores.api.isOwnOrigin(bookmark.origin);
+    return [
+      AppMenuItem(
+        icon: AppIcons.copy,
+        label: 'Copy link',
+        onSelected: () async {
+          // Copied links travel to other servers, so they name this one.
+          final key = await Stores.bookmarks.keyFor(bookmark);
+          if (!context.mounted) return;
+          if (bookmark.sealedKey.isNotEmpty && key == null) {
+            AppToast.error(
+              context,
+              'The saved link key is not readable on this device.',
+            );
+            return;
+          }
+          final base = bookmark.deepLink(
+            ownServer ? Stores.api.originAuthority : bookmark.origin,
+          );
+          final link = key == null
+              ? base
+              : '$base#k=${SealedFormats.linkKeyText(key)}';
+          Clipboard.setData(ClipboardData(text: link));
+          AppToast.success(context, 'Link copied');
+        },
+      ),
+      AppMenuItem(
+        icon: AppIcons.folder,
+        label: 'Groups',
+        onSelected: () =>
+            showBookmarkGroupsSheet(context, bookmarkId: bookmark.id),
+      ),
+      AppMenuItem(
+        icon: AppIcons.pencil,
+        label: 'Rename',
+        onSelected: () => _rename(context),
+      ),
+      if (bookmark.sender.isNotEmpty)
+        AppMenuItem(
+          icon: AppIcons.shieldSlash,
+          label: 'Refuse sender',
+          destructive: true,
+          onSelected: () => _blockSender(context),
+        ),
+      AppMenuItem(
+        icon: AppIcons.trash,
+        label: 'Remove',
+        destructive: true,
+        onSelected: () => _remove(context),
+      ),
+    ];
   }
 }

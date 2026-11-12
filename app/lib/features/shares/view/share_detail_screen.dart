@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/features/shares/view/share_actions.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
@@ -18,18 +19,15 @@ import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
-import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
-import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
@@ -566,96 +564,19 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     );
   }
 
-  Future<void> _replaceKey(Link share) async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Replace this link’s key?',
-      message:
-          'Existing copies of this address will no longer open its encrypted entries. '
-          'Plain entries stay accessible. The new complete address can be shared afterward. '
-          'Values already copied by a recipient remain with them.',
-      confirmLabel: 'Replace key',
-      confirmIcon: AppIcons.key,
-    );
-    if (!confirmed || !mounted) return;
-    _busy.value = 'key';
-    final ok = await Stores.shares.replaceLinkKey(share.id);
-    _busy.value = null;
-    if (!mounted) return;
-    if (!ok) {
-      AppToast.error(
-        context,
-        'The link key could not be replaced.',
-        subtitle: Stores.shares.errorMessage,
-      );
-      return;
-    }
-    final updated = Stores.shares.findById(share.id)!;
-    await showShareSheet(
-      context: context,
-      slug: updated.slug,
-      title: updated.label,
-      isRequest: false,
-      linkKey: Stores.shares.linkKeyText(updated),
-    );
-  }
+  ShareActions get _actions => ShareActions(
+    context,
+    onBusy: (busy) => _busy.value = busy,
+    onDeleted: _back,
+  );
 
-  Future<void> _setStatus(Link share, String status) async {
-    _busy.value = status;
-    try {
-      await Stores.shares.updateShare(share.id, {'status': status});
-    } finally {
-      _busy.value = null;
-    }
-  }
-
-  Future<void> _confirmRevoke(BuildContext context, Link share) async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Revoke this link?',
-      message:
-          'The link can no longer be opened. This cannot be undone, but a '
-          'new link can be created from it.',
-      content: ApiPreview(
-        spec: Stores.shares.updateShareSpec(share.id, const {
-          'status': 'revoked',
-        }),
-        title: 'API request · revoke',
-      ),
-      confirmLabel: 'Revoke',
-      confirmIcon: AppIcons.xCircle,
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    _busy.value = 'revoked';
-    final ok = await Stores.shares.updateShare(share.id, {'status': 'revoked'});
-    _busy.value = null;
-    if (ok && context.mounted) {
-      AppToast.success(context, 'Link revoked');
-    }
-  }
-
-  Future<void> _confirmDelete(BuildContext context, Link share) async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Delete this link?',
-      message: 'The link stops working immediately. This cannot be undone.',
-      content: ApiPreview(
-        spec: Stores.shares.deleteShareSpec(share.id),
-        title: 'API request · delete',
-      ),
-      confirmLabel: 'Delete',
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    _busy.value = 'delete';
-    final ok = await Stores.shares.deleteShare(share.id);
-    _busy.value = null;
-    if (ok && context.mounted) {
-      AppToast.success(context, 'Link deleted');
-      _back();
-    }
-  }
+  Future<void> _replaceKey(Link share) => _actions.replaceKey(share);
+  Future<void> _setStatus(Link share, String status) =>
+      _actions.setStatus(share, status);
+  Future<void> _confirmRevoke(BuildContext context, Link share) =>
+      _actions.revoke(share);
+  Future<void> _confirmDelete(BuildContext context, Link share) =>
+      _actions.delete(share);
 
   /// Opens the Web & API access drawer for this share — pick a format and copy
   /// a ready-to-use `/s/{slug}` endpoint. The data stays behind the same

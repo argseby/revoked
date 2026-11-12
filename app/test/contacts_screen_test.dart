@@ -147,7 +147,7 @@ void main() {
     await open(tester);
 
     expect(find.text('No contacts'), findsOneWidget);
-    expect(find.text('Add a contact'), findsOneWidget);
+    expect(find.text('Add contact'), findsOneWidget);
   });
 
   testWidgets('a contact with an account here reads as reachable', (
@@ -156,7 +156,7 @@ void main() {
     await open(tester);
 
     expect(find.text('Ada Lovelace'), findsOneWidget);
-    expect(find.textContaining('In the app'), findsOneWidget);
+    expect(find.text('In the app · ada@example.com'), findsOneWidget);
   });
 
   testWidgets('sending picks vault entries and reports it arrived', (

@@ -72,7 +72,8 @@ class AppTile extends StatelessWidget {
 
     if (onTap == null) return row;
     return AppFocusRing(
-      child: InkWell(onTap: onTap, borderRadius: AppRadius.allMd, child: row),
+      borderRadius: AppRadius.row,
+      child: InkWell(onTap: onTap, borderRadius: AppRadius.row, child: row),
     );
   }
 }

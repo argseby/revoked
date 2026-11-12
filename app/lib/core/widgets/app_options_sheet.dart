@@ -99,7 +99,7 @@ class _OptionRow extends StatelessWidget {
         ? color
         : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
     return InkWell(
-      borderRadius: AppRadius.allMd,
+      borderRadius: AppRadius.row,
       onTap: action.enabled ? onSelected : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(

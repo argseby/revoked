@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_avatar.dart';
 
@@ -79,6 +78,8 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
     int count(_Where w) => searched.where((c) => _whereOf(c) == w).length;
     return AppListToolbar(
       key: const ValueKey('contacts-toolbar'),
+      totalCount: searched.length,
+      quickSections: const ['Reached', 'Trust'],
       query: _table.query,
       onQueryChanged: _table.setQuery,
       searchHint: 'Search contacts',
@@ -145,26 +146,32 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
     final store = Stores.contacts;
     return AppLoadFade(
       loading: () => store.loadState.isFirstLoad && store.contacts.isEmpty,
-      skeleton: const AppListSkeleton(
-        intro:
-            'Contacts receive records and requests directly. Sent records '
-            'stay accessible until revoked.',
-        rows: [
-          AppSkeletonRow(
-            'Ada Lovelace',
-            'ada@example.com',
-            icon: AppIcons.person,
-            badge: 'Verified',
-          ),
-          AppSkeletonRow(
-            'Grace Hopper',
-            'grace@example.com',
-            icon: AppIcons.person,
-          ),
-          AppSkeletonRow(
-            'Alan Turing',
-            'alan@example.com',
-            icon: AppIcons.person,
+      skeleton: AppPageBody(
+        children: [
+          _collectionHeader(context),
+          AppListSkeleton(
+            embedded: true,
+            intro:
+                'Contacts receive records and requests directly. Sent records '
+                'stay accessible until revoked.',
+            rows: [
+              AppSkeletonRow(
+                'Ada Lovelace',
+                'ada@example.com',
+                icon: AppIcons.person,
+                badge: 'Verified',
+              ),
+              AppSkeletonRow(
+                'Grace Hopper',
+                'grace@example.com',
+                icon: AppIcons.person,
+              ),
+              AppSkeletonRow(
+                'Alan Turing',
+                'alan@example.com',
+                icon: AppIcons.person,
+              ),
+            ],
           ),
         ],
       ),
@@ -174,10 +181,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
           // Nothing to list still keeps Search and filter in the top bar.
           return AppPageBody(
             children: [
-              const AppCollectionHeader(
-                title: 'Your contacts',
-                description: 'People you share with and ask for information.',
-              ),
+              _collectionHeader(context),
               failure != null
                   ? AppLoadError(
                       title: 'Contacts could not be loaded',
@@ -196,57 +200,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
           banners: [if (failure != null) AppRefreshFailed(onRetry: store.load)],
           filters: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppCollectionHeader(
-                title: 'Your contacts',
-                description: 'People you share with and ask for information.',
-                action: AppButton(
-                  icon: AppIcons.personPlus,
-                  label: 'Add contact',
-                  onTap: () => openContactCreateSheet(context),
-                ),
-              ),
-              AppCollectionGrid(
-                children: [
-                  AppCollectionTile(
-                    title: 'All contacts',
-                    value: '${store.contacts.length}',
-                    description: 'Everyone in your address book',
-                    icon: AppIcons.person,
-                    selected: _where.value.isEmpty && !_verifiedOnly.value,
-                    onTap: () {
-                      _where.value = const {};
-                      _verifiedOnly.value = false;
-                    },
-                  ),
-                  AppCollectionTile(
-                    title: 'Verified contacts',
-                    value:
-                        '${store.contacts.where((c) => c.trust == ContactTrust.verified).length}',
-                    description: 'Identity confirmed',
-                    icon: AppIcons.shieldCheck,
-                    selected: _verifiedOnly.value,
-                    onTap: () => _verifiedOnly.value = !_verifiedOnly.value,
-                  ),
-                  AppCollectionTile(
-                    title: 'Email contacts',
-                    value:
-                        '${store.contacts.where((c) => c.isEmailOnly).length}',
-                    description: 'Reached by email',
-                    icon: AppIcons.mail,
-                    selected:
-                        _where.value.length == 1 &&
-                        _where.value.contains(_Where.email),
-                    onTap: () => _where.value =
-                        _where.value.length == 1 &&
-                            _where.value.contains(_Where.email)
-                        ? const {}
-                        : {_Where.email},
-                  ),
-                ],
-              ),
-              AppSpacing.gapXxl,
-            ],
+            children: [_collectionHeader(context)],
           ),
           emptyMessage: shown.isEmpty
               ? 'No contacts match the search or filters.'
@@ -271,6 +225,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
                           )
                         : null,
                     onTap: () => _options(context, c),
+                    contextActions: () => _actions(context, c),
                   ),
               ],
             ),
@@ -279,6 +234,16 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       },
     );
   }
+
+  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
+    title: 'Your contacts',
+    description: 'People you share with and ask for information.',
+    action: AppButton(
+      icon: AppIcons.personPlus,
+      label: 'Add contact',
+      onTap: () => openContactCreateSheet(context),
+    ),
+  );
 
   Widget _empty(BuildContext context) => AppEmptyState(
     icon: AppIcons.personPlus,
@@ -298,11 +263,6 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       ),
       AppEmptyStep('Revocation', 'Sent records stop working immediately'),
     ],
-    action: AppButton(
-      icon: AppIcons.personPlus,
-      label: 'Add a contact',
-      onTap: () => openContactCreateSheet(context),
-    ),
   );
 
   /// Where they are, and when you last sent them something.
@@ -321,52 +281,54 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       context: context,
       title: c.name,
       subtitle: _subtitle(c),
-      actions: [
-        AppSheetAction(
-          icon: AppIcons.send,
-          label: 'Send records',
-          onTap: () => openSendToContactSheet(context, c),
-        ),
-        AppSheetAction(
-          icon: AppIcons.askFor,
-          label: 'Request data',
-          onTap: () => openAskContactSheet(context, c),
-        ),
-        AppSheetAction(
-          icon: AppIcons.pencil,
-          label: 'Rename',
-          onTap: () => _rename(context, c),
-        ),
-        // Only who added it sets who sees it; older contacts have nobody.
-        if (c.createdBy.isNotEmpty && c.createdBy == Stores.auth.userId)
-          AppSheetAction(
-            icon: AppIcons.personWorkspace,
-            label: 'Visibility',
-            onTap: () => openAccessSheet(
-              context,
-              area: AccessArea.contacts,
-              id: c.id,
-              name: c.name,
-              audienceKind: c.audienceKind,
-              editing: c.editing,
-              save: (kind, editing, groups) => Stores.contacts.setAudience(
-                c.id,
-                kind: kind,
-                editing: editing,
-                groups: groups,
-              ),
-              saveError: () => Stores.contacts.error?.description,
-            ),
-          ),
-        AppSheetAction(
-          icon: AppIcons.trash,
-          label: 'Remove',
-          destructive: true,
-          onTap: () => _remove(context, c),
-        ),
-      ],
+      actions: _actions(context, c),
     );
   }
+
+  List<AppSheetAction> _actions(BuildContext context, Contact c) => [
+    AppSheetAction(
+      icon: AppIcons.send,
+      label: 'Send records',
+      onTap: () => openSendToContactSheet(context, c),
+    ),
+    AppSheetAction(
+      icon: AppIcons.askFor,
+      label: 'Request data',
+      onTap: () => openAskContactSheet(context, c),
+    ),
+    AppSheetAction(
+      icon: AppIcons.pencil,
+      label: 'Rename',
+      onTap: () => _rename(context, c),
+    ),
+    // Only who added it sets who sees it; older contacts have nobody.
+    if (c.createdBy.isNotEmpty && c.createdBy == Stores.auth.userId)
+      AppSheetAction(
+        icon: AppIcons.personWorkspace,
+        label: 'Visibility',
+        onTap: () => openAccessSheet(
+          context,
+          area: AccessArea.contacts,
+          id: c.id,
+          name: c.name,
+          audienceKind: c.audienceKind,
+          editing: c.editing,
+          save: (kind, editing, groups) => Stores.contacts.setAudience(
+            c.id,
+            kind: kind,
+            editing: editing,
+            groups: groups,
+          ),
+          saveError: () => Stores.contacts.error?.description,
+        ),
+      ),
+    AppSheetAction(
+      icon: AppIcons.trash,
+      label: 'Remove',
+      destructive: true,
+      onTap: () => _remove(context, c),
+    ),
+  ];
 
   Future<void> _rename(BuildContext context, Contact c) async {
     final store = Stores.contacts;

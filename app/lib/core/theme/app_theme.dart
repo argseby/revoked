@@ -223,16 +223,15 @@ class AppTheme {
           side: outline,
         ),
       ),
-      // Hover and press feedback follows the shape of the thing being touched:
-      // Material paints a rectangle unless the surface says otherwise, which
-      // is where every square highlight in the app came from.
+      // Contiguous list/menu rows use rectangular feedback. Their outer
+      // surface clips its corners; standalone buttons keep their own shape.
       listTileTheme: const ListTileThemeData(
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.row),
       ),
       menuButtonTheme: const MenuButtonThemeData(
         style: ButtonStyle(
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: AppRadius.allSm),
+            RoundedRectangleBorder(borderRadius: AppRadius.row),
           ),
           minimumSize: WidgetStatePropertyAll(Size(0, 48)),
         ),

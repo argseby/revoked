@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
+import 'package:revoked_app/features/vault/view/record_actions.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/utils/value_kind.dart';
@@ -184,16 +186,38 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   /// Search, Show and Sort for the records; [links] says how many links
   /// reach each of [matches], for the Shared count.
   AppListToolbar _toolbar(List<models.Record> matches, Map<String, int> links) {
+    final filed = Stores.vault.sections
+        .expand((section) => section.records)
+        .toSet();
     return AppListToolbar(
       key: const ValueKey('vault-toolbar'),
+      totalCount: matches.length,
+      allLabel: 'All items',
+      isAllSelected: () => _pane.value is _AllPane,
+      quickSections: const ['View', 'Show'],
       query: _tableController.query,
       onQueryChanged: _tableController.setQuery,
       searchHint: 'Find an item',
       onClearFilters: () {
+        _pane.value = const _AllPane();
         _filters.value = const {};
         _audiences.value = const {};
       },
       sections: () => [
+        if (filed.isNotEmpty)
+          AppChecklistSection(
+            title: 'View',
+            selected: {if (_pane.value is _UnsortedPane) 'unfiled'},
+            onToggle: (_, on) =>
+                _pane.value = on ? const _UnsortedPane() : const _AllPane(),
+            items: [
+              AppChecklistItem(
+                id: 'unfiled',
+                label: 'Not in a section',
+                count: matches.where((r) => !filed.contains(r.id)).length,
+              ),
+            ],
+          ),
         AppChecklistSection(
           title: 'Show',
           selected: {for (final f in _filters.value) f.name},
@@ -206,7 +230,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           items: [
             AppChecklistItem(
               id: _VaultFilter.shared.name,
-              label: 'Shared',
+              label: 'Shared by you',
               count: matches.where((r) => links[r.id]! > 0).length,
             ),
             AppChecklistItem(
@@ -244,6 +268,16 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   @override
   Widget build(BuildContext context) => _body(context);
 
+  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
+    title: 'Your vault',
+    description: 'Keep your information here. Choose what you share.',
+    action: AppButton(
+      icon: AppIcons.plus,
+      label: 'Add item',
+      onTap: () => openVaultCreateSheet(context),
+    ),
+  );
+
   Widget _body(BuildContext context) {
     final store = Stores.vault;
 
@@ -253,7 +287,12 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           store.records.isEmpty &&
           store.sections.isEmpty &&
           store.sharedSections.isEmpty,
-      skeleton: const AppListSkeleton(group: 'Records'),
+      skeleton: AppPageBody(
+        children: [
+          _collectionHeader(context),
+          const AppListSkeleton(group: 'Records', embedded: true),
+        ],
+      ),
       builder: (_) {
         if (store.records.isEmpty &&
             store.sections.isEmpty &&
@@ -261,7 +300,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           final failure = store.loadState.error;
           // Nothing to list still keeps Search and filter in the top bar.
           Widget bare(Widget child) =>
-              AppListEmpty(toolbar: _toolbar(const [], const {}), child: child);
+              AppPageBody(children: [_collectionHeader(context), child]);
           if (failure != null) {
             return bare(
               AppLoadError(
@@ -288,34 +327,6 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                 AppEmptyStep('Section', 'Records shared together'),
                 AppEmptyStep('Link', 'Shows the current value until revoked'),
               ],
-              // New here, the tour shows the whole loop with real data; the
-              // forms are one tap further.
-              action: AppButton(
-                icon: AppIcons.play,
-                label: 'Take the tour',
-                onTap: () => goReturning(context, AppRoutes.tour),
-              ),
-              secondaryAction: Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  AppButton(
-                    icon: AppIcons.plus,
-                    label: 'New record',
-                    style: AppButtonStyle.accent,
-                    onTap: () => openVaultCreateSheet(context),
-                  ),
-                  AppButton(
-                    icon: AppIcons.fileText,
-                    label: 'From template',
-                    style: AppButtonStyle.accent,
-                    onTap: () => openVaultCreateSheet(
-                      context,
-                      initialTab: VaultCreateTab.template,
-                    ),
-                  ),
-                ],
-              ),
               learnMoreLabel: 'How the vault works',
               learnMoreUrl: '${AppConfig.docsUrl}/guide/vault/',
             ),
@@ -672,40 +683,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     return AppPageBody(
       bottomPadding: AppSpacing.gigantic,
       children: [
-        AppSpacing.gapLg,
-        LayoutBuilder(
-          builder: (context, box) {
-            final heading = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const AppText('Your vault').title,
-                AppSpacing.gapSm,
-                const AppText(
-                  'Keep your information here. Choose what you share.',
-                ).small.muted,
-              ],
-            );
-            final add = AppButton(
-              icon: AppIcons.plus,
-              label: 'Add item',
-              onTap: () => openVaultCreateSheet(context),
-            );
-            return box.maxWidth < 500 ||
-                    MediaQuery.textScalerOf(context).scale(16) > 24
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [heading, AppSpacing.gapLg, add],
-                  )
-                : Row(
-                    children: [
-                      Expanded(child: heading),
-                      AppSpacing.gapLg,
-                      add,
-                    ],
-                  );
-          },
-        ),
-        AppSpacing.gapXxl,
+        _collectionHeader(context),
         for (final banner in banners) ...[banner, AppSpacing.gapLg],
         Wrap(
           spacing: AppSpacing.md,
@@ -715,9 +693,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             const AppText('Your sections').bold,
             AppButton(
               label: 'New section',
+              emphasizeLabel: false,
               icon: AppIcons.folderPlus,
               size: AppButtonSize.small,
-              style: AppButtonStyle.ghost,
+              style: AppButtonStyle.outline,
               onTap: () => openVaultCreateSheet(
                 context,
                 initialTab: VaultCreateTab.section,
@@ -751,48 +730,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             'Create a section to keep related items together.',
           ).small.muted,
         AppSpacing.gapXxl,
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            AppButton(
-              label: 'All items',
-              size: AppButtonSize.small,
-              style: pane is _AllPane
-                  ? AppButtonStyle.primary
-                  : AppButtonStyle.ghost,
-              onTap: () => _pane.value = const _AllPane(),
-            ),
-            if (filed.isNotEmpty)
-              AppButton(
-                label: 'Not in a section',
-                size: AppButtonSize.small,
-                style: pane is _UnsortedPane
-                    ? AppButtonStyle.primary
-                    : AppButtonStyle.ghost,
-                onTap: () => _pane.value = const _UnsortedPane(),
-              ),
-            AppButton(
-              label: 'Shared by you',
-              icon: AppIcons.link,
-              size: AppButtonSize.small,
-              style: _filters.value.contains(_VaultFilter.shared)
-                  ? AppButtonStyle.primary
-                  : AppButtonStyle.ghost,
-              onTap: () =>
-                  _filters.value = _filters.value.contains(_VaultFilter.shared)
-                  ? ({..._filters.value}..remove(_VaultFilter.shared))
-                  : {..._filters.value, _VaultFilter.shared},
-            ),
-          ],
-        ),
-        AppSpacing.gapLg,
-        toolbar.pill(),
-        if (toolbar.chips(context) case final chips?) ...[
-          AppSpacing.gapSm,
-          chips,
-        ],
+        toolbar,
         AppSpacing.gapXl,
         Wrap(
           spacing: AppSpacing.md,
@@ -913,6 +851,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                 ),
           audience: audience.isPrivate ? null : AudienceTag(audience),
           onTap: () => context.go(AppRoutes.recordDetailFor(r.id)),
+          contextActions: () => RecordActions(context).forRecord(r),
         );
       },
     );
@@ -970,6 +909,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           ? _LinkCount(links)
           : null,
       showChevron: !picking,
+      contextActions: picking
+          ? null
+          : () => RecordActions(context).forRecord(r),
       onTap: picking
           ? () => onToggle(!selected)
           : () => context.go(AppRoutes.recordDetailFor(r.id)),
@@ -1220,6 +1162,25 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         ),
         trailing: r.sealed ? const _EncryptedMark() : null,
         onTap: () => _openSharedRecord(context, section, r),
+        contextActions: () => [
+          if (!r.isLocked)
+            AppSheetAction(
+              icon: AppIcons.copy,
+              label: 'Copy value',
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: r.value));
+                AppToast.success(context, 'Copied to clipboard');
+              },
+            ),
+          if (!r.isLocked &&
+              !r.isFile &&
+              Stores.vault.canEditShared(section, r))
+            AppSheetAction(
+              icon: AppIcons.pencil,
+              label: 'Edit value',
+              onTap: () => _editSharedRecord(context, r, closeAfterSave: false),
+            ),
+        ],
       );
 
   Future<void> _openSharedRecord(
@@ -1319,7 +1280,11 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
   /// Changes the value of a colleague's record, in a section they opened
   /// for editing (VISIBILITY.md). An encrypted one is written encrypted.
-  Future<void> _editSharedRecord(BuildContext context, models.Record r) async {
+  Future<void> _editSharedRecord(
+    BuildContext context,
+    models.Record r, {
+    bool closeAfterSave = true,
+  }) async {
     final store = Stores.vault;
     store.sharedEditValue.text = r.value;
     final save = await showAppEditSheet(
@@ -1334,7 +1299,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     if (!context.mounted) return;
     if (ok) {
       AppToast.success(context, 'Value saved');
-      Navigator.of(context).maybePop();
+      if (closeAfterSave) Navigator.of(context).maybePop();
     } else {
       AppToast.error(
         context,

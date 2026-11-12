@@ -63,14 +63,7 @@ class AppListPage extends StatelessWidget {
     final body = AppPageBody(
       children: [
         if (filters != null) ...[filters!, AppSpacing.gapLg],
-        if (inlineToolbar && toolbar != null) ...[
-          toolbar.pill(),
-          if (toolbar.chips(context) case final chips?) ...[
-            AppSpacing.gapSm,
-            chips,
-          ],
-          AppSpacing.gapLg,
-        ],
+        if (inlineToolbar && toolbar != null) ...[toolbar, AppSpacing.gapLg],
         for (final b in banners) ...[b, AppSpacing.gapLg],
         if (emptyMessage != null)
           Padding(

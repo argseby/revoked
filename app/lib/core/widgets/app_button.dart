@@ -5,25 +5,30 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 
-/// How much weight a button carries. A control that is neither the screen's
+/// How much weight a button carries. [outline] gives secondary controls a
+/// subtle boundary so they are recognizable before hover.
+/// A control that is neither the screen's
 /// main action nor destructive is [accent]. [ghost] has no fill of its own and
 /// is only for a control repeated on every row or group — a ⋮ menu — where an
 /// [accent] fill on each one would outweigh the content it sits beside.
 /// [destructive] is the solid red of a confirmation; [danger] is the same
 /// warning outlined, for a destructive action resting on a page, so it is
 /// never the loudest thing on it.
-enum AppButtonStyle { primary, accent, destructive, danger, ghost }
+enum AppButtonStyle { primary, accent, outline, destructive, danger, ghost }
 
 enum AppButtonSize { normal, small }
 
 /// The app's only button. Views never use Filled/Outlined/Text/IconButton
 /// directly — a second button implementation is how screens drift apart.
 ///
-/// Three styles × icon-only or icon+label × normal or small. Omit [label] for
+/// Styles support icon-only or icon+label, normal or small. Omit [label] for
 /// an icon-only button; it then needs a [tooltip], which is also its
 /// accessible name.
 class AppButton extends StatelessWidget {
   final String? label;
+
+  /// Secondary utilities can use a regular-weight label.
+  final bool emphasizeLabel;
   final IconData? icon;
 
   /// Trailing affordance for dropdown and menu triggers, so a trigger is the
@@ -61,6 +66,7 @@ class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
     this.label,
+    this.emphasizeLabel = true,
     this.icon,
     this.trailingIcon,
     required this.onTap,
@@ -92,7 +98,8 @@ class AppButton extends StatelessWidget {
       AppButtonStyle.accent => (Colors.transparent, scheme.onSurface),
       AppButtonStyle.destructive => (scheme.dangerFill, scheme.onDangerFill),
       AppButtonStyle.danger => (Colors.transparent, scheme.danger),
-      AppButtonStyle.ghost => (Colors.transparent, scheme.onSurfaceVariant),
+      AppButtonStyle.ghost ||
+      AppButtonStyle.outline => (Colors.transparent, scheme.onSurfaceVariant),
     };
 
     final AppText? text = iconOnly
@@ -101,7 +108,7 @@ class AppButton extends StatelessWidget {
             label!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            bold: true,
+            bold: emphasizeLabel,
           );
 
     final Widget content = busy
@@ -151,6 +158,8 @@ class AppButton extends StatelessWidget {
                     )
                   : style == AppButtonStyle.accent
                   ? BorderSide(color: scheme.outline)
+                  : style == AppButtonStyle.outline
+                  ? BorderSide(color: scheme.outlineVariant)
                   : style == AppButtonStyle.danger
                   ? BorderSide(color: scheme.danger.withValues(alpha: 0.5))
                   : null,

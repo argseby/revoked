@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/config/app_config.dart';
@@ -198,15 +197,14 @@ class _AppShellState extends State<AppShell> {
       AppRoutes.requests,
       AppRoutes.contacts,
       AppRoutes.attestations,
+      AppRoutes.worksWith,
     ].contains(uri.path)) {
       return true;
     }
     if (uri.path == AppRoutes.shared) {
-      return _sharingHasContents ||
-          Stores.bookmarks.bookmarks.any((b) => b.kind == BookmarkKind.share);
+      return true;
     }
     return uri.path == AppRoutes.vault &&
-        _vaultHasContents &&
         Stores.vault.editingSectionId == null &&
         !uri.queryParameters.containsKey('editShareId') &&
         !uri.queryParameters.containsKey('shareFilterId');
@@ -236,14 +234,6 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  bool get _sharingHasContents =>
-      Stores.shares.shares.isNotEmpty || Stores.shares.sharedShares.isNotEmpty;
-
-  bool get _vaultHasContents =>
-      Stores.vault.records.isNotEmpty ||
-      Stores.vault.sections.isNotEmpty ||
-      Stores.vault.sharedSections.isNotEmpty;
-
   /// A sub-page keeps the title space beside its back arrow.
   Widget _narrow(
     String? root,
@@ -263,13 +253,14 @@ class _AppShellState extends State<AppShell> {
           // A sub-page with an action of its own shows it, Settings pages
           // included, though Settings is no destination on a phone.
           final own = subPageActionFor(path);
-          if ((path == AppRoutes.vault && _vaultHasContents) ||
-              (path == AppRoutes.shared && _sharingHasContents) ||
-              [
+          if ([
                 AppRoutes.overview,
+                AppRoutes.vault,
+                AppRoutes.shared,
                 AppRoutes.requests,
                 AppRoutes.contacts,
                 AppRoutes.attestations,
+                AppRoutes.worksWith,
               ].contains(path) ||
               SheetTracker.anyOpen ||
               (own == null && (destination == null || isSubPage))) {
@@ -382,13 +373,14 @@ class _AppShellState extends State<AppShell> {
         (sidebar && root == AppRoutes.shared);
     final pageAction =
         onList &&
-            !(path == AppRoutes.vault && _vaultHasContents) &&
-            !(root == AppRoutes.shared && _sharingHasContents) &&
+            path != AppRoutes.vault &&
+            root != AppRoutes.shared &&
             ![
               AppRoutes.overview,
               AppRoutes.requests,
               AppRoutes.contacts,
               AppRoutes.attestations,
+              AppRoutes.worksWith,
             ].contains(path)
         ? pageActionFor(path)
         : null;
