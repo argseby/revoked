@@ -138,6 +138,12 @@ func TestPublicPageNeverAsksForInput(t *testing.T) {
 		Expect().Status(http.StatusOK).Body()
 	gatedBody.Contains("revoked://s/")
 	gatedBody.NotContains("page-canary-value-7f31")
+	// Trusting a domain only skips a click the browser could make; a gated
+	// share opens in the app, so there is nothing to skip.
+	gatedBody.NotContains(`id="remember"`)
+
+	api.E.GET("/s/"+open).WithHeader("Accept", browserAccept).
+		Expect().Status(http.StatusOK).Body().Contains(`role="checkbox"`)
 }
 
 // The page is a capability URL rendered as HTML: it must not be cached, must

@@ -178,7 +178,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
       builder: (_) {
         final failure = store.loadState.error;
         if (store.contacts.isEmpty) {
-          // Nothing to list still keeps Search and filter in the top bar.
+          // Nothing to list has nothing to search, so no Search and filter.
           return AppPageBody(
             children: [
               _collectionHeader(context),

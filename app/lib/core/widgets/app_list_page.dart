@@ -107,24 +107,6 @@ class AppListPage extends StatelessWidget {
   }
 }
 
-/// What a list shows while it has nothing to list — its empty state, or the
-/// error of a first load — with its [toolbar] still in the shell's top bar,
-/// so Search and filter sits in the same place on every list, empty or not.
-/// Outside the shell it is only [child]: a field above an empty state would
-/// have nothing to search.
-class AppListEmpty extends StatelessWidget {
-  final AppListToolbar toolbar;
-  final Widget child;
-
-  const AppListEmpty({super.key, required this.toolbar, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    if (!ShellSearchHost.contains(context)) return child;
-    return _SearchClaim(toolbar: toolbar, child: child);
-  }
-}
-
 /// Keeps [toolbar] in [ShellSlots.search] while its list is the one in view,
 /// and takes it out when the list goes or its tab is switched away. Claims
 /// land after the frame: the shell rebuilds from them, and changing what it

@@ -298,7 +298,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             store.sections.isEmpty &&
             store.sharedSections.isEmpty) {
           final failure = store.loadState.error;
-          // Nothing to list still keeps Search and filter in the top bar.
+          // Nothing to list has nothing to search, so no Search and filter.
           Widget bare(Widget child) =>
               AppPageBody(children: [_collectionHeader(context), child]);
           if (failure != null) {

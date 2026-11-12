@@ -351,7 +351,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         ],
       ),
       builder: (_) {
-        // Nothing to list still keeps Search and filter in the top bar.
+        // Nothing to list has nothing to search, so no Search and filter.
         Widget bare(Widget child) =>
             AppPageBody(children: [_collectionHeader(context), child]);
         if (store.shares.isEmpty &&
