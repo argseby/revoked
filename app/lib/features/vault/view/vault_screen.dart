@@ -1,9 +1,14 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
+import 'package:revoked_app/features/vault/view/record_actions.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
-import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/core/utils/value_kind.dart';
+import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -62,7 +67,7 @@ class VaultScreen extends StatefulWidget {
 /// through; several let through a record that is any of them.
 enum _VaultFilter { shared, files, hidden }
 
-/// What the left pane of the wide vault has selected.
+/// Which section or item view is selected in the library.
 sealed class _Pane {
   const _Pane();
 }
@@ -111,11 +116,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       if (s.records.contains(r.id)) _sectionAudience(s),
   ];
 
-  /// The left pane's selection on a wide window.
+  /// The section selected in the library, preserved while searching.
   final Local<_Pane> _pane = Local(const _AllPane());
-
-  /// Width of the wide vault's left pane.
-  static const double _paneWidth = 220;
 
   @override
   void initState() {
@@ -140,9 +142,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       if (mounted) ShellSlots.action.claim(_primaryAction);
       // Which tool keeps or reads a section is said on the section itself.
       if (Stores.connections.connections.isEmpty) Stores.connections.load();
-      if (widget.editingShareId != null || widget.shareFilterId != null) {
-        Stores.shares.loadShares();
-      }
+      Stores.shares.loadIfDue();
     });
   }
 
@@ -154,7 +154,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   }
 
   @override
-  void refresh() => Stores.vault.loadIfDue();
+  void refresh() {
+    Stores.vault.loadIfDue();
+    Stores.shares.loadIfDue();
+  }
 
   /// The way out of a mode the screen is held in — editing a section's records,
   /// or picking what a share exposes. Creation lives on the shell's floating
@@ -183,16 +186,38 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   /// Search, Show and Sort for the records; [links] says how many links
   /// reach each of [matches], for the Shared count.
   AppListToolbar _toolbar(List<models.Record> matches, Map<String, int> links) {
+    final filed = Stores.vault.sections
+        .expand((section) => section.records)
+        .toSet();
     return AppListToolbar(
       key: const ValueKey('vault-toolbar'),
+      totalCount: matches.length,
+      allLabel: 'All items',
+      isAllSelected: () => _pane.value is _AllPane,
+      quickSections: const ['View', 'Show'],
       query: _tableController.query,
       onQueryChanged: _tableController.setQuery,
-      searchHint: 'Search records',
+      searchHint: 'Find an item',
       onClearFilters: () {
+        _pane.value = const _AllPane();
         _filters.value = const {};
         _audiences.value = const {};
       },
       sections: () => [
+        if (filed.isNotEmpty)
+          AppChecklistSection(
+            title: 'View',
+            selected: {if (_pane.value is _UnsortedPane) 'unfiled'},
+            onToggle: (_, on) =>
+                _pane.value = on ? const _UnsortedPane() : const _AllPane(),
+            items: [
+              AppChecklistItem(
+                id: 'unfiled',
+                label: 'Not in a section',
+                count: matches.where((r) => !filed.contains(r.id)).length,
+              ),
+            ],
+          ),
         AppChecklistSection(
           title: 'Show',
           selected: {for (final f in _filters.value) f.name},
@@ -205,7 +230,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           items: [
             AppChecklistItem(
               id: _VaultFilter.shared.name,
-              label: 'Shared',
+              label: 'Shared by you',
               count: matches.where((r) => links[r.id]! > 0).length,
             ),
             AppChecklistItem(
@@ -243,6 +268,16 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   @override
   Widget build(BuildContext context) => _body(context);
 
+  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
+    title: 'Your vault',
+    description: 'Keep your information here. Choose what you share.',
+    action: AppButton(
+      icon: AppIcons.plus,
+      label: 'Add item',
+      onTap: () => openVaultCreateSheet(context),
+    ),
+  );
+
   Widget _body(BuildContext context) {
     final store = Stores.vault;
 
@@ -252,7 +287,12 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           store.records.isEmpty &&
           store.sections.isEmpty &&
           store.sharedSections.isEmpty,
-      skeleton: const AppListSkeleton(group: 'Records'),
+      skeleton: AppPageBody(
+        children: [
+          _collectionHeader(context),
+          const AppListSkeleton(group: 'Records', embedded: true),
+        ],
+      ),
       builder: (_) {
         if (store.records.isEmpty &&
             store.sections.isEmpty &&
@@ -260,7 +300,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           final failure = store.loadState.error;
           // Nothing to list still keeps Search and filter in the top bar.
           Widget bare(Widget child) =>
-              AppListEmpty(toolbar: _toolbar(const [], const {}), child: child);
+              AppPageBody(children: [_collectionHeader(context), child]);
           if (failure != null) {
             return bare(
               AppLoadError(
@@ -287,34 +327,6 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                 AppEmptyStep('Section', 'Records shared together'),
                 AppEmptyStep('Link', 'Shows the current value until revoked'),
               ],
-              // New here, the tour shows the whole loop with real data; the
-              // forms are one tap further.
-              action: AppButton(
-                icon: AppIcons.play,
-                label: 'Take the tour',
-                onTap: () => goReturning(context, AppRoutes.tour),
-              ),
-              secondaryAction: Wrap(
-                spacing: AppSpacing.sm,
-                runSpacing: AppSpacing.sm,
-                children: [
-                  AppButton(
-                    icon: AppIcons.plus,
-                    label: 'New record',
-                    style: AppButtonStyle.accent,
-                    onTap: () => openVaultCreateSheet(context),
-                  ),
-                  AppButton(
-                    icon: AppIcons.fileText,
-                    label: 'From template',
-                    style: AppButtonStyle.accent,
-                    onTap: () => openVaultCreateSheet(
-                      context,
-                      initialTab: VaultCreateTab.template,
-                    ),
-                  ),
-                ],
-              ),
               learnMoreLabel: 'How the vault works',
               learnMoreUrl: '${AppConfig.docsUrl}/guide/vault/',
             ),
@@ -328,22 +340,14 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           if (s.id == store.editingSectionId) editingSection = s;
         }
 
-        // Which links reach each record, directly or through a section — the
-        // "2 links" on a row and the Shared filter both read this.
-        final sectionLinks = {
-          for (final s in store.sections)
-            s.id: Stores.shares.linksForSection(s.id).map((l) => l.id).toSet(),
-        };
-        int linkCount(models.Record r) {
-          final ids = Stores.shares
-              .linksForRecord(r.id)
-              .map((l) => l.id)
-              .toSet();
-          for (final s in store.sections) {
-            if (s.records.contains(r.id)) ids.addAll(sectionLinks[s.id]!);
-          }
-          return ids.length;
-        }
+        // Use the same access rules as the detail page, including aliases
+        // and encrypted records that cannot be read through a section.
+        int linkCount(models.Record r) => accessForRecord(
+          r.id,
+          links: Stores.shares.shares,
+          sections: store.sections,
+          records: store.records,
+        ).where((access) => access.isOpen).length;
 
         final matches = _tableController.filteredItems;
         final links = {for (final r in matches) r.id: linkCount(r)};
@@ -405,13 +409,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           if (SealingAlarm.shows) const SealingAlarm(),
         ];
 
-        // Wide, the vault is a browser: its sections on the left, the
-        // records of the one selected on the right. Picking a share's
-        // contents keeps the single list, where whole sections can be ticked.
-        if (MediaQuery.sizeOf(context).width >= AppSpacing.wideWidth &&
-            shareFilter == null &&
-            shareEdit == null) {
-          return _twoPane(
+        // Normal browsing uses a section library. Share picking keeps the
+        // checkbox list, including whole-section selection.
+        if (shareFilter == null && shareEdit == null) {
+          return _library(
             context,
             records: records,
             links: links,
@@ -598,9 +599,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       (filters.contains(_VaultFilter.files) && r.isFile) ||
       (filters.contains(_VaultFilter.hidden) && r.isHidden);
 
-  /// The wide vault: the sections on the left, the selected one's records on
-  /// the right under its own header and the list's toolbar.
-  Widget _twoPane(
+  /// A section library above one item list, at every window size.
+  Widget _library(
     BuildContext context, {
     required List<models.Record> records,
     required Map<String, int> links,
@@ -609,89 +609,94 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   }) {
     final store = Stores.vault;
     final scheme = Theme.of(context).colorScheme;
-    final filters = _filters.value;
     final audiences = _audiences.value;
-    final query = _tableController.query;
-
-    // A section deleted or unshared since it was picked: back to all.
     var pane = _pane.value;
     Section? section;
     Section? shared;
-    switch (pane) {
-      case _SectionPane(:final id):
-        section = store.sections.where((s) => s.id == id).firstOrNull;
-      case _SharedPane(:final id):
-        shared = store.sharedSections.where((s) => s.id == id).firstOrNull;
-      case _AllPane() || _UnsortedPane():
-        break;
+    if (pane is _SectionPane) {
+      final id = pane.id;
+      section = store.sections.where((s) => s.id == id).firstOrNull;
+      if (section == null) pane = const _AllPane();
+    } else if (pane is _SharedPane) {
+      final id = pane.id;
+      shared = store.sharedSections.where((s) => s.id == id).firstOrNull;
+      if (shared == null) pane = const _AllPane();
     }
-    if ((pane is _SectionPane && section == null) ||
-        (pane is _SharedPane && shared == null)) {
-      pane = const _AllPane();
-    }
-
     final filed = store.sections.expand((s) => s.records).toSet();
-    final unsortedCount = store.records
-        .where((r) => !filed.contains(r.id))
-        .length;
     final sections = [
       for (final s in store.sections) (s, const <models.Record>[]),
     ];
     _sortSections(sections);
-
-    final left = DecoratedBox(
-      decoration: BoxDecoration(
-        border: BorderDirectional(
-          end: BorderSide(color: scheme.outlineVariant),
+    final shown = [
+      for (final r in records)
+        if (pane is _AllPane ||
+            (pane is _UnsortedPane && !filed.contains(r.id)) ||
+            (section != null && section.records.contains(r.id)))
+          r,
+    ];
+    final sharedById = {for (final r in store.sharedRecords) r.id: r};
+    final sharedShown = [
+      if (shared != null && _sharedVisible(_filters.value))
+        for (final id in shared.records)
+          if (sharedById[id] case final r?)
+            if (_sharedMatches(r, _filters.value) &&
+                audienceMatches(audiences, [_sectionAudience(shared)]) &&
+                _tableController.matchesQuery(r))
+              r,
+    ];
+    final title = section != null
+        ? _sectionName(section)
+        : shared != null
+        ? _sectionName(shared)
+        : pane is _UnsortedPane
+        ? 'Not in a section'
+        : 'All items';
+    final count = shared != null ? sharedShown.length : shown.length;
+    final sectionWidgets = <Widget>[
+      for (final (s, _) in sections)
+        _VaultSectionTile(
+          key: ValueKey('vault-section-${s.id}'),
+          icon: _originOf(s)?.icon ?? AppIcons.folder,
+          title: _sectionName(s),
+          subtitle:
+              _originOf(s)?.label ??
+              '${s.records.length} ${s.records.length == 1 ? 'item' : 'items'}',
+          audience: _sectionAudience(s),
+          selected: section?.id == s.id,
+          onTap: () => _pane.value = section?.id == s.id
+              ? const _AllPane()
+              : _SectionPane(s.id),
         ),
-      ),
-      child: SizedBox(
-        width: _paneWidth,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      for (final s in store.sharedSections)
+        _VaultSectionTile(
+          key: ValueKey('vault-section-${s.id}'),
+          icon: AppIcons.personWorkspace,
+          title: _sectionName(s),
+          subtitle: 'Shared by ${s.ownerEmail ?? 'another member'}',
+          audience: _sectionAudience(s),
+          selected: shared?.id == s.id,
+          onTap: () => _pane.value = shared?.id == s.id
+              ? const _AllPane()
+              : _SharedPane(s.id),
+        ),
+    ];
+    return AppPageBody(
+      bottomPadding: AppSpacing.gigantic,
+      children: [
+        _collectionHeader(context),
+        for (final banner in banners) ...[banner, AppSpacing.gapLg],
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _PaneItem(
-              icon: AppIcons.safe,
-              label: 'All records',
-              count: store.records.length,
-              selected: pane is _AllPane,
-              onTap: () => _pane.value = const _AllPane(),
-            ),
-            if (sections.isNotEmpty) const _PaneHeading('Sections'),
-            for (final (s, _) in sections)
-              _PaneItem(
-                // A tool's section is told apart while scanning the pane.
-                icon: _originOf(s)?.icon ?? AppIcons.folder,
-                label: _sectionName(s),
-                audience: _sectionAudience(s),
-                count: s.records.length,
-                selected: pane is _SectionPane && pane.id == s.id,
-                onTap: () => _pane.value = _SectionPane(s.id),
-              ),
-            if (store.sharedSections.isNotEmpty)
-              const _PaneHeading('Shared by members'),
-            for (final s in store.sharedSections)
-              _PaneItem(
-                icon: AppIcons.personWorkspace,
-                label: _sectionName(s),
-                audience: _sectionAudience(s),
-                count: s.records.length,
-                selected: pane is _SharedPane && pane.id == s.id,
-                onTap: () => _pane.value = _SharedPane(s.id),
-              ),
-            if (sections.isNotEmpty || store.sharedSections.isNotEmpty)
-              AppSpacing.gapSm,
-            _PaneItem(
-              icon: AppIcons.fileText,
-              label: 'Not in a section',
-              count: unsortedCount,
-              selected: pane is _UnsortedPane,
-              onTap: () => _pane.value = const _UnsortedPane(),
-            ),
-            _PaneItem(
-              icon: AppIcons.plus,
-              label: 'Section',
-              muted: true,
+            const AppText('Your sections').bold,
+            AppButton(
+              label: 'New section',
+              emphasizeLabel: false,
+              icon: AppIcons.folderPlus,
+              size: AppButtonSize.small,
+              style: AppButtonStyle.outline,
               onTap: () => openVaultCreateSheet(
                 context,
                 initialTab: VaultCreateTab.section,
@@ -699,175 +704,156 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             ),
           ],
         ),
-      ),
-    );
-
-    // [records] already answer the search, which the store applies.
-    final searched = records;
-    final String title;
-    Widget? headerTrailing;
-
-    /// Before the title: where the section came from, when not by hand.
-    IconData? headerIcon;
-    final List<Widget> body;
-    switch (pane) {
-      case _SectionPane():
-        final s = section!;
-        final byId = {for (final r in searched) r.id: r};
-        final shown = [
-          for (final id in s.records)
-            if (byId[id] case final r?)
-              if (audienceMatches(audiences, [
-                _sectionAudience(s),
-                _recordAudience(r),
-              ]))
-                r,
-        ];
-        title = _sectionName(s);
-        headerIcon = _originOf(s)?.icon;
-        headerTrailing = Row(
-          mainAxisSize: MainAxisSize.min,
+        AppSpacing.gapMd,
+        if (sectionWidgets.isNotEmpty)
+          LayoutBuilder(
+            builder: (context, box) {
+              final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+              final columns = (box.maxWidth / (220 * scale)).floor().clamp(
+                1,
+                3,
+              );
+              final width =
+                  (box.maxWidth - AppSpacing.md * (columns - 1)) / columns;
+              return Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.md,
+                children: [
+                  for (final tile in sectionWidgets)
+                    SizedBox(width: width, child: tile),
+                ],
+              );
+            },
+          )
+        else
+          const AppText(
+            'Create a section to keep related items together.',
+          ).small.muted,
+        AppSpacing.gapXxl,
+        toolbar,
+        AppSpacing.gapXl,
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _sectionBadges(context, s),
-            AppSpacing.gapSm,
-            _sectionMenu(context, s, shown.length),
-          ],
-        );
-        body = [
-          AppListGroup(
-            title: 'Records',
-            noun: 'records',
-            children: [
-              ...?_sectionSource(context, s),
-              if (shown.isEmpty)
-                AppDetailRow(
-                  icon: AppIcons.info,
-                  label: s.records.isEmpty
-                      ? 'No records in this section'
-                      : 'Nothing matches the filters',
-                )
-              else
-                for (final r in shown) _recordRow(r, links: links[r.id]!),
+            AppText('$title · $count').header,
+            if (section != null) ...[
+              _sectionBadges(context, section),
+              _sectionMenu(context, section, shown.length),
             ],
-          ),
-        ];
-      case _SharedPane():
-        final s = shared!;
-        final byId = {for (final r in store.sharedRecords) r.id: r};
-        final shown = [
-          for (final id in s.records)
-            if (byId[id] case final r?)
-              if (_sharedVisible(filters) &&
-                  audienceMatches(audiences, [_sectionAudience(s)]) &&
-                  _sharedMatches(r, filters) &&
-                  _tableController.matchesQuery(r))
-                r,
-        ];
-        title = _sectionName(s);
-        headerTrailing = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AudienceTag(_sectionAudience(s)),
-            AppSpacing.gapSm,
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 220),
-              child: AppBadge(
-                icon: AppIcons.person,
-                label: s.id == VaultStore.sharedEntriesId
-                    ? 'Published to the workspace'
-                    : 'Shared by ${s.ownerEmail ?? 'another member'}',
-              ),
-            ),
-          ],
-        );
-        body = [
-          AppListGroup(
-            title: 'Records',
-            noun: 'records',
-            children: [
-              if (shown.isEmpty)
-                AppDetailRow(
-                  icon: AppIcons.info,
-                  label: s.records.isEmpty
-                      ? 'No records in this section'
-                      : 'Nothing matches the filters',
-                )
-              else
-                for (final r in shown) _sharedRow(context, s, r),
-            ],
-          ),
-        ];
-      case _UnsortedPane():
-        final shown = [
-          for (final r in searched)
-            if (!filed.contains(r.id)) r,
-        ];
-        title = 'Not in a section';
-        body = [
-          if (shown.isNotEmpty)
-            AppListGroup(
-              title: 'Records',
-              noun: 'records',
-              children: [
-                for (final r in shown) _recordRow(r, links: links[r.id]!),
-              ],
-            ),
-        ];
-      case _AllPane():
-        title = 'All records';
-        body = [
-          if (searched.isNotEmpty)
-            AppListGroup(
-              title: 'Records',
-              noun: 'records',
-              children: [
-                for (final r in searched) _recordRow(r, links: links[r.id]!),
-              ],
-            ),
-        ];
-    }
-
-    // The pane's header row: what is selected on the left, the list's
-    // search, Filter and Sort on the right — one row, like the tabs' strip.
-    final right = AppListPage(
-      // The pane's name over its list; the search is in the top bar.
-      toolbar: toolbar,
-      header: SizedBox(
-        height: AppButton.smallExtent,
-        child: Row(
-          children: [
-            if (headerIcon != null) ...[
-              Icon(headerIcon, size: 20, color: scheme.onSurfaceVariant),
-              AppSpacing.gapSm,
-            ],
-            Expanded(
-              child: AppText(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ).header,
-            ),
-            ?headerTrailing,
           ],
         ),
-      ),
-      banners: banners,
-      emptyMessage: body.isEmpty
-          ? (query.trim().isNotEmpty ||
-                    filters.isNotEmpty ||
-                    audiences.isNotEmpty
-                ? 'Nothing matches the search or filters.'
-                : 'No records here.')
-          : null,
-      groups: body,
-    );
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        left,
-        Expanded(child: right),
+        if (section != null) ...?_sectionSource(context, section),
+        if (shared != null) ...[
+          AppSpacing.gapSm,
+          AppText(
+            shared.id == VaultStore.sharedEntriesId
+                ? 'Published to the workspace'
+                : 'Shared by ${shared.ownerEmail ?? 'another member'}',
+          ).small.muted,
+        ],
+        AppSpacing.gapMd,
+        Divider(height: 1, color: scheme.outlineVariant),
+        if (count == 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
+            child: const AppText(
+              'No items match this view. Try another section or clear the filters.',
+            ).muted,
+          )
+        else if (shared != null)
+          for (final r in sharedShown) ...[
+            _sharedRow(context, shared, r),
+            Divider(height: 1, color: scheme.outlineVariant),
+          ]
+        else
+          for (final r in shown) ...[
+            _libraryRow(r, links: links[r.id]!),
+            Divider(height: 1, color: scheme.outlineVariant),
+          ],
+        AppSpacing.gapLg,
+        const AppText(
+          'Open an item to view its contents or manage access.',
+        ).small.muted,
       ],
+    );
+  }
+
+  /// Metadata rather than values: browsing never exposes a saved secret.
+  Widget _libraryRow(models.Record r, {required int links}) {
+    final audience = Audience.combined(_audiencesOf(r));
+    final shared = links > 0 || !audience.isPrivate;
+    final scheme = Theme.of(context).colorScheme;
+    final kind = valueKindOf(
+      type: r.type,
+      value: r.isHidden || r.isLocked ? '' : r.value,
+      key: r.key,
+      label: r.label,
+      mime: r.mime ?? '',
+      filename: r.displayName,
+    );
+    final icon = switch (kind) {
+      ValueKind.email => AppIcons.mail,
+      ValueKind.phone => AppIcons.phone,
+      ValueKind.person => AppIcons.person,
+      ValueKind.place => AppIcons.place,
+      ValueKind.work => AppIcons.work,
+      ValueKind.pdf => AppIcons.fileText,
+      _ => RecordTypeUtils.icon(r.type),
+    };
+    final detail = [
+      if (r.isLocked)
+        'Not readable on this device'
+      else if (r.isFile)
+        '${RecordTypeUtils.label(r.type)} · ${formatBytes(r.size)}'
+      else if (r.isHidden)
+        'Hidden value'
+      else
+        RecordTypeUtils.label(r.type),
+      if (r.isAlias) 'Alias',
+      if (r.sealed) 'Encrypted',
+      if (r.isWrittenByTool) 'From ${r.writerName}',
+    ].join(' · ');
+    final access =
+        !Stores.shares.loadState.hasLoaded ||
+            Stores.shares.loadState.error != null
+        ? 'Access not confirmed'
+        : links > 0
+        ? 'Shared · $links ${links == 1 ? 'link' : 'links'}'
+        : audience.isPrivate
+        ? 'Only you'
+        : audience.effectiveKind == 'workspace'
+        ? 'Workspace'
+        : 'Shared with groups';
+    return LayoutBuilder(
+      builder: (context, box) {
+        final narrow =
+            box.maxWidth < 520 ||
+            MediaQuery.textScalerOf(context).scale(16) > 24;
+        return AppListRow(
+          icon: icon,
+          title: r.label.isEmpty ? r.key : r.label,
+          subtitle: narrow ? '$detail · $access' : detail,
+          trailing: narrow
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      shared ? AppIcons.personWorkspace : AppIcons.lock,
+                      size: 14,
+                      color: shared ? scheme.success : scheme.onSurfaceVariant,
+                    ),
+                    AppSpacing.gapXs,
+                    AppText(access).small,
+                  ],
+                ),
+          audience: audience.isPrivate ? null : AudienceTag(audience),
+          onTap: () => context.go(AppRoutes.recordDetailFor(r.id)),
+          contextActions: () => RecordActions(context).forRecord(r),
+        );
+      },
     );
   }
 
@@ -923,6 +909,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           ? _LinkCount(links)
           : null,
       showChevron: !picking,
+      contextActions: picking
+          ? null
+          : () => RecordActions(context).forRecord(r),
       onTap: picking
           ? () => onToggle(!selected)
           : () => context.go(AppRoutes.recordDetailFor(r.id)),
@@ -1173,6 +1162,25 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         ),
         trailing: r.sealed ? const _EncryptedMark() : null,
         onTap: () => _openSharedRecord(context, section, r),
+        contextActions: () => [
+          if (!r.isLocked)
+            AppSheetAction(
+              icon: AppIcons.copy,
+              label: 'Copy value',
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: r.value));
+                AppToast.success(context, 'Copied to clipboard');
+              },
+            ),
+          if (!r.isLocked &&
+              !r.isFile &&
+              Stores.vault.canEditShared(section, r))
+            AppSheetAction(
+              icon: AppIcons.pencil,
+              label: 'Edit value',
+              onTap: () => _editSharedRecord(context, r, closeAfterSave: false),
+            ),
+        ],
       );
 
   Future<void> _openSharedRecord(
@@ -1272,7 +1280,11 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
   /// Changes the value of a colleague's record, in a section they opened
   /// for editing (VISIBILITY.md). An encrypted one is written encrypted.
-  Future<void> _editSharedRecord(BuildContext context, models.Record r) async {
+  Future<void> _editSharedRecord(
+    BuildContext context,
+    models.Record r, {
+    bool closeAfterSave = true,
+  }) async {
     final store = Stores.vault;
     store.sharedEditValue.text = r.value;
     final save = await showAppEditSheet(
@@ -1287,7 +1299,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     if (!context.mounted) return;
     if (ok) {
       AppToast.success(context, 'Value saved');
-      Navigator.of(context).maybePop();
+      if (closeAfterSave) Navigator.of(context).maybePop();
     } else {
       AppToast.error(
         context,
@@ -1704,104 +1716,6 @@ class _LinkCount extends StatelessWidget {
   }
 }
 
-/// A heading between the left pane's groups of entries.
-class _PaneHeading extends StatelessWidget {
-  final String label;
-
-  const _PaneHeading(this.label);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppSpacing.lg,
-      AppSpacing.lg,
-      AppSpacing.md,
-      AppSpacing.xxs,
-    ),
-    child: AppText(label).small.muted,
-  );
-}
-
-/// One entry in the wide vault's left pane: a section, or a view of the
-/// records, with how many it holds.
-class _PaneItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int? count;
-  final bool selected;
-  final bool muted;
-  final VoidCallback onTap;
-
-  /// Who sees a section, as an icon before its count.
-  final Audience? audience;
-
-  const _PaneItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.audience,
-    this.count,
-    this.selected = false,
-    this.muted = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final fg = selected
-        ? scheme.onSurface
-        : muted
-        ? scheme.onSurfaceVariant
-        : scheme.onSurface;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: Material(
-        color: selected ? scheme.surfaceContainerHighest : Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: AppRadius.allMd,
-          child: Container(
-            height: AppButton.smallExtent,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            decoration: BoxDecoration(
-              border: BorderDirectional(
-                start: BorderSide(
-                  width: 2,
-                  color: selected ? scheme.primary : Colors.transparent,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 16, color: scheme.onSurfaceVariant),
-                AppSpacing.gapSm,
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: fg,
-                      fontSize: AppTextSize.small,
-                      fontWeight: selected ? FontWeight.w600 : null,
-                    ),
-                  ),
-                ),
-                if (audience case final a?) ...[
-                  AudienceTag(a, compact: true),
-                  AppSpacing.gapXs,
-                ],
-                if (count != null) AppText('$count').small.muted,
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Where a section came from, for [_OriginBadge] and the icons in the pane
 /// and before its title.
 class _SectionOrigin {
@@ -1850,6 +1764,97 @@ class _OriginBadge extends StatelessWidget {
                     ? AppBadgeVariant.outline
                     : AppBadgeVariant.primary,
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A section is a destination, visually distinct from an individual item.
+class _VaultSectionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Audience audience;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _VaultSectionTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.audience,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected
+            ? scheme.secondaryContainer
+            : scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allMd,
+          side: BorderSide(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest,
+                        borderRadius: AppRadius.allMd,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        child: Icon(
+                          icon,
+                          size: 22,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    if (!audience.isPrivate)
+                      AudienceTag(audience, compact: true),
+                    AppSpacing.gapSm,
+                    Icon(
+                      selected ? AppIcons.checkCircle : AppIcons.arrowRight,
+                      size: 18,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+                AppSpacing.gapLg,
+                AppText(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ).bold,
+                AppSpacing.gapXxs,
+                AppText(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ).small.muted,
+              ],
             ),
           ),
         ),

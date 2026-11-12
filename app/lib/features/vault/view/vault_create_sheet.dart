@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -76,7 +76,6 @@ void openVaultCreateSheet(
                 AppTab(
                   label: 'Record',
                   icon: AppIcons.key,
-                  description: 'A single value, such as an IBAN, or a file.',
                   view: recordCreateForm(
                     parentContext: context,
                     initialType: recordType,
@@ -85,7 +84,6 @@ void openVaultCreateSheet(
                 AppTab(
                   label: 'Section',
                   icon: AppIcons.folder,
-                  description: 'Records grouped to be shared together.',
                   view: sectionCreateForm(
                     parentContext: context,
                     duplicateOf: duplicateSection,
@@ -94,7 +92,6 @@ void openVaultCreateSheet(
                 AppTab(
                   label: 'Template',
                   icon: AppIcons.cardList,
-                  description: 'Several records in one step, from a template.',
                   view: templateFillForm(parentContext: context),
                 ),
               ],

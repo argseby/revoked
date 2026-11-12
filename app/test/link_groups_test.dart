@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:revoked_app/core/models/link.dart';
@@ -127,6 +127,13 @@ void main() {
       );
       expect(find.text('Row 0'), findsNothing);
 
+      await tester.tap(find.text('Show 8 links'));
+      await tester.pump();
+      expect(find.text('Row 7'), findsOneWidget);
+      await tester.tap(find.text('Hide 8 links'));
+      await tester.pump();
+      expect(find.text('Row 0'), findsNothing);
+      expect(find.text('Show 8 links'), findsOneWidget);
       await tester.tap(find.text('Show 8 links'));
       await tester.pump();
       expect(find.text('Row 7'), findsOneWidget);

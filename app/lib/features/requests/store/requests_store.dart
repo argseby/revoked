@@ -501,6 +501,9 @@ abstract class _RequestsStore with Store {
     }
   }
 
+  /// The exact object returned by the last create, independent of list ordering.
+  DataRequest? lastCreatedRequest;
+
   @action
   Future<bool> createRequest({
     required String slug,
@@ -520,6 +523,7 @@ abstract class _RequestsStore with Store {
     String audienceKind = '',
     List<String> audienceGroups = const [],
   }) async {
+    lastCreatedRequest = null;
     isLoading = true;
     errorMessage = null;
     try {
@@ -547,6 +551,7 @@ abstract class _RequestsStore with Store {
         audienceKind: audienceKind,
         audienceGroups: audienceGroups,
       );
+      lastCreatedRequest = req;
       requests.insert(0, req);
       return true;
     } catch (e) {

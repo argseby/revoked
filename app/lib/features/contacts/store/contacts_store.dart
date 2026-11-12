@@ -288,6 +288,21 @@ abstract class _ContactsStore with Store {
     });
   }
 
+  /// Deliver the original object; never mint a copy with different protections.
+  Future<ContactGrant> deliverExisting(
+    String contactId, {
+    required String id,
+    required String kind,
+  }) async {
+    final data = await _api.post(
+      '/api/contacts/$contactId/deliver',
+      body: {'id': id, 'kind': kind},
+    );
+    final grant = ContactGrant.fromJson(data as Map<String, dynamic>);
+    await _reload(contactId);
+    return grant;
+  }
+
   /// Starts the rename sheet on the contact's current name.
   @action
   void startRename(String id) => renameName.text = byId(id)?.name ?? '';

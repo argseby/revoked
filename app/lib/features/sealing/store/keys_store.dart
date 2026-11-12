@@ -319,13 +319,10 @@ abstract class _KeysStore with Store {
 
   _KeysStore(
     this._api, {
-    required String Function() currentUser,
+    required this._currentUser,
     FlutterSecureStorage? storage,
-    Future<List<MemberKeys>> Function(String workspace, {bool fresh})?
-    membersOf,
-  }) : _currentUser = currentUser,
-       _membersOf = membersOf,
-       _storage = storage ?? createSecureStorage();
+    this._membersOf,
+  }) : _storage = storage ?? createSecureStorage();
 
   /// Other members' checked lists, for keys they hand this person and keys this
   /// person hands them. Without it, nothing crosses between people.

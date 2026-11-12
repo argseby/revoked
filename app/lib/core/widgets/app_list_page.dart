@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
@@ -28,6 +28,9 @@ class AppListPage extends StatelessWidget {
   /// The list's search, Filter and sort.
   final AppListToolbar? toolbar;
 
+  /// Collection pages keep search next to their rows, below their overview.
+  final bool inlineToolbar;
+
   /// Pinned above the list, over the chips — a pane's name.
   final Widget? header;
 
@@ -46,6 +49,7 @@ class AppListPage extends StatelessWidget {
   const AppListPage({
     super.key,
     this.toolbar,
+    this.inlineToolbar = false,
     this.header,
     this.filters,
     this.banners = const [],
@@ -55,9 +59,11 @@ class AppListPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final toolbar = this.toolbar;
     final body = AppPageBody(
       children: [
         if (filters != null) ...[filters!, AppSpacing.gapLg],
+        if (inlineToolbar && toolbar != null) ...[toolbar, AppSpacing.gapLg],
         for (final b in banners) ...[b, AppSpacing.gapLg],
         if (emptyMessage != null)
           Padding(
@@ -68,14 +74,14 @@ class AppListPage extends StatelessWidget {
           ...groups,
       ],
     );
-    final toolbar = this.toolbar;
-    final inShell = toolbar != null && ShellSearchHost.contains(context);
+    final inShell =
+        !inlineToolbar && toolbar != null && ShellSearchHost.contains(context);
     final pinned = <Widget>[
       ?header,
-      if (toolbar != null && !inShell) toolbar.pill(),
+      if (toolbar != null && !inShell && !inlineToolbar) toolbar.pill(),
       // In the shell the search is behind the top bar's button, so what was
       // typed shows here with the rest.
-      ?toolbar?.chips(context, withQuery: inShell),
+      if (!inlineToolbar) ?toolbar?.chips(context, withQuery: inShell),
     ];
     Widget page = pinned.isEmpty
         ? body

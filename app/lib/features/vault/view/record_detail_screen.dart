@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/features/vault/view/record_actions.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
@@ -17,7 +18,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/tool_tag.dart';
 import 'package:revoked_app/core/utils/people.dart';
-import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
@@ -35,9 +35,7 @@ import 'package:revoked_app/core/widgets/file_view_sheet.dart';
 import 'package:revoked_app/features/reminders/view/reminder_sheet.dart';
 import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
-import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
-import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/record_edit_sheet.dart';
@@ -302,68 +300,8 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     );
   }
 
-  Future<void> _seal(models.Record r) async {
-    final ready = await ensureSealingReady(context, r.workspace);
-    if (!ready || !mounted) return;
-    var outcome = await Stores.vault.sealRecord(r.id);
-    if (!mounted) return;
-    if (outcome == SealOutcome.linksAffected) {
-      final go = await showAppDialog(
-        context: context,
-        title: 'Some links cannot keep this record',
-        message:
-            'Links whose keys are readable on this device keep the encrypted entry. '
-            'Other links stop showing it, and their owners are notified. '
-            'Copies of addresses that gain a key need the complete new address.',
-        confirmLabel: 'Encrypt',
-        confirmIcon: AppIcons.lock,
-      );
-      if (!go || !mounted) return;
-      outcome = await Stores.vault.sealRecord(r.id, dropLinks: true);
-      if (!mounted) return;
-    }
-    if (outcome == SealOutcome.sealed) {
-      await showAppDialog(
-        context: context,
-        title: 'Encrypted',
-        message:
-            'Links kept during encryption now require their complete address, including '
-            'the key after #. The server can no longer read this value. Its backups may still hold '
-            'the old value. Sensitive secrets should be rotated.',
-        confirmLabel: 'OK',
-        confirmIcon: AppIcons.check,
-        cancelLabel: null,
-      );
-    } else if (outcome == SealOutcome.failed) {
-      AppToast.error(
-        context,
-        'The record could not be encrypted.',
-        subtitle: Stores.vault.errorMessage,
-      );
-    }
-  }
-
-  Future<void> _unseal(models.Record r) async {
-    final go = await showAppDialog(
-      context: context,
-      title: 'Stop encrypting this record?',
-      message:
-          'The server will be able to read it again. Section links that '
-          'include it will show it again.',
-      confirmLabel: 'Stop encrypting',
-      confirmIcon: AppIcons.lock,
-      destructive: true,
-    );
-    if (!go) return;
-    final ok = await Stores.vault.unsealRecord(r.id);
-    if (!ok && mounted) {
-      AppToast.error(
-        context,
-        'Encryption could not be turned off.',
-        subtitle: Stores.vault.errorMessage,
-      );
-    }
-  }
+  Future<void> _seal(models.Record r) => RecordActions(context).seal(r);
+  Future<void> _unseal(models.Record r) => RecordActions(context).unseal(r);
 
   Widget _unsealedElsewhereAlert(models.Record r) => AppAlert(
     destructive: true,
@@ -816,49 +754,15 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
     );
   }
 
-  Future<void> _downloadFile(models.Record r) async {
-    final bytes = await Stores.vault.fetchRecordFileBytes(r);
-    if (bytes == null) {
-      if (mounted) {
-        AppToast.error(
-          context,
-          'The file could not be downloaded.',
-          subtitle: Stores.vault.errorMessage,
-        );
-      }
-      return;
-    }
-    final ok = await saveFileToDevice(
-      bytes: bytes,
-      filename: r.displayName,
-      mime: r.mime,
-    );
-    if (ok && mounted) AppToast.success(context, 'File saved');
-  }
+  Future<void> _downloadFile(models.Record r) =>
+      RecordActions(context).download(r);
 
-  Future<void> _confirmDelete(BuildContext context, models.Record r) async {
-    final confirmed = await showAppDialog(
-      context: context,
-      title: 'Delete record',
-      message:
-          'The record is removed from every link that shows it. The links '
-          'stay open. This cannot be undone.',
-      content: ApiPreview(
-        spec: VaultStore.deleteRecordSpec(r.id),
-        title: 'API request · delete',
-      ),
-      confirmLabel: 'Delete',
-      destructive: true,
-    );
-    if (!confirmed || !context.mounted) return;
-    _deleting.value = true;
-    final ok = await Stores.vault.deleteRecord(r.id);
-    _deleting.value = false;
-    if (ok && context.mounted) {
-      AppToast.success(context, 'Record deleted');
-      _back();
-    }
-  }
+  Future<void> _confirmDelete(BuildContext context, models.Record r) =>
+      RecordActions(
+        context,
+        onDeleted: _back,
+        onBusy: (busy) => _deleting.value = busy,
+      ).delete(r);
 }
 
 /// The record's value, in full and in the mono face. A hidden value is masked

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/router/return_to.dart';
@@ -16,6 +16,7 @@ import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
@@ -93,6 +94,25 @@ enum SettingsPage {
   /// Templates live in the vault now; every other topic under Settings.
   String get route =>
       this == templates ? AppRoutes.templates : AppRoutes.settingsPage(slug);
+
+  /// The same content heading and supporting copy as the main collections.
+  String get description => switch (this) {
+    appearance => 'Make Revoked comfortable to read and use on this device.',
+    features => 'Choose which parts of Revoked appear in your navigation.',
+    passkeys => 'Manage how you sign in and add another layer of protection.',
+    encryption => 'Control which devices can open your encrypted records.',
+    workspaces => 'Separate your records, members and access into spaces.',
+    members => 'See who has access to this workspace and what they can do.',
+    invites => 'Invite people to your workspace with the access they need.',
+    identities => 'Manage the identities that sign your shares and responses.',
+    connectedTools =>
+      'Review the services you connected and the access you gave them.',
+    apiKeys => 'Give scripts and applications scoped access to this workspace.',
+    mcp => 'Connect an AI assistant to Revoked with permissions you control.',
+    webhooks => 'Send workspace events to your services and review deliveries.',
+    templates => 'Reusable blueprints for records and request forms.',
+    domain => 'Check that your server’s domain vouches for its signing key.',
+  };
 
   static SettingsPage? fromSlug(String? slug) {
     for (final p in values) {
@@ -192,6 +212,10 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
   Widget build(BuildContext context) {
     return AppPageBody(
       children: [
+        AppCollectionHeader(
+          title: widget.page.title,
+          description: widget.page.description,
+        ),
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),
           SettingsPage.features => const FeaturesPage(),
@@ -954,6 +978,10 @@ class _DomainPage extends StatelessWidget {
       builder: (_) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (store.domainVerdict case final verdict?) ...[
+            AppTrustBadge(verdict: verdict),
+            AppSpacing.gapXxl,
+          ],
           AppListGroup(
             title: 'DNS check',
             trailing: const SizedBox.shrink(),
@@ -962,24 +990,27 @@ class _DomainPage extends StatelessWidget {
               'that shares and responses originate from this domain.',
             ),
             children: [
-              // A row like any other in the group: the full trust banner
-              // brings its own border and drew a box inside the card. The
-              // compact badge names the domain and opens the reason on tap.
               AppDetailRow(
                 icon: AppIcons.server,
-                label: 'Status',
-                value: store.domainVerdict != null
-                    ? ''
-                    : store.isCheckingDomain
-                    ? 'Checking…'
-                    : 'Not checked',
-                badge: store.domainVerdict == null
-                    ? null
-                    : AppTrustBadge(
-                        verdict: store.domainVerdict!,
-                        compact: true,
-                      ),
+                label: 'Domain',
+                value:
+                    store.domainVerdict?.domain ??
+                    Uri.tryParse(Stores.api.baseUrl)?.host ??
+                    '',
               ),
+              if (store.domainVerdict == null || store.isCheckingDomain)
+                AppDetailRow(
+                  icon: AppIcons.shieldCheck,
+                  label: 'Status',
+                  value: store.isCheckingDomain ? 'Checking…' : 'Not checked',
+                ),
+              if (store.domainVerdict?.rootFingerprint case final fingerprint?)
+                AppDetailRow(
+                  icon: AppIcons.key,
+                  label: 'Root key',
+                  value: fingerprint,
+                  valueMono: true,
+                ),
             ],
           ),
           if (store.domainError != null) ...[

@@ -125,14 +125,14 @@ padding: 24px 20px calc(32px + env(safe-area-inset-bottom));
 display: flex; flex-direction: column; gap: 14px;
 }
 .space { flex: 1; }
-.tile { width: 64px; height: 64px; border-radius: 0; overflow: hidden; }
+.tile { width: 64px; height: 64px; border-radius: var(--radius-md); overflow: hidden; }
 .tile img { width: 64px; height: 64px; display: block; }
 .tile img.dark { display: none; }
 @media (prefers-color-scheme: dark) { .tile img.light { display: none; } .tile img.dark { display: block; } }
 h1 { font-size: 28px; font-weight: 650; line-height: 1.15; letter-spacing: -0.04em; }
 .lead { color: var(--fg-muted); }
 .btn {
-min-height: 52px; border-radius: 0; padding: 12px 16px;
+min-height: 52px; border-radius: var(--radius-md); padding: 12px 16px;
 display: flex; align-items: center; justify-content: center;
 font-size: 16px; font-weight: 650; text-decoration: none; text-align: center;
 }
@@ -140,7 +140,7 @@ font-size: 16px; font-weight: 650; text-decoration: none; text-align: center;
 .quiet { border: 1px solid var(--control); color: var(--fg); font-weight: 600; }
 .btn:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .label { color: var(--fg-muted); font-size: 14px; text-align: center; }
-.server { margin-top: 8px; padding: 10px 12px; border-radius: 0; background: var(--subtle); font-size: 13px; color: var(--fg-muted); text-align: center; }
+.server { margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--subtle); font-size: 13px; color: var(--fg-muted); text-align: center; }
 .server b { color: var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 500; }
 </style>
 </head>

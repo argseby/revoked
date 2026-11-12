@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -177,6 +177,12 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         modalElevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppRadius.lg),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -194,6 +200,18 @@ class AppTheme {
           surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
           side: WidgetStatePropertyAll(outline),
           elevation: const WidgetStatePropertyAll(0),
+          shape: const WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+          ),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: AppRadius.allSm,
+        ),
+        textStyle: textTheme.bodySmall?.copyWith(
+          color: scheme.onInverseSurface,
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
@@ -205,16 +223,15 @@ class AppTheme {
           side: outline,
         ),
       ),
-      // Hover and press feedback follows the shape of the thing being touched:
-      // Material paints a rectangle unless the surface says otherwise, which
-      // is where every square highlight in the app came from.
+      // Contiguous list/menu rows use rectangular feedback. Their outer
+      // surface clips its corners; standalone buttons keep their own shape.
       listTileTheme: const ListTileThemeData(
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.row),
       ),
       menuButtonTheme: const MenuButtonThemeData(
         style: ButtonStyle(
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: AppRadius.allSm),
+            RoundedRectangleBorder(borderRadius: AppRadius.row),
           ),
           minimumSize: WidgetStatePropertyAll(Size(0, 48)),
         ),
@@ -269,7 +286,7 @@ class AppTheme {
         toolbarHeight: 56,
         shape: Border(bottom: outline),
       ),
-      // The current destination is an inverted ink square behind the icon: a
+      // The current destination is a rounded ink marker behind the icon: a
       // state marker strong enough to meet 3:1 against the bar, not a tint.
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: surface,

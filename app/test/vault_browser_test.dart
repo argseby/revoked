@@ -1,15 +1,17 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/models/connection.dart';
+import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -154,19 +156,74 @@ Future<_Server> _pump(WidgetTester tester, {bool withSignIn = false}) async {
   return server;
 }
 
-Finder _pane(String label) =>
-    find.descendant(of: find.byType(ListView), matching: find.text(label));
+Finder _pane(String label) => find.descendant(
+  of: find.byKey(
+    ValueKey(
+      'vault-section-${switch (label) {
+        'Mine' => 'section0000mine',
+        'Office' => 'section000office',
+        'Shop' => 'section00signin',
+        _ => '',
+      }}',
+    ),
+  ),
+  matching: find.text(label),
+);
 
 void main() {
+  testWidgets('vault library exposes record options on long press', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.longPress(find.text('Loose note'));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy value'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Duplicate'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'vault has one filter row and All items resets view and filters',
+    (tester) async {
+      await _pump(tester);
+      expect(find.byType(AppFilterChips<String>), findsOneWidget);
+      expect(find.text('All 2'), findsNothing);
+      await tester.tap(find.text('Not in a section 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Loose note'), findsOneWidget);
+      expect(find.text('My PIN'), findsNothing);
+      expect(
+        find.bySemanticsLabel('Remove View: Not in a section'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('All items 2'));
+      await tester.pumpAndSettle();
+      expect(find.text('Loose note'), findsOneWidget);
+      expect(find.text('My PIN'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Remove View: Not in a section'),
+        findsNothing,
+      );
+      expect(find.byType(AppFilterChips<String>), findsOneWidget);
+    },
+  );
+
   testWidgets('wide, the vault browses one section at a time', (tester) async {
     await _pump(tester);
-    expect(_pane('All records'), findsOneWidget);
+    expect(find.text('Your vault'), findsOneWidget);
+    expect(find.text('All items 2'), findsOneWidget);
     expect(_pane('Mine'), findsOneWidget);
     expect(_pane('Office'), findsOneWidget);
-    expect(_pane('Not in a section'), findsOneWidget);
-    expect(_pane('Section'), findsOneWidget);
+    expect(find.text('Not in a section 1'), findsOneWidget);
+    expect(find.text('New section'), findsOneWidget);
     expect(find.text('My PIN'), findsOneWidget);
     expect(find.text('Loose note'), findsOneWidget);
+    expect(find.text('1234'), findsNothing);
+    expect(find.text('note'), findsNothing);
+    expect(find.text('Only you'), findsNWidgets(2));
     // The section menu sits on a section's own header, not on All.
     expect(find.byTooltip('Section actions'), findsNothing);
 
@@ -176,7 +233,7 @@ void main() {
     expect(find.text('Loose note'), findsNothing);
     expect(find.byTooltip('Section actions'), findsOneWidget);
 
-    await tester.tap(_pane('Not in a section'));
+    await tester.tap(find.text('Not in a section 1'));
     await tester.pumpAndSettle();
     expect(find.text('My PIN'), findsNothing);
     expect(find.text('Loose note'), findsOneWidget);
@@ -184,7 +241,7 @@ void main() {
     await tester.tap(_pane('Office'));
     await tester.pumpAndSettle();
     expect(find.text('Office Wi-Fi'), findsOneWidget);
-    expect(find.text('Shared by bob@example.com'), findsOneWidget);
+    expect(find.text('Shared by bob@example.com'), findsNWidgets(2));
   });
 
   testWidgets('a section a tool manages names the tool, not only its ID', (
@@ -214,7 +271,7 @@ void main() {
     // A plug instead of a folder, already in the pane.
     expect(
       find.descendant(
-        of: find.ancestor(of: _pane('Mine'), matching: find.byType(Row)).first,
+        of: find.byKey(const ValueKey('vault-section-section0000mine')),
         matching: find.byIcon(AppIcons.plug),
       ),
       findsOneWidget,
@@ -223,7 +280,7 @@ void main() {
     await tester.tap(_pane('Mine'));
     await tester.pumpAndSettle();
     // The badge beside the title and the row on top of the section.
-    expect(find.text('Managed by Claude Desktop'), findsNWidgets(2));
+    expect(find.text('Managed by Claude Desktop'), findsNWidgets(3));
     expect(
       find.text('Adds records here and changes only its own · ID conn00'),
       findsOneWidget,
@@ -237,7 +294,7 @@ void main() {
     await _pump(tester, withSignIn: true);
     expect(
       find.descendant(
-        of: find.ancestor(of: _pane('Shop'), matching: find.byType(Row)).first,
+        of: find.byKey(const ValueKey('vault-section-section00signin')),
         matching: find.byIcon(AppIcons.globe),
       ),
       findsOneWidget,
@@ -245,7 +302,7 @@ void main() {
 
     await tester.tap(_pane('Shop'));
     await tester.pumpAndSettle();
-    expect(find.text('Sign-in · shop.example'), findsOneWidget);
+    expect(find.text('Sign-in · shop.example'), findsNWidgets(2));
     expect(find.text('From signing in to shop.example'), findsOneWidget);
   });
 
@@ -256,4 +313,62 @@ void main() {
     expect(find.text('Loose note'), findsOneWidget);
     expect(find.text('My PIN'), findsNothing);
   });
+  testWidgets(
+    'sharing through a section updates access labels and the shared filter',
+    (tester) async {
+      await _pump(tester);
+      runInAction(
+        () => Stores.shares.shares.add(
+          Link(
+            id: 'link0000001',
+            slug: 'payroll',
+            label: 'Payroll',
+            sections: ['section0000mine'],
+            records: ['record00000mine'],
+            user: _me,
+            workspace: _workspace,
+            status: 'active',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // A link listing both the item and its section counts only once.
+      expect(find.text('Shared · 1 link'), findsOneWidget);
+      expect(find.text('Only you'), findsOneWidget);
+      await tester.tap(find.text('Shared by you 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('My PIN'), findsOneWidget);
+      expect(find.text('Loose note'), findsNothing);
+      await tester.tap(find.text('Shared by you 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Loose note'), findsOneWidget);
+    },
+  );
+
+  for (final brightness in Brightness.values) {
+    for (final width in [320.0, 600.0, 1400.0]) {
+      testWidgets(
+        'populated vault fits $width in ${brightness.name} at 200% text',
+        (tester) async {
+          await _pump(tester);
+          tester.view.physicalSize = Size(width, 1200);
+          tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: AppTheme.build(brightness),
+              home: const Scaffold(body: VaultScreen()),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          await tester.ensureVisible(_pane('Office'));
+          await tester.tap(_pane('Office'));
+          await tester.pumpAndSettle();
+          expect(find.text('Office Wi-Fi'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
 }

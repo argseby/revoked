@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -164,14 +164,14 @@ void main() {
       await pumpRow(tester, Audience.private);
       expect(find.text('Private'), findsOneWidget);
       expect(
-        find.byTooltip('Private · visible to the owner only'),
+        tooltip('Private · visible to the owner only'),
         findsOneWidget,
       );
 
       await pumpRow(tester, const Audience('workspace'));
       expect(find.text('Workspace'), findsOneWidget);
       expect(
-        find.byTooltip('Visible to the workspace · 3 people'),
+        tooltip('Visible to the workspace · 3 people'),
         findsOneWidget,
       );
 
@@ -179,7 +179,7 @@ void main() {
       expect(find.text('HR'), findsOneWidget);
       expect(find.text('Service'), findsOneWidget);
       expect(
-        find.byTooltip('Visible to HR and Service · 3 people'),
+        tooltip('Visible to HR and Service · 3 people'),
         findsOneWidget,
       );
     });
@@ -199,7 +199,7 @@ void main() {
       await pumpRow(tester, const Audience('workspace'), width: 390);
       expect(find.text('Workspace'), findsNothing);
       expect(
-        find.byTooltip('Visible to the workspace · 3 people'),
+        tooltip('Visible to the workspace · 3 people'),
         findsOneWidget,
       );
     });
@@ -235,7 +235,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('HR'), findsNothing);
       expect(
-        find.byTooltip('Visible to HR and Service · 3 people'),
+        tooltip('Visible to HR and Service · 3 people'),
         findsOneWidget,
       );
     });
@@ -256,3 +256,9 @@ void main() {
     });
   });
 }
+
+/// `find.byTooltip` knows only Flutter's own Tooltip, and the tag's leaves
+/// the semantics to its label, so the message is matched on the widget.
+Finder tooltip(String message) => find.byWidgetPredicate(
+  (w) => w is Tooltip && w.message == message,
+);

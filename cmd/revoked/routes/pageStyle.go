@@ -1,7 +1,7 @@
 package routes
 
 // pageTokens is the app's design in CSS — the palette of
-// app/lib/core/design/app_colors.dart, the square corners of radius.dart and
+// app/lib/core/design/app_colors.dart, the rounded corners of radius.dart and
 // the type scale of text_styles.dart — so the trip through the browser does
 // not look like leaving the app.
 //
@@ -19,7 +19,21 @@ const pageTokens = `
 --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 --ease: cubic-bezier(.2, .8, .2, 1);
+/* Keep in step with app/lib/core/design/radius.dart. */
+--radius-xs: 4px;
+--radius-sm: 6px;
+--radius-md: 8px;
+--radius-lg: 14px;
+--radius-pill: 999px;
 }
+
+/* Low-specificity defaults also cover the smaller public and error pages. */
+:where(button, input, select, textarea, .big, .quiet, .more, .app-btn, .act, .ib) {
+border-radius: var(--radius-md);
+}
+:where(.card) { border-radius: var(--radius-lg); overflow: hidden; }
+:where(.tile, .hero-tile) { border-radius: var(--radius-md); }
+:where(.state) { border-radius: var(--radius-xs); }
 
 :root,
 html[data-theme="light"] {

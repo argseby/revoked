@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -67,7 +67,7 @@ class AppCheckRow extends StatelessWidget {
     final enabled = onChanged != null;
     return InkWell(
       onTap: enabled ? () => onChanged!(!value) : null,
-      borderRadius: AppRadius.allMd,
+      borderRadius: AppRadius.row,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
         child: Row(

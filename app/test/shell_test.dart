@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -88,6 +88,19 @@ void main() {
   String location(GoRouter router) =>
       router.routerDelegate.currentConfiguration.uri.toString();
 
+  testWidgets(
+    'Works with Revoked owns its heading and visible search on desktop',
+    (tester) async {
+      final router = await signedIn(tester, size: const Size(1280, 900));
+      router.go(AppRoutes.worksWith);
+      await tester.pumpAndSettle();
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.text('Search services'), findsOneWidget);
+      expect(find.byTooltip('Search and filter'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('a signed-in start lands on the overview', (tester) async {
     final router = await signedIn(tester, size: const Size(400, 800));
     expect(location(router), AppRoutes.overview);
@@ -146,19 +159,27 @@ void main() {
   });
 
   group('Shared split', () {
-    testWidgets('wide: the list beside a placeholder, then beside the link', (
+    testWidgets('wide: full list first, then list beside the link', (
       tester,
     ) async {
       final router = await signedIn(tester, size: const Size(1280, 800));
       router.go(AppRoutes.shared);
       await tester.pumpAndSettle();
       expect(find.byType(SharesScreen), findsOneWidget);
-      expect(find.byType(SharedPlaceholder), findsOneWidget);
+      expect(find.byType(SharedPlaceholder), findsNothing);
+      expect(
+        tester.getSize(find.byType(SharesScreen)).width,
+        greaterThan(SharedSplit.listWidth),
+      );
 
       router.go(AppRoutes.shareDetailFor('l1'));
       await tester.pumpAndSettle();
       expect(find.byType(SharesScreen), findsOneWidget);
       expect(find.byType(ShareDetailScreen), findsOneWidget);
+      expect(
+        tester.getSize(find.byType(SharesScreen)).width,
+        SharedSplit.listWidth,
+      );
       // The list is on screen, so the link has nothing to go back to.
       expect(find.byTooltip('Back'), findsNothing);
     });
@@ -334,6 +355,12 @@ void main() {
     /// Types [text] into the search behind the bar's button on a window
     /// with a popover, and closes it again.
     Future<void> searchFor(WidgetTester tester, String text) async {
+      if (find.byType(TextField).evaluate().isNotEmpty &&
+          inBar(find.byTooltip(button)).evaluate().isEmpty) {
+        await tester.enterText(find.byType(TextField), text);
+        await tester.pumpAndSettle();
+        return;
+      }
       await tester.tap(inBar(find.byTooltip(button)));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), text);
@@ -347,7 +374,11 @@ void main() {
     /// popping it. Null where the bar has no button.
     Future<String?> panelHint(WidgetTester tester, List<String> hints) async {
       final open = inBar(find.byTooltip(button));
-      if (open.evaluate().isEmpty) return null;
+      if (open.evaluate().isEmpty) {
+        return hints
+            .where((h) => find.text(h).evaluate().isNotEmpty)
+            .firstOrNull;
+      }
       await tester.tap(open);
       await tester.pumpAndSettle();
       final hint = [
@@ -365,60 +396,53 @@ void main() {
     }
 
     for (final width in const [400.0, 800.0, 1200.0]) {
-      testWidgets('${width.toInt()} px: one button, the search inside it', (
+      testWidgets('${width.toInt()} px: sharing search stays beside the list', (
         tester,
       ) async {
-        await onShares(tester, Size(width, 800));
-        // No field by default, in the bar or above the list.
-        expect(find.byType(TextField), findsNothing);
-        expect(inBar(find.byTooltip(button)), findsOneWidget);
-        // Labelled only beside the sidebar.
-        expect(
-          inBar(find.text(button)),
-          width >= 1024 ? findsOneWidget : findsNothing,
-        );
-
-        await tester.tap(inBar(find.byTooltip(button)));
-        await tester.pumpAndSettle();
-        // Open to type, search first, then the order and the filters.
+        await onShares(tester, Size(width, 1200));
+        expect(inBar(find.byTooltip(button)), findsNothing);
+        expect(inBar(find.byType(TextField)), findsNothing);
         expect(find.text('Search links'), findsOneWidget);
-        expect(find.text('Sort'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byType(TextField)).dy,
+          greaterThan(tester.getTopLeft(find.text('Your sharing')).dy),
+        );
+        if (width >= 1024) expect(find.byType(AppBar), findsNothing);
         await tester.enterText(find.byType(TextField), 'bank');
-        await tester.pumpAndSettle();
-
-        if (width < 600) {
-          Navigator.of(tester.element(find.text('Sort'))).pop();
-        } else {
-          await tester.tap(inBar(find.byTooltip('$button · 1 active')));
-        }
         await tester.pumpAndSettle();
         expect(find.text('Landlord'), findsNothing);
         expect(find.text('Bank'), findsOneWidget);
-        // With the field out of sight the search shows as a chip and in the
-        // button's count.
-        expect(find.text('“bank”'), findsOneWidget);
-        expect(inBar(find.byTooltip('$button · 1 active')), findsOneWidget);
-
-        await tester.tap(find.bySemanticsLabel('Remove “bank”'));
+        await tester.enterText(find.byType(TextField), '');
         await tester.pumpAndSettle();
         expect(find.text('Landlord'), findsOneWidget);
-        expect(inBar(find.byTooltip(button)), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
 
-    testWidgets('Reset in the panel clears the search too', (tester) async {
-      await onShares(tester, const Size(1200, 800));
-      await tester.tap(inBar(find.byTooltip(button)));
-      await tester.pumpAndSettle();
+    testWidgets('Reset in the local filter panel keeps the visible search', (
+      tester,
+    ) async {
+      await onShares(tester, const Size(1200, 1000));
       await tester.enterText(find.byType(TextField), 'bank');
+      await tester.pumpAndSettle();
+      final filter = find.byTooltip('Filter and sort');
+      await tester.ensureVisible(filter);
+      await tester.tap(filter);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Label A–Z').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Reset'));
       await tester.pumpAndSettle();
-      await tester.tap(inBar(find.byTooltip(button)));
+      await tester.tap(filter);
       await tester.pumpAndSettle();
-      expect(find.text('“bank”'), findsNothing);
-      expect(find.text('Landlord'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'bank',
+      );
+      expect(find.text('Bank'), findsOneWidget);
+      expect(find.text('Landlord'), findsNothing);
     });
 
     testWidgets('a detail page does not show its list\'s search', (
@@ -490,7 +514,6 @@ void main() {
         );
         expect(inBar(find.byType(TextField)), findsNothing);
         for (final (route, hint) in const [
-          (AppRoutes.vault, 'Search records'),
           (AppRoutes.contacts, 'Search contacts'),
           (AppRoutes.attestations, 'Search held attestations'),
         ]) {
@@ -654,14 +677,17 @@ void main() {
       await tester.pumpAndSettle();
       // Received has nothing yet, but keeps its own button; the Sent list's
       // query is not carried over.
-      expect(inBar(find.byTooltip(button)), findsOneWidget);
-      expect(await panelHint(tester, const ['Search shares']), 'Search shares');
+      expect(inBar(find.byTooltip(button)), findsNothing);
+      expect(find.byType(TextField), findsNothing);
       expect(find.text('“bank”'), findsNothing);
 
       // Back on Sent, its own query is still there.
       await tester.tap(find.text('Sent'));
       await tester.pumpAndSettle();
-      expect(find.text('“bank”'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'bank',
+      );
     });
   });
 }

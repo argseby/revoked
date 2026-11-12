@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -154,6 +154,9 @@ void main() {
     await _pump(tester);
     expect(find.text('Office'), findsOneWidget);
     expect(find.text('Shared by bob@example.com'), findsOneWidget);
+    // The list starts on the person's own items; the section opens its own.
+    await tester.tap(find.text('Office'));
+    await tester.pumpAndSettle();
     expect(find.text('Office Wi-Fi'), findsOneWidget);
 
     await tester.tap(find.text('Office Wi-Fi'));
@@ -181,6 +184,8 @@ void main() {
     tester,
   ) async {
     final server = await _pump(tester);
+    await tester.tap(find.text('Mine'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Section actions'));
     await tester.pumpAndSettle();
     await tester.runAsync(() async {

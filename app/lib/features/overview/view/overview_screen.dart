@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,8 +18,6 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
-import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -150,52 +149,17 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
 
     return AppPageBody(
       children: [
-        _Stats(
-          figures: [
-            _Figure(
-              active,
-              'active link',
-              'active links',
-              AppRoutes.shared,
-              AppIcons.link,
-            ),
-            _Figure(
-              recipients.length,
-              'person',
-              'people',
-              AppRoutes.shared,
-              AppIcons.person,
-            ),
-            _Figure(
-              recordCount,
-              'record',
-              'records',
-              AppRoutes.vault,
-              AppIcons.lock,
-            ),
-            // Tools and keys are for the few who build on the API; a zero
-            // there says nothing to everyone else.
-            if (tools.isNotEmpty)
-              _Figure(
-                tools.length,
-                'tool',
-                'tools',
-                AppRoutes.connectedTools,
-                AppIcons.plug,
-              ),
-            if (keys.isNotEmpty)
-              _Figure(
-                keys.length,
-                'API key',
-                'API keys',
-                AppRoutes.apiKeys,
-                AppIcons.key,
-              ),
-          ],
+        AppCollectionHeader(
+          title: 'Home',
+          description: 'Your information and sharing, at a glance.',
+          action: AppButton(
+            icon: AppIcons.plus,
+            label: 'Add item',
+            onTap: () => openVaultCreateSheet(context),
+          ),
         ),
-        AppSpacing.gapLg,
         AppListGroup(
-          title: 'Important',
+          title: needs.isEmpty ? 'All clear' : 'Needs your attention',
           noun: 'items',
           previewCount: 6,
           trailing: needs.isEmpty
@@ -205,7 +169,8 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
               ? [
                   AppListRow(
                     icon: AppIcons.checkCircle,
-                    title: 'Nothing requires your attention',
+                    title: 'You’re up to date',
+                    subtitle: 'Nothing needs your attention right now.',
                   ),
                 ]
               : [
@@ -213,9 +178,30 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
                     NeedRow(item: item, onTap: () => context.go(item.route)),
                 ],
         ),
+        _Stats(
+          figures: [
+            _Figure(
+              active,
+              AppRoutes.shared,
+              AppIcons.link,
+            ),
+            _Figure(
+              recipients.length,
+              AppRoutes.shared,
+              AppIcons.person,
+            ),
+            _Figure(
+              recordCount,
+              AppRoutes.vault,
+              AppIcons.lock,
+            ),
+          ],
+        ),
+        AppSpacing.gapLg,
         if (recent.isNotEmpty)
           AppListGroup(
-            title: 'Recent',
+            title: 'Recent activity',
+            previewCount: 5,
             trailing: const SizedBox.shrink(),
             children: [
               for (final item in recent)
@@ -248,6 +234,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
         if (tools.isNotEmpty)
           AppListGroup(
             title: 'Connected tools',
+            collapsed: true,
             noun: 'tools',
             previewCount: 3,
             trailing: _AllButton(route: AppRoutes.connectedTools),
@@ -304,6 +291,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
         if (keys.isNotEmpty)
           AppListGroup(
             title: 'API keys',
+            collapsed: true,
             noun: 'keys',
             previewCount: 3,
             trailing: _AllButton(route: AppRoutes.apiKeys),
@@ -408,124 +396,38 @@ class NeedRow extends StatelessWidget {
 /// One count in the strip: "12 active links".
 class _Figure {
   final int count;
-  final String one;
-  final String many;
   final String route;
   final IconData icon;
 
-  const _Figure(this.count, this.one, this.many, this.route, this.icon);
-
-  String get words => count == 1 ? one : many;
-  String get label => '$count $words';
+  const _Figure(this.count, this.route, this.icon);
 }
 
-/// The counts in one bordered card split into equal cells, each opening the
-/// list it counts. One row on a wide screen; two columns on a phone.
+/// Clear destinations instead of one dense strip of counters.
 class _Stats extends StatelessWidget {
   final List<_Figure> figures;
-
   const _Stats({required this.figures});
 
   @override
-  Widget build(BuildContext context) {
-    final columns = AppSpacing.isNarrow(context) ? 2 : figures.length;
-    final line = Theme.of(context).colorScheme.outlineVariant;
-    final rows = [
-      for (var i = 0; i < figures.length; i += columns)
-        figures.sublist(i, (i + columns).clamp(0, figures.length)),
-    ];
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          for (var r = 0; r < rows.length; r++)
-            DecoratedBox(
-              decoration: BoxDecoration(
-                border: r == 0 ? null : Border(top: BorderSide(color: line)),
-              ),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var c = 0; c < columns; c++)
-                      Expanded(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: c == 0
-                                ? null
-                                : Border(left: BorderSide(color: line)),
-                          ),
-                          child: c < rows[r].length
-                              ? _FigureCell(figure: rows[r][c])
-                              : const SizedBox.shrink(),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FigureCell extends StatelessWidget {
-  final _Figure figure;
-
-  const _FigureCell({required this.figure});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
-    return Semantics(
-      button: true,
-      label: figure.label,
-      excludeSemantics: true,
-      child: AppFocusRing(
-        borderRadius: BorderRadius.zero,
-        child: InkWell(
+  Widget build(BuildContext context) => AppCollectionGrid(
+    children: [
+      for (final figure in figures)
+        AppCollectionTile(
+          title: figure.route == AppRoutes.vault
+              ? 'Your vault'
+              : figure.icon == AppIcons.person
+              ? 'People'
+              : 'Shared by you',
+          value: '${figure.count}',
+          description: figure.route == AppRoutes.vault
+              ? 'Browse your saved information'
+              : figure.icon == AppIcons.person
+              ? 'Review who holds your links'
+              : 'Manage shared access',
+          icon: figure.icon,
           onTap: () => context.go(figure.route),
-          borderRadius: BorderRadius.zero,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
-            child: Row(
-              children: [
-                Icon(figure.icon, size: 18, color: muted),
-                AppSpacing.gapSm,
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${figure.count}',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        figure.words,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
-      ),
-    );
-  }
+    ],
+  );
 }
 
 /// Someone new: an empty vault and no links. Three steps to a first link,
@@ -538,13 +440,11 @@ class _FirstSteps extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return AppPageBody(
       children: [
-        const AppText('Welcome').header,
-        AppSpacing.gapXxs,
-        const Text(
-          'A short tour covers the two core functions: storing data in the '
-          'vault and sharing it. It takes about a minute, and every change '
-          'can be undone.',
-        ).muted,
+        const AppCollectionHeader(
+          title: 'Welcome to Revoked',
+          description:
+              'Keep your information in one place. Share only what you choose.',
+        ),
         AppSpacing.gapLg,
         AppListGroup(
           title: 'Setup',

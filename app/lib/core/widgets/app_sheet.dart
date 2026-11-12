@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/design/motion.dart';
 import 'package:revoked_app/core/design/radius.dart';
@@ -138,9 +138,14 @@ Future<T?> _sidePanel<T>(
         height: double.infinity,
         child: Material(
           color: scheme.surface,
-          shape: BorderDirectional(
-            start: BorderSide(color: scheme.outlineVariant),
+          shape: RoundedRectangleBorder(
+            borderRadius: const BorderRadiusDirectional.only(
+              topStart: Radius.circular(AppRadius.lg),
+              bottomStart: Radius.circular(AppRadius.lg),
+            ),
+            side: BorderSide(color: scheme.outlineVariant),
           ),
+          clipBehavior: Clip.antiAlias,
           child: SafeArea(
             left: false,
             child: Padding(

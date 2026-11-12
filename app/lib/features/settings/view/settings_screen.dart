@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -8,8 +8,12 @@ import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
@@ -84,8 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ].join(' · ');
   }
 
-  Widget _page(SettingsPage page, IconData icon, String subtitle) {
-    return AppListRow(
+  _SettingsDestination _page(
+    SettingsPage page,
+    IconData icon,
+    String subtitle,
+  ) {
+    return _SettingsDestination(
       icon: icon,
       title: page.title,
       subtitle: subtitle,
@@ -124,228 +132,233 @@ class _SettingsScreenState extends State<SettingsScreen> {
         .length;
     final verdict = Stores.settings.domainVerdict;
 
-    return AppListPage(
-      groups: [
-        AppListGroup(
-          title: 'Account',
-          trailing: const SizedBox.shrink(),
-          children: [
-            _AppearanceRow(),
-            _page(SettingsPage.features, AppIcons.sliders, _featuresSummary()),
-            _page(
-              SettingsPage.passkeys,
-              AppIcons.key,
-              _count(
-                Stores.passkeys.passkeys.length,
-                'passkey',
-                'passkeys',
-                'No passkeys',
-              ),
-            ),
-            if (Stores.keys.isAvailable)
-              _page(
-                SettingsPage.encryption,
-                AppIcons.lock,
-                'End-to-end encryption',
-              ),
-          ],
-        ),
-        AppListGroup(
-          title: 'Workspace',
-          trailing: const SizedBox.shrink(),
-          children: [
-            _page(
-              SettingsPage.workspaces,
-              AppIcons.personWorkspace,
-              _count(
-                Stores.settings.workspaces.length,
-                'workspace',
-                'workspaces',
-                'Separate spaces for records and links',
-              ),
-            ),
-            _page(
-              SettingsPage.members,
-              AppIcons.person,
-              _count(
-                Stores.invites.members.length,
-                'member',
-                'members',
-                'Who has access',
-              ),
-            ),
-            _page(
-              SettingsPage.invites,
-              AppIcons.personPlus,
-              _count(
-                openInvites,
-                'open invite',
-                'open invites',
-                'No open invites',
-              ),
-            ),
-            if (features.visible(Feature.attestations))
-              _page(
-                SettingsPage.identities,
-                AppIcons.personBoundingBox,
-                _count(
-                  Stores.identities.identities.length,
-                  'identity',
-                  'identities',
-                  'Verifiable identities',
-                ),
-              ),
-            if (features.visible(Feature.tools))
-              _page(
-                SettingsPage.connectedTools,
-                AppIcons.plug,
-                _toolsSummary(),
-              ),
-          ],
-        ),
-        AppListGroup(
-          title: 'Developer',
-          trailing: const SizedBox.shrink(),
-          children: [
-            if (features.visible(Feature.developer))
-              _page(
-                SettingsPage.apiKeys,
-                AppIcons.code,
-                _count(
-                  Stores.apiKeys.apiKeys.length,
-                  'key',
-                  'keys',
-                  'Programmatic access',
-                ),
-              ),
-            if (features.visible(Feature.developer))
-              _page(
-                SettingsPage.webhooks,
-                AppIcons.send,
-                _count(
-                  Stores.webhooks.endpoints.length,
-                  'webhook',
-                  'webhooks',
-                  'Event notifications over HTTP',
-                ),
-              ),
-            if (features.visible(Feature.developer))
-              _page(
-                SettingsPage.mcp,
-                AppIcons.stars,
-                'Setup for AI applications',
-              ),
-            if (features.visible(Feature.requests))
-              _page(
-                SettingsPage.templates,
-                AppIcons.cardList,
-                _count(
-                  ownTemplates,
-                  'custom template',
-                  'custom templates',
-                  'Reusable request forms',
-                ),
-              ),
-            _page(
-              SettingsPage.domain,
-              AppIcons.server,
-              verdict == null ? 'Domain verification' : verdict.domain,
-            ),
-          ],
-        ),
-        AppListGroup(
-          title: 'About',
-          trailing: const SizedBox.shrink(),
-          footer: const Text(
-            'Bug reports are public. Record values, links and private keys '
-            'must never be included.',
+    final groups = <Widget>[
+      const AppCollectionHeader(
+        title: 'Your settings',
+        description:
+            'Your account, workspace and the way Revoked works for you.',
+      ),
+      _SettingsCategory(
+        title: 'Account',
+        children: [
+          _page(
+            SettingsPage.appearance,
+            AppIcons.brightnessAuto,
+            '${switch (Stores.theme.mode) {
+              ThemeMode.system => 'System theme',
+              ThemeMode.light => 'Light',
+              ThemeMode.dark => 'Dark',
+            }} · ${(DisplayPreferences.textScale * 100).round()}% text',
           ),
-          children: [
-            AppListRow(
-              icon: AppIcons.play,
-              title: 'Take the tour',
-              subtitle: 'Records, links and revocation in one minute',
-              onTap: () => goReturning(context, AppRoutes.tour),
+          _page(SettingsPage.features, AppIcons.sliders, _featuresSummary()),
+          _page(
+            SettingsPage.passkeys,
+            AppIcons.key,
+            _count(
+              Stores.passkeys.passkeys.length,
+              'passkey',
+              'passkeys',
+              'No passkeys',
             ),
-            const _UrlRow(
-              icon: AppIcons.code,
-              title: 'Source code',
-              url: AppConfig.repoUrl,
-            ),
-            const _UrlRow(
-              icon: AppIcons.fileText,
-              title: 'Documentation',
-              url: AppConfig.docsUrl,
-            ),
-            const _UrlRow(
-              icon: AppIcons.bug,
-              title: 'Report a bug',
-              url: AppConfig.issuesUrl,
-            ),
-          ],
-        ),
-        AppListGroup(
-          title: 'Session',
-          trailing: const SizedBox.shrink(),
-          footer: const Text(
-            'Data stays on the server after logging out. Switching servers '
-            'requires logging out first.',
           ),
-          children: [
-            AppDetailRow(
-              icon: AppIcons.envelope,
-              label: 'Signed in as',
-              value: auth.userEmail,
+          if (Stores.keys.isAvailable)
+            _page(
+              SettingsPage.encryption,
+              AppIcons.lock,
+              'End-to-end encryption',
             ),
-            AppDetailRow(
+        ],
+      ),
+      _SettingsCategory(
+        title: 'Workspace',
+        children: [
+          _page(
+            SettingsPage.workspaces,
+            AppIcons.personWorkspace,
+            _count(
+              Stores.settings.workspaces.length,
+              'workspace',
+              'workspaces',
+              'Separate spaces for records and links',
+            ),
+          ),
+          _page(
+            SettingsPage.members,
+            AppIcons.person,
+            _count(
+              Stores.invites.members.length,
+              'member',
+              'members',
+              'Who has access',
+            ),
+          ),
+          _page(
+            SettingsPage.invites,
+            AppIcons.personPlus,
+            _count(
+              openInvites,
+              'open invite',
+              'open invites',
+              'No open invites',
+            ),
+          ),
+          if (features.visible(Feature.attestations))
+            _page(
+              SettingsPage.identities,
+              AppIcons.personBoundingBox,
+              _count(
+                Stores.identities.identities.length,
+                'identity',
+                'identities',
+                'Verifiable identities',
+              ),
+            ),
+          if (features.visible(Feature.tools))
+            _page(SettingsPage.connectedTools, AppIcons.plug, _toolsSummary()),
+        ],
+      ),
+      _SettingsCategory(
+        title: 'Developer',
+        children: [
+          if (features.visible(Feature.developer))
+            _page(
+              SettingsPage.apiKeys,
+              AppIcons.code,
+              _count(
+                Stores.apiKeys.apiKeys.length,
+                'key',
+                'keys',
+                'Programmatic access',
+              ),
+            ),
+          if (features.visible(Feature.developer))
+            _page(
+              SettingsPage.webhooks,
+              AppIcons.send,
+              _count(
+                Stores.webhooks.endpoints.length,
+                'webhook',
+                'webhooks',
+                'Event notifications over HTTP',
+              ),
+            ),
+          if (features.visible(Feature.developer))
+            _page(
+              SettingsPage.mcp,
+              AppIcons.stars,
+              'Setup for AI applications',
+            ),
+          if (features.visible(Feature.requests))
+            _page(
+              SettingsPage.templates,
+              AppIcons.cardList,
+              _count(
+                ownTemplates,
+                'custom template',
+                'custom templates',
+                'Reusable request forms',
+              ),
+            ),
+          _page(
+            SettingsPage.domain,
+            AppIcons.server,
+            verdict == null ? 'Domain verification' : verdict.domain,
+          ),
+        ],
+      ),
+      AppListGroup(
+        title: 'About',
+        trailing: const SizedBox.shrink(),
+        footer: const Text(
+          'Bug reports are public. Record values, links and private keys '
+          'must never be included.',
+        ),
+        children: [
+          AppListRow(
+            icon: AppIcons.play,
+            title: 'Take the tour',
+            subtitle: 'Records, links and revocation in one minute',
+            onTap: () => goReturning(context, AppRoutes.tour),
+          ),
+          const _UrlRow(
+            icon: AppIcons.code,
+            title: 'Source code',
+            url: AppConfig.repoUrl,
+          ),
+          const _UrlRow(
+            icon: AppIcons.fileText,
+            title: 'Documentation',
+            url: AppConfig.docsUrl,
+          ),
+          const _UrlRow(
+            icon: AppIcons.bug,
+            title: 'Report a bug',
+            url: AppConfig.issuesUrl,
+          ),
+        ],
+      ),
+      AppListGroup(
+        title: 'Session',
+        trailing: const SizedBox.shrink(),
+        footer: const Text(
+          'Data stays on the server after logging out. Switching servers '
+          'requires logging out first.',
+        ),
+        children: [
+          AppDetailRow(
+            icon: AppIcons.envelope,
+            label: 'Signed in as',
+            value: auth.userEmail,
+          ),
+          AppDetailRow(
+            icon: AppIcons.server,
+            label: 'Server',
+            value: _host(),
+            badge: AppConfig.isOfficialServer(Stores.api.baseUrl)
+                ? const OfficialServerBadge()
+                : null,
+          ),
+          const _VersionRow(),
+          // Nothing shows while both are current or the check has no answer.
+          if (Stores.updates.appUpdate)
+            _UrlRow(
+              icon: AppIcons.download,
+              title: 'App update available',
+              subtitle:
+                  '${Stores.updates.latestApp} · downloads on the release '
+                  'page',
+              url: AppConfig.latestReleaseUrl,
+            ),
+          if (Stores.updates.serverUpdate)
+            _UrlRow(
               icon: AppIcons.server,
-              label: 'Server',
-              value: _host(),
-              badge: AppConfig.isOfficialServer(Stores.api.baseUrl)
-                  ? const OfficialServerBadge()
-                  : null,
+              title: 'Server update available',
+              subtitle:
+                  '${Stores.updates.latestServer} · installed by the server '
+                  'operator',
+              url: '${AppConfig.docsUrl}/installation/#upgrade',
             ),
-            const _VersionRow(),
-            // Nothing shows while both are current or the check has no answer.
-            if (Stores.updates.appUpdate)
-              _UrlRow(
-                icon: AppIcons.download,
-                title: 'App update available',
-                subtitle:
-                    '${Stores.updates.latestApp} · downloads on the release '
-                    'page',
-                url: AppConfig.latestReleaseUrl,
-              ),
-            if (Stores.updates.serverUpdate)
-              _UrlRow(
-                icon: AppIcons.server,
-                title: 'Server update available',
-                subtitle:
-                    '${Stores.updates.latestServer} · installed by the server '
-                    'operator',
-                url: '${AppConfig.docsUrl}/installation/#upgrade',
-              ),
-          ],
-        ),
-        AppDetailManage(
-          actions: [
-            AppButton(
-              icon: AppIcons.boxArrowLeft,
-              label: 'Log out',
-              style: AppButtonStyle.accent,
-              onTap: () => confirmLogout(context),
-            ),
-            AppButton(
-              icon: AppIcons.trash,
-              label: 'Delete account',
-              style: AppButtonStyle.danger,
-              busy: auth.isDeletingAccount,
-              onTap: _confirmDeleteAccount,
-            ),
-          ],
-        ),
-      ],
-    );
+        ],
+      ),
+      AppDetailManage(
+        actions: [
+          AppButton(
+            icon: AppIcons.boxArrowLeft,
+            label: 'Log out',
+            style: AppButtonStyle.accent,
+            onTap: () => confirmLogout(context),
+          ),
+          AppButton(
+            icon: AppIcons.trash,
+            label: 'Delete account',
+            style: AppButtonStyle.danger,
+            busy: auth.isDeletingAccount,
+            onTap: _confirmDeleteAccount,
+          ),
+        ],
+      ),
+    ];
+    return _SettingsGridLayout(groups: groups);
   }
 
   /// "Vault, Sharing and Requests", or what a fresh account is told.
@@ -401,28 +414,6 @@ Future<void> confirmLogout(BuildContext context) async {
     confirmIcon: AppIcons.boxArrowLeft,
   );
   if (confirmed) await Stores.auth.logout();
-}
-
-/// Theme, text size and motion, summed up in the row that opens them.
-class _AppearanceRow extends StatelessWidget {
-  static const _themes = {
-    ThemeMode.system: 'System theme',
-    ThemeMode.light: 'Light',
-    ThemeMode.dark: 'Dark',
-  };
-
-  @override
-  Widget build(BuildContext context) => Observer(builder: _build);
-
-  Widget _build(BuildContext context) {
-    final size = '${(DisplayPreferences.textScale * 100).round()}% text';
-    return AppListRow(
-      icon: AppIcons.brightnessAuto,
-      title: SettingsPage.appearance.title,
-      subtitle: '${_themes[Stores.theme.mode]} · $size',
-      onTap: () => context.go(SettingsPage.appearance.route),
-    );
-  }
 }
 
 /// Both releases and whether they match, beside the server they belong to.
@@ -484,4 +475,166 @@ class _UrlRow extends StatelessWidget {
       },
     );
   }
+}
+
+/// The same responsive card grid used for collection destinations.
+class _SettingsCategory extends StatelessWidget {
+  final String title;
+  final List<_SettingsDestination> children;
+
+  const _SettingsCategory({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppListHeader(title: title),
+        AppCollectionGrid(children: children),
+      ],
+    ),
+  );
+}
+
+class _SettingsDestination extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  const _SettingsDestination({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      child: SizedBox(
+        height: _SettingsCardHeight.of(context),
+        child: AppCard(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest,
+                      borderRadius: AppRadius.allMd,
+                    ),
+                    child: Icon(icon, size: 20, color: scheme.onSurfaceVariant),
+                  ),
+                  const Spacer(),
+                  if (trailing != null) ...[trailing!, AppSpacing.gapXs],
+                  Icon(
+                    AppIcons.chevronRight,
+                    size: 18,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+              AppSpacing.gapMd,
+              AppText(title).bold,
+              AppSpacing.gapXxs,
+              AppText(subtitle).small.muted,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Measure the longest visible destination once so every category shares a
+/// height. Text remains fully readable as the window and text scale change.
+class _SettingsGridLayout extends StatelessWidget {
+  final List<Widget> groups;
+  const _SettingsGridLayout({required this.groups});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final width = math.min(
+        AppSpacing.contentMaxWidth,
+        box.maxWidth - AppSpacing.screenH(context) * 2,
+      );
+      final scaler = MediaQuery.textScalerOf(context);
+      final scale = scaler.scale(16) / 16;
+      final columns = (width / (220 * scale)).floor().clamp(1, 3);
+      final textWidth = math.max(
+        1.0,
+        (width - AppSpacing.md * (columns - 1)) / columns - AppSpacing.lg * 2,
+      );
+      final base = DefaultTextStyle.of(
+        context,
+      ).style.copyWith(fontFamily: AppFont.sans);
+      double textHeight(String text, TextStyle style) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: base.merge(style)),
+          textDirection: Directionality.of(context),
+          textScaler: scaler,
+        )..layout(maxWidth: textWidth);
+        final height = painter.height;
+        painter.dispose();
+        return height;
+      }
+
+      var height = 0.0;
+      for (final category in groups.whereType<_SettingsCategory>()) {
+        for (final tile in category.children) {
+          final content =
+              textHeight(
+                tile.title,
+                const TextStyle(
+                  fontSize: AppTextSize.body,
+                  height: AppTextSize.bodyHeight,
+                  fontWeight: FontWeight.w600,
+                ),
+              ) +
+              textHeight(
+                tile.subtitle,
+                const TextStyle(
+                  fontSize: AppTextSize.small,
+                  height: AppTextSize.smallHeight,
+                  fontWeight: FontWeight.w400,
+                ),
+              );
+          height = math.max(height, content);
+        }
+      }
+      // Padding, icon/badge row, and the two gaps between the copy.
+      height +=
+          AppSpacing.lg * 2 +
+          40 * math.max(1, scale) +
+          AppSpacing.md +
+          AppSpacing.xxs +
+          2;
+      return _SettingsCardHeight(
+        height: height.ceilToDouble(),
+        child: AppListPage(groups: groups),
+      );
+    },
+  );
+}
+
+class _SettingsCardHeight extends InheritedWidget {
+  final double height;
+  const _SettingsCardHeight({required this.height, required super.child});
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_SettingsCardHeight>()!.height;
+
+  @override
+  bool updateShouldNotify(_SettingsCardHeight oldWidget) =>
+      oldWidget.height != height;
 }

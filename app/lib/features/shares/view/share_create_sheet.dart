@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -21,7 +21,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
-import 'package:revoked_app/core/widgets/share_sheet.dart';
+import 'package:revoked_app/features/contacts/view/contact_delivery_sheet.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
 import 'package:revoked_app/features/shares/view/share_contents_picker.dart';
 
@@ -314,19 +314,11 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       _store.setSubmittingShare(false);
       return;
     }
-    Navigator.of(context).pop();
-    // A new link is made to be sent: hand it over at once instead of leaving
-    // the owner to find it in the list.
+    final created = !_isEdit ? _store.lastCreatedShare : null;
     final parent = widget.parentContext;
-    if (!_isEdit && parent.mounted && Stores.shares.shares.isNotEmpty) {
-      final created = Stores.shares.shares.first;
-      await showShareSheet(
-        context: parent,
-        slug: created.slug,
-        title: created.label,
-        isRequest: false,
-        linkKey: Stores.shares.linkKeyText(created),
-      );
+    Navigator.of(context).pop();
+    if (created != null && parent.mounted) {
+      await openContactDeliverySheet(parent, share: created);
     }
   }
 

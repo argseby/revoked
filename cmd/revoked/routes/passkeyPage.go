@@ -120,7 +120,7 @@ align-items: center;
 justify-content: space-between;
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; color: var(--fg); }
-.logo { width: 24px; height: 24px; border-radius: 0; }
+.logo { width: 24px; height: 24px; border-radius: var(--radius-md); }
 .logo-dark { display: none; }
 html[data-theme="dark"] .logo-light { display: none; }
 html[data-theme="dark"] .logo-dark { display: block; }
@@ -130,7 +130,7 @@ html:not([data-theme="light"]) .logo-dark { display: block; }
 }
 .tools { display: flex; gap: 8px; }
 .theme, .lang {
-min-width: 38px; height: 38px; border-radius: 0; border: 1px solid var(--control);
+min-width: 38px; height: 38px; border-radius: var(--radius-md); border: 1px solid var(--control);
 background: var(--bg); color: var(--fg); cursor: pointer;
 display: inline-flex; align-items: center; justify-content: center;
 }
@@ -138,9 +138,9 @@ display: inline-flex; align-items: center; justify-content: center;
 
 .steps { display: flex; flex-direction: column; gap: 8px; }
 .steps-t { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--fg-muted); }
-.steps-t img { width: 18px; height: 18px; border-radius: 0; }
+.steps-t img { width: 18px; height: 18px; border-radius: var(--radius-md); }
 .steps ol { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
-.steps li { height: 4px; border-radius: 999px; background: var(--border); transition: background .3s; }
+.steps li { height: 4px; border-radius: var(--radius-pill); background: var(--border); transition: background .3s; }
 .steps li.on { background: var(--primary); }
 
 main {
@@ -155,7 +155,7 @@ gap: 16px;
 
 .hero { display: flex; flex-direction: column; gap: 14px; }
 .hero-tile {
-width: 56px; height: 56px; border-radius: 0; flex: none;
+width: 56px; height: 56px; border-radius: var(--radius-lg); flex: none;
 display: flex; align-items: center; justify-content: center;
 background: var(--surface-subtle); color: var(--fg);
 transition: background .3s, color .3s;
@@ -178,7 +178,7 @@ animation: rise .4s var(--ease) both;
 
 .callout {
 display: flex; gap: 12px; align-items: flex-start;
-padding: 14px; border-radius: 0;
+padding: 14px; border-radius: var(--radius-md);
 background: var(--bad-subtle); color: var(--bad);
 font-size: 14px; line-height: 1.45;
 }
@@ -187,7 +187,7 @@ font-size: 14px; line-height: 1.45;
 input {
 width: 100%; height: 50px; padding: 0 14px;
 font: inherit; font-size: 16px; font-weight: 400; color: var(--fg);
-background: var(--field); border: 1px solid var(--control); border-radius: 0;
+background: var(--field); border: 1px solid var(--control); border-radius: var(--radius-md);
 transition: border-color .15s, box-shadow .15s;
 }
 input::placeholder { color: var(--fg-muted); opacity: .7; }
@@ -196,7 +196,7 @@ input:focus { outline: none; border-color: var(--fg); box-shadow: 0 0 0 3px colo
 .quiet:disabled { cursor: default; opacity: .6; }
 
 .big, .quiet {
-width: 100%; min-height: 52px; border-radius: 0;
+width: 100%; min-height: 52px; border-radius: var(--radius-md);
 font-size: 16px; font-weight: 650;
 display: flex; align-items: center; justify-content: center; gap: 10px;
 padding: 12px 16px; text-align: center;
@@ -217,7 +217,7 @@ transition: transform .12s var(--ease), filter .15s, background .15s;
 
 .hint {
 display: flex; gap: 10px; align-items: flex-start;
-padding: 12px 14px; border-radius: 0;
+padding: 12px 14px; border-radius: var(--radius-md);
 background: var(--surface-subtle); color: var(--fg);
 font-size: 14px; line-height: 1.45;
 }

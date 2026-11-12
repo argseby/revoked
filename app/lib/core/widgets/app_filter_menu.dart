@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
@@ -11,6 +12,8 @@ import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_select.dart';
+import 'package:revoked_app/core/widgets/app_filter_chips.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 
 /// One box in an [AppChecklistSection].
@@ -54,35 +57,25 @@ class AppSortOption<T> {
   const AppSortOption(this.value, this.label);
 }
 
-/// A list's search, Filter and sort:
-///
-///   top bar:   Shares                       [⚟ Search and filter ③] [+ New]
-///   the list:  ("bank" ×) (Status: Active ×) (Oldest first ×)
-///
-/// In the shell all of it sits behind one [button] in the top bar beside
-/// New: it opens a panel with the search field first, then Sort and the
-/// filters — a popover on a wider window, a sheet on a phone. The button is
-/// labelled where the sidebar shows and keeps only its icon below that; its
-/// count says how much is active, the search included. `AppListPage` hands
-/// it up.
-///
-/// Outside the shell — a sheet, a picker — the [pill] holds the search with
-/// a Filter and sort button at its end, since there the field is the point.
-///
-/// What narrows or reorders the list shows above the list as [chips], each
-/// removed with its ×, so a list that looks short always says why; behind
-/// the shell's button the search is one of them, as its field is out of
-/// sight.
-///
-/// This narrows the list it sits above. The shell's "Open link or go to" is
-/// the other search: across everything, and it opens what it finds.
-///
-/// [sections] and [sort] are read inside an `Observer`, so an open panel and
-/// the chips follow the caller's selection as it changes.
+/// Search beside a separate filter control. Collection pages keep both
+/// above their rows; shell-hosted lists can use [button] to open search too.
+/// Filters open in a bounded popover on desktop and a bottom sheet on phones.
+/// Sort and filter changes apply immediately, with removable [chips] above
+/// the list. The panel observes [sections] and [sort] while it is open.
 class AppListToolbar extends StatelessWidget {
   final String query;
   final ValueChanged<String> onQueryChanged;
   final String searchHint;
+
+  /// Search matches before filters. Enables the shared quick-filter row.
+  final int? totalCount;
+
+  /// A collection can name its reset choice and reflect its navigation scope.
+  final String allLabel;
+  final bool Function()? isAllSelected;
+
+  /// Sections promoted to quick filters; otherwise the first section.
+  final List<String>? quickSections;
 
   /// The filters; empty where a list has nothing to filter by.
   final List<AppChecklistSection> Function() sections;
@@ -104,6 +97,10 @@ class AppListToolbar extends StatelessWidget {
     required this.query,
     required this.onQueryChanged,
     this.searchHint = 'Search',
+    this.totalCount,
+    this.allLabel = 'All',
+    this.isAllSelected,
+    this.quickSections,
     required this.sections,
     required this.onClearFilters,
     required this.sortOptions,
@@ -137,25 +134,33 @@ class AppListToolbar extends StatelessWidget {
   /// Search, Filter and sort behind one button, for the shell's top bar.
   Widget button() => _FilterSortButton(toolbar: this, withSearch: true);
 
-  /// The search pill with its Filter and sort button — in the shell's top
-  /// bar, or above the list outside the shell. [autofocus] for the phone's
-  /// search bar, which opens to type.
-  ///
-  /// Under [_labelledFrom] the button keeps only its icon and count, as on a
-  /// phone, so the field keeps room to type in.
+  /// Search and its neighbouring filter control. The label collapses to
+  /// an icon on small screens so the query keeps room to type.
   Widget pill({bool autofocus = false}) => LayoutBuilder(
-    builder: (context, box) => AppListSearchField(
-      key: key == null ? null : ValueKey((key, 'pill')),
-      value: query,
-      hint: searchHint,
-      autofocus: autofocus,
-      onChanged: onQueryChanged,
-      action: _FilterSortButton(
-        toolbar: this,
-        labelled:
-            !AppSpacing.isNarrow(context) && box.maxWidth >= _labelledFrom,
-      ),
-    ),
+    key: key == null ? null : ValueKey((key, 'search-layout')),
+    builder: (context, box) {
+      final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+      return Row(
+        children: [
+          Expanded(
+            child: AppListSearchField(
+              key: key == null ? null : ValueKey((key, 'pill')),
+              value: query,
+              hint: searchHint,
+              autofocus: autofocus,
+              onChanged: onQueryChanged,
+            ),
+          ),
+          AppSpacing.gapSm,
+          _FilterSortButton(
+            toolbar: this,
+            labelled:
+                !AppSpacing.isNarrow(context) &&
+                box.maxWidth >= _labelledFrom * scale,
+          ),
+        ],
+      );
+    },
   );
 
   /// What narrows or reorders the list, one chip each; null while nothing
@@ -170,12 +175,14 @@ class AppListToolbar extends StatelessWidget {
       if (withQuery && typed.isNotEmpty)
         _ActiveChip(label: '“$typed”', onRemove: () => onQueryChanged('')),
       for (final s in sections())
-        for (final item in s.items)
-          if (s.selected.contains(item.id))
-            _ActiveChip(
-              label: narrow ? item.label : '${s.title}: ${item.label}',
-              onRemove: () => s.onToggle(item.id, false),
-            ),
+        for (final id in s.selected)
+          _ActiveChip(
+            label: narrow
+                ? (s.items.where((item) => item.id == id).firstOrNull?.label ??
+                      id)
+                : '${s.title}: ${s.items.where((item) => item.id == id).firstOrNull?.label ?? id}',
+            onRemove: () => s.onToggle(id, false),
+          ),
       if (_sortLabel case final label?)
         _ActiveChip(label: label, onRemove: () => onSort(defaultSort)),
     ];
@@ -187,17 +194,78 @@ class AppListToolbar extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final chips = this.chips(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        pill(),
-        if (chips != null) ...[AppSpacing.gapSm, chips],
+  /// Quick choices and the drawer are two views of the same selections.
+  /// Choosing a quick option replaces that section's choice; All clears all
+  /// filters while preserving the query and ordering.
+  Widget? quickFilters() {
+    final total = totalCount;
+    final available = sections();
+    if (total == null || available.isEmpty) return null;
+    final promoted = quickSections == null
+        ? available.take(1).toList()
+        : available.where((s) => quickSections!.contains(s.title)).toList();
+    if (promoted.isEmpty) return null;
+    final values = <String, (AppChecklistSection, AppChecklistItem)>{};
+    final selected = <String>{};
+    final all =
+        available.every((s) => s.selected.isEmpty) &&
+        (isAllSelected?.call() ?? true);
+    if (all) selected.add('');
+    for (final (index, section) in promoted.indexed) {
+      for (final item in section.items) {
+        final key = '$index:${item.id}';
+        values[key] = (section, item);
+        if (section.selected.contains(item.id)) selected.add(key);
+      }
+    }
+    return AppFilterChips<String>(
+      selected: '',
+      selectedValues: selected,
+      options: [
+        AppFilterOption(
+          value: '',
+          label: allLabel,
+          count: total,
+          alwaysVisible: true,
+        ),
+        for (final entry in values.entries)
+          AppFilterOption(
+            value: entry.key,
+            label: entry.value.$2.label,
+            count: entry.value.$2.count ?? total,
+          ),
       ],
+      onSelected: (key) {
+        if (key.isEmpty) {
+          onClearFilters();
+          return;
+        }
+        final (section, item) = values[key]!;
+        final wasOnly =
+            section.selected.length == 1 && section.selected.contains(item.id);
+        for (final id in section.selected.toList()) {
+          section.onToggle(id, false);
+        }
+        if (!wasOnly) section.onToggle(item.id, true);
+      },
     );
   }
+
+  @override
+  Widget build(BuildContext context) => Observer(
+    builder: (context) {
+      final quick = quickFilters();
+      final chips = this.chips(context);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (quick != null) ...[quick, AppSpacing.gapLg],
+          pill(),
+          if (chips != null) ...[AppSpacing.gapSm, chips],
+        ],
+      );
+    },
+  );
 }
 
 /// The search field of an [AppListToolbar]. Esc clears the query; the ×
@@ -247,45 +315,76 @@ class _AppListSearchFieldState extends State<AppListSearchField> {
 
   @override
   Widget build(BuildContext context) {
-    return CallbackShortcuts(
-      bindings: {const SingleActivator(LogicalKeyboardKey.escape): _clear},
-      child: Observer(
-        builder: (context) => AppTextField(
-          controller: _controller,
-          hint: widget.hint,
-          autofocus: widget.autofocus,
-          leading: const Icon(AppIcons.search, size: 18),
-          trailing: Padding(
-            padding: const EdgeInsetsDirectional.only(end: AppSpacing.xxs),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_controller.text.isNotEmpty)
-                  AppButton(
-                    icon: AppIcons.x,
-                    tooltip: 'Clear search',
-                    showTooltip: false,
-                    style: AppButtonStyle.ghost,
-                    size: AppButtonSize.small,
-                    onTap: _clear,
-                  ),
-                ?widget.action,
-              ],
-            ),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    const text = TextStyle(
+      fontSize: AppTextSize.small,
+      fontWeight: FontWeight.w400,
+      height: AppTextSize.smallHeight,
+    );
+    final border = OutlineInputBorder(
+      borderRadius: AppRadius.allMd,
+      borderSide: BorderSide(color: scheme.outlineVariant),
+    );
+    return Theme(
+      data: theme.copyWith(
+        textTheme: theme.textTheme.copyWith(
+          bodyLarge: theme.textTheme.bodyLarge?.merge(text),
+        ),
+        inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+          hintStyle: text.copyWith(color: scheme.onSurfaceVariant),
+          prefixIconColor: scheme.onSurfaceVariant,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
           ),
-          onChanged: widget.onChanged,
+          border: border,
+          enabledBorder: border,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: AppRadius.allMd,
+            borderSide: BorderSide(color: scheme.primary),
+          ),
+        ),
+      ),
+      child: CallbackShortcuts(
+        bindings: {const SingleActivator(LogicalKeyboardKey.escape): _clear},
+        child: Observer(
+          builder: (context) => AppTextField(
+            controller: _controller,
+            hint: widget.hint,
+            autofocus: widget.autofocus,
+            leading: const Icon(AppIcons.search, size: 16),
+            trailing: Padding(
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.xxs),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_controller.text.isNotEmpty)
+                    AppButton(
+                      icon: AppIcons.x,
+                      tooltip: 'Clear search',
+                      showTooltip: false,
+                      style: AppButtonStyle.ghost,
+                      size: AppButtonSize.small,
+                      onTap: _clear,
+                    ),
+                  ?widget.action,
+                ],
+              ),
+            ),
+            onChanged: widget.onChanged,
+          ),
         ),
       ),
     );
   }
 }
 
-/// The narrowest pill whose button still carries its label.
+/// The narrowest toolbar whose filter control still carries its label.
 const double _labelledFrom = 360;
 
-/// The button at the end of the pill, or with [withSearch] the shell's one
-/// button that holds the search too. Labelled where there is room; on a
-/// phone its icon and the count say it.
+/// The lightly outlined utility beside search. With [withSearch], the shell's button
+/// opens search too. Labels yield to an icon when space is limited.
 class _FilterSortButton extends StatefulWidget {
   final AppListToolbar toolbar;
   final bool labelled;
@@ -307,6 +406,7 @@ class _FilterSortButton extends StatefulWidget {
 class _FilterSortButtonState extends State<_FilterSortButton> {
   /// Each section's box search, by title; kept while the panel is closed.
   final Map<String, Local<String>> _queries = {};
+  final MenuController _menuController = MenuController();
 
   Local<String> _query(String section) =>
       _queries.putIfAbsent(section, () => Local(''));
@@ -327,7 +427,8 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
         AppButton(
           icon: AppIcons.sliders,
           label: labelled ? _label : null,
-          style: AppButtonStyle.ghost,
+          emphasizeLabel: false,
+          style: AppButtonStyle.outline,
           size: labelled ? AppButtonSize.small : AppButtonSize.normal,
           tooltip: active > 0 ? '$_label · $active active' : _label,
           onTap: onTap,
@@ -346,146 +447,239 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
   Widget build(BuildContext context) {
     final narrow = AppSpacing.isNarrow(context);
     final active = _t._activeCount(withQuery: _withSearch);
-    final label = _label;
     Widget trigger(VoidCallback onTap) {
       if (_withSearch) return _barTrigger(context, active, onTap);
-      final scheme = Theme.of(context).colorScheme;
-      return Tooltip(
-        message: active > 0 ? '$label · $active active' : label,
-        child: Material(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: AppRadius.allSm,
-          child: InkWell(
-            borderRadius: AppRadius.allSm,
-            onTap: onTap,
-            child: SizedBox(
-              height: AppButton.smallExtent - AppSpacing.xs,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(AppIcons.sliders, size: 16),
-                    if (widget.labelled) ...[
-                      AppSpacing.gapXs,
-                      AppText(label).small,
-                    ],
-                    if (active > 0) ...[AppSpacing.gapXs, _CountBadge(active)],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+      return AppButton(
+        icon: AppIcons.sliders,
+        label: widget.labelled
+            ? '$_label${active > 0 ? ' · $active' : ''}'
+            : null,
+        tooltip: active > 0 ? '$_label · $active active' : _label,
+        emphasizeLabel: false,
+        size: widget.labelled ? AppButtonSize.small : AppButtonSize.normal,
+        style: AppButtonStyle.outline,
+        onTap: onTap,
       );
     }
 
     if (narrow) return trigger(() => _openSheet(context));
 
     return MenuAnchor(
-      alignmentOffset: const Offset(0, AppSpacing.xs),
-      style: const MenuStyle(
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: AppRadius.allMd),
+      controller: _menuController,
+      alignmentOffset: const Offset(0, AppSpacing.sm),
+      style: MenuStyle(
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        backgroundColor: WidgetStatePropertyAll(
+          Theme.of(context).colorScheme.surface,
+        ),
+        shape: const WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: AppRadius.allLg),
         ),
       ),
-      menuChildren: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-            child: Observer(builder: (context) => _panel(context)),
-          ),
-        ),
-      ],
       builder: (context, controller, _) => trigger(
         () => controller.isOpen ? controller.close() : controller.open(),
       ),
+      menuChildren: [
+        Builder(
+          builder: (context) => SizedBox(
+            width: math.min(
+              400,
+              MediaQuery.sizeOf(context).width - AppSpacing.xxl * 2,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: math.max(
+                  120,
+                  math.min(
+                    680,
+                    MediaQuery.sizeOf(context).height - AppSpacing.xxl * 2,
+                  ),
+                ),
+              ),
+              child: Observer(
+                builder: (context) => _panel(context, _menuController.close),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Future<void> _openSheet(BuildContext context) => showAppSheet<void>(
     context: context,
     dismissible: true,
-    builder: (_) => SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
-      child: Observer(builder: (context) => _panel(context)),
+    builder: (context) => Observer(
+      builder: (context) => _panel(context, () => Navigator.of(context).pop()),
     ),
   );
 
-  /// The same panel in the popover and the sheet: the search first where
-  /// the button holds it, then Sort, one order picked; then each filter
-  /// section's boxes with their counts.
-  Widget _panel(BuildContext context) {
+  /// Changes apply immediately. Only the choices scroll, keeping the way
+  /// back to the list and Reset reachable even with a long list or keyboard.
+  Widget _panel(BuildContext context, VoidCallback close) {
     final sections = _t.sections();
-    final current = _t.sort();
     final active = _t._activeCount(withQuery: _withSearch);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.xs,
-            AppSpacing.sm,
-            AppSpacing.xs,
-          ),
-          child: Row(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Text(_label)),
-              AppButton(
-                icon: AppIcons.arrowClockwise,
-                label: 'Reset',
-                style: AppButtonStyle.ghost,
-                size: AppButtonSize.small,
-                onTap: active > 0
-                    ? () => _t._reset(withQuery: _withSearch)
-                    : null,
-              ),
+              Semantics(header: true, child: AppText(_label).header),
+              AppSpacing.gapXxs,
+              const Text('Changes apply as you choose.').small.muted,
             ],
           ),
         ),
         const AppDivider(),
-        if (_withSearch)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.md,
-              AppSpacing.md,
-              0,
-            ),
-            // Open to type: searching stays one tap away.
-            child: AppListSearchField(
-              value: _t.query,
-              hint: _t.searchHint,
-              autofocus: true,
-              onChanged: _t.onQueryChanged,
+        Flexible(
+          child: SingleChildScrollView(
+            primary: false,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_withSearch) ...[
+                  AppListSearchField(
+                    value: _t.query,
+                    hint: _t.searchHint,
+                    autofocus: true,
+                    onChanged: _t.onQueryChanged,
+                  ),
+                  AppSpacing.gapXxl,
+                ],
+                if (_t.sortOptions.isNotEmpty) ...[
+                  const _PanelHeading('Sort'),
+                  AppSelect<String>(
+                    value: _t.sort(),
+                    onChanged: (value) {
+                      if (value != null) _t.onSort(value);
+                    },
+                    items: [
+                      for (final option in _t.sortOptions)
+                        AppSelectItem(
+                          option.value,
+                          Text(
+                            option.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (sections.isNotEmpty) AppSpacing.gapXxl,
+                ],
+                for (final (index, section) in sections.indexed) ...[
+                  if (index > 0) AppSpacing.gapXxl,
+                  _PanelHeading(
+                    section.title,
+                    selected: section.selected.length,
+                    onClear: () {
+                      for (final id in section.selected.toList()) {
+                        section.onToggle(id, false);
+                      }
+                    },
+                  ),
+                  if (section.items.length > section.searchAbove) ...[
+                    _BoxSearch(
+                      title: section.title,
+                      query: _query(section.title),
+                    ),
+                    AppSpacing.gapSm,
+                  ],
+                  if (_visible(section).isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                      child: Text('No matching options.'),
+                    )
+                  else if (section.items.length <= section.searchAbove)
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.sm,
+                      children: [
+                        for (final item in section.items)
+                          _FilterChoice(
+                            label: item.label,
+                            count: item.count,
+                            selected: section.selected.contains(item.id),
+                            onTap: () => section.onToggle(
+                              item.id,
+                              !section.selected.contains(item.id),
+                            ),
+                          ),
+                      ],
+                    )
+                  else
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                        borderRadius: AppRadius.allMd,
+                      ),
+                      child: Column(
+                        children: [
+                          for (final item in _visible(section))
+                            _PanelRow(
+                              label: item.label,
+                              count: item.count,
+                              selected: section.selected.contains(item.id),
+                              onTap: () => section.onToggle(
+                                item.id,
+                                !section.selected.contains(item.id),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
             ),
           ),
-        const _PanelHeading('Sort'),
-        for (final o in _t.sortOptions)
-          _PanelRow(
-            label: o.label,
-            radio: true,
-            selected: o.value == current,
-            onTap: () => _t.onSort(o.value),
-          ),
-        for (final section in sections) ...[
-          _PanelHeading(section.title),
-          if (section.items.length > section.searchAbove)
-            _BoxSearch(query: _query(section.title)),
-          for (final item in _visible(section))
-            _PanelRow(
-              label: item.label,
-              count: item.count,
-              selected: section.selected.contains(item.id),
-              onTap: () => section.onToggle(
-                item.id,
-                !section.selected.contains(item.id),
+        ),
+        const AppDivider(),
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Row(
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: AppButton(
+                    label: 'Reset',
+                    icon: AppIcons.arrowClockwise,
+                    emphasizeLabel: false,
+                    style: AppButtonStyle.ghost,
+                    onTap:
+                        active > 0 ||
+                            _queries.values.any((q) => q.value.isNotEmpty)
+                        ? () {
+                            _t._reset(withQuery: _withSearch);
+                            for (final query in _queries.values) {
+                              query.value = '';
+                            }
+                          }
+                        : null,
+                  ),
+                ),
               ),
-            ),
-        ],
+              AppSpacing.gapSm,
+              Expanded(
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: AppButton(
+                    label: 'Done',
+                    icon: AppIcons.check,
+                    onTap: close,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -516,13 +710,17 @@ class _CountBadge extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 18),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: scheme.primary,
+        color: scheme.surfaceContainerHighest,
         borderRadius: AppRadius.allMd,
       ),
       child: Text(
         '$count',
         textAlign: TextAlign.center,
-        style: TextStyle(color: scheme.onPrimary, fontSize: 11, height: 1.3),
+        style: TextStyle(
+          color: scheme.onSurfaceVariant,
+          fontSize: 11,
+          height: 1.3,
+        ),
       ),
     );
   }
@@ -575,27 +773,104 @@ class _ActiveChip extends StatelessWidget {
 
 class _PanelHeading extends StatelessWidget {
   final String title;
+  final int selected;
+  final VoidCallback? onClear;
 
-  const _PanelHeading(this.title);
+  const _PanelHeading(this.title, {this.selected = 0, this.onClear});
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppSpacing.lg,
-      AppSpacing.md,
-      AppSpacing.lg,
-      AppSpacing.xxs,
+    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+    child: Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            header: true,
+            child: AppText(
+              selected > 0 ? '$title · $selected' : title,
+            ).small.bold,
+          ),
+        ),
+        if (selected > 0) ...[
+          AppButton(
+            label: 'Clear',
+            icon: AppIcons.x,
+            tooltip: 'Clear $title',
+            style: AppButtonStyle.ghost,
+            size: AppButtonSize.small,
+            onTap: onClear,
+          ),
+        ],
+      ],
     ),
-    child: AppText(title).small.muted,
   );
 }
 
-/// One choice in the panel: a radio for the order, a box for a filter.
+class _FilterChoice extends StatelessWidget {
+  final String label;
+  final int? count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterChoice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      checked: selected,
+      child: Material(
+        color: selected
+            ? scheme.secondaryContainer
+            : scheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allMd,
+          side: BorderSide(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.allMd,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  selected ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 18,
+                  color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                ),
+                AppSpacing.gapSm,
+                Flexible(child: AppText(label).small),
+                if (count != null) ...[
+                  AppSpacing.gapSm,
+                  AppText('$count').small.muted,
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One checkbox row in a searchable filter section.
 class _PanelRow extends StatelessWidget {
   final String label;
   final int? count;
   final bool selected;
-  final bool radio;
   final VoidCallback onTap;
 
   const _PanelRow({
@@ -603,24 +878,19 @@ class _PanelRow extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.count,
-    this.radio = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final icon = radio
-        ? (selected ? Icons.radio_button_checked : Icons.radio_button_unchecked)
-        : (selected ? Icons.check_box : Icons.check_box_outline_blank);
+    final icon = selected ? Icons.check_box : Icons.check_box_outline_blank;
     return Semantics(
       button: true,
-      selected: selected,
-      checked: radio ? null : selected,
-      inMutuallyExclusiveGroup: radio,
+      checked: selected,
       child: InkWell(
         onTap: onTap,
-        // Full-width rows of the panel: square, edge to edge.
-        borderRadius: BorderRadius.zero,
+        // Checklist rows use the same rectangular feedback as list rows.
+        borderRadius: AppRadius.row,
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
@@ -646,20 +916,14 @@ class _PanelRow extends StatelessWidget {
 
 class _BoxSearch extends StatelessWidget {
   final Local<String> query;
+  final String title;
 
-  const _BoxSearch({required this.query});
+  const _BoxSearch({required this.query, required this.title});
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.md,
-      vertical: AppSpacing.xxs,
-    ),
-    child: AppTextField(
-      hint: 'Search',
-      initialValue: query.value,
-      leading: const Icon(AppIcons.search, size: 18),
-      onChanged: (v) => query.value = v,
-    ),
+  Widget build(BuildContext context) => AppListSearchField(
+    value: query.value,
+    hint: 'Find ${title.toLowerCase()}',
+    onChanged: (value) => query.value = value,
   );
 }

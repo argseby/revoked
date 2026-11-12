@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -8,8 +8,9 @@ import 'package:revoked_app/features/shares/view/shares_screen.dart';
 
 /// Shared on every width: the links list and the selected link.
 ///
-/// Wide, both stand side by side and the list stays put while links are
-/// picked, keeping its search, filter and tab. Narrower, it is one or the
+/// The overview uses the full window. Once a link is selected on a wide
+/// window, both stand side by side, keeping the list's search, filters and
+/// tab. Narrower, it is one or the
 /// other, as before: the list, or the link with a way back to it.
 ///
 /// [child] is the nested route's navigator — the selected link, or the
@@ -52,7 +53,7 @@ class _SharedSplitState extends State<SharedSplit> {
       initialTab: widget.initialTab,
     );
 
-    if (wide) {
+    if (wide && widget.selectedId != null) {
       final scheme = Theme.of(context).colorScheme;
       return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,

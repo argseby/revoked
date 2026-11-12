@@ -1,10 +1,13 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
+import 'package:revoked_app/core/widgets/app_context_menu.dart';
+import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 
 /// One compact line in an [AppListGroup]: what the thing is, one sentence on
@@ -50,6 +53,9 @@ class AppListRow extends StatelessWidget {
   /// Opens the detail page. A row that opens something shows a chevron.
   final VoidCallback? onTap;
 
+  /// Built at invocation so permissions and item state are current.
+  final FutureOr<List<AppSheetAction>> Function()? contextActions;
+
   const AppListRow({
     super.key,
     this.icon,
@@ -62,6 +68,7 @@ class AppListRow extends StatelessWidget {
     this.accent,
     this.selected = false,
     this.onTap,
+    this.contextActions,
     this.showChevron = true,
   }) : assert(icon != null || leading != null, 'a row needs an icon');
 
@@ -153,7 +160,7 @@ class AppListRow extends StatelessWidget {
           );
 
     final marked = selected
-        ? DecoratedBox(
+        ? Ink(
             decoration: BoxDecoration(
               color: scheme.secondaryContainer,
               border: Border(left: BorderSide(color: scheme.primary, width: 3)),
@@ -161,19 +168,25 @@ class AppListRow extends StatelessWidget {
             child: row,
           )
         : row;
-    if (onTap == null) return marked;
-    // Square on purpose: the row spans its card, whose rounded clip trims the
-    // highlight on the first and last row.
-    return Semantics(
-      selected: selected,
-      child: AppFocusRing(
-        borderRadius: BorderRadius.zero,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.zero,
-          child: marked,
-        ),
-      ),
+    // Rectangular row feedback fills the list; an enclosing card clips
+    // its outer corners. The same shape applies when rows sit on the page.
+    final surface = Material(
+      color: Colors.transparent,
+      borderRadius: AppRadius.row,
+      clipBehavior: Clip.antiAlias,
+      child: onTap == null
+          ? marked
+          : InkWell(onTap: onTap, borderRadius: AppRadius.row, child: marked),
     );
+    final content = onTap == null
+        ? surface
+        : Semantics(
+            selected: selected,
+            child: AppFocusRing(borderRadius: AppRadius.row, child: surface),
+          );
+    final actions = contextActions;
+    return actions == null
+        ? content
+        : AppContextMenu(title: title, actions: actions, child: content);
   }
 }

@@ -19,6 +19,8 @@ void main() {
       if (!entity.path.contains('/view/')) continue;
 
       final source = entity.readAsStringSync();
+      // Command helpers build no widget, so there is nothing to wrap.
+      if (!source.contains('Widget build(')) continue;
       final readsStore =
           source.contains('_store.') || source.contains('Stores.');
       // AppLoadFade is an Observer around the screen it wraps.

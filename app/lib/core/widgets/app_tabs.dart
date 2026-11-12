@@ -1,12 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/radius.dart';
+import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
-import 'package:revoked_app/core/widgets/app_segmented.dart';
 
 /// One page of an [AppTabs]: its name, icon, and a line on what it holds,
-/// read out by screen readers; the name alone says it on screen.
+/// shown together on its context card.
 class AppTab {
   final String label;
   final IconData icon;
@@ -21,10 +22,10 @@ class AppTab {
   });
 }
 
-/// Pages behind a filled segmented strip. Thin underlined tabs went
-/// unnoticed.
+/// Equal-height context cards above pages that retain their local state.
 class AppTabs extends StatefulWidget {
   final List<AppTab> tabs;
+  final String? title;
 
   /// Which tab opens first - lets a route deep-link into one.
   final int initialIndex;
@@ -36,6 +37,7 @@ class AppTabs extends StatefulWidget {
   const AppTabs({
     super.key,
     required this.tabs,
+    this.title,
     this.initialIndex = 0,
     this.inset,
   });
@@ -43,9 +45,6 @@ class AppTabs extends StatefulWidget {
   @override
   State<AppTabs> createState() => _AppTabsState();
 }
-
-/// The narrowest segment that still fits an icon beside its name.
-const double _iconRoom = 120;
 
 class _AppTabsState extends State<AppTabs> {
   late final _selected = Local<int>(
@@ -58,47 +57,52 @@ class _AppTabsState extends State<AppTabs> {
     return Observer(
       builder: (context) {
         final i = _selected.value.clamp(0, widget.tabs.length - 1);
-        final description = widget.tabs[i].description;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: EdgeInsets.fromLTRB(
                 inset,
-                AppSpacing.sm,
+                AppSpacing.lg,
                 inset,
-                AppSpacing.sm,
+                AppSpacing.lg,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (widget.title != null) ...[
+                    AppText(widget.title!).title,
+                    AppSpacing.gapXxl,
+                  ],
                   ConstrainedBox(
                     // As wide as the list under it, so the tabs and its
                     // search line up edge to edge.
                     constraints: const BoxConstraints(
                       maxWidth: AppSpacing.contentMaxWidth,
                     ),
-                    // One row: icon beside the name. A segment too narrow for
-                    // both keeps the name whole and drops the icon.
                     child: LayoutBuilder(
                       builder: (context, box) {
-                        final icons =
-                            box.maxWidth / widget.tabs.length >= _iconRoom;
-                        final strip = AppSegmented<int>(
-                          value: i,
-                          expand: true,
-                          items: [
-                            for (final (k, t) in widget.tabs.indexed)
-                              AppSegmentedItem(
-                                value: k,
-                                label: t.label,
-                                icon: icons ? t.icon : null,
-                              ),
-                          ],
-                          onChanged: (k) => _selected.value = k,
+                        final stackedIcon =
+                            box.maxWidth / widget.tabs.length < 160 ||
+                            MediaQuery.textScalerOf(context).scale(16) > 24;
+                        return IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (final (k, t) in widget.tabs.indexed) ...[
+                                if (k > 0) AppSpacing.gapMd,
+                                Expanded(
+                                  child: _ContextCard(
+                                    tab: t,
+                                    selected: i == k,
+                                    stackedIcon: stackedIcon,
+                                    onTap: () => _selected.value = k,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         );
-                        if (description == null) return strip;
-                        return Semantics(hint: description, child: strip);
                       },
                     ),
                   ),
@@ -116,6 +120,75 @@ class _AppTabsState extends State<AppTabs> {
           ],
         );
       },
+    );
+  }
+}
+
+class _ContextCard extends StatelessWidget {
+  final AppTab tab;
+  final bool selected;
+  final bool stackedIcon;
+  final VoidCallback onTap;
+
+  const _ContextCard({
+    required this.tab,
+    required this.selected,
+    required this.stackedIcon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final shape = RoundedRectangleBorder(
+      borderRadius: AppRadius.allLg,
+      side: BorderSide(
+        color: selected ? scheme.primary : scheme.outlineVariant,
+      ),
+    );
+    final icon = Icon(
+      tab.icon,
+      size: 20,
+      color: selected ? scheme.primary : scheme.onSurfaceVariant,
+    );
+    final label = AppText(tab.label).bold;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? scheme.secondaryContainer : scheme.surface,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: shape,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (stackedIcon) ...[
+                  icon,
+                  AppSpacing.gapSm,
+                  label,
+                ] else
+                  Row(
+                    children: [
+                      icon,
+                      AppSpacing.gapSm,
+                      Expanded(child: label),
+                    ],
+                  ),
+                if (tab.description != null) ...[
+                  AppSpacing.gapSm,
+                  AppText(tab.description!).small.muted,
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

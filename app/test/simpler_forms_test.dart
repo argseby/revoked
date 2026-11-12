@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -79,11 +79,9 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Advanced'),
       200,
+      // The list builds lazily, so the scrollable is found from its first row.
       scrollable: find
-          .ancestor(
-            of: find.text('Visible to'),
-            matching: find.byType(Scrollable),
-          )
+          .ancestor(of: find.text('Details'), matching: find.byType(Scrollable))
           .first,
     );
     await tester.pumpAndSettle();

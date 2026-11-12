@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
@@ -78,6 +78,7 @@ class _AttestationsScreenState extends State<AttestationsScreen>
         Expanded(
           child: Observer(
             builder: (_) => AppTabs(
+              title: 'Attestations',
               initialIndex: widget.initialTab,
               tabs: [
                 AppTab(

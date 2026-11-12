@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -33,14 +34,13 @@ import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 
-/// A tab's list: one line on what it holds, then its rows. The tab names it,
-/// so it carries no heading of its own. While there is nothing to list, the
-/// tab shows [empty] instead, as every other list in the app does.
-///
-/// Its [toolbar] goes to the top bar like every list's; [children] are the
-/// rows it lets through, [hasAny] whether there is anything at all.
+/// A collection tab keeps its heading and action in every load state, with
+/// shared quick filters/search above the populated list.
 class _TabList extends StatelessWidget {
   final String intro;
+  final String title;
+  final String listTitle;
+  final Widget action;
   final LoadState state;
   final VoidCallback onRetry;
   final Widget empty;
@@ -50,6 +50,9 @@ class _TabList extends StatelessWidget {
 
   const _TabList({
     required this.intro,
+    required this.title,
+    required this.listTitle,
+    required this.action,
     required this.state,
     required this.onRetry,
     required this.empty,
@@ -60,47 +63,61 @@ class _TabList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final header = AppCollectionHeader(
+      title: title,
+      description: intro,
+      action: action,
+    );
     return AppLoadFade(
       loading: () => !hasAny && state.isFirstLoad,
-      skeleton: AppListSkeleton(
-        intro: intro,
-        rows: const [
-          AppSkeletonRow(
-            'Membership',
-            'From a club',
-            icon: AppIcons.shieldCheck,
-            badge: 'Verified',
-          ),
-          AppSkeletonRow(
-            'Employment',
-            'From a company',
-            icon: AppIcons.shieldCheck,
-            badge: 'Verified',
+      skeleton: AppPageBody(
+        children: [
+          header,
+          AppListSkeleton(
+            embedded: true,
+            rows: const [
+              AppSkeletonRow(
+                'Membership',
+                'From a club',
+                icon: AppIcons.shieldCheck,
+                badge: 'Verified',
+              ),
+              AppSkeletonRow(
+                'Employment',
+                'From a company',
+                icon: AppIcons.shieldCheck,
+                badge: 'Verified',
+              ),
+            ],
           ),
         ],
       ),
       builder: (_) {
         final failure = state.error;
         if (!hasAny) {
-          return AppListEmpty(
-            toolbar: toolbar,
-            child: failure != null
-                ? AppLoadError(
-                    title: 'The list could not be loaded',
-                    message: failure,
-                    onRetry: onRetry,
-                  )
-                : empty,
+          return AppPageBody(
+            children: [
+              header,
+              if (failure != null)
+                AppLoadError(
+                  title: 'The list could not be loaded',
+                  message: failure,
+                  onRetry: onRetry,
+                )
+              else
+                empty,
+            ],
           );
         }
         return AppListPage(
           toolbar: toolbar,
+          inlineToolbar: true,
           banners: [if (failure != null) AppRefreshFailed(onRetry: onRetry)],
-          filters: Text(intro).muted.small,
+          filters: header,
           emptyMessage: children.isEmpty
               ? 'Nothing matches the search or filters.'
               : null,
-          groups: [AppListCard(children: children)],
+          groups: [AppListGroup(title: listTitle, children: children)],
         );
       },
     );
@@ -147,6 +164,7 @@ class _TabTools<T> {
 
   AppListToolbar toolbar(List<T> searched) => AppListToolbar(
     key: ValueKey(key),
+    totalCount: searched.length,
     query: table.query,
     onQueryChanged: table.setQuery,
     searchHint: hint,
@@ -221,11 +239,17 @@ class _HeldAttestationsState extends State<HeldAttestations> {
       builder: (_) {
         final searched = _tools.searched;
         return _TabList(
+          title: 'Attestations about you',
+          listTitle: 'Your attestations',
+          action: AppButton(
+            icon: AppIcons.askFor,
+            label: 'Ask for attestation',
+            onTap: () => openAskAttestationSheet(context),
+          ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.credentials.isNotEmpty,
           intro:
-              'Attestations confirmed by others. Nothing is shown unless '
-              'selected, detail by detail.',
+              'Facts about you, confirmed by others. Choose the details you share.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(
@@ -247,17 +271,12 @@ class _HeldAttestationsState extends State<HeldAttestations> {
               AppEmptyStep('Acceptance', 'Bound to one identity'),
               AppEmptyStep('Presentation', 'Selected details only'),
             ],
-            action: AppButton(
-              icon: AppIcons.askFor,
-              label: 'Ask for one',
-              onTap: () => openAskAttestationSheet(context),
-            ),
           ),
           children: [
             for (final c in _tools.shown(searched))
               AppListRow(
                 icon: AppIcons.shieldCheck,
-                title: c.type,
+                title: c.type.isEmpty ? 'Attestation' : c.type,
                 subtitleWidget: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -266,16 +285,30 @@ class _HeldAttestationsState extends State<HeldAttestations> {
                     ).muted.small,
                     if (c.disclosures.isNotEmpty)
                       Text(
-                        [
-                          for (final d in c.disclosures)
-                            '${d.name}: ${claimText(d.value)}',
-                        ].join(' · '),
+                        [for (final d in c.disclosures) d.name].join(' · '),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ).small,
                   ],
                 ),
                 trailing: verdictBadge(context, store.verdicts[c.id]),
+                contextActions: () => [
+                  AppSheetAction(
+                    icon: AppIcons.link,
+                    label: 'Share link',
+                    enabled: store.verdicts[c.id]?.isUnusable != true,
+                    onTap: () => openAttestationShareSheet(context, c),
+                  ),
+                  AppSheetAction(
+                    icon: AppIcons.trash,
+                    label: 'Remove attestation',
+                    destructive: true,
+                    onTap: () => _CredentialSheet(
+                      credential: c,
+                      identityName: _identityName(c),
+                    )._remove(context, closeAfterRemove: false),
+                  ),
+                ],
                 onTap: () {
                   store.loadShares(c.id);
                   showAppSheet(
@@ -305,7 +338,10 @@ class _CredentialSheet extends StatelessWidget {
     required this.identityName,
   });
 
-  Future<void> _remove(BuildContext context) async {
+  Future<void> _remove(
+    BuildContext context, {
+    bool closeAfterRemove = true,
+  }) async {
     final confirmed = await showAppDialog(
       context: context,
       title: 'Remove this attestation?',
@@ -321,7 +357,7 @@ class _CredentialSheet extends StatelessWidget {
     final ok = await Stores.credentials.remove(credential.id);
     if (!context.mounted) return;
     if (ok) {
-      Navigator.of(context).pop();
+      if (closeAfterRemove) Navigator.of(context).pop();
       AppToast.success(context, 'Attestation removed');
     } else {
       AppToast.error(
@@ -533,43 +569,45 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
         a.type,
         for (final e in a.claims.entries) '${e.key}: ${claimText(e.value)}',
       ].join(' · '),
-      actions: [
-        if (!a.isRevoked)
-          AppSheetAction(
-            icon: AppIcons.shieldSlash,
-            label: a.isOffered ? 'Withdraw offer' : 'Revoke',
-            destructive: true,
-            onTap: () => _revoke(context, a),
-          ),
-        if (a.owner.isNotEmpty && a.owner == Stores.auth.userId)
-          AppSheetAction(
-            icon: AppIcons.personWorkspace,
-            label: 'Visibility',
-            onTap: () => openAccessSheet(
-              context,
-              area: AccessArea.attestations,
-              id: a.id,
-              name: a.title,
-              audienceKind: a.audienceKind,
-              editing: a.editing,
-              save: (kind, editing, groups) => Stores.attestations.setAudience(
-                a.id,
-                kind: kind,
-                editing: editing,
-                groups: groups,
-              ),
-              saveError: () => Stores.attestations.error?.description,
-            ),
-          ),
-        AppSheetAction(
-          icon: AppIcons.trash,
-          label: 'Delete',
-          destructive: true,
-          onTap: () => _delete(context, a),
-        ),
-      ],
+      actions: _actions(context, a),
     );
   }
+
+  List<AppSheetAction> _actions(BuildContext context, Attestation a) => [
+    if (!a.isRevoked)
+      AppSheetAction(
+        icon: AppIcons.shieldSlash,
+        label: a.isOffered ? 'Withdraw offer' : 'Revoke',
+        destructive: true,
+        onTap: () => _revoke(context, a),
+      ),
+    if (a.owner.isNotEmpty && a.owner == Stores.auth.userId)
+      AppSheetAction(
+        icon: AppIcons.personWorkspace,
+        label: 'Visibility',
+        onTap: () => openAccessSheet(
+          context,
+          area: AccessArea.attestations,
+          id: a.id,
+          name: a.title,
+          audienceKind: a.audienceKind,
+          editing: a.editing,
+          save: (kind, editing, groups) => Stores.attestations.setAudience(
+            a.id,
+            kind: kind,
+            editing: editing,
+            groups: groups,
+          ),
+          saveError: () => Stores.attestations.error?.description,
+        ),
+      ),
+    AppSheetAction(
+      icon: AppIcons.trash,
+      label: 'Delete',
+      destructive: true,
+      onTap: () => _delete(context, a),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -579,11 +617,16 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
         final off = store.issuingAllowed == false;
         final searched = _tools.searched;
         return _TabList(
+          title: 'Attestations you issue',
+          listTitle: 'Issued attestations',
+          action: AppButton(
+            icon: AppIcons.attestation,
+            label: 'Issue attestation',
+            onTap: off ? null : () => showAttestationCreateSheet(context),
+          ),
           toolbar: _tools.toolbar(searched),
           hasAny: !off && store.attestations.isNotEmpty,
-          intro:
-              'Attestations issued by this workspace in its domain’s name. '
-              'Anyone who trusts the domain can rely on them.',
+          intro: 'Confirm a membership, role or fact in this workspace’s name.',
           state: store.loadState,
           onRetry: store.load,
           empty: off
@@ -618,21 +661,21 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
                       'Visible to every check within minutes',
                     ),
                   ],
-                  action: AppButton(
-                    icon: AppIcons.attestation,
-                    label: 'Issue attestation',
-                    onTap: () => showAttestationCreateSheet(context),
-                  ),
                 ),
           children: [
             if (!off)
               for (final a in _tools.shown(searched))
                 AppListRow(
-                  icon: AppIcons.shieldLock,
+                  icon: a.isRevoked
+                      ? AppIcons.shieldSlash
+                      : a.isOffered
+                      ? AppIcons.send
+                      : AppIcons.attestation,
                   title: a.title,
                   subtitle: issuedAttestationSubtitle(a),
                   trailing: issuedAttestationBadge(a),
                   onTap: () => _options(context, a),
+                  contextActions: () => _actions(context, a),
                 ),
           ],
         );
@@ -720,11 +763,17 @@ class _CheckedAttestationsState extends State<CheckedAttestations> {
       builder: (_) {
         final searched = _tools.searched;
         return _TabList(
+          title: 'Attestation checks',
+          listTitle: 'Checks and answers',
+          action: AppButton(
+            icon: AppIcons.shieldCheck,
+            label: 'Check attestation',
+            onTap: () => openAttestationCheckSheet(context),
+          ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.checks.isNotEmpty,
           intro:
-              'Attestations shown by others in answer to a check. Each answer '
-              'reflects the state at that moment.',
+              'Ask someone to show an attestation and review the verified answer.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(
@@ -752,16 +801,11 @@ class _CheckedAttestationsState extends State<CheckedAttestations> {
                 'Issuer, current validity and proof of ownership',
               ),
             ],
-            action: AppButton(
-              icon: AppIcons.shieldCheck,
-              label: 'See someone\'s attestation',
-              onTap: () => openAttestationCheckSheet(context),
-            ),
           ),
           children: [
             for (final c in _tools.shown(searched))
               AppListRow(
-                icon: AppIcons.shieldCheck,
+                icon: c.isAnswered ? AppIcons.shieldCheck : AppIcons.clock,
                 title: c.title,
                 subtitle: checkSubtitle(c),
                 trailing: checkBadge(context, c),

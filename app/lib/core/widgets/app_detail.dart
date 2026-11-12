@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/design/radius.dart';
 
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -231,8 +232,8 @@ class AppDetailRow extends StatelessWidget {
     );
 
     if (onTap == null) return row;
-    // Square like every row in a card; the card's clip rounds the ends.
-    return InkWell(onTap: onTap, borderRadius: BorderRadius.zero, child: row);
+    // Match the shared item-row hover shape, including outside a card.
+    return InkWell(onTap: onTap, borderRadius: AppRadius.row, child: row);
   }
 }
 

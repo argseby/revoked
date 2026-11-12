@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -147,7 +147,7 @@ void main() {
     await open(tester);
 
     expect(find.text('No contacts'), findsOneWidget);
-    expect(find.text('Add a contact'), findsOneWidget);
+    expect(find.text('Add contact'), findsOneWidget);
   });
 
   testWidgets('a contact with an account here reads as reachable', (
@@ -156,7 +156,7 @@ void main() {
     await open(tester);
 
     expect(find.text('Ada Lovelace'), findsOneWidget);
-    expect(find.textContaining('In the app'), findsOneWidget);
+    expect(find.text('In the app · ada@example.com'), findsOneWidget);
   });
 
   testWidgets('sending picks vault entries and reports it arrived', (

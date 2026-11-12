@@ -141,12 +141,10 @@ abstract class _MemberKeysStore with Store {
 
   _MemberKeysStore(
     this._api, {
-    required String Function() currentUser,
-    required Uint8List? Function() ownRoot,
+    required this._currentUser,
+    required this._ownRoot,
     FlutterSecureStorage? storage,
-  }) : _currentUser = currentUser,
-       _ownRoot = ownRoot,
-       _storage = storage ?? createSecureStorage();
+  }) : _storage = storage ?? createSecureStorage();
 
   final ObservableList<MemberKeys> members = ObservableList<MemberKeys>();
 

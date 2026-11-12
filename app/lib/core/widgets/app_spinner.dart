@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The app's only progress indicator. Two sizes: inline (inside a button or a
 /// row of text) and [large] for a whole page or panel that has nothing else to

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The type scale, in logical pixels. Four sizes, so a screen's hierarchy is
 /// readable at a glance and nothing is set smaller than 13.
@@ -50,25 +50,18 @@ class AppText extends StatelessWidget {
   const AppText(
     this.data, {
     super.key,
-    bool title = false,
-    bool header = false,
-    bool small = false,
-    bool muted = false,
-    bool bold = false,
-    bool mono = false,
-    bool italic = false,
-    bool selectable = false,
+    this._title = false,
+    this._header = false,
+    this._small = false,
+    this._muted = false,
+    this._bold = false,
+    this._mono = false,
+    this._italic = false,
+    this._selectable = false,
     this.textAlign,
     this.maxLines,
     this.overflow,
-  }) : _title = title,
-       _header = header,
-       _small = small,
-       _muted = muted,
-       _bold = bold,
-       _mono = mono,
-       _italic = italic,
-       _selectable = selectable;
+  });
 
   AppText _copy({
     bool? title,

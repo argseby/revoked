@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -99,7 +99,7 @@ class _OptionRow extends StatelessWidget {
         ? color
         : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
     return InkWell(
-      borderRadius: AppRadius.allMd,
+      borderRadius: AppRadius.row,
       onTap: action.enabled ? onSelected : null,
       child: Padding(
         padding: const EdgeInsets.symmetric(
