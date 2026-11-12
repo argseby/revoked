@@ -140,6 +140,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // These interaction tests exercise the alternatives after opening them.
+    final entryEditors = find.text('Choose or add an entry');
+    for (var i = 0; i < entryEditors.evaluate().length; i++) {
+      await tester.ensureVisible(entryEditors.at(i));
+      await tester.tap(entryEditors.at(i));
+      await tester.pumpAndSettle();
+    }
   }
 
   Future<void> pick(WidgetTester tester, String item) async {

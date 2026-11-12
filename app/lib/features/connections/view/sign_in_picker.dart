@@ -11,6 +11,7 @@ import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_consent_layout.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
@@ -268,58 +269,62 @@ class SignInPicker extends StatelessWidget {
           on: selected.isNotEmpty,
           onToggle: busy ? null : (on) => _toggle(on, shortlist),
         ),
-        AppSpacing.gapMd,
-        for (final c in shortlist) ...[
-          SignInChoiceRow(
-            choice: c,
-            selected: c.id == selected,
-            onTap: busy ? null : () => onChanged(c.id),
-          ),
-          AppSpacing.gapSm,
-        ],
-        Focus(
-          onFocusChange: (focused) {
-            if (focused && selected != newValue) onChanged(newValue);
-          },
-          child: AppTextField(
-            controller: draft,
-            hint: newHint,
-            enabled: !busy,
-            leading: const Icon(AppIcons.plus),
-            inputFormatters: [
-              if (maxLength != null)
-                LengthLimitingTextInputFormatter(maxLength),
+        AppConsentDetails(
+          title: 'Choose or add an entry',
+          children: [
+            for (final c in shortlist) ...[
+              SignInChoiceRow(
+                choice: c,
+                selected: c.id == selected,
+                onTap: busy ? null : () => onChanged(c.id),
+              ),
+              AppSpacing.gapSm,
             ],
-            onChanged: (_) {
-              if (selected != newValue) onChanged(newValue);
-            },
-          ),
+            Focus(
+              onFocusChange: (focused) {
+                if (focused && selected != newValue) onChanged(newValue);
+              },
+              child: AppTextField(
+                controller: draft,
+                hint: newHint,
+                enabled: !busy,
+                leading: const Icon(AppIcons.plus),
+                inputFormatters: [
+                  if (maxLength != null)
+                    LengthLimitingTextInputFormatter(maxLength),
+                ],
+                onChanged: (_) {
+                  if (selected != newValue) onChanged(newValue);
+                },
+              ),
+            ),
+            if (maxLength case final max?)
+              Observer(
+                builder: (context) {
+                  final length = draft.text.characters.length;
+                  if (length < max * 0.8) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                    child: Text(
+                      length >= max
+                          ? 'At most $max characters.'
+                          : '${max - length} characters left',
+                    ).small.muted,
+                  );
+                },
+              ),
+            if (hasMore) ...[
+              AppSpacing.gapSm,
+              _Row(
+                leading: const Icon(AppIcons.folder),
+                primary: 'Browse vault',
+                secondary: '${choices.length} available',
+                trailing: const Icon(AppIcons.chevronRight),
+                onTap: busy ? null : () => _openBrowser(context),
+              ),
+            ],
+          ],
         ),
-        if (maxLength case final max?)
-          Observer(
-            builder: (context) {
-              final length = draft.text.characters.length;
-              if (length < max * 0.8) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xxs),
-                child: Text(
-                  length >= max
-                      ? 'At most $max characters.'
-                      : '${max - length} characters left',
-                ).small.muted,
-              );
-            },
-          ),
-        if (hasMore) ...[
-          AppSpacing.gapSm,
-          _Row(
-            leading: const Icon(AppIcons.folder),
-            primary: 'Browse vault',
-            secondary: '${choices.length} available',
-            trailing: const Icon(AppIcons.chevronRight),
-            onTap: busy ? null : () => _openBrowser(context),
-          ),
-        ],
         if (note != null) ...[AppSpacing.gapSm, Text(note!).small.muted],
       ],
     );

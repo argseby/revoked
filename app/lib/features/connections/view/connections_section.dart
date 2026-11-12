@@ -426,6 +426,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         store.checksByConnection[connection.id] ?? const <AttestationCheck>[];
 
     return AppDetailPage(
+      centered: true,
       header: AppDetailHeader(
         badges: [
           if (connection.paused) const AppBadge(label: 'Paused'),
@@ -435,7 +436,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         subtitle: connection.clientId,
         subtitleMono: true,
       ),
-      sections: [
+      aside: [
         AppListGroup(
           title: 'Connection',
           trailing: const SizedBox.shrink(),
@@ -482,7 +483,15 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
               label: connection.isExpired ? 'Expired' : 'Expires',
               value: dayTimeLabel(connection.expiresAt),
             ),
-            if (!connection.isExpired)
+          ],
+        ),
+      ],
+      sections: [
+        if (!connection.isExpired)
+          AppListGroup(
+            title: 'Current access',
+            trailing: const SizedBox.shrink(),
+            children: [
               AppFormToggleRow(
                 icon: AppIcons.pause,
                 label: 'Keep ${connection.name} active',
@@ -493,11 +502,12 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
                     : (on) => _setPaused(connection, !on),
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               ),
-          ],
-        ),
+            ],
+          ),
         _sections(connection),
         ToolPermissions(
           name: connection.name,
+          useColumns: false,
           allowRevoke: connection.allowRevoke,
           allowHandOver: connection.allowHandOver,
           onAllowRevoke: (v) =>

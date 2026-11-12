@@ -16,7 +16,7 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
-import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/core/widgets/app_consent_layout.dart';
 import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
@@ -480,110 +480,102 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
       child: child,
     );
     return AppPageBody(
+      centered: true,
       bottomPadding: AppSpacing.xxl,
       children: [
-        // The page that asked may be on another screen: the code shows it is
-        // the person's own, and not one someone else put in front of them.
-        if (widget.request!.background)
-          ToolCheckCode(name: host, challenge: widget.request!.challenge),
-        // A disconnected service has its own note below, saying the same.
-        if (c.returning case final back? when c.disconnectedAt == null)
-          AppAlert(
-            leading: const Icon(AppIcons.info),
-            title: Text("You've signed in to $host before"),
-            content: Text(
-              'Last time on ${dayLabel(back.lastAt)}. It keeps the same ID '
-              'for you and gets what you allow below.',
-            ).small,
+        AppConsentLayout(
+          requester: AppConsentRequester(
+            address: Uri.parse(c.client).authority,
+            account: c.accountEmail,
+            badge: WorksWithChip(origin: c.client),
           ),
-        if (c.disconnectedAt != null)
-          AppAlert(
-            leading: const Icon(AppIcons.info),
-            content: Text(
-              c.newId
-                  ? '$host was disconnected on ${dayTimeLabel(c.disconnectedAt)}. It '
-                        'sees this account as new. '
-                        '${c.scopes.isEmpty && c.links.isEmpty ? '' : 'Shared data could still identify the account, so nothing is preselected.'}'
-                  : '$host was disconnected on ${dayTimeLabel(c.disconnectedAt)}. '
-                        'Signing in restores the previous account there.',
-            ),
-          ),
-        AppListGroup(
-          title: 'Requesting service',
-          trailing: quiet,
-          footer: const Text(
-            'Continue only if the address is recognised and the sign-in was '
-            'just started there.',
-          ),
-          children: [
-            AppDetailRow(
-              icon: AppIcons.globe,
-              label: 'Address',
-              value: host,
-              badge: WorksWithChip(origin: c.client),
-            ),
-            AppDetailRow(
-              icon: AppIcons.person,
-              label: 'Your account',
-              value: c.accountEmail,
+          information: [
+            AppConsentDetails(
+              title: 'Always included: a separate sign-in ID',
+              children: [
+                Text(
+                  'An ID dedicated to $host is required to sign in. '
+                  'It does not contain your email. Your name and entries are optional.',
+                ),
+              ],
             ),
           ],
-        ),
-        AppListGroup(
-          title: 'How $host recognises you',
-          trailing: c.links.isEmpty && asksName ? chip : quiet,
-          children: [
-            pad(
-              AppCheckRow(
-                label: 'A separate ID for $host',
-                subtitle:
-                    'Required to sign in. This ID does not contain your email.',
-                value: true,
-                onChanged: null,
+          decisions: [
+            // The page that asked may be on another screen: the code shows it is
+            // the person's own, and not one someone else put in front of them.
+            if (widget.request!.background)
+              ToolCheckCode(name: host, challenge: widget.request!.challenge),
+            // A disconnected service has its own note below, saying the same.
+            if (c.returning case final back? when c.disconnectedAt == null)
+              AppAlert(
+                leading: const Icon(AppIcons.info),
+                title: Text("You've signed in to $host before"),
+                content: Text(
+                  'Last time on ${dayLabel(back.lastAt)}. It keeps the same ID '
+                  'for you and gets what you allow below.',
+                ).small,
               ),
-            ),
-            for (final s in c.scopes)
-              if (s.scope == _profile)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: _nameRow(c),
-                )
-              else
-                pad(
-                  AppCheckRow(
-                    label: signInScopeLabels[s.scope] ?? s.scope,
-                    subtitle: s.value.isEmpty ? null : s.value,
-                    badge: c.isNewScope(s.scope)
-                        ? const AppBadge(label: 'New')
-                        : null,
-                    value: _scopes.value.contains(s.scope),
-                    onChanged: _busy.value
-                        ? null
-                        : (on) => _scopes.value = on
-                              ? {..._scopes.value, s.scope}
-                              : ({..._scopes.value}..remove(s.scope)),
-                  ),
+            if (c.disconnectedAt != null)
+              AppAlert(
+                leading: const Icon(AppIcons.info),
+                content: Text(
+                  c.newId
+                      ? '$host was disconnected on ${dayTimeLabel(c.disconnectedAt)}. It '
+                            'sees this account as new. '
+                            '${c.scopes.isEmpty && c.links.isEmpty ? '' : 'Shared data could still identify the account, so nothing is preselected.'}'
+                      : '$host was disconnected on ${dayTimeLabel(c.disconnectedAt)}. '
+                            'Signing in restores the previous account there.',
                 ),
+              ),
+            if (c.scopes.isNotEmpty)
+              AppListGroup(
+                title: 'Choose what to share',
+                trailing: c.links.isEmpty && asksName ? chip : quiet,
+                children: [
+                  for (final s in c.scopes)
+                    if (s.scope == _profile)
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: _nameRow(c),
+                      )
+                    else
+                      pad(
+                        AppCheckRow(
+                          label: signInScopeLabels[s.scope] ?? s.scope,
+                          subtitle: s.value.isEmpty ? null : s.value,
+                          badge: c.isNewScope(s.scope)
+                              ? const AppBadge(label: 'New')
+                              : null,
+                          value: _scopes.value.contains(s.scope),
+                          onChanged: _busy.value
+                              ? null
+                              : (on) => _scopes.value = on
+                                    ? {..._scopes.value, s.scope}
+                                    : ({..._scopes.value}..remove(s.scope)),
+                        ),
+                      ),
+                ],
+              ),
+            if (c.links.isNotEmpty)
+              AppListGroup(
+                title: 'Entries $host can keep reading',
+                trailing: chip,
+                footer: Text(
+                  'Only the entries you choose are shared. They stay in your vault, '
+                  'and $host can read their latest values until you stop sharing.',
+                ),
+                children: [
+                  for (final l in c.links)
+                    Padding(
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: _linkRow(c, l),
+                    ),
+                ],
+              ),
+            if (_error.value != null)
+              AppAlert(destructive: true, content: Text(_error.value!)),
           ],
         ),
-        if (c.links.isNotEmpty)
-          AppListGroup(
-            title: 'Entries $host can keep reading',
-            trailing: chip,
-            footer: Text(
-              'Only the entries you choose are shared. They stay in your vault, '
-              'and $host can read their latest values until you stop sharing.',
-            ),
-            children: [
-              for (final l in c.links)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: _linkRow(c, l),
-                ),
-            ],
-          ),
-        if (_error.value != null)
-          AppAlert(destructive: true, content: Text(_error.value!)),
       ],
     );
   }

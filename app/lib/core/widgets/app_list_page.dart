@@ -191,6 +191,9 @@ class AppPageInset extends StatelessWidget {
 class AppPageBody extends StatelessWidget {
   final List<Widget> children;
 
+  /// Centers a bounded flow on wide windows without affecting its text alignment.
+  final bool centered;
+
   /// Room below the last child. The default clears the shell's stacked
   /// floating buttons; a page with its own bottom bar needs less.
   final double bottomPadding;
@@ -198,6 +201,7 @@ class AppPageBody extends StatelessWidget {
   const AppPageBody({
     super.key,
     required this.children,
+    this.centered = false,
     this.bottomPadding = AppSpacing.gigantic * 3,
   });
 
@@ -218,7 +222,9 @@ class AppPageBody extends StatelessWidget {
           bottomPadding,
         ),
         child: Align(
-          alignment: AlignmentDirectional.topStart,
+          alignment: centered
+              ? Alignment.topCenter
+              : AlignmentDirectional.topStart,
           child: ConstrainedBox(
             constraints: const BoxConstraints(
               maxWidth: AppSpacing.contentMaxWidth,

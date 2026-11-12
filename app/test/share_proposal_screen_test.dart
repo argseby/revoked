@@ -387,6 +387,10 @@ void main() {
         findsOneWidget,
       );
       // The tool's reason is quoted as its own words; unticking is respected.
+      expect(find.text('“To end a link you remove”'), findsNothing);
+      await tester.ensureVisible(find.text('Why Mietunterlagen asks'));
+      await tester.tap(find.text('Why Mietunterlagen asks'));
+      await tester.pumpAndSettle();
       expect(find.text('“To end a link you remove”'), findsOneWidget);
       expect(
         find.descendant(
@@ -476,6 +480,10 @@ void main() {
       await askForVault();
       expect(find.text('Read unencrypted vault records'), findsOneWidget);
       expect(find.text('Vault read access'), findsOneWidget);
+      expect(find.text('“To answer your questions”'), findsNothing);
+      await tester.ensureVisible(find.text('Why Assistant asks'));
+      await tester.tap(find.text('Why Assistant asks'));
+      await tester.pumpAndSettle();
       expect(find.text('“To answer your questions”'), findsOneWidget);
       expect(
         find.descendant(
@@ -544,6 +552,10 @@ void main() {
         find.text('Creates “Saves” in your vault when connected.'),
         findsOneWidget,
       );
+      expect(find.text('“To keep your saves”'), findsNothing);
+      await tester.ensureVisible(find.text('Why Saves asks'));
+      await tester.tap(find.text('Why Saves asks'));
+      await tester.pumpAndSettle();
       expect(find.text('“To keep your saves”'), findsOneWidget);
       expect(
         find.descendant(
@@ -554,7 +566,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Records in “Saves” → sharing link'), findsOneWidget);
+      expect(
+        find.textContaining('records in “Saves” without asking each time.'),
+        findsOneWidget,
+      );
       await tester.ensureVisible(find.text('Create and manage sharing links'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Create and manage sharing links'));
