@@ -101,18 +101,19 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     // others ask of it. Answers to a request are on that request's page;
     // shares others gave are under Shares › Received.
     return AppTabs(
+      title: 'Requests',
       initialIndex: widget.initialTab,
       tabs: [
         AppTab(
           label: 'Sent',
           icon: AppIcons.send,
-          description: 'Requests sent to others, with their responses.',
+          description: 'Requests you sent to others.',
           view: _yourRequests(context),
         ),
         const AppTab(
           label: 'To answer',
           icon: AppIcons.askFor,
-          description: 'Requests others sent to this account.',
+          description: 'Requests others sent to you.',
           view: BookmarksTab(kind: BookmarkKind.request),
         ),
       ],

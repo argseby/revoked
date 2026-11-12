@@ -111,6 +111,7 @@ class AppCollectionTile extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          borderRadius: AppRadius.allMd,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: LayoutBuilder(

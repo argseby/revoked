@@ -221,6 +221,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
         AppErrorText(failure),
         AppButton(
           label: 'Retry loading contacts',
+          icon: AppIcons.arrowClockwise,
           style: AppButtonStyle.accent,
           onTap: flow.loading
               ? null
@@ -286,6 +287,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
         ).bold,
         AppButton(
           label: 'Change',
+          icon: AppIcons.pen,
           size: AppButtonSize.small,
           style: AppButtonStyle.ghost,
           onTap: flow.changeRecipients,
@@ -425,6 +427,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
           ),
           AppButton(
             label: 'Copy or share link',
+            icon: AppIcons.share,
             style: AppButtonStyle.ghost,
             onTap: _shareManually,
           ),
@@ -438,6 +441,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
           ),
           AppButton(
             label: 'Back',
+            icon: AppIcons.arrowLeft,
             style: AppButtonStyle.ghost,
             onTap: flow.changeRecipients,
           ),
@@ -451,6 +455,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
             ),
           AppButton(
             label: 'Done',
+            icon: AppIcons.check,
             busy: flow.busy,
             onTap: flow.busy ? null : () => Navigator.of(context).pop(),
           ),

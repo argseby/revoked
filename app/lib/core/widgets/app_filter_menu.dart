@@ -650,6 +650,7 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
                   alignment: AlignmentDirectional.centerStart,
                   child: AppButton(
                     label: 'Reset',
+                    icon: AppIcons.arrowClockwise,
                     emphasizeLabel: false,
                     style: AppButtonStyle.ghost,
                     onTap:
@@ -669,7 +670,11 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
               Expanded(
                 child: Align(
                   alignment: AlignmentDirectional.centerEnd,
-                  child: AppButton(label: 'Done', onTap: close),
+                  child: AppButton(
+                    label: 'Done',
+                    icon: AppIcons.check,
+                    onTap: close,
+                  ),
                 ),
               ),
             ],
@@ -789,6 +794,7 @@ class _PanelHeading extends StatelessWidget {
         if (selected > 0) ...[
           AppButton(
             label: 'Clear',
+            icon: AppIcons.x,
             tooltip: 'Clear $title',
             style: AppButtonStyle.ghost,
             size: AppButtonSize.small,
@@ -831,6 +837,7 @@ class _FilterChoice extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          borderRadius: AppRadius.allMd,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md,

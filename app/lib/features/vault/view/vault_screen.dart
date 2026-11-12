@@ -815,22 +815,22 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       if (r.sealed) 'Encrypted',
       if (r.isWrittenByTool) 'From ${r.writerName}',
     ].join(' · ');
+    final access =
+        !Stores.shares.loadState.hasLoaded ||
+            Stores.shares.loadState.error != null
+        ? 'Access not confirmed'
+        : links > 0
+        ? 'Shared · $links ${links == 1 ? 'link' : 'links'}'
+        : audience.isPrivate
+        ? 'Only you'
+        : audience.effectiveKind == 'workspace'
+        ? 'Workspace'
+        : 'Shared with groups';
     return LayoutBuilder(
       builder: (context, box) {
         final narrow =
             box.maxWidth < 520 ||
             MediaQuery.textScalerOf(context).scale(16) > 24;
-        final access =
-            !Stores.shares.loadState.hasLoaded ||
-                Stores.shares.loadState.error != null
-            ? 'Access not confirmed'
-            : links > 0
-            ? 'Shared · $links ${links == 1 ? 'link' : 'links'}'
-            : audience.isPrivate
-            ? 'Only you'
-            : audience.effectiveKind == 'workspace'
-            ? 'Workspace'
-            : 'Shared with groups';
         return AppListRow(
           icon: icon,
           title: r.label.isEmpty ? r.key : r.label,

@@ -124,18 +124,19 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     // Access by record moved to the record pages and the Overview. The same
     // two tabs as Requests: what this account gave, and what it was given.
     return AppTabs(
+      title: 'Shares',
       initialIndex: widget.initialTab,
       tabs: [
         AppTab(
           label: 'Sent',
           icon: AppIcons.send,
-          description: 'Share links made here, by status and by person.',
+          description: 'Links you shared with others.',
           view: _sent(context),
         ),
         const AppTab(
           label: 'Received',
           icon: AppIcons.bookmark,
-          description: 'Shares others gave this account, and ones saved.',
+          description: 'Items others shared with you.',
           view: BookmarksTab(kind: BookmarkKind.share),
         ),
       ],

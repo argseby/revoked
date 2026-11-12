@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// that does nothing: a cancel carries no icon, which is what makes the icons
 /// on the others mean "this acts".
 void main() {
-  const dismissals = {"'Cancel'", "'Close'", "'Not now'", 'cancelLabel'};
+  const dismissals = {"'Cancel'", "'Close'", "'Not now'", "'Skip for now'", 'cancelLabel'};
 
   test('every AppButton has an icon, except the ones that dismiss', () {
     final offenders = <String>[];

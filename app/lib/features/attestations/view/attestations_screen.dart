@@ -78,6 +78,7 @@ class _AttestationsScreenState extends State<AttestationsScreen>
         Expanded(
           child: Observer(
             builder: (_) => AppTabs(
+              title: 'Attestations',
               initialIndex: widget.initialTab,
               tabs: [
                 AppTab(
