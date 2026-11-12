@@ -11,7 +11,8 @@ import 'package:revoked_app/core/state/sheet_tracker.dart';
 /// Opens the app's one modal surface for a form or a list of choices: a
 /// bottom sheet on a phone, a full-height panel on the trailing edge of a
 /// wider window. Every create, edit and options flow goes through here, so
-/// they all open in the same place at the same width.
+/// they all open in the same place. A wider editor can opt into [panelWidth]
+/// without changing the default width of the other sheets.
 ///
 /// A sheet closes only through its own buttons unless [dismissible]: a stray
 /// click beside a half-filled form would throw the input away. Pass it for a
@@ -23,6 +24,7 @@ Future<T?> showAppSheet<T>({
   required WidgetBuilder builder,
   bool isScrollControlled = true,
   bool dismissible = false,
+  double panelWidth = AppSpacing.panelWidth,
 }) {
   SheetTracker.opened();
   // A sheet leaves in one of two ways: popped, which completes its future, or
@@ -44,7 +46,7 @@ Future<T?> showAppSheet<T>({
   try {
     future = AppSpacing.isNarrow(context)
         ? _bottomSheet<T>(context, content, isScrollControlled, dismissible)
-        : _sidePanel<T>(context, content, dismissible);
+        : _sidePanel<T>(context, content, dismissible, panelWidth);
   } catch (_) {
     release();
     rethrow;
@@ -118,6 +120,7 @@ Future<T?> _sidePanel<T>(
   BuildContext context,
   WidgetBuilder content,
   bool dismissible,
+  double panelWidth,
 ) {
   final scheme = Theme.of(context).colorScheme;
   return showGeneralDialog<T>(
@@ -134,7 +137,7 @@ Future<T?> _sidePanel<T>(
     pageBuilder: (ctx, _, _) => Align(
       alignment: AlignmentDirectional.centerEnd,
       child: SizedBox(
-        width: AppSpacing.panelWidth,
+        width: min(panelWidth, MediaQuery.sizeOf(ctx).width),
         height: double.infinity,
         child: Material(
           color: scheme.surface,

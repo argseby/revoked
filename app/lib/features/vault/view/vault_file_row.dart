@@ -15,6 +15,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
+import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_upload_progress.dart';
 
 /// Only the desktop targets can take a dropped file.
@@ -52,7 +53,10 @@ Widget vaultDropTarget({
 /// the upload's progress while it runs. Used by the record drawer and by a
 /// template's file field, so a file behaves the same wherever it is attached.
 class VaultFileRow extends StatelessWidget {
-  const VaultFileRow({super.key});
+  final bool inset;
+  final bool showLabel;
+
+  const VaultFileRow({super.key, this.inset = true, this.showLabel = true});
 
   @override
   Widget build(BuildContext context) {
@@ -60,26 +64,40 @@ class VaultFileRow extends StatelessWidget {
       builder: (_) {
         final store = Stores.vault;
         final file = store.pickedFile;
-        return AppFormField(
-          label: 'File',
-          error: store.pickedFileError,
-          child: Column(
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (file == null)
+              const _DropArea()
+            else
+              _Attached(file: file, preview: store.pickedFilePreview),
+            if (store.isUploading) ...[
+              AppSpacing.gapSm,
+              AppUploadProgress(
+                sent: store.uploadSent,
+                total: store.uploadTotal,
+                onCancel: store.cancelUpload,
+              ),
+            ],
+          ],
+        );
+        if (!showLabel) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (file == null)
-                const _DropArea()
-              else
-                _Attached(file: file, preview: store.pickedFilePreview),
-              if (store.isUploading) ...[
-                AppSpacing.gapSm,
-                AppUploadProgress(
-                  sent: store.uploadSent,
-                  total: store.uploadTotal,
-                  onCancel: store.cancelUpload,
-                ),
+              content,
+              if (store.pickedFileError != null) ...[
+                AppSpacing.gapXs,
+                AppErrorText(store.pickedFileError!),
               ],
             ],
-          ),
+          );
+        }
+        return AppFormField(
+          label: 'File',
+          inset: inset,
+          error: store.pickedFileError,
+          child: content,
         );
       },
     );

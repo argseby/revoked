@@ -1,11 +1,15 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/state/local.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_tabs.dart';
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_segmented.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
 import 'package:revoked_app/features/vault/view/template_fill_form.dart';
@@ -28,77 +32,133 @@ void openVaultCreateSheet(
   String? recordType,
   Section? duplicateSection,
 }) {
-  final duplicating = duplicateSection != null;
   showAppSheet(
     context: context,
-    builder: (sheetContext) => ConstrainedBox(
-      // A bottom sheet leaves a strip of the page in view; a side panel is
-      // already beside the page, so it runs the full height and its buttons
-      // sit at the bottom edge.
+    panelWidth: vaultComposerWidth,
+    builder: (_) => _VaultCreateComposer(
+      parentContext: context,
+      initialTab: initialTab,
+      recordType: recordType,
+      duplicateSection: duplicateSection,
+    ),
+  );
+}
+
+class _VaultCreateComposer extends StatefulWidget {
+  final BuildContext parentContext;
+  final VaultCreateTab initialTab;
+  final String? recordType;
+  final Section? duplicateSection;
+
+  const _VaultCreateComposer({
+    required this.parentContext,
+    required this.initialTab,
+    this.recordType,
+    this.duplicateSection,
+  });
+
+  @override
+  State<_VaultCreateComposer> createState() => _VaultCreateComposerState();
+}
+
+class _VaultCreateComposerState extends State<_VaultCreateComposer> {
+  late final Local<VaultCreateTab> _tab = Local(
+    widget.duplicateSection == null
+        ? widget.initialTab
+        : VaultCreateTab.section,
+  );
+
+  @override
+  Widget build(BuildContext context) =>
+      Observer(builder: (_) => _build(context));
+
+  Widget _build(BuildContext context) {
+    final duplicate = widget.duplicateSection;
+    return ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: AppSpacing.isNarrow(sheetContext)
-            ? MediaQuery.of(sheetContext).size.height * 0.9
+        maxHeight: AppSpacing.isNarrow(context)
+            ? MediaQuery.sizeOf(context).height * 0.9
             : double.infinity,
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(duplicating ? 'Duplicate section' : 'Add to vault').header,
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  duplicating
-                      ? 'A copy of "${duplicateSection.name}" with the same '
-                            'records, under a new key.'
-                      : 'A single record, a section of records, or the fields '
-                            'of a template.',
-                ).muted.small,
-              ],
+          Observer(
+            builder: (_) => VaultComposerHeader(
+              title: duplicate == null ? 'Add to vault' : 'Duplicate section',
+              subtitle: duplicate == null
+                  ? 'Your information, ready when you need it.'
+                  : 'A copy of "${duplicate.name}" with the same records, '
+                        'under a new key.',
+              onClose:
+                  Stores.vault.isSubmittingRecord ||
+                      Stores.vault.isSubmittingSection
+                  ? null
+                  : () => Navigator.of(context).pop(),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xxl,
+              0,
+              AppSpacing.xxl,
+              AppSpacing.xl,
+            ),
+            child: Observer(
+              builder: (_) => IgnorePointer(
+                ignoring:
+                    Stores.vault.isSubmittingRecord ||
+                    Stores.vault.isSubmittingSection,
+                child: AppSegmented<VaultCreateTab>(
+                  value: _tab.value,
+                  expand: true,
+                  onChanged: (tab) {
+                    if (Stores.vault.isSubmittingRecord ||
+                        Stores.vault.isSubmittingSection) {
+                      return;
+                    }
+                    _tab.value = tab;
+                  },
+                  items: const [
+                    AppSegmentedItem(
+                      value: VaultCreateTab.record,
+                      label: 'Record',
+                      icon: AppIcons.key,
+                    ),
+                    AppSegmentedItem(
+                      value: VaultCreateTab.section,
+                      label: 'Section',
+                      icon: AppIcons.folder,
+                    ),
+                    AppSegmentedItem(
+                      value: VaultCreateTab.template,
+                      label: 'Template',
+                      icon: AppIcons.cardList,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const AppDivider(),
           Expanded(
-            child: AppTabs(
-              inset: AppSpacing.xl,
-              initialIndex: duplicating
-                  ? VaultCreateTab.section.index
-                  : initialTab.index,
-              tabs: [
-                AppTab(
-                  label: 'Record',
-                  icon: AppIcons.key,
-                  view: recordCreateForm(
-                    parentContext: context,
-                    initialType: recordType,
-                  ),
+            child: IndexedStack(
+              index: _tab.value.index,
+              children: [
+                recordCreateForm(
+                  parentContext: widget.parentContext,
+                  initialType: widget.recordType,
                 ),
-                AppTab(
-                  label: 'Section',
-                  icon: AppIcons.folder,
-                  view: sectionCreateForm(
-                    parentContext: context,
-                    duplicateOf: duplicateSection,
-                  ),
+                sectionCreateForm(
+                  parentContext: widget.parentContext,
+                  duplicateOf: duplicate,
                 ),
-                AppTab(
-                  label: 'Template',
-                  icon: AppIcons.cardList,
-                  view: templateFillForm(parentContext: context),
-                ),
+                templateFillForm(parentContext: widget.parentContext),
               ],
             ),
           ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }

@@ -341,18 +341,22 @@ void main() {
         Stores.vault.setRecordSealed(true);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'create sheet');
-        final note = find.text('Opens on your devices');
+        final editor = find
+            .descendant(
+              of: find.byKey(const PageStorageKey('record-composer-editor')),
+              matching: find.byType(Scrollable),
+            )
+            .first;
         await tester.scrollUntilVisible(
-          note,
+          find.text('Encryption'),
           120,
-          // The sheet's own list; each text field in it scrolls too.
-          scrollable: find
-              .ancestor(
-                of: find.text('Details'),
-                matching: find.byType(Scrollable),
-              )
-              .first,
+          scrollable: editor,
         );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Encryption'));
+        await tester.pumpAndSettle();
+        final note = find.text('Opens on your devices');
+        await tester.scrollUntilVisible(note, 120, scrollable: editor);
         expect(note, findsOneWidget);
         expect(tester.takeException(), isNull, reason: 'create sheet note');
       },

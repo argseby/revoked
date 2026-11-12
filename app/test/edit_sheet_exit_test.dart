@@ -18,9 +18,8 @@ void main() {
     final hits = <String>[];
     for (final entity in Directory('lib').listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      if (RegExp(
-        r"label:\s*'Done',\s*onTap:\s*done\b",
-      ).hasMatch(entity.readAsStringSync())) {
+      if (RegExp(r"label:\s*'Done',\s*onTap:\s*done\b")
+          .hasMatch(entity.readAsStringSync())) {
         hits.add(entity.path);
       }
     }
@@ -66,19 +65,19 @@ void main() {
       await tester.pumpAndSettle();
       // Further down the sheet, below who sees the new entry.
       await tester.scrollUntilVisible(
-        find.text('Advanced'),
+        find.text('Developer options'),
         200,
         scrollable: find
             .ancestor(
-              of: find.text('Visible to'),
+              of: find.text('Record type'),
               matching: find.byType(Scrollable),
             )
             .first,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Advanced'));
+      await tester.tap(find.text('Developer options'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Key'));
+      await tester.ensureVisible(find.text('Record key'));
       await tester.pumpAndSettle();
     }
 
@@ -94,7 +93,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(Stores.vault.recordKey.text, 'typed_key');
-      expect(find.text('Create record'), findsOneWidget);
+      expect(find.text('Save record'), findsOneWidget);
     });
   });
 }

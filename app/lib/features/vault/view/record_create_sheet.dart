@@ -6,15 +6,19 @@ import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
+import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/core/widgets/app_switch.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
@@ -22,6 +26,7 @@ import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_value_input.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
 import 'package:revoked_app/features/vault/view/vault_file_row.dart';
 
 /// Opens the record-create / duplicate drawer.
@@ -35,6 +40,7 @@ void openRecordCreateSheet({
   unawaited(Stores.keys.ensureLoaded());
   showAppSheet(
     context: context,
+    panelWidth: vaultComposerWidth,
     builder: (drawerContext) => _RecordCreateDrawer(
       parentContext: context,
       store: store,
@@ -95,6 +101,9 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   );
   final Local<Set<String>> _groups = Local(const {});
 
+  final Map<String, TextEditingValue> _typeDrafts = {};
+  final Local<bool> _preparingEncryption = Local(false);
+
   ({String kind, List<String> groups}) get _audience => chosenAudience(
     _visibility,
     _groups,
@@ -104,6 +113,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   @override
   void initState() {
     super.initState();
+    _store.clearError();
+    unawaited(Stores.keys.ensureLoaded());
     final r = widget.initialRecord;
     String? sectionId;
     if (r != null) {
@@ -117,6 +128,10 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     _store.startRecordDraft(from: r, sectionId: sectionId);
     if (r == null && widget.initialType != null) {
       _store.setRecordType(widget.initialType!);
+      if (widget.initialType == 'boolean') _store.recordValue.text = 'false';
+    }
+    if (_store.recordType == 'boolean' && _store.recordValue.text.isEmpty) {
+      _store.recordValue.text = 'false';
     }
     if (r != null) {
       // Defer key validation until after first build so the warning shows.
@@ -163,7 +178,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   bool get _isFileType => _store.recordType == 'file';
 
-  /// The key the record is saved under: the one typed under Advanced, or one
+  /// The key saved under: the one typed under Developer options, or one
   /// made from the label. Most people never see a key, so it is never
   /// required of them.
   String get _effectiveKey {
@@ -176,6 +191,13 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   }
 
   bool _canSubmit() {
+    if (_preparingEncryption.value) return false;
+    if (!_isFileType &&
+        Stores.settings.canPublishVault &&
+        _visibility.value == 'groups' &&
+        _groups.value.isEmpty) {
+      return false;
+    }
     final base =
         _store.recordLabel.text.trim().isNotEmpty &&
         _store.recordKeyWarning == null;
@@ -188,7 +210,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   }
 
   Future<void> _submit() async {
-    if (!_canSubmit()) return;
+    if (_store.isSubmittingRecord || !_canSubmit()) return;
     _store.setSubmittingRecord(true);
 
     final ok = await widget.store.createRecord(
@@ -263,65 +285,44 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (!widget.embedded) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.xxs,
-                AppSpacing.xl,
-                AppSpacing.md,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(isDup ? 'Duplicate record' : 'New record').header,
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    isDup
-                        ? 'Creates a copy of this record under a new key.'
-                        : 'Stores a single value in the vault.',
-                  ).muted.small,
-                ],
-              ),
+            VaultComposerHeader(
+              title: isDup ? 'Duplicate record' : 'New record',
+              subtitle: isDup
+                  ? 'Creates a copy of this record under a new key.'
+                  : 'Your information, ready when you need it.',
+              onClose: _store.isSubmittingRecord
+                  ? null
+                  : () => Navigator.of(context).pop(),
             ),
             const AppDivider(),
           ],
           Flexible(
             fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              children: [
-                const AppFormSectionHeader('Details'),
-                _buildLabelField(),
-                // The type decides how the value is entered, so it comes
-                // first.
-                _buildTypeField(),
-                if (_isFileType) const VaultFileRow() else _buildValueField(),
-                _hiddenToggle(),
-                if (!_isFileType && Stores.keys.isAvailable) _sealedToggle(),
-                // A file stays with its owner for now.
-                if (!_isFileType)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.xl,
-                      AppSpacing.sm,
-                      AppSpacing.xl,
-                      0,
-                    ),
-                    child: VisibleToField(
-                      value: _visibility,
-                      groups: _groups,
-                      canPublish: Stores.settings.canPublishVault,
-                    ),
-                  ),
-
-                AppFormAdvanced(
-                  summary: 'Key and API preview',
-                  // A duplicate's key clashes until it is changed.
-                  initiallyOpen: _store.recordKeyWarning != null,
-                  children: [_buildKeyField(), _apiPreview()],
+            child: ExcludeFocus(
+              excluding: _store.isSubmittingRecord,
+              child: IgnorePointer(
+                ignoring: _store.isSubmittingRecord,
+                child: RecordComposerLayout(
+                  selectedType: _store.recordType,
+                  onTypePicked: _pickType,
+                  enabled: !_store.isSubmittingRecord,
+                  children: [
+                    _buildLabelField(),
+                    if (_isFileType)
+                      RecordComposerField(
+                        label: 'File',
+                        trailing: _maskToggle(),
+                        child: const VaultFileRow(
+                          inset: false,
+                          showLabel: false,
+                        ),
+                      )
+                    else
+                      _buildValueField(),
+                    _buildSettings(),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           const AppDivider(),
@@ -332,25 +333,80 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
               AppSpacing.xl,
               AppSpacing.md,
             ),
-            child: Row(
-              children: [
-                AppButton(
-                  label: 'Cancel',
-                  onTap: _store.isSubmittingRecord
-                      ? null
-                      : () => Navigator.of(context).pop(),
-                  style: AppButtonStyle.accent,
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppButton(
-                    icon: isDup ? AppIcons.copy : AppIcons.plus,
-                    label: isDup ? 'Duplicate record' : 'Create record',
-                    busy: _store.isSubmittingRecord,
-                    onTap: _canSubmit() ? _submit : null,
-                  ),
-                ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, box) {
+                return Observer(
+                  builder: (_) {
+                    final canSubmit = _canSubmit();
+                    final summary = Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(AppIcons.lock, size: 16),
+                        AppSpacing.gapXs,
+                        Flexible(
+                          child: Text(
+                            '$_accessSummary · '
+                            '${_store.recordFormat == 'hidden' ? 'Masked' : 'Visible'}'
+                            '${!_isFileType && _store.recordSealed ? ' · E2E' : ''}',
+                          ).small.muted,
+                        ),
+                      ],
+                    );
+                    final actions = Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AppButton(
+                          label: 'Cancel',
+                          onTap: _store.isSubmittingRecord
+                              ? null
+                              : () => Navigator.of(context).pop(),
+                          style: AppButtonStyle.ghost,
+                        ),
+                        AppSpacing.gapSm,
+                        Flexible(
+                          child: AppButton(
+                            trailingIcon: isDup
+                                ? AppIcons.copy
+                                : AppIcons.arrowRight,
+                            label: isDup ? 'Duplicate record' : 'Save record',
+                            busy: _store.isSubmittingRecord,
+                            onTap: canSubmit ? _submit : null,
+                          ),
+                        ),
+                      ],
+                    );
+                    final scale =
+                        MediaQuery.textScalerOf(context)
+                            .scale(AppTextSize.body) /
+                        AppTextSize.body;
+                    if (box.maxWidth < 520 * scale) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          summary,
+                          AppSpacing.gapSm,
+                          Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: actions,
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: summary),
+                        AppSpacing.gapMd,
+                        Expanded(
+                          child: Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: actions,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],
@@ -359,17 +415,18 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     return _wrapDropTarget(sheet);
   }
 
-  Widget _buildLabelField() => AppFormField(
+  Widget _buildLabelField() => RecordComposerField(
     label: 'Label',
     child: AppTextField(
       controller: _store.recordLabel,
-      hint: 'IBAN',
+      hint: 'e.g. Account IBAN',
       onSubmitted: (_) => _submit(),
     ),
   );
 
   Widget _buildKeyField() => AppFormField(
-    label: 'Key',
+    label: 'Record key',
+    inset: false,
     explanation: 'Identifier for templates, requests and scripts',
     error: _store.recordKeyWarning,
     note: _store.recordKey.text.trim().isEmpty
@@ -398,12 +455,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   /// The request this form would send, for anyone scripting the same thing.
   Widget _apiPreview() => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      AppSpacing.xl,
-      0,
-      AppSpacing.xl,
-      AppSpacing.sm,
-    ),
+    padding: EdgeInsets.zero,
     child: _isFileType
         ? const Text(
             'File records upload as multipart/form-data: the same fields as '
@@ -431,76 +483,287 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   /// Desktop drops land anywhere on the drawer; dropping a file flips the
   /// draft to the file type, because the gesture already said so.
-  Widget _wrapDropTarget(Widget child) => vaultDropTarget(
-    child: child,
-    // The gesture already said this is a file.
-    onStaged: () async {
-      if (mounted && !_isFileType) _store.setRecordType('file');
-    },
-  );
+  Widget _wrapDropTarget(Widget child) {
+    if (_store.isSubmittingRecord) return child;
+    return vaultDropTarget(
+      child: child,
+      onStaged: () async {
+        if (mounted && !_isFileType) _pickType('file');
+      },
+    );
+  }
 
-  /// Below the value row: whether the vault masks the value.
-  Widget _hiddenToggle() => RecordHiddenToggle(
-    isFile: _isFileType,
-    hidden: _store.recordFormat == 'hidden',
-    onChanged: (on) => _store.setRecordFormat(on ? 'hidden' : 'default'),
-  );
+  String get _accessSummary {
+    if (!_isFileType &&
+        Stores.settings.canPublishVault &&
+        _visibility.value == 'groups' &&
+        _groups.value.isEmpty) {
+      return 'Choose groups';
+    }
+    return switch (_audience.kind) {
+      'workspace' => 'Workspace',
+      'groups' => 'Selected groups',
+      _ => 'Private',
+    };
+  }
 
-  Widget _sealedToggle() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      RecordSealedToggle(
-        sealed: _store.recordSealed,
-        onChanged: (on) async {
-          if (!on) {
-            _store.setRecordSealed(false);
-            return;
-          }
-          final ready = await ensureSealingReady(
-            context,
-            widget.authStore.activeWorkspace ?? '',
-          );
-          if (ready) _store.setRecordSealed(true);
-        },
+  Widget _maskToggle() => MergeSemantics(
+    child: Tooltip(
+      message: _isFileType
+          ? 'Mask the file name until revealed in the vault.'
+          : 'Mask the saved value until revealed in the vault.',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_isFileType ? 'Mask name' : 'Mask value').small.muted,
+          AppSpacing.gapXs,
+          AppSwitch(
+            value: _store.recordFormat == 'hidden',
+            showCheckIcon: true,
+            onChanged: (on) =>
+                _store.setRecordFormat(on ? 'hidden' : 'default'),
+          ),
+        ],
       ),
-      if (_store.recordSealed)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-          child: SealedReadabilityNote(
-            workspace: widget.authStore.activeWorkspace ?? '',
+    ),
+  );
+
+  Widget _buildSettings() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: AppRadius.allMd,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RecordComposerDisclosure(
+            key: const ValueKey('record-access'),
+            title: 'Access',
+            summary: _accessSummary == 'Private'
+                ? 'Private · only you'
+                : _accessSummary,
+            icon: AppIcons.group,
+            child: _buildAccessOptions(),
+          ),
+          if (!_isFileType &&
+              (Stores.keys.isAvailable || _store.recordSealed)) ...[
+            const AppDivider(),
+            RecordComposerDisclosure(
+              key: const ValueKey('record-encryption'),
+              title: 'Encryption',
+              summary: _store.recordSealed
+                  ? 'End-to-end · account devices only'
+                  : 'Standard · end-to-end off',
+              icon: AppIcons.shieldCheck,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AppCheckRow(
+                    label: 'End-to-end encryption',
+                    subtitle: 'Encrypt the value on this device before upload.',
+                    badge: const AppBadge(label: 'Alpha'),
+                    value: _store.recordSealed,
+                    onChanged: _preparingEncryption.value
+                        ? null
+                        : _setEncrypted,
+                  ),
+                  AppSpacing.gapSm,
+                  const Text(
+                    'Only this account’s devices can read encrypted values. '
+                    'Other workspace accounts cannot decrypt them yet.',
+                  ).small.muted,
+                  if (_preparingEncryption.value) ...[
+                    AppSpacing.gapSm,
+                    const Text('Preparing encryption…').small.muted,
+                  ],
+                  if (_store.recordSealed) ...[
+                    AppSpacing.gapSm,
+                    SealedReadabilityNote(
+                      workspace: widget.authStore.activeWorkspace ?? '',
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const AppDivider(),
+          RecordComposerDisclosure(
+            key: const ValueKey('record-developer-options'),
+            title: 'Developer options',
+            summary: 'Key & API preview',
+            icon: AppIcons.code,
+            initiallyOpen: _store.recordKeyWarning != null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [_buildKeyField(), AppSpacing.gapLg, _apiPreview()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccessOptions() {
+    if (_isFileType) {
+      return const Text('Files are private to your account.').small.muted;
+    }
+    if (!Stores.settings.canPublishVault) {
+      return const Text(
+        'Private to you. Publishing to the workspace vault requires permission from an admin.',
+      ).small.muted;
+    }
+    final offerGroups = Stores.settings.groups.isNotEmpty;
+    final selected = _visibility.value == 'groups' && !offerGroups
+        ? 'private'
+        : _visibility.value;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RadioGroup<String>(
+          groupValue: selected,
+          onChanged: (value) {
+            if (value != null) _visibility.value = value;
+          },
+          child: Column(
+            children: [
+              RadioListTile<String>(
+                value: 'private',
+                title: const Text('Private').small,
+                subtitle: const Text('Only you can see this record.')
+                    .small
+                    .muted,
+                contentPadding: EdgeInsets.zero,
+              ),
+              RadioListTile<String>(
+                value: 'workspace',
+                title: const Text('Workspace').small,
+                subtitle: const Text('Members of this workspace.').small.muted,
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (offerGroups)
+                RadioListTile<String>(
+                  value: 'groups',
+                  title: const Text('Specific groups').small,
+                  subtitle: const Text('Only the groups you select.')
+                      .small
+                      .muted,
+                  contentPadding: EdgeInsets.zero,
+                ),
+            ],
           ),
         ),
-    ],
-  );
-
-  Widget _buildValueField() => AppFormField(
-    label: 'Value',
-    error: _store.recordTypeWarning,
-    child: RecordValueField(
-      type: _store.recordType,
-      controller: _store.recordValue,
-      onChanged: _validateAndDetectType,
-    ),
-  );
-
-  Widget _buildTypeField() => AppFormField(
-    label: 'Type',
-    child: RecordTypeChoice(
-      selected: _store.recordType,
-      detected: _store.recordDetectedType,
-      includeFile: true,
-      onPicked: _pickType,
-    ),
-  );
-
-  void _pickType(String type) {
-    final from = _store.recordType;
-    _store.setRecordType(type);
-    _store.recordValue.text = recordValueForType(
-      type,
-      _store.recordValue.text,
-      from: from,
+        if (selected == 'groups') ...[
+          for (final group in Stores.settings.groups)
+            AppCheckRow(
+              label: group.name,
+              value: _groups.value.contains(group.id),
+              onChanged: (on) => _groups.value = on
+                  ? {..._groups.value, group.id}
+                  : ({..._groups.value}..remove(group.id)),
+            ),
+          if (_groups.value.isEmpty)
+            const Text('Select at least one group to continue.').small.muted,
+        ],
+      ],
     );
+  }
+
+  Future<void> _setEncrypted(bool on) async {
+    if (!on) {
+      _store.setRecordSealed(false);
+      return;
+    }
+    _preparingEncryption.value = true;
+    try {
+      final ready = await ensureSealingReady(
+        context,
+        widget.authStore.activeWorkspace ?? '',
+      );
+      if (mounted && ready) _store.setRecordSealed(true);
+    } finally {
+      if (mounted) _preparingEncryption.value = false;
+    }
+  }
+
+  Widget _buildValueField() => RecordComposerField(
+    label: 'Value',
+    trailing: _maskToggle(),
+    error: _store.recordTypeWarning,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KeyedSubtree(
+          key: ValueKey(_store.recordType),
+          child: _store.recordType == 'text'
+              ? AppTextField(
+                  controller: _store.recordValue,
+                  hint: 'Enter the value…',
+                  minLines: 3,
+                  maxLines: null,
+                  onChanged: _validateAndDetectType,
+                )
+              : _store.recordType == 'boolean'
+              ? RadioGroup<String>(
+                  groupValue: _store.recordValue.text,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    _store.recordValue.text = value;
+                    _validateAndDetectType(value);
+                  },
+                  child: Column(
+                    children: [
+                      RadioListTile<String>(
+                        value: 'true',
+                        title: const Text('Yes'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      RadioListTile<String>(
+                        value: 'false',
+                        title: const Text('No'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
+                )
+              : RecordValueField(
+                  type: _store.recordType,
+                  controller: _store.recordValue,
+                  onChanged: _validateAndDetectType,
+                ),
+        ),
+        if (_store.recordDetectedType != null) ...[
+          AppSpacing.gapSm,
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: AppButton(
+              label: 'Use ${RecordTypeUtils.label(_store.recordDetectedType!)}',
+              icon: AppIcons.stars,
+              style: AppButtonStyle.outline,
+              size: AppButtonSize.small,
+              onTap: () =>
+                  _pickType(_store.recordDetectedType!, useCurrentValue: true),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+
+  void _pickType(String type, {bool useCurrentValue = false}) {
+    final from = _store.recordType;
+    if (from == type) return;
+    final current = _store.recordValue.value;
+    _typeDrafts[from] = current;
+    _store.setRecordType(type);
+    _store.recordValue.value = useCurrentValue
+        ? TextEditingValue(
+            text: recordValueForType(type, current.text, from: from),
+          )
+        : _typeDrafts[type] ??
+              TextEditingValue(text: type == 'boolean' ? 'false' : '');
     _validateAndDetectType(_store.recordValue.text);
   }
 }
