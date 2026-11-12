@@ -3,10 +3,12 @@
 // token. The two kinds never stand in for each other. A restart signs everyone
 // out, which is all a demo needs; a real service would use its own store.
 
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { config } from './config.js';
 
-const COOKIE = 'sid';
+// Cookies are shared across ports. Running the demos on 4000 and 4020 must
+// not replace one another's session cookie.
+const COOKIE = `revoked_demo_${createHash('sha256').update(config.clientId).digest('hex').slice(0, 16)}`;
 const TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 
