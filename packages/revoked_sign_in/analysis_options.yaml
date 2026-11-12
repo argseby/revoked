@@ -8,3 +8,6 @@ linter:
     - prefer_final_locals
     - prefer_const_constructors
     - directives_ordering
+
+formatter:
+  page_width: 120

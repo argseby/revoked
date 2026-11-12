@@ -91,7 +91,13 @@ class _PressableState extends State<Pressable> {
 /// against white, so one of the two always shows. Drawn outside the box,
 /// without taking up layout space.
 class FocusRing extends StatelessWidget {
-  const FocusRing({super.key, required this.visible, required this.radius, required this.child, this.highContrast = false});
+  const FocusRing({
+    super.key,
+    required this.visible,
+    required this.radius,
+    required this.child,
+    this.highContrast = false,
+  });
 
   final bool visible;
   final double radius;
@@ -100,10 +106,7 @@ class FocusRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      foregroundPainter: visible ? _RingPainter(radius, highContrast) : null,
-      child: child,
-    );
+    return CustomPaint(foregroundPainter: visible ? _RingPainter(radius, highContrast) : null, child: child);
   }
 }
 

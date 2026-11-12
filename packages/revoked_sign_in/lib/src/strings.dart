@@ -95,5 +95,4 @@ class RevokedStrings {
 }
 
 /// "0D2-99B" read out one character at a time: "0 D 2, 9 9 B".
-String spellCheckCode(String code) =>
-    code.split('-').map((group) => group.split('').join(' ')).join(', ');
+String spellCheckCode(String code) => code.split('-').map((group) => group.split('').join(' ')).join(', ');

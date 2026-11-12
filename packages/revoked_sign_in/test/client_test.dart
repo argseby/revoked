@@ -87,10 +87,7 @@ void main() {
     test('a server error, a bad body or a lost connection is pending', () async {
       expect(await _client((_) async => http.Response('', 502)).ask('w'), isA<RevokedWaitPending>());
       expect(await _client((_) async => http.Response('nope', 200)).ask('w'), isA<RevokedWaitPending>());
-      expect(
-        await _client((_) async => throw http.ClientException('offline')).ask('w'),
-        isA<RevokedWaitPending>(),
-      );
+      expect(await _client((_) async => throw http.ClientException('offline')).ask('w'), isA<RevokedWaitPending>());
     });
   });
 }

@@ -398,7 +398,9 @@ class _ProblemLine extends StatelessWidget {
           children: [
             Padding(
               padding: EdgeInsets.only(top: size * 0.2),
-              child: ExcludeSemantics(child: CustomPaint(size: Size.square(size), painter: _WarnPainter(color))),
+              child: ExcludeSemantics(
+                child: CustomPaint(size: Size.square(size), painter: _WarnPainter(color)),
+              ),
             ),
             Flexible(
               child: Text(

@@ -18,7 +18,10 @@ class RevokedMark extends StatefulWidget {
 }
 
 class _RevokedMarkState extends State<RevokedMark> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1200),
+  );
 
   @override
   void didChangeDependencies() {
