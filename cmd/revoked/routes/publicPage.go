@@ -227,16 +227,17 @@ border-left: 3px solid var(--warn); background: var(--warn-subtle); color: var(-
 .trust-note.bad { border-left-color: var(--bad); background: var(--bad-subtle); color: var(--bad); }
 .meta { display: flex; flex-wrap: wrap; gap: 6px; }
 
-/* Under the shared items: the share as a whole, kept or passed on. */
-.tools { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Under the shared items: the share as a whole, kept or passed on. Rarely
+   used, so quiet links rather than buttons competing with the values. */
+.tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 16px; margin-top: -8px; }
 .tool {
-flex: 1 1 160px; min-height: 44px; padding: 0 14px;
-display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-border: 1px solid var(--control); background: transparent; color: var(--fg);
-font-size: 14px; font-weight: 600; cursor: pointer;
+min-height: 36px; padding: 0 2px;
+display: inline-flex; align-items: center; gap: 6px;
+border: 0; background: none; color: var(--fg-muted);
+font-size: 13px; cursor: pointer;
 }
-.tool:hover { background: var(--surface-subtle); }
-.lead-fine { text-align: center; color: var(--fg-muted); font-size: 13px; }
+.tool span { text-decoration: underline; text-underline-offset: 3px; }
+.tool:hover { color: var(--fg); }
 
 footer { border-top: 1px solid var(--border); margin-top: 8px; }
 .foot {
@@ -250,6 +251,7 @@ font-size: 13px; color: var(--fg-muted);
 .foot a { color: var(--fg-muted); text-decoration: underline; text-underline-offset: 3px; }
 .foot a:hover { color: var(--fg); }
 .foot-links { display: flex; gap: 16px; }
+.foot .trusted { flex: 1 0 100%; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; }
 .app-gate { display: flex; flex-direction: column; gap: 10px; }
 .app-gate p { display: flex; gap: 10px; align-items: flex-start; color: var(--fg-muted); font-size: 14px; line-height: 1.5; }
 .quiet {
@@ -268,14 +270,22 @@ overflow: hidden;
 
 .nav-actions { display: flex; align-items: center; gap: 8px; }
 .app-btn {
-display: inline-flex; align-items: center; gap: 8px; height: 38px;
-padding: 0 12px 0 8px; border-radius: var(--radius-md); border: 1px solid var(--control);
+display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px;
+padding: 0 12px; border-radius: var(--radius-md); border: 1px solid var(--control);
 background: var(--card); color: var(--fg); font-size: 14px; font-weight: 600; white-space: nowrap;
 }
 .app-btn:hover { background: var(--surface-subtle); text-decoration: none; }
-.app-btn .logo { width: 22px; height: 22px; }
+.lang {
+min-width: 38px; height: 38px; padding: 0 10px; border-radius: var(--radius-md); border: 1px solid var(--control);
+background: var(--card); color: var(--fg); cursor: pointer;
+font-size: 13px; font-weight: 650; letter-spacing: .04em;
+}
 .big-logo { width: 24px; height: 24px; }
-@media (max-width: 360px) { .brand-t { display: none; } }
+@media (max-width: 420px) {
+.app-btn { width: 38px; padding: 0; }
+.app-btn-t { display: none; }
+}
+@media (max-width: 300px) { .brand-t { display: none; } }
 
 /* Sender: one verdict, then each fact marked where it cannot be vouched for.
    Folded behind Details unless the verdict is a real danger. */
@@ -413,6 +423,7 @@ padding: 0 6px 8px; font-size: 13px; color: var(--fg-muted);
 .tx { flex: 1; min-width: 0; }
 .lb { font-size: 12px; color: var(--fg-muted); line-height: 1.3; }
 .v { font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; margin-top: 1px; }
+.stamp { font-size: 12px; color: var(--fg-muted); line-height: 1.3; margin-top: 3px; }
 .acts { display: flex; gap: 6px; flex: none; }
 .ib {
 width: 40px; height: 40px; border-radius: var(--radius-md);
@@ -505,13 +516,15 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 
 <header>
 <div class="nav">
-<a class="brand" href="https://revoked.link" target="_blank" rel="noopener noreferrer" title="Learn more about Revoked at revoked.link">
+<a class="brand" href="https://revoked.link" target="_blank" rel="noopener noreferrer" title="Learn more about Revoked at revoked.link" data-t-title="brand.title">
 <img class="logo logo-light" src="{{logoLight}}" alt="">
 <img class="logo logo-dark" src="{{logoDark}}" alt="">
 <span class="brand-t">Revoked</span>
 </a>
 <div class="nav-actions">
-<button class="theme" id="theme-toggle" aria-label="Toggle visual theme"></button>
+{{if not (or .Gated .RequireHandshake)}}<a class="app-btn" href="{{.AppLink}}" title="Open in app" aria-label="Open in app" data-t-title="openInApp" data-t-aria="openInApp"><i data-i="external" data-s="16"></i><span class="app-btn-t" data-t="openInApp">Open in app</span></a>{{end}}
+<button class="lang" type="button" id="lang-toggle">DE</button>
+<button class="theme" type="button" id="theme-toggle" aria-label="Toggle visual theme"></button>
 </div>
 </div>
 </header>
@@ -522,13 +535,13 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
      facts behind it fold out under Details, and fold out by themselves when
      they are a real danger. */}}
 <div class="head">
-<div class="eyebrow">{{if eq .Purpose "application"}}Application{{else}}Shared with you{{end}}</div>
-<h1>{{template "heading" .}}</h1>
+<div class="eyebrow" data-t="{{if eq .Purpose "application"}}eyebrow.application{{else}}eyebrow.shared{{end}}">{{if eq .Purpose "application"}}Application{{else}}Shared with you{{end}}</div>
+<h1 id="title">{{if eq .Purpose "application"}}<span data-t="heading.application">Bewerbung</span>{{if .Label}} · {{.Label}}{{end}}{{else if .Label}}{{.Label}}{{else}}<span data-t="heading.shared">Shared items</span>{{end}}</h1>
 <div class="trust" id="trust">
-{{if .SharerName}}<span>From <b>{{.SharerName}}</b></span>{{if .SharerRevoked}}<span class="pill bad"><i data-i="alert" data-s="13"></i>Identity withdrawn</span>{{end}}
-{{else}}<span class="pill warn"><i data-i="alert" data-s="13"></i>Sender not named</span>{{end}}
-<span class="pill" id="server-pill"><span class="spin" style="display:block;width:11px;height:11px"></span>Checking {{.Domain}}</span>
-{{if .Official}}<span class="pill ok" data-official hidden>Official</span>{{end}}
+{{if .SharerName}}<span><span data-t="from">From</span> <b>{{.SharerName}}</b></span>{{if .SharerRevoked}}<span class="pill bad"><i data-i="alert" data-s="13"></i><span data-t="pill.identityWithdrawn">Identity withdrawn</span></span>{{end}}
+{{else}}<span class="pill warn"><i data-i="alert" data-s="13"></i><span data-t="pill.senderNotNamed">Sender not named</span></span>{{end}}
+<span class="pill" id="server-pill"><span class="spin" style="display:block;width:11px;height:11px"></span><span data-t="checking">Checking {{.Domain}}</span></span>
+{{if .Official}}<span class="pill ok" data-t="official" data-official hidden>Official</span>{{end}}
 <button class="more" type="button" id="trust-more" aria-expanded="false" aria-controls="sender">Details</button>
 </div>
 <div class="trust-note" id="trust-note" role="status" hidden></div>
@@ -544,34 +557,34 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 </div>
 <div class="facts">
 <div class="fact" id="fact-server">
-<span class="fact-k"><i data-i="server"></i>Server</span>
-<span class="fact-v"><span class="fact-name">{{.Domain}}</span><span class="pill" data-dns>Checking…</span></span>
+<span class="fact-k"><i data-i="server"></i><span data-t="fact.server">Server</span></span>
+<span class="fact-v"><span class="fact-name">{{.Domain}}</span><span class="pill" data-dns><span data-t="fact.checking">Checking…</span></span></span>
 </div>
 <div class="fact{{if .SharerRevoked}} is-bad{{else if not .SharerName}} is-warn{{end}}" id="fact-sender">
-<span class="fact-k"><i data-i="user"></i>Sender</span>
+<span class="fact-k"><i data-i="user"></i><span data-t="fact.sender">Sender</span></span>
 <span class="fact-v">
 {{if .SharerName}}<span class="fact-name">{{if .SharerRevoked}}<i data-i="alert" data-s="15"></i>{{end}}{{.SharerName}}</span>
-{{if .SharerRevoked}}<span class="pill bad">Withdrawn</span>{{else}}<span class="pill" id="sender-pill" title="This name is provided by the server. The Revoked app can verify the signature behind it.">Reported by server</span>{{end}}
-{{else}}<span class="fact-name"><i data-i="alert" data-s="15"></i>Not specified</span><span class="pill warn">Unsigned</span>{{end}}
+{{if .SharerRevoked}}<span class="pill bad" data-t="fact.withdrawn">Withdrawn</span>{{else}}<span class="pill" id="sender-pill" data-t="fact.reported" data-t-title="fact.reported.title" title="This name is provided by the server. The Revoked app can verify the signature behind it.">Reported by server</span>{{end}}
+{{else}}<span class="fact-name"><i data-i="alert" data-s="15"></i><span data-t="fact.notSpecified">Not specified</span></span><span class="pill warn" data-t="fact.unsigned">Unsigned</span>{{end}}
 </span>
 </div>
-{{if .SharerPrint}}<div class="fact-note mono">Key fingerprint {{.SharerPrint}}</div>{{end}}
-{{if .SharerRevoked}}<div class="fact-note bad-t">{{.Domain}} has withdrawn this sender's identity. The link was signed while the identity was valid; the domain no longer vouches for it.</div>
-{{else if not .SharerName}}<div class="fact-note warn-t">This link is not signed by a named person. Anyone with access to {{.Domain}} could have created it.</div>
-{{else}}<div class="fact-note">This name is reported by the server and cannot be confirmed by a browser. The sender's signature is verified in <a href="{{.AppLink}}">the Revoked app</a>.</div>{{end}}
+{{if .SharerPrint}}<div class="fact-note mono"><span data-t="fact.fingerprint">Key fingerprint</span> {{.SharerPrint}}</div>{{end}}
+{{if .SharerRevoked}}<div class="fact-note bad-t" data-t="note.withdrawn">{{.Domain}} has withdrawn this sender's identity. The link was signed while the identity was valid; the domain no longer vouches for it.</div>
+{{else if not .SharerName}}<div class="fact-note warn-t" data-t="note.unsigned">This link is not signed by a named person. Anyone with access to {{.Domain}} could have created it.</div>
+{{else}}<div class="fact-note" data-t="note.reported">This name is reported by the server and cannot be confirmed by a browser. The Revoked app verifies the sender's signature.</div>{{end}}
 </div>
 </section>
 
 {{if or .Gated .RequireHandshake}}
 <div class="app-gate">
-<p><i data-i="lock" data-s="18"></i><span>Protected by {{if .RequireHandshake}}a verified identity{{else}}a password{{end}}. {{if .RequireHandshake}}It is confirmed{{else}}The password is entered{{end}} only in the Revoked app, which checks the server first.</span></p>
-<a href="{{.AppLink}}" class="big"><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt="">Open in the Revoked app</a>
-<a href="/app" class="quiet"><i data-i="download" data-s="16"></i>Get the app</a>
+<p><i data-i="lock" data-s="18"></i>{{if .RequireHandshake}}<span data-t="gate.handshake">Protected by a verified identity. It is confirmed only in the Revoked app, which checks the server first.</span>{{else}}<span data-t="gate.password">Protected by a password. The password is entered only in the Revoked app, which checks the server first.</span>{{end}}</p>
+<a href="{{.AppLink}}" class="big"><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt=""><span data-t="gate.open">Open in the Revoked app</span></a>
+<a href="/app" class="quiet"><i data-i="download" data-s="16"></i><span data-t="gate.get">Get the app</span></a>
 </div>
 {{else}}
 <div class="meta" id="strip" hidden>
 {{if gt .MaxViews 0}}<span class="pill"><i data-i="eye" data-s="13"></i><span id="views-text">{{.ViewCount}} of {{.MaxViews}} views used</span></span>{{end}}
-{{if .Watermarked}}<span class="pill"><i data-i="droplet" data-s="13"></i>Watermarked files</span>{{end}}
+{{if .Watermarked}}<span class="pill"><i data-i="droplet" data-s="13"></i><span data-t="watermarked">Watermarked files</span></span>{{end}}
 </div>
 
 <div class="gate" id="gate">
@@ -579,12 +592,10 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
      the page could say whether to trust it. */}}
 <button class="big loading" id="reveal" disabled><span class="spin"></span><i class="big-ic" data-i="lock-open"></i><span id="reveal-t">Checking the server…</span></button>
 <div class="fine" id="capnote">{{if gt .MaxViews 0}}Opening uses one of {{.MaxViews}} views ({{.ViewCount}} used so far).{{end}}{{if .Watermarked}} Downloaded files carry a watermark that traces them back to this link.{{end}}</div>
-<button class="remember" type="button" role="checkbox" aria-checked="false" id="remember" hidden><span class="box"><i data-i="check" data-s="13"></i></span><span class="remember-t">Trust {{.Domain}}<span class="remember-d">Links from this domain open directly in this browser</span></span></button>
+<button class="remember" type="button" role="checkbox" aria-checked="false" id="remember" hidden><span class="box"><i data-i="check" data-s="13"></i></span><span class="remember-t"><span data-t="remember.t">Trust {{.Domain}}</span><span class="remember-d" data-t="remember.d">Links from this domain open directly in this browser</span></span></button>
 </div>
 
 <div id="out"></div>
-
-<div class="trusted" id="trusted" hidden><span>{{.Domain}} is trusted in this browser.</span><button class="more" type="button" id="untrust">Stop trusting</button></div>
 {{end}}
 
 </main>
@@ -592,14 +603,14 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <footer>
 <div class="foot">
 <details>
-<summary>How this page works</summary>
-<p>{{if .SharerName}}{{.SharerName}}{{else}}The sender{{end}} shares this information through Revoked. Values are read from the sender's vault each time the page is opened, not copied when the link was sent.</p>
-<p>The sender can pause or revoke the link, after which it stops working. Copied or downloaded content remains with whoever saved it.</p>
+<summary data-t="how">How this page works</summary>
+<p data-t="how.1">{{if .SharerName}}{{.SharerName}}{{else}}The sender{{end}} shares this information through Revoked. Values are read from the sender's vault each time the page is opened, not copied when the link was sent.</p>
+<p data-t="how.2">The sender can pause or revoke the link, after which it stops working. Copied or downloaded content remains with whoever saved it.</p>
 </details>
 <div class="foot-links">
-{{if not (or .Gated .RequireHandshake)}}<a href="{{.AppLink}}">Open in app</a>{{end}}
 <a href="https://revoked.link" target="_blank" rel="noopener noreferrer">revoked.link</a>
 </div>
+{{if not (or .Gated .RequireHandshake)}}<div class="trusted" id="trusted" hidden><span data-t="trusted">{{.Domain}} is trusted in this browser.</span><button class="more" type="button" id="untrust" data-t="untrust">Stop trusting</button></div>{{end}}
 </div>
 </footer>
 
@@ -608,6 +619,214 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <script nonce="{{.Nonce}}">
 (function(){
 var slug={{.Slug}}, domain={{.Domain}}, pin={{.RootFingerprint}}, maxViews={{.MaxViews}}, viewCount={{.ViewCount}};
+var sharerName={{.SharerName}}, watermarked={{.Watermarked}};
+
+// ---- Language: English and German, as on the passkey page -----------------
+// Both catalogues are here: the page loads nothing but its own origin. The
+// server renders English; anything marked data-t is said again in the chosen
+// language.
+var STRINGS = {
+en: {
+'lang.label': 'DE', 'lang.switch': 'Auf Deutsch wechseln',
+'theme.light': 'Switch to light theme', 'theme.dark': 'Switch to dark theme',
+'brand.title': 'Revoked at revoked.link', 'openInApp': 'Open in app',
+'eyebrow.shared': 'Shared with you', 'eyebrow.application': 'Application',
+'heading.shared': 'Shared items', 'heading.application': 'Bewerbung',
+'from': 'From', 'official': 'Official',
+'pill.identityWithdrawn': 'Identity withdrawn', 'pill.senderNotNamed': 'Sender not named',
+'checking': function() { return 'Checking ' + domain; },
+'details': 'Details', 'details.hide': 'Hide details',
+'fact.server': 'Server', 'fact.sender': 'Sender', 'fact.checking': 'Checking…',
+'fact.withdrawn': 'Withdrawn', 'fact.reported': 'Reported by server',
+'fact.reported.title': 'This name is provided by the server. The Revoked app can verify the signature behind it.',
+'fact.notSpecified': 'Not specified', 'fact.unsigned': 'Unsigned', 'fact.fingerprint': 'Key fingerprint',
+'note.withdrawn': function() { return domain + ' has withdrawn this sender\'s identity. The link was signed while the identity was valid; the domain no longer vouches for it.'; },
+'note.unsigned': function() { return 'This link is not signed by a named person. Anyone with access to ' + domain + ' could have created it.'; },
+'note.reported': 'This name is reported by the server and cannot be confirmed by a browser. The Revoked app verifies the sender\'s signature.',
+'unconfirmed': 'Unconfirmed', 'unconfirmed.title': 'This name comes from a server that failed verification and cannot be relied on.',
+'gate.handshake': 'Protected by a verified identity. It is confirmed only in the Revoked app, which checks the server first.',
+'gate.password': 'Protected by a password. The password is entered only in the Revoked app, which checks the server first.',
+'gate.open': 'Open in the Revoked app', 'gate.get': 'Get the app',
+'views': function(used) { return used + ' of ' + maxViews + ' views used'; },
+'watermarked': 'Watermarked files',
+'reveal.checking': 'Checking the server…', 'reveal.open': 'Open shared information', 'reveal.anyway': 'Open anyway',
+'reveal.opening': 'Opening…', 'reveal.retry': 'Retry',
+'cap.views': function() { return 'Opening uses one of ' + maxViews + ' views (' + viewCount + ' used so far).'; },
+'cap.watermark': 'Downloaded files carry a watermark that traces them back to this link.',
+'cap.capped': 'Links with a view limit open only on request.',
+'unreachable': 'The server could not be reached.',
+'remember.t': function() { return 'Trust ' + domain; }, 'remember.d': 'Links from this domain open directly in this browser',
+'trusted': function() { return domain + ' is trusted in this browser.'; }, 'untrust': 'Stop trusting',
+'untrusted': function() { return domain + ' is no longer trusted'; },
+'how': 'How this page works',
+'how.1': function() { return (sharerName || 'The sender') + ' shares this information through Revoked. Values are read from the sender\'s vault each time the page is opened, not copied when the link was sent.'; },
+'how.2': 'The sender can pause or revoke the link, after which it stops working. Copied or downloaded content remains with whoever saved it.',
+'pill.ok': 'Verified', 'pill.spoofed': 'Spoofed', 'pill.unverified': 'Unverified', 'pill.local': 'Local',
+'line.ok': function() { return domain + ' verified'; }, 'line.spoofed': function() { return domain + ': key mismatch'; },
+'line.unverified': function() { return domain + ' not verified'; }, 'line.local': 'Local server',
+'v.spoofed.t': 'Possible impersonation',
+'v.spoofed.d': function() { return 'The key used by this server does not match the one published for ' + domain + '. The server may be impersonated; nothing on this page should be relied on.'; },
+'v.unverified.t': 'Server not verified',
+'v.unverified.d': function() { return domain + ' publishes no DNS record confirming its identity. Open this only if you expected it.'; },
+'v.withdrawn.t': 'Sender no longer trusted',
+'v.withdrawn.d': function() { return domain + ' has withdrawn the identity that signed this link.'; },
+'v.local.t': 'Local server',
+'v.local.d': 'This page is served from a local or private address and cannot be checked against public DNS records.',
+'v.local.unsigned': ' The link is also not signed by a named person.',
+'v.unknown.t': 'Server verified, sender unknown',
+'v.unknown.d': function() { return 'No named person signed this link. Anyone with access to ' + domain + ' could have made it. Open it only if you expected it.'; },
+'v.ok.t': 'Server verified',
+'v.ok.d': function() { return 'The key used by ' + domain + ' matches the one published in its DNS records. The connection is to the genuine server.'; },
+'dns.local': 'DNS verification is not available for local or private addresses.',
+'dns.spoofed': 'This server\'s key does not match the one published in its DNS records.',
+'dns.none': 'No DNS record confirms this server\'s key.',
+'locked.incomplete': 'This link is incomplete',
+'locked.incomplete.d': 'Some entries on this link are end-to-end encrypted. The key that opens them is the end of the link\'s address, after “#k=”, and it is missing here, for example because only part of the address was copied. The complete link opens them.',
+'locked.replaced': 'The key of this link was replaced',
+'locked.replaced.d': 'Some entries on this link are end-to-end encrypted, and the key in this address does not open them. It was replaced, or the address was changed on the way. The current link comes from the sender.',
+'locked.unavailable': 'Encrypted · not available on this link right now',
+'locked.unavailable.d': 'An encrypted entry was changed and has not been renewed for this link yet. Until then it is not shown, rather than an older version of it.',
+'locked.insecure': 'Encrypted · opens over HTTPS or in the app',
+'locked.insecure.d': 'Some entries on this link are end-to-end encrypted. A browser decrypts them only on a secure (HTTPS) connection; the Revoked app opens them as well.',
+'locked.damaged': 'This entry could not be decrypted',
+'locked.damaged.d': 'An encrypted entry on this link could not be decrypted: what the server sent does not match the key in this address.',
+'yes': 'Yes', 'no': 'No', 'file': 'file', 'record': 'Record', 'contact': 'Contact',
+'stamp.created': function(d) { return 'Created ' + d; }, 'stamp.updated': function(d) { return 'Updated ' + d; },
+'download': function(l) { return 'Download ' + l; }, 'downloadStarted': 'Download started',
+'call': 'Call', 'call.label': function(v) { return 'Call ' + v; },
+'write': function(v) { return 'Write to ' + v; }, 'open.url': function(v) { return 'Open ' + v; },
+'copy': function(l) { return 'Copy ' + l; },
+'copied': function(v) { return 'Copied “' + v + '”'; },
+'copyBlocked': 'Copying was blocked by the browser. The text can be selected and copied manually.',
+'view': function(n) { return 'View ' + n; }, 'save': function(n) { return 'Save ' + n; },
+'fileFailed': 'This file could not be loaded.',
+'count.item': function(n) { return n + (n === 1 ? ' item' : ' items'); },
+'count.file': function(n) { return n + (n === 1 ? ' file' : ' files'); },
+'downloadAll': 'Download all', 'preparing': 'Preparing…', 'downloaded': 'Downloaded',
+'archive.failed': 'The archive could not be downloaded.',
+'archive.expired': 'This download link has expired or was already used. Reloading the page issues a new one.',
+'archive.done': 'Archive downloaded',
+'archive.all': function(n) { return n > 1 ? 'All ' + n + ' files, bundled as a ZIP archive' : 'All files, bundled as a ZIP archive'; },
+'applicant': 'Applicant', 'documents': 'Documents',
+'saveContact': 'Save as contact', 'contactSaved': 'Contact saved', 'downloadText': 'Download as text',
+'section': 'Section', 'sectionEmpty': 'This section is empty.',
+'furtherDetails': 'Further details', 'otherInformation': 'Other information', 'sharedInformation': 'Shared information',
+'linkEmpty': 'This link contains no information yet.',
+'linkGone': 'This link is no longer available. It may have been revoked or expired.'
+},
+de: {
+'lang.label': 'EN', 'lang.switch': 'Switch to English',
+'theme.light': 'Zum hellen Design wechseln', 'theme.dark': 'Zum dunklen Design wechseln',
+'brand.title': 'Revoked auf revoked.link', 'openInApp': 'In App öffnen',
+'eyebrow.shared': 'Mit Ihnen geteilt', 'eyebrow.application': 'Bewerbung',
+'heading.shared': 'Geteilte Einträge', 'heading.application': 'Bewerbung',
+'from': 'Von', 'official': 'Offiziell',
+'pill.identityWithdrawn': 'Identität zurückgezogen', 'pill.senderNotNamed': 'Absender nicht genannt',
+'checking': function() { return domain + ' wird geprüft'; },
+'details': 'Details', 'details.hide': 'Details ausblenden',
+'fact.server': 'Server', 'fact.sender': 'Absender', 'fact.checking': 'Wird geprüft…',
+'fact.withdrawn': 'Zurückgezogen', 'fact.reported': 'Vom Server angegeben',
+'fact.reported.title': 'Dieser Name wird vom Server angegeben. Die Revoked-App kann die zugehörige Signatur prüfen.',
+'fact.notSpecified': 'Nicht angegeben', 'fact.unsigned': 'Nicht signiert', 'fact.fingerprint': 'Schlüssel-Fingerabdruck',
+'note.withdrawn': function() { return domain + ' hat die Identität dieses Absenders zurückgezogen. Der Link wurde signiert, als die Identität noch gültig war; die Domain bürgt nicht mehr dafür.'; },
+'note.unsigned': function() { return 'Dieser Link ist nicht von einer namentlich genannten Person signiert. Jede Person mit Zugang zu ' + domain + ' könnte ihn erstellt haben.'; },
+'note.reported': 'Dieser Name wird vom Server angegeben und kann von einem Browser nicht bestätigt werden. Die Revoked-App prüft die Signatur des Absenders.',
+'unconfirmed': 'Unbestätigt', 'unconfirmed.title': 'Dieser Name stammt von einem Server, der die Prüfung nicht bestanden hat, und ist nicht verlässlich.',
+'gate.handshake': 'Durch eine verifizierte Identität geschützt. Sie wird nur in der Revoked-App bestätigt, die zuvor den Server prüft.',
+'gate.password': 'Durch ein Passwort geschützt. Das Passwort wird nur in der Revoked-App eingegeben, die zuvor den Server prüft.',
+'gate.open': 'In der Revoked-App öffnen', 'gate.get': 'App laden',
+'views': function(used) { return used + ' von ' + maxViews + ' Aufrufen verbraucht'; },
+'watermarked': 'Dateien mit Wasserzeichen',
+'reveal.checking': 'Server wird geprüft…', 'reveal.open': 'Geteilte Informationen öffnen', 'reveal.anyway': 'Trotzdem öffnen',
+'reveal.opening': 'Wird geöffnet…', 'reveal.retry': 'Erneut versuchen',
+'cap.views': function() { return 'Das Öffnen verbraucht einen von ' + maxViews + ' Aufrufen (bisher ' + viewCount + ' verbraucht).'; },
+'cap.watermark': 'Heruntergeladene Dateien tragen ein Wasserzeichen, das sie diesem Link zuordnet.',
+'cap.capped': 'Links mit Aufrufbegrenzung öffnen nur auf Anforderung.',
+'unreachable': 'Der Server ist nicht erreichbar.',
+'remember.t': function() { return domain + ' vertrauen'; }, 'remember.d': 'Links dieser Domain öffnen in diesem Browser direkt',
+'trusted': function() { return domain + ' ist in diesem Browser als vertrauenswürdig gespeichert.'; }, 'untrust': 'Nicht mehr vertrauen',
+'untrusted': function() { return domain + ' ist nicht mehr vertrauenswürdig'; },
+'how': 'Funktionsweise dieser Seite',
+'how.1': function() { return (sharerName || 'Der Absender') + ' teilt diese Informationen über Revoked. Die Werte werden bei jedem Öffnen der Seite aus dem Tresor des Absenders gelesen, nicht beim Versenden des Links kopiert.'; },
+'how.2': 'Der Absender kann den Link pausieren oder widerrufen; danach funktioniert er nicht mehr. Kopierte oder heruntergeladene Inhalte verbleiben bei der Person, die sie gespeichert hat.',
+'pill.ok': 'Verifiziert', 'pill.spoofed': 'Gefälscht', 'pill.unverified': 'Nicht verifiziert', 'pill.local': 'Lokal',
+'line.ok': function() { return domain + ' verifiziert'; }, 'line.spoofed': function() { return domain + ': Schlüssel stimmt nicht überein'; },
+'line.unverified': function() { return domain + ' nicht verifiziert'; }, 'line.local': 'Lokaler Server',
+'v.spoofed.t': 'Mögliche Fälschung',
+'v.spoofed.d': function() { return 'Der Schlüssel dieses Servers stimmt nicht mit dem für ' + domain + ' veröffentlichten überein. Der Server wird möglicherweise imitiert; auf den Inhalt dieser Seite ist kein Verlass.'; },
+'v.unverified.t': 'Server nicht verifiziert',
+'v.unverified.d': function() { return domain + ' veröffentlicht keinen DNS-Eintrag, der seine Identität bestätigt. Nur öffnen, wenn dieser Link erwartet wurde.'; },
+'v.withdrawn.t': 'Absender nicht mehr vertrauenswürdig',
+'v.withdrawn.d': function() { return domain + ' hat die Identität zurückgezogen, mit der dieser Link signiert wurde.'; },
+'v.local.t': 'Lokaler Server',
+'v.local.d': 'Diese Seite wird von einer lokalen oder privaten Adresse ausgeliefert und kann nicht mit öffentlichen DNS-Einträgen abgeglichen werden.',
+'v.local.unsigned': ' Der Link ist außerdem nicht von einer namentlich genannten Person signiert.',
+'v.unknown.t': 'Server verifiziert, Absender unbekannt',
+'v.unknown.d': function() { return 'Keine namentlich genannte Person hat diesen Link signiert. Jede Person mit Zugang zu ' + domain + ' könnte ihn erstellt haben. Nur öffnen, wenn dieser Link erwartet wurde.'; },
+'v.ok.t': 'Server verifiziert',
+'v.ok.d': function() { return 'Der Schlüssel von ' + domain + ' stimmt mit dem in seinen DNS-Einträgen veröffentlichten überein. Die Verbindung besteht zum echten Server.'; },
+'dns.local': 'Für lokale oder private Adressen ist keine DNS-Prüfung möglich.',
+'dns.spoofed': 'Der Schlüssel dieses Servers stimmt nicht mit dem in seinen DNS-Einträgen veröffentlichten überein.',
+'dns.none': 'Kein DNS-Eintrag bestätigt den Schlüssel dieses Servers.',
+'locked.incomplete': 'Dieser Link ist unvollständig',
+'locked.incomplete.d': 'Einige Einträge dieses Links sind Ende-zu-Ende-verschlüsselt. Der Schlüssel dazu ist das Ende der Linkadresse nach „#k=“ und fehlt hier, etwa weil nur ein Teil der Adresse kopiert wurde. Der vollständige Link öffnet sie.',
+'locked.replaced': 'Der Schlüssel dieses Links wurde ersetzt',
+'locked.replaced.d': 'Einige Einträge dieses Links sind Ende-zu-Ende-verschlüsselt, und der Schlüssel in dieser Adresse öffnet sie nicht. Er wurde ersetzt, oder die Adresse wurde unterwegs verändert. Der aktuelle Link kommt vom Absender.',
+'locked.unavailable': 'Verschlüsselt · auf diesem Link derzeit nicht verfügbar',
+'locked.unavailable.d': 'Ein verschlüsselter Eintrag wurde geändert und für diesen Link noch nicht erneuert. Bis dahin wird er nicht angezeigt, statt einer älteren Fassung.',
+'locked.insecure': 'Verschlüsselt · öffnet über HTTPS oder in der App',
+'locked.insecure.d': 'Einige Einträge dieses Links sind Ende-zu-Ende-verschlüsselt. Ein Browser entschlüsselt sie nur über eine sichere (HTTPS-)Verbindung; die Revoked-App öffnet sie ebenfalls.',
+'locked.damaged': 'Dieser Eintrag konnte nicht entschlüsselt werden',
+'locked.damaged.d': 'Ein verschlüsselter Eintrag dieses Links konnte nicht entschlüsselt werden: Die Antwort des Servers passt nicht zum Schlüssel in dieser Adresse.',
+'yes': 'Ja', 'no': 'Nein', 'file': 'Datei', 'record': 'Eintrag', 'contact': 'Kontakt',
+'stamp.created': function(d) { return 'Erstellt am ' + d; }, 'stamp.updated': function(d) { return 'Aktualisiert am ' + d; },
+'download': function(l) { return l + ' herunterladen'; }, 'downloadStarted': 'Download gestartet',
+'call': 'Anrufen', 'call.label': function(v) { return v + ' anrufen'; },
+'write': function(v) { return 'E-Mail an ' + v; }, 'open.url': function(v) { return v + ' öffnen'; },
+'copy': function(l) { return l + ' kopieren'; },
+'copied': function(v) { return '„' + v + '“ kopiert'; },
+'copyBlocked': 'Der Browser hat das Kopieren blockiert. Der Text lässt sich markieren und manuell kopieren.',
+'view': function(n) { return n + ' anzeigen'; }, 'save': function(n) { return n + ' speichern'; },
+'fileFailed': 'Diese Datei konnte nicht geladen werden.',
+'count.item': function(n) { return n + (n === 1 ? ' Eintrag' : ' Einträge'); },
+'count.file': function(n) { return n + (n === 1 ? ' Datei' : ' Dateien'); },
+'downloadAll': 'Alle herunterladen', 'preparing': 'Wird vorbereitet…', 'downloaded': 'Heruntergeladen',
+'archive.failed': 'Das Archiv konnte nicht heruntergeladen werden.',
+'archive.expired': 'Dieser Download-Link ist abgelaufen oder wurde bereits verwendet. Ein Neuladen der Seite erzeugt einen neuen.',
+'archive.done': 'Archiv heruntergeladen',
+'archive.all': function(n) { return n > 1 ? 'Alle ' + n + ' Dateien als ZIP-Archiv' : 'Alle Dateien als ZIP-Archiv'; },
+'applicant': 'Persönliche Angaben', 'documents': 'Unterlagen',
+'saveContact': 'Als Kontakt speichern', 'contactSaved': 'Kontakt gespeichert', 'downloadText': 'Als Text herunterladen',
+'section': 'Bereich', 'sectionEmpty': 'Dieser Bereich ist leer.',
+'furtherDetails': 'Weitere Angaben', 'otherInformation': 'Weitere Informationen', 'sharedInformation': 'Geteilte Informationen',
+'linkEmpty': 'Dieser Link enthält noch keine Informationen.',
+'linkGone': 'Dieser Link ist nicht mehr verfügbar. Er wurde möglicherweise widerrufen oder ist abgelaufen.'
+}
+};
+// The key the web tools and the passkey page use, so one choice holds across
+// this origin.
+var LANG_KEY = 'revoked.web.locale';
+var lang = (function() {
+try {
+var saved = localStorage.getItem(LANG_KEY);
+if (saved === 'en' || saved === 'de') return saved;
+} catch (e) {}
+var langs = navigator.languages || [navigator.language || ''];
+for (var i = 0; i < langs.length; i++) if (/^de\b/i.test(langs[i])) return 'de';
+return 'en';
+})();
+function t(key) {
+var v = STRINGS[lang][key];
+if (v === undefined) v = STRINGS.en[key];
+if (typeof v === 'function') return v.apply(null, Array.prototype.slice.call(arguments, 1));
+return v === undefined ? key : v;
+}
+// English readers keep their own regional format; German is German.
+function locale() {
+if (lang === 'de') return 'de-DE';
+var nav = navigator.language || 'en';
+return /^en\b/i.test(nav) ? nav : 'en';
+}
 
 // Icons are drawn here rather than fetched: the page loads nothing but its
 // own origin.
@@ -686,7 +905,7 @@ function updateToggle() {
 if (!themeToggle) return;
 themeToggle.textContent = '';
 themeToggle.appendChild(svg(isDark() ? 'sun' : 'moon', 16));
-themeToggle.setAttribute('aria-label', isDark() ? 'Switch to light theme' : 'Switch to dark theme');
+themeToggle.setAttribute('aria-label', isDark() ? t('theme.light') : t('theme.dark'));
 }
 function applyTheme(theme) {
 if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
@@ -747,37 +966,51 @@ if (ok) resolve(); else reject();
 // the sender card, and anything that fails is marked where it is shown.
 var signer = {{if .SharerRevoked}}'withdrawn'{{else if .SharerName}}'stated'{{else}}'none'{{end}};
 
-var SERVER_PILLS = {
-ok: ['ok', 'Verified'],
-spoofed: ['bad', 'Spoofed'],
-unverified: ['bad', 'Unverified'],
-local: ['', 'Local']
-};
+var SERVER_PILLS = { ok: 'ok', spoofed: 'bad', unverified: 'bad', local: '' };
 
 function verdictFor(server) {
-if (server === 'spoofed') return ['bad', 'Possible impersonation',
-'The key used by this server does not match the one published for ' + domain + '. The server may be impersonated; nothing on this page should be relied on.'];
+if (server === 'spoofed') return ['bad', t('v.spoofed.t'), t('v.spoofed.d')];
 // No record proves nothing either way, so it is a caution, not an alarm;
 // a record that does not match is.
-if (server === 'unverified') return ['warn', 'Server not verified',
-domain + ' publishes no DNS record confirming its identity. Open this only if you expected it.'];
-if (signer === 'withdrawn') return ['bad', 'Sender no longer trusted',
-domain + ' has withdrawn the identity that signed this link.'];
-if (server === 'local') return [signer === 'none' ? 'warn' : 'neutral', 'Local server',
-'This page is served from a local or private address and cannot be checked against public DNS records.' +
-(signer === 'none' ? ' The link is also not signed by a named person.' : '')];
-if (signer === 'none') return ['warn', 'Server verified, sender unknown',
-'No named person signed this link. Anyone with access to ' + domain + ' could have made it. Open it only if you expected it.'];
-return ['ok', 'Server verified', 'The key used by ' + domain + ' matches the one published in its DNS records. The connection is to the genuine server.'];
+if (server === 'unverified') return ['warn', t('v.unverified.t'), t('v.unverified.d')];
+if (signer === 'withdrawn') return ['bad', t('v.withdrawn.t'), t('v.withdrawn.d')];
+if (server === 'local') return [signer === 'none' ? 'warn' : 'neutral', t('v.local.t'),
+t('v.local.d') + (signer === 'none' ? t('v.local.unsigned') : '')];
+if (signer === 'none') return ['warn', t('v.unknown.t'), t('v.unknown.d')];
+return ['ok', t('v.ok.t'), t('v.ok.d')];
 }
 
-function setServer(server, title) {
+var serverState = null, serverTitle = '';
+function setServer(server, titleKey) {
+serverState = server;
+serverTitle = titleKey || '';
+paintServer();
+var v = verdictFor(server);
+// A real danger shows its evidence without being asked.
+if (v[0] === 'bad') setDetails(true);
+
+// The check has an answer, so the reader can now decide.
+var reveal = document.getElementById('reveal');
+if (reveal) {
+reveal.disabled = false;
+reveal.classList.remove('loading');
+setReveal(v[0] === 'warn' || v[0] === 'bad' ? 'reveal.anyway' : 'reveal.open');
+// Trust is in the domain, so an unnamed sender does not void it; a server
+// that fails its check or a withdrawn sender does.
+offerTrust((server === 'ok' || server === 'local') && signer !== 'withdrawn');
+}
+}
+
+function paintServer() {
+var server = serverState;
+if (!server) return;
+var title = serverTitle ? t(serverTitle) : '';
 var pill = SERVER_PILLS[server];
 Array.prototype.forEach.call(document.querySelectorAll('[data-dns]'), function(n) {
-n.className = 'pill' + (pill[0] ? ' ' + pill[0] : '');
+n.className = 'pill' + (pill ? ' ' + pill : '');
 n.textContent = '';
 if (server === 'ok') n.appendChild(svg('check', 13));
-n.appendChild(document.createTextNode(pill[1]));
+n.appendChild(document.createTextNode(t('pill.' + server)));
 if (title) n.title = title;
 });
 // Only once DNS confirms the key: a dev server configured with the official
@@ -798,8 +1031,10 @@ var senderPill = document.getElementById('sender-pill');
 if (bad && senderPill) {
 senderFact.classList.add('is-bad');
 senderPill.className = 'pill bad';
-senderPill.textContent = 'Unconfirmed';
-senderPill.title = 'This name comes from a server that failed verification and cannot be relied on.';
+senderPill.setAttribute('data-t', 'unconfirmed');
+senderPill.setAttribute('data-t-title', 'unconfirmed.title');
+senderPill.textContent = t('unconfirmed');
+senderPill.title = t('unconfirmed.title');
 var senderName = senderFact.querySelector('.fact-name');
 if (!senderName.querySelector('svg')) senderName.insertBefore(svg('alert', 15), senderName.firstChild);
 }
@@ -815,17 +1050,17 @@ document.getElementById('verdict-d').textContent = v[2];
 
 // The one-line summary under the title.
 var SERVER_LINE = {
-ok: ['ok', domain + ' verified', 'check'],
-spoofed: ['bad', domain + ': key mismatch', 'alert'],
-unverified: ['warn', domain + ' not verified', 'alert'],
-local: ['', 'Local server', 'server']
+ok: ['ok', 'check'],
+spoofed: ['bad', 'alert'],
+unverified: ['warn', 'alert'],
+local: ['', 'server']
 };
 var line = SERVER_LINE[server];
 var sp = document.getElementById('server-pill');
 sp.className = 'pill' + (line[0] ? ' ' + line[0] : '');
 sp.textContent = '';
-sp.appendChild(svg(line[2], 13));
-sp.appendChild(document.createTextNode(line[1]));
+sp.appendChild(svg(line[1], 13));
+sp.appendChild(document.createTextNode(t('line.' + server)));
 if (title) sp.title = title;
 
 // Said under the line only when there is something to weigh before opening.
@@ -833,20 +1068,13 @@ var note = document.getElementById('trust-note');
 note.hidden = !(v[0] === 'warn' || v[0] === 'bad');
 note.classList.toggle('bad', v[0] === 'bad');
 note.textContent = v[2];
-// A real danger shows its evidence without being asked.
-if (v[0] === 'bad') setDetails(true);
-
-// The check has an answer, so the reader can now decide.
-var reveal = document.getElementById('reveal');
-if (reveal) {
-reveal.disabled = false;
-reveal.classList.remove('loading');
-document.getElementById('reveal-t').textContent =
-v[0] === 'warn' || v[0] === 'bad' ? 'Open anyway' : 'Open shared information';
-// Trust is in the domain, so an unnamed sender does not void it; a server
-// that fails its check or a withdrawn sender does.
-offerTrust((server === 'ok' || server === 'local') && signer !== 'withdrawn');
 }
+
+var revealKey = 'reveal.checking';
+function setReveal(key) {
+revealKey = key;
+var n = document.getElementById('reveal-t');
+if (n) n.textContent = t(key);
 }
 
 // ---- Trusted domain ----------------------------------------------------------
@@ -866,10 +1094,24 @@ try { localStorage.setItem(TRUST_KEY, JSON.stringify(m)); } catch (e) {}
 document.getElementById('trusted').hidden = !on;
 remember.hidden = on || !trustable;
 remember.setAttribute('aria-checked', 'false');
-var cap = document.getElementById('capnote');
-if (!on && cap) cap.textContent = cap.textContent.replace(CAPPED_NOTE, '');
+if (!on) { capState.capped = false; paintCap(); }
 }
-var CAPPED_NOTE = ' Links with a view limit open only on request.';
+
+var capState = { capped: false, unreachable: false };
+function paintCap() {
+var cap = document.getElementById('capnote');
+if (!cap) return;
+if (capState.unreachable) {
+cap.style.color = 'var(--bad)';
+cap.textContent = t('unreachable');
+return;
+}
+var parts = [];
+if (maxViews > 0) parts.push(t('cap.views'));
+if (watermarked) parts.push(t('cap.watermark'));
+if (capState.capped) parts.push(t('cap.capped'));
+cap.textContent = parts.join(' ');
+}
 
 var remember = document.getElementById('remember');
 var autoOpened = false, trustable = false;
@@ -881,8 +1123,8 @@ remember.hidden = !clean || trusted;
 document.getElementById('trusted').hidden = !trusted;
 // A capped link spends a view on opening, so that stays the reader's click.
 if (clean && trusted && maxViews > 0 && !opening) {
-var cap = document.getElementById('capnote');
-if (cap.textContent.indexOf(CAPPED_NOTE) === -1) cap.textContent += CAPPED_NOTE;
+capState.capped = true;
+paintCap();
 }
 if (clean && trusted && maxViews === 0 && !autoOpened && !opening) {
 autoOpened = true;
@@ -895,7 +1137,7 @@ remember.setAttribute('aria-checked', remember.getAttribute('aria-checked') === 
 });
 document.getElementById('untrust').addEventListener('click', function() {
 setTrusted(false);
-toast(domain + ' is no longer trusted');
+toast(t('untrusted'));
 });
 }
 
@@ -904,7 +1146,7 @@ var card = document.getElementById('sender');
 var more = document.getElementById('trust-more');
 card.hidden = !open;
 more.setAttribute('aria-expanded', open ? 'true' : 'false');
-more.textContent = open ? 'Hide details' : 'Details';
+more.textContent = open ? t('details.hide') : t('details');
 }
 document.getElementById('trust-more').addEventListener('click', function() {
 setDetails(document.getElementById('sender').hidden);
@@ -917,7 +1159,7 @@ var isLocal = d === '' || d === 'localhost' || d.indexOf('.') === -1 ||
 d.indexOf(':') !== -1 || /^\d+\.\d+\.\d+\.\d+$/.test(d) ||
 /\.(localhost|local|test|internal)$/i.test(d);
 if (isLocal) {
-setServer('local', 'DNS verification is not available for local or private addresses.');
+setServer('local', 'dns.local');
 return;
 }
 var name = '_revoked.' + d;
@@ -938,7 +1180,7 @@ var m = /k=sha256\/([a-f0-9]{64})/i.exec(txt);
 if (m) {
 done = true;
 if (m[1].toLowerCase() === String(pin).toLowerCase()) setServer('ok');
-else setServer('spoofed', 'This server\'s key does not match the one published in its DNS records.');
+else setServer('spoofed', 'dns.spoofed');
 return;
 }
 }
@@ -946,7 +1188,7 @@ return;
 });
 setTimeout(function() {
 if (done) return;
-setServer('unverified', 'No DNS record confirms this server\'s key.');
+setServer('unverified', 'dns.none');
 }, 5000);
 }
 
@@ -964,18 +1206,7 @@ a.setAttribute('href', linkKey ? base + '#k=' + sealKeyText(linkKey) : base);
 keyAppLinks();
 
 // Said in place of a value that stays closed, and once above the entries.
-var LOCKED = {
-incomplete: ['This link is incomplete',
-'Some entries on this link are end-to-end encrypted. The key that opens them is the end of the link\'s address, after “#k=”, and it is missing here, for example because only part of the address was copied. The complete link opens them.'],
-replaced: ['The key of this link was replaced',
-'Some entries on this link are end-to-end encrypted, and the key in this address does not open them. It was replaced, or the address was changed on the way. The current link comes from the sender.'],
-unavailable: ['Encrypted · not available on this link right now',
-'An encrypted entry was changed and has not been renewed for this link yet. Until then it is not shown, rather than an older version of it.'],
-insecure: ['Encrypted · opens over HTTPS or in the app',
-'Some entries on this link are end-to-end encrypted. A browser decrypts them only on a secure (HTTPS) connection; the Revoked app opens them as well.'],
-damaged: ['This entry could not be decrypted',
-'An encrypted entry on this link could not be decrypted: what the server sent does not match the key in this address.']
-};
+var LOCKED = { incomplete: true, replaced: true, unavailable: true, insecure: true, damaged: true };
 
 // ---- What a value is --------------------------------------------------------
 var KINDS = {
@@ -1024,20 +1255,20 @@ return 'text';
 
 function displayValue(kind, v) {
 if (kind === 'bool') {
-if (/^true$/i.test(v)) return 'Yes';
-if (/^false$/i.test(v)) return 'No';
+if (/^true$/i.test(v)) return t('yes');
+if (/^false$/i.test(v)) return t('no');
 }
 if (kind === 'date') {
 var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
 try {
-if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toLocaleDateString(undefined, { dateStyle: 'long', timeZone: 'UTC' });
+if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toLocaleDateString(locale(), { dateStyle: 'long', timeZone: 'UTC' });
 var d = new Date(v);
-if (!isNaN(d)) return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+if (!isNaN(d)) return d.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
 } catch (e) {}
 }
 if (kind === 'number' && /^-?\d+(\.\d+)?$/.test(v)) {
 var num = Number(v);
-if (isFinite(num) && Math.abs(num) < 1e15) return num.toLocaleString();
+if (isFinite(num) && Math.abs(num) < 1e15) return num.toLocaleString(locale());
 }
 return v;
 }
@@ -1071,21 +1302,21 @@ return a;
 }
 
 function copyButton(value, label) {
-var b = iconButton('copy', 'Copy ' + label);
+var b = iconButton('copy', t('copy', label));
 var timer = null;
 b.addEventListener('click', function() {
 copyText(value).then(function() {
 b.classList.add('done');
 b.textContent = '';
 b.appendChild(svg('check'));
-toast('Copied “' + (value.length > 32 ? value.slice(0, 32) + '…' : value) + '”');
+toast(t('copied', value.length > 32 ? value.slice(0, 32) + '…' : value));
 clearTimeout(timer);
 timer = setTimeout(function() {
 b.classList.remove('done');
 b.textContent = '';
 b.appendChild(svg('copy'));
 }, 1500);
-}, function() { toast('Copying was blocked by the browser. The text can be selected and copied manually.'); });
+}, function() { toast(t('copyBlocked')); });
 });
 return b;
 }
@@ -1104,7 +1335,7 @@ var item = el('div', 'item');
 var row = el('div', 'rec');
 var kind = kindOf(r);
 var meta = r.locked ? { icon: 'lock', tone: 'neutral' } : KINDS[kind];
-var label = r.label || r.key || 'Record';
+var label = r.label || r.key || t('record');
 
 var tile = el('div', 'tile tone-' + meta.tone);
 tile.appendChild(svg(meta.icon, 20));
@@ -1116,14 +1347,14 @@ if (r.key) tx.title = r.key;
 var acts = el('div', 'acts');
 
 if (r.type === 'file') {
-tx.appendChild(el('div', 'v', (r.filename || 'file') + ' · ' + fmtBytes(r.size || 0)));
+tx.appendChild(el('div', 'v', (r.filename || t('file')) + ' · ' + fmtBytes(r.size || 0)));
 if (watermarkLine) acts.appendChild(stampedViewButton(r, item, acts));
 else {
-var dl = iconButton('download', 'Download ' + label);
+var dl = iconButton('download', t('download', label));
 dl.addEventListener('click', function() {
 dl.disabled = true;
 window.location.href = fileURL(r);
-toast('Download started');
+toast(t('downloadStarted'));
 setTimeout(function() { dl.disabled = false; }, 2000);
 });
 acts.appendChild(dl);
@@ -1131,7 +1362,7 @@ acts.appendChild(dl);
 } else if (r.locked) {
 // Encrypted and not opened here: the row says why in place of a value, and
 // never shows an older one.
-tx.appendChild(el('div', 'v muted', (LOCKED[r.locked] || LOCKED.damaged)[0]));
+tx.appendChild(el('div', 'v muted', t('locked.' + (LOCKED[r.locked] ? r.locked : 'damaged'))));
 } else {
 var raw = r.value == null ? '' : String(r.value);
 var value = raw.trim();
@@ -1140,30 +1371,49 @@ if (value !== '') {
 if (kind === 'phone') {
 var call = el('a', 'act ok');
 call.href = 'tel:' + value.replace(/[^\d+]/g, '');
-call.setAttribute('aria-label', 'Call ' + value);
+call.setAttribute('aria-label', t('call.label', value));
 call.appendChild(svg('phone', 16));
-call.appendChild(el('span', 'act-t', 'Call'));
+call.appendChild(el('span', 'act-t', t('call')));
 acts.appendChild(call);
 } else if (kind === 'email') {
-acts.appendChild(iconLink('send', 'Write to ' + value, 'mailto:' + value, false));
+acts.appendChild(iconLink('send', t('write', value), 'mailto:' + value, false));
 } else if (kind === 'url') {
 var href = webHref(value);
-if (href) acts.appendChild(iconLink('external', 'Open ' + value, href, true));
+if (href) acts.appendChild(iconLink('external', t('open.url', value), href, true));
 }
 acts.appendChild(copyButton(raw, label));
 }
 }
+var stamp = stampFor(r);
+if (stamp) tx.appendChild(el('div', 'stamp', stamp));
 row.appendChild(tx);
 row.appendChild(acts);
 item.appendChild(row);
 return item;
 }
 
+function parseStamp(v) {
+if (!v) return null;
+var d = new Date(String(v).replace(' ', 'T'));
+return isNaN(d) ? null : d;
+}
+
+// Created and updated are written together on creation, a few milliseconds
+// apart at most, so anything closer than a second was never changed.
+function stampFor(r) {
+var created = parseStamp(r.created), updated = parseStamp(r.updated);
+var changed = updated && (!created || updated - created > 1000);
+var at = changed ? updated : created;
+if (!at) return '';
+var text = at.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
+return t(changed ? 'stamp.updated' : 'stamp.created', text);
+}
+
 // A stamped file is fetched once: the one download token serves both the
 // preview and the save, and the preview is shown from memory rather than by
 // loading the file URL inline, so nothing uploaded ever renders from this origin.
 function stampedViewButton(r, item, acts) {
-var b = iconButton('eye', 'View ' + (r.label || r.filename || 'file'));
+var b = iconButton('eye', t('view', r.label || r.filename || t('file')));
 b.addEventListener('click', function() {
 b.disabled = true;
 b.textContent = '';
@@ -1171,13 +1421,13 @@ b.appendChild(el('span', 'spin'));
 b.lastChild.style.display = 'block';
 fetch(fileURL(r)).then(function(res) {
 if (!res.ok) {
-return res.json().then(function(j) { throw new Error((j && j.message) || 'This file could not be loaded.'); },
-function() { throw new Error('This file could not be loaded.'); });
+return res.json().then(function(j) { throw new Error((j && j.message) || t('fileFailed')); },
+function() { throw new Error(t('fileFailed')); });
 }
 return res.blob();
 }).then(function(blob) {
 var ext = stampedTypes[blob.type];
-if (!ext) throw new Error('This file could not be loaded.');
+if (!ext) throw new Error(t('fileFailed'));
 var url = URL.createObjectURL(blob);
 var preview = el('div', 'preview');
 if (blob.type === 'application/pdf') {
@@ -1192,7 +1442,7 @@ img.alt = r.filename || 'file';
 preview.appendChild(img);
 }
 item.appendChild(preview);
-var save = iconLink('download', 'Save ' + (r.filename || 'file'), url, false);
+var save = iconLink('download', t('save', r.filename || t('file')), url, false);
 save.download = String(r.filename || 'file').replace(/\.[^.]+$/, '') + ext;
 acts.replaceChild(save, b);
 }).catch(function(err) {
@@ -1222,7 +1472,7 @@ var sec = el('section', 'sec');
 var sh = el('div', 'sh');
 sh.appendChild(el('span', 'sh-t', name));
 var right = el('div', 'sh-r');
-right.appendChild(el('span', '', count + ' ' + (count === 1 ? noun : noun + 's')));
+right.appendChild(el('span', '', t('count.' + noun, count)));
 if (action) right.appendChild(action);
 sh.appendChild(right);
 sec.appendChild(sh);
@@ -1243,7 +1493,7 @@ return m ? m[1] : fallback;
 // The archive token is single-use like a file token, so a spent one is never
 // retried: the viewer reloads for a fresh one.
 function archiveButton(data, report) {
-var label = 'Download all';
+var label = t('downloadAll');
 var b = el('button', 'act primary');
 b.type = 'button';
 b.id = 'download-all';
@@ -1255,14 +1505,14 @@ b.appendChild(el('span', '', text));
 show(label, 'download');
 b.addEventListener('click', function() {
 b.disabled = true;
-show('Preparing…');
+show(t('preparing'));
 report('');
 var u = '/api/public/links/' + encodeURIComponent(slug) + '/archive?dl=' + encodeURIComponent(data.archiveToken);
 fetch(u).then(function(res) {
 if (!res.ok) {
 return res.json().then(function(j) { return j; }, function() { return {}; }).then(function(j) {
-var msg = (j && j.message) || 'The archive could not be downloaded.';
-if (res.status === 401) msg = 'This download link has expired or was already used. Reloading the page issues a new one.';
+var msg = (j && j.message) || t('archive.failed');
+if (res.status === 401) msg = t('archive.expired');
 show(label, 'download');
 report(msg);
 });
@@ -1276,13 +1526,13 @@ document.body.appendChild(a);
 a.click();
 a.remove();
 setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
-show('Downloaded', 'check');
-toast('Archive downloaded');
+show(t('downloaded'), 'check');
+toast(t('archive.done'));
 });
 }).catch(function() {
 b.disabled = false;
 show(label, 'download');
-report('The server could not be reached.');
+report(t('unreachable'));
 });
 });
 return b;
@@ -1318,14 +1568,14 @@ var taken = {};
 applicant.concat(documents).forEach(function(r) { taken[r.id] = true; });
 
 if (applicant.length) {
-var who = makeSection('Applicant', applicant.length, 'item');
+var who = makeSection(t('applicant'), applicant.length, 'item');
 applicant.forEach(function(r) { who.card.appendChild(renderRecordItem(r)); });
 out.appendChild(who);
 }
 if (documents.length) {
 var report = null;
 var action = data.archiveToken ? archiveButton(data, function(msg) { report(msg); }) : null;
-var docs = makeSection('Documents', documents.length, 'file', action);
+var docs = makeSection(t('documents'), documents.length, 'file', action);
 report = reporter(docs.card);
 documents.forEach(function(r) { docs.card.appendChild(renderRecordItem(r)); });
 out.appendChild(docs);
@@ -1357,17 +1607,17 @@ notes.push(label + ': ' + displayValue(kind, v));
 });
 if (!name && !any) return null;
 // N is required by the format; the name is given whole, as it was shared.
-lines.splice(2, 0, 'N:' + vcEscape(name || data.label || 'Contact') + ';;;;', 'FN:' + vcEscape(name || data.label || 'Contact'));
+lines.splice(2, 0, 'N:' + vcEscape(name || data.label || t('contact')) + ';;;;', 'FN:' + vcEscape(name || data.label || t('contact')));
 if (notes.length) lines.push('NOTE:' + vcEscape(notes.join('\n')));
 lines.push('END:VCARD');
 return lines.join('\r\n') + '\r\n';
 }
 function plainText(data, records) {
-var out = [(data.label || 'Shared information'), ''];
+var out = [(data.label || t('sharedInformation')), ''];
 records.forEach(function(r) {
 if (r.type === 'file' || r.value == null) return;
 var kind = kindOf(r);
-out.push((r.label || r.key || 'Record') + ': ' + displayValue(kind, String(r.value).trim()));
+out.push((r.label || r.key || t('record')) + ': ' + displayValue(kind, String(r.value).trim()));
 });
 return out.join('\n') + '\n';
 }
@@ -1393,28 +1643,23 @@ if (card) {
 var c = el('button', 'tool');
 c.type = 'button';
 c.appendChild(svg('user', 16));
-c.appendChild(el('span', '', 'Save as contact'));
+c.appendChild(el('span', '', t('saveContact')));
 c.addEventListener('click', function() {
 saveBlob(card, 'text/vcard', fileBase(data) + '.vcf');
-toast('Contact saved');
+toast(t('contactSaved'));
 });
 row.appendChild(c);
 }
 var d = el('button', 'tool');
 d.type = 'button';
 d.appendChild(svg('download', 16));
-d.appendChild(el('span', '', 'Download as text'));
+d.appendChild(el('span', '', t('downloadText')));
 d.addEventListener('click', function() {
 saveBlob(plainText(data, records), 'text/plain;charset=utf-8', fileBase(data) + '.txt');
-toast('Downloaded');
+toast(t('downloaded'));
 });
 row.appendChild(d);
-var wrap = el('div', 'sec');
-wrap.appendChild(row);
-var fine = el('p', 'lead-fine', 'Always the current version while the link is open. The sender can revoke it.');
-fine.style.marginTop = '10px';
-wrap.appendChild(fine);
-return wrap;
+return row;
 }
 
 function render(data) {
@@ -1430,7 +1675,7 @@ var isApplication = data.purpose === 'application';
 var closed = {};
 rootRecords.forEach(function(r) { if (r && r.locked) closed[LOCKED[r.locked] ? r.locked : 'damaged'] = true; });
 Object.keys(LOCKED).forEach(function(why) {
-if (closed[why]) out.appendChild(el('div', 'seal-note sec', LOCKED[why][1]));
+if (closed[why]) out.appendChild(el('div', 'seal-note sec', t('locked.' + why + '.d')));
 });
 var hasRootFile = rootRecords.some(function(r) { return r.type === 'file'; });
 if (data.archiveToken && !(isApplication && hasRootFile)) {
@@ -1440,7 +1685,7 @@ var bar = el('div', 'bar');
 var tile = el('div', 'tile tone-neutral');
 tile.appendChild(svg('archive', 20));
 bar.appendChild(tile);
-var tx = el('div', 'tx', files > 1 ? 'All ' + files + ' files, bundled as a ZIP archive' : 'All files, bundled as a ZIP archive');
+var tx = el('div', 'tx', t('archive.all', files));
 bar.appendChild(tx);
 bar.appendChild(archiveButton(data, reporter(archive)));
 archive.appendChild(bar);
@@ -1461,9 +1706,9 @@ var looseRecords = remaining.filter(function(r) { return !inSections[r.id]; });
 sections.forEach(function(s) {
 var secRecords = (s.records || []).map(function(id) { return byId[id]; }).filter(Boolean);
 if (isApplication && !secRecords.length) return;
-var sec = makeSection(s.name || 'Section', secRecords.length, 'item');
+var sec = makeSection(s.name || t('section'), secRecords.length, 'item');
 if (!secRecords.length) {
-sec.card.appendChild(el('div', 'empty', 'This section is empty.'));
+sec.card.appendChild(el('div', 'empty', t('sectionEmpty')));
 } else {
 secRecords.forEach(function(r) { sec.card.appendChild(renderRecordItem(r)); });
 }
@@ -1471,14 +1716,14 @@ out.appendChild(sec);
 });
 
 if (looseRecords.length > 0) {
-var loose = makeSection(isApplication ? 'Further details' : (sections.length ? 'Other information' : 'Shared information'), looseRecords.length, 'item');
+var loose = makeSection(isApplication ? t('furtherDetails') : (sections.length ? t('otherInformation') : t('sharedInformation')), looseRecords.length, 'item');
 looseRecords.forEach(function(r) { loose.card.appendChild(renderRecordItem(r)); });
 out.appendChild(loose);
 }
 
 if (!rootRecords.length && !sections.length) {
 var emptyCard = el('div', 'card sec');
-emptyCard.appendChild(el('div', 'empty', 'This link contains no information yet.'));
+emptyCard.appendChild(el('div', 'empty', t('linkEmpty')));
 out.appendChild(emptyCard);
 } else {
 var tools = toolsFor(data, rootRecords);
@@ -1529,7 +1774,7 @@ opening = true;
 if (remember && !remember.hidden && remember.getAttribute('aria-checked') === 'true') setTrusted(true);
 btn.disabled = true;
 btn.classList.add('loading');
-document.getElementById('reveal-t').textContent = 'Opening…';
+setReveal('reveal.opening');
 fetch('/api/public/links/' + encodeURIComponent(slug), {
 method: 'POST',
 headers: { 'content-type': 'application/json' },
@@ -1540,14 +1785,12 @@ body: '{}'
 var gate = document.getElementById('gate');
 if (!res.ok) {
 gate.textContent = '';
-gate.appendChild(el('div', 'trust-note bad', (res.body && res.body.message) || 'This link is no longer available. It may have been revoked or expired.'));
+gate.appendChild(el('div', 'trust-note bad', (res.body && res.body.message) || t('linkGone')));
 return;
 }
 foldGate(gate);
-if (maxViews > 0) {
-var vt = document.getElementById('views-text');
-if (vt) vt.textContent = Math.min(viewCount + 1, maxViews) + ' of ' + maxViews + ' views used';
-}
+viewsUsed = Math.min(viewCount + 1, maxViews);
+paintViews();
 document.getElementById('strip').hidden = false;
 resolved = res.body;
 return showShare();
@@ -1556,13 +1799,51 @@ return showShare();
 opening = false;
 btn.disabled = false;
 btn.classList.remove('loading');
-document.getElementById('reveal-t').textContent = 'Retry';
-var n = document.getElementById('capnote');
-n.style.color = 'var(--bad)';
-n.textContent = 'The server could not be reached.';
+setReveal('reveal.retry');
+capState.unreachable = true;
+paintCap();
 });
 });
 }
+
+var viewsUsed = viewCount;
+function paintViews() {
+var vt = document.getElementById('views-text');
+if (vt) vt.textContent = t('views', viewsUsed);
+}
+
+// Everything on screen is said again in the new language. An opened share is
+// drawn again from what was already received, so switching spends no view.
+function applyLang() {
+document.documentElement.lang = lang;
+Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function(n) {
+n.textContent = t(n.getAttribute('data-t'));
+});
+Array.prototype.forEach.call(document.querySelectorAll('[data-t-title]'), function(n) {
+n.title = t(n.getAttribute('data-t-title'));
+});
+Array.prototype.forEach.call(document.querySelectorAll('[data-t-aria]'), function(n) {
+n.setAttribute('aria-label', t(n.getAttribute('data-t-aria')));
+});
+var toggle = document.getElementById('lang-toggle');
+toggle.textContent = t('lang.label');
+toggle.setAttribute('aria-label', t('lang.switch'));
+toggle.title = t('lang.switch');
+document.title = document.getElementById('title').textContent + ' · Revoked';
+updateToggle();
+setDetails(!document.getElementById('sender').hidden);
+paintViews();
+paintCap();
+setReveal(revealKey);
+paintServer();
+if (resolved) showShare();
+}
+document.getElementById('lang-toggle').addEventListener('click', function() {
+lang = lang === 'de' ? 'en' : 'de';
+try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+applyLang();
+});
+applyLang();
 
 checkDNS();
 })();
