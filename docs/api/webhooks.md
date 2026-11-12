@@ -10,6 +10,46 @@ Webhooks belong to a **workspace**, not to a single request. The older
 per-request [callback URL](callbacks.md) keeps working and is unaffected; for
 new integrations, use webhooks.
 
+## Example: a share-revocation notification
+
+The following commands register an HTTPS receiver for `link.revoked` and send
+a test delivery. Prerequisites: a running receiver, its public URL, and an API
+key with `webhook:manage` in the workspace being monitored.
+
+```bash
+SERVER='https://api.example.com'
+RECEIVER_URL='https://service.example.com/hooks/revoked'
+read -r -s -p 'API key: ' REVOKED_API_KEY
+printf '\n'
+curl --fail-with-body "$SERVER/api/webhooks/endpoints" \
+  -H "X-API-Key: $REVOKED_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d "{\"url\":\"$RECEIVER_URL\",\"events\":[\"link.revoked\"]}"
+```
+
+The creation response includes the endpoint ID and signing `secret`. The
+receiver uses that secret to [verify deliveries](#verifying-the-signature).
+With the returned endpoint ID:
+
+```bash
+ENDPOINT_ID='REPLACE_WITH_RETURNED_ID'
+curl --fail-with-body -X POST \
+  "$SERVER/api/webhooks/endpoints/$ENDPOINT_ID/test" \
+  -H "X-API-Key: $REVOKED_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"link.revoked"}'
+```
+
+The receiver should get a signed event with `"test": true`. A successful test
+checks delivery and signature handling; test IDs are placeholders and cannot
+be used to fetch real objects. Revoking a real share later sends a normal
+`link.revoked` event with that share's ID. A blocked or unreachable receiver is
+described in the returned delivery result.
+
+For local development, the [bundled receiver](#testing) avoids writing a
+listener first. Private destinations require the server setting described
+under [Delivery](#delivery).
+
 ## What an event carries
 
 An event names what changed and its new state. It **never carries a value**:

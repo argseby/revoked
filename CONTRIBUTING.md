@@ -51,6 +51,44 @@ The Go tests start a real PocketBase on `127.0.0.1:5559` and talk to it over
 HTTP. They need no outside services, but they do use that port — so run them
 with `-p 1`.
 
+## Documentation
+
+Documentation source lives in `docs/`. Endpoint reference pages under
+`docs/api/reference/` are generated from `docs/api/openapi.yaml`; changes to
+those pages belong in the specification or `tools/docs/gen_api_reference.py`.
+The handwritten guides explain when and how to use that contract.
+
+Task and integration pages should include:
+
+- A plain-language purpose and one concrete scenario before protocol details.
+- Prerequisites, including which system is running, which credential is needed
+  and which permissions or sections it must have.
+- Examples beside the behavior they explain. Commands define their variables;
+  placeholders are identified, and partial snippets say what is omitted.
+- The expected response or visible result, including valid empty results and
+  declined optional data.
+- Common failures with specific checks, plus a link to the complete example or
+  endpoint reference where one exists.
+
+Examples use the shipped routes, field names and UI labels. Credentials from
+an API key, connection, Revoked session and service sign-in are distinguished
+explicitly. Revocation describes future access; it cannot recall information
+already copied. Examples should be understandable without an AI assistant or
+reading the source implementation.
+
+The local documentation build uses the same generation and strict build as CI:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r docs/requirements.txt
+.venv/bin/python tools/docs/gen_api_reference.py
+mkdir -p docs/assets/brand
+cp app/assets/icon/*.svg docs/assets/brand/
+.venv/bin/zensical build --strict
+```
+
+New pages are also added to the explicit navigation in `zensical.toml`.
+
 ## Commits and releases
 
 Write [Conventional Commits](https://www.conventionalcommits.org) as

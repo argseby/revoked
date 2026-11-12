@@ -14,6 +14,33 @@ note that an answer was revoked, changed or expired, without its values.
 For anything beyond one request — shares, the vault, members — use
 [webhooks](webhooks.md): one signed, retried and logged feed per workspace.
 
+## Example: a response sent to a CRM
+
+A request asks a customer for an email address and phone number. Its callback
+points to `https://crm.example.com/hooks/UNGUESSABLE_SECRET`. When the customer
+submits, Revoked POSTs a submission payload there.
+
+The receiver uses `requestId` to check which form it belongs to and `responseId`
+to update the same CRM entry when that customer submits again. A `grant.changed`
+event later signals that the response needs to be read again; a
+`grant.revoked` event means linked values are no longer available.
+
+A submission callback may omit fields linked from the responder's vault.
+An empty or partial `data` map therefore does not mean the response was empty.
+The current response is read through the authenticated API:
+
+```bash
+curl --fail-with-body "$SERVER/api/requests/$REQUEST_ID/links" \
+  -H "X-API-Key: $REVOKED_API_KEY"
+```
+
+Here `$SERVER` is the requesting server's origin, `$REQUEST_ID` is its request
+ID, and `$REVOKED_API_KEY` belongs to that workspace with permission to read
+the request's responses. The response format is in the
+[requests reference](reference/requests.md). Callback authentication and retries
+differ from webhooks; [Security](#security) and [Delivery](#delivery) describe
+their requirements.
+
 ## Configuring
 
 Set the callback when creating or editing a request (the `callbackUrl` field,

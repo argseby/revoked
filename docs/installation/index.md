@@ -18,6 +18,29 @@ check your server against.
 - A reverse proxy that handles TLS. Use the one you already run (Nginx Proxy
   Manager, Caddy, Traefik…) or the bundled nginx profile.
 
+## Example deployment
+
+For a server reached at `https://api.example.com`, the relevant `.env` values
+are:
+
+```dotenv
+DOMAIN=api.example.com
+API_PORT=3000
+API_PUBLISH=127.0.0.1:3000
+PROXY_NETWORK=proxy-network
+ALLOW_SIGNUPS=false
+```
+
+`DOMAIN` is a hostname, without `https://` or a path. The reverse proxy accepts
+public HTTPS traffic and forwards it to `revoked-api:3000` over the shared
+Docker network. `API_PUBLISH` is the host-side binding used for local checks;
+it does not need to become public for the proxy to reach the container.
+
+With signups disabled, accounts are provisioned through the
+[account setup](accounts.md), rather than through public registration.
+The defaults above do not configure TLS or create the DNS record; those are
+separate steps below.
+
 **Install it:**
 
 ```bash
@@ -81,6 +104,18 @@ Every setting is in the [.env reference](env.md).
 
 Once the server runs, give people [the app](app.md), or send them straight to
 the desktop and Android downloads.
+
+## Verification and common failures
+
+| Check | Expected result | If it fails |
+|---|---|---|
+| `curl --fail-with-body http://localhost:3000/healthz` on the host | `ok` | Check `docker compose logs api`, the required `DOMAIN`, and the published port. |
+| `curl --fail-with-body https://api.example.com/healthz` from another machine | `ok` over valid HTTPS | Check public DNS, TLS and the proxy's connection to `revoked-api:3000`. |
+| `dig TXT _revoked.api.example.com +short` | The fingerprint printed by this server. | Check the exact TXT record name and allow time for DNS propagation. |
+| App sign-in against `https://api.example.com` | A passkey ceremony for that domain. | Check account provisioning and that the app uses the domain rather than a LAN IP address. |
+
+A successful health check proves the process is reachable. It does not prove
+that account setup or the identity trust chain is complete.
 
 ## Upgrade {#upgrade}
 

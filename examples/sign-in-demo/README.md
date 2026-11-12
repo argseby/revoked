@@ -31,7 +31,7 @@ its `DOMAIN`, so the usual development setup works as it is:
 
 ```bash
 # in the repository root
-go run ./cmd/revoked serve --http=127.0.0.1:3000
+DOMAIN=localhost go run ./cmd/revoked serve --http=127.0.0.1:3000
 ```
 
 The Revoked app on this device is then signed in to that server.
@@ -49,6 +49,16 @@ signed in to that server; an entry with the key `shipping_address` in its vault
 is offered first when the app asks what to share. The app delivers its answer
 to the shop directly, so on `localhost` it has to run on the same machine. To
 scan the code with a phone, set `PUBLIC_URL` to an address the phone can reach.
+
+For authentication without a data request:
+
+```bash
+REQUESTED_KEYS= npm start
+```
+
+After approval the account page still shows a signed-in session, with no
+shared entries. This is a valid outcome: an integration must accept sign-in
+even when optional data is declined.
 
 ## Configuration
 

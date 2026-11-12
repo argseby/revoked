@@ -12,6 +12,20 @@ The official server, `https://api.revoked.link`, is available for
 evaluation. It is experimental and intended for testing only, with no
 guarantees for stored data.
 
+## Common tasks
+
+| Task | Example | Page |
+|---|---|---|
+| Store information | One address record reused by several services. | [Vault](vault.md#example-a-delivery-address) |
+| Give someone access | Separate Wi-Fi links for a visitor and a contractor. | [Sharing](sharing.md#example-separate-links-for-two-recipients) |
+| Ask people for information | A shop collects each customer's delivery details. | [Requests](requests.md#example-delivery-details-from-a-customer) |
+| Reuse a set of fields | The same address and phone fields in a vault or request. | [Templates](templates.md#example-one-structure-two-uses) |
+| Sign in to a website | Corner Shop receives an account ID and an optional address grant. | [Sign-in lab](../labs/sign-in.md) |
+
+The vault stores the original information. Shares let others read selected
+information. Requests ask others to provide it. A template supplies field
+structure for a vault or request; it does not share anything by itself.
+
 ## First start {#first-start}
 
 After sign-in, an account without a workspace is guided through setting

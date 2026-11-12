@@ -19,6 +19,25 @@ to it stay usable when a device is lost. Without encryption, the key never
 leaves the device that made it, and each device needs an identity of its
 own.
 
+## Example: a signed request from a company
+
+A company runs Revoked at `people.example.com` and sends an onboarding request
+signed by its HR identity. The recipient's app checks that the signing key
+belongs to an identity certified by that server, that the server's root key
+matches `_revoked.people.example.com` in DNS, and that the identity has not
+been revoked.
+
+A **DNS verified** result proves that the request was signed by an identity
+backed by `people.example.com`. The displayed name `HR` alone proves nothing:
+another server can create an identity with the same name. Verification also
+does not prove a person's job title or legal identity. Those require an
+[attestation](attestations.md) from an accepted issuer.
+
+An unsigned or unverifiable request is different from a forged one. Missing
+DNS information prevents confirmation; a signature or key that contradicts
+the claimed domain is refused. The [verification results](#check-who-sent-something)
+below explain the app's response to each case.
+
 ## Managing identities
 
 The name chosen at setup is the name recipients see. Under

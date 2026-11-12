@@ -1,114 +1,328 @@
 # Sign in with Revoked
 
-Every Revoked server is an OpenID Connect provider. A service — a game
-server, a shop, a forum — signs people in with their Revoked account through
-an ordinary OpenID Connect client library, without keeping passwords or
-accounts of its own. What the service learns is decided by the person in the
-Revoked app, and data it asks for arrives as a living grant rather than a
-copy.
+Sign in with Revoked lets a service authenticate people through their Revoked
+app. The service receives a verified account identifier and creates its own
+session. No Revoked password, client secret or advance client registration is
+required.
 
-The endpoint reference is under [OpenID Connect](reference/openid-connect.md).
-To add it to a service, start with
-[Add it to your service](#add-it-to-your-service). A complete example service
-is in
-[`examples/sign-in-demo`](https://github.com/argseby/revoked/tree/main/examples/sign-in-demo).
+For example, a shop can sign Ada in and ask for a delivery address. Ada approves
+in the Revoked app and chooses whether to share that address. The shop receives
+an account identifier and, if approved, a grant for reading the current address.
+Signing in and sharing data are separate: the shop must still work when Ada
+shares no address.
 
-## What a service needs
+## Working example
 
-Nothing is registered in advance. The values a client library asks for are:
+The repository includes **Corner Shop**, a complete Node.js service using
+`openid-client`. It includes the button, callback, session handling and grant
+reads. Requirements: Node 22 or later, and the [Revoked app](../installation/app.md)
+signed in to a server on the same computer.
 
-| Setting | Value |
-|---|---|
-| Issuer | `https://<domain>` of the person's server. Discovery is at `https://<domain>/.well-known/openid-configuration`. A server developed on locally answers as `http://localhost:<port>` when reached there. |
-| Client id | The service's origin, e.g. `https://game.example`. |
-| Redirect URI | Any address on that origin, e.g. `https://game.example/auth/callback`. |
-| Client secret | None. The client is public; PKCE with `S256` is required in its place. |
-| Flow | Authorization code. |
+From the repository root:
+
+```bash
+cd examples/sign-in-demo
+npm install
+cp .env.example .env
+npm start
+```
+
+At <http://localhost:4000>, **Sign in with Revoked** opens a panel with a QR code,
+an app link and a check code. Opening the app link, comparing the codes and
+approving signs the waiting browser in. No vault entries are required. If an
+address is shared, it appears on the shop's account page.
+
+For sign-in without any data request, the same demo runs with:
+
+```bash
+REQUESTED_KEYS= npm start
+```
+
+A phone cannot reach a callback at `localhost` on a computer. For a QR sign-in
+from a phone, `PUBLIC_URL` must be an origin the phone can reach, such as
+`https://shop.example.com`. The demo's [README](https://github.com/argseby/revoked/tree/main/examples/sign-in-demo)
+covers its settings. The [sign-in lab](../labs/sign-in.md) also demonstrates
+editing and revoking a shared address.
+
+## The four participants
+
+| Participant | Example | Responsibility |
+|---|---|---|
+| Service page | Shop in a desktop browser | Displays the button and waits for completion. |
+| Service backend | `https://shop.example.com` | Prepares the request, verifies the answer and creates a shop session. |
+| Revoked app | Ada's phone or desktop app | Shows the request and obtains approval. |
+| Revoked server | `https://id.example.com` | Issues the authorization code, tokens and any data grants. |
+
+The service backend and Revoked server are different systems. The person's app
+already knows their Revoked server, so the shop does not need to ask for it
+before showing the button.
+
+```mermaid
+sequenceDiagram
+    participant B as Shop browser
+    participant W as Shop backend
+    participant A as Revoked app
+    participant R as Person's Revoked server
+    B->>W: POST /auth/revoked/start
+    W-->>B: App link, check code, private wait key
+    B->>A: Open link or scan QR code
+    A->>R: Approve sign-in
+    R-->>A: Callback URL with code, state and iss
+    A->>W: GET /auth/revoked/callback?code=…&state=…&iss=…
+    W->>R: Exchange code with PKCE, verify tokens, read userinfo
+    B->>W: POST /auth/revoked/wait with wait key
+    W-->>B: Set shop session cookie, done: true
+```
+
+Polling starts when the panel opens and continues while approval is pending.
+The callback can come from a phone; the session belongs to the browser holding
+the private wait key.
+
+## Client settings
+
+Revoked implements OpenID Connect (OIDC), using the authorization code flow
+with PKCE. PKCE binds a one-time authorization code to a secret verifier held
+by the service backend.
+
+| Setting | Example | Meaning |
+|---|---|---|
+| Client ID | `https://shop.example.com` | The service's origin, without a path. |
+| Redirect URI | `https://shop.example.com/auth/revoked/callback` | A callback on that same origin. |
+| Client secret | None | Public client; PKCE with `S256` is required. |
+| Scopes | `openid profile` | `openid` is required; profile data is optional. |
+| Issuer | `https://id.example.com` | The person's Revoked server, learned from `iss` in the callback. |
+| Discovery | `https://id.example.com/.well-known/openid-configuration` | Metadata used by the OIDC library. |
+
+Local development also supports `http://localhost:<port>`. Production origins
+use HTTPS. The full endpoint contract is in the
+[OpenID Connect reference](reference/openid-connect.md).
 
 ## Add it to your service
 
-A person's Revoked app is often not on the device they are browsing with, and
-a web page cannot find out: a `revoked://` link with no app behind it simply
-does nothing. So the button opens a panel that works either way, with the
-request as a QR code for a phone and as a link for this device. The page then
-waits, and the app delivers the answer to your server. Revoked hosts nothing
-for this, and nothing is registered.
+The following route names are examples. Corner Shop calls them `/login/start`,
+`/callback` and `/login/wait`; the behavior is the same.
 
-**1. Add the button.** Copy `revoked-sign-in.js` from
+### 1. Button
+
+Copy `revoked-sign-in.js` from
 [`examples/sign-in-button`](https://github.com/argseby/revoked/tree/main/examples/sign-in-button)
-next to your static files:
+to the service's static files, served here as `/revoked/revoked-sign-in.js`:
 
 ```html
 <script type="module" src="/revoked/revoked-sign-in.js"></script>
-<revoked-sign-in start="/auth/revoked/start" wait="/auth/revoked/wait"></revoked-sign-in>
+<revoked-sign-in
+  start="/auth/revoked/start"
+  wait="/auth/revoked/wait"
+  done="/account"
+  label="signin">
+</revoked-sign-in>
 ```
 
-It brings its own QR code, check code, translations and layout, and needs only
-`script-src 'self'` and `connect-src 'self'` from a Content-Security-Policy.
-`label`, `theme`, `shape`, `size` and `width` choose between the official
-variants; the
-[button's README](https://github.com/argseby/revoked/tree/main/examples/sign-in-button#attributes)
-lists them.
+On success, the browser navigates to `/account`. Without `done`, it reloads the
+current page. The component supplies the panel, QR code, check code and polling;
+`start` and `wait` are routes implemented by the service, not Revoked endpoints.
+A Content-Security-Policy needs `script-src 'self'` and `connect-src 'self'`.
+The [button README](https://github.com/argseby/revoked/tree/main/examples/sign-in-button#attributes)
+lists appearance and language options.
 
-A Flutter app uses
-[`packages/revoked_sign_in`](https://github.com/argseby/revoked/tree/main/packages/revoked_sign_in),
-which draws the same button and panel natively and talks to the same routes. Any
-other app that draws its own interface keeps its own button and shows the same
-three things: the `app_link` as a QR code, that link to open on this device, and
-the `check_code`.
+### 2. Start route
 
-**2. Add three routes.** The paths are yours. Keep what `start` remembers for
-ten minutes, in memory or wherever suits you.
+`POST /auth/revoked/start` creates a PKCE verifier and challenge, random `state`,
+random `nonce`, and a separate random `wait` key. The service stores the verifier,
+state and nonce with the wait key for ten minutes. These values have different
+jobs:
 
-| Route | Does | Answers |
+| Value | Travels to | Purpose |
 |---|---|---|
-| `POST /auth/revoked/start` | Makes a PKCE verifier, a `state`, a `nonce` and a random `wait` key, and remembers them. | `{ "app_link": "revoked://signin?…", "check_code": "0D2-99B", "wait": "…" }` |
-| `GET /auth/revoked/callback` | The app delivers its answer here. Finds the sign-in by `state`, redeems the code as usual, and keeps the result for `wait`. | Any status below 400; the app does not follow redirects. |
-| `POST /auth/revoked/wait` | Takes `{ "wait": "…" }`. Once there is a result, hands it over once and starts the session on this response. | `{ "done": false }`, then `{ "done": true }` or `{ "done": true, "error": "access_denied" }`. `401` once expired or already collected. |
+| PKCE verifier | Token endpoint, during code exchange only | Proves the service exchanging the code started the request. |
+| PKCE challenge | App link | Public SHA-256 challenge derived from the verifier. |
+| `state` | App link and callback | Finds the pending request and checks the answer belongs to it. |
+| `nonce` | App link, then checked against the ID token | Binds the ID token to this request. |
+| `wait` | Starting browser only | Lets that browser collect the result and receive a session. |
 
-**Native apps.** A browser keeps the session as a cookie. A native app has no
-such cookie jar, so the Flutter package adds `"client": "app"` to each `wait`
-request. A service that serves apps answers that request with the session in
-the body instead, for example `{ "done": true, "session": "…" }`, in whatever
-form its app sessions take. The package hands the whole answer to the app.
-Without `"client"`, nothing changes.
+The button sends a JSON request with body `{}`. A successful response looks like
+this; the shortened values are illustrative:
 
-`app_link` is an ordinary authorization request, with `redirect_uri` pointing at
-your callback, plus `revoked_return=background`:
-
-```
-revoked://signin?client_id=https%3A%2F%2Fgame.example
-  &redirect_uri=https%3A%2F%2Fgame.example%2Fauth%2Frevoked%2Fcallback
-  &response_type=code&scope=openid%20profile
-  &state=…&nonce=…&code_challenge=…&code_challenge_method=S256
-  &revoked_return=background
+```json
+{
+  "app_link": "revoked://signin?client_id=https%3A%2F%2Fshop.example.com&redirect_uri=https%3A%2F%2Fshop.example.com%2Fauth%2Frevoked%2Fcallback&response_type=code&scope=openid%20profile&state=STATE&nonce=NONCE&code_challenge=CHALLENGE&code_challenge_method=S256&revoked_return=background",
+  "check_code": "0D2-99B",
+  "wait": "PRIVATE_RANDOM_WAIT_KEY"
+}
 ```
 
-`check_code` is the first three bytes of SHA-256 over the `code_challenge`, as
-upper-case hex in two groups. The app computes the same one and shows it next
-to the request.
+The link is built with `URLSearchParams`, so every parameter is URL-encoded.
+`revoked_return=background` asks the app to deliver the callback directly,
+allowing the waiting browser to be on another device. The `wait` key never goes
+in the app link or QR code.
 
-Redeeming the code is the same as in any OpenID Connect client: take the server
-from `iss`, discover it, and let your library check the answer. See
-[Finding the person's server](#finding-the-persons-server) for what to check on
-`iss`. [`examples/sign-in-demo`](https://github.com/argseby/revoked/tree/main/examples/sign-in-demo)
-has all three routes running, in about a hundred lines
-([`server.js`](https://github.com/argseby/revoked/blob/main/examples/sign-in-demo/src/server.js),
-[`signins.js`](https://github.com/argseby/revoked/blob/main/examples/sign-in-demo/src/signins.js)).
+This Node.js excerpt builds the link and check code. It runs on the backend;
+the service still needs to store `pending`, generate the private wait key and
+return the response above:
 
-**Three things to get right:**
+```js
+import { createHash } from 'node:crypto';
+import * as oidc from 'openid-client';
 
-- **Keep `wait` away from the link.** `state` is in the QR code, where anyone
-  who can see the screen can read it. It may only answer. `wait` goes to the
-  page that started and nowhere else, and it alone collects the result.
-- **Start the session on the `wait` response, never on the callback.** The
-  callback comes from the person's phone, or from whoever scanned the code.
-  Don't ask for a cookie there either: a phone has none.
-- **Take each answer once.** Forget the `state` when the callback arrives, and
-  the result when `wait` hands it over.
+const pending = {
+  verifier: oidc.randomPKCECodeVerifier(),
+  state: oidc.randomState(),
+  nonce: oidc.randomNonce(),
+};
+const challenge = await oidc.calculatePKCECodeChallenge(pending.verifier);
+const params = new URLSearchParams({
+  client_id: 'https://shop.example.com',
+  redirect_uri: 'https://shop.example.com/auth/revoked/callback',
+  response_type: 'code',
+  scope: 'openid profile',
+  state: pending.state,
+  nonce: pending.nonce,
+  code_challenge: challenge,
+  code_challenge_method: 'S256',
+  revoked_return: 'background',
+});
+const appLink = `revoked://signin?${params}`;
+const hex = createHash('sha256').update(challenge).digest('hex')
+  .slice(0, 6).toUpperCase();
+const checkCode = `${hex.slice(0, 3)}-${hex.slice(3)}`;
+```
 
-Your callback must be reachable from the person's phone, so a service on
-`localhost` can only be tested with the app on the same machine.
+The check code is derived from the challenge's text, not the verifier. The app
+computes it independently, so both screens display the same value.
+
+### 3. Callback route
+
+After approval, the app requests the service's callback:
+
+```http
+GET /auth/revoked/callback?code=ONE_TIME_CODE&state=STATE&iss=https%3A%2F%2Fid.example.com
+```
+
+The backend finds and consumes the pending request by `state`. Unknown, expired
+or already used states cannot complete a sign-in. A declined request instead
+carries `error=access_denied`; that result is stored for the waiting browser.
+
+For a successful answer, the backend validates the issuer **before fetching
+it**, discovers its OIDC metadata, exchanges the code using the saved verifier,
+and verifies the tokens with its OIDC library. The saved state and nonce must
+also be checked. [Issuer validation](#finding-the-persons-server) explains this
+step. The demo implements it in
+[`auth.js`](https://github.com/argseby/revoked/blob/main/examples/sign-in-demo/src/auth.js).
+
+For a service accepting one explicitly configured issuer, the exchange can
+look like this. `oidc` is the `openid-client` import from the start example;
+`pending` is loaded from server-side storage, and `callbackUrl` is a `URL`
+constructed from the configured callback address and received query parameters:
+
+```js
+async function exchangeCode(pending, callbackUrl) {
+  const issuer = callbackUrl.searchParams.get('iss');
+  if (issuer !== 'https://id.example.com') {
+    throw new Error('Issuer is not allowed');
+  }
+  const provider = await oidc.discovery(
+    new URL(issuer), 'https://shop.example.com',
+    undefined, oidc.None(),
+  );
+  const tokens = await oidc.authorizationCodeGrant(provider, callbackUrl, {
+    pkceCodeVerifier: pending.verifier,
+    expectedState: pending.state,
+    expectedNonce: pending.nonce,
+    idTokenExpected: true,
+  });
+  const claims = tokens.claims();
+  const userinfo = await oidc.fetchUserInfo(
+    provider, tokens.access_token, claims.sub,
+  );
+  return { issuer, subject: claims.sub, userinfo };
+}
+```
+
+This excerpt covers token verification, not the route's storage, error handling
+or session creation. A service accepting multiple issuers applies its issuer
+policy before discovery; it must not simply remove the check above.
+
+After verification, a typical application result is:
+
+```json
+{
+  "issuer": "https://id.example.com",
+  "subject": "service_specific_subject",
+  "name": "Ada"
+}
+```
+
+`issuer` and `subject` together identify the local account. `name` is optional
+and can change. This is application data assembled from verified tokens and
+userinfo, not a token response to trust directly from the callback query.
+
+The result is stored for the wait route. The callback returns a status below
+400; the app does not follow redirects. No service session is created on this
+response, and no browser cookie is required: the request may come from a phone.
+
+### 4. Wait route and service session
+
+The button polls `POST /auth/revoked/wait` with:
+
+```json
+{ "wait": "PRIVATE_RANDOM_WAIT_KEY" }
+```
+
+While approval or token verification is pending:
+
+```json
+{ "done": false }
+```
+
+Once verification succeeds, the backend creates its own session and sets its
+session cookie **on this wait response**:
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+Cache-Control: no-store
+Set-Cookie: shop_session=RANDOM_SESSION_ID; HttpOnly; Secure; SameSite=Lax; Path=/
+
+{"done":true}
+```
+
+A declined request returns `{ "done": true, "error": "access_denied" }` without
+creating a session. An expired or already collected wait key returns `401`.
+The completed result is collected once. Responses containing pending sign-in
+data or session credentials use `Cache-Control: no-store`.
+
+[`server.js`](https://github.com/argseby/revoked/blob/main/examples/sign-in-demo/src/server.js)
+and [`signins.js`](https://github.com/argseby/revoked/blob/main/examples/sign-in-demo/src/signins.js)
+provide the complete route and storage implementations.
+
+### Native apps
+
+The Flutter package
+[`packages/revoked_sign_in`](https://github.com/argseby/revoked/tree/main/packages/revoked_sign_in)
+uses the same routes and draws a native button and panel. It adds
+`"client": "app"` to the wait request because it has no browser cookie jar:
+
+```json
+{ "wait": "PRIVATE_RANDOM_WAIT_KEY", "client": "app" }
+```
+
+A service supporting native apps returns its own app session token in the body,
+for example `{ "done": true, "session": "…", "expires_in": 28800 }`. The
+package passes that answer to the application. This session token belongs to
+the service; it is separate from Revoked's OIDC access token.
+
+### Deployment requirements
+
+- Pending requests and results need a shared store when the service has more
+  than one backend instance. Each callback and completed result is consumed
+  atomically once.
+- Session IDs are fresh after sign-in. Production browser cookies use
+  `HttpOnly`, `Secure` and an appropriate `SameSite` policy.
+- Issuers are restricted to trusted origins, or fetched through a client that
+  blocks private/internal destinations and rechecks DNS results at connection
+  time. HTTPS alone does not make an arbitrary issuer safe to fetch.
+- Grant tokens remain on the backend. The grant endpoint must belong to the
+  verified issuer before credentials are sent to it.
 
 ## Approving in the app
 
@@ -239,6 +453,22 @@ parameter:
 { "userinfo": { "revoked_links": { "values": ["shipping_address", "phone"] } } }
 ```
 
+In the start-route example, this object is serialized into the authorization
+request before building `appLink`:
+
+```js
+params.set('claims', JSON.stringify({
+  userinfo: {
+    revoked_links: { values: ['shipping_address', 'phone'] },
+  },
+}));
+```
+
+`openid profile` alone does not request these vault keys. The `claims` parameter
+adds them; the person can still decline both. When no entries are shared,
+userinfo may contain only `sub` and any other approved claims, with no
+`revoked_links`. That is a successful sign-in with no data grant.
+
 In the app the person picks one of the entries in their active workspace for
 each key, types a new value, or shares nothing. A new value is saved as an entry
 under that key, or the next free key if it is taken. Picking an entry with
@@ -269,6 +499,36 @@ they are needed:
 POST /api/grants/resolve
 { "grants": [ { "id": "q8w2…", "token": "…" } ] }
 ```
+
+For example, a backend read uses the endpoint and credentials from userinfo:
+
+```bash
+curl --fail-with-body 'https://id.example.com/api/grants/resolve' \
+  -H 'Content-Type: application/json' \
+  -d '{"grants":[{"id":"GRANT_ID","token":"GRANT_TOKEN"}]}'
+```
+
+`GRANT_ID` and `GRANT_TOKEN` are placeholders for the returned grant. No
+workspace API key or OIDC bearer header is needed; the grant token in the body
+authorizes this read. A successful response can look like this:
+
+```json
+{
+  "items": [{
+    "id": "GRANT_ID",
+    "status": "active",
+    "values": { "shipping_address": "Musterstraße 12, Berlin" },
+    "etag": "\"0123456789abcdef0123456789abcdef\"",
+    "maxAge": 60
+  }]
+}
+```
+
+`maxAge` is supplied by the server; `60` is an example, not a constant to hardcode.
+A later read can send the returned `etag` inside the grant object. An unchanged
+answer has `notModified: true` and omits `values`, so the previous values can be
+reused within the new cache period. A non-active status stops those values
+being displayed. A failed read does not extend their permitted cache period.
 
 Each answer carries the current values, an `etag` for asking again cheaply,
 and `maxAge`, the number of seconds a value may be kept before it is read
@@ -318,6 +578,18 @@ they may decline to share either.
 
 A paused service gets the same `access_denied` as a decline, so it can't tell a
 pause from a no.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| The button opens a panel but the app link does nothing. | The Revoked app must be installed and registered for `revoked://` links. A phone can scan the QR code instead. |
+| Phone approval never completes the desktop sign-in. | The callback must be reachable from the phone. `localhost` refers to the phone itself. |
+| Callback succeeds but the browser is still signed out. | The callback stores the result; the wait response must create the browser session. Check that the button polls the correct route and the cookie is accepted. |
+| Wait returns `401`. | The wait key expired or its completed result was already collected. A new sign-in creates a new key. |
+| Sign-in returns no name, email or address. | These are optional. The person may decline them. An `openid`-only approval is still a valid sign-in. |
+| A revoked address disappears but the customer remains signed in. | Grant access and the shop's session are independent. The shop controls when its session ends. |
+| Discovery rejects the issuer. | Compare callback `iss`, the allowed origin and discovery's `issuer` exactly, including scheme and port. |
 
 ## The signing key
 

@@ -19,6 +19,25 @@ Which server a user runs is not known in advance, since every instance is
 self-hosted. The address reaches the tool when the app returns to it, or when
 the owner enters it in the tool.
 
+## Example: a guest-registration tool
+
+An event website asks for `full_name`, `email` and `dietary_restrictions`.
+The integration can be built in stages:
+
+| Stage | Website sends | Result |
+|---|---|---|
+| Proposal only | A `revoked://p` link listing the three keys. | The app lets the owner choose records and create a share. The website receives no token or data merely by opening the link. |
+| Connection | The proposal also carries `client`, `redirect`, `state` and a PKCE `challenge`. | After approval and code exchange, the website holds a connection token. |
+| Link access | The owner approves handing over a share the tool may receive. | The website reads the handed-over link from `/api/connection` and uses it to read the selected information. |
+
+A connection is not automatically permission to read the whole vault. The
+permissions and vault sections approved by the owner determine what the token
+can do. If the goal is only website account authentication, the appropriate
+flow is [Sign in with Revoked](sign-in.md).
+
+The [minimal tool](#a-minimal-tool) below implements this event example in one
+HTML file. The following sections explain its parameters and token exchange.
+
 ## 1. The proposal
 
 A proposal is a `revoked://p` link, opened by the installed app. Values are
