@@ -239,7 +239,10 @@ void main() {
       );
       expect(find.text('Add this device'), findsWidgets);
 
-      expect(find.text('Not readable on this device'), findsOneWidget);
+      expect(
+        find.textContaining('Not readable on this device'),
+        findsOneWidget,
+      );
 
       router.go(AppRoutes.recordDetailFor('record000000001'));
       await tester.pumpAndSettle();
@@ -316,7 +319,9 @@ void main() {
         await Stores.vault.loadRecords();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'vault');
-        expect(find.text('hunter2'), findsOneWidget);
+        // The list names the record; its value shows on its own page.
+        expect(find.text('SMTP password'), findsOneWidget);
+        expect(find.textContaining('Not readable'), findsNothing);
 
         router.go(AppRoutes.recordDetailFor('record000000001'));
         await tester.pumpAndSettle();

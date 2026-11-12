@@ -495,6 +495,19 @@ String _viewerReads(_Server server, Link link, String record, String keyText) {
   ).value;
 }
 
+/// Creating a link with an encrypted record alternates HTTP, which only
+/// answers in real time, with frames, which only advance in fake time; one
+/// window of each is not enough for every step.
+Future<void> _settleWithIo(WidgetTester tester) async {
+  for (var i = 0; i < 20; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -938,10 +951,7 @@ void main() {
         final create = find.text('Create link');
         await tester.ensureVisible(create);
         await tester.tap(create);
-        await tester.runAsync(() async {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        });
-        await tester.pumpAndSettle();
+        await _settleWithIo(tester);
         expect(server.links, hasLength(1));
         expect(server.links.values.single['handedOver'], approved);
         if (approved) {
