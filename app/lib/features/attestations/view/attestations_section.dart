@@ -249,7 +249,7 @@ class _HeldAttestationsState extends State<HeldAttestations> {
           toolbar: _tools.toolbar(searched),
           hasAny: store.credentials.isNotEmpty,
           intro:
-              'Facts about you, confirmed by others. Choose the details you share.',
+              'Share and collect domain-level claims with others.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(

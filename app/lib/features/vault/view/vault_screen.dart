@@ -270,7 +270,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
   Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
     title: 'Your vault',
-    description: 'Keep your information here. Choose what you share.',
+    description: 'Private and secure place for your information.',
     action: AppButton(
       icon: AppIcons.plus,
       label: 'Add item',

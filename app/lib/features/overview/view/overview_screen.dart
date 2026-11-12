@@ -151,7 +151,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
       children: [
         AppCollectionHeader(
           title: 'Home',
-          description: 'Your information and sharing, at a glance.',
+          description: 'Your inbound and outgoing information at a glance.',
           action: AppButton(
             icon: AppIcons.plus,
             label: 'Add item',

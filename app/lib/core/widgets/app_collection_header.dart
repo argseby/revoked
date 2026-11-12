@@ -7,13 +7,13 @@ import 'package:revoked_app/core/design/text_styles.dart';
 /// Collection pages name themselves in the content, above their local tools.
 class AppCollectionHeader extends StatelessWidget {
   final String title;
-  final String description;
+  final String? description;
   final Widget? action;
 
   const AppCollectionHeader({
     super.key,
     required this.title,
-    required this.description,
+    this.description,
     this.action,
   });
 
@@ -27,7 +27,8 @@ class AppCollectionHeader extends StatelessWidget {
           children: [
             AppText(title).title,
             AppSpacing.gapSm,
-            AppText(description).small.muted,
+            if(description != null)
+            AppText(description!).small.muted,
           ],
         );
         if (action == null) return heading;
