@@ -10,6 +10,27 @@ holds, see [link proposals](tools.md). A request brings responses into the
 requester's workspace. A proposal creates a share in the owner's
 workspace.
 
+## Example: delivery details from a customer
+
+A shop needs a customer's address and phone number. A template defines the
+fields `shipping_address` and `phone`; a request using that template supplies
+the link sent to the customer.
+
+| Stage | Shop | Customer |
+|---|---|---|
+| Request created | Holds a request link with the two fields. | Has not shared anything yet. |
+| Response submitted | Sees a response under that request. | Signs in to Revoked and chooses a record or a different value for each field. |
+| Linked address changed | Reads the updated address when the response is opened again. | Edits the address record in their vault. |
+| Response revoked | Can no longer read the linked values. | Keeps the original records in their own workspace. |
+
+The customer needs a Revoked account, which may be on another server. The
+request link is not an anonymous submission form. Submitting again updates
+that customer's existing response rather than adding a second row.
+
+Closing the shop's request stops new responses. Withdrawing an existing
+response is a separate action controlled by the responder. Previously copied
+or exported information cannot be recalled.
+
 ## Creating a request
 
 **New → Request** creates a request from a [template](templates.md), whose

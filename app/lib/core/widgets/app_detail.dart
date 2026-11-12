@@ -241,6 +241,8 @@ class AppDetailRow extends StatelessWidget {
 /// [AppDetailManage] block last — in the same column as the list it was opened
 /// from, so the edges do not jump.
 class AppDetailPage extends StatelessWidget {
+  final bool centered;
+
   /// An [AppDetailHeader].
   final Widget header;
   final List<Widget> sections;
@@ -252,6 +254,7 @@ class AppDetailPage extends StatelessWidget {
 
   const AppDetailPage({
     super.key,
+    this.centered = false,
     required this.header,
     required this.sections,
     this.aside = const [],
@@ -280,17 +283,24 @@ class AppDetailPage extends StatelessWidget {
         if (w is! AppDetailManage) w,
     ];
     if (side.isEmpty) {
-      return AppPageBody(children: [header, ...main, ...manage]);
+      return AppPageBody(
+        centered: centered,
+        children: [header, ...main, ...manage],
+      );
     }
     return LayoutBuilder(
       builder: (context, constraints) => constraints.maxWidth >= twoColumnWidth
           ? _twoColumns(main, [...side, ...manage], constraints.maxWidth)
-          : AppPageBody(children: [header, ...main, ...side, ...manage]),
+          : AppPageBody(
+              centered: centered,
+              children: [header, ...main, ...side, ...manage],
+            ),
     );
   }
 
   Widget _twoColumns(List<Widget> main, List<Widget> side, double width) {
     return AppPageBody(
+      centered: centered,
       children: [
         header,
         Row(

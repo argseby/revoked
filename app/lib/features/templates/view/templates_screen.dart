@@ -448,7 +448,8 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
       children: [
         Row(
           children: [
-            Expanded(child: const Text('Fields').small),
+            Flexible(child: const Text('Fields').small),
+            AppSpacing.gapSm,
             Text('${_store.rootFields.length}').muted.small,
           ],
         ),
@@ -486,7 +487,8 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 
         Row(
           children: [
-            Expanded(child: const Text('Sections').small),
+            Flexible(child: const Text('Sections').small),
+            AppSpacing.gapSm,
             Text('${_store.sections.length}').muted.small,
           ],
         ),

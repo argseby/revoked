@@ -151,7 +151,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
       children: [
         AppCollectionHeader(
           title: 'Home',
-          description: 'Your information and sharing, at a glance.',
+          description: 'Your inbound and outgoing information at a glance.',
           action: AppButton(
             icon: AppIcons.plus,
             label: 'Add item',
@@ -162,9 +162,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           title: needs.isEmpty ? 'All clear' : 'Needs your attention',
           noun: 'items',
           previewCount: 6,
-          trailing: needs.isEmpty
-              ? const SizedBox.shrink()
-              : AppText('${needs.length}').small.muted,
+          trailing: needs.isEmpty ? const SizedBox.shrink() : null,
           children: needs.isEmpty
               ? [
                   AppListRow(

@@ -53,6 +53,11 @@ void main() {
             return true;
           },
         );
+    // MobX builds an async action in the zone of its first call. Made inside
+    // one test's fake clock, it would queue every later call there, where
+    // nothing runs it; made here, it runs on the real clock ([signIn]).
+    await Stores.auth.beginSignIn();
+    await Stores.auth.cancelSignIn();
   });
 
   setUp(() async {
@@ -60,6 +65,13 @@ void main() {
     await Stores.auth.cancelSignIn();
     Stores.auth.createdAccount = false;
   });
+
+  /// Taps [label], which starts a sign-in, and lets it finish.
+  Future<void> signIn(WidgetTester tester, String label) async {
+    await tester.tap(find.text(label));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+  }
 
   Future<void> show(WidgetTester tester, Widget screen) async {
     tester.view.physicalSize = const Size(800, 1600);
@@ -130,13 +142,11 @@ void main() {
     await show(tester, const LoginScreen());
     // A phone has no phone to move to.
     expect(find.text('Use a phone'), findsNothing);
-    await tester.tap(find.text('Continue in browser'));
-    await tester.pumpAndSettle();
+    await signIn(tester, 'Continue in browser');
     expect(launched.single.queryParameters['mode'], 'signin');
     expect(find.text('Waiting for the browser'), findsOneWidget);
 
-    await tester.tap(find.text('Open browser again'));
-    await tester.pumpAndSettle();
+    await signIn(tester, 'Open browser again');
     expect(launched, hasLength(2));
 
     await tester.tap(find.text('Cancel'));
@@ -148,6 +158,7 @@ void main() {
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     signups = {'open': true, 'verifyEmail': true};
     await show(tester, const LoginScreen());
     await tester.tap(find.text('Use a phone'));
@@ -163,11 +174,9 @@ void main() {
 
     await tester.tap(find.text('Use a phone'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue on this computer'));
-    await tester.pumpAndSettle();
+    await signIn(tester, 'Continue on this computer');
     expect(launched.single.queryParameters['mode'], 'signin');
     expect(find.text('Waiting for the browser'), findsOneWidget);
-    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('right after sign-up, the name ends the trip', (tester) async {

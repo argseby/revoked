@@ -5,6 +5,28 @@ current values until the share is revoked. A changed password is visible
 to everyone with the link at once; a revoked link stops working the next
 time it is opened.
 
+## Example: separate links for two recipients
+
+A Wi-Fi password record can have one share for a visitor and another for a
+contractor. Both links read the same record, but their access can be managed
+independently.
+
+| Action | Visitor's link | Contractor's link |
+|---|---|---|
+| Change the password record | Shows the new password on the next read. | Shows the new password on the next read. |
+| Pause the visitor's share | Stops showing data until activated again. | Continues working. |
+| Revoke the visitor's share | Stops working permanently. | Continues working. |
+
+Revoking a link ends future reads through that link. It cannot remove a
+password already copied, a downloaded document or a screenshot. If a visitor
+must also lose access to the Wi-Fi network, the network password itself must
+be changed.
+
+A share of a whole section also includes records added to that section later.
+A share of selected individual records keeps its explicit selection. A section
+share therefore suits a deliberately maintained pack of information; a single
+record share suits one specific value.
+
 ## Creating a share
 
 **Share** on a record, or **New → Share link**, opens the share form. A

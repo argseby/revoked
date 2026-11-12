@@ -4,6 +4,23 @@ Access, not copies. Share what you have, request what you need, sign people
 in and check who's asking. The data stays with its owner, who can end access
 any time.
 
+## Example: one address, several recipients
+
+An address record contains `Musterstraße 12, Berlin`. A delivery service and a
+club each receive a separate share of it. After a move, the owner changes the
+record to `Hauptstraße 3, Köln`; both recipients read the new address through
+their existing links. Revoking the club's share leaves the delivery service's
+share working.
+
+This controls future access. An address already copied into another system or
+a document already downloaded cannot be recalled. Integrations read current
+values again after the permitted cache period ends.
+
+The same pattern also works in reverse: a [request](guide/requests.md) asks
+someone else to share their information. [Sign in with Revoked](api/sign-in.md)
+authenticates an account and can optionally ask for selected information at
+the same time.
+
 ## Why a link beats a copy
 
 - **Always up to date.** Change a password in your vault, and everyone you

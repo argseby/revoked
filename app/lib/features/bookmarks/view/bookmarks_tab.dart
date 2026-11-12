@@ -6,8 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
@@ -195,7 +193,7 @@ class _BookmarksTabState extends State<BookmarksTab> {
         ],
       ),
       builder: (_) {
-        // Nothing to list still keeps Search and filter in the top bar.
+        // Nothing to list has nothing to search, so no Search and filter.
         Widget bare(Widget child) =>
             AppPageBody(children: [_collectionHeader(context), child]);
         if (store.error != null && store.bookmarks.isEmpty) {
@@ -393,29 +391,23 @@ class _GroupCard extends StatelessWidget {
       title: group.name,
       previewCount: 8,
       noun: 'bookmarks',
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AppText('${members.length}').small.muted,
-          AppSpacing.gapXs,
-          AppMenuButton(
-            icon: AppIcons.threeDotsVertical,
-            tooltip: 'Group actions',
-            size: AppButtonSize.small,
-            chevron: false,
-            items: [
-              AppMenuItem(
-                icon: AppIcons.pencil,
-                label: 'Rename',
-                onSelected: () => _rename(context),
-              ),
-              AppMenuItem(
-                icon: AppIcons.trash,
-                label: 'Delete group',
-                destructive: true,
-                onSelected: () => _delete(context),
-              ),
-            ],
+      count: members.length,
+      trailing: AppMenuButton(
+        icon: AppIcons.threeDotsVertical,
+        tooltip: 'Group actions',
+        size: AppButtonSize.small,
+        chevron: false,
+        items: [
+          AppMenuItem(
+            icon: AppIcons.pencil,
+            label: 'Rename',
+            onSelected: () => _rename(context),
+          ),
+          AppMenuItem(
+            icon: AppIcons.trash,
+            label: 'Delete group',
+            destructive: true,
+            onSelected: () => _delete(context),
           ),
         ],
       ),

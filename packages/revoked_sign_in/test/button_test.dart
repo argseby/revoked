@@ -43,9 +43,8 @@ Widget _app(Widget child, {bool reduceMotion = false}) {
     textStyle: const TextStyle(color: Color(0xFF191C20), fontSize: 14),
     pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) =>
         PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
-    builder: (context, page) => reduceMotion
-        ? MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: page!)
-        : page!,
+    builder: (context, page) =>
+        reduceMotion ? MediaQuery(data: MediaQuery.of(context).copyWith(disableAnimations: true), child: page!) : page!,
     home: ColoredBox(
       color: const Color(0xFFFFFFFF),
       child: Center(child: child),

@@ -3,8 +3,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 
-/// The start of a section: a short label and, on the right, a count or one
-/// action, set apart from the section above by space.
+/// The start of a section: a short label with its count beside it and one
+/// action on the right, set apart from the section above by space.
 class LedgerHeader extends StatelessWidget {
   final String title;
 
@@ -23,13 +23,14 @@ class LedgerHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(
+          Flexible(
             child: Semantics(
               header: true,
               child: AppText(title).small.bold.muted,
             ),
           ),
-          if (count != null) AppText(count!).small.muted,
+          if (count != null) ...[AppSpacing.gapSm, AppText(count!).small.muted],
+          if (trailing != null) const Spacer(),
           if (trailing != null) ...[AppSpacing.gapSm, trailing!],
         ],
       ),

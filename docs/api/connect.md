@@ -12,6 +12,26 @@ Reach is checked on every request, at [`/api/vault`](reference/vault.md).
 Taking a record out of a section takes it out of reach on the next request.
 Encrypted records are out of every reach: the server can't read them.
 
+## Selection examples
+
+- A scheduled job updates a record in the operator's own workspace: an
+  **API key**, with `vault:write` and a chosen section.
+- A website lets visitors sign in: **Sign in with Revoked**. The website
+  identifies each account by the verified issuer and subject, then creates
+  its own session.
+- An emergency-card service asks each person for selected medical details:
+  a **tool proposal and connection**, approved separately by each owner.
+- A CRM needs notifications when responses arrive: a **webhook**, followed by
+  an authenticated read of the response. A per-request callback is another
+  option when its different payload and delivery behavior are appropriate.
+- A script reads a share it was given: the **share URL**, with any required
+  password or identity check. A workspace API key is not needed merely to
+  open a public share.
+
+[Authentication](authentication.md#first-api-call) shows a first API-key call.
+[Sign in with Revoked](sign-in.md#working-example) provides a runnable website.
+[Building a tool](tools.md#a-minimal-tool) provides a complete proposal example.
+
 ## At a glance
 
 | Door | Credential | Who holds it | Permissions | Vault reach | Read more |

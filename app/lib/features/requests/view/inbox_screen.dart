@@ -101,7 +101,6 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     // others ask of it. Answers to a request are on that request's page;
     // shares others gave are under Shares › Received.
     return AppTabs(
-      title: 'Requests',
       initialIndex: widget.initialTab,
       tabs: [
         AppTab(
@@ -123,7 +122,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
   /// Search, a Filter by where a request stands, and a Sort.
   Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
     title: 'Your requests',
-    description: 'Ask for information. Review the answers in one place.',
+    description: 'Request information from others in a structured way.',
     action: AppButton(
       icon: AppIcons.plus,
       label: 'New request',
@@ -223,7 +222,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
         ],
       ),
       builder: (_) {
-        // Nothing to list still keeps Search and filter in the top bar.
+        // Nothing to list has nothing to search, so no Search and filter.
         Widget bare(Widget child) =>
             AppPageBody(children: [_collectionHeader(context), child]);
         if (reqStore.requests.isEmpty &&

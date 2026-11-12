@@ -368,6 +368,29 @@ transition: transform .12s var(--ease), filter .15s;
 .fine { text-align: center; color: var(--fg-muted); font-size: 12px; margin-top: 10px; }
 .fine:empty { display: none; }
 
+/* A button, not an input: the page collects nothing. */
+.remember {
+display: flex; align-items: flex-start; gap: 10px; width: 100%;
+margin-top: 14px; padding: 2px 0; border: 0; background: none;
+color: var(--fg); font: inherit; text-align: left; cursor: pointer;
+}
+.remember .box {
+width: 18px; height: 18px; flex: none; margin-top: 1px;
+border: 1.5px solid var(--control); border-radius: var(--radius-xs);
+display: flex; align-items: center; justify-content: center; color: var(--primary-fg);
+}
+.remember[aria-checked="true"] .box { background: var(--primary); border-color: var(--primary); }
+.remember .box svg { visibility: hidden; }
+.remember[aria-checked="true"] .box svg { visibility: visible; }
+.remember-t { font-size: 14px; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
+.remember-d { display: block; font-size: 12px; font-weight: 400; color: var(--fg-muted); margin-top: 2px; }
+.trusted {
+display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+font-size: 13px; color: var(--fg-muted);
+}
+.trusted span { overflow-wrap: anywhere; }
+.trusted .more { margin-left: 0; }
+
 
 /* Revealed content */
 #out { display: flex; flex-direction: column; gap: 18px; }
@@ -556,9 +579,12 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
      the page could say whether to trust it. */}}
 <button class="big loading" id="reveal" disabled><span class="spin"></span><i class="big-ic" data-i="lock-open"></i><span id="reveal-t">Checking the server…</span></button>
 <div class="fine" id="capnote">{{if gt .MaxViews 0}}Opening uses one of {{.MaxViews}} views ({{.ViewCount}} used so far).{{end}}{{if .Watermarked}} Downloaded files carry a watermark that traces them back to this link.{{end}}</div>
+<button class="remember" type="button" role="checkbox" aria-checked="false" id="remember" hidden><span class="box"><i data-i="check" data-s="13"></i></span><span class="remember-t">Trust {{.Domain}}<span class="remember-d">Links from this domain open directly in this browser</span></span></button>
 </div>
 
 <div id="out"></div>
+
+<div class="trusted" id="trusted" hidden><span>{{.Domain}} is trusted in this browser.</span><button class="more" type="button" id="untrust">Stop trusting</button></div>
 {{end}}
 
 </main>
@@ -817,7 +843,60 @@ reveal.disabled = false;
 reveal.classList.remove('loading');
 document.getElementById('reveal-t').textContent =
 v[0] === 'warn' || v[0] === 'bad' ? 'Open anyway' : 'Open shared information';
+// Trust is in the domain, so an unnamed sender does not void it; a server
+// that fails its check or a withdrawn sender does.
+offerTrust((server === 'ok' || server === 'local') && signer !== 'withdrawn');
 }
+}
+
+// ---- Trusted domain ----------------------------------------------------------
+// Kept in this origin's storage, so a look-alike domain never inherits it. It
+// names the server key it was given for: trust never outvotes a failed check
+// or a rotated key.
+var TRUST_KEY = 'revoked_trusted_domains';
+function trustMap() {
+try { var m = JSON.parse(localStorage.getItem(TRUST_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; }
+catch (e) { return {}; }
+}
+function isTrusted() { return trustMap()[domain] === String(pin); }
+function setTrusted(on) {
+var m = trustMap();
+if (on) m[domain] = String(pin); else delete m[domain];
+try { localStorage.setItem(TRUST_KEY, JSON.stringify(m)); } catch (e) {}
+document.getElementById('trusted').hidden = !on;
+remember.hidden = on || !trustable;
+remember.setAttribute('aria-checked', 'false');
+var cap = document.getElementById('capnote');
+if (!on && cap) cap.textContent = cap.textContent.replace(CAPPED_NOTE, '');
+}
+var CAPPED_NOTE = ' Links with a view limit open only on request.';
+
+var remember = document.getElementById('remember');
+var autoOpened = false, trustable = false;
+function offerTrust(clean) {
+if (!remember) return;
+trustable = clean;
+var trusted = isTrusted();
+remember.hidden = !clean || trusted;
+document.getElementById('trusted').hidden = !trusted;
+// A capped link spends a view on opening, so that stays the reader's click.
+if (clean && trusted && maxViews > 0 && !opening) {
+var cap = document.getElementById('capnote');
+if (cap.textContent.indexOf(CAPPED_NOTE) === -1) cap.textContent += CAPPED_NOTE;
+}
+if (clean && trusted && maxViews === 0 && !autoOpened && !opening) {
+autoOpened = true;
+document.getElementById('reveal').click();
+}
+}
+if (remember) {
+remember.addEventListener('click', function() {
+remember.setAttribute('aria-checked', remember.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+});
+document.getElementById('untrust').addEventListener('click', function() {
+setTrusted(false);
+toast(domain + ' is no longer trusted');
+});
 }
 
 function setDetails(open) {
@@ -1442,8 +1521,12 @@ if (resolved) showShare();
 });
 
 var btn = document.getElementById('reveal');
+var opening = false;
 if (btn) {
 btn.addEventListener('click', function() {
+if (opening) return;
+opening = true;
+if (remember && !remember.hidden && remember.getAttribute('aria-checked') === 'true') setTrusted(true);
 btn.disabled = true;
 btn.classList.add('loading');
 document.getElementById('reveal-t').textContent = 'Opening…';
@@ -1470,6 +1553,7 @@ resolved = res.body;
 return showShare();
 })
 .catch(function() {
+opening = false;
 btn.disabled = false;
 btn.classList.remove('loading');
 document.getElementById('reveal-t').textContent = 'Retry';

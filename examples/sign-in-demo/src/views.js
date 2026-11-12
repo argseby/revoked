@@ -18,7 +18,7 @@ function layout(title, body) {
 <script type="module" src="/revoked/revoked-sign-in.js"></script>
 </head>
 <body>
-<header><span class="brand">Corner Shop</span><span class="tag">Sign in with Revoked · demo</span></header>
+<header><span class="brand">Corner Shop</span><a href="/playground">Test all Revoked flows</a></header>
 <main>${body}</main>
 </body>
 </html>`;

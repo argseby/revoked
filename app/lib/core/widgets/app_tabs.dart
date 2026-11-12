@@ -22,7 +22,8 @@ class AppTab {
   });
 }
 
-/// Equal-height context cards above pages that retain their local state.
+/// Equal-height tabs that expand into context cards when space allows.
+/// The pages retain their local state in either layout.
 class AppTabs extends StatefulWidget {
   final List<AppTab> tabs;
   final String? title;
@@ -54,70 +55,94 @@ class _AppTabsState extends State<AppTabs> {
   @override
   Widget build(BuildContext context) {
     final inset = widget.inset ?? AppSpacing.screenH(context);
-    return Observer(
-      builder: (context) {
-        final i = _selected.value.clamp(0, widget.tabs.length - 1);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                inset,
-                AppSpacing.lg,
-                inset,
-                AppSpacing.lg,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (widget.title != null) ...[
-                    AppText(widget.title!).title,
-                    AppSpacing.gapXxl,
-                  ],
-                  ConstrainedBox(
-                    // As wide as the list under it, so the tabs and its
-                    // search line up edge to edge.
-                    constraints: const BoxConstraints(
-                      maxWidth: AppSpacing.contentMaxWidth,
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, box) {
-                        final stackedIcon =
-                            box.maxWidth / widget.tabs.length < 160 ||
-                            MediaQuery.textScalerOf(context).scale(16) > 24;
-                        return IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              for (final (k, t) in widget.tabs.indexed) ...[
-                                if (k > 0) AppSpacing.gapMd,
-                                Expanded(
-                                  child: _ContextCard(
-                                    tab: t,
-                                    selected: i == k,
-                                    stackedIcon: stackedIcon,
-                                    onTap: () => _selected.value = k,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+    return LayoutBuilder(
+      builder: (context, available) {
+        final textScale =
+            MediaQuery.textScalerOf(context).scale(AppTextSize.body) /
+            AppTextSize.body;
+        final stripWidth = (available.maxWidth - inset * 2).clamp(
+          0.0,
+          AppSpacing.contentMaxWidth,
+        );
+        final cardWidth =
+            (stripWidth - AppSpacing.md * (widget.tabs.length - 1)) /
+            widget.tabs.length;
+        // Use the space of this pane, including in sheets and split views.
+        // Wide but short windows also leave the room to the page content.
+        final compact =
+            stripWidth < AppSpacing.narrowWidth ||
+            available.maxHeight < AppSpacing.narrowWidth ||
+            cardWidth < 240 * textScale;
+        return Observer(
+          builder: (context) {
+            final i = _selected.value.clamp(0, widget.tabs.length - 1);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    inset,
+                    compact ? AppSpacing.sm : AppSpacing.lg,
+                    inset,
+                    0,
                   ),
-                ],
-              ),
-            ),
-            // Every page stays built, so a list keeps its scroll position
-            // and filters when the person switches back.
-            Expanded(
-              child: IndexedStack(
-                index: i,
-                children: [for (final t in widget.tabs) t.view],
-              ),
-            ),
-          ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (widget.title != null) ...[
+                        AppText(widget.title!).title,
+                        AppSpacing.gapXxl,
+                      ],
+                      ConstrainedBox(
+                        // As wide as the list under it, so the tabs and its
+                        // search line up edge to edge.
+                        constraints: const BoxConstraints(
+                          maxWidth: AppSpacing.contentMaxWidth,
+                        ),
+                        child: LayoutBuilder(
+                          builder: (context, box) {
+                            final gap = compact ? AppSpacing.sm : AppSpacing.md;
+                            final tabWidth =
+                                (box.maxWidth -
+                                    gap * (widget.tabs.length - 1)) /
+                                widget.tabs.length;
+                            final stackedIcon = tabWidth < 120 * textScale;
+                            return IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  for (final (k, t) in widget.tabs.indexed) ...[
+                                    if (k > 0) SizedBox(width: gap),
+                                    Expanded(
+                                      child: _ContextCard(
+                                        tab: t,
+                                        selected: i == k,
+                                        stackedIcon: stackedIcon,
+                                        compact: compact,
+                                        onTap: () => _selected.value = k,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Every page stays built, so a list keeps its scroll position
+                // and filters when the person switches back.
+                Expanded(
+                  child: IndexedStack(
+                    index: i,
+                    children: [for (final t in widget.tabs) t.view],
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -128,12 +153,14 @@ class _ContextCard extends StatelessWidget {
   final AppTab tab;
   final bool selected;
   final bool stackedIcon;
+  final bool compact;
   final VoidCallback onTap;
 
   const _ContextCard({
     required this.tab,
     required this.selected,
     required this.stackedIcon,
+    required this.compact,
     required this.onTap,
   });
 
@@ -162,29 +189,37 @@ class _ContextCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           customBorder: shape,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (stackedIcon) ...[
-                  icon,
-                  AppSpacing.gapSm,
-                  label,
-                ] else
-                  Row(
-                    children: [
-                      icon,
-                      AppSpacing.gapSm,
-                      Expanded(child: label),
-                    ],
-                  ),
-                if (tab.description != null) ...[
-                  AppSpacing.gapSm,
-                  AppText(tab.description!).small.muted,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: AppSpacing.minTarget),
+            child: Padding(
+              padding: EdgeInsets.all(compact ? AppSpacing.md : AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: compact
+                    ? CrossAxisAlignment.center
+                    : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (stackedIcon) ...[
+                    icon,
+                    AppSpacing.gapSm,
+                    label,
+                  ] else
+                    Row(
+                      mainAxisAlignment: compact
+                          ? MainAxisAlignment.center
+                          : MainAxisAlignment.start,
+                      children: [
+                        icon,
+                        AppSpacing.gapSm,
+                        Flexible(child: label),
+                      ],
+                    ),
+                  if (!compact && tab.description != null) ...[
+                    AppSpacing.gapSm,
+                    AppText(tab.description!).small.muted,
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

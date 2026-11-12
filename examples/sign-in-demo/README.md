@@ -31,7 +31,7 @@ its `DOMAIN`, so the usual development setup works as it is:
 
 ```bash
 # in the repository root
-go run ./cmd/revoked serve --http=127.0.0.1:3000
+DOMAIN=localhost go run ./cmd/revoked serve --http=127.0.0.1:3000
 ```
 
 The Revoked app on this device is then signed in to that server.
@@ -49,6 +49,86 @@ signed in to that server; an entry with the key `shipping_address` in its vault
 is offered first when the app asks what to share. The app delivers its answer
 to the shop directly, so on `localhost` it has to run on the same machine. To
 scan the code with a phone, set `PUBLIC_URL` to an address the phone can reach.
+
+## Test all consent screens
+
+The same server includes a [flow playground](http://localhost:4000/playground).
+From the repository root:
+
+```bash
+cd examples/sign-in-demo
+npm ci
+npm start
+```
+
+Open **http://localhost:4000/playground** in your default browser, with the
+updated Revoked app running and signed in on the same computer. Node 22 or
+later is required. No API key or additional Python server is needed. The
+Revoked backend must already be running; it is the server your app uses.
+
+The page shows sign-in and tool connection status separately. Tool status is
+checked against the Revoked server, so a paused, disconnected or unreachable
+connection is not presented as active. Use **Refresh status** after changing
+access in the app; returning to the page also refreshes it.
+
+The five main examples cover:
+
+1. **Sign in:** dedicated account ID, optional name and email, and shared
+   entries (`shipping_address` and `phone` by default). View received values
+   through the Corner Shop account link.
+2. **Connect a tool:** its own vault section, read-only versus write access,
+   sharing, requests, attestations, and the two proposed-link controls, with
+   reasons in each group.
+3. **Whole-vault consent:** the additional optional read switch, its reason,
+   and its explanation. Nothing is read automatically.
+4. **Link proposal:** optional connection, then review and creation of a
+   link containing `now_playing`.
+5. **Connected tool settings:** open **Settings → Connected tools → Showdown
+   demo** in Revoked, change permissions or pause it, then refresh the
+   connection on the playground to inspect the effect. Settings are opened
+   manually because Revoked has no deep link to that page.
+
+Under the connection controls you can explicitly create/update a sample
+`now_playing` record, list accessible record metadata, share the sample
+record, revoke that link, and disconnect. These are real operations on your
+Revoked server. Permission errors are useful results: turn access off in
+Revoked and repeat the corresponding action here. The write action updates
+only a writable `now_playing` entry belonging to the tool; it does not
+overwrite an entry that the tool cannot edit.
+
+The expandable **More proposal types** section also opens request,
+attestation and attestation-check forms. A request needs an existing request
+template name; an attestation needs a real recipient identity fingerprint.
+You complete these forms in Revoked. Connect first to attach their results
+to the demo's connection.
+
+All examples identify the tool by this server's origin, so an already
+approved connection can skip consent. **Disconnect demo** before repeating
+first-time consent or the proposal's connection step. Disconnecting leaves
+your records and links in Revoked. Keep using the same browser and hostname;
+`localhost` and `127.0.0.1` are different origins. A callback opened in another
+tab still completes the originating demo session. A Node restart loses demo
+sessions and credentials; it does not disconnect tools or delete Revoked data.
+
+The playground is part of the local development demo, not a production
+integration. Connection tokens and PKCE verifiers are kept in the Node
+process and are never included in the page's result output.
+
+Run the demo's protocol and HTTP round-trip checks with:
+
+```bash
+npm test
+```
+
+For authentication without a data request:
+
+```bash
+REQUESTED_KEYS= npm start
+```
+
+After approval the account page still shows a signed-in session, with no
+shared entries. This is a valid outcome: an integration must accept sign-in
+even when optional data is declined.
 
 ## Configuration
 

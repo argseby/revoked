@@ -1,4 +1,5 @@
 import 'package:revoked_app/core/models/tool_client.dart';
+
 import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
@@ -29,6 +30,7 @@ import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
+import 'package:revoked_app/core/widgets/app_consent_layout.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
@@ -768,69 +770,85 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     );
     final connecting = _connectNow.value;
 
+    final requester = AppConsentRequester(
+      address: Uri.parse(p.client).authority,
+      badge: WorksWithChip(origin: p.client),
+    );
+    final information = <Widget>[
+      AppListGroup(
+        title: 'Proposed sharing link',
+        trailing: const SizedBox.shrink(),
+        children: [
+          AppDetailRow(icon: AppIcons.link, label: p.label),
+          AppDetailRow(
+            label: 'Requested entries',
+            value: _items.value.isEmpty
+                ? p.keys.map((key) => key.replaceAll('_', ' ')).join(', ')
+                : _items.value.map((item) => item.title).join(', '),
+          ),
+        ],
+      ),
+    ];
+    final decisions = <Widget>[
+      AppListGroup(
+        title: 'Keep ${p.from} connected',
+        trailing: const SizedBox.shrink(),
+        footer: Text(
+          connecting
+              ? 'You review the link contents next, before creating it.'
+              : 'You can continue without connecting. The link is reviewed '
+                    'next, and ${p.from} learns nothing about it.',
+        ),
+        children: [
+          if (_canConnect)
+            choice(
+              AppCheckRow(
+                label: 'Connect ${p.from}',
+                subtitle:
+                    'See the status of links it proposes. Your vault stays '
+                    'unreadable. Choose below whether it also receives or '
+                    'can turn off those links.',
+                value: connecting,
+                onChanged: (v) => _connectNow.value = v,
+              ),
+            ),
+          if (_canJoin)
+            choice(
+              AppCheckRow(
+                label: 'Connect this browser',
+                subtitle:
+                    'Not yet connected in the originating browser. The existing '
+                    'permissions apply.',
+                value: connecting,
+                onChanged: (v) => _connectNow.value = v,
+              ),
+            ),
+        ],
+      ),
+      if (connecting && _polls)
+        ToolCheckCode(name: p.from, challenge: p.challenge),
+    ];
     return AppPageBody(
+      centered: true,
       bottomPadding: AppSpacing.xxl,
       children: [
-        AppListGroup(
-          title: 'Requesting tool',
-          trailing: const SizedBox.shrink(),
-          footer: const Text(
-            'Tool names are chosen by the tool itself. The address is the '
-            'reliable identifier.',
-          ),
-          children: [
-            AppDetailRow(
-              icon: AppIcons.globe,
-              label: 'Address',
-              value: Uri.parse(p.client).host,
-              badge: WorksWithChip(origin: p.client),
-            ),
-            AppDetailRow(icon: AppIcons.tag, label: 'Name', value: p.from),
-          ],
-        ),
-        AppListGroup(
-          title: 'Connection',
-          trailing: const SizedBox.shrink(),
-          footer: Text(
-            connecting
-                ? 'The proposed link is reviewed next.'
-                : 'The link is reviewed next. ${p.from} learns nothing about it.',
-          ),
-          children: [
-            if (_canConnect)
-              choice(
-                AppCheckRow(
-                  label: 'Connect ${p.from}',
-                  subtitle:
-                      'Access to the status of proposed links only. The vault '
-                      'stays unreadable.',
-                  value: connecting,
-                  onChanged: (v) => _connectNow.value = v,
-                ),
-              ),
-            if (_canJoin)
-              choice(
-                AppCheckRow(
-                  label: 'Connect this browser',
-                  subtitle:
-                      'Not yet connected in the originating browser. The existing '
-                      'permissions apply.',
-                  value: connecting,
-                  onChanged: (v) => _connectNow.value = v,
-                ),
-              ),
-          ],
-        ),
-        if (connecting && _polls)
-          ToolCheckCode(name: p.from, challenge: p.challenge),
         if (_canConnect && connecting)
           ToolPermissions(
             name: p.from,
+            leading: decisions,
+            information: information,
+            requester: requester,
             reasons: p.reasons,
             allowRevoke: _allowRevoke.value,
             allowHandOver: _allowHandOver.value,
             onAllowRevoke: (v) => _allowRevoke.value = v,
             onAllowHandOver: (v) => _allowHandOver.value = v,
+          )
+        else
+          AppConsentLayout(
+            decisions: decisions,
+            information: information,
+            requester: requester,
           ),
       ],
     );
@@ -936,6 +954,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         .length;
     final identity = Stores.identities.primaryIdentity;
     return AppPageBody(
+      centered: true,
       bottomPadding: AppSpacing.xxl,
       children: [
         if (_listing != null && _undeclaredKeys.isNotEmpty) ...[
@@ -1004,8 +1023,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             !_plainSensitiveSelected)
           AppCheckRow(
             label: 'Hand this encrypted link to ${p.from}',
-            subtitle:
-                'The tool receives the address key and can read, copy or store every encrypted value on this link. This choice applies to this link only.',
+            subtitle: 'The tool receives the address key and can read, copy or store every encrypted value on this link. This choice applies to this link only.',
             value: _allowEncryptedHandOver.value,
             onChanged: (v) => _allowEncryptedHandOver.value = v,
           ),

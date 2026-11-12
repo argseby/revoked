@@ -14,11 +14,15 @@ import { readGrants, GrantError } from './grants.js';
 import { session, endSession, startAppSession, appSession, endAppSession } from './sessions.js';
 import { remember, takeForAnswer, finish, collect } from './signins.js';
 import { signInPage, accountPage, errorPage } from './views.js';
+import { playgroundRoute } from './playground.js';
 
 const assets = new Map(
   await Promise.all(
     [
       ['/style.css', '../public/style.css', 'text/css'],
+      ['/playground', '../public/playground.html', 'text/html'],
+      ['/playground.js', '../public/playground.js', 'text/javascript'],
+      ['/playground.css', '../public/playground.css', 'text/css'],
       ['/revoked/revoked-sign-in.js', '../../sign-in-button/revoked-sign-in.js', 'text/javascript'],
     ].map(async ([path, file, type]) => [
       path,
@@ -162,6 +166,12 @@ async function apiMe(req, res) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, config.clientId);
   try {
+    // A callback returns to PUBLIC_URL. Start there too, so localhost and
+    // 127.0.0.1 cannot silently split the starting and returning sessions.
+    if (req.headers.host?.toLowerCase() !== new URL(config.clientId).host) {
+      if (req.method === 'GET') return redirect(res, `${config.clientId}${url.pathname}${url.search}`);
+      return sendJson(res, 409, { error: `Open ${config.clientId}/playground and try again.` });
+    }
     if (req.method === 'GET' && url.pathname === '/') return await home(req, res);
     if (req.method === 'POST' && url.pathname === '/login/start') return await loginStart(req, res);
     if (req.method === 'POST' && url.pathname === '/login/wait') return await loginWait(req, res);
@@ -176,8 +186,10 @@ const server = createServer(async (req, res) => {
       endSession(req, res);
       return redirect(res, '/');
     }
+    if (await playgroundRoute(req, res, url, { readJson, sendJson, redirect })) return;
     const asset = req.method === 'GET' && assets.get(url.pathname);
     if (asset) {
+      if (asset.type.startsWith('text/html')) return send(res, 200, asset.body);
       res.writeHead(200, { 'Content-Type': asset.type });
       return res.end(asset.body);
     }
@@ -190,6 +202,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(config.port, () => {
   console.log(`Corner Shop at ${config.clientId}`);
+  console.log(`  all flows     ${config.clientId}/playground`);
   console.log(`  client_id     ${config.clientId}`);
   console.log(`  redirect_uri  ${config.redirectUri}`);
 });

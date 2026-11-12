@@ -17,6 +17,28 @@ without contacting the issuer.
 lists what others confirmed about the holder, **Issued** what the
 workspace confirmed about others, and **Checked** what others presented.
 
+## Example: club membership
+
+A club at `club.example.com` confirms two facts about a member:
+
+| Detail | Value |
+|---|---|
+| `membership_active` | `true` |
+| `member_number` | `C-1042` |
+
+The member accepts the offer in the Revoked app, binding it to one of their
+identities. A ticket service later asks for `membership_active` from that club.
+The member can present that detail while leaving `member_number` undisclosed.
+The issuer, the kind of attestation and the holder's identity are still shown.
+
+The ticket service must decide that `club.example.com` is an acceptable
+membership issuer. A valid signature proves who confirmed the fact; it does
+not make every domain's membership claim acceptable. If the club revokes the
+attestation, later checks no longer accept it.
+
+A vault record containing `membership_active=true` is only the owner's own
+statement. It does not substitute for the club's confirmation.
+
 ## Accepting an attestation
 
 An attestation arrives as an offer link (`revoked://a/…`) that opens the

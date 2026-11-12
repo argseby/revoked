@@ -1,3 +1,14 @@
+## 0.1.2
+
+- Builds against `qr` 4: the QR code is created with `QrPayload.fromString`
+  and `QrErrorCorrectLevel.low`. 0.1.1 did not compile.
+- Source formatted with `dart format`.
+
+## 0.1.1
+
+- `qr` dependency raised to `^4.0.1`.
+- GPL-3.0 license added.
+
 ## 0.1.0
 
 First release.

@@ -7,45 +7,37 @@ import 'package:revoked_app/core/design/text_styles.dart';
 /// Collection pages name themselves in the content, above their local tools.
 class AppCollectionHeader extends StatelessWidget {
   final String title;
-  final String description;
+  final String? description;
   final Widget? action;
 
   const AppCollectionHeader({
     super.key,
     required this.title,
-    required this.description,
+    this.description,
     this.action,
   });
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: AppSpacing.lg, bottom: AppSpacing.xxl),
-    child: LayoutBuilder(
-      builder: (context, box) {
-        final heading = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AppText(title).title,
-            AppSpacing.gapSm,
-            AppText(description).small.muted,
-          ],
-        );
-        if (action == null) return heading;
-        if (box.maxWidth < 600 ||
-            MediaQuery.textScalerOf(context).scale(16) > 24) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [heading, AppSpacing.gapLg, action!],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: heading),
-            AppSpacing.gapLg,
-            action!,
-          ],
-        );
-      },
+    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (action == null)
+          AppText(title).header
+        else
+          OverflowBar(
+            alignment: MainAxisAlignment.spaceBetween,
+            spacing: AppSpacing.md,
+            overflowSpacing: AppSpacing.sm,
+            overflowAlignment: OverflowBarAlignment.start,
+            children: [AppText(title).header, action!],
+          ),
+        if (description != null) ...[
+          AppSpacing.gapXxs,
+          AppText(description!).small.muted,
+        ],
+      ],
     ),
   );
 }

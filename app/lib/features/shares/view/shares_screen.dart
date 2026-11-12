@@ -124,7 +124,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     // Access by record moved to the record pages and the Overview. The same
     // two tabs as Requests: what this account gave, and what it was given.
     return AppTabs(
-      title: 'Shares',
       initialIndex: widget.initialTab,
       tabs: [
         AppTab(
@@ -352,7 +351,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         ],
       ),
       builder: (_) {
-        // Nothing to list still keeps Search and filter in the top bar.
+        // Nothing to list has nothing to search, so no Search and filter.
         Widget bare(Widget child) =>
             AppPageBody(children: [_collectionHeader(context), child]);
         if (store.shares.isEmpty &&
@@ -544,7 +543,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     title: widget.selectedId != null ? 'Your links' : 'Your sharing',
     description: widget.selectedId != null
         ? 'Choose a link to manage its access.'
-        : 'Share from your Vault. Stay in control of access.',
+        : 'Share information from your vault with others',
     action: AppButton(
       icon: AppIcons.plus,
       label: 'Share items',

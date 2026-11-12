@@ -904,8 +904,11 @@ class _PanelRow extends StatelessWidget {
                 color: selected ? scheme.primary : scheme.onSurfaceVariant,
               ),
               AppSpacing.gapSm,
-              Expanded(child: Text(label)),
-              if (count != null) AppText('$count').small.muted,
+              Flexible(child: Text(label)),
+              if (count != null) ...[
+                AppSpacing.gapSm,
+                AppText('$count').small.muted,
+              ],
             ],
           ),
         ),

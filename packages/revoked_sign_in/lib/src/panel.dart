@@ -137,7 +137,9 @@ class RevokedSignInPanel extends StatelessWidget {
     );
     final check = _CheckLine(template: strings.check, code: start.checkCode, style: body);
     final scan = Text(phone ? strings.scanElsewhere : strings.scan);
-    final qr = Center(child: _QrCode(data: start.appLink.toString(), label: strings.qr));
+    final qr = Center(
+      child: _QrCode(data: start.appLink.toString(), label: strings.qr),
+    );
     final children = phone ? [open, check, scan, qr] : [scan, qr, check, open];
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -192,7 +194,9 @@ class _Head extends StatelessWidget {
               spacing: 8,
               children: [
                 RevokedMark(size: 16, color: colors.foreground),
-                Flexible(child: Text(title, style: style, textAlign: TextAlign.start)),
+                Flexible(
+                  child: Text(title, style: style, textAlign: TextAlign.start),
+                ),
               ],
             ),
           ),
@@ -264,7 +268,13 @@ class _CheckLine extends StatelessWidget {
       fontFeatures: const [FontFeature.slashedZero()],
     );
     return Text.rich(
-      TextSpan(children: [TextSpan(text: before), TextSpan(text: code, style: mono), TextSpan(text: after)]),
+      TextSpan(
+        children: [
+          TextSpan(text: before),
+          TextSpan(text: code, style: mono),
+          TextSpan(text: after),
+        ],
+      ),
       semanticsLabel: '$before${spellCheckCode(code)}$after',
     );
   }
@@ -331,7 +341,9 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: colors.line))),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: colors.line)),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Semantics(

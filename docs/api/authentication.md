@@ -35,6 +35,53 @@ contrast, is limited to the links that were approved, appears under
 The in-app API preview on every create drawer shows a ready-to-run `curl` with
 the correct header for the request in front of you.
 
+## First API call
+
+For a script reading vault data, the prerequisites are an account, a section
+containing an unencrypted record, and an API key created in
+**Settings → Developer → API keys**. The key needs `vault:read` and access to
+that section. A permission alone does not select any records.
+
+```bash
+SERVER='https://api.example.com'
+read -r -s -p 'API key: ' REVOKED_API_KEY
+printf '\n'
+curl --fail-with-body "$SERVER/api/vault" \
+  -H "X-API-Key: $REVOKED_API_KEY"
+```
+
+The prompt reads the key without displaying it or putting the literal key in
+shell history. The server address must be replaced with the actual installation.
+A successful response contains a `records` array. For example, abbreviated to
+the fields relevant here:
+
+```json
+{
+  "records": [
+    { "id": "RECORD_ID", "key": "shipping_address", "label": "Home", "type": "text" }
+  ]
+}
+```
+
+The list contains metadata, not values. A second call uses an `id` from that
+response to read the value:
+
+```bash
+RECORD_ID='REPLACE_WITH_RETURNED_ID'
+curl --fail-with-body "$SERVER/api/vault/$RECORD_ID" \
+  -H "X-API-Key: $REVOKED_API_KEY"
+```
+
+The response includes `"value": "Musterstraße 12, Berlin"` for a text record.
+`{"records":[]}` means no records are currently readable with this key; it does
+not mean authentication failed. A `403 vault_not_allowed` means the key has no
+vault read access. A `404` for a record can also mean it is outside the key's
+selected sections. Full fields are in the [vault reference](reference/vault.md).
+
+**Sign-in tokens have a different purpose.** The session below authenticates a
+person to their own Revoked server. To let people sign in to a separate website,
+use [Sign in with Revoked](sign-in.md); that website creates its own session.
+
 ## Signing in
 
 People sign in with a passkey and nothing else; there is no password endpoint.

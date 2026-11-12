@@ -97,11 +97,7 @@ class RevokedSignInClient {
   Future<RevokedWaitAnswer> ask(String waitKey) async {
     final http.Response res;
     try {
-      res = await _http.post(
-        wait,
-        headers: _headers,
-        body: jsonEncode({'wait': waitKey, if (asApp) 'client': 'app'}),
-      );
+      res = await _http.post(wait, headers: _headers, body: jsonEncode({'wait': waitKey, if (asApp) 'client': 'app'}));
     } on Exception {
       return const RevokedWaitPending();
     }

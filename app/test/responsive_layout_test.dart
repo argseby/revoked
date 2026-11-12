@@ -246,7 +246,7 @@ void main() {
 
   testWidgets('New stays off a phone\'s detail pages', (tester) async {
     final router = await signedIn(tester, sizes['phone']!);
-    expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
 
     router.go(AppRoutes.recordDetailFor('r1'));
     await tester.pumpAndSettle();
@@ -256,7 +256,9 @@ void main() {
   group('a sheet with no close button', () {
     Future<void> openPicker(WidgetTester tester, Size size) async {
       await signedIn(tester, size);
-      await tester.tap(find.text('New'));
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create something new'));
       await tester.pumpAndSettle();
     }
 
@@ -339,8 +341,7 @@ void main() {
           store.endpoints.add(
             WebhookEndpoint.fromJson({
               'id': 'h1',
-              'url':
-                  'https://a-rather-long-integration-host.example.com/hooks/revoked/f3a9c1d2',
+              'url': 'https://a-rather-long-integration-host.example.com/hooks/revoked/f3a9c1d2',
               'description': 'CRM sync for the onboarding team',
               'events': ['link.revoked', 'response.submitted'],
               'enabled': true,
@@ -569,8 +570,13 @@ void main() {
             ).toString(),
           );
           await tester.pumpAndSettle();
-          expect(find.text('Vault section'), findsOneWidget);
-          expect(find.text('Manage'), findsOneWidget);
+          expect(
+            find.text(
+              'Keep records in “A rather long assistant name, 40 chars”',
+            ),
+            findsOneWidget,
+          );
+          expect(find.text('Read & add records'), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );

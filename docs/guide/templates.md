@@ -7,6 +7,24 @@ label and a type. Templates are used in two places:
 - in the vault, to [create the same sections and records](vault.md#start-from-a-template)
   in one step.
 
+## Example: one structure, two uses
+
+A delivery-details template can define these fields:
+
+| Key | Label | Type | Required |
+|---|---|---|---|
+| `shipping_address` | Delivery address | Text | Yes |
+| `phone` | Phone number | Text | No |
+
+Used in a **request**, it produces a form asking a respondent for an address
+and an optional phone number. Used with **New → From a template** in the vault,
+it creates records with those keys, ready for values to be entered.
+
+The template defines structure; it does not hold a customer's address and does
+not grant access to records. Two customers can answer the same template with
+different records and values. Consistent keys let the receiving service locate
+the address without depending on a display label or field order.
+
 ## Custom templates
 
 Templates are listed under **Settings → Developer → Templates**, and
@@ -22,6 +40,34 @@ a request using the template cannot be sent without it.
 
 A field whose `format` is set to `hidden` in the JSON stores its answer as
 a hidden record, which suits secrets.
+
+### JSON example
+
+The delivery-details example above has this schema in **JSON (advanced)**.
+The template name is entered separately; this object is the field schema,
+not the complete API record:
+
+```json
+{
+  "records": [
+    {
+      "key": "shipping_address",
+      "label": "Delivery address",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "phone",
+      "label": "Phone number",
+      "type": "text"
+    }
+  ]
+}
+```
+
+Switching to **Visual** shows the same two fields. `required` is omitted for
+the optional phone number. Keys match the fields requested by an integration;
+labels supply their readable names.
 
 ### Who sees a template {#members}
 

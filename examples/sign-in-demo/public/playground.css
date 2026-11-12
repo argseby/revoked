@@ -1,0 +1,35 @@
+:root { color-scheme: light dark; font: 15px/1.55 system-ui, sans-serif; background: light-dark(#fafafa,#171717); color: light-dark(#171717,#ededed); --line: light-dark(#ddd,#444); --paper: light-dark(#fff,#202020); --muted: light-dark(#555,#bcbcbc); }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { max-width: 1050px; margin: auto; padding: 24px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+main { max-width: 1050px; margin: auto; padding: 16px 24px 48px; }
+h1 { font-size: clamp(26px,4vw,38px); line-height: 1.2; letter-spacing: -1px; margin: 0 0 12px; font-weight: 550; }
+h2 { font-size: 19px; margin: 7px 0; line-height: 1.3; font-weight: 550; }
+h3 { font-size: 16px; font-weight: 550; }
+p { margin: 10px 0 18px; }
+a { color: inherit; text-underline-offset: 3px; }
+.intro { max-width: 750px; color: var(--muted); }
+.flows { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+section,details { background: var(--paper); padding: 24px; border: 1px solid var(--line); border-radius: 12px; }
+.manage { grid-column: 1/-1; }
+.eyebrow { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.hint { font-size: 13px; color: var(--muted); margin-bottom: 0; }
+.buttons { display: flex; flex-wrap: wrap; gap: 9px; }
+button { font: inherit; background: light-dark(#171717,#ededed); color: light-dark(#fff,#171717); border: 1px solid var(--line); border-radius: 7px; padding: 10px 14px; min-height: 44px; cursor: pointer; text-align: left; }
+button:disabled { opacity: .5; cursor: wait; }
+.danger { color: light-dark(#a22317,#ffaaa4); background: var(--paper); }
+code,pre { font-family: ui-monospace,monospace; overflow-wrap: anywhere; }
+code { font-size: .9em; }
+.result { margin: 20px 0; }
+pre { white-space: pre-wrap; max-height: 450px; overflow: auto; font-size: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+#status { padding: 12px 0; border-block: 1px solid var(--line); }
+.session-status { margin-bottom: 20px; }
+.session-status p { margin: 4px 0; overflow-wrap: anywhere; }
+.session-status button { margin-top: 8px; }
+#open-app,#result-link { display: block; margin: 10px 0; }
+[hidden] { display: none !important; }
+details>p,form { margin-top: 20px; }
+form { padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+label { display: grid; gap: 6px; margin-bottom: 12px; }
+input { padding: 10px; font: inherit; width: 100%; min-width: 0; color: inherit; background: var(--paper); border: 1px solid var(--line); border-radius: 6px; }
+@media(max-width:650px) { .flows { grid-template-columns: 1fr; } main,header { padding-inline:16px; } section,details { padding:18px; } }

@@ -6,6 +6,34 @@ is no shared base URL: substitute your own host throughout. To try it, use the
 official server, `https://api.revoked.link`. It is experimental and for testing,
 with no guarantees for your data.
 
+## Three common integrations
+
+| Goal | Concrete example | First implementation |
+|---|---|---|
+| Automate an existing workspace | A scheduled job updates a `now_playing` record. | An [API key](authentication.md#first-api-call) with vault permissions and access to a chosen section. |
+| Build a service for other vault owners | An emergency-card tool asks its user to share selected medical details. | A [proposal and connection](tools.md#example-a-guest-registration-tool) approved in that user's app. |
+| Add account sign-in to a website | A shop signs a customer in and optionally asks for a delivery address. | The [Sign in with Revoked demo](sign-in.md#working-example), then the start, callback and wait routes. |
+
+These credentials serve different purposes. A shop's sign-in token does not
+open the customer's vault. An API key for one workspace does not authenticate
+users of a website. A connection gives a tool the access its owner approved.
+
+## Terms used in the examples
+
+| Term | Meaning | Example |
+|---|---|---|
+| Server | A Revoked installation with its own domain and accounts. | `https://api.example.com` |
+| Workspace | The container for records, shares, requests and members. | A company's workspace |
+| Record | One stored value or file. | Key `shipping_address`, value `Musterstraße 12, Berlin` |
+| Section | A group of records; also used to limit a key's vault access. | A `Delivery` section |
+| Share | A link through which selected records can be read. | A delivery-address link sent to a shop |
+| Request | A form asking other people for information. | A delivery-details request |
+| Grant | Permission to read selected current values until access ends. | An approved address returned as a grant at sign-in |
+
+Example domains such as `api.example.com` are placeholders. `$SERVER` in shell
+examples is the Revoked server's origin, including `https://`, without a trailing
+slash. Credentials and IDs must come from that same server.
+
 ## Where to start
 
 | If you want to | Read |

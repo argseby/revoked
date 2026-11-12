@@ -184,6 +184,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // These interaction tests exercise the alternatives after opening them.
+    final entryEditors = find.text('Choose or add an entry');
+    for (var i = 0; i < entryEditors.evaluate().length; i++) {
+      await tester.ensureVisible(entryEditors.at(i));
+      await tester.tap(entryEditors.at(i));
+      await tester.pumpAndSettle();
+    }
   }
 
   testWidgets('the request opens in the app, and nothing in a browser', (
@@ -195,11 +202,11 @@ void main() {
     expect(opened.single['params']['state'], 'st-1');
     expect(launched, isEmpty, reason: 'deciding happens here, not there');
     expect(find.text('Sign in to game.example'), findsOneWidget);
-    expect(find.text('Your name'), findsOneWidget);
+    expect(find.text('Share a name'), findsOneWidget);
     expect(find.text('Shown to game.example as'), findsOneWidget);
     expect(find.text('Ada Lovelace'), findsWidgets);
     expect(find.text('Your email address'), findsOneWidget);
-    expect(find.text('Your phone'), findsOneWidget);
+    expect(find.text('Share your phone'), findsOneWidget);
     expect(find.text('+49'), findsWidgets);
     expect(decisions, isEmpty);
   });

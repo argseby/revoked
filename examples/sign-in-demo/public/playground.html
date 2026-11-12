@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Revoked flow playground</title>
+  <link rel="stylesheet" href="/playground.css">
+  <script type="module" src="/revoked/revoked-sign-in.js"></script>
+  <script type="module" src="/playground.js"></script>
+</head>
+<body>
+  <header><span>revoked / examples</span><a href="/">Corner Shop account</a></header>
+  <main>
+    <h1>Try every consent screen</h1>
+    <p class="intro">Run the updated Revoked app and sign in on this computer. Each button opens the real app; approve or decline there, then return here.</p>
+    <p id="status" role="status">Loading demo status…</p>
+    <div class="session-status" aria-live="polite">
+      <p id="auth-status">Sign-in: checking…</p>
+      <p id="connection-status">Tool connection: checking…</p>
+      <button id="refresh-status">Refresh status</button>
+    </div>
+    <div class="flows">
+      <section>
+        <span class="eyebrow">01 / Sign in</span>
+        <h2>Choose what a service learns</h2>
+        <p>Test the dedicated ID, name, email and vault-entry pickers. Returning sign-ins reuse the service’s ID.</p>
+        <revoked-sign-in start="/login/start" wait="/login/wait" done="/playground" label="signin"></revoked-sign-in>
+        <p class="hint">Create a <code>shipping_address</code> or <code>phone</code> entry first, or add one during consent. After signing in, view the <a href="/">received data</a>.</p>
+      </section>
+      <section>
+        <span class="eyebrow">02 / Connect a tool</span>
+        <h2>A section and all action permissions</h2>
+        <p>Test the “Showdown demo” section, read-only versus write access, sharing, requests, attestations and link controls. Every group includes a reason.</p>
+        <button data-start="connect">Connect Showdown demo</button>
+        <p class="hint">Approve, then use the sample actions below to see allowed and denied operations.</p>
+      </section>
+      <section>
+        <span class="eyebrow">03 / Broader access</span>
+        <h2>Ask to read the whole vault</h2>
+        <p>Includes the same permissions plus the optional whole-vault read switch and its explanation. It starts off for a new connection.</p>
+        <button data-start="vault">Test whole-vault consent</button>
+        <p class="hint">This demo lists record metadata only when you click “List accessible records”; it does not automatically read their values.</p>
+      </section>
+      <section>
+        <span class="eyebrow">04 / Link proposal</span>
+        <h2>Connect, then review a proposed link</h2>
+        <p>Propose sharing <code>now_playing</code>. Test connecting or continuing without a connection, then review the entry before creating the link.</p>
+        <button data-start="share">Propose a game-sharing link</button>
+        <p class="hint">Disconnect first to see the initial connection step again. If already connected, Revoked can skip it.</p>
+      </section>
+      <section class="manage">
+        <span class="eyebrow">05 / Connected tool settings</span>
+        <h2>Change access and check the result</h2>
+        <p>In Revoked, open <strong>Settings → Connected tools → Showdown demo</strong>. Change sections or permissions, pause it, or disconnect. Refresh here to see the result.</p>
+        <div class="buttons">
+          <button data-action="status">Refresh connection</button>
+          <button data-action="vault">List accessible records</button>
+          <button data-action="write">Create / update sample record</button>
+          <button data-action="share">Create a sample sharing link</button>
+          <button data-action="revoke">Revoke that sample link</button>
+          <button data-action="disconnect" class="danger">Disconnect demo</button>
+        </div>
+        <p class="hint">The sample record is <code>now_playing = Hunt: Showdown</code>. Writes and sharing happen only when clicked. Permission errors are expected when you turn access off. Disconnecting keeps records and links in Revoked.</p>
+      </section>
+    </div>
+    <section class="result">
+      <h2>Latest result</h2>
+      <p id="result-summary" aria-live="polite">No action yet.</p>
+      <a id="open-app" hidden>Open this request in Revoked</a>
+      <a id="result-link" target="_blank" rel="noreferrer" hidden>Open the sample sharing link</a>
+      <pre id="output" tabindex="0" aria-label="Latest API response">{}</pre>
+    </section>
+    <details>
+      <summary>More proposal types: request, attestation and check</summary>
+      <p>These open prefilled forms in Revoked. You complete and save them there. Connect first to attach saved results to this demo, then refresh the connection.</p>
+      <form id="request-form">
+        <h3>Request information</h3>
+        <label>Existing request template name <input id="template" required maxlength="80" placeholder="Choose a template from your Revoked workspace"></label>
+        <button>Open request proposal</button>
+      </form>
+      <form id="attest-form">
+        <h3>Offer an attestation</h3>
+        <label>Recipient identity fingerprint <input id="fingerprint" required pattern="[a-fA-F0-9]{64}" minlength="64" maxlength="64" placeholder="64 hexadecimal characters"></label>
+        <p class="hint">Copy a real identity fingerprint from Revoked. This example asks for a participation attestation; you decide its values in the app.</p>
+        <button>Open attestation proposal</button>
+      </form>
+      <div>
+        <h3>Check an attestation</h3>
+        <p>Open a check for a participation attestation, then review and create it in Revoked.</p>
+        <button id="check">Open check proposal</button>
+      </div>
+    </details>
+    <p class="hint">All tool examples use this page’s origin as one tool identity. A connection already approved may be reused. Disconnect before repeating first-time consent. Use the same browser and hostname throughout; localhost and 127.0.0.1 are different tool identities. Restarting Node clears this demo’s sessions, not data in Revoked.</p>
+  </main>
+</body>
+</html>

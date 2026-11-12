@@ -345,7 +345,9 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       }
     }
     final ownOn = connection.hasOwnSection;
-    final access = connection.vaultAccess == 'read' ? 'Read' : 'Manage';
+    final access = connection.vaultAccess == 'read'
+        ? 'Read only'
+        : 'Read & add records';
     return AppListGroup(
       title: 'Vault sections',
       trailing: const SizedBox.shrink(),
@@ -424,6 +426,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         store.checksByConnection[connection.id] ?? const <AttestationCheck>[];
 
     return AppDetailPage(
+      centered: true,
       header: AppDetailHeader(
         badges: [
           if (connection.paused) const AppBadge(label: 'Paused'),
@@ -433,7 +436,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         subtitle: connection.clientId,
         subtitleMono: true,
       ),
-      sections: [
+      aside: [
         AppListGroup(
           title: 'Connection',
           trailing: const SizedBox.shrink(),
@@ -480,21 +483,31 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
               label: connection.isExpired ? 'Expired' : 'Expires',
               value: dayTimeLabel(connection.expiresAt),
             ),
-            if (!connection.isExpired)
+          ],
+        ),
+      ],
+      sections: [
+        if (!connection.isExpired)
+          AppListGroup(
+            title: 'Current access',
+            trailing: const SizedBox.shrink(),
+            children: [
               AppFormToggleRow(
                 icon: AppIcons.pause,
-                label: 'Active',
-                subtitle: 'Off pauses it and its links',
+                label: 'Keep ${connection.name} active',
+                subtitle: 'Turning this off pauses the tool and its links.',
                 value: !connection.paused,
                 onChanged: store.isChanging
                     ? null
                     : (on) => _setPaused(connection, !on),
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               ),
-          ],
-        ),
+            ],
+          ),
+        _sections(connection),
         ToolPermissions(
           name: connection.name,
+          useColumns: false,
           allowRevoke: connection.allowRevoke,
           allowHandOver: connection.allowHandOver,
           onAllowRevoke: (v) =>
@@ -515,10 +528,14 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
           onPermission: (key, on) => _change(
             store.setPermission(connection, key, on, Stores.invites.catalogue),
           ),
-          // Its sections have a group of their own below.
+          // Its section controls are grouped above the action permissions.
           ownSection: connection.reachedSections.isNotEmpty,
+          reachedSectionNames: [
+            for (final section in Stores.vault.sections)
+              if (connection.reachedSections.contains(section.id))
+                _sectionName(section),
+          ],
         ),
-        _sections(connection),
         AppListGroup(
           title: 'Links from ${connection.name}',
           noun: 'links',

@@ -4,6 +4,31 @@ The vault holds the workspace's information, and every share points back
 to it. A value changed once is shown in its new form by every share of it
 immediately.
 
+## Example: a delivery address
+
+A delivery address is stored once and shared with two services:
+
+| Field | Example | Purpose |
+|---|---|---|
+| Label | `Home address` | The name displayed in the app. |
+| Key | `shipping_address` | The stable name used by templates, requests and integrations. |
+| Type | Text | An address stored as text. |
+| Value | `Musterstraße 12, Berlin` | The information a permitted recipient reads. |
+
+After a move, changing the value to `Hauptstraße 3, Köln` updates what both
+services read through their shares. The record and its key remain the same.
+An integration may retain a value within the server's permitted cache period;
+its next fresh read returns the new address.
+
+A label is for display; a key is for matching fields. Renaming the label does
+not require a service to ask for a new kind of information. An
+[alias](#aliases) can expose an existing record under an additional key when
+another service uses a different name.
+
+A record does not become public merely because it exists in the vault.
+[Sharing](sharing.md) grants access through a link; workspace visibility
+determines which members can see it in the app.
+
 ## Records {#records}
 
 A record is a single piece of information with a label and a value. Its

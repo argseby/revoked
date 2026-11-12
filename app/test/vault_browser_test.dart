@@ -12,6 +12,8 @@ import 'package:revoked_app/core/models/user.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_filter_chips.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_menu_button.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/features/vault/view/vault_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +29,7 @@ class _Server {
 
   /// Adds a section made by signing in to a service.
   bool withSignIn = false;
+  bool withRequest = false;
 
   Future<http.Response> handle(http.Request request) async {
     final path = request.url.path;
@@ -120,6 +123,7 @@ class _Server {
     'id': 'section0000mine',
     'key': 'mine',
     'name': 'Mine',
+    if (withRequest) 'requestedBy': 'a-long-requester.example.org',
     'user': _me,
     'workspace': _workspace,
     'records': ['record00000mine'],
@@ -130,10 +134,18 @@ class _Server {
       http.Response(jsonEncode(body), 200);
 }
 
-Future<_Server> _pump(WidgetTester tester, {bool withSignIn = false}) async {
+Future<_Server> _pump(
+  WidgetTester tester, {
+  bool withSignIn = false,
+  bool withRequest = false,
+  double width = 1400,
+  double textScale = 1,
+}) async {
   SharedPreferences.setMockInitialValues({});
   FlutterSecureStorage.setMockInitialValues({});
-  final server = _Server()..withSignIn = withSignIn;
+  final server = _Server()
+    ..withSignIn = withSignIn
+    ..withRequest = withRequest;
   await Stores.init(httpClient: MockClient(server.handle));
   runInAction(
     () => Stores.auth.currentUser = User.fromJson({
@@ -143,12 +155,17 @@ Future<_Server> _pump(WidgetTester tester, {bool withSignIn = false}) async {
     }),
   );
   await tester.runAsync(Stores.vault.loadRecords);
-  tester.view.physicalSize = const Size(1400, 1000);
+  tester.view.physicalSize = Size(width, 1000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.build(Brightness.light),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: const Scaffold(body: VaultScreen()),
     ),
   );
@@ -304,6 +321,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sign-in · shop.example'), findsNWidgets(2));
     expect(find.text('From signing in to shop.example'), findsOneWidget);
+  });
+
+  for (final width in [320.0, 375.0, 1400.0]) {
+    testWidgets('selected section has one count and a visible menu at $width', (
+      tester,
+    ) async {
+      await _pump(tester, withRequest: true, width: width);
+      await tester.ensureVisible(_pane('Mine'));
+      await tester.tap(_pane('Mine'));
+      await tester.pumpAndSettle();
+      final header = find.byKey(
+        const ValueKey('vault-selected-section-header'),
+      );
+      await tester.ensureVisible(header);
+      await tester.pumpAndSettle();
+      final title = find.descendant(
+        of: header,
+        matching: find.text('Mine · 1'),
+      );
+      final origin = find.descendant(
+        of: header,
+        matching: find.text('Requested by a-long-requester.example.org'),
+      );
+      final menu = find.descendant(
+        of: header,
+        matching: find.byType(AppMenuButton),
+      );
+      expect(title, findsOneWidget);
+      expect(
+        find.descendant(of: header, matching: find.text('1')),
+        findsNothing,
+      );
+      expect(origin, findsOneWidget);
+      if (width < 600) {
+        expect(
+          tester.getRect(origin).top,
+          greaterThan(tester.getRect(menu).bottom),
+        );
+      }
+      expect(tester.getRect(menu).right, lessThanOrEqualTo(width));
+      expect(tester.getSize(menu).width, greaterThanOrEqualTo(44));
+      expect(tester.widget<AppMenuButton>(menu).style, AppButtonStyle.accent);
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      expect(find.text('Add or remove records'), findsOneWidget);
+      expect(find.text('Rename'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('selected section header fits enlarged mobile text', (
+    tester,
+  ) async {
+    await _pump(tester, withRequest: true, width: 320, textScale: 2);
+    await tester.ensureVisible(_pane('Mine'));
+    await tester.tap(_pane('Mine'));
+    await tester.pumpAndSettle();
+    final header = find.byKey(const ValueKey('vault-selected-section-header'));
+    await tester.ensureVisible(header);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: header, matching: find.text('Mine · 1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: header, matching: find.byTooltip('Section actions')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('wide, the search narrows the selected records', (tester) async {

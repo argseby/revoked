@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/widgets/app_flow_scaffold.dart';
+import 'package:revoked_app/core/widgets/app_consent_layout.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_spinner.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -328,8 +329,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       icon: AppIcons.exclamationTriangle,
       accent: Theme.of(context).colorScheme.error,
       title: 'Invalid link',
-      message:
-          'This tool cannot be connected. A new link is required from the tool.',
+      message: 'This tool cannot be connected. A new link is required from the tool.',
       actions: [
         AppButton(
           label: 'Back to the app',
@@ -401,64 +401,57 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   /// The address is the one fact here the tool can't choose; its name is a
   /// claim, so the owner is pointed at the address.
-  Widget _requester(ConnectRequest r) => Wrap(
-    spacing: AppSpacing.sm,
-    runSpacing: AppSpacing.xs,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    children: [
-      Text(
-        'Tool names are chosen by the tool. Continue only if '
-        '${Uri.parse(r.client).host} is recognised.',
-      ).muted.small,
-      WorksWithChip(origin: r.client),
-    ],
+  Widget _requester(ConnectRequest r) => AppConsentRequester(
+    address: Uri.parse(r.client).authority,
+    badge: WorksWithChip(origin: r.client),
   );
 
   Widget _consent(BuildContext context, ConnectRequest r) {
     final joining = _joining.value;
-    // A decision read top to bottom: on a wide window it keeps a reading
-    // width instead of spreading the switches across the screen.
-    Widget capped(Widget child) => Align(
-      alignment: Alignment.topLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: AppSpacing.narrowWidth),
-        child: child,
-      ),
-    );
     return AppPageBody(
+      centered: true,
       bottomPadding: AppSpacing.xxl,
       children: [
-        for (final child in <Widget>[
+        if (joining) ...[
           _requester(r),
           if (_polls) ToolCheckCode(name: r.name, challenge: r.challenge),
-          if (!joining && _listing != null && _undeclared.isNotEmpty)
-            WorksWithMismatchAlert(service: _listing, extra: _undeclared),
-          if (!joining)
-            ToolPermissions(
-              name: r.name,
-              reasons: r.reasons,
-              allowRevoke: _allowRevoke.value,
-              allowHandOver: _allowHandOver.value,
-              onAllowRevoke: (v) => _allowRevoke.value = v,
-              onAllowHandOver: (v) => _allowHandOver.value = v,
-              showVault: _offersVault,
-              allowVaultRead: _allowVaultRead.value,
-              onAllowVaultRead: (v) => _allowVaultRead.value = v,
-              permissions: _asked,
-              granted: _granted.value,
-              onPermission: _setPermission,
-              showSection: r.section,
-              ownSection: _ownSection.value,
-              onOwnSection: (v) => _ownSection.value = v,
-              sectionName: _sectionLabel(r).$1,
-              sectionIsNew: _sectionLabel(r).$2,
-              sectionWrite: _sectionWrite.value,
-              onSectionWrite: (v) => _sectionWrite.value = v,
-            ),
-          if (_error.value != null)
-            AppAlert(destructive: true, content: Text(_error.value!)),
-        ])
-          capped(child),
+        ],
+        if (!joining)
+          ToolPermissions(
+            name: r.name,
+            leading: [
+              if (_polls) ToolCheckCode(name: r.name, challenge: r.challenge),
+              if (_listing != null && _undeclared.isNotEmpty)
+                WorksWithMismatchAlert(service: _listing, extra: _undeclared),
+            ],
+            requester: _requester(r),
+            reasons: r.reasons,
+            allowRevoke: _allowRevoke.value,
+            allowHandOver: _allowHandOver.value,
+            onAllowRevoke: (v) => _allowRevoke.value = v,
+            onAllowHandOver: (v) => _allowHandOver.value = v,
+            showVault: _offersVault,
+            allowVaultRead: _allowVaultRead.value,
+            onAllowVaultRead: (v) => _allowVaultRead.value = v,
+            permissions: _asked,
+            granted: _granted.value,
+            onPermission: _setPermission,
+            showSection: r.section,
+            ownSection: _ownSection.value,
+            onOwnSection: (v) => _ownSection.value = v,
+            sectionName: _sectionLabel(r).$1,
+            sectionIsNew: _sectionLabel(r).$2,
+            reachedSectionNames: [
+              if (r.section && _ownSection.value) _sectionLabel(r).$1,
+              for (final section in Stores.vault.sections)
+                if (_existing.value?.sections.contains(section.id) ?? false)
+                  section.name.isEmpty ? section.key : section.name,
+            ],
+            sectionWrite: _sectionWrite.value,
+            onSectionWrite: (v) => _sectionWrite.value = v,
+          ),
+        if (_error.value != null)
+          AppAlert(destructive: true, content: Text(_error.value!)),
       ],
     );
   }
