@@ -489,13 +489,14 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               badge: _sectionBadges(context, section),
               noun: 'records',
               previewCount: 5,
+              count: shareEdit == null ? section.records.length : null,
               trailing: shareEdit != null
                   ? _WholeSectionToggle(
                       selected: shareEdit.sections.contains(section.id),
                       onChanged: (on) =>
                           _toggleShareSection(shareEdit, section, on),
                     )
-                  : _sectionMenu(context, section, sectionRecords.length),
+                  : _sectionMenu(context, section),
               children: [
                 ...?_sectionSource(context, section),
                 if (sectionRecords.isEmpty)
@@ -579,9 +580,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     };
     if (col == 'label' || col == 'key' || col == 'created') {
       sections.sort((a, b) {
-        final comp = field(
-          a.$1,
-        ).toLowerCase().compareTo(field(b.$1).toLowerCase());
+        final comp = field(a.$1)
+            .toLowerCase()
+            .compareTo(field(b.$1).toLowerCase());
         return asc ? comp : -comp;
       });
     }
@@ -726,23 +727,50 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             },
           )
         else
-          const AppText(
-            'Create a section to keep related items together.',
-          ).small.muted,
+          const AppText('Create a section to keep related items together.')
+              .small
+              .muted,
         AppSpacing.gapXxl,
         toolbar,
         AppSpacing.gapXl,
-        Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.sm,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            AppText('$title · $count').header,
-            if (section != null) ...[
-              _sectionBadges(context, section),
-              _sectionMenu(context, section, shown.length),
-            ],
-          ],
+        LayoutBuilder(
+          key: const ValueKey('vault-selected-section-header'),
+          builder: (context, box) => Observer(
+            builder: (context) {
+              final narrow =
+                  box.maxWidth < AppSpacing.narrowWidth ||
+                  MediaQuery.textScalerOf(context).scale(16) > 24;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: AppSpacing.md,
+                          runSpacing: AppSpacing.sm,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            AppText('$title · $count').header,
+                            if (section != null && !narrow)
+                              _sectionBadges(context, section),
+                          ],
+                        ),
+                      ),
+                      if (section != null) ...[
+                        AppSpacing.gapSm,
+                        _sectionMenu(context, section),
+                      ],
+                    ],
+                  ),
+                  if (section != null && narrow) ...[
+                    AppSpacing.gapXxs,
+                    _sectionBadges(context, section),
+                  ],
+                ],
+              );
+            },
+          ),
         ),
         if (section != null) ...?_sectionSource(context, section),
         if (shared != null) ...[
@@ -773,9 +801,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             Divider(height: 1, color: scheme.outlineVariant),
           ],
         AppSpacing.gapLg,
-        const AppText(
-          'Open an item to view its contents or manage access.',
-        ).small.muted,
+        const AppText('Open an item to view its contents or manage access.')
+            .small
+            .muted,
       ],
     );
   }
@@ -1236,9 +1264,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                   'End-to-end encryption.',
                 )
               else
-                AppText(
-                  r.isHidden && !revealed ? '•' * 12 : r.value,
-                ).mono.selectable,
+                AppText(r.isHidden && !revealed ? '•' * 12 : r.value)
+                    .mono
+                    .selectable,
               if (!r.isLocked) ...[
                 const SizedBox(height: AppSpacing.lg),
                 Wrap(
@@ -1327,74 +1355,64 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         saveError: () => Stores.vault.errorMessage,
       );
 
-  Widget _sectionMenu(BuildContext context, Section section, int shown) {
+  Widget _sectionMenu(BuildContext context, Section section) {
     final store = Stores.vault;
     final access = Stores.shares.linksForSection(section.id);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Who sees it and where it came from are beside the title; tools
-        // reading it are rows at the top of the section.
-        AppText('${section.records.length}').small.muted,
-        AppSpacing.gapXs,
-        AppMenuButton(
-          icon: AppIcons.threeDotsVertical,
-          tooltip: 'Section actions',
-          style: AppButtonStyle.ghost,
-          size: AppButtonSize.small,
-          chevron: false,
-          items: [
-            AppMenuItem(
-              icon: AppIcons.plusSlashMinus,
-              label: 'Add or remove records',
-              onSelected: () => store.editSection(section.id),
+    return AppMenuButton(
+      icon: AppIcons.threeDotsVertical,
+      tooltip: 'Section actions',
+      style: AppButtonStyle.accent,
+      size: AppButtonSize.normal,
+      chevron: false,
+      items: [
+        AppMenuItem(
+          icon: AppIcons.plusSlashMinus,
+          label: 'Add or remove records',
+          onSelected: () => store.editSection(section.id),
+        ),
+        if (section.isSignIn)
+          AppMenuItem(
+            icon: AppIcons.globe,
+            label: 'Open service',
+            onSelected: () => _openSignInService(context, section),
+          ),
+        if (access.isNotEmpty)
+          AppMenuItem(
+            icon: AppIcons.share,
+            label: 'Who has access · ${access.length}',
+            onSelected: () => _showVaultAccessSheet(
+              context,
+              title: _sectionName(section),
+              links: access,
             ),
-            if (section.isSignIn)
-              AppMenuItem(
-                icon: AppIcons.globe,
-                label: 'Open service',
-                onSelected: () => _openSignInService(context, section),
-              ),
-            if (access.isNotEmpty)
-              AppMenuItem(
-                icon: AppIcons.share,
-                label: 'Who has access · ${access.length}',
-                onSelected: () => _showVaultAccessSheet(
-                  context,
-                  title: _sectionName(section),
-                  links: access,
-                ),
-              ),
-            if (!section.isRequested)
-              AppMenuItem(
-                icon: AppIcons.personWorkspace,
-                label: 'Visibility',
-                onSelected: () => _openVisibility(context, section),
-              ),
-            AppMenuItem(
-              icon: AppIcons.pen,
-              label: 'Rename',
-              onSelected: () => openSectionRenameSheet(
-                context: context,
-                store: store,
-                section: section,
-              ),
-            ),
-            AppMenuItem(
-              icon: AppIcons.duplicate,
-              label: 'Duplicate',
-              onSelected: () =>
-                  openVaultCreateSheet(context, duplicateSection: section),
-            ),
-            null,
-            AppMenuItem(
-              icon: AppIcons.trash,
-              label: 'Delete',
-              destructive: true,
-              onSelected: () =>
-                  _confirmDeleteSection(context, store, section.id),
-            ),
-          ],
+          ),
+        if (!section.isRequested)
+          AppMenuItem(
+            icon: AppIcons.personWorkspace,
+            label: 'Visibility',
+            onSelected: () => _openVisibility(context, section),
+          ),
+        AppMenuItem(
+          icon: AppIcons.pen,
+          label: 'Rename',
+          onSelected: () => openSectionRenameSheet(
+            context: context,
+            store: store,
+            section: section,
+          ),
+        ),
+        AppMenuItem(
+          icon: AppIcons.duplicate,
+          label: 'Duplicate',
+          onSelected: () =>
+              openVaultCreateSheet(context, duplicateSection: section),
+        ),
+        null,
+        AppMenuItem(
+          icon: AppIcons.trash,
+          label: 'Delete',
+          destructive: true,
+          onSelected: () => _confirmDeleteSection(context, store, section.id),
         ),
       ],
     );

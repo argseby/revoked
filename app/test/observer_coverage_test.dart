@@ -18,7 +18,7 @@ void main() {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       if (!entity.path.contains('/view/')) continue;
 
-      final source = entity.readAsStringSync();
+      final source = _withoutRefresh(entity.readAsStringSync());
       // Command helpers build no widget, so there is nothing to wrap.
       if (!source.contains('Widget build(')) continue;
       final readsStore =
@@ -132,4 +132,15 @@ String? _balanced(String source, int start, String open, String close) {
     }
   }
   return null;
+}
+
+/// [source] with the body of `refresh()` removed: RefreshOnEntry calls it to
+/// load, outside any build, so its store calls are not reads to observe.
+String _withoutRefresh(String source) {
+  final at = source.indexOf('void refresh()');
+  if (at == -1) return source;
+  final open = source.indexOf('{', at);
+  final body = _balanced(source, open, '{', '}');
+  if (body == null) return source;
+  return source.replaceRange(open, open + body.length, '{}');
 }

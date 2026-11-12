@@ -1,5 +1,4 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -76,45 +75,31 @@ class _AttestationsScreenState extends State<AttestationsScreen>
       children: [
         DeviceKeyAlert(padding: EdgeInsets.fromLTRB(h, AppSpacing.md, h, 0)),
         Expanded(
-          child: Observer(
-            builder: (_) => AppTabs(
-              initialIndex: widget.initialTab,
-              tabs: [
-                AppTab(
-                  label: _counted(
-                    'Held',
-                    Stores.credentials.credentials.length,
-                  ),
-                  icon: AppIcons.safe,
-                  description: 'Attestations issued to you.',
-                  view: const HeldAttestations(),
-                ),
-                AppTab(
-                  label: _counted(
-                    'Issued',
-                    Stores.attestations.attestations.length,
-                  ),
-                  icon: AppIcons.attestation,
-                  description: 'Attestations issued by this workspace.',
-                  view: const IssuedAttestations(),
-                ),
-                AppTab(
-                  label: _counted(
-                    'Checked',
-                    Stores.attestationChecks.checks.length,
-                  ),
-                  icon: AppIcons.shieldCheck,
-                  description: 'Attestations from others, and their checks.',
-                  view: const CheckedAttestations(),
-                ),
-              ],
-            ),
+          child: AppTabs(
+            initialIndex: widget.initialTab,
+            tabs: const [
+              AppTab(
+                label: 'Held',
+                icon: AppIcons.safe,
+                description: 'Attestations issued to you.',
+                view: HeldAttestations(),
+              ),
+              AppTab(
+                label: 'Issued',
+                icon: AppIcons.attestation,
+                description: 'Attestations issued by this workspace.',
+                view: IssuedAttestations(),
+              ),
+              AppTab(
+                label: 'Checked',
+                icon: AppIcons.shieldCheck,
+                description: 'Attestations from others, and their checks.',
+                view: CheckedAttestations(),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 }
-
-String _counted(String label, int count) =>
-    count == 0 ? label : '$label · $count';

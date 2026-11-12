@@ -287,7 +287,7 @@ class _ServiceGroup extends StatelessWidget {
         children: [
           AppListHeader(
             title: title,
-            trailing: AppText('${children.length}').small.muted,
+            count: children.length,
           ),
           LayoutBuilder(
             builder: (context, box) {

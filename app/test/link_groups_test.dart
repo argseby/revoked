@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 
@@ -100,6 +101,98 @@ void main() {
     List<Widget> rows(int n) => [
       for (var i = 0; i < n; i++) AppListRow(icon: Icons.link, title: 'Row $i'),
     ];
+
+    for (final width in [320.0, 1200.0]) {
+      for (final scale in [1.0, 2.0]) {
+        testWidgets('count stays beside its title at $width and $scale text', (
+          tester,
+        ) async {
+          tester.view.physicalSize = Size(width, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(
+            host(
+              MediaQuery(
+                data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+                child: AppListGroup(title: 'Contacts', children: rows(3)),
+              ),
+            ),
+          );
+          final title = tester.getRect(find.text('Contacts'));
+          final count = tester.getRect(find.text('3'));
+          expect(count.left - title.right, 8);
+          expect(count.center.dy, closeTo(title.center.dy, 1));
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+
+    testWidgets(
+      'explicit count stays beside the title while action stays right',
+      (tester) async {
+        await tester.pumpWidget(
+          host(
+            AppListGroup(
+              title: 'Saved',
+              count: 37,
+              trailing: AppButton(label: 'Change', onTap: () {}),
+              children: rows(2),
+            ),
+          ),
+        );
+        final title = tester.getRect(find.text('Saved'));
+        final count = tester.getRect(find.text('37'));
+        final action = tester.getRect(find.byType(AppButton));
+        expect(count.left - title.right, 8);
+        expect(
+          action.right,
+          tester.view.physicalSize.width / tester.view.devicePixelRatio,
+        );
+        expect(count.right, lessThan(action.left));
+        expect(find.text('2'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('a hidden header count stays hidden', (tester) async {
+      await tester.pumpWidget(
+        host(
+          AppListGroup(
+            title: 'Details',
+            trailing: const SizedBox.shrink(),
+            children: rows(2),
+          ),
+        ),
+      );
+      expect(find.text('2'), findsNothing);
+    });
+
+    testWidgets('badges can wrap without separating title and count', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        host(
+          const AppListHeader(
+            title: 'Contacts',
+            count: 12,
+            badge: Text('Shared with the workspace'),
+          ),
+        ),
+      );
+      expect(
+        tester.getRect(find.text('12')).left -
+            tester.getRect(find.text('Contacts')).right,
+        8,
+      );
+      expect(
+        tester.getRect(find.text('Shared with the workspace')).top,
+        greaterThan(tester.getRect(find.text('Contacts')).bottom),
+      );
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('shows a preview and reveals the rest', (tester) async {
       await tester.pumpWidget(

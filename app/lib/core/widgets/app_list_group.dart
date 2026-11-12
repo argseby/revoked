@@ -13,7 +13,7 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 /// A named block of rows — the one shape every list and every detail page is
 /// built from:
 ///
-///   Needs attention                                   2
+///   Needs attention  2
 ///   ┌──────────────────────────────────────────────────┐
 ///   │ row                                              │
 ///   │ row                                              │
@@ -28,8 +28,12 @@ class AppListGroup extends StatefulWidget {
   final String title;
   final List<Widget> children;
 
-  /// Shown on the right of the header; defaults to how many rows the group
-  /// holds. A detail section passes an action ("Change") instead.
+  /// A count beside the title. Defaults to the number of rows when there
+  /// is no custom [trailing] widget.
+  final int? count;
+
+  /// An action or status on the right of the header. A custom trailing
+  /// widget suppresses the automatic count; [count] can still be explicit.
   final Widget? trailing;
 
   /// Rows shown before the "N more" toggle; 0 shows them all.
@@ -56,6 +60,7 @@ class AppListGroup extends StatefulWidget {
     required this.title,
     required this.children,
     this.trailing,
+    this.count,
     this.previewCount = 0,
     this.collapsed = false,
     this.collapsible = false,
@@ -139,7 +144,8 @@ class _AppListGroupState extends State<AppListGroup> {
           AppListHeader(
             title: w.title,
             badge: w.badge,
-            trailing: w.trailing ?? AppText('$total').small.muted,
+            count: w.count ?? (w.trailing == null ? total : null),
+            trailing: w.trailing,
           ),
           AppListCard(children: rows),
           if (w.footer != null)
@@ -164,12 +170,13 @@ class _AppListGroupState extends State<AppListGroup> {
   }
 }
 
-/// The label above a group of rows, with an optional count or action on the
-/// right. Groups are set apart by space rather than a rule, which doubled up
-/// with the top bar's edge on every page whose first item is a group.
+/// The label above a group of rows, with a count beside it and an optional
+/// action on the right. Groups are set apart by space rather than a rule,
+/// which doubled up with the top bar's edge on every page whose first item is a group.
 /// Announced as a heading, so a screen reader can jump between groups.
 class AppListHeader extends StatelessWidget {
   final String title;
+  final int? count;
   final Widget? trailing;
 
   /// A tag right after the title, before the space that pushes [trailing]
@@ -179,6 +186,7 @@ class AppListHeader extends StatelessWidget {
   const AppListHeader({
     super.key,
     required this.title,
+    this.count,
     this.trailing,
     this.badge,
   });
@@ -193,29 +201,32 @@ class AppListHeader extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: AppButton.smallExtent),
         child: Row(
           children: [
-            if (badge == null)
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: AppText(title).small.bold.muted,
-                ),
-              )
-            else ...[
-              Flexible(
-                child: Semantics(
-                  header: true,
-                  child: AppText(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ).small.bold.muted,
-                ),
+            Expanded(
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xxs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Semantics(
+                          header: true,
+                          child: AppText(title).small.bold.muted,
+                        ),
+                      ),
+                      if (count != null) ...[
+                        AppSpacing.gapSm,
+                        AppText('$count').small.muted,
+                      ],
+                    ],
+                  ),
+                  ?badge,
+                ],
               ),
-              AppSpacing.gapSm,
-              badge!,
-              const Spacer(),
-            ],
-            ?trailing,
+            ),
+            if (trailing != null) ...[AppSpacing.gapSm, trailing!],
           ],
         ),
       ),

@@ -222,8 +222,12 @@ void main() {
     await signedIn(tester, size: const Size(400, 800));
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
-    expect(find.widgetWithText(FloatingActionButton, 'New'), findsOneWidget);
+    // Each page carries its own create action, so New sits under More.
+    expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byTooltip('Open link or go to'), findsOneWidget);
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
+    expect(find.text('Create something new'), findsOneWidget);
   });
 
   testWidgets('a mid-sized window gets the rail', (tester) async {
@@ -248,7 +252,11 @@ void main() {
   testWidgets('a rail window from 900 pixels keeps the search pill', (
     tester,
   ) async {
-    await signedIn(tester, size: const Size(900, 800));
+    // Pages that title themselves in the body keep the bar for their own
+    // controls; a page titled in the bar has room for the pill.
+    final router = await signedIn(tester, size: const Size(900, 800));
+    router.go(AppRoutes.settings);
+    await tester.pumpAndSettle();
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.text('Open link or go to'), findsOneWidget);
   });
@@ -259,7 +267,7 @@ void main() {
     expect(
       find.text('Open link or go to'),
       findsNothing,
-      reason: 'there is no room for it beside the floating New button',
+      reason: 'there is no room for it in a phone\'s top bar',
     );
   });
 
@@ -274,7 +282,7 @@ void main() {
     expect(find.byTooltip('Open link or go to'), findsOneWidget);
     router.go(AppRoutes.vault);
     await tester.pumpAndSettle();
-    expect(find.text('Add to vault'), findsOneWidget);
+    expect(find.text('Add item'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -283,13 +291,11 @@ void main() {
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
     // The sidebar carries it, beside New, so the top bar does not repeat it.
-    expect(find.byTooltip('Open link or go to (/)'), findsOneWidget);
+    expect(find.text('Search everything…'), findsOneWidget);
     expect(find.byTooltip('Open link or go to'), findsNothing);
     // The bell sits beside the workspace, not in the list of places.
     expect(find.text('Notifications'), findsNothing);
     expect(find.byTooltip('Notifications'), findsOneWidget);
-    expect(find.text('Overview'), findsOneWidget);
-    expect(find.text('Lists'), findsOneWidget);
     for (final label in [
       'Home',
       'Vault',
@@ -500,34 +506,22 @@ void main() {
     }
 
     for (final size in const [Size(400, 800), Size(1200, 800)]) {
-      testWidgets('${size.width.toInt()} px: an empty list keeps the button', (
+      testWidgets('${size.width.toInt()} px: an empty list has no search', (
         tester,
       ) async {
         final router = await signedIn(tester, size: size);
-        router.go(AppRoutes.requests);
-        await tester.pumpAndSettle();
-        // Nothing listed (empty, or the first load failed), and still the
-        // button in the same place as on a full list, holding that list's search.
-        expect(
-          await panelHint(tester, const ['Search requests']),
-          'Search requests',
-        );
-        expect(inBar(find.byType(TextField)), findsNothing);
+        // The search sits in the list's own body, and an empty state has
+        // nothing to search.
         for (final (route, hint) in const [
+          (AppRoutes.requests, 'Search requests'),
           (AppRoutes.contacts, 'Search contacts'),
           (AppRoutes.attestations, 'Search held attestations'),
         ]) {
           router.go(route);
           await tester.pumpAndSettle();
-          expect(await panelHint(tester, [hint]), hint, reason: route);
+          expect(await panelHint(tester, [hint]), isNull, reason: route);
         }
-        // Each tab its own, empty or not.
-        await tester.tap(find.textContaining('Checked'));
-        await tester.pumpAndSettle();
-        expect(
-          await panelHint(tester, const ['Search checks']),
-          'Search checks',
-        );
+        expect(inBar(find.byType(TextField)), findsNothing);
         expect(tester.takeException(), isNull);
       });
     }
