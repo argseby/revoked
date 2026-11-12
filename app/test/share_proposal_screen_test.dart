@@ -12,6 +12,7 @@ import 'package:revoked_app/core/models/share_proposal.dart';
 import 'package:revoked_app/core/models/tool_client.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
+import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/features/connections/view/connect_screen.dart';
 import 'package:revoked_app/features/shares/view/share_proposal_screen.dart';
 
@@ -95,9 +96,10 @@ void main() {
         return json(created);
       }
       final filter = request.url.queryParameters['filter'] ?? '';
-      final keys = RegExp(
-        r'key = "([a-z0-9_-]+)"',
-      ).allMatches(filter).map((m) => m.group(1)).toSet();
+      final keys = RegExp(r'key = "([a-z0-9_-]+)"')
+          .allMatches(filter)
+          .map((m) => m.group(1))
+          .toSet();
       final ownOnly = filter.contains('requestedBy = ""');
       return json({
         'items': [
@@ -324,9 +326,9 @@ void main() {
       );
       expect(find.text('Connect Mietunterlagen'), findsOneWidget);
       // The owner's own choices sit in their own section, ticked to start.
-      expect(find.text('Permissions'), findsOneWidget);
-      expect(find.text('Revoke its links'), findsOneWidget);
-      expect(find.text('Receive links'), findsOneWidget);
+      expect(find.text('Links Mietunterlagen proposes'), findsOneWidget);
+      expect(find.text('Turn off its links and requests'), findsOneWidget);
+      expect(find.text('Get the links you approve'), findsOneWidget);
       // The connection is decided first; the link is reviewed after it.
       expect(find.textContaining('will receive this link'), findsNothing);
       await tester.tap(find.text('Continue'));
@@ -379,19 +381,28 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Connect Mietunterlagen'), findsOneWidget);
       expect(
-        find.text('No access to the vault, links or the account.'),
+        find.text(
+          'Your vault, links from elsewhere and account settings stay inaccessible.',
+        ),
         findsOneWidget,
       );
       // The tool's reason is quoted as its own words; unticking is respected.
+      expect(find.text('“To end a link you remove”'), findsOneWidget);
       expect(
-        find.text('Mietunterlagen says: “To end a link you remove”'),
+        find.descendant(
+          of: find.byWidgetPredicate(
+            (w) =>
+                w is AppListGroup && w.title == 'Links Mietunterlagen proposes',
+          ),
+          matching: find.text('“To end a link you remove”'),
+        ),
         findsOneWidget,
       );
       // The decision is pinned to the bottom, so a choice further down the
       // page has to be scrolled into view before it can be tapped.
-      await tester.ensureVisible(find.text('Receive links'));
+      await tester.ensureVisible(find.text('Get the links you approve'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Receive links'));
+      await tester.tap(find.text('Get the links you approve'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
@@ -463,10 +474,16 @@ void main() {
       }
 
       await askForVault();
-      expect(find.text('Read vault'), findsOneWidget);
+      expect(find.text('Read unencrypted vault records'), findsOneWidget);
       expect(find.text('Vault read access'), findsOneWidget);
+      expect(find.text('“To answer your questions”'), findsOneWidget);
       expect(
-        find.text('Assistant says: “To answer your questions”'),
+        find.descendant(
+          of: find.byWidgetPredicate(
+            (w) => w is AppListGroup && w.title == 'Access across your vault',
+          ),
+          matching: find.text('“To answer your questions”'),
+        ),
         findsOneWidget,
       );
       await tester.ensureVisible(find.text('Connect'));
@@ -475,11 +492,16 @@ void main() {
       expect(authorized.single['allowVaultRead'], false);
 
       await askForVault();
-      await tester.ensureVisible(find.text('Read vault'));
+      await tester.ensureVisible(find.text('Read unencrypted vault records'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Read vault'));
+      await tester.tap(find.text('Read unencrypted vault records'));
       await tester.pumpAndSettle();
-      expect(find.text('No access to links or the account.'), findsOneWidget);
+      expect(
+        find.text(
+          'Existing links from elsewhere and account settings stay inaccessible.',
+        ),
+        findsOneWidget,
+      );
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));
       await tester.pumpAndSettle();
@@ -487,7 +509,7 @@ void main() {
 
       // A page collecting its own answer is never offered it.
       await askForVault(poll: watched);
-      expect(find.text('Read vault'), findsNothing);
+      expect(find.text('Read unencrypted vault records'), findsNothing);
       expect(find.text('Vault read access'), findsNothing);
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));
@@ -517,12 +539,25 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Vault section'), findsOneWidget);
-      expect(find.text('Saves · new'), findsOneWidget);
-      expect(find.text('Saves says: “To keep your saves”'), findsOneWidget);
-      await tester.ensureVisible(find.text('Manage shares'));
+      expect(find.text('Keep records in “Saves”'), findsOneWidget);
+      expect(
+        find.text('Creates “Saves” in your vault when connected.'),
+        findsOneWidget,
+      );
+      expect(find.text('“To keep your saves”'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byWidgetPredicate(
+            (w) => w is AppListGroup && w.title == 'Records in your vault',
+          ),
+          matching: find.text('“To keep your saves”'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Records in “Saves” → sharing link'), findsOneWidget);
+      await tester.ensureVisible(find.text('Create and manage sharing links'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Manage shares'));
+      await tester.tap(find.text('Create and manage sharing links'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Connect'));
       await tester.tap(find.text('Connect'));

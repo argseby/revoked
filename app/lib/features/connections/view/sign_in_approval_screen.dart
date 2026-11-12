@@ -391,7 +391,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
   Widget _nameRow(SignInConsent c) {
     const slot = 'profile';
     return SignInPicker(
-      heading: 'Your name',
+      heading: 'Share a name',
       preview: 'Shown to ${c.clientHost} as',
       nothing: 'No name',
       newHint: 'New name',
@@ -428,7 +428,7 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
     }
     final section = 'Sign-in · ${c.clientHost}';
     return SignInPicker(
-      heading: 'Your ${l.key.replaceAll('_', ' ')}',
+      heading: 'Share your ${l.key.replaceAll('_', ' ')}',
       preview: 'Shown to ${c.clientHost}',
       nothing: 'Nothing',
       newHint: 'New value',
@@ -530,13 +530,14 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
           ],
         ),
         AppListGroup(
-          title: 'Disclosed to $host',
+          title: 'How $host recognises you',
           trailing: c.links.isEmpty && asksName ? chip : quiet,
           children: [
             pad(
               AppCheckRow(
-                label: 'Account identity',
-                subtitle: 'Through an ID dedicated to $host',
+                label: 'A separate ID for $host',
+                subtitle:
+                    'Required to sign in. This ID does not contain your email.',
                 value: true,
                 onChanged: null,
               ),
@@ -567,11 +568,11 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
         ),
         if (c.links.isNotEmpty)
           AppListGroup(
-            title: 'Readable by $host',
+            title: 'Entries $host can keep reading',
             trailing: chip,
             footer: Text(
-              'Shared entries remain in the vault. $host reads them there '
-              'until revoked.',
+              'Only the entries you choose are shared. They stay in your vault, '
+              'and $host can read their latest values until you stop sharing.',
             ),
             children: [
               for (final l in c.links)
@@ -597,9 +598,9 @@ class _SignInApprovalScreenState extends State<SignInApprovalScreen> {
               Stores.signInApproval.valueDraft(e.key).text.trim().isEmpty,
         );
     return AppActionBar(
-      note: const Text(
-        'Nothing is shared until confirmed on this device.',
-      ).muted.small,
+      note: const Text('Nothing is shared until confirmed on this device.')
+          .muted
+          .small,
       children: [
         AppButton(
           label: 'Decline',

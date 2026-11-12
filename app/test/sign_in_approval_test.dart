@@ -195,11 +195,11 @@ void main() {
     expect(opened.single['params']['state'], 'st-1');
     expect(launched, isEmpty, reason: 'deciding happens here, not there');
     expect(find.text('Sign in to game.example'), findsOneWidget);
-    expect(find.text('Your name'), findsOneWidget);
+    expect(find.text('Share a name'), findsOneWidget);
     expect(find.text('Shown to game.example as'), findsOneWidget);
     expect(find.text('Ada Lovelace'), findsWidgets);
     expect(find.text('Your email address'), findsOneWidget);
-    expect(find.text('Your phone'), findsOneWidget);
+    expect(find.text('Share your phone'), findsOneWidget);
     expect(find.text('+49'), findsWidgets);
     expect(decisions, isEmpty);
   });

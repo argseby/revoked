@@ -328,8 +328,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       icon: AppIcons.exclamationTriangle,
       accent: Theme.of(context).colorScheme.error,
       title: 'Invalid link',
-      message:
-          'This tool cannot be connected. A new link is required from the tool.',
+      message: 'This tool cannot be connected. A new link is required from the tool.',
       actions: [
         AppButton(
           label: 'Back to the app',
@@ -429,6 +428,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
       bottomPadding: AppSpacing.xxl,
       children: [
         for (final child in <Widget>[
+          if (!joining) const Text('Choose what this tool can do in Revoked.'),
           _requester(r),
           if (_polls) ToolCheckCode(name: r.name, challenge: r.challenge),
           if (!joining && _listing != null && _undeclared.isNotEmpty)
@@ -452,6 +452,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
               onOwnSection: (v) => _ownSection.value = v,
               sectionName: _sectionLabel(r).$1,
               sectionIsNew: _sectionLabel(r).$2,
+              reachedSectionNames: [
+                if (r.section && _ownSection.value) _sectionLabel(r).$1,
+                for (final section in Stores.vault.sections)
+                  if (_existing.value?.sections.contains(section.id) ?? false)
+                    section.name.isEmpty ? section.key : section.name,
+              ],
               sectionWrite: _sectionWrite.value,
               onSectionWrite: (v) => _sectionWrite.value = v,
             ),

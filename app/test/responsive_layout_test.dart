@@ -570,8 +570,13 @@ void main() {
             ).toString(),
           );
           await tester.pumpAndSettle();
-          expect(find.text('Vault section'), findsOneWidget);
-          expect(find.text('Manage'), findsOneWidget);
+          expect(
+            find.text(
+              'Keep records in “A rather long assistant name, 40 chars”',
+            ),
+            findsOneWidget,
+          );
+          expect(find.text('Read & add records'), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );

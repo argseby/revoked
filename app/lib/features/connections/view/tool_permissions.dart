@@ -11,10 +11,8 @@ import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 
-/// What a connected tool may do, as one list of switches — the same on the
-/// connect screen, on a proposal that connects, and under Connected tools, so
-/// what the owner agreed to is what they later read. The tool's own reasons
-/// and what it can never reach sit under the list.
+/// Groups a tool’s permissions by outcome, with a preview and its own reason
+/// beside each choice. Shared by connection consent, proposals and settings.
 class ToolPermissions extends StatelessWidget {
   final String name;
 
@@ -48,6 +46,9 @@ class ToolPermissions extends StatelessWidget {
   final String sectionName;
   final bool sectionIsNew;
 
+  /// Names of enabled sections when managing an existing connection.
+  final List<String> reachedSectionNames;
+
   /// Whether the tool may add records to its section, not only read it.
   final bool sectionWrite;
   final ValueChanged<bool>? onSectionWrite;
@@ -73,6 +74,7 @@ class ToolPermissions extends StatelessWidget {
     this.onOwnSection,
     this.sectionName = '',
     this.sectionIsNew = false,
+    this.reachedSectionNames = const [],
     this.sectionWrite = true,
     this.onSectionWrite,
     this.reasons = const ToolReasons(),
@@ -89,150 +91,225 @@ class ToolPermissions extends StatelessWidget {
     'attestations:issue',
   ];
 
-  /// The icon, label and line for a permission, said for a tool rather than
-  /// a member. The label falls back to the catalogue's own name for a key
-  /// the catalogue hasn't served yet, never the raw key.
-  (IconData, String, String) _detail(InvitePermission p) {
-    String label(String fallback) => p.label == p.key ? fallback : p.label;
-    return switch (p.key) {
-      'shares:manage' => (
-        AppIcons.share,
-        label('Manage shares'),
-        showVault && allowVaultRead ? 'Across the vault' : 'Within its section',
-      ),
-      'requests:manage' => (
-        AppIcons.askFor,
-        label('Manage requests'),
-        'On the owner’s behalf',
-      ),
-      'attestations:issue' => (
-        AppIcons.shieldCheck,
-        label('Issue attestations'),
-        'Attestations it proposed',
-      ),
-      _ => (AppIcons.shieldCheck, p.label, p.description),
-    };
+  String get _section => sectionName.isEmpty ? name : sectionName;
+
+  String get _source {
+    if (showVault && allowVaultRead) {
+      return 'Unencrypted records across your vault';
+    }
+    if (reachedSectionNames.isNotEmpty) {
+      return 'Records in ${reachedSectionNames.map((section) => '“$section”').join(', ')}';
+    }
+    if (ownSection) return 'Records in “$_section”';
+    return 'No vault records selected';
   }
+
+  (IconData, String, String, String) _detail(InvitePermission p) =>
+      switch (p.key) {
+        'shares:manage' => (
+          AppIcons.share,
+          'Create and manage sharing links',
+          'Create, change or delete links without a separate approval for each one.',
+          '$_source → sharing link',
+        ),
+        'requests:manage' => (
+          AppIcons.askFor,
+          'Create and manage requests',
+          'Ask other people for information on your behalf, without a separate approval for each request.',
+          'A request from you → answers collected in Revoked',
+        ),
+        'attestations:issue' => (
+          AppIcons.shieldCheck,
+          'Issue attestations it proposes',
+          'Issue attestations proposed by this tool on your behalf.',
+          'An attestation proposed by $name → issued by you',
+        ),
+        _ => (AppIcons.shieldCheck, p.label, p.description, ''),
+      };
 
   String get _noAccess {
     if (showVault && allowVaultRead) {
-      return 'No access to links or the account.';
+      return 'Existing links from elsewhere and account settings stay inaccessible.';
     }
-    if (ownSection) {
-      return 'No access to the rest of the vault, links or the account.';
+    if (ownSection || reachedSectionNames.isNotEmpty) {
+      return 'The rest of your vault, links from elsewhere and account settings stay inaccessible.';
     }
-    return 'No access to the vault, links or the account.';
+    return 'Your vault, links from elsewhere and account settings stay inaccessible.';
   }
 
   @override
   Widget build(BuildContext context) {
+    Widget reason(String text) => Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Why $name asks').small.bold,
+          AppSpacing.gapXs,
+          Text('“$text”').muted.small,
+        ],
+      ),
+    );
+
     Widget toggle({
       required IconData icon,
       required String label,
       required String subtitle,
       required bool value,
       required ValueChanged<bool>? onChanged,
+      String preview = '',
+      String why = '',
+      Widget? choice,
       bool sensitive = false,
-    }) => AppFormToggleRow(
-      icon: icon,
-      label: label,
-      subtitle: subtitle,
-      value: value,
-      onChanged: onChanged,
-      badge: sensitive ? 'Sensitive' : null,
-      badgeVariant: AppBadgeVariant.destructive,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+    }) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppFormToggleRow(
+          icon: icon,
+          label: label,
+          subtitle: subtitle,
+          value: value,
+          onChanged: onChanged,
+          badge: sensitive ? 'Sensitive' : null,
+          badgeVariant: AppBadgeVariant.destructive,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        ),
+        if (preview.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              0,
+              AppSpacing.md,
+              AppSpacing.md,
+            ),
+            child: AppAlert(
+              leading: Icon(icon),
+              title: Text(value ? 'What this allows' : 'Not allowed'),
+              content: Text(preview).small,
+            ),
+          ),
+        ?choice,
+        if (why.isNotEmpty) reason(why),
+      ],
     );
+
     final own = [
       for (final key in onItsOwn)
         for (final p in permissions)
           if (p.key == key) p,
     ];
-    final said = [
-      reasons.section,
-      reasons.permissions,
-      reasons.revoke,
-      reasons.links,
-      if (showVault) reasons.vault,
-    ].where((r) => r.isNotEmpty);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppListGroup(
-          title: 'Permissions',
-          trailing: const SizedBox.shrink(),
-          footer: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        if (showSection)
+          AppListGroup(
+            title: 'Records in your vault',
+            trailing: const SizedBox.shrink(),
             children: [
-              for (final reason in said) ...[
-                Text('$name says: “$reason”').muted.small.italic,
-                AppSpacing.gapXs,
-              ],
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(AppIcons.lock, size: 16),
-                  AppSpacing.gapSm,
-                  Expanded(child: Text(_noAccess)),
-                ],
-              ),
-              AppSpacing.gapXs,
-              const Text('Connections expire after 90 days unless renewed.'),
-            ],
-          ),
-          children: [
-            if (showSection) ...[
               toggle(
                 icon: sectionIsNew ? AppIcons.folderPlus : AppIcons.folder,
-                label: 'Vault section',
-                subtitle: sectionIsNew ? '$sectionName · new' : sectionName,
+                label: 'Keep records in “$_section”',
+                subtitle: sectionIsNew
+                    ? 'Creates “$_section” in your vault when connected.'
+                    : 'Use the “$_section” section in your vault.',
                 value: ownSection,
                 onChanged: onOwnSection,
+                preview: 'Your vault → $_section',
+                choice: ownSection
+                    ? SectionAccessChoice(
+                        write: sectionWrite,
+                        onChanged: onSectionWrite,
+                      )
+                    : null,
+                why: reasons.section,
               ),
-              if (ownSection)
-                SectionAccessChoice(
-                  write: sectionWrite,
-                  onChanged: onSectionWrite,
+            ],
+          ),
+        if (own.isNotEmpty)
+          AppListGroup(
+            title: 'Actions $name can take',
+            trailing: const SizedBox.shrink(),
+            footer: reasons.permissions.isEmpty
+                ? null
+                : reason(reasons.permissions),
+            children: [
+              for (final p in own)
+                toggle(
+                  icon: _detail(p).$1,
+                  label: _detail(p).$2,
+                  subtitle: _detail(p).$3,
+                  preview: _detail(p).$4,
+                  value: granted.contains(p.key),
+                  sensitive: sensitive.contains(p.key),
+                  onChanged: onPermission == null
+                      ? null
+                      : (v) => onPermission!(p.key, v),
                 ),
             ],
-            for (final p in own)
-              toggle(
-                icon: _detail(p).$1,
-                label: _detail(p).$2,
-                subtitle: _detail(p).$3,
-                value: granted.contains(p.key),
-                sensitive: sensitive.contains(p.key),
-                onChanged: onPermission == null
-                    ? null
-                    : (v) => onPermission!(p.key, v),
-              ),
-            toggle(
-              icon: AppIcons.linkSlash,
-              label: 'Revoke its links',
-              subtitle: 'Links and requests it proposed',
-              value: allowRevoke,
-              onChanged: onAllowRevoke,
-            ),
+          ),
+        AppListGroup(
+          title: 'Links $name proposes',
+          trailing: const SizedBox.shrink(),
+          children: [
             toggle(
               icon: AppIcons.send,
-              label: 'Receive links',
-              subtitle: 'Links it proposed, once created',
+              label: 'Get the links you approve',
+              subtitle: 'Receive eligible links it proposed so it can display, open or copy them.',
+              preview: 'A link you approve → $name',
+              why: reasons.links,
               value: allowHandOver,
               onChanged: onAllowHandOver,
             ),
-            if (showVault)
+            toggle(
+              icon: AppIcons.linkSlash,
+              label: 'Turn off its links and requests',
+              subtitle: 'Revoke links and requests that $name proposed.',
+              why: reasons.revoke,
+              value: allowRevoke,
+              onChanged: onAllowRevoke,
+            ),
+          ],
+        ),
+        if (showVault)
+          AppListGroup(
+            title: 'Access across your vault',
+            trailing: const SizedBox.shrink(),
+            children: [
               toggle(
                 icon: AppIcons.safe,
-                label: 'Read vault',
-                subtitle: 'Every record except encrypted ones',
+                label: 'Read unencrypted vault records',
+                subtitle: 'Read every unencrypted record, including records outside its sections.',
+                preview: 'Unencrypted records in your vault → $name',
+                why: reasons.vault,
                 value: allowVaultRead,
                 sensitive: true,
                 onChanged: onAllowVaultRead,
               ),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: VaultReadNotice(name: name),
+              ),
+            ],
+          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(AppIcons.lock, size: 16),
+            AppSpacing.gapSm,
+            Expanded(child: Text(_noAccess).small.muted),
           ],
         ),
-        if (showVault) ...[VaultReadNotice(name: name), AppSpacing.gapLg],
+        AppSpacing.gapXs,
+        const Text('Connections expire after 90 days unless renewed.')
+            .small
+            .muted,
+        AppSpacing.gapLg,
       ],
     );
   }
@@ -262,11 +339,15 @@ class SectionAccessChoice extends StatelessWidget {
             expand: true,
             value: write,
             items: const [
-              AppSegmentedItem(value: false, icon: AppIcons.eye, label: 'Read'),
+              AppSegmentedItem(
+                value: false,
+                icon: AppIcons.eye,
+                label: 'Read only',
+              ),
               AppSegmentedItem(
                 value: true,
                 icon: AppIcons.pencil,
-                label: 'Manage',
+                label: 'Read & add records',
               ),
             ],
             onChanged: (v) => onChanged?.call(v),

@@ -214,18 +214,18 @@ void main() {
   testWidgets('reading the vault shows while it is on, and can only be '
       'turned off', (tester) async {
     await signedIn(tester);
-    expect(find.text('Read vault'), findsNothing);
+    expect(find.text('Read unencrypted vault records'), findsNothing);
 
     tool['allowVaultRead'] = true;
     await Stores.connections.load();
     await tester.pumpAndSettle();
     expect(find.text('Vault read access'), findsOneWidget);
-    await tester.ensureVisible(find.text('Read vault'));
+    await tester.ensureVisible(find.text('Read unencrypted vault records'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Read vault'));
+    await tester.tap(find.text('Read unencrypted vault records'));
     await tester.pumpAndSettle();
     expect(calls, ['permissions {"allowVaultRead":false}']);
-    expect(find.text('Read vault'), findsNothing);
+    expect(find.text('Read unencrypted vault records'), findsNothing);
   });
 
   testWidgets('what it does on its own comes from the catalogue, and '
@@ -236,9 +236,9 @@ void main() {
     // Only what a tool does by itself is offered here.
     expect(find.text('Invite members'), findsNothing);
     expect(find.text('View shares'), findsNothing);
-    await tester.ensureVisible(find.text('Manage shares'));
+    await tester.ensureVisible(find.text('Create and manage sharing links'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Manage shares'));
+    await tester.tap(find.text('Create and manage sharing links'));
     await tester.pumpAndSettle();
     expect(calls, ['permissions {"permissions":[]}']);
   });
@@ -252,9 +252,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Its own'), findsOneWidget);
-    await tester.ensureVisible(find.text('Read'));
+    await tester.ensureVisible(find.text('Read only'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Read'));
+    await tester.tap(find.text('Read only'));
     await tester.pumpAndSettle();
     expect(calls.last, 'permissions {"permissions":["vault:read"]}');
 
@@ -276,7 +276,7 @@ void main() {
 
     expect(find.text('Vault sections'), findsOneWidget);
     expect(find.text('Its own'), findsOneWidget);
-    expect(find.text('Manage · 0 records'), findsOneWidget);
+    expect(find.text('Read & add records · 0 records'), findsOneWidget);
     expect(find.text('Read · 0 records'), findsOneWidget);
     expect(find.text('Travel'), findsOneWidget);
 
@@ -315,15 +315,15 @@ void main() {
   ) async {
     await signedIn(tester);
 
-    await tester.ensureVisible(find.text('Active'));
+    await tester.ensureVisible(find.text('Keep Flat tool active'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Active'));
+    await tester.tap(find.text('Keep Flat tool active'));
     await tester.pumpAndSettle();
     expect(calls, ['pause {}']);
     expect(find.text('Paused'), findsOneWidget);
     expect(find.textContaining('has no access while paused'), findsOneWidget);
 
-    await tester.tap(find.text('Active'));
+    await tester.tap(find.text('Keep Flat tool active'));
     await tester.pumpAndSettle();
     expect(calls.last, 'resume {}');
     expect(find.text('Paused'), findsNothing);

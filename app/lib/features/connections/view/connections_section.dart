@@ -345,7 +345,9 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
       }
     }
     final ownOn = connection.hasOwnSection;
-    final access = connection.vaultAccess == 'read' ? 'Read' : 'Manage';
+    final access = connection.vaultAccess == 'read'
+        ? 'Read only'
+        : 'Read & add records';
     return AppListGroup(
       title: 'Vault sections',
       trailing: const SizedBox.shrink(),
@@ -483,8 +485,8 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
             if (!connection.isExpired)
               AppFormToggleRow(
                 icon: AppIcons.pause,
-                label: 'Active',
-                subtitle: 'Off pauses it and its links',
+                label: 'Keep ${connection.name} active',
+                subtitle: 'Turning this off pauses the tool and its links.',
                 value: !connection.paused,
                 onChanged: store.isChanging
                     ? null
@@ -493,6 +495,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
               ),
           ],
         ),
+        _sections(connection),
         ToolPermissions(
           name: connection.name,
           allowRevoke: connection.allowRevoke,
@@ -515,10 +518,14 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
           onPermission: (key, on) => _change(
             store.setPermission(connection, key, on, Stores.invites.catalogue),
           ),
-          // Its sections have a group of their own below.
+          // Its section controls are grouped above the action permissions.
           ownSection: connection.reachedSections.isNotEmpty,
+          reachedSectionNames: [
+            for (final section in Stores.vault.sections)
+              if (connection.reachedSections.contains(section.id))
+                _sectionName(section),
+          ],
         ),
-        _sections(connection),
         AppListGroup(
           title: 'Links from ${connection.name}',
           noun: 'links',

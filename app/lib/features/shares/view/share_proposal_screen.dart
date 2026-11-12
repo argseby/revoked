@@ -1,4 +1,5 @@
 import 'package:revoked_app/core/models/tool_client.dart';
+
 import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
@@ -789,12 +790,26 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
           ],
         ),
         AppListGroup(
-          title: 'Connection',
+          title: 'Proposed sharing link',
+          trailing: const SizedBox.shrink(),
+          children: [
+            AppDetailRow(icon: AppIcons.link, label: p.label),
+            AppDetailRow(
+              label: 'Requested entries',
+              value: _items.value.isEmpty
+                  ? p.keys.map((key) => key.replaceAll('_', ' ')).join(', ')
+                  : _items.value.map((item) => item.title).join(', '),
+            ),
+          ],
+        ),
+        AppListGroup(
+          title: 'Keep ${p.from} connected',
           trailing: const SizedBox.shrink(),
           footer: Text(
             connecting
-                ? 'The proposed link is reviewed next.'
-                : 'The link is reviewed next. ${p.from} learns nothing about it.',
+                ? 'You review the link contents next, before creating it.'
+                : 'You can continue without connecting. The link is reviewed '
+                      'next, and ${p.from} learns nothing about it.',
           ),
           children: [
             if (_canConnect)
@@ -802,8 +817,9 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
                 AppCheckRow(
                   label: 'Connect ${p.from}',
                   subtitle:
-                      'Access to the status of proposed links only. The vault '
-                      'stays unreadable.',
+                      'See the status of links it proposes. Your vault stays '
+                      'unreadable. Choose below whether it also receives or '
+                      'can turn off those links.',
                   value: connecting,
                   onChanged: (v) => _connectNow.value = v,
                 ),
@@ -1004,8 +1020,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
             !_plainSensitiveSelected)
           AppCheckRow(
             label: 'Hand this encrypted link to ${p.from}',
-            subtitle:
-                'The tool receives the address key and can read, copy or store every encrypted value on this link. This choice applies to this link only.',
+            subtitle: 'The tool receives the address key and can read, copy or store every encrypted value on this link. This choice applies to this link only.',
             value: _allowEncryptedHandOver.value,
             onChanged: (v) => _allowEncryptedHandOver.value = v,
           ),
