@@ -99,7 +99,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           VaultComposerHeader(
-            title: 'Issue an attestation',
+            title: 'New attestation',
             area: 'Attestations',
             areaIcon: AppIcons.attestation,
             subtitle:
@@ -251,7 +251,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
           const AppDivider(),
           AppComposerFooter(
             label: 'Create offer',
-            icon: AppIcons.arrowRight,
+            icon: AppIcons.plus,
             busy: _store.isCreating,
             onSubmit: _store.isCreating ? null : _submit,
             onCancel: _store.isCreating

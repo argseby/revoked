@@ -147,7 +147,7 @@ void main() {
     await open(tester);
 
     expect(find.text('No contacts'), findsOneWidget);
-    expect(find.text('Add contact'), findsOneWidget);
+    expect(find.text('New contact'), findsOneWidget);
   });
 
   testWidgets('a contact with an account here reads as reachable', (

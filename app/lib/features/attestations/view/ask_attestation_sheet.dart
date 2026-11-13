@@ -58,7 +58,7 @@ class _AskSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               VaultComposerHeader(
-                title: 'Ask for an attestation',
+                title: 'New attestation request',
                 area: 'Attestations',
                 areaIcon: AppIcons.attestation,
                 subtitle:
@@ -123,7 +123,7 @@ class _AskSheet extends StatelessWidget {
               const AppDivider(),
               AppComposerFooter(
                 label: 'Create link',
-                icon: AppIcons.qrCode,
+                icon: AppIcons.plus,
                 onSubmit: problem == null ? () => _create(context) : null,
                 onCancel: () => Navigator.of(context).pop(),
               ),

@@ -107,7 +107,7 @@ void main() {
   ) async {
     await _show(tester);
     expect(find.text('Your sharing'), findsOneWidget);
-    expect(find.text('Share items'), findsOneWidget);
+    expect(find.text('New link'), findsOneWidget);
     expect(find.text('Email address'), findsNWidgets(3));
     expect(find.textContaining('secret-email@example.com'), findsNothing);
     expect(find.text('Landlord'), findsOneWidget);

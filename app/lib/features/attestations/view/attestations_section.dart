@@ -242,8 +242,8 @@ class _HeldAttestationsState extends State<HeldAttestations> {
           title: 'Attestations about you',
           listTitle: 'Your attestations',
           action: AppButton(
-            icon: AppIcons.askFor,
-            label: 'Ask for attestation',
+            icon: AppIcons.plus,
+            label: 'New attestation request',
             onTap: () => openAskAttestationSheet(context),
           ),
           toolbar: _tools.toolbar(searched),
@@ -619,8 +619,8 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
           title: 'Attestations you issue',
           listTitle: 'Issued attestations',
           action: AppButton(
-            icon: AppIcons.attestation,
-            label: 'Issue attestation',
+            icon: AppIcons.plus,
+            label: 'New attestation',
             onTap: off ? null : () => showAttestationCreateSheet(context),
           ),
           toolbar: _tools.toolbar(searched),
@@ -765,8 +765,8 @@ class _CheckedAttestationsState extends State<CheckedAttestations> {
           title: 'Attestation checks',
           listTitle: 'Checks and answers',
           action: AppButton(
-            icon: AppIcons.shieldCheck,
-            label: 'Check attestation',
+            icon: AppIcons.plus,
+            label: 'New check',
             onTap: () => openAttestationCheckSheet(context),
           ),
           toolbar: _tools.toolbar(searched),

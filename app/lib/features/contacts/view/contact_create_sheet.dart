@@ -47,7 +47,7 @@ class _CreateSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             VaultComposerHeader(
-              title: 'Add a contact',
+              title: 'New contact',
               area: 'Contacts',
               areaIcon: AppIcons.person,
               subtitle:
@@ -124,8 +124,8 @@ class _CreateSheet extends StatelessWidget {
               ),
             const AppDivider(),
             AppComposerFooter(
-              label: 'Add contact',
-              icon: AppIcons.personPlus,
+              label: 'Create contact',
+              icon: AppIcons.plus,
               busy: store.isSaving,
               onSubmit: store.canSave ? () => _create(context) : null,
               onCancel: store.isSaving

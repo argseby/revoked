@@ -239,8 +239,8 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
     title: 'Your contacts',
     description: 'People you share with and ask for information.',
     action: AppButton(
-      icon: AppIcons.personPlus,
-      label: 'Add contact',
+      icon: AppIcons.plus,
+      label: 'New contact',
       onTap: () => openContactCreateSheet(context),
     ),
   );

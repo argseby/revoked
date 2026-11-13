@@ -249,8 +249,8 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: AppButton(
-                icon: AppIcons.personPlus,
-                label: 'Add contact',
+                icon: AppIcons.plus,
+                label: 'New contact',
                 style: AppButtonStyle.ghost,
                 onTap: () => openContactCreateSheet(context),
               ),

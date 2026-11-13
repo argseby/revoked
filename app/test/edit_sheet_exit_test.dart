@@ -80,7 +80,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(Stores.vault.recordKey.text, 'typed_key');
-      expect(find.text('Save record'), findsOneWidget);
+      expect(find.text('Create record'), findsOneWidget);
     });
   });
 }

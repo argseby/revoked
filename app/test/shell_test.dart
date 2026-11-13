@@ -288,7 +288,7 @@ void main() {
     expect(find.byTooltip('Open link or go to'), findsOneWidget);
     router.go(AppRoutes.vault);
     await tester.pumpAndSettle();
-    expect(find.text('Add item'), findsOneWidget);
+    expect(find.text('New record'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

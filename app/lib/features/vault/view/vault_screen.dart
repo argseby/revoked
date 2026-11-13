@@ -284,7 +284,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     description: 'Private and secure place for your information.',
     action: AppButton(
       icon: AppIcons.plus,
-      label: 'Add item',
+      label: 'New record',
       onTap: () => openVaultCreateSheet(context),
     ),
   );
@@ -724,7 +724,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             AppButton(
               label: 'New section',
               emphasizeLabel: false,
-              icon: AppIcons.folderPlus,
+              icon: AppIcons.plus,
               size: AppButtonSize.small,
               style: AppButtonStyle.outline,
               onTap: () => openVaultCreateSheet(

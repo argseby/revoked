@@ -411,10 +411,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                         AppSpacing.gapSm,
                         Flexible(
                           child: AppButton(
-                            trailingIcon: isDup
-                                ? AppIcons.copy
-                                : AppIcons.arrowRight,
-                            label: isDup ? 'Duplicate record' : 'Save record',
+                            icon: isDup ? AppIcons.copy : AppIcons.plus,
+                            label: isDup ? 'Duplicate record' : 'Create record',
                             busy: _store.isSubmittingRecord,
                             onTap: canSubmit ? _submit : null,
                           ),

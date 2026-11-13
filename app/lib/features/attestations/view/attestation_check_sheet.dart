@@ -143,7 +143,7 @@ class _Form extends StatelessWidget {
             AppSpacing.gapMd,
             Expanded(
               child: AppButton(
-                icon: AppIcons.qrCode,
+                icon: AppIcons.plus,
                 label: 'Create check',
                 busy: store.isCreating,
                 onTap: store.isCreating ? null : () => _create(context),

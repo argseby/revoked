@@ -52,13 +52,13 @@ void main() {
         (
           name: 'vault',
           page: () => const VaultScreen(),
-          action: 'Add item',
+          action: 'New record',
           state: () => Stores.vault.loadState,
         ),
         (
           name: 'shares',
           page: () => const SharesScreen(),
-          action: 'Share items',
+          action: 'New link',
           state: () => Stores.shares.loadState,
         ),
         (
@@ -70,25 +70,25 @@ void main() {
         (
           name: 'contacts',
           page: () => const ContactsScreen(),
-          action: 'Add contact',
+          action: 'New contact',
           state: () => Stores.contacts.loadState,
         ),
         (
           name: 'held attestations',
           page: () => const HeldAttestations(),
-          action: 'Ask for attestation',
+          action: 'New attestation request',
           state: () => Stores.credentials.loadState,
         ),
         (
           name: 'issued attestations',
           page: () => const IssuedAttestations(),
-          action: 'Issue attestation',
+          action: 'New attestation',
           state: () => Stores.attestations.loadState,
         ),
         (
           name: 'attestation checks',
           page: () => const CheckedAttestations(),
-          action: 'Check attestation',
+          action: 'New check',
           state: () => Stores.attestationChecks.loadState,
         ),
         (
@@ -122,9 +122,8 @@ void main() {
                   small ? Brightness.dark : Brightness.light,
                 ),
                 builder: (context, child) => MediaQuery(
-                  data: MediaQuery.of(
-                    context,
-                  ).copyWith(textScaler: TextScaler.linear(small ? 1.5 : 1)),
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: TextScaler.linear(small ? 1.5 : 1)),
                   child: child!,
                 ),
                 home: Scaffold(body: screen.page()),

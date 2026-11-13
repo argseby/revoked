@@ -100,7 +100,7 @@ void main() {
   }
 
   AppButton saveButton(WidgetTester tester) =>
-      tester.widget<AppButton>(find.widgetWithText(AppButton, 'Save record'));
+      tester.widget<AppButton>(find.widgetWithText(AppButton, 'Create record'));
 
   testWidgets('switching types retains separate drafts and file attachment', (
     tester,
@@ -158,7 +158,7 @@ void main() {
       await pick(tester, 'Record');
       expect(Stores.vault.recordValue.text, 'hello');
       expect(Stores.vault.recordFormat, 'hidden');
-      await tester.tap(find.text('Save record'));
+      await tester.tap(find.text('Create record'));
       await tester.pumpAndSettle();
       expect(writes, hasLength(1));
       expect(writes.single, containsPair('key', 'my_note'));

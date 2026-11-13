@@ -20,7 +20,7 @@ void main() {
     WidgetTester tester, {
     required double width,
     String title = 'Your sharing',
-    String action = 'Share items',
+    String action = 'New link',
     double textScale = 1,
   }) async {
     tester.view.physicalSize = Size(width, 900);
@@ -88,8 +88,8 @@ void main() {
 
   for (final (title, action) in [
     ('Your requests', 'New request'),
-    ('Your vault', 'Add item'),
-    ('Your contacts', 'Add contact'),
+    ('Your vault', 'New record'),
+    ('Your contacts', 'New contact'),
     ('Shared with you', 'Open a link'),
   ]) {
     testWidgets('$title keeps its action beside the title on a phone', (
@@ -112,7 +112,7 @@ void main() {
       tester.getRect(find.byType(AppButton)).top,
       greaterThan(tester.getRect(find.text('Your sharing')).bottom),
     );
-    expect(find.text('Share items'), findsOneWidget);
+    expect(find.text('New link'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

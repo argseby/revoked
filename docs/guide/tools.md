@@ -51,7 +51,7 @@ Besides shares, a tool can propose:
   workspace's templates. The app opens **New request** with the template,
   the title and the end date filled in.
 - an **attestation**, to confirm something about someone in the domain's
-  name. The app opens **Issue an attestation** with the kind and
+  name. The app opens **New attestation** with the kind and
   the details to fill in. Every value is set by the owner.
 - a **check**, to ask someone to present an attestation. The app opens
   **See someone's attestation** with the requested criteria.

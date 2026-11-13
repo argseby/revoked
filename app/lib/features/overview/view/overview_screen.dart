@@ -154,7 +154,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           description: 'Your inbound and outgoing information at a glance.',
           action: AppButton(
             icon: AppIcons.plus,
-            label: 'Add item',
+            label: 'New record',
             onTap: () => openVaultCreateSheet(context),
           ),
         ),
