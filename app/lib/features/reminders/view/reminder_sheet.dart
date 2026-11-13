@@ -279,6 +279,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
       AppSpacing.gapSm,
       AppFormField(
         label: 'Due date',
+        missing: due == null,
         child: AppPickerField(
           text: due == null ? 'Pick a date' : formatReminderDay(due),
           isPlaceholder: due == null,

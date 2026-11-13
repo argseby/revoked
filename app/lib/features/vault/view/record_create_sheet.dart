@@ -314,6 +314,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     _isFileType
                         ? RecordComposerField(
                             label: 'File',
+                            missing: _store.pickedFile == null,
                             explanation:
                                 'One file per record. Masking hides its '
                                 'name in lists.',
@@ -462,6 +463,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   Widget _buildLabelField() => RecordComposerField(
     label: 'Label',
     explanation: 'How this record is named in your vault.',
+    missing: _store.recordLabel.text.trim().isEmpty,
     child: AppTextField(
       controller: _store.recordLabel,
       hint: 'e.g. Account IBAN',
@@ -736,6 +738,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   Widget _buildValueField() => RecordComposerField(
     label: 'Value',
     explanation: 'Masking hides it on screen until it is revealed.',
+    missing: _store.recordValue.text.trim().isEmpty,
     trailing: _maskToggle(),
     error: _store.recordTypeWarning,
     child: Column(

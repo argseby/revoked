@@ -277,12 +277,14 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
   Widget _buildNameRow() => AppComposerField(
     label: 'Name',
     explanation: 'How this section is named in your vault.',
+    missing: _store.sectionName.text.trim().isEmpty,
     child: AppTextField(controller: _store.sectionName, hint: 'My Section'),
   );
 
   Widget _buildKeyRow() => AppComposerField(
     label: 'Key',
     explanation: 'Identifier for links and templates.',
+    missing: _store.sectionKey.text.trim().isEmpty,
     error: _store.sectionKeyWarning,
     action: _store.sectionSuggestedKey == null
         ? null
@@ -379,6 +381,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
                 AppComposerField(
                   label: 'Name',
                   explanation: 'Display name for this section',
+                  missing: name.isEmpty,
                   child: AppTextField(
                     controller: _store.renameSectionName,
                     hint: 'My Section',

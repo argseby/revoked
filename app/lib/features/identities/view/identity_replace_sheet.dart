@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -102,7 +103,15 @@ class _ReplaceIdentitySheet extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
       ],
       if (store.targetId == null) ...[
-        const Text('Name of the new identity').small,
+        Row(
+          children: [
+            Flexible(child: const Text('Name of the new identity').small),
+            if (store.nameController.text.trim().isEmpty) ...[
+              const SizedBox(width: AppSpacing.sm),
+              const AppRequiredBadge(),
+            ],
+          ],
+        ),
         const SizedBox(height: AppSpacing.xs),
         AppTextField(
           controller: store.nameController,

@@ -7,6 +7,7 @@ import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 
 /// One group of things that belong together in a composer: a bordered card
@@ -23,6 +24,10 @@ class AppComposerCard extends StatelessWidget {
   /// Off for a card placed in a container that already has its margins.
   final bool inset;
 
+  /// A required field that is still empty: outlined in the primary color,
+  /// with [AppRequiredBadge] after the title.
+  final bool missing;
+
   const AppComposerCard({
     super.key,
     this.title,
@@ -30,6 +35,7 @@ class AppComposerCard extends StatelessWidget {
     this.trailing,
     required this.child,
     this.inset = true,
+    this.missing = false,
   });
 
   @override
@@ -40,7 +46,9 @@ class AppComposerCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: AppRadius.allLg,
-        border: Border.all(color: scheme.outlineVariant),
+        border: missing
+            ? Border.all(color: scheme.primary, width: 1.5)
+            : Border.all(color: scheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -53,7 +61,22 @@ class AppComposerCard extends StatelessWidget {
                   Expanded(
                     child: title == null
                         ? const SizedBox.shrink()
-                        : Semantics(header: true, child: AppText(title!).bold),
+                        : !missing
+                        ? Semantics(header: true, child: AppText(title!).bold)
+                        // Wraps under a long title rather than squeezing a
+                        // trailing switch off the card.
+                        : Wrap(
+                            spacing: AppSpacing.sm,
+                            runSpacing: AppSpacing.xxs,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Semantics(
+                                header: true,
+                                child: AppText(title!).bold,
+                              ),
+                              const AppRequiredBadge(),
+                            ],
+                          ),
                   ),
                   if (trailing != null) ...[AppSpacing.gapSm, trailing!],
                 ],
@@ -104,6 +127,10 @@ class AppComposerField extends StatelessWidget {
   final Widget? trailing;
   final bool inset;
 
+  /// A required field that is still empty: outlined in the primary color,
+  /// with [AppRequiredBadge] beside the label.
+  final bool missing;
+
   const AppComposerField({
     super.key,
     required this.label,
@@ -114,6 +141,7 @@ class AppComposerField extends StatelessWidget {
     this.action,
     this.trailing,
     this.inset = true,
+    this.missing = false,
   });
 
   @override
@@ -122,6 +150,7 @@ class AppComposerField extends StatelessWidget {
     description: explanation,
     trailing: trailing,
     inset: inset,
+    missing: missing,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

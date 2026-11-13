@@ -113,6 +113,7 @@ class ApiKeyCreateForm extends StatelessWidget {
                 child: AppTextField(
                   controller: store.draftLabel,
                   label: 'Key name',
+                  required: true,
                   hint: 'e.g. Production server',
                 ),
               ),
@@ -130,7 +131,10 @@ class ApiKeyCreateForm extends StatelessWidget {
                 ),
               ),
 
-              const AppFormSectionHeader('Permissions'),
+              AppFormSectionHeader(
+                'Permissions',
+                missing: store.draftScopes.isEmpty,
+              ),
               Observer(
                 builder: (_) {
                   final catalogue = _keyPermissions(Stores.invites.catalogue);
@@ -175,7 +179,10 @@ class ApiKeyCreateForm extends StatelessWidget {
                 },
               ),
               if (store.draftReachesVault) ...[
-                const AppFormSectionHeader('Sections'),
+                AppFormSectionHeader(
+                  'Sections',
+                  missing: store.draftSections.isEmpty,
+                ),
                 const _SectionPicker(),
               ],
               const SizedBox(height: AppSpacing.lg),

@@ -373,7 +373,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
                       icon: AppIcons.link,
                       children: [
                         _buildLabelRow(),
-                        if (!isEdit) const ShareContentsRow(),
+                        if (!isEdit) const ShareContentsRow(required: true),
                       ],
                     ),
                     AppComposerSection(

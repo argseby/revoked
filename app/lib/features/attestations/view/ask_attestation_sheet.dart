@@ -79,6 +79,7 @@ class _AskSheet extends StatelessWidget {
                         AppComposerField(
                           label: 'Kind',
                           explanation: 'What the issuer is asked to confirm',
+                          missing: store.askTypeController.text.trim().isEmpty,
                           child: AppTextField(
                             controller: store.askTypeController,
                             hint: 'membership',
@@ -107,6 +108,7 @@ class _AskSheet extends StatelessWidget {
                       children: [
                         AppComposerField(
                           label: 'Your identity',
+                          missing: store.askIdentityId == null,
                           explanation:
                               'The offer the issuer returns is accepted with '
                               'this identity.',

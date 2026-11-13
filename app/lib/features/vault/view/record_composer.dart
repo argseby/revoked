@@ -168,6 +168,7 @@ class RecordComposerField extends StatelessWidget {
   final Widget? trailing;
   final String? error;
   final String? explanation;
+  final bool missing;
 
   const RecordComposerField({
     super.key,
@@ -176,6 +177,7 @@ class RecordComposerField extends StatelessWidget {
     this.trailing,
     this.error,
     this.explanation,
+    this.missing = false,
   });
 
   @override
@@ -184,6 +186,7 @@ class RecordComposerField extends StatelessWidget {
     explanation: explanation,
     trailing: trailing,
     error: error,
+    missing: missing,
     child: child,
   );
 }

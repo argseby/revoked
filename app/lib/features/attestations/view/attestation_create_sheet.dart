@@ -157,6 +157,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                     AppComposerField(
                       label: 'Kind',
                       explanation: 'What kind of statement this is',
+                      missing: _store.typeController.text.trim().isEmpty,
                       child: AppTextField(
                         controller: _store.typeController,
                         hint: 'membership',

@@ -6,7 +6,10 @@ import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/features/contacts/view/contact_create_sheet.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
+import 'package:revoked_app/features/webhooks/view/webhook_create_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/features/vault/view/record_create_sheet.dart';
@@ -151,6 +154,7 @@ void main() {
     // A new link lapses by itself unless told otherwise.
     expect(find.text('Never'), findsNothing);
     expect(find.text('URL slug'), findsNothing);
+    expect(find.text('Required'), findsNothing);
     expect(button(tester, 'Create link').onTap, isNotNull);
   });
 
@@ -158,7 +162,47 @@ void main() {
     await open(tester, (context) => openShareCreateSheet(context: context));
 
     expect(find.text('Select from the vault'), findsOneWidget);
+    expect(find.text('Required'), findsOneWidget);
     expect(button(tester, 'Create link').onTap, isNull);
+  });
+
+  testWidgets('a contact marks its name and address until they are filled', (
+    tester,
+  ) async {
+    Stores.contacts.name.clear();
+    Stores.contacts.email.clear();
+    Stores.contacts.peerDomain.clear();
+    await open(tester, openContactCreateSheet);
+
+    expect(find.text('Required'), findsNWidgets(2));
+
+    Stores.contacts.name.text = 'Ada';
+    await tester.pumpAndSettle();
+    expect(find.text('Required'), findsOneWidget);
+
+    // A contact on its own server needs no email address.
+    Stores.contacts.peerDomain.text = 'revoked.example.com';
+    await tester.pumpAndSettle();
+    expect(find.text('Required'), findsNothing);
+  });
+
+  testWidgets('a webhook marks its address and events until chosen', (
+    tester,
+  ) async {
+    Stores.webhooks.draftUrl.clear();
+    await open(tester, openWebhookCreateSheet);
+
+    expect(find.text('Required'), findsWidgets);
+
+    Stores.webhooks.draftUrl.text = 'https://example.com/hook';
+    await tester.pumpAndSettle();
+    final left = find.text('Required').evaluate().length;
+    expect(
+      left,
+      Stores.webhooks.draftEverything || Stores.webhooks.draftEvents.isNotEmpty
+          ? 0
+          : 1,
+    );
   });
 
   testWidgets('a request asking for nothing cannot be created', (tester) async {
@@ -172,6 +216,16 @@ void main() {
     );
 
     expect(find.text('No template selected'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Template'),
+          matching: find.byType(AppComposerField),
+        ),
+        matching: find.text('Required'),
+      ),
+      findsOneWidget,
+    );
     expect(button(tester, 'Create request').onTap, isNull);
   });
 }

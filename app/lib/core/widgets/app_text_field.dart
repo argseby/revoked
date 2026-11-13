@@ -5,6 +5,7 @@ import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 
 /// Material 3 text field. Replaces shadcn's `TextField`, mapping its
@@ -31,6 +32,10 @@ class AppTextField extends StatefulWidget {
   final bool enabled;
   final String? initialValue;
 
+  /// While the field is empty, it is outlined in the primary color and its
+  /// [label] carries [AppRequiredBadge].
+  final bool required;
+
   const AppTextField({
     super.key,
     this.controller,
@@ -50,6 +55,7 @@ class AppTextField extends StatefulWidget {
     this.autofocus = false,
     this.enabled = true,
     this.initialValue,
+    this.required = false,
   });
 
   @override
@@ -63,10 +69,19 @@ class _AppTextFieldState extends State<AppTextField> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
+    if (widget.required && controller != null) {
+      return ValueListenableBuilder<TextEditingValue>(
+        valueListenable: controller,
+        builder: (context, value, _) => Observer(
+          builder: (_) => _build(context, missing: value.text.trim().isEmpty),
+        ),
+      );
+    }
     return Observer(builder: (_) => _build(context));
   }
 
-  Widget _build(BuildContext context) {
+  Widget _build(BuildContext context, {bool missing = false}) {
     final obscured = _obscured.value;
     Widget? suffix = widget.trailing;
     if (widget.passwordToggle) {
@@ -98,10 +113,35 @@ class _AppTextFieldState extends State<AppTextField> {
       enabled: widget.enabled,
       decoration: InputDecoration(
         hintText: widget.hint,
-        labelText: widget.label,
+        labelText: missing ? null : widget.label,
+        label: missing && widget.label != null
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(child: Text(widget.label!)),
+                  const SizedBox(width: AppSpacing.sm),
+                  const AppRequiredBadge(),
+                ],
+              )
+            : null,
+        enabledBorder: missing ? _missingBorder(context) : null,
         prefixIcon: widget.leading,
         suffixIcon: suffix,
       ),
     );
+  }
+
+  /// The theme's resting outline, in the primary color.
+  InputBorder? _missingBorder(BuildContext context) {
+    final theme = Theme.of(context);
+    final base =
+        theme.inputDecorationTheme.enabledBorder ??
+        theme.inputDecorationTheme.border;
+    final side = BorderSide(color: theme.colorScheme.primary, width: 1.5);
+    return base is OutlineInputBorder
+        ? base.copyWith(borderSide: side)
+        : base is UnderlineInputBorder
+        ? base.copyWith(borderSide: side)
+        : OutlineInputBorder(borderSide: side);
   }
 }

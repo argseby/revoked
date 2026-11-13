@@ -70,6 +70,7 @@ class _CreateSheet extends StatelessWidget {
                     children: [
                       AppComposerField(
                         label: 'Name',
+                        missing: store.name.text.trim().isEmpty,
                         child: AppTextField(
                           controller: store.name,
                           hint: 'Ada Lovelace',
@@ -79,6 +80,11 @@ class _CreateSheet extends StatelessWidget {
                       AppComposerField(
                         label: 'Email address',
                         explanation: 'Where records and requests are sent',
+                        // A contact on its own server is reached there
+                        // instead, so either one is enough.
+                        missing:
+                            store.email.text.trim().isEmpty &&
+                            store.peerDomain.text.trim().isEmpty,
                         child: AppTextField(
                           controller: store.email,
                           hint: 'ada@example.com',
