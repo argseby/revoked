@@ -179,9 +179,9 @@ class _HandOver extends StatelessWidget {
         ).header,
         AppSpacing.gapXxs,
         if (answered)
-          const Text(
-            'Verified on arrival. Reflects the state at that time.',
-          ).muted.small
+          const Text('Verified on arrival. Reflects the state at that time.')
+              .muted
+              .small
         else if (waiting) ...[
           const Text(
             'Scanned with Revoked or opened as a link. Valid once, for ten '

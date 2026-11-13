@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/router/return_to.dart';
@@ -647,9 +648,8 @@ class _SettingsGridLayout extends StatelessWidget {
         1.0,
         (width - AppSpacing.md * (columns - 1)) / columns - AppSpacing.lg * 2,
       );
-      final base = DefaultTextStyle.of(
-        context,
-      ).style.copyWith(fontFamily: AppFont.sans);
+      final base = DefaultTextStyle.of(context).style
+          .copyWith(fontFamily: AppFont.sans);
       double textHeight(String text, TextStyle style) {
         final painter = TextPainter(
           text: TextSpan(text: text, style: base.merge(style)),
@@ -687,7 +687,8 @@ class _SettingsGridLayout extends StatelessWidget {
         scaler.scale(AppTextSize.body) * AppTextSize.bodyHeight,
         20.0,
       );
-      final smallLine = scaler.scale(AppTextSize.small) * AppTextSize.smallHeight;
+      final smallLine =
+          scaler.scale(AppTextSize.small) * AppTextSize.smallHeight;
       // Title, status, the divider with its gaps, then the description.
       final height =
           AppSpacing.lg * 2 +

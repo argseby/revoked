@@ -28,9 +28,10 @@ class SlugInputFormatter extends TextInputFormatter {
     final caret = newValue.selection.baseOffset;
     final offset = caret < 0
         ? filtered.length
-        : _spellOut(
-            raw.substring(0, caret.clamp(0, raw.length)),
-          ).replaceAll(_disallowed, '').length.clamp(0, filtered.length);
+        : _spellOut(raw.substring(0, caret.clamp(0, raw.length)))
+              .replaceAll(_disallowed, '')
+              .length
+              .clamp(0, filtered.length);
 
     return TextEditingValue(
       text: filtered,
@@ -46,9 +47,9 @@ class KeyInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    String clean(String s) => _spellOut(
-      s.toLowerCase().replaceAll(' ', '_'),
-    ).replaceAll(RegExp(r'[^a-z0-9_]'), '');
+    String clean(String s) =>
+        _spellOut(s.toLowerCase().replaceAll(' ', '_'))
+            .replaceAll(RegExp(r'[^a-z0-9_]'), '');
     final text = clean(newValue.text);
 
     final caret = newValue.selection.baseOffset;

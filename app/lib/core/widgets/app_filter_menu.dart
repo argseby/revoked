@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -786,9 +787,9 @@ class _PanelHeading extends StatelessWidget {
         Expanded(
           child: Semantics(
             header: true,
-            child: AppText(
-              selected > 0 ? '$title · $selected' : title,
-            ).small.bold,
+            child: AppText(selected > 0 ? '$title · $selected' : title)
+                .small
+                .bold,
           ),
         ),
         if (selected > 0) ...[

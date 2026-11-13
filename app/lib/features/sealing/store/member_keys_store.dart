@@ -222,9 +222,9 @@ abstract class _MemberKeysStore with Store {
 
   Future<List<MemberKeys>> _fetch(String workspaceId) async {
     await _readPins();
-    final data =
-        await _api.get('/api/sealed/workspaces/$workspaceId/members')
-            as Map<String, dynamic>;
+    final data = await _api.get(
+      '/api/sealed/workspaces/$workspaceId/members',
+    ) as Map<String, dynamic>;
     final next = <MemberKeys>[];
     for (final raw in (data['members'] as List<dynamic>? ?? const [])) {
       next.add(_check(raw as Map<String, dynamic>));

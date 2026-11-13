@@ -164,9 +164,9 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                 children: [
                   const Text('New reminder').header,
                   const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    'For ${_name(widget.record)}. Private to this account.',
-                  ).muted.small,
+                  Text('For ${_name(widget.record)}. Private to this account.')
+                      .muted
+                      .small,
                 ],
               ),
             ),

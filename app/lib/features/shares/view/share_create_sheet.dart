@@ -344,9 +344,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
         : (isDup ? AppIcons.copy : AppIcons.plus);
 
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

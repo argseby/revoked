@@ -110,9 +110,9 @@ class _ShareFormState extends State<_ShareForm> {
               const Text('Details'),
               AppSpacing.gapSm,
               if (claims.isEmpty)
-                const Text(
-                  'This attestation has no details beyond its kind.',
-                ).muted.small,
+                const Text('This attestation has no details beyond its kind.')
+                    .muted
+                    .small,
               for (final d in claims)
                 AppCheckRow(
                   label: d.name,

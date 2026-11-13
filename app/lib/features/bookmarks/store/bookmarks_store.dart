@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
@@ -171,14 +172,12 @@ abstract class _BookmarksStore with Store {
           (data['items'] as List<dynamic>?) ?? const [];
       if (!loadState.isCurrent(ticket)) return;
       bookmarks = ObservableList.of(
-        items(
-          results[0],
-        ).map((e) => Bookmark.fromJson(e as Map<String, dynamic>)),
+        items(results[0])
+            .map((e) => Bookmark.fromJson(e as Map<String, dynamic>)),
       );
       groups = ObservableList.of(
-        items(
-          results[1],
-        ).map((e) => BookmarkGroup.fromJson(e as Map<String, dynamic>)),
+        items(results[1])
+            .map((e) => BookmarkGroup.fromJson(e as Map<String, dynamic>)),
       );
       loadState.succeed(ticket);
     } catch (e) {

@@ -267,9 +267,7 @@ class _ContactGrantLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-    constraints: BoxConstraints(
-      maxHeight: composerMaxHeight(context),
-    ),
+    constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
     child: Column(
       // Fills the side panel, so the footer sits on its bottom edge.
       mainAxisSize: AppSpacing.isNarrow(context)

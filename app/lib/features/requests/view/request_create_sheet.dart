@@ -315,9 +315,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   Widget _build(BuildContext context) {
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -182,8 +182,7 @@ class _ShareContentsPickerState extends State<_ShareContentsPicker> {
           children: [
             AppCheckRow(
               label: 'Entire section',
-              subtitle:
-                  'All ${section.records.length} records it holds now.',
+              subtitle: 'All ${section.records.length} records it holds now.',
               icon: AppIcons.folder,
               value: widget.sections.contains(section.id),
               onChanged: (_) => widget.toggleSection(section.id),
@@ -207,9 +206,7 @@ class _ShareContentsPickerState extends State<_ShareContentsPicker> {
     }
     final picked = widget.records.length + widget.sections.length;
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

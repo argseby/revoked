@@ -1113,9 +1113,9 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
         children: [
           const Text('New workspace').header,
           const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'Separate records, members and keys by context.',
-          ).muted.small,
+          const Text('Separate records, members and keys by context.')
+              .muted
+              .small,
           const SizedBox(height: AppSpacing.lg),
           const Text('Name').small,
           const SizedBox(height: AppSpacing.xs),

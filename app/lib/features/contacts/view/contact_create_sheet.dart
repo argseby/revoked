@@ -41,9 +41,7 @@ class _CreateSheet extends StatelessWidget {
     final store = Stores.contacts;
     return Observer(
       builder: (_) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: composerMaxHeight(context),
-        ),
+        constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

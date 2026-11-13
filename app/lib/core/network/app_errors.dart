@@ -231,14 +231,12 @@ class AppErrorMessage {
       ),
       403 => const AppErrorMessage(
         title: 'Not permitted',
-        description:
-            'This action is not permitted in this workspace. Permissions are granted by an admin.',
+        description: 'This action is not permitted in this workspace. Permissions are granted by an admin.',
         code: '',
       ),
       404 => const AppErrorMessage(
         title: 'Not found',
-        description:
-            'The item may have been removed, or the server does not support this yet.',
+        description: 'The item may have been removed, or the server does not support this yet.',
         code: '',
       ),
       410 => const AppErrorMessage(
@@ -259,8 +257,7 @@ class AppErrorMessage {
       ),
       >= 500 => const AppErrorMessage(
         title: 'Server error',
-        description:
-            'The server could not complete the request. If it persists, contact the server operator.',
+        description: 'The server could not complete the request. If it persists, contact the server operator.',
         code: '',
       ),
       _ => const AppErrorMessage(
@@ -291,8 +288,7 @@ class AppErrorMessage {
       case AppErrorCode.inviteRevoked:
         return AppErrorMessage(
           title: 'Invite withdrawn',
-          description:
-              'This invite was withdrawn by the workspace. A new invite is required.',
+          description: 'This invite was withdrawn by the workspace. A new invite is required.',
           code: e.code,
           isTerminal: true,
         );
@@ -307,8 +303,7 @@ class AppErrorMessage {
       case AppErrorCode.inviteWrongAccount:
         return AppErrorMessage(
           title: 'Wrong account',
-          description:
-              'This invite was issued to a different email address. It can only be accepted from that account.',
+          description: 'This invite was issued to a different email address. It can only be accepted from that account.',
           code: e.code,
           isTerminal: true,
         );
@@ -322,16 +317,14 @@ class AppErrorMessage {
       case AppErrorCode.invitesNotForPersonal:
         return AppErrorMessage(
           title: 'Personal workspaces are private',
-          description:
-              'Personal workspaces have no other members. Collaboration requires a shared workspace.',
+          description: 'Personal workspaces have no other members. Collaboration requires a shared workspace.',
           code: e.code,
         );
 
       case AppErrorCode.signupsDisabled:
         return AppErrorMessage(
           title: 'Signups are closed',
-          description:
-              'This server does not accept new accounts. Access requires an invite from its operator.',
+          description: 'This server does not accept new accounts. Access requires an invite from its operator.',
           code: e.code,
           isTerminal: true,
         );
@@ -339,23 +332,20 @@ class AppErrorMessage {
       case AppErrorCode.invalidActiveWorkspace:
         return AppErrorMessage(
           title: 'No active workspace',
-          description:
-              'A workspace must be selected first. Workspaces are listed in Settings.',
+          description: 'A workspace must be selected first. Workspaces are listed in Settings.',
           code: e.code,
         );
       case AppErrorCode.activeWorkspaceMismatch:
       case AppErrorCode.forbiddenWorkspaceAccess:
         return AppErrorMessage(
           title: 'Wrong workspace',
-          description:
-              'This item belongs to another workspace. Switch to that workspace to continue.',
+          description: 'This item belongs to another workspace. Switch to that workspace to continue.',
           code: e.code,
         );
       case AppErrorCode.workspaceNotFound:
         return AppErrorMessage(
           title: 'Workspace not found',
-          description:
-              'The workspace may have been deleted, or this account is no longer a member.',
+          description: 'The workspace may have been deleted, or this account is no longer a member.',
           code: e.code,
           isTerminal: true,
         );
@@ -363,8 +353,7 @@ class AppErrorMessage {
       case AppErrorCode.businessWorkspaceLimitReached:
         return AppErrorMessage(
           title: 'Workspace limit reached',
-          description:
-              'The maximum number of workspaces for this account has been reached.',
+          description: 'The maximum number of workspaces for this account has been reached.',
           code: e.code,
         );
       case AppErrorCode.failedToCreateWorkspaceMember:
@@ -389,15 +378,13 @@ class AppErrorMessage {
       case AppErrorCode.validationInsufficientPermissions:
         return AppErrorMessage(
           title: 'Insufficient permissions',
-          description:
-              'Only permissions already held can be granted. An admin can grant the rest.',
+          description: 'Only permissions already held can be granted. An admin can grant the rest.',
           code: e.code,
         );
       case AppErrorCode.requestTimeout:
         return AppErrorMessage(
           title: 'Server not responding',
-          description:
-              'The server may be down or busy. Check the server address in Settings.',
+          description: 'The server may be down or busy. Check the server address in Settings.',
           code: e.code,
         );
 
@@ -405,22 +392,19 @@ class AppErrorMessage {
       case AppErrorCode.accessDenied:
         return AppErrorMessage(
           title: 'Not permitted',
-          description:
-              'This action is not permitted in this workspace. Permissions are granted by an admin.',
+          description: 'This action is not permitted in this workspace. Permissions are granted by an admin.',
           code: e.code,
         );
       case AppErrorCode.permissionEscalation:
         return AppErrorMessage(
           title: 'Permissions not grantable',
-          description:
-              'Only permissions already held can be granted. Remove the others.',
+          description: 'Only permissions already held can be granted. Remove the others.',
           code: e.code,
         );
       case AppErrorCode.lastAdminProtected:
         return AppErrorMessage(
           title: 'Last admin',
-          description:
-              'At least one member must be able to manage members. Grant this permission to another member first.',
+          description: 'At least one member must be able to manage members. Grant this permission to another member first.',
           code: e.code,
         );
       case AppErrorCode.invalidScope:
@@ -544,8 +528,7 @@ class AppErrorMessage {
       case AppErrorCode.requestAccountRequired:
         return AppErrorMessage(
           title: 'Account required',
-          description:
-              'Responding requires an account on this server, so the response can be updated or revoked later.',
+          description: 'Responding requires an account on this server, so the response can be updated or revoked later.',
           code: e.code,
         );
 
@@ -576,16 +559,14 @@ class AppErrorMessage {
       case AppErrorCode.fileNotWatermarkable:
         return AppErrorMessage(
           title: 'File not available',
-          description:
-              'This share watermarks its files. This file type cannot be watermarked and is not shared.',
+          description: 'This share watermarks its files. This file type cannot be watermarked and is not shared.',
           code: e.code,
           isTerminal: true,
         );
       case AppErrorCode.applicationNeedsWatermark:
         return AppErrorMessage(
           title: 'Watermark required',
-          description:
-              'Application links always watermark their files. The watermark must be enabled to save.',
+          description: 'Application links always watermark their files. The watermark must be enabled to save.',
           code: e.code,
           isTerminal: true,
         );
@@ -615,8 +596,7 @@ class AppErrorMessage {
       case AppErrorCode.bookmarkGroupNotOwned:
         return AppErrorMessage(
           title: 'Group not found',
-          description:
-              'This group is no longer in the bookmarks. Reload to see the current list.',
+          description: 'This group is no longer in the bookmarks. Reload to see the current list.',
           code: e.code,
         );
       case AppErrorCode.contactRouteMissing:
@@ -629,8 +609,7 @@ class AppErrorMessage {
       case AppErrorCode.contactNotFound:
         return AppErrorMessage(
           title: 'Contact not found',
-          description:
-              'This contact is no longer in this workspace. Reload to see the current list.',
+          description: 'This contact is no longer in this workspace. Reload to see the current list.',
           code: e.code,
         );
       case AppErrorCode.contactNothingToSend:
@@ -642,47 +621,41 @@ class AppErrorMessage {
       case AppErrorCode.templateNotOwned:
         return AppErrorMessage(
           title: 'Template not found',
-          description:
-              'This template is not in this workspace. Select a workspace template or continue without one.',
+          description: 'This template is not in this workspace. Select a workspace template or continue without one.',
           code: e.code,
         );
       case AppErrorCode.identityRevoked:
         return AppErrorMessage(
           title: 'Identity revoked',
-          description:
-              'This identity was revoked by its issuing server and can no longer sign for that domain. A new identity is required.',
+          description: 'This identity was revoked by its issuing server and can no longer sign for that domain. A new identity is required.',
           code: e.code,
           isTerminal: true,
         );
       case AppErrorCode.attestationsDisabled:
         return AppErrorMessage(
           title: 'Attestations not available',
-          description:
-              'Attestations speak for the server\'s domain and are enabled by its operator.',
+          description: 'Attestations speak for the server\'s domain and are enabled by its operator.',
           code: e.code,
           isTerminal: true,
         );
       case AppErrorCode.attestationOfferNotFound:
         return AppErrorMessage(
           title: 'Offer not found',
-          description:
-              'This link does not lead to an attestation. It may be incomplete.',
+          description: 'This link does not lead to an attestation. It may be incomplete.',
           code: e.code,
           isTerminal: true,
         );
       case AppErrorCode.attestationOfferExpired:
         return AppErrorMessage(
           title: 'Offer expired',
-          description:
-              'This offer has expired. A new one can be requested from its issuer.',
+          description: 'This offer has expired. A new one can be requested from its issuer.',
           code: e.code,
           isTerminal: true,
         );
       case AppErrorCode.attestationOfferClaimed:
         return AppErrorMessage(
           title: 'Already accepted',
-          description:
-              'This offer was accepted with another identity. Each offer is valid for one identity only.',
+          description: 'This offer was accepted with another identity. Each offer is valid for one identity only.',
           code: e.code,
           isTerminal: true,
         );
@@ -696,44 +669,38 @@ class AppErrorMessage {
       case AppErrorCode.attestationIdentityMismatch:
         return AppErrorMessage(
           title: 'Issued to another identity',
-          description:
-              'This offer was issued to a different identity than the one selected.',
+          description: 'This offer was issued to a different identity than the one selected.',
           code: e.code,
         );
       case AppErrorCode.attestationKeyUnsupported:
         return AppErrorMessage(
           title: 'Unsupported identity',
-          description:
-              'This identity\'s key cannot hold an attestation. A newly created identity can.',
+          description: 'This identity\'s key cannot hold an attestation. A newly created identity can.',
           code: e.code,
         );
       case AppErrorCode.credentialInvalid:
         return AppErrorMessage(
           title: 'Attestation not saved',
-          description:
-              'The issuer\'s response could not be verified and was not saved. Retry once the issuer\'s domain is verified.',
+          description: 'The issuer\'s response could not be verified and was not saved. Retry once the issuer\'s domain is verified.',
           code: e.code,
         );
       case AppErrorCode.attestationCheckInvalid:
         return AppErrorMessage(
           title: 'Invalid check',
-          description:
-              'The kind must be one word, such as membership. The confirming party must be a domain, such as club.example. Details may contain only letters, digits and underscores.',
+          description: 'The kind must be one word, such as membership. The confirming party must be a domain, such as club.example. Details may contain only letters, digits and underscores.',
           code: e.code,
         );
       case AppErrorCode.attestationCheckNotFound:
         return AppErrorMessage(
           title: 'Check not found',
-          description:
-              'This link does not lead to an attestation check. It may be incomplete.',
+          description: 'This link does not lead to an attestation check. It may be incomplete.',
           code: e.code,
           isTerminal: true,
         );
       case AppErrorCode.attestationCheckClosed:
         return AppErrorMessage(
           title: 'No longer open',
-          description:
-              'This check was already answered or its ten-minute window has passed. A new check is required.',
+          description: 'This check was already answered or its ten-minute window has passed. A new check is required.',
           code: e.code,
           isTerminal: true,
         );
@@ -766,8 +733,7 @@ class AppErrorMessage {
       case AppErrorCode.sealedKeyMissing:
         return AppErrorMessage(
           title: 'Key not available',
-          description:
-              'Only the member who enabled encryption in this workspace can use it.',
+          description: 'Only the member who enabled encryption in this workspace can use it.',
           code: e.code,
           isTerminal: true,
         );
@@ -787,29 +753,25 @@ class AppErrorMessage {
       case AppErrorCode.sealedLinkSealsMissing:
         return AppErrorMessage(
           title: 'A link was added in between',
-          description:
-              'A link started carrying this record while it was being saved. Saving again includes it.',
+          description: 'A link started carrying this record while it was being saved. Saving again includes it.',
           code: e.code,
         );
       case AppErrorCode.sealedLinkContent:
         return AppErrorMessage(
           title: 'Not added to the link',
-          description:
-              'An encrypted record goes onto a link only from a device that can open it, and the first one only from the link\'s owner.',
+          description: 'An encrypted record goes onto a link only from a device that can open it, and the first one only from the link\'s owner.',
           code: e.code,
         );
       case AppErrorCode.sealedFileWatermark:
         return AppErrorMessage(
           title: 'Stamped shares hold no encrypted files',
-          description:
-              'The server stamps a share\'s files as they are downloaded and cannot read an encrypted file to do so.',
+          description: 'The server stamps a share\'s files as they are downloaded and cannot read an encrypted file to do so.',
           code: e.code,
         );
       case AppErrorCode.remoteIdentityInvalid:
         return AppErrorMessage(
           title: 'Identity not confirmed',
-          description:
-              'The receiving server could not verify this identity with its issuing server. The issuing domain must be verified and reachable.',
+          description: 'The receiving server could not verify this identity with its issuing server. The issuing domain must be verified and reachable.',
           code: e.code,
         );
       case AppErrorCode.identityFingerprintInvalid:
@@ -865,8 +827,7 @@ class AppErrorMessage {
       case AppErrorCode.workspaceMemberLimitReached:
         return AppErrorMessage(
           title: 'Member limit reached',
-          description:
-              'This workspace has reached its member limit. A member must be removed first.',
+          description: 'This workspace has reached its member limit. A member must be removed first.',
           code: e.code,
         );
     }

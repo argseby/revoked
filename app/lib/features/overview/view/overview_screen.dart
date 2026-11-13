@@ -132,9 +132,9 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
       showAnswers: showAnswers,
     );
 
-    final recipients = groupByRecipient(
-      links,
-    ).where(recipientHasAccess).toList();
+    final recipients = groupByRecipient(links)
+        .where(recipientHasAccess)
+        .toList();
     final readable = openAccessByRecord(
       links: links,
       sections: Stores.vault.sections,
@@ -158,38 +158,28 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
             onTap: () => openVaultCreateSheet(context),
           ),
         ),
-        needs.isNotEmpty ?
-        AppListGroup(
-          title: needs.isEmpty ? 'All clear' : 'Needs your attention',
-          noun: 'items',
-          previewCount: 6,
-          trailing: needs.isEmpty ? const SizedBox.shrink() : null,
-          children: needs.isEmpty
-              ? [
-                
-                ]
-              : [
-                  for (final item in needs)
-                    NeedRow(item: item, onTap: () => context.go(item.route)),
-                ],
-        ) : const SizedBox.shrink(),
+        needs.isNotEmpty
+            ? AppListGroup(
+                title: needs.isEmpty ? 'All clear' : 'Needs your attention',
+                noun: 'items',
+                previewCount: 6,
+                trailing: needs.isEmpty ? const SizedBox.shrink() : null,
+                children: needs.isEmpty
+                    ? []
+                    : [
+                        for (final item in needs)
+                          NeedRow(
+                            item: item,
+                            onTap: () => context.go(item.route),
+                          ),
+                      ],
+              )
+            : const SizedBox.shrink(),
         _Stats(
           figures: [
-            _Figure(
-              active,
-              AppRoutes.shared,
-              AppIcons.link,
-            ),
-            _Figure(
-              recipients.length,
-              AppRoutes.shared,
-              AppIcons.person,
-            ),
-            _Figure(
-              recordCount,
-              AppRoutes.vault,
-              AppIcons.lock,
-            ),
+            _Figure(active, AppRoutes.shared, AppIcons.link),
+            _Figure(recipients.length, AppRoutes.shared, AppIcons.person),
+            _Figure(recordCount, AppRoutes.vault, AppIcons.lock),
           ],
         ),
         AppSpacing.gapLg,

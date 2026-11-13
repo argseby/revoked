@@ -116,9 +116,10 @@ class TwoFactorApi {
   /// carries a fresh token for this device, kept here so the app stays
   /// signed in.
   Future<TwoFactorStatus> confirm(String code) async {
-    final data =
-        (await _api.post('/api/2fa/totp/confirm', body: {'code': code}))
-            as Map<String, dynamic>;
+    final data = (await _api.post(
+      '/api/2fa/totp/confirm',
+      body: {'code': code},
+    )) as Map<String, dynamic>;
     final token = data['token'];
     final user = _api.userData;
     if (token is String && token.isNotEmpty && user != null) {

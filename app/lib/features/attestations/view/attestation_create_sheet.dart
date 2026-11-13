@@ -93,9 +93,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
   Widget _build(BuildContext context) {
     final error = _store.createError;
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

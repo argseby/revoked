@@ -22,28 +22,84 @@ class PermissionSections extends StatelessWidget {
     this.showEmpty = false,
   });
 
-  static const _sections = <({String title, String description, Set<String> keys})>[
-    (title: 'Vault', description: 'Read, change, or share workspace records.', keys: {'vault:read', 'vault:write', 'vault:publish'}),
-    (title: 'Sharing', description: 'Create and manage links that share information.', keys: {'shares:read', 'shares:manage'}),
-    (title: 'Requests and responses', description: 'Collect information and manage what people submit.', keys: {'requests:read', 'requests:manage', 'responses:read', 'responses:manage'}),
-    (title: 'Templates', description: 'View and maintain reusable request forms.', keys: {'templates:read', 'templates:manage'}),
-    (title: 'People and trust', description: 'Manage contacts, signing identities, and trusted statements.', keys: {'contacts:read', 'contacts:manage', 'identities:read', 'identities:manage', 'attestations:read', 'attestations:issue'}),
-    (title: 'Workspace administration', description: 'Control membership, workspace settings, and integrations.', keys: {'members:read', 'members:add', 'members:remove', 'settings:manage', 'webhooks:manage'}),
-  ];
+  static const _sections =
+      <({String title, String description, Set<String> keys})>[
+        (
+          title: 'Vault',
+          description: 'Read, change, or share workspace records.',
+          keys: {'vault:read', 'vault:write', 'vault:publish'},
+        ),
+        (
+          title: 'Sharing',
+          description: 'Create and manage links that share information.',
+          keys: {'shares:read', 'shares:manage'},
+        ),
+        (
+          title: 'Requests and responses',
+          description: 'Collect information and manage what people submit.',
+          keys: {
+            'requests:read',
+            'requests:manage',
+            'responses:read',
+            'responses:manage',
+          },
+        ),
+        (
+          title: 'Templates',
+          description: 'View and maintain reusable request forms.',
+          keys: {'templates:read', 'templates:manage'},
+        ),
+        (
+          title: 'People and trust',
+          description:
+              'Manage contacts, signing identities, and trusted statements.',
+          keys: {
+            'contacts:read',
+            'contacts:manage',
+            'identities:read',
+            'identities:manage',
+            'attestations:read',
+            'attestations:issue',
+          },
+        ),
+        (
+          title: 'Workspace administration',
+          description:
+              'Control membership, workspace settings, and integrations.',
+          keys: {
+            'members:read',
+            'members:add',
+            'members:remove',
+            'settings:manage',
+            'webhooks:manage',
+          },
+        ),
+      ];
 
   @override
   Widget build(BuildContext context) {
     final remaining = permissions.toList();
-    final groups = <({String title, String description, List<InvitePermission> items})>[];
+    final groups =
+        <({String title, String description, List<InvitePermission> items})>[];
     for (final section in _sections) {
-      final items = remaining.where((p) => section.keys.contains(p.key)).toList();
+      final items = remaining
+          .where((p) => section.keys.contains(p.key))
+          .toList();
       remaining.removeWhere((p) => section.keys.contains(p.key));
       if (items.isNotEmpty) {
-        groups.add((title: section.title, description: section.description, items: items));
+        groups.add((
+          title: section.title,
+          description: section.description,
+          items: items,
+        ));
       }
     }
     if (remaining.isNotEmpty) {
-      groups.add((title: 'Other access', description: 'Additional workspace capabilities.', items: remaining));
+      groups.add((
+        title: 'Other access',
+        description: 'Additional workspace capabilities.',
+        items: remaining,
+      ));
     }
     if (groups.isEmpty && !showEmpty) return const SizedBox.shrink();
 
@@ -63,13 +119,21 @@ class PermissionSections extends StatelessWidget {
         ),
         if (groups.isEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.md),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.md,
+            ),
             child: Text('No permissions are available to grant.').muted.small,
           ),
         for (final group in groups) ...[
           AppFormSectionHeader(group.title),
           Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xs),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              0,
+              AppSpacing.xl,
+              AppSpacing.xs,
+            ),
             child: Text(group.description).muted.small,
           ),
           for (final permission in group.items)
@@ -78,7 +142,8 @@ class PermissionSections extends StatelessWidget {
               child: PermissionCheckRow(
                 permission: permission,
                 selected: selected(permission),
-                onChanged: (value) => onChanged((permission: permission, selected: value)),
+                onChanged: (value) =>
+                    onChanged((permission: permission, selected: value)),
               ),
             ),
         ],

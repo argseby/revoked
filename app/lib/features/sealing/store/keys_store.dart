@@ -2123,9 +2123,8 @@ abstract class _KeysStore with Store {
       if (chain.live.any(
         (e) => _sameBytes(e.signingPublicKey, invite.signingPublicKey),
       )) {
-        deviceConfirmation = DeviceConfirmation.forEntry(
-          chain.entries.last,
-        ).encodeToString();
+        deviceConfirmation = DeviceConfirmation.forEntry(chain.entries.last)
+            .encodeToString();
         deviceCodeInput.clear();
         return true;
       }

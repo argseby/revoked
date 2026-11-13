@@ -52,9 +52,7 @@ class _AskSheet extends StatelessWidget {
       builder: (_) {
         final problem = store.askProblem;
         return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: composerMaxHeight(context),
-          ),
+          constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

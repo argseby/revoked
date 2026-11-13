@@ -248,8 +248,7 @@ class _HeldAttestationsState extends State<HeldAttestations> {
           ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.credentials.isNotEmpty,
-          intro:
-              'Share and collect domain-level claims with others.',
+          intro: 'Share and collect domain-level claims with others.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(
@@ -280,9 +279,9 @@ class _HeldAttestationsState extends State<HeldAttestations> {
                 subtitleWidget: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'From ${c.issuer} · held by ${_identityName(c)}',
-                    ).muted.small,
+                    Text('From ${c.issuer} · held by ${_identityName(c)}')
+                        .muted
+                        .small,
                     if (c.disclosures.isNotEmpty)
                       Text(
                         [for (final d in c.disclosures) d.name].join(' · '),
@@ -772,8 +771,7 @@ class _CheckedAttestationsState extends State<CheckedAttestations> {
           ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.checks.isNotEmpty,
-          intro:
-              'Ask someone to show an attestation and review the verified answer.',
+          intro: 'Ask someone to show an attestation and review the verified answer.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(

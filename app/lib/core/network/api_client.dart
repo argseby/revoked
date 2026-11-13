@@ -413,9 +413,8 @@ class ApiClient {
   }
 
   Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
-    final uri = Uri.parse(
-      '$baseUrl$path',
-    ).replace(queryParameters: queryParams);
+    final uri = Uri.parse('$baseUrl$path')
+        .replace(queryParameters: queryParams);
     final response = await _send(
       _httpClient.get(uri, headers: _buildHeaders()),
     );
@@ -428,9 +427,8 @@ class ApiClient {
     Map<String, String>? queryParams,
     Map<String, String>? headers,
   }) async {
-    final uri = Uri.parse(
-      '$baseUrl$path',
-    ).replace(queryParameters: queryParams);
+    final uri = Uri.parse('$baseUrl$path')
+        .replace(queryParameters: queryParams);
     final response = await _send(
       _httpClient.get(uri, headers: _buildHeaders(headers)),
     );
