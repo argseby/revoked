@@ -47,7 +47,7 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 			slug := re.Request.PathValue("slug")
 			req, err := app.FindFirstRecordByFilter(util.Coll.Requests, "slug = {:slug}", map[string]any{"slug": slug})
 			if err != nil || req == nil {
-				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.RequestNotFound)
 			}
 			if appErr := services.RefreshRequestStatus(app, req); appErr != nil {
 				return resourceErrorResponse(re, appErr)
@@ -109,7 +109,7 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 
 			req, err := app.FindFirstRecordByFilter(util.Coll.Requests, "slug = {:slug}", map[string]any{"slug": slug})
 			if err != nil || req == nil {
-				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.RequestNotFound)
 			}
 
 			if appErr := services.RefreshRequestStatus(app, req); appErr != nil {

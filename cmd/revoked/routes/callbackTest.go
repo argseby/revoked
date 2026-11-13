@@ -23,7 +23,7 @@ func CallbackTestRoute(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.POST("/api/requests/callback-test", func(re *core.RequestEvent) error {
 			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-				return re.UnauthorizedError("Authentication required", nil)
+				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
 			}
 			// An on-demand fetch is a livelier probe than waiting for a
 			// submission, so it gets a budget of its own, per caller.
@@ -36,11 +36,11 @@ func CallbackTestRoute(app core.App) {
 				RequestID string `json:"requestId"`
 			}{}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			url := strings.TrimSpace(body.URL)
 			if url == "" {
-				return re.BadRequestError("A callback URL is required", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.CallbackUrlRequired)
 			}
 
 			// An unsaved request has no id yet; a saved one lends its own, so
@@ -50,11 +50,11 @@ func CallbackTestRoute(app core.App) {
 			if id := strings.TrimSpace(body.RequestID); id != "" {
 				req, err := app.FindRecordById(util.Coll.Requests, id)
 				if err != nil || req == nil {
-					return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
+					return appErrorResponse(re, http.StatusNotFound, &util.Errors.RequestNotFound)
 				}
 				// Whoever may change the request may try its callback.
 				if !services.CanEdit(app, re.Auth.Id, req) {
-					return re.ForbiddenError("Not your request", nil)
+					return appErrorResponse(re, http.StatusForbidden, &util.Errors.RequestNotEditable)
 				}
 				requestID = req.Id
 				slug = req.GetString(util.Fields.Request.Slug)

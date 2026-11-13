@@ -108,11 +108,11 @@ func PublicFilesRoute(app core.App) {
 
 			rec, err := app.FindRecordById(util.Coll.Records, recordId)
 			if err != nil || rec == nil || rec.GetString(util.Fields.Record.Type) != util.TypeFile {
-				return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 			}
 			filename := rec.GetString(util.Fields.Record.File)
 			if filename == "" {
-				return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 			}
 
 			fsys, err := app.NewFilesystem()
@@ -130,7 +130,7 @@ func PublicFilesRoute(app core.App) {
 
 			link, err := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:slug}", dbx.Params{"slug": slug})
 			if err != nil || link == nil {
-				return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 			}
 			if link.GetBool(util.Fields.Link.Watermark) {
 				return serveWatermarked(re, fsys, rec.BaseFilesPath()+"/"+filename, downloadName,
@@ -160,7 +160,7 @@ func PublicFilesRoute(app core.App) {
 			}
 			link, err := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:slug}", dbx.Params{"slug": slug})
 			if err != nil || link == nil {
-				return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 			}
 			return serveLinkArchive(re, app, link, services.LinkFileRecords(app, link))
 		})
@@ -178,7 +178,7 @@ func serveWatermarked(re *core.RequestEvent, fsys *filesystem.System, key, downl
 	}
 	r, err := fsys.GetReader(key)
 	if err != nil {
-		return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 	}
 	defer r.Close()
 	data, err := io.ReadAll(io.LimitReader(r, services.MaxWatermarkInputBytes+1))

@@ -313,7 +313,7 @@ func writeVaultRecord(app core.App, re *core.RequestEvent, target *vaultTarget) 
 	}
 	in, err := bindVaultWrite(re)
 	if err != nil {
-		return re.BadRequestError("Invalid request body", nil)
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 	}
 
 	var section *core.Record

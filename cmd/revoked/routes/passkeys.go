@@ -462,7 +462,7 @@ func PasskeysRoute(app core.App, root *server.RootKey) {
 				return tx.Delete(row)
 			})
 			if errors.Is(err, errPasskeyMissing) {
-				return re.NotFoundError("Passkey not found", nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.PasskeyNotFound)
 			}
 			if err != nil {
 				return re.InternalServerError("Failed to remove the passkey", err)

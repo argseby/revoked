@@ -54,10 +54,10 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 	}
 	link, err := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:slug}", map[string]any{"slug": slug})
 	if err != nil || link == nil {
-		return re.NotFoundError("Address book not found.", nil)
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 	}
 	if appErr := services.RefreshLinkStatus(app, link); appErr != nil {
-		return re.NotFoundError("This address book is no longer available.", nil)
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 	}
 	// DAV can't unlock gated links — only open links are exposed.
 	// A view cap is a gate too: CardDAV clients poll and re-fetch on their own
@@ -68,7 +68,7 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 	if link.GetString(util.Fields.Link.Password) != "" ||
 		link.GetBool(util.Fields.Link.RequireHandshake) ||
 		link.GetInt(util.Fields.Link.MaxViews) > 0 {
-		return re.ForbiddenError("This link is protected and not available over CardDAV.", nil)
+		return appErrorResponse(re, http.StatusForbidden, &util.Errors.DavLinkProtected)
 	}
 
 	isCard := file != "" && file != "/"
@@ -92,7 +92,7 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 
 	case http.MethodGet, http.MethodHead:
 		if !isCard {
-			return re.NotFoundError("Not a card.", nil)
+			return appErrorResponse(re, http.StatusNotFound, &util.Errors.RecordNotFound)
 		}
 		re.Response.Header().Set("ETag", etag)
 		re.Response.Header().Set("DAV", "1, 2, 3, addressbook")
@@ -121,7 +121,7 @@ func davHandler(app core.App, re *core.RequestEvent, slug, file string) error {
 		return writeMultistatus(re, davCardResponse(cardHref, etag, vCard(link, cardFields, updatedAt), true))
 
 	case http.MethodPut, http.MethodDelete, "PROPPATCH", "MKCOL", "MKCALENDAR", "COPY", "MOVE":
-		return re.ForbiddenError("This address book is read-only.", nil)
+		return appErrorResponse(re, http.StatusForbidden, &util.Errors.DavReadOnly)
 
 	default:
 		re.Response.Header().Set("Allow", "OPTIONS, GET, HEAD, PROPFIND, REPORT")

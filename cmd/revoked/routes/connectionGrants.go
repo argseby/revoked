@@ -246,7 +246,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 				Ref       string   `json:"ref"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			label := strings.TrimSpace(body.Label)
 			if label == "" {
@@ -333,7 +333,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 				Ref          string `json:"ref"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			label := strings.TrimSpace(body.Label)
 			if label == "" {

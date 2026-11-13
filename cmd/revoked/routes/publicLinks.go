@@ -34,7 +34,7 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 			slug := re.Request.PathValue("slug")
 			link, err := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:slug}", map[string]any{"slug": slug})
 			if err != nil || link == nil {
-				return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 			}
 
 			if errResp := services.RefreshLinkStatus(app, link); errResp != nil {
@@ -87,7 +87,7 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 
 			link, err := app.FindFirstRecordByFilter(util.Coll.Links, "slug = {:slug}", map[string]any{"slug": slug})
 			if err != nil || link == nil {
-				return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 			}
 
 			if appErr := services.RefreshLinkStatus(app, link); appErr != nil {

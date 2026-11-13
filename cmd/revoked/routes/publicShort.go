@@ -91,7 +91,7 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 			return linkStatusPage(re, "Link not found",
 				"This link does not exist.", http.StatusNotFound)
 		}
-		return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 	}
 	if appErr := services.RefreshLinkStatus(app, link); appErr != nil {
 		if asPage {
@@ -109,6 +109,7 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 	// Handshake-gated links can't be unlocked from a plain URL.
 	if link.GetBool(util.Fields.Link.RequireHandshake) {
 		return re.JSON(http.StatusForbidden, map[string]any{
+			"code": util.Errors.HandshakeRequired.ErrorCode, "status": http.StatusForbidden,
 			"slug": slug, "protected": true, "requireHandshake": true,
 			"message": "This link requires a verified identity. Open it in the Revoked app.",
 		})
@@ -119,7 +120,12 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 			return rateLimitedResponse(re)
 		}
 		if pw := q.Get("password"); pw == "" || !util.VerifyPassword(hash, pw) {
+			code := util.Errors.LinkPasswordRequired.ErrorCode
+			if pw != "" {
+				code = util.Errors.LinkPasswordInvalid.ErrorCode
+			}
 			return re.JSON(http.StatusForbidden, map[string]any{
+				"code": code, "status": http.StatusForbidden,
 				"slug": slug, "protected": true, "requiresPassword": true,
 				"message": "This link is password-protected. Add ?password=YOUR_PASSWORD to view it.",
 			})
@@ -156,13 +162,7 @@ func serveLinkData(app core.App, re *core.RequestEvent, root *server.RootKey, sl
 	if key != "" {
 		idx := indexOfField(fields, key)
 		if idx < 0 {
-			if format == "json" {
-				return re.JSON(http.StatusNotFound, map[string]any{
-					"slug": slug, "key": key,
-					"message": "This link has no shared value with that key.",
-				})
-			}
-			return re.NotFoundError("No shared value with that key.", nil)
+			return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkKeyNotFound)
 		}
 		f := fields[idx]
 		switch format {

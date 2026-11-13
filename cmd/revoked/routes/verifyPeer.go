@@ -7,6 +7,7 @@ import (
 
 	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
+	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -67,7 +68,7 @@ func VerifyPeerRoute(app core.App) {
 			}
 			var req verifyPeerRequest
 			if err := re.BindBody(&req); err != nil {
-				return re.BadRequestError("invalid body", err)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			domain := strings.ToLower(strings.TrimSpace(req.Domain))
 			if domain == "" {

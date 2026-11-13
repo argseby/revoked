@@ -151,7 +151,7 @@ func AttestationsRoute(app core.App, root *server.RootKey) {
 			}
 			rec, err := app.FindRecordById(util.Coll.Credentials, re.Request.PathValue("id"))
 			if err != nil || rec == nil || rec.GetString(util.Fields.Credential.User) != re.Auth.Id {
-				return re.NotFoundError("Credential not found", nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.CredentialNotFound)
 			}
 			verdict := services.VerifyPresentation(app, root, rec.GetString(util.Fields.Credential.Credential),
 				services.VerifyOptions{SkipKeyBinding: true}, time.Now())

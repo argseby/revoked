@@ -107,13 +107,10 @@ func ChallengeRoute(app core.App) {
 			switch scope {
 			case "link", "request", "attestation", challengeScopeReissue:
 				if identityId == "" {
-					return re.BadRequestError("identityId is required for this scope", nil)
+					return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ChallengeIdentityRequired)
 				}
 			default:
-				return re.BadRequestError("unknown scope", nil)
-			}
-			if slug == "" {
-				return re.BadRequestError("slug is required", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ChallengeScopeInvalid)
 			}
 
 			nonce, exp, err := IssueChallenge(scope, slug, identityId)
@@ -121,11 +118,18 @@ func ChallengeRoute(app core.App) {
 				return re.InternalServerError("Failed to issue challenge", nil)
 			}
 
-			return re.JSON(http.StatusOK, map[string]any{
+			out := map[string]any{
 				"nonce":     nonce,
 				"expiresAt": exp.UTC().Format(time.RFC3339),
-				"algorithm": "RSA-SHA256",
-			})
+			}
+			// Only an identity held here has a key to name; one from another
+			// server signs however its own key does.
+			if id, err := app.FindRecordById(util.Coll.Identities, identityId); err == nil {
+				if alg := util.SignatureAlgorithm(id.GetString(util.Fields.Identity.Certificate)); alg != "" {
+					out["algorithm"] = alg
+				}
+			}
+			return re.JSON(http.StatusOK, out)
 		})
 
 		return e.Next()
