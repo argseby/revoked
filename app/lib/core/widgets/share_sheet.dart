@@ -11,10 +11,12 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
 import 'package:share_plus/share_plus.dart';
 
 bool get _hasShareSheet => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -50,6 +52,7 @@ Future<void> showShareSheet({
   return showAppSheet(
     context: context,
     dismissible: true,
+    panelWidth: vaultComposerWidth,
     builder: (sheetContext) => _ShareSheet(
       title: title,
       webUrl: webUrl,
@@ -103,97 +106,66 @@ class _ShareSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final primaryUrl = webUrl ?? appUrl;
+    final isRequest = invitation != null;
 
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        // Fills the side panel, so the footer sits on its bottom edge.
+        mainAxisSize: AppSpacing.isNarrow(context)
+            ? MainAxisSize.min
+            : MainAxisSize.max,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title).header,
-                const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  invitation != null
-                      ? 'Anyone who opens this in the Revoked app can answer until the request is closed.'
-                      : 'Anyone with the link can view the shared data until the link is paused or revoked.',
-                ).muted.small,
-                if (keyNote != null) ...[
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(keyNote!).muted.small,
-                ],
-              ],
-            ),
+          VaultComposerHeader(
+            title: title,
+            area: isRequest ? 'Requests' : 'Shares',
+            areaIcon: isRequest ? AppIcons.askFor : AppIcons.share,
+            crumb: 'Link',
+            subtitle: isRequest
+                ? 'Anyone who opens this in the Revoked app can answer until the request is closed.'
+                : 'Anyone with the link can view the shared data until the link is paused or revoked.',
+            onClose: () => Navigator.of(context).pop(),
           ),
           const AppDivider(),
-
           Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-              children: [
-                // The QR carries the web link: a phone camera opens it
-                // without the app installed, which is the whole point of
-                // pointing someone at a page.
-                Center(child: AppQrCode(data: primaryUrl, size: 180)),
-                const SizedBox(height: AppSpacing.lg),
-
-                if (webUrl != null) ...[
-                  _LinkRow(
-                    icon: AppIcons.globe,
-                    label: 'Web link',
-                    hint: 'Opens in any browser without the app.',
-                    url: webUrl!,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                _LinkRow(
-                  icon: AppIcons.shieldCheck,
-                  label: 'App link',
-                  hint: webUrl == null
-                      ? 'Requests are answered in the app, which verifies the server before any input.'
-                      : 'Opens in Revoked, which verifies the server first.',
-                  url: appUrl,
-                ),
-
-                if (invitation != null) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  _InvitationBox(text: invitation!),
-                ],
-
-                if (apiTarget != null) ...[
-                  const SizedBox(height: AppSpacing.lg),
-                  const AppDivider(),
-                  const SizedBox(height: AppSpacing.md),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xl,
+            fit: AppSpacing.isNarrow(context) ? FlexFit.loose : FlexFit.tight,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (keyNote != null)
+                    AppComposerCard(child: Text(keyNote!).muted.small),
+                  // The QR carries the web link: a phone camera opens it
+                  // without the app installed, which is the whole point of
+                  // pointing someone at a page.
+                  AppComposerCard(
+                    child: Center(
+                      child: AppQrCode(data: primaryUrl, size: 180),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          AppIcons.server,
-                          size: 16,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        const Expanded(
-                          child: Text('Access from scripts and spreadsheets.'),
-                        ),
-                        AppButton(
+                  ),
+                  if (webUrl != null)
+                    _LinkRow(
+                      label: 'Web link',
+                      hint: 'Opens in any browser without the app.',
+                      url: webUrl!,
+                    ),
+                  _LinkRow(
+                    label: 'App link',
+                    hint: webUrl == null
+                        ? 'Requests are answered in the app, which verifies the server before any input.'
+                        : 'Opens in Revoked, which verifies the server first.',
+                    url: appUrl,
+                  ),
+                  if (invitation != null) _InvitationBox(text: invitation!),
+                  if (apiTarget != null)
+                    AppComposerCard(
+                      description: 'Access from scripts and spreadsheets.',
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: AppButton(
                           icon: AppIcons.globe,
                           label: 'Web & API',
                           style: AppButtonStyle.accent,
@@ -203,58 +175,36 @@ class _ShareSheet extends StatelessWidget {
                             showApiAccessSheet(context, target: apiTarget!);
                           },
                         ),
-                      ],
+                      ),
                     ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
           const AppDivider(),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: 'Close',
-                    style: AppButtonStyle.accent,
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppButton(
-                    icon: _hasShareSheet ? AppIcons.share : AppIcons.copy,
-                    label: _hasShareSheet
-                        ? 'Share'
-                        : (invitation != null ? 'Copy message' : 'Copy link'),
-                    onTap: () async {
-                      // A request goes out with its explanation; a bare
-                      // revoked:// link means nothing to someone new.
-                      final text = invitation ?? primaryUrl;
-                      if (_hasShareSheet) {
-                        await SharePlus.instance.share(ShareParams(text: text));
-                        return;
-                      }
-                      await Clipboard.setData(ClipboardData(text: text));
-                      if (context.mounted) {
-                        AppToast.success(
-                          context,
-                          invitation != null ? 'Copied message' : 'Copied link',
-                        );
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
+          AppComposerFooter(
+            label: _hasShareSheet
+                ? 'Share'
+                : (invitation != null ? 'Copy message' : 'Copy link'),
+            icon: _hasShareSheet ? AppIcons.share : AppIcons.copy,
+            cancelLabel: 'Close',
+            onCancel: () => Navigator.of(context).pop(),
+            onSubmit: () async {
+              // A request goes out with its explanation; a bare
+              // revoked:// link means nothing to someone new.
+              final text = invitation ?? primaryUrl;
+              if (_hasShareSheet) {
+                await SharePlus.instance.share(ShareParams(text: text));
+                return;
+              }
+              await Clipboard.setData(ClipboardData(text: text));
+              if (context.mounted) {
+                AppToast.success(
+                  context,
+                  invitation != null ? 'Copied message' : 'Copied link',
+                );
+              }
+            },
           ),
         ],
       ),
@@ -263,58 +213,38 @@ class _ShareSheet extends StatelessWidget {
 }
 
 class _LinkRow extends StatelessWidget {
-  final IconData icon;
   final String label;
   final String hint;
   final String url;
 
-  const _LinkRow({
-    required this.icon,
-    required this.label,
-    required this.hint,
-    required this.url,
-  });
+  const _LinkRow({required this.label, required this.hint, required this.url});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: scheme.onSurfaceVariant),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: Text(label).small),
-              AppButton(
-                icon: AppIcons.copy,
-                tooltip: 'Copy $label',
-                style: AppButtonStyle.accent,
-                size: AppButtonSize.small,
-                onTap: () async {
-                  await Clipboard.setData(ClipboardData(text: url));
-                  if (context.mounted) {
-                    AppToast.success(context, 'Copied $label');
-                  }
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xxs),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: AppRadius.allSm,
-            ),
-            child: Text(url, maxLines: 1).mono.small.selectable,
-          ),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(hint).muted.small,
-        ],
+    return AppComposerField(
+      label: label,
+      explanation: hint,
+      trailing: AppButton(
+        icon: AppIcons.copy,
+        tooltip: 'Copy $label',
+        style: AppButtonStyle.accent,
+        size: AppButtonSize.small,
+        onTap: () async {
+          await Clipboard.setData(ClipboardData(text: url));
+          if (context.mounted) {
+            AppToast.success(context, 'Copied $label');
+          }
+        },
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: AppRadius.allSm,
+        ),
+        child: Text(url, maxLines: 1).mono.small.selectable,
       ),
     );
   }
@@ -329,27 +259,17 @@ class _InvitationBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Accompanying message'),
-          const SizedBox(height: AppSpacing.xxs),
-          const Text(
-            'Explains to recipients new to Revoked how to get the app.',
-          ).muted.small,
-          const SizedBox(height: AppSpacing.sm),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: AppRadius.allMd,
-            ),
-            child: Text(text).small.selectable,
-          ),
-        ],
+    return AppComposerField(
+      label: 'Accompanying message',
+      explanation: 'Explains to recipients new to Revoked how to get the app.',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: AppRadius.allMd,
+        ),
+        child: Text(text).small.selectable,
       ),
     );
   }

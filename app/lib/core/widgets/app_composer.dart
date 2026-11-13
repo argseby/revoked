@@ -518,6 +518,10 @@ class AppComposerFooter extends StatelessWidget {
   final VoidCallback? onSubmit;
   final VoidCallback? onCancel;
 
+  /// The dismissing button's label, for a drawer where nothing is undone by
+  /// leaving ("Close").
+  final String cancelLabel;
+
   const AppComposerFooter({
     super.key,
     required this.label,
@@ -525,6 +529,7 @@ class AppComposerFooter extends StatelessWidget {
     required this.onSubmit,
     required this.onCancel,
     this.busy = false,
+    this.cancelLabel = 'Cancel',
   });
 
   @override
@@ -539,7 +544,7 @@ class AppComposerFooter extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           AppButton(
-            label: 'Cancel',
+            label: cancelLabel,
             style: AppButtonStyle.ghost,
             onTap: onCancel,
           ),
