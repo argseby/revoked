@@ -88,9 +88,12 @@ links.
 ## The superuser
 
 The `/_/` dashboard account is separate from app accounts and still signs in
-with a password. Create it on your first visit to `/_/`, through the install
-link printed in the logs, or with the `ADMIN_EMAIL`/`ADMIN_PASSWORD` seed
-pair. It manages collections and settings. It can't sign in to the app.
+with a password. It is created on the first visit to `/_/`, through the
+install link printed in the logs, or with the `ADMIN_EMAIL`/`ADMIN_PASSWORD`
+seed pair. The dashboard answers only on the machine itself or over an SSH
+tunnel ([Dashboard](reverse-proxy.md#dashboard)), so the install link is
+opened through one. It manages collections and settings. It can't sign in to
+the app.
 
 ## Let people sign themselves up
 

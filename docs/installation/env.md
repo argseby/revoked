@@ -14,12 +14,15 @@ no `.env` file needed there.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `API_PORT` | `3000` | The port the API listens on *inside* the container, and the one your reverse proxy forwards to. |
-| `API_PUBLISH` | `127.0.0.1:3000` | Where the API is published on the host. The default answers on that machine only, at `http://localhost:3000`. A bare port such as `3000` opens it on every interface, reachable by the machine's IP: `/healthz` and the version answer, but nobody can sign in, because a passkey cannot be bound to an IP address. Never leave it open on a public host: it skips the proxy's TLS. |
-| `CONTAINER_NAME` | `revoked-api` | The container's name. Your reverse proxy forwards to this hostname. |
-| `PROXY_NETWORK` | `proxy-network` | The external Docker network you share with your reverse proxy. Create it once: `docker network create proxy-network`, or name the proxy's own network to join that one. |
-| `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | Only for the bundled nginx (`--profile proxy`). |
-| `REVOKED_IMAGE` | `ghcr.io/argseby/revoked:latest` | The server image to run, as a full image reference: a tag alone such as `latest` fails to pull. Pin a release, such as `ghcr.io/argseby/revoked:v0.36.0`: a new tag is pulled on the next `up`, while `:latest` only moves when the image is pulled again. `docker compose up -d --build` builds the checkout under this name instead. |
+| `API_PORT` | `3000` | The port the API listens on *inside* the container, and the one a reverse proxy forwards to. |
+| `API_PUBLISH` | `127.0.0.1:3000` | Where the API is published on the host. The default answers on that machine only: the address a proxy on the host forwards to, and the one an SSH tunnel reaches the dashboard at. A bare port such as `3000` opens it on every interface over plain HTTP, skipping the proxy's TLS; never on a public host. |
+| `CONTAINER_NAME` | `revoked-api` | The container's name, and the hostname a proxy in another container forwards to. |
+| `PROXY_NETWORK` | `proxy-network` | Only with `docker-compose.network.yml`: the existing Docker network a proxy in its own container is on. See [Reverse proxy](reverse-proxy.md#docker). |
+| `HTTP_PORT` / `HTTPS_PORT` | `80` / `443` | Only for the bundled Caddy (`--profile caddy`): the ports it listens on. |
+| `SITE_ADDRESS` | `DOMAIN` | Only for the bundled Caddy: the address it serves and gets a certificate for. `localhost` serves a local test with Caddy's own certificate. |
+| `TRUSTED_PROXY_HEADER` | `X-Forwarded-For` | The header the reverse proxy passes the client's address in, which rate limits key on. Applied over the dashboard's setting at every start, reading the rightmost entry. Several names are comma-separated; `none` trusts no header, for a server reached without any proxy. |
+| `DASHBOARD_ACCESS` | `local` | Who reaches the `/_/` dashboard and the superuser sign-in. `local` answers only requests that reach the container directly — from the machine, or over an SSH tunnel — and returns `404` through a proxy. `public` serves them through the proxy too. See [Dashboard](reverse-proxy.md#dashboard). |
+| `REVOKED_IMAGE` | `ghcr.io/argseby/revoked:latest` | The server image to run, as a full image reference: a tag alone such as `latest` fails to pull. Pin a release, such as `ghcr.io/argseby/revoked:v0.36.0`: a new tag is pulled on the next `up`, while `:latest` only moves when the image is pulled again. The stack always runs this image and pulls it on every `up`; builds from source go through `docker-compose.build.yml`. |
 
 ## Registration
 
@@ -138,10 +141,10 @@ minutes, two per three seconds for other accounts, and two password-reset or
 one-time-code mails per ten minutes. Change them in the dashboard under
 *Settings → Application → Rate limiting*.
 
-All these limits count per IP. So set the
-[trusted-proxy header](reverse-proxy.md#let-rate-limits-see-real-ips).
-Without it, every request seems to come from your proxy, and everyone shares
-one budget.
+All these limits count per client address, which the proxy passes in
+`TRUSTED_PROXY_HEADER` ([Client addresses](reverse-proxy.md#client-addresses)).
+Behind a proxy that sets no such header, every request seems to come from the
+proxy, and everyone shares one budget.
 
 ## Capacity
 

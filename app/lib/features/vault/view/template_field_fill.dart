@@ -53,6 +53,31 @@ String _sanitiseKey(String raw) {
   return key.isEmpty ? 'key' : key;
 }
 
+/// A section key the server accepts: only `a-z`, `0-9` and `_`, the rule
+/// the sections collection enforces. Spelled the way the server's own
+/// sanitiser spells it ("Größe" → "groesse"), so both ends agree on a key.
+/// "Wi-Fi access" is `wi_fi_access`; a hyphen would be refused outright.
+String _sanitiseSectionKey(String raw) {
+  final out = StringBuffer();
+  for (final c in raw.toLowerCase().runes) {
+    final ch = String.fromCharCode(c);
+    if (RegExp(r'[a-z0-9_]').hasMatch(ch)) {
+      out.write(ch);
+    } else {
+      out.write(switch (ch) {
+        'ä' => 'ae',
+        'ö' => 'oe',
+        'ü' => 'ue',
+        'ß' => 'ss',
+        _ => '_',
+      });
+    }
+  }
+  final key = out.toString();
+  if (key.isEmpty) return 'section';
+  return key.length > 100 ? key.substring(0, 100) : key;
+}
+
 TemplateField _field(
   Map<dynamic, dynamic> m,
   String group, [
@@ -71,8 +96,15 @@ TemplateField _field(
   );
 }
 
-/// The vault section key for a name, sanitised the way a template's is.
-String sectionKeyFor(String name) => _sanitiseKey(name);
+/// The view a template gives the section it fills, if it has one.
+Map<String, dynamic>? templateView(Template template) =>
+    switch (template.schema['view']) {
+      final Map<String, dynamic> v when v.isNotEmpty => v,
+      _ => null,
+    };
+
+/// The vault section key for a name, in the form the server accepts.
+String sectionKeyFor(String name) => _sanitiseSectionKey(name);
 
 /// The vault section a template's own fields fill into, named after it.
 String templateSectionKey(Template template) => sectionKeyFor(template.name);
@@ -96,7 +128,7 @@ List<TemplateField> templateFieldsOf(Template template) {
   }
   for (final s in template.schema['sections'] as List<dynamic>? ?? const []) {
     if (s is! Map) continue;
-    final key = _sanitiseKey((s['key'] as String? ?? '').trim());
+    final key = _sanitiseSectionKey((s['key'] as String? ?? '').trim());
     final name = (s['name'] as String? ?? '').trim();
     for (final r in s['records'] as List<dynamic>? ?? const []) {
       if (r is Map) out.add(_field(r, name.isEmpty ? key : name, key));
@@ -125,8 +157,9 @@ Future<bool> fillTemplateFieldInteractively({
   required String sectionKey,
   required String sectionName,
   required TemplateField field,
+  Map<String, dynamic>? view,
 }) async {
-  final section = (key: sectionKey, name: sectionName);
+  final section = (key: sectionKey, name: sectionName, view: view);
   if (field.isFile) {
     return _fillFile(context, toastContext, section, field);
   }
@@ -165,7 +198,8 @@ Future<bool> fillTemplateFieldInteractively({
 
 /// A file field is answered by attaching one: the same picker, size check
 /// and streamed upload the record drawer uses, in a drawer of its own.
-typedef _Section = ({String key, String name});
+/// Where an answer is filed, and the view that section shows as.
+typedef _Section = ({String key, String name, Map<String, dynamic>? view});
 
 Future<bool> _fillFile(
   BuildContext context,
@@ -299,6 +333,7 @@ Future<bool> _save(
     format: field.format,
     sectionKey: section.key,
     sectionName: section.name,
+    view: section.view,
     user: Stores.auth.userId,
     workspace: Stores.auth.activeWorkspace ?? '',
   );
@@ -348,6 +383,7 @@ class _FileFieldDrawer extends StatelessWidget {
       format: field.format,
       sectionKey: section.key,
       sectionName: section.name,
+      view: section.view,
       user: Stores.auth.userId,
       workspace: Stores.auth.activeWorkspace ?? '',
       file: file,

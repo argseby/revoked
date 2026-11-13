@@ -49,6 +49,13 @@ const (
 	// limit set by migration 000052; keep the two in step.
 	MaxTemplateDescriptionLength = 500
 
+	// MaxSectionViewBytes bounds a section's or template's view: a layout,
+	// not data, so a few kilobytes is plenty and a large one is a mistake.
+	MaxSectionViewBytes = 32 << 10
+
+	// SectionViewVersion is the newest view format the server knows.
+	SectionViewVersion = 1
+
 	StatusActive  = "active"
 	StatusPaused  = "paused"
 	StatusRevoked = "revoked"

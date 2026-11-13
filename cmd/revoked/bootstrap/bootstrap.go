@@ -20,6 +20,8 @@ import (
 func Bind(app core.App, root *server.RootKey) {
 	hooks.BindConnectionLimit(app)
 	hooks.BindMailSettings(app)
+	hooks.BindTrustedProxy(app)
+	hooks.BindDashboardAccess(app)
 	hooks.BindOutboundMailLimit(app)
 	hooks.BindUsersHooks(app)
 	hooks.BindWorkspacesHooks(app)

@@ -41,6 +41,44 @@
           }
         ]
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "server",
+      "name": "Server access",
+      "accent": "violet",
+      "match": [
+        "host",
+        "username"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "server",
+          "eyebrow": "Server access",
+          "title": "{host}"
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Connect",
+              "value": "ssh {username}@{host}",
+              "mono": true
+            },
+            {
+              "label": "Port",
+              "value": "{ssh_port}",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "secret",
+          "label": "Password",
+          "key": "password"
+        }
+      ]
+    }
   }
 }

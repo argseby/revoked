@@ -35,6 +35,10 @@ class Section {
   /// The owner's address, on a section someone else shared with this person.
   final String? ownerEmail;
 
+  /// How the section shows as one card: a view layout (see
+  /// `features/vault/views/view_spec.dart`), or null for the plain list.
+  final Map<String, dynamic>? view;
+
   Section({
     required this.id,
     required this.key,
@@ -50,6 +54,7 @@ class Section {
     this.editing = 'owner',
     this.canEdit = false,
     this.ownerEmail,
+    this.view,
   });
 
   factory Section.fromJson(Map<String, dynamic> json) {
@@ -79,6 +84,10 @@ class Section {
       editing: json['editing'] == 'audience' ? 'audience' : 'owner',
       canEdit: json['canEdit'] == true,
       ownerEmail: json['ownerEmail'] as String?,
+      view: switch (json['view']) {
+        final Map<String, dynamic> v when v.isNotEmpty => v,
+        _ => null,
+      },
     );
   }
 
@@ -104,6 +113,7 @@ class Section {
     editing: editing,
     canEdit: canEdit,
     ownerEmail: ownerEmail,
+    view: view,
   );
 
   /// Older servers send only `shared`.

@@ -211,6 +211,7 @@ var Errors = struct {
 	SectionShareByPersonOnly      AppError
 	AudienceByOwnerOnly           AppError
 	AudienceInvalid               AppError
+	SectionViewInvalid            AppError
 	DefaultAudienceInvalid        AppError
 	GroupNotFound                 AppError
 	GroupNameInvalid              AppError
@@ -998,6 +999,10 @@ var Errors = struct {
 	AudienceInvalid: AppError{
 		ErrorCode: "audience_invalid",
 		ErrorText: "The audience must be private, workspace or groups of this workspace.",
+	},
+	SectionViewInvalid: AppError{
+		ErrorCode: "section_view_invalid",
+		ErrorText: "The view must be a version 1 layout with an id, the keys it matches and at least one block.",
 	},
 	DefaultAudienceInvalid: AppError{
 		ErrorCode: "default_audience_invalid",

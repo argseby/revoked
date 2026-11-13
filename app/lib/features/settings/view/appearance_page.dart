@@ -11,7 +11,7 @@ import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_select.dart';
-import 'package:revoked_app/core/widgets/app_list_group.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
 
 /// Theme, text size, motion and how dates read — the settings that decide whether the app
 /// is comfortable to read and use at all.
@@ -29,7 +29,7 @@ class AppearancePage extends StatelessWidget {
         children: [
           _AppearanceSection(
             title: 'Theme',
-            footer: 'System follows the device setting.',
+            description: 'System follows the device setting.',
             child: _ResponsiveChoice<ThemeMode>(
               value: Stores.theme.mode,
               onChanged: Stores.theme.setMode,
@@ -54,10 +54,14 @@ class AppearancePage extends StatelessWidget {
           ),
           const _AppearanceSection(
             title: 'Dates and times',
+            description: 'Automatic follows the device region and time zone.',
             child: _DatesAndTimes(),
           ),
           _AppearanceSection(
             title: 'Text size',
+            description:
+                'Scales the device text size. At 100%, the app matches the '
+                'device.',
             child: _TextSize(scale: DisplayPreferences.textScale),
           ),
           _AppearanceSection(
@@ -94,7 +98,7 @@ class _TextSize extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(child: Text('App text size')),
+            const Expanded(child: AppComposerSubLabel('App text size')),
             AppText(percent, bold: true),
           ],
         ),
@@ -107,10 +111,6 @@ class _TextSize extends StatelessWidget {
           semanticFormatterCallback: (_) => percent,
           onChanged: (v) => DisplayPreferences.setTextScale(scales[v.round()]),
         ),
-        const Text(
-          'Scales the device text size. At 100%, the app matches the '
-          'device.',
-        ).small.muted,
       ],
     );
   }
@@ -139,10 +139,8 @@ class _DatesAndTimes extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppFormField(
-          label: 'Date format',
-          inset: false,
-          child: AppSelect<DateStyle>(
+        const AppComposerSubLabel('Date format'),
+        AppSelect<DateStyle>(
             value: DateTimePreferences.dateStyle,
             onChanged: (v) {
               if (v != null) DateTimePreferences.setDateStyle(v);
@@ -157,11 +155,9 @@ class _DatesAndTimes extends StatelessWidget {
               for (final style in DateStyle.values.skip(1))
                 AppSelectItem(style, Text(example(style))),
             ],
-          ),
         ),
-        AppSpacing.gapMd,
-        const Text('Clock'),
-        AppSpacing.gapXs,
+        AppSpacing.gapLg,
+        const AppComposerSubLabel('Clock'),
         _ResponsiveChoice<ClockStyle>(
           value: DateTimePreferences.clockStyle,
           onChanged: DateTimePreferences.setClockStyle,
@@ -171,11 +167,9 @@ class _DatesAndTimes extends StatelessWidget {
             AppSegmentedItem(value: ClockStyle.hours12, label: '12-hour'),
           ],
         ),
-        AppSpacing.gapMd,
-        AppFormField(
-          label: 'Time zone',
-          inset: false,
-          child: AppSelect<String>(
+        AppSpacing.gapLg,
+        const AppComposerSubLabel('Time zone'),
+        AppSelect<String>(
             value: DateTimePreferences.timeZone?.name ?? _deviceZone,
             onChanged: (v) =>
                 DateTimePreferences.setTimeZone(v == _deviceZone ? null : v),
@@ -184,38 +178,36 @@ class _DatesAndTimes extends StatelessWidget {
               for (final name in DateTimePreferences.timeZoneNames)
                 AppSelectItem(name, Text(name.replaceAll('_', ' '))),
             ],
-          ),
         ),
         AppSpacing.gapXs,
         Text('Current time: ${formatDayTime(now)}.').small.muted,
-        const Text(
-          'Automatic follows the device region and time zone.',
-        ).small.muted,
       ],
     );
   }
 }
 
-/// Controls sit in the same themed surface as other settings groups.
+/// One group of settings as a composer card: the same title, description
+/// and controls as in every create sheet.
 class _AppearanceSection extends StatelessWidget {
   final String title;
-  final String? footer;
+  final String? description;
   final Widget child;
 
   const _AppearanceSection({
     required this.title,
     required this.child,
-    this.footer,
+    this.description,
   });
 
   @override
-  Widget build(BuildContext context) => AppListGroup(
-    title: title,
-    trailing: const SizedBox.shrink(),
-    footer: footer == null ? null : Text(footer!),
-    children: [
-      Padding(padding: const EdgeInsets.all(AppSpacing.lg), child: child),
-    ],
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+    child: AppComposerCard(
+      title: title,
+      description: description,
+      inset: false,
+      child: child,
+    ),
   );
 }
 

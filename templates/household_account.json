@@ -34,6 +34,54 @@
         "format": "hidden",
         "reason": "One-time codes — share them only with people you would hand your unlocked phone."
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "household",
+      "name": "Account login",
+      "accent": "teal",
+      "match": [
+        "service_name",
+        "login_email"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "key",
+          "eyebrow": "Household account",
+          "title": "{service_name}"
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Login",
+              "value": "{login_email}",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "secret",
+          "label": "Password",
+          "key": "password"
+        },
+        {
+          "type": "secret",
+          "label": "Backup codes",
+          "key": "backup_codes"
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Open {service_name}",
+              "key": "service_url",
+              "kind": "url"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

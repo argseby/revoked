@@ -43,6 +43,7 @@ func TestComposePassesEveryDocumentedVariable(t *testing.T) {
 		"HTTP_PORT":       true,
 		"HTTPS_PORT":      true,
 		"PROXY_NETWORK":   true,
+		"SITE_ADDRESS":    true,
 		"REVOKED_IMAGE":   true,
 		"REVOKED_VERSION": true, // a build argument
 	}

@@ -27,21 +27,163 @@ import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/templates/store/template_draft.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
+import 'package:revoked_app/features/vault/view/section_views.dart';
+import 'package:revoked_app/features/vault/views/view_editor.dart';
+import 'package:revoked_app/features/vault/views/view_renderer.dart';
+import 'package:revoked_app/features/vault/views/view_spec.dart';
 
 /// Opens the template editor drawer - create when [initialTemplate] is null,
 /// edit otherwise.
 void openTemplateEditorSheet(
   BuildContext context, {
   Template? initialTemplate,
+  Template? copyOf,
 }) {
   showAppSheet(
     context: context,
+    // Room for the view's code and its preview beside the fields.
+    panelWidth: vaultComposerWidth,
     builder: (sheetContext) => _TemplateEditorSheet(
       templatesStore: Stores.templates,
       authStore: Stores.auth,
       initialTemplate: initialTemplate,
+      copyOf: copyOf,
     ),
   );
+}
+
+/// Shows a template that cannot be changed, such as a built-in one: what it
+/// asks for, how the section it fills shows as a card, and that view's code.
+/// A copy of it can be made and edited.
+void openTemplatePreviewSheet(BuildContext context, Template template) {
+  showAppSheet(
+    context: context,
+    panelWidth: vaultComposerWidth,
+    builder: (sheetContext) =>
+        _TemplatePreviewSheet(template: template, parentContext: context),
+  );
+}
+
+class _TemplatePreviewSheet extends StatelessWidget {
+  final Template template;
+  final BuildContext parentContext;
+
+  const _TemplatePreviewSheet({
+    required this.template,
+    required this.parentContext,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final schema = template.schema;
+    final viewJson = switch (schema['view']) {
+      final Map<String, dynamic> v when v.isNotEmpty => v,
+      _ => null,
+    };
+    final spec = viewJson == null ? null : ViewSpec.parse(viewJson);
+    final fields = [
+      for (final r in (schema['records'] as List?) ?? const [])
+        if (r is Map) r,
+      for (final sec in (schema['sections'] as List?) ?? const [])
+        if (sec is Map)
+          for (final r in (sec['records'] as List?) ?? const [])
+            if (r is Map) r,
+    ];
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
+      child: Column(
+        mainAxisSize: AppSpacing.isNarrow(context)
+            ? MainAxisSize.min
+            : MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          VaultComposerHeader(
+            title: template.name,
+            area: 'Templates',
+            areaIcon: AppIcons.cardList,
+            subtitle: template.isBuiltin
+                ? 'Built-in: the same for everyone. A copy can be edited.'
+                : 'A template of this workspace.',
+            onClose: () => Navigator.of(context).pop(),
+          ),
+          const AppDivider(),
+          Flexible(
+            fit: AppSpacing.isNarrow(context) ? FlexFit.loose : FlexFit.tight,
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              children: [
+                AppComposerCard(
+                  title: 'Shows as',
+                  description: spec == null
+                      ? 'This template has no view: its section shows as a '
+                            'list of records.'
+                      : 'The section this template fills, drawn with sample '
+                            'values.',
+                  child: spec == null
+                      ? const SizedBox.shrink()
+                      : ViewRenderer(spec: spec, data: sampleViewData(schema)),
+                ),
+                AppComposerCard(
+                  title: 'Fields',
+                  description:
+                      '${fields.length} ${fields.length == 1 ? 'field' : 'fields'}, '
+                      'each saved as a record by its key.',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final f in fields)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.xxs,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${f['label'] ?? f['key']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              AppSpacing.gapSm,
+                              Text('${f['key']}').small.mono.muted,
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (viewJson != null)
+                  AppComposerCard(
+                    title: 'View code',
+                    description:
+                        'The layout above, as stored in the '
+                        'template under "view".',
+                    child: AppText(
+                      const JsonEncoder.withIndent('  ').convert(viewJson),
+                      selectable: true,
+                    ).small.mono,
+                  ),
+              ],
+            ),
+          ),
+          const AppDivider(),
+          AppComposerFooter(
+            label: 'Make an editable copy',
+            icon: AppIcons.duplicate,
+            onSubmit: () {
+              Navigator.of(context).pop();
+              openTemplateEditorSheet(parentContext, copyOf: template);
+            },
+            onCancel: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Delete with the standard confirmation; shared with the settings list.
@@ -72,10 +214,14 @@ class _TemplateEditorSheet extends StatefulWidget {
   final AuthStore authStore;
   final Template? initialTemplate;
 
+  /// A template to start a new one from, such as a built-in one.
+  final Template? copyOf;
+
   const _TemplateEditorSheet({
     required this.templatesStore,
     required this.authStore,
     this.initialTemplate,
+    this.copyOf,
   });
 
   @override
@@ -92,25 +238,23 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   @override
   void initState() {
     super.initState();
-    final schema = widget.initialTemplate?.schema ?? _defaultSchema();
+    final from = widget.initialTemplate ?? widget.copyOf;
+    final schema = from == null
+        ? _defaultSchema()
+        // A deep copy, so editing never reaches the template it came from.
+        : jsonDecode(jsonEncode(from.schema)) as Map<String, dynamic>;
     _store.resetEditor(
-      name: widget.initialTemplate?.name ?? '',
+      name:
+          widget.initialTemplate?.name ??
+          (widget.copyOf == null ? '' : '${widget.copyOf!.name} (copy)'),
       json: _encodeSchema(schema),
     );
     _loadSchemaIntoModel(schema);
   }
 
+  /// A new template starts empty: fields and sections are added as needed.
   Map<String, dynamic> _defaultSchema() => {
-    'records': [
-      {
-        'label': 'API Endpoint',
-        'key': 'api_url',
-        'type': 'url',
-        'format': 'default',
-        'required': false,
-        'reason': '',
-      },
-    ],
+    'records': <dynamic>[],
     'sections': <dynamic>[],
   };
 
@@ -158,7 +302,13 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
 
     return {
       ..._store.extraSchemaKeys,
-      'records': _store.rootFields.map((f) => f.toMap()).toList(),
+      // A row left blank asks for nothing, so it is not saved.
+      'records': [
+        for (final f in _store.rootFields)
+          if (f.labelCtrl.text.trim().isNotEmpty ||
+              f.keyCtrl.text.trim().isNotEmpty)
+            f.toMap(),
+      ],
       'sections': sections,
     };
   }
@@ -192,6 +342,8 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   /// and returns null.
   Map<String, dynamic>? _tryParseJson() {
     final text = _store.editorJson.text.trim();
+    // An empty box is an empty template, not a typing mistake.
+    if (text.isEmpty) return _defaultSchema();
     try {
       final decoded = jsonDecode(text);
       if (decoded is! Map<String, dynamic>) {
@@ -213,11 +365,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   }
 
   Future<void> _save() async {
-    final name = _store.editorName.text.trim();
-    if (name.isEmpty) {
-      AppToast.error(context, 'A template name is required');
-      return;
-    }
+    // A template may start empty and be named and filled in later.
+    final typed = _store.editorName.text.trim();
+    final name = typed.isEmpty ? _untitledName() : typed;
 
     final Map<String, dynamic> schema;
     if ((_store.editorIsJsonMode
@@ -249,11 +399,14 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
     if (!mounted) return;
 
     if (ok) {
-      _close();
+      // Shown before the sheet closes: once it is gone, its context can no
+      // longer reach the overlay the toast is drawn in.
       AppToast.success(
         context,
         _isEdit ? 'Template updated' : 'Template created',
+        subtitle: name,
       );
+      _close();
     } else {
       _store.setTemplateSubmitting(false);
       AppToast.error(
@@ -266,10 +419,26 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
     }
   }
 
+  /// The name an unnamed template is saved under, unique among this
+  /// workspace's templates so the new one can be told apart in the list.
+  String _untitledName() {
+    const base = 'Untitled template';
+    final taken = {
+      for (final t in widget.templatesStore.templates) t.name.toLowerCase(),
+    };
+    if (!taken.contains(base.toLowerCase())) return base;
+    var n = 2;
+    while (taken.contains('$base $n'.toLowerCase())) {
+      n++;
+    }
+    return '$base $n';
+  }
+
   /// The exact API request this editor would issue — drives the live developer
   /// preview (create vs update), mirroring [_save].
   ApiRequestSpec _buildSpec() {
-    final name = _store.editorName.text.trim();
+    final typed = _store.editorName.text.trim();
+    final name = typed.isEmpty ? _untitledName() : typed;
     final schema = _previewSchema();
     if (_isEdit) {
       return Stores.templates.updateTemplateSpec(
@@ -336,6 +505,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         _buildVisualEditor()
       else
         _buildJsonEditor(),
+
+      const SizedBox(height: AppSpacing.xl),
+      _buildViewPart(),
 
       DetailGate(
         child: Column(
@@ -493,9 +665,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
           ],
         ),
         const SizedBox(height: AppSpacing.xxs),
-        const Text(
-          'Named groups of fields, such as "Database credentials".',
-        ).muted.small,
+        const Text('Named groups of fields, such as "Database credentials".')
+            .muted
+            .small,
         const SizedBox(height: AppSpacing.sm),
 
         ...List.generate(
@@ -529,12 +701,67 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         horizontal: AppSpacing.md,
       ),
       decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.4),
         borderRadius: AppRadius.allMd,
       ),
       child: Center(child: Text(text).muted.small),
+    );
+  }
+
+  /// How a section filled from this template shows as a card. Edited here
+  /// in the visual mode, previewed over sample values of the template's own
+  /// fields; in the JSON mode the view is part of the schema text, and only
+  /// its preview shows here.
+  Widget _buildViewPart() {
+    final json = _store.editorIsJsonMode;
+    final schema = _previewSchema();
+    final current = switch (json
+        ? schema['view']
+        : _store.extraSchemaKeys['view']) {
+      final Map<String, dynamic> v when v.isNotEmpty => v,
+      _ => null,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('View').small.bold,
+        const SizedBox(height: AppSpacing.xxs),
+        const Text(
+          'How the section this template fills shows as one card. Optional; '
+          'without one, it shows as a list of records.',
+        ).muted.small,
+        const SizedBox(height: AppSpacing.md),
+        if (json)
+          switch (current == null ? null : ViewSpec.parse(current)) {
+            final spec? => ViewRenderer(
+              spec: spec,
+              data: sampleViewData(schema),
+            ),
+            null => Text(
+              current == null
+                  ? 'The schema has no "view".'
+                  : 'The "view" in the schema is not a layout this app can '
+                        'draw yet.',
+            ).muted.small,
+          }
+        else
+          // Made afresh each time the visual mode opens, so it reads what
+          // the JSON mode may have changed.
+          ViewCodeEditor(
+            initial: current,
+            data: sampleViewData(schema),
+            examples: viewExamples(Stores.templates.templates),
+            onChanged: (view) {
+              if (view == null) {
+                _store.extraSchemaKeys.remove('view');
+              } else {
+                _store.extraSchemaKeys['view'] = view;
+              }
+              _store.touchEditor();
+            },
+          ),
+      ],
     );
   }
 
@@ -554,9 +781,9 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        const Text(
-          'Changes are kept when switching back to Visual.',
-        ).muted.small,
+        const Text('Changes are kept when switching back to Visual.')
+            .muted
+            .small,
         const SizedBox(height: AppSpacing.sm),
         AppTextField(
           controller: _store.editorJson,

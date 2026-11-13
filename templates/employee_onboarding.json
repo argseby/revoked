@@ -78,6 +78,76 @@
           }
         ]
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "onboarding",
+      "name": "Onboarding",
+      "accent": "green",
+      "match": [
+        "start_date",
+        "tax_id",
+        "full_name"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "person",
+          "eyebrow": "Employee onboarding",
+          "title": "{full_name}",
+          "subtitle": "Born {date_of_birth|date}"
+        },
+        {
+          "type": "countdown",
+          "label": "First day",
+          "key": "start_date",
+          "warnDays": 14
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Tax ID",
+              "value": "{tax_id}",
+              "mono": true
+            },
+            {
+              "label": "Social insurance number",
+              "value": "{social_insurance_number}",
+              "mono": true
+            },
+            {
+              "label": "Health insurer",
+              "value": "{health_insurer}"
+            }
+          ]
+        },
+        {
+          "type": "divider",
+          "when": {
+            "key": "iban"
+          }
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Account holder",
+              "value": "{account_holder}"
+            },
+            {
+              "label": "IBAN",
+              "value": "{iban}",
+              "mono": true
+            },
+            {
+              "label": "BIC",
+              "value": "{bic}",
+              "mono": true
+            }
+          ]
+        }
+      ]
+    }
   }
 }

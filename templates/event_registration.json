@@ -46,6 +46,80 @@
         "type": "boolean",
         "reason": "May photos of you from the event be published?"
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "event",
+      "name": "Event registration",
+      "accent": "amber",
+      "match": [
+        "arrival",
+        "full_name"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "calendar",
+          "eyebrow": "Event registration",
+          "title": "{full_name}",
+          "subtitle": "{arrival|date} – {departure|date}"
+        },
+        {
+          "type": "badges",
+          "items": [
+            {
+              "text": "Photos allowed",
+              "tone": "success",
+              "when": {
+                "key": "photo_consent",
+                "is": "true"
+              }
+            },
+            {
+              "text": "No photos",
+              "tone": "warning",
+              "when": {
+                "key": "photo_consent",
+                "is": "false"
+              }
+            }
+          ]
+        },
+        {
+          "type": "countdown",
+          "label": "Arrival",
+          "key": "arrival",
+          "warnDays": 7
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Dietary restrictions",
+              "value": "{dietary_restrictions}"
+            },
+            {
+              "label": "Accessibility needs",
+              "value": "{accessibility_needs}"
+            }
+          ]
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Call",
+              "key": "phone",
+              "kind": "tel"
+            },
+            {
+              "label": "Email",
+              "key": "email",
+              "kind": "mail"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

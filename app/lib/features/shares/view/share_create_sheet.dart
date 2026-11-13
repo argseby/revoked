@@ -1,5 +1,8 @@
 import 'dart:math';
 
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -9,7 +12,6 @@ import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
@@ -37,6 +39,7 @@ void openShareCreateSheet({
   Stores.shares.clearError();
   showAppSheet(
     context: context,
+    panelWidth: vaultComposerWidth,
     builder: (_) => _ShareCreateForm(
       parentContext: context,
       initialShare: initialShare,
@@ -342,29 +345,19 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
 
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
+        maxHeight: composerMaxHeight(context),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title).header,
-                AppSpacing.gapXxs,
-                const Text(
-                  'Recipients see the latest version until the link expires '
-                  'or is revoked.',
-                ).muted.small,
-              ],
-            ),
+          VaultComposerHeader(
+            title: title,
+            area: 'Shares',
+            areaIcon: AppIcons.share,
+            subtitle: 'Share the latest version, with access you control.',
+            onClose: _store.isSubmittingShare
+                ? null
+                : () => Navigator.of(context).pop(),
           ),
           const AppDivider(),
 
@@ -372,58 +365,71 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
             child: Observer(
               builder: (_) {
                 _ensureIdentityDefault();
-                return ListView(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  children: [
-                    const AppFormSectionHeader('Details'),
-                    if (!isEdit) const ShareContentsRow(),
-                    _buildLabelRow(),
-                    _buildExpiryRow(),
-                    _buildPasswordRow(),
-                    // An existing share changes who sees it from its page.
-                    if (!isEdit)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.xl,
-                          AppSpacing.sm,
-                          AppSpacing.xl,
-                          0,
-                        ),
-                        child: VisibleToField(value: _visibility),
-                      ),
-                    if (Stores.identities.loadState.hasLoaded &&
-                        Stores.identities.identities.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.xl,
-                          AppSpacing.sm,
-                          AppSpacing.xl,
-                          0,
-                        ),
-                        child: NoIdentityAlert(
-                          onCreated: () {
-                            if (_store.draftIdentityId != null) return;
-                            final made = Stores.identities.defaultSigner();
-                            if (made != null) _store.setDraftIdentity(made.id);
-                          },
-                        ),
-                      ),
-
-                    AppFormAdvanced(
-                      summary:
-                          'Address, view limit, watermark, signature and API',
-                      initiallyOpen: _store.draftSlugWarning != null,
+                return AppComposerSections(
+                  enabled: !_store.isSubmittingShare,
+                  sections: [
+                    AppComposerSection(
+                      title: 'Link',
+                      icon: AppIcons.link,
+                      children: [
+                        _buildLabelRow(),
+                        if (!isEdit) const ShareContentsRow(),
+                      ],
+                    ),
+                    AppComposerSection(
+                      title: 'Access',
+                      icon: AppIcons.lock,
+                      children: [
+                        _buildExpiryRow(),
+                        _buildPasswordRow(),
+                        _buildMaxViewsRow(),
+                        if (!isEdit)
+                          AppComposerVisibility(
+                            field: VisibleToField(
+                              value: _visibility,
+                              groups: _groups,
+                              showLabel: false,
+                            ),
+                          ),
+                      ],
+                    ),
+                    AppComposerSection(
+                      title: 'Protection',
+                      icon: AppIcons.shieldCheck,
+                      children: [
+                        _buildWatermarkRow(),
+                        if (Stores.identities.loadState.hasLoaded &&
+                            Stores.identities.identities.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xxl,
+                              vertical: AppSpacing.xs,
+                            ),
+                            child: NoIdentityAlert(
+                              onCreated: () {
+                                if (_store.draftIdentityId != null) return;
+                                final made = Stores.identities.defaultSigner();
+                                if (made != null) {
+                                  _store.setDraftIdentity(made.id);
+                                }
+                              },
+                            ),
+                          ),
+                        _buildVerificationSection(),
+                      ],
+                    ),
+                    AppComposerSection(
+                      title: 'Developer',
+                      icon: AppIcons.code,
                       children: [
                         _buildSlugRow(),
-                        _buildMaxViewsRow(),
-                        _buildWatermarkRow(),
-                        const AppFormSectionHeader('Verification'),
-                        _buildVerificationSection(),
-                        ApiPreviewSection(
-                          spec: _buildSpec(),
-                          title:
-                              'API request · ${isEdit ? 'update' : 'create'}',
+                        AppComposerApiPreview(
+                          preview: ApiPreviewSection(
+                            embedded: true,
+                            spec: _buildSpec(),
+                            title:
+                                'API request · ${isEdit ? 'update' : 'create'}',
+                          ),
                         ),
                       ],
                     ),
@@ -434,33 +440,14 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           ),
           const AppDivider(),
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                AppButton(
-                  label: 'Cancel',
-                  style: AppButtonStyle.accent,
-                  onTap: _store.isSubmittingShare
-                      ? null
-                      : () => Navigator.of(context).pop(),
-                ),
-                AppSpacing.gapMd,
-                Expanded(
-                  child: AppButton(
-                    icon: completeIcon,
-                    label: completeLabel,
-                    busy: _store.isSubmittingShare,
-                    onTap: _canSubmit() ? _onSubmit : null,
-                  ),
-                ),
-              ],
-            ),
+          AppComposerFooter(
+            label: completeLabel,
+            icon: completeIcon,
+            busy: _store.isSubmittingShare,
+            onSubmit: _canSubmit() ? _onSubmit : null,
+            onCancel: _store.isSubmittingShare
+                ? null
+                : () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -469,7 +456,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
 
   Widget _buildLabelRow() {
     final fallback = _effectiveLabel;
-    return AppFormField(
+    return AppComposerField(
       label: 'Label',
       explanation: 'The title shown to the recipient.',
       note: _store.draftLabel.text.trim().isEmpty && fallback.isNotEmpty
@@ -482,7 +469,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     );
   }
 
-  Widget _buildSlugRow() => AppFormField(
+  Widget _buildSlugRow() => AppComposerField(
     label: 'Link address',
     explanation: 'The last part of the link\'s web address.',
     error: _store.draftSlugWarning,
@@ -512,7 +499,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
 
   Widget _buildWatermarkRow() {
     final tag = widget.editShare?.watermarkTag;
-    return AppFormField(
+    return AppComposerField(
       label: 'Watermark',
       explanation:
           'Every image and PDF gets this text, the date and the link '
@@ -525,7 +512,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     );
   }
 
-  Widget _buildMaxViewsRow() => AppFormField(
+  Widget _buildMaxViewsRow() => AppComposerField(
     label: 'Maximum views',
     explanation: 'The link stops working after this many views.',
     child: AppTextField(
@@ -537,7 +524,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   );
 
   Widget _buildExpiryRow() {
-    return AppFormField(
+    return AppComposerField(
       label: 'Expiration date',
       child: AppPickerField(
         text: _store.draftExpiresAt == null
@@ -555,7 +542,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
     final typed = _store.draftPassword.text.isNotEmpty;
     final stored = widget.editShare?.hasPassword ?? false;
     final removing = _store.draftRemovePassword;
-    return AppFormField(
+    return AppComposerField(
       label: 'Password',
       explanation: 'Required to open the link.',
       error: removing ? 'Removed on save.' : null,
@@ -599,20 +586,12 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   /// recipients verify who shared it; requiring a handshake forces viewers to
   /// prove control of an identity before the data is revealed.
   Widget _buildVerificationSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.sm,
-      ),
+    return AppComposerCard(
+      title: 'Signature and viewers',
+      description: 'A signature lets recipients verify the link\'s origin.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'A signature lets recipients verify the link\'s origin.',
-          ).muted.small,
-          AppSpacing.gapMd,
           // Without an identity the alert above the advanced options says
           // so; the picker would only repeat it.
           if (Stores.identities.identities.isNotEmpty) ...[

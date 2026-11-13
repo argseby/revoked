@@ -102,6 +102,82 @@
           }
         ]
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "personal",
+      "name": "ID card",
+      "accent": "blue",
+      "match": [
+        "full_name",
+        "date_of_birth"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "person",
+          "eyebrow": "Personal information",
+          "title": "{full_name}",
+          "subtitle": "Born {date_of_birth|date}"
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Nationality",
+              "value": "{nationality}"
+            },
+            {
+              "label": "Address",
+              "value": "{street}, {postal_code} {city}"
+            },
+            {
+              "label": "Passport number",
+              "value": "{passport_number}",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "countdown",
+          "label": "Passport expires",
+          "key": "passport_expiry",
+          "warnDays": 180
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Emergency contact",
+              "value": "{emergency_name}"
+            },
+            {
+              "label": "Relation",
+              "value": "{emergency_relation}"
+            }
+          ]
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Call",
+              "key": "phone",
+              "kind": "tel"
+            },
+            {
+              "label": "Email",
+              "key": "email",
+              "kind": "mail"
+            },
+            {
+              "label": "Call {emergency_name}",
+              "key": "emergency_phone",
+              "kind": "tel"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

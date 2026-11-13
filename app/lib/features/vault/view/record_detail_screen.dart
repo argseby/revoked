@@ -595,8 +595,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
           ? const [
               AppDetailRow(
                 icon: AppIcons.bell,
-                label:
-                    'No reminders. A reminder can be set for a date or the next change.',
+                label: 'No reminders. A reminder can be set for a date or the next change.',
               ),
             ]
           : [

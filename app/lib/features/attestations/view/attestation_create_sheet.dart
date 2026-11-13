@@ -12,7 +12,7 @@ import 'package:revoked_app/core/utils/deep_links.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
-import 'package:revoked_app/core/widgets/app_form_row.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
@@ -20,6 +20,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/qr_sheet.dart';
 import 'package:revoked_app/features/attestations/store/attestations_store.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
 
 /// Writes a new attestation: what kind of statement it is, what it states,
 /// and optionally for whom and for how long.
@@ -35,6 +36,7 @@ Future<void> showAttestationCreateSheet(
 }) {
   return showAppSheet(
     context: context,
+    panelWidth: vaultComposerWidth,
     builder: (_) => _AttestationCreateSheet(ask: ask),
   );
 }
@@ -92,199 +94,170 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
     final error = _store.createError;
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
+        maxHeight: composerMaxHeight(context),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Issue an attestation').header,
-                const SizedBox(height: AppSpacing.xxs),
-                const Text(
-                  'Issued in the name of this workspace’s domain. The '
-                  'recipient reviews every detail before accepting.',
-                ).muted.small,
-                if (_store.draftAsk case final ask?
-                    when !ask.proposer.isEmpty) ...[
-                  AppSpacing.gapSm,
-                  ToolProposalAlert(proposer: ask.proposer),
-                ] else if (_store.draftAsk != null) ...[
-                  AppSpacing.gapSm,
-                  const AppAlert(
-                    leading: Icon(AppIcons.askFor),
-                    title: Text('Filled in from a request'),
-                    content: Text(
-                      'Verify who sent the request. Enter only values that '
-                      'can be confirmed.',
-                    ),
-                  ),
-                ],
-              ],
-            ),
+          VaultComposerHeader(
+            title: 'Issue an attestation',
+            area: 'Attestations',
+            areaIcon: AppIcons.attestation,
+            subtitle:
+                'Issued in the name of this workspace’s domain. The '
+                'recipient reviews every detail before accepting.',
+            onClose: _store.isCreating
+                ? null
+                : () => Navigator.of(context).pop(),
           ),
+          if (_store.draftAsk case final ask? when !ask.proposer.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xxl,
+                0,
+                AppSpacing.xxl,
+                AppSpacing.md,
+              ),
+              child: ToolProposalAlert(proposer: ask.proposer),
+            )
+          else if (_store.draftAsk != null)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.xxl,
+                0,
+                AppSpacing.xxl,
+                AppSpacing.md,
+              ),
+              child: AppAlert(
+                leading: Icon(AppIcons.askFor),
+                title: Text('Filled in from a request'),
+                content: Text(
+                  'Verify who sent the request. Enter only values that '
+                  'can be confirmed.',
+                ),
+              ),
+            ),
           const AppDivider(),
           Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const AppFormSectionHeader('Attestation'),
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenH(context),
-                    ),
-                    child: Column(
-                      children: [
-                        AppFormField(
-                          label: 'Kind',
-                          inset: false,
-                          child: AppTextField(
-                            controller: _store.typeController,
-                            hint: 'membership',
-                            mono: true,
-                          ),
-                        ),
-                        AppSpacing.gapSm,
-                        AppFormField(
-                          label: 'Label (optional)',
-                          inset: false,
-                          child: AppTextField(
-                            controller: _store.labelController,
-                            hint: 'Membership 2026 — Ada',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const AppFormSectionHeader('Details'),
-                  for (final claim in _store.draftClaims)
-                    _ClaimRow(
-                      key: ObjectKey(claim),
-                      claim: claim,
-                      onRemove: () => _store.removeClaim(claim),
-                    ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenH(context),
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: AppButton(
-                        icon: AppIcons.plus,
-                        label: 'Add detail',
-                        style: AppButtonStyle.ghost,
-                        size: AppButtonSize.small,
-                        onTap: _store.addClaim,
+            child: AppComposerSections(
+              enabled: !_store.isCreating,
+              sections: [
+                AppComposerSection(
+                  title: 'Attestation',
+                  icon: AppIcons.attestation,
+                  children: [
+                    AppComposerField(
+                      label: 'Label (optional)',
+                      child: AppTextField(
+                        controller: _store.labelController,
+                        hint: 'Membership 2026 — Ada',
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      AppSpacing.screenH(context),
-                      AppSpacing.sm,
-                      AppSpacing.screenH(context),
-                      0,
+                    AppComposerField(
+                      label: 'Kind',
+                      explanation: 'What kind of statement this is',
+                      child: AppTextField(
+                        controller: _store.typeController,
+                        hint: 'membership',
+                        mono: true,
+                      ),
                     ),
-                    child: VisibleToField(
-                      value: _store.draftVisibility,
-                      suggestedByTool:
-                          (_store.draftAsk?.visibility ?? '').isNotEmpty,
-                    ),
-                  ),
-                  const AppFormSectionHeader('Recipient and validity'),
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screenH(context),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        AppFormField(
-                          label: 'Recipient fingerprint (optional)',
-                          inset: false,
-                          child: AppTextField(
-                            controller: _store.subjectController,
-                            hint: '64-character fingerprint',
-                            mono: true,
-                          ),
+                  ],
+                ),
+                AppComposerSection(
+                  title: 'Details',
+                  icon: AppIcons.cardList,
+                  children: [
+                    for (final claim in _store.draftClaims)
+                      _ClaimRow(
+                        key: ObjectKey(claim),
+                        claim: claim,
+                        onRemove: () => _store.removeClaim(claim),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xxl,
+                      ),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: AppButton(
+                          icon: AppIcons.plus,
+                          label: 'Add detail',
+                          style: AppButtonStyle.ghost,
+                          size: AppButtonSize.small,
+                          onTap: _store.addClaim,
                         ),
-                        AppSpacing.gapXs,
-                        const Text(
+                      ),
+                    ),
+                  ],
+                ),
+                AppComposerSection(
+                  title: 'Recipient',
+                  icon: AppIcons.person,
+                  children: [
+                    AppComposerField(
+                      label: 'Recipient fingerprint (optional)',
+                      explanation:
                           'Without a fingerprint, the first identity to open '
                           'the link can accept it. With one, only that '
                           'identity can.',
-                        ).muted.small,
-                        AppSpacing.gapSm,
-                        AppFormField(
-                          label: 'Validity in days (optional)',
-                          inset: false,
-                          child: AppTextField(
-                            controller: _store.validDaysController,
-                            hint: 'Empty means valid until revoked',
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (error != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl,
-                        AppSpacing.md,
-                        AppSpacing.xl,
-                        0,
-                      ),
-                      child: AppAlert(
-                        destructive: true,
-                        title: Text(error.title),
-                        content: Text(error.description).small,
+                      child: AppTextField(
+                        controller: _store.subjectController,
+                        hint: '64-character fingerprint',
+                        mono: true,
                       ),
                     ),
-                  const SizedBox(height: AppSpacing.lg),
-                ],
-              ),
-            ),
-          ),
-          const AppDivider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                AppButton(
-                  label: 'Cancel',
-                  style: AppButtonStyle.accent,
-                  onTap: _store.isCreating
-                      ? null
-                      : () => Navigator.of(context).pop(),
+                    AppComposerField(
+                      label: 'Validity in days (optional)',
+                      child: AppTextField(
+                        controller: _store.validDaysController,
+                        hint: 'Empty means valid until revoked',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppButton(
-                    icon: AppIcons.plus,
-                    label: 'Create offer',
-                    busy: _store.isCreating,
-                    onTap: _store.isCreating ? null : _submit,
-                  ),
+                AppComposerSection(
+                  title: 'Access',
+                  icon: AppIcons.group,
+                  children: [
+                    AppComposerVisibility(
+                      field: VisibleToField(
+                        showLabel: false,
+                        value: _store.draftVisibility,
+                        suggestedByTool:
+                            (_store.draftAsk?.visibility ?? '').isNotEmpty,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+          ),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xxl,
+                AppSpacing.md,
+                AppSpacing.xxl,
+                0,
+              ),
+              child: AppAlert(
+                destructive: true,
+                title: Text(error.title),
+                content: Text(error.description).small,
+              ),
+            ),
+          const AppDivider(),
+          AppComposerFooter(
+            label: 'Create offer',
+            icon: AppIcons.arrowRight,
+            busy: _store.isCreating,
+            onSubmit: _store.isCreating ? null : _submit,
+            onCancel: _store.isCreating
+                ? null
+                : () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -302,44 +275,28 @@ class _ClaimRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Observer(
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.screenH(context),
-          0,
-          AppSpacing.screenH(context),
-          AppSpacing.md,
+      builder: (_) => AppComposerCard(
+        title: 'Detail',
+        trailing: AppButton(
+          icon: AppIcons.x,
+          tooltip: 'Remove detail',
+          style: AppButtonStyle.ghost,
+          size: AppButtonSize.small,
+          onTap: onRemove,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // The button sits beside the input, not beside label and input
-            // together, so it lines up with the field it removes.
-            AppFormField(
-              label: 'Detail',
-              inset: false,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AppTextField(
-                      controller: claim.name,
-                      hint: 'age_over_18',
-                      mono: true,
-                    ),
-                  ),
-                  AppSpacing.gapSm,
-                  AppButton(
-                    icon: AppIcons.x,
-                    tooltip: 'Remove detail',
-                    style: AppButtonStyle.ghost,
-                    size: AppButtonSize.small,
-                    onTap: onRemove,
-                  ),
-                ],
-              ),
+            const AppComposerSubLabel('Name'),
+            AppTextField(
+              controller: claim.name,
+              hint: 'age_over_18',
+              mono: true,
             ),
-            AppSpacing.gapXs,
+            AppSpacing.gapMd,
+            const AppComposerSubLabel('Value'),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: AppSegmented<ClaimKind>(
                 value: claim.kind,
                 items: [
@@ -349,7 +306,7 @@ class _ClaimRow extends StatelessWidget {
                 onChanged: (kind) => claim.kind = kind,
               ),
             ),
-            AppSpacing.gapXs,
+            AppSpacing.gapSm,
             claim.kind == ClaimKind.yesNo
                 ? Row(
                     children: [

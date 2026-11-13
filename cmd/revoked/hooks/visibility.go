@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"encoding/json"
 	"net/http"
 	"slices"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 // BindVisibilityHooks keeps who sees and who edits sections, records, shares
@@ -168,6 +170,9 @@ func BindVisibilityHooks(app core.App) {
 		if err := validateAudience(e.App, e.Record); err != nil {
 			return err
 		}
+		if err := validateSectionView(e.Record); err != nil {
+			return err
+		}
 		if err := e.Next(); err != nil {
 			return err
 		}
@@ -176,6 +181,9 @@ func BindVisibilityHooks(app core.App) {
 	app.OnRecordUpdate(util.Coll.Sections).BindFunc(func(e *core.RecordEvent) error {
 		normalizeAudienceFields(e.Record)
 		if err := validateAudience(e.App, e.Record); err != nil {
+			return err
+		}
+		if err := validateSectionView(e.Record); err != nil {
 			return err
 		}
 		held := e.Record.Original().GetStringSlice(s.Records)
@@ -340,6 +348,35 @@ func normalizeAudienceFields(rec *core.Record) {
 
 // validateAudience refuses groups of another workspace, and any audience on a section that holds answers to a request
 // (those follow their request, VISIBILITY.md §4.2).
+// validateSectionView refuses a section view that is not a layout the app
+// can read. An empty view is allowed: it shows the plain list.
+func validateSectionView(rec *core.Record) error {
+	field := util.Fields.Section.View
+	raw := rec.Get(field)
+	if raw == nil {
+		return nil
+	}
+	var view any
+	switch v := raw.(type) {
+	case types.JSONRaw:
+		if len(v) == 0 || string(v) == "null" {
+			return nil
+		}
+		if err := json.Unmarshal(v, &view); err != nil {
+			return util.AsFieldValidationError(field, util.Errors.SectionViewInvalid)
+		}
+	default:
+		view = v
+	}
+	if view == nil {
+		return nil
+	}
+	if err := services.ValidateSectionView(view); err != nil {
+		return util.AsFieldValidationError(field, util.Errors.SectionViewInvalid)
+	}
+	return nil
+}
+
 func validateAudience(app core.App, rec *core.Record) error {
 	s := util.Fields.Section
 	kind := rec.GetString(s.AudienceKind)

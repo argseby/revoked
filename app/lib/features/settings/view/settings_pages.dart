@@ -10,11 +10,9 @@ import 'package:revoked_app/core/models/invite.dart';
 import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/models/workspace.dart';
 import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_bar_title.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
@@ -138,22 +136,10 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ShellSlots.title.claim(_title);
       _load();
     });
   }
 
-  @override
-  void dispose() {
-    ShellSlots.title.release(_title);
-    super.dispose();
-  }
-
-  Widget _title(BuildContext context) => AppBarTitle(
-    title: widget.page.title,
-    // The page's own context: the bar's knows nothing of how it was opened.
-    onBack: () => goBack(this.context, AppRoutes.settings),
-  );
 
   void _load() {
     final auth = Stores.auth;
@@ -212,9 +198,11 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
   Widget build(BuildContext context) {
     return AppPageBody(
       children: [
+        // The page names itself here, so the top bar carries no title.
         AppCollectionHeader(
           title: widget.page.title,
           description: widget.page.description,
+          onBack: () => goBack(context, AppRoutes.settings),
         ),
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),
@@ -873,9 +861,10 @@ class _TemplatesPage extends StatelessWidget {
       icon: AppIcons.cardList,
       title: template.name,
       subtitle: _summary(template),
-      // A built-in template is the same for everyone and cannot be changed.
+      // A built-in template is the same for everyone and cannot be changed;
+      // it opens to be looked at, and copied.
       onTap: template.isBuiltin
-          ? null
+          ? () => openTemplatePreviewSheet(context, template)
           : () => showAppOptionsSheet(
               context: context,
               title: template.name,
@@ -887,6 +876,11 @@ class _TemplatesPage extends StatelessWidget {
                     context,
                     initialTemplate: template,
                   ),
+                ),
+                AppSheetAction(
+                  icon: AppIcons.dashboard,
+                  label: 'Preview',
+                  onTap: () => openTemplatePreviewSheet(context, template),
                 ),
                 // Only the owner sets who sees it; older templates have none.
                 if (template.owner == Stores.auth.userId)

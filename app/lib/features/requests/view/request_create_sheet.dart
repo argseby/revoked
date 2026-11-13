@@ -1,5 +1,8 @@
 import 'dart:math';
 
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -52,6 +55,7 @@ void openRequestCreateSheet({
 }) {
   showAppSheet(
     context: context,
+    panelWidth: vaultComposerWidth,
     builder: (_) => _RequestCreateForm(
       parentContext: context,
       store: store,
@@ -312,37 +316,26 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
   Widget _build(BuildContext context) {
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
+        maxHeight: composerMaxHeight(context),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.editRequest != null ? 'Edit request' : 'New request',
-                ).header,
-                const SizedBox(height: AppSpacing.xxs),
-                const Text(
-                  'Requests collect answers through a form. Responding '
-                  'requires an account.',
-                ).muted.small,
-                if (widget.proposal case final p?
-                    when !p.proposer.isEmpty && widget.editRequest == null) ...[
-                  AppSpacing.gapSm,
-                  ToolProposalAlert(proposer: p.proposer),
-                ],
-              ],
-            ),
+          VaultComposerHeader(
+            title: widget.editRequest != null ? 'Edit request' : 'New request',
+            area: 'Requests',
+            areaIcon: AppIcons.cardList,
+            subtitle: 'Collect the information you need, on your terms.',
+            onClose: _store.isSubmittingRequest
+                ? null
+                : () => Navigator.of(context).pop(),
           ),
+          if (widget.proposal case final p?
+              when !p.proposer.isEmpty && widget.editRequest == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
+              child: ToolProposalAlert(proposer: p.proposer),
+            ),
           const AppDivider(),
 
           // Body — every setting visible at once.
@@ -350,77 +343,97 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
             child: Observer(
               builder: (_) {
                 _ensureIdentityDefault();
-                return ListView(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  shrinkWrap: true,
-                  children: [
-                    const AppFormSectionHeader('Fields'),
-                    _buildTemplateRow(),
-                    AppFormToggleRow(
-                      icon: AppIcons.plus,
-                      label: 'Allow extra fields',
-                      subtitle: _store.draftTemplateId == null
-                          ? 'Respondents add their own fields. Required '
-                                'when no template is selected.'
-                          : 'Respondents may add fields beyond the template.',
-                      value: _store.draftAllowExtraFields,
-                      onChanged: _store.setDraftAllowExtraFields,
-                    ),
-
-                    const AppFormSectionHeader('Details'),
-                    _buildTitleRow(),
-                    _buildExpiryRow(),
-                    // Required, so it stays in view until one is picked.
-                    if (_store.draftIdentityId == null) _buildIdentityRow(),
-                    _buildAccessSummary(),
-                    // An existing request changes who sees it from its page.
-                    if (widget.editRequest == null)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.xl,
-                          AppSpacing.sm,
-                          AppSpacing.xl,
-                          0,
-                        ),
-                        child: VisibleToField(
-                          value: _visibility,
-                          groups: _groups,
-                          suggestedByTool:
-                              (widget.proposal?.visibility ?? '').isNotEmpty,
-                        ),
-                      ),
-
-                    AppFormAdvanced(
-                      summary:
-                          'Address, identity checks, password, limits, '
-                          'callback and API',
-                      initiallyOpen: _store.draftSlugWarning != null,
+                return AppComposerSections(
+                  enabled: !_store.isSubmittingRequest,
+                  sections: [
+                    AppComposerSection(
+                      title: 'Request',
+                      icon: AppIcons.inboxFill,
                       children: [
-                        _buildSlugRow(),
-                        if (_store.draftIdentityId != null) _buildIdentityRow(),
-                        const AppFormSectionHeader('Respondents'),
-                        AppFormToggleRow(
-                          icon: AppIcons.shieldCheck,
-                          label: 'Require a verified identity',
-                          subtitle:
-                              'Respondents prove who they are with a verified identity.',
-                          value: _store.draftRequireHandshake,
-                          onChanged: _store.setDraftHandshake,
+                        _buildTitleRow(),
+                        _buildTemplateRow(),
+                        AppComposerCard(
+                          child: AppFormToggleRow(
+                            icon: AppIcons.plus,
+                            label: 'Allow extra fields',
+                            subtitle: _store.draftTemplateId == null
+                                ? 'Respondents add their own fields. Required when no template is selected.'
+                                : 'Respondents may add fields beyond the template.',
+                            value: _store.draftAllowExtraFields,
+                            onChanged: _store.setDraftAllowExtraFields,
+                            inset: false,
+                          ),
                         ),
-                        if (_store.draftRequireHandshake)
-                          _buildIdentityScopeRow(),
+                      ],
+                    ),
+                    AppComposerSection(
+                      title: 'Respondents',
+                      icon: AppIcons.group,
+                      children: [
+                        _buildAccessSummary(),
+                        AppComposerCard(
+                          title: 'Verified identity',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              AppFormToggleRow(
+                                icon: AppIcons.shieldCheck,
+                                label: 'Require a verified identity',
+                                subtitle:
+                                    'Respondents prove who they are before '
+                                    'they can answer.',
+                                value: _store.draftRequireHandshake,
+                                onChanged: _store.setDraftHandshake,
+                                inset: false,
+                              ),
+                              if (_store.draftRequireHandshake) ...[
+                                AppSpacing.gapMd,
+                                _buildIdentityScopeRow(),
+                              ],
+                            ],
+                          ),
+                        ),
                         _buildIdentifierRow(),
                         _buildPasswordRow(),
-
-                        const AppFormSectionHeader('Limits and callback'),
-                        _buildMaxResponsesRow(),
+                      ],
+                    ),
+                    AppComposerSection(
+                      title: 'Limits',
+                      icon: AppIcons.calendar,
+                      children: [_buildExpiryRow(), _buildMaxResponsesRow()],
+                    ),
+                    AppComposerSection(
+                      title: 'Identity',
+                      icon: AppIcons.shieldCheck,
+                      children: [
+                        _buildIdentityRow(),
+                        if (widget.editRequest == null)
+                          AppComposerVisibility(
+                            field: VisibleToField(
+                              showLabel: false,
+                              value: _visibility,
+                              groups: _groups,
+                              suggestedByTool:
+                                  (widget.proposal?.visibility ?? '')
+                                      .isNotEmpty,
+                            ),
+                          ),
+                      ],
+                    ),
+                    AppComposerSection(
+                      title: 'Developer',
+                      icon: AppIcons.code,
+                      children: [
+                        _buildSlugRow(),
                         _buildCallbackRow(),
                         _buildCallbackTestRow(),
-
-                        ApiPreviewSection(
-                          spec: _buildSpec(),
-                          title:
-                              'API request · ${widget.editRequest != null ? 'update' : 'create'}',
+                        AppComposerApiPreview(
+                          preview: ApiPreviewSection(
+                            embedded: true,
+                            spec: _buildSpec(),
+                            title:
+                                'API request · ${widget.editRequest != null ? 'update' : 'create'}',
+                          ),
                         ),
                       ],
                     ),
@@ -431,37 +444,16 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
           ),
           const AppDivider(),
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.md,
-            ),
-            child: Row(
-              children: [
-                AppButton(
-                  label: 'Cancel',
-                  onTap: _store.isSubmittingRequest
-                      ? null
-                      : () => Navigator.of(context).pop(),
-                  style: AppButtonStyle.accent,
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: AppButton(
-                    icon: widget.editRequest != null
-                        ? AppIcons.check
-                        : AppIcons.plus,
-                    label: widget.editRequest != null
-                        ? 'Save changes'
-                        : 'Create request',
-                    busy: _store.isSubmittingRequest,
-                    onTap: _canSubmit() ? _onCreate : null,
-                  ),
-                ),
-              ],
-            ),
+          AppComposerFooter(
+            label: widget.editRequest != null
+                ? 'Save changes'
+                : 'Create request',
+            icon: widget.editRequest != null ? AppIcons.check : AppIcons.plus,
+            busy: _store.isSubmittingRequest,
+            onSubmit: _canSubmit() ? _onCreate : null,
+            onCancel: _store.isSubmittingRequest
+                ? null
+                : () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -521,7 +513,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
   }
 
-  Widget _buildTitleRow() => AppFormField(
+  Widget _buildTitleRow() => AppComposerField(
     label: 'Title',
     explanation: 'The heading shown on the form.',
     note: _store.draftLabel.text.trim().isEmpty && _effectiveLabel.isNotEmpty
@@ -533,7 +525,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     ),
   );
 
-  Widget _buildSlugRow() => AppFormField(
+  Widget _buildSlugRow() => AppComposerField(
     label: 'Link address',
     explanation:
         'The last part of the link\'s web address. At least 6 characters.',
@@ -567,7 +559,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
   /// something is one decision with one control.
   Widget _buildIdentityRow() {
     if (Stores.identities.identities.isEmpty) {
-      return AppFormField(
+      return AppComposerField(
         label: 'Your identity',
         error: 'An identity is required. Identities are managed in Settings.',
         child: Align(
@@ -611,7 +603,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   Widget _buildTemplateRow() {
     final name = _templateName();
-    return AppFormField(
+    return AppComposerField(
       label: 'Template',
       note: name == null && _store.draftAllowExtraFields
           ? 'None — respondents add their own fields.'
@@ -626,7 +618,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
   }
 
-  Widget _buildPasswordRow() => AppFormField(
+  Widget _buildPasswordRow() => AppComposerField(
     label: 'Password',
     explanation: 'Required to respond.',
     child: AppTextField(
@@ -637,54 +629,34 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
   );
 
   Widget _buildIdentityScopeRow() {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.sm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                AppIcons.shieldLock,
-                size: 15,
-                color: scheme.onSurfaceVariant,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const AppComposerSubLabel('Accepted identities'),
+        SizedBox(
+          width: double.infinity,
+          child: AppSegmented<String>(
+            value: _store.draftIdentityScope,
+            items: const [
+              AppSegmentedItem(
+                value: 'any',
+                icon: AppIcons.globe,
+                label: 'Any',
               ),
-              const SizedBox(width: AppSpacing.sm),
-              const Text('Accepted identities').small,
+              AppSegmentedItem(
+                value: 'from_root',
+                icon: AppIcons.shieldCheck,
+                label: 'This server only',
+              ),
             ],
+            onChanged: _store.setDraftIdentityScope,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            child: AppSegmented<String>(
-              value: _store.draftIdentityScope,
-              items: const [
-                AppSegmentedItem(
-                  value: 'any',
-                  icon: AppIcons.globe,
-                  label: 'Any',
-                ),
-                AppSegmentedItem(
-                  value: 'from_root',
-                  icon: AppIcons.shieldCheck,
-                  label: 'This server only',
-                ),
-              ],
-              onChanged: _store.setDraftIdentityScope,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildIdentifierRow() => AppFormField(
+  Widget _buildIdentifierRow() => AppComposerField(
     label: 'Identifier',
     explanation:
         'Entered by the respondent to respond; each response is tied to '
@@ -739,13 +711,11 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     }
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.xxs,
-        AppSpacing.xl,
-        AppSpacing.sm,
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xxl,
+        vertical: AppSpacing.xs,
       ),
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest,
         borderRadius: AppRadius.allMd,
@@ -783,7 +753,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
   }
 
-  Widget _buildMaxResponsesRow() => AppFormField(
+  Widget _buildMaxResponsesRow() => AppComposerField(
     label: 'Max responses',
     explanation: 'The request closes after this many responses.',
     child: AppTextField(
@@ -795,7 +765,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
   );
 
   Widget _buildExpiryRow() {
-    return AppFormField(
+    return AppComposerField(
       label: 'Expires at',
       child: AppPickerField(
         text: _store.draftExpiresAt == null
@@ -809,7 +779,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     );
   }
 
-  Widget _buildCallbackRow() => AppFormField(
+  Widget _buildCallbackRow() => AppComposerField(
     label: 'Callback URL',
     explanation: 'Each response is sent here as JSON (POST).',
     child: AppTextField(
@@ -827,9 +797,9 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
         if (url.isEmpty) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
+            AppSpacing.xxl,
             0,
-            AppSpacing.xl,
+            AppSpacing.xxl,
             AppSpacing.sm,
           ),
           child: Align(

@@ -42,6 +42,64 @@
         "label": "Domain expires",
         "type": "datetime"
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "domain",
+      "name": "Domain handover",
+      "accent": "amber",
+      "match": [
+        "domain",
+        "registrar_account"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "server",
+          "eyebrow": "Domain & hosting",
+          "title": "{domain|lower}"
+        },
+        {
+          "type": "countdown",
+          "label": "Domain renewal",
+          "key": "domain_expiry",
+          "warnDays": 60
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Registrar account",
+              "value": "{registrar_account}",
+              "mono": true
+            },
+            {
+              "label": "DNS provider",
+              "value": "{dns_provider}"
+            }
+          ]
+        },
+        {
+          "type": "secret",
+          "label": "Registrar password",
+          "key": "registrar_password"
+        },
+        {
+          "type": "secret",
+          "label": "Transfer code",
+          "key": "transfer_code"
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Open registrar",
+              "key": "registrar_url",
+              "kind": "url"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

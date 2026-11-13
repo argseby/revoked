@@ -395,8 +395,12 @@ class VisibleToField extends StatelessWidget {
   /// to those who may publish to it.
   final bool canPublish;
 
+  /// Off inside a card whose title already says "Visible to".
+  final bool showLabel;
+
   const VisibleToField({
     super.key,
+    this.showLabel = true,
     required this.value,
     this.suggestedByTool = false,
     this.groups,
@@ -418,8 +422,10 @@ class VisibleToField extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Visible to').small.muted,
-            const SizedBox(height: AppSpacing.xs),
+            if (showLabel) ...[
+              const Text('Visible to').small.muted,
+              const SizedBox(height: AppSpacing.xs),
+            ],
             AppSegmented<String>(
               value: kind,
               expand: true,

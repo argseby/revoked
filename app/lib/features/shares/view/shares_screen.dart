@@ -1,3 +1,4 @@
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/features/shares/view/share_actions.dart';
@@ -325,32 +326,17 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   Widget _myLinks(BuildContext context) {
     final store = Stores.shares;
 
-    return AppLoadFade(
-      loading: () => store.loadState.isFirstLoad && store.shares.isEmpty,
-      skeleton: AppPageBody(
-        children: [
-          _collectionHeader(context),
-          AppListSkeleton(
-            embedded: true,
-            group: 'Active',
-            rows: [
-              AppSkeletonRow(
-                'Landlord',
-                '3 records · opened twice',
-                icon: AppIcons.link,
-              ),
-              AppSkeletonRow('Employer HR', '5 records', icon: AppIcons.link),
-              AppSkeletonRow(
-                'Insurance',
-                '2 records · expires soon',
-                icon: AppIcons.link,
-              ),
-              AppSkeletonRow('Bank', '1 record', icon: AppIcons.link),
-            ],
-          ),
-        ],
-      ),
+    return Observer(
       builder: (_) {
+        if (store.loadState.isFirstLoad && store.shares.isEmpty) {
+          return AppPageBody(
+            children: [
+              _collectionHeader(context),
+              const AppListSkeleton(embedded: true),
+            ],
+          );
+        }
+
         // Nothing to list has nothing to search, so no Search and filter.
         Widget bare(Widget child) =>
             AppPageBody(children: [_collectionHeader(context), child]);

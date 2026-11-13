@@ -127,8 +127,11 @@ void main() {
       PendingUpload(name: 'lease.pdf', size: 2048, open: () => Stream.empty()),
     );
     await tester.pumpAndSettle();
-    expect(find.text('lease.pdf'), findsOneWidget);
+    // The attachment and the live vault preview both show the file name.
+    expect(find.text('lease.pdf'), findsNWidgets(2));
 
+    await tester.ensureVisible(find.text('Remove'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Remove'));
     await tester.pumpAndSettle();
     expect(Stores.vault.pickedFile, isNull);

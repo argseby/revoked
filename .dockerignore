@@ -10,4 +10,5 @@ pb_data/
 *.md
 Dockerfile
 docker-compose.yml
+docker-compose.build.yml
 deploy/

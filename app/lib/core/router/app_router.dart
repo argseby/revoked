@@ -95,6 +95,9 @@ abstract class AppRoutes {
   /// What this workspace attested about others.
   static const attestationsIssued = '$attestations?tab=issued';
 
+  /// What others attested about the person.
+  static const attestationsHeld = '$attestations?tab=held';
+
   /// The people the person asked to show an attestation.
   static const attestationsChecked = '$attestations?tab=checked';
 
@@ -575,14 +578,19 @@ class AppRouter {
             ),
             // The links list and the chosen link. A shell of its own, so the
             // list outlives each link opened beside it on a wide window.
+            // A page builder, not a builder: a builder gets go_router's default
+            // Material page, whose transition lets the previous place (the
+            // vault) show through while the links fade in.
             ShellRoute(
-              builder: (context, state, child) => SharedSplit(
-                selectedId: state.pathParameters['id'],
-                recipient: state.uri.queryParameters['recipient'],
-                initialTab: state.uri.queryParameters['tab'] == 'received'
-                    ? 1
-                    : 0,
-                child: child,
+              pageBuilder: (context, state, child) => NoTransitionPage(
+                child: SharedSplit(
+                  selectedId: state.pathParameters['id'],
+                  recipient: state.uri.queryParameters['recipient'],
+                  initialTab: state.uri.queryParameters['tab'] == 'received'
+                      ? 1
+                      : 0,
+                  child: child,
+                ),
               ),
               routes: [
                 GoRoute(
@@ -691,7 +699,7 @@ class AppRouter {
                     ask: ask,
                     check: check,
                     initialTab: switch (state.uri.queryParameters['tab']) {
-                      'issued' => 1,
+                      'held' => 1,
                       'checked' => 2,
                       _ => 0,
                     },

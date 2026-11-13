@@ -37,6 +37,9 @@ import 'package:revoked_app/core/widgets/trust_panel.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmark_groups_sheet.dart';
 import 'package:revoked_app/features/shares/store/shared_link_reader.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
+import 'package:revoked_app/core/state/local.dart';
+import 'package:revoked_app/core/widgets/app_segmented.dart';
+import 'package:revoked_app/features/vault/view/section_views.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class PublicShareScreen extends StatefulWidget {
@@ -670,18 +673,22 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final s in sections)
-          AppListGroup(
-            title: s['name'] as String? ?? 'Section',
-            noun: 'items',
-            children: [
-              for (final id in memberIds(s))
-                if (byId[id] != null) row(byId[id]!),
-              if (memberIds(s).every((id) => byId[id] == null))
-                const AppDetailRow(
-                  icon: AppIcons.info,
-                  label: 'This section is empty',
-                ),
-            ],
+          _SharedSection(
+            key: ValueKey('shared-section-${s['id']}'),
+            view: sharedSectionView(s, byId),
+            records: AppListGroup(
+              title: s['name'] as String? ?? 'Section',
+              noun: 'items',
+              children: [
+                for (final id in memberIds(s))
+                  if (byId[id] != null) row(byId[id]!),
+                if (memberIds(s).every((id) => byId[id] == null))
+                  const AppDetailRow(
+                    icon: AppIcons.info,
+                    label: 'This section is empty',
+                  ),
+              ],
+            ),
           ),
         if (loose.isNotEmpty)
           AppListGroup(
@@ -1003,6 +1010,60 @@ class _SharedRecordRow extends StatelessWidget {
           onTap: busy ? null : () => _downloadFile(context),
         ),
       ],
+    );
+  }
+}
+
+/// A shared section: its card, when the owner gave it a view, with a switch
+/// back to the records it is made of; otherwise just the records.
+class _SharedSection extends StatefulWidget {
+  final SectionView? view;
+  final Widget records;
+
+  const _SharedSection({super.key, required this.view, required this.records});
+
+  @override
+  State<_SharedSection> createState() => _SharedSectionState();
+}
+
+class _SharedSectionState extends State<_SharedSection> {
+  final _card = Local(true);
+
+  @override
+  Widget build(BuildContext context) {
+    final view = widget.view;
+    if (view == null) return widget.records;
+    return Observer(
+      builder: (_) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: AppSegmented<bool>(
+              value: _card.value,
+              items: [
+                AppSegmentedItem(
+                  value: true,
+                  label: view.spec.name,
+                  icon: AppIcons.dashboard,
+                ),
+                const AppSegmentedItem(
+                  value: false,
+                  label: 'Records',
+                  icon: AppIcons.cardList,
+                ),
+              ],
+              onChanged: (card) => _card.value = card,
+            ),
+          ),
+          AppSpacing.gapMd,
+          if (_card.value) ...[
+            SectionViewCard(view: view),
+            AppSpacing.gapXl,
+          ] else
+            widget.records,
+        ],
+      ),
     );
   }
 }

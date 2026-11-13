@@ -38,6 +38,9 @@ abstract class AppIcons {
   static const IconData home = Icons.home_outlined;
   static const IconData duplicate = Icons.library_add_outlined;
   static const IconData qrCode = Icons.qr_code_2;
+  static const IconData wifi = Icons.wifi;
+  static const IconData car = Icons.directions_car_outlined;
+  static const IconData medication = Icons.medication_outlined;
   static const IconData qrScan = Icons.qr_code_scanner;
   static const IconData exclamation = Icons.priority_high;
   static const IconData exclamationOctagon = Icons.report_outlined;

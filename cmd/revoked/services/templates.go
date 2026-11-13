@@ -113,6 +113,59 @@ func ValidateBuiltinTemplate(t BuiltinTemplate) error {
 	if total == 0 {
 		return fmt.Errorf("template has no fields")
 	}
+	if view, ok := t.Schema["view"]; ok {
+		if err := ValidateSectionView(view); err != nil {
+			return fmt.Errorf("view: %w", err)
+		}
+	}
+	return nil
+}
+
+// ValidateSectionView checks the outline of a section view: a format version
+// this server knows, an id, the keys it matches and a list of blocks, within
+// the size limit. The blocks themselves are the app's to read; one it does
+// not know is skipped there, so a newer view still shows what it can.
+func ValidateSectionView(raw any) error {
+	view, ok := raw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("must be an object")
+	}
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		return err
+	}
+	if len(encoded) > util.MaxSectionViewBytes {
+		return fmt.Errorf("exceeds %d bytes", util.MaxSectionViewBytes)
+	}
+	version, _ := view["version"].(float64)
+	if version < 1 || version > util.SectionViewVersion || version != float64(int(version)) {
+		return fmt.Errorf("version must be 1 to %d", util.SectionViewVersion)
+	}
+	if id, _ := view["id"].(string); id == "" {
+		return fmt.Errorf("id is required")
+	}
+	match, _ := view["match"].([]any)
+	if len(match) == 0 {
+		return fmt.Errorf("match must list at least one record key")
+	}
+	for _, m := range match {
+		if s, _ := m.(string); s == "" {
+			return fmt.Errorf("match entries must be record keys")
+		}
+	}
+	blocks, _ := view["blocks"].([]any)
+	if len(blocks) == 0 {
+		return fmt.Errorf("blocks must list at least one block")
+	}
+	for _, b := range blocks {
+		block, ok := b.(map[string]any)
+		if !ok {
+			return fmt.Errorf("each block must be an object")
+		}
+		if typ, _ := block["type"].(string); typ == "" {
+			return fmt.Errorf("each block needs a type")
+		}
+	}
 	return nil
 }
 

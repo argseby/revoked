@@ -2,23 +2,25 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
-import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_error_text.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/qr_sheet.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
 
 /// Asking makes a link for the attester: it fills in their Attest form with
 /// the type, the claims and the identity, and they send back an offer.
 Future<void> openAskAttestationSheet(BuildContext context) {
   final identities = Stores.identities;
   Stores.credentials.resetAsk(identityId: identities.defaultSigner()?.id);
-  return showAppSheet(context: context, builder: (_) => const _AskSheet());
+  return showAppSheet(
+    context: context,
+    panelWidth: vaultComposerWidth,
+    builder: (_) => const _AskSheet(),
+  );
 }
 
 class _AskSheet extends StatelessWidget {
@@ -51,79 +53,81 @@ class _AskSheet extends StatelessWidget {
         final problem = store.askProblem;
         return ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
+            maxHeight: composerMaxHeight(context),
           ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.xl,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Ask for an attestation').header,
-                AppSpacing.gapXxs,
-                const Text(
-                  'A club, an employer or another issuer confirms a fact '
-                  'about an identity. The link is not sent automatically.',
-                ).muted.small,
-                AppSpacing.gapLg,
-                AppFormField(
-                  label: 'Kind',
-                  inset: false,
-                  child: AppTextField(
-                    controller: store.askTypeController,
-                    hint: 'membership',
-                    mono: true,
-                  ),
-                ),
-                AppSpacing.gapSm,
-                AppFormField(
-                  label: 'Details (optional)',
-                  inset: false,
-                  child: AppTextField(
-                    controller: store.askClaimsController,
-                    hint: 'member_since, board',
-                    mono: true,
-                  ),
-                ),
-                AppSpacing.gapLg,
-                AppFormField(
-                  label: 'Your identity',
-                  inset: false,
-                  child: IdentityPicker(
-                    selectedId: store.askIdentityId,
-                    onChanged: store.setAskIdentity,
-                  ),
-                ),
-                if (problem != null &&
-                    store.askTypeController.text.trim().isNotEmpty) ...[
-                  AppSpacing.gapSm,
-                  AppErrorText(problem),
-                ],
-                AppSpacing.gapLg,
-                Row(
-                  children: [
-                    AppButton(
-                      label: 'Cancel',
-                      style: AppButtonStyle.accent,
-                      onTap: () => Navigator.of(context).pop(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              VaultComposerHeader(
+                title: 'Ask for an attestation',
+                area: 'Attestations',
+                areaIcon: AppIcons.attestation,
+                subtitle:
+                    'A club, an employer or another issuer confirms a fact '
+                    'about an identity. The link is not sent automatically.',
+                onClose: () => Navigator.of(context).pop(),
+              ),
+              const AppDivider(),
+              Flexible(
+                child: AppComposerSections(
+                  sections: [
+                    AppComposerSection(
+                      title: 'Attestation',
+                      icon: AppIcons.attestation,
+                      children: [
+                        AppComposerField(
+                          label: 'Kind',
+                          explanation: 'What the issuer is asked to confirm',
+                          child: AppTextField(
+                            controller: store.askTypeController,
+                            hint: 'membership',
+                            mono: true,
+                          ),
+                        ),
+                        AppComposerField(
+                          label: 'Details (optional)',
+                          explanation: 'Separated by commas',
+                          error:
+                              problem != null &&
+                                  store.askTypeController.text.trim().isNotEmpty
+                              ? problem
+                              : null,
+                          child: AppTextField(
+                            controller: store.askClaimsController,
+                            hint: 'member_since, board',
+                            mono: true,
+                          ),
+                        ),
+                      ],
                     ),
-                    AppSpacing.gapMd,
-                    Expanded(
-                      child: AppButton(
-                        icon: AppIcons.qrCode,
-                        label: 'Create link',
-                        onTap: problem == null ? () => _create(context) : null,
-                      ),
+                    AppComposerSection(
+                      title: 'Identity',
+                      icon: AppIcons.shieldCheck,
+                      children: [
+                        AppComposerField(
+                          label: 'Your identity',
+                          explanation:
+                              'The offer the issuer returns is accepted with '
+                              'this identity.',
+                          child: IdentityPicker(
+                            selectedId: store.askIdentityId,
+                            onChanged: store.setAskIdentity,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const AppDivider(),
+              AppComposerFooter(
+                label: 'Create link',
+                icon: AppIcons.qrCode,
+                onSubmit: problem == null ? () => _create(context) : null,
+                onCancel: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
         );
       },

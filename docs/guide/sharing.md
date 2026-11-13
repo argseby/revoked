@@ -22,10 +22,11 @@ password already copied, a downloaded document or a screenshot. If a visitor
 must also lose access to the Wi-Fi network, the network password itself must
 be changed.
 
-A share of a whole section also includes records added to that section later.
-A share of selected individual records keeps its explicit selection. A section
-share therefore suits a deliberately maintained pack of information; a single
-record share suits one specific value.
+A share of a whole section includes the records the section holds when the
+share is made, grouped under the section's name on the page. A record added to
+the section later is not shared automatically: it joins the share only when it
+is ticked on it. Every share therefore grants an explicit list of records, and
+nothing reaches a recipient that was not chosen for that share.
 
 ## Creating a share
 

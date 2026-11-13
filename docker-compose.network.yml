@@ -1,0 +1,20 @@
+# Path C: a reverse proxy in its own container (Nginx Proxy Manager, Traefik,
+# Caddy) reaches the API over a Docker network the proxy already has.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.network.yml up -d
+#
+# PROXY_NETWORK names that network (proxy-network unless set); it must exist,
+# and the proxy's container must be on it. The proxy then forwards to
+# http://revoked-api:3000 (CONTAINER_NAME:API_PORT). In Portainer, this file
+# goes under the stack's "Additional paths".
+
+services:
+  api:
+    networks:
+      - default
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy-network}
