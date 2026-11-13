@@ -25,7 +25,8 @@ class AttestationsScreen extends StatefulWidget {
   /// A tool's proposal to ask someone to show one; opens the check form.
   final CheckProposal? check;
 
-  /// 0 held, 1 issued, 2 checked.
+  /// 0 issued, 1 held, 2 checked: issuing comes first, as sending does in
+  /// Shares and Requests.
   final int initialTab;
 
   const AttestationsScreen({
@@ -79,16 +80,16 @@ class _AttestationsScreenState extends State<AttestationsScreen>
             initialIndex: widget.initialTab,
             tabs: const [
               AppTab(
-                label: 'Held',
-                icon: AppIcons.safe,
-                description: 'Attestations issued to you.',
-                view: HeldAttestations(),
-              ),
-              AppTab(
                 label: 'Issued',
                 icon: AppIcons.attestation,
                 description: 'Attestations issued by this workspace.',
                 view: IssuedAttestations(),
+              ),
+              AppTab(
+                label: 'Held',
+                icon: AppIcons.safe,
+                description: 'Attestations issued to you.',
+                view: HeldAttestations(),
               ),
               AppTab(
                 label: 'Checked',

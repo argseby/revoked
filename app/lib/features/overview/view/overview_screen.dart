@@ -158,6 +158,7 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
             onTap: () => openVaultCreateSheet(context),
           ),
         ),
+        needs.isNotEmpty ?
         AppListGroup(
           title: needs.isEmpty ? 'All clear' : 'Needs your attention',
           noun: 'items',
@@ -165,17 +166,13 @@ class _OverviewScreenState extends State<OverviewScreen> with RefreshOnEntry {
           trailing: needs.isEmpty ? const SizedBox.shrink() : null,
           children: needs.isEmpty
               ? [
-                  AppListRow(
-                    icon: AppIcons.checkCircle,
-                    title: 'You’re up to date',
-                    subtitle: 'Nothing needs your attention right now.',
-                  ),
+                
                 ]
               : [
                   for (final item in needs)
                     NeedRow(item: item, onTap: () => context.go(item.route)),
                 ],
-        ),
+        ) : const SizedBox.shrink(),
         _Stats(
           figures: [
             _Figure(

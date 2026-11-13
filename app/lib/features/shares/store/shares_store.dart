@@ -554,6 +554,27 @@ abstract class _SharesStore with Store {
   }
 
   /// The end-to-end encrypted records among [ids], as this device holds them.
+  /// [records], then the records of each of [sections] not already among
+  /// them, in the order the sections hold them.
+  List<String> _withSectionRecords(
+    List<String> records,
+    List<String> sections,
+  ) {
+    final out = [...records];
+    final seen = {...records};
+    final vault = Stores.vault;
+    for (final id in sections) {
+      final section = [
+        ...vault.sections,
+        ...vault.sharedSections,
+      ].where((s) => s.id == id).firstOrNull;
+      for (final rid in section?.records ?? const <String>[]) {
+        if (seen.add(rid)) out.add(rid);
+      }
+    }
+    return out;
+  }
+
   List<models.Record> _sealedAmong(Iterable<String> ids) {
     final sealed = <models.Record>[];
     for (final id in ids) {
@@ -826,6 +847,10 @@ abstract class _SharesStore with Store {
     String audienceKind = '',
     List<String> audienceGroups = const [],
   }) async {
+    // A link serves only the records it lists; a section on it groups them on
+    // the page. Sharing a whole section therefore lists its records too, as
+    // the vault's section toggle does, or the link opens empty.
+    records = _withSectionRecords(records, sections);
     // Encrypted records join the link in a second request, each with its
     // key for the link: the server takes none without one.
     final sealed = _sealedAmong(records);

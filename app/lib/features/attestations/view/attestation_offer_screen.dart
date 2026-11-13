@@ -159,7 +159,7 @@ class _AttestationOfferScreenState extends State<AttestationOfferScreen> {
           icon: AppIcons.shieldCheck,
           onTap: () {
             Stores.credentials.clearOffer();
-            context.go(AppRoutes.attestations);
+            context.go(AppRoutes.attestationsHeld);
           },
         ),
         AppButton(

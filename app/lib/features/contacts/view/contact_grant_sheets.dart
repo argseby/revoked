@@ -3,20 +3,20 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/contact.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/utils/deep_links.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/identity_picker.dart';
 import 'package:revoked_app/core/widgets/qr_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_contents_picker.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
 
 /// Shares vault entries with [contact].
 Future<void> openSendToContactSheet(BuildContext context, Contact contact) {
@@ -25,6 +25,7 @@ Future<void> openSendToContactSheet(BuildContext context, Contact contact) {
   if (Stores.vault.records.isEmpty) Stores.vault.loadRecords();
   return showAppSheet(
     context: context,
+    panelWidth: vaultComposerWidth,
     builder: (_) => _SendSheet(contact: contact),
   );
 }
@@ -48,6 +49,7 @@ Future<void> openAskContactSheet(BuildContext context, Contact contact) async {
   if (workspace.isNotEmpty) Stores.templates.loadTemplates(workspace);
   return showAppSheet(
     context: context,
+    panelWidth: vaultComposerWidth,
     builder: (_) => _AskSheet(contact: contact),
   );
 }
@@ -144,72 +146,34 @@ class _SendSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = Stores.contacts;
     return Observer(
-      builder: (_) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.9,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xl,
-            AppSpacing.xxs,
-            AppSpacing.xl,
-            AppSpacing.xl,
+      builder: (_) => _ContactGrantLayout(
+        title: 'Send to ${contact.name}',
+        subtitle:
+            'The recipient always sees the latest version. Access can be '
+            'revoked. ${_reachLine(contact, isAsk: false)}',
+        error: store.error?.description,
+        fields: [
+          AppComposerField(
+            label: 'Label',
+            child: AppTextField(
+              controller: store.grantLabel,
+              hint: 'Bank details',
+              autofocus: true,
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Send to ${contact.name}').header,
-              AppSpacing.gapXxs,
-              const Text(
-                'The recipient always sees the latest version. Access can be '
-                'revoked.',
-              ).muted.small,
-              AppSpacing.gapXxs,
-              Text(_reachLine(contact, isAsk: false)).muted.small,
-              AppSpacing.gapLg,
-              AppFormField(
-                label: 'Label',
-                inset: false,
-                child: AppTextField(
-                  controller: store.grantLabel,
-                  hint: 'Bank details',
-                  autofocus: true,
-                ),
-              ),
-              AppSpacing.gapSm,
-              ShareContentsRow(
-                records: store.draftRecords,
-                sections: store.draftSections,
-                toggleRecord: store.toggleDraftRecord,
-                toggleSection: store.toggleDraftSection,
-                inset: false,
-              ),
-              if (store.error != null) ...[
-                AppSpacing.gapSm,
-                AppErrorText(store.error!.description),
-              ],
-              AppSpacing.gapLg,
-              Row(
-                children: [
-                  AppButton(
-                    label: 'Cancel',
-                    style: AppButtonStyle.accent,
-                    onTap: () => Navigator.of(context).pop(),
-                  ),
-                  AppSpacing.gapMd,
-                  Expanded(
-                    child: AppButton(
-                      icon: AppIcons.send,
-                      label: 'Send',
-                      busy: store.isHandingOver,
-                      onTap: store.canSend ? () => _send(context) : null,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          ShareContentsRow(
+            records: store.draftRecords,
+            sections: store.draftSections,
+            toggleRecord: store.toggleDraftRecord,
+            toggleSection: store.toggleDraftSection,
           ),
+        ],
+        footer: AppComposerFooter(
+          label: 'Send',
+          icon: AppIcons.send,
+          busy: store.isHandingOver,
+          onSubmit: store.canSend ? () => _send(context) : null,
+          onCancel: () => Navigator.of(context).pop(),
         ),
       ),
     );
@@ -233,90 +197,115 @@ class _AskSheet extends StatelessWidget {
     return Observer(
       builder: (_) {
         final templates = Stores.templates.templates;
-        return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xxs,
-              AppSpacing.xl,
-              AppSpacing.xl,
+        return _ContactGrantLayout(
+          title: 'Request from ${contact.name}',
+          subtitle:
+              'Responses stay under the contact\u2019s control and always '
+              'show the latest version. ${_reachLine(contact, isAsk: true)}',
+          error: store.error?.description,
+          fields: [
+            AppComposerField(
+              label: 'Title',
+              child: AppTextField(
+                controller: store.grantLabel,
+                hint: 'New address',
+                autofocus: true,
+              ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Request from ${contact.name}').header,
-                AppSpacing.gapXxs,
-                const Text(
-                  'Responses stay under the contact\u2019s control and always '
-                  'show the latest version.',
-                ).muted.small,
-                AppSpacing.gapXxs,
-                Text(_reachLine(contact, isAsk: true)).muted.small,
-                AppSpacing.gapLg,
-                AppFormField(
-                  label: 'Title',
-                  inset: false,
-                  child: AppTextField(
-                    controller: store.grantLabel,
-                    hint: 'New address',
-                    autofocus: true,
-                  ),
-                ),
-                AppSpacing.gapSm,
-                AppFormField(
-                  label: 'Template',
-                  inset: false,
-                  child: AppSelect<String>(
-                    value: store.askTemplateId,
-                    placeholder: 'None — respondents add their own fields',
-                    onChanged: store.setAskTemplate,
-                    items: [
-                      for (final t in templates)
-                        AppSelectItem(t.id, Text(t.name)),
-                    ],
-                  ),
-                ),
-                AppSpacing.gapSm,
-                AppFormField(
-                  label: 'Your identity',
-                  inset: false,
-                  child: IdentityPicker(
-                    selectedId: store.askIdentityId,
-                    onChanged: store.setAskIdentity,
-                  ),
-                ),
-                if (store.error != null) ...[
-                  AppSpacing.gapSm,
-                  AppErrorText(store.error!.description),
+            AppComposerField(
+              label: 'Template',
+              child: AppSelect<String>(
+                value: store.askTemplateId,
+                placeholder: 'None — respondents add their own fields',
+                onChanged: store.setAskTemplate,
+                items: [
+                  for (final t in templates) AppSelectItem(t.id, Text(t.name)),
                 ],
-                AppSpacing.gapLg,
-                Row(
-                  children: [
-                    AppButton(
-                      label: 'Cancel',
-                      style: AppButtonStyle.accent,
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
-                    AppSpacing.gapMd,
-                    Expanded(
-                      child: AppButton(
-                        icon: AppIcons.askFor,
-                        label: 'Ask',
-                        busy: store.isHandingOver,
-                        onTap: store.canAsk ? () => _ask(context) : null,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
+            AppComposerField(
+              label: 'Your identity',
+              child: IdentityPicker(
+                selectedId: store.askIdentityId,
+                onChanged: store.setAskIdentity,
+              ),
+            ),
+          ],
+          footer: AppComposerFooter(
+            label: 'Ask',
+            icon: AppIcons.askFor,
+            busy: store.isHandingOver,
+            onSubmit: store.canAsk ? () => _ask(context) : null,
+            onCancel: () => Navigator.of(context).pop(),
           ),
         );
       },
     );
   }
+}
+
+/// A short contact drawer: the composer's header, a few fields without a
+/// section rail, and its footer.
+class _ContactGrantLayout extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<Widget> fields;
+  final String? error;
+  final Widget footer;
+
+  const _ContactGrantLayout({
+    required this.title,
+    required this.subtitle,
+    required this.fields,
+    required this.footer,
+    this.error,
+  });
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: BoxConstraints(
+      maxHeight: composerMaxHeight(context),
+    ),
+    child: Column(
+      // Fills the side panel, so the footer sits on its bottom edge.
+      mainAxisSize: AppSpacing.isNarrow(context)
+          ? MainAxisSize.min
+          : MainAxisSize.max,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        VaultComposerHeader(
+          title: title,
+          area: 'Contacts',
+          areaIcon: AppIcons.person,
+          subtitle: subtitle,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+        const AppDivider(),
+        Flexible(
+          fit: AppSpacing.isNarrow(context) ? FlexFit.loose : FlexFit.tight,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...fields,
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xxl,
+                      AppSpacing.sm,
+                      AppSpacing.xxl,
+                      0,
+                    ),
+                    child: AppErrorText(error!),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const AppDivider(),
+        footer,
+      ],
+    ),
+  );
 }

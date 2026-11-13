@@ -24,10 +24,15 @@ class ApiPreviewSection extends StatelessWidget {
   final ApiRequestSpec spec;
   final String title;
 
+  /// Inside a composer card, which already names the group and pads it:
+  /// no heading and no margins of its own.
+  final bool embedded;
+
   const ApiPreviewSection({
     super.key,
     required this.spec,
     this.title = 'API request',
+    this.embedded = false,
   });
 
   @override
@@ -36,14 +41,16 @@ class ApiPreviewSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppFormSectionHeader('Developer'),
+          if (!embedded) const AppFormSectionHeader('Developer'),
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              0,
-              AppSpacing.xl,
-              AppSpacing.sm,
-            ),
+            padding: embedded
+                ? EdgeInsets.zero
+                : const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    0,
+                    AppSpacing.xl,
+                    AppSpacing.sm,
+                  ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

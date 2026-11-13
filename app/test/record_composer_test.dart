@@ -13,6 +13,7 @@ import 'package:revoked_app/core/models/workspace_member.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/redacted_value.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -142,8 +143,15 @@ void main() {
       await open(tester);
       await tester.enterText(field(Stores.vault.recordLabel), 'My note');
       await tester.enterText(field(Stores.vault.recordValue), 'hello');
-      await tester.tap(find.text('Hide in vault'));
+      await tester.tap(find.text('Mask value'));
       await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('record-mask-preview')),
+          matching: find.byType(RedactionBar),
+        ),
+        findsOneWidget,
+      );
       await pick(tester, 'Section');
       await pick(tester, 'Record');
       expect(Stores.vault.recordValue.text, 'hello');
@@ -188,9 +196,8 @@ void main() {
       expect(saveButton(tester).onTap, isNull);
       await pick(tester, 'Finance');
       expect(saveButton(tester).onTap, isNotNull);
-      await pick(tester, 'Access');
       await pick(tester, 'File');
-      expect(find.text('Private · only you'), findsOneWidget);
+      expect(find.text('Files are private to your account.'), findsOneWidget);
       await pick(tester, 'Text');
       await pick(tester, 'Access');
       expect(find.text('Finance'), findsOneWidget);
@@ -208,10 +215,9 @@ void main() {
       tester,
     ) async {
       await open(tester, size: size, textScale: scale, brightness: brightness);
-      expect(
-        find.byKey(const ValueKey('record-type-rail')),
-        size.width > 600 && scale == 1 ? findsOneWidget : findsNothing,
-      );
+      // The type is part of the form at every width; the rail only
+      // navigates between the form's sections.
+      expect(find.byKey(const ValueKey('record-type-picker')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await pick(tester, 'Date and time');
       expect(Stores.vault.recordType, 'datetime');
@@ -228,7 +234,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Pick a date'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await pick(tester, 'Developer options');
+      await pick(tester, 'Developer');
       await tester.ensureVisible(find.text('Record key'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

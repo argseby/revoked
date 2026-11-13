@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 
 /// Collection pages name themselves in the content, above their local tools.
 class AppCollectionHeader extends StatelessWidget {
@@ -10,12 +12,34 @@ class AppCollectionHeader extends StatelessWidget {
   final String? description;
   final Widget? action;
 
+  /// A sub-page's way back, beside its title instead of in the top bar.
+  final VoidCallback? onBack;
+
   const AppCollectionHeader({
     super.key,
     required this.title,
     this.description,
     this.action,
+    this.onBack,
   });
+
+  Widget _title() {
+    final text = AppText(title).header;
+    if (onBack == null) return text;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppButton(
+          icon: AppIcons.arrowLeft,
+          tooltip: 'Back',
+          style: AppButtonStyle.ghost,
+          onTap: onBack,
+        ),
+        AppSpacing.gapXs,
+        Flexible(child: text),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -24,14 +48,14 @@ class AppCollectionHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (action == null)
-          AppText(title).header
+          _title()
         else
           OverflowBar(
             alignment: MainAxisAlignment.spaceBetween,
             spacing: AppSpacing.md,
             overflowSpacing: AppSpacing.sm,
             overflowAlignment: OverflowBarAlignment.start,
-            children: [AppText(title).header, action!],
+            children: [_title(), action!],
           ),
         if (description != null) ...[
           AppSpacing.gapXxs,

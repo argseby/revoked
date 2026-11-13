@@ -488,7 +488,6 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
 
     return AppListGroup(
       title: 'Details',
-      collapsed: true,
       noun: 'details',
       trailing: const SizedBox.shrink(),
       children: [

@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/core/widgets/redacted_value.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -15,7 +18,6 @@ import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
-import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_switch.dart';
@@ -275,9 +277,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     final isDup = widget.initialRecord != null;
 
     final sheet = ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         // Embedded, the form fills its tab so the footer sits on the drawer's
         // bottom edge rather than floating above a gap.
@@ -298,31 +298,75 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
           ],
           Flexible(
             fit: widget.embedded ? FlexFit.tight : FlexFit.loose,
-            child: ExcludeFocus(
-              excluding: _store.isSubmittingRecord,
-              child: IgnorePointer(
-                ignoring: _store.isSubmittingRecord,
-                child: RecordComposerLayout(
-                  selectedType: _store.recordType,
-                  onTypePicked: _pickType,
-                  enabled: !_store.isSubmittingRecord,
+            child: AppComposerSections(
+              editorKey: const PageStorageKey('record-composer-editor'),
+              enabled: !_store.isSubmittingRecord,
+              sections: [
+                AppComposerSection(
+                  title: 'Record',
+                  icon: AppIcons.key,
                   children: [
                     _buildLabelField(),
-                    if (_isFileType)
-                      RecordComposerField(
-                        label: 'File',
-                        trailing: _maskToggle(),
-                        child: const VaultFileRow(
-                          inset: false,
-                          showLabel: false,
-                        ),
-                      )
-                    else
-                      _buildValueField(),
-                    _buildSettings(),
+                    RecordTypePicker(
+                      selected: _store.recordType,
+                      onPicked: _store.isSubmittingRecord ? null : _pickType,
+                    ),
+                    _isFileType
+                        ? RecordComposerField(
+                            label: 'File',
+                            explanation:
+                                'One file per record. Masking hides its '
+                                'name in lists.',
+                            trailing: _maskToggle(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const VaultFileRow(
+                                  inset: false,
+                                  showLabel: false,
+                                ),
+                                AppSpacing.gapMd,
+                                _buildMaskPreview(),
+                              ],
+                            ),
+                          )
+                        : _buildValueField(),
                   ],
                 ),
-              ),
+                AppComposerSection(
+                  title: 'Access',
+                  icon: AppIcons.group,
+                  children: [
+                    AppComposerCard(
+                      title: 'Visible to',
+                      description: 'Who in this workspace can see it.',
+                      child: _buildAccessOptions(),
+                    ),
+                  ],
+                ),
+                if (!_isFileType &&
+                    (Stores.keys.isAvailable || _store.recordSealed))
+                  AppComposerSection(
+                    title: 'Encryption',
+                    icon: AppIcons.shieldCheck,
+                    children: [
+                      AppComposerCard(
+                        title: 'End-to-end encryption',
+                        description:
+                            'Encrypts the value on this device before upload.',
+                        child: _buildEncryption(),
+                      ),
+                    ],
+                  ),
+                AppComposerSection(
+                  title: 'Developer',
+                  icon: AppIcons.code,
+                  children: [
+                    _buildKeyField(),
+                    AppComposerApiPreview(preview: _apiPreview()),
+                  ],
+                ),
+              ],
             ),
           ),
           const AppDivider(),
@@ -417,6 +461,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   Widget _buildLabelField() => RecordComposerField(
     label: 'Label',
+    explanation: 'How this record is named in your vault.',
     child: AppTextField(
       controller: _store.recordLabel,
       hint: 'e.g. Account IBAN',
@@ -424,10 +469,9 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     ),
   );
 
-  Widget _buildKeyField() => AppFormField(
+  Widget _buildKeyField() => AppComposerField(
     label: 'Record key',
-    inset: false,
-    explanation: 'Identifier for templates, requests and scripts',
+    explanation: 'Identifier for templates, requests and scripts.',
     error: _store.recordKeyWarning,
     note: _store.recordKey.text.trim().isEmpty
         ? 'Defaults to $_effectiveKey when empty.'
@@ -507,6 +551,52 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     };
   }
 
+  Widget _buildMaskPreview() {
+    final hidden = _store.recordFormat == 'hidden';
+    final value = _isFileType
+        ? (_store.pickedFile?.name ?? 'document.pdf')
+        : (_store.recordValue.text.isEmpty
+              ? 'Your value'
+              : _store.recordValue.text);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('In your vault').small.muted,
+        AppSpacing.gapSm,
+        Container(
+          key: const ValueKey('record-mask-preview'),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: AppRadius.allMd,
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(hidden ? AppIcons.eyeSlash : AppIcons.eye, size: 18),
+              AppSpacing.gapMd,
+              Expanded(
+                child: hidden
+                    ? Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: RedactionBar(
+                          width: (value.characters.length * 9.0).clamp(
+                            48.0,
+                            240.0,
+                          ),
+                        ),
+                      )
+                    : Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _maskToggle() => MergeSemantics(
     child: Tooltip(
       message: _isFileType
@@ -515,7 +605,13 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(_isFileType ? 'Mask name' : 'Mask value').small.muted,
+          InkWell(
+            borderRadius: AppRadius.allMd,
+            onTap: () => _store.setRecordFormat(
+              _store.recordFormat == 'hidden' ? 'default' : 'hidden',
+            ),
+            child: Text(_isFileType ? 'Mask name' : 'Mask value').small.muted,
+          ),
           AppSpacing.gapXs,
           AppSwitch(
             value: _store.recordFormat == 'hidden',
@@ -528,83 +624,32 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     ),
   );
 
-  Widget _buildSettings() {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: scheme.outlineVariant),
-        borderRadius: AppRadius.allMd,
+  Widget _buildEncryption() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      AppCheckRow(
+        label: 'Encrypt this value',
+        subtitle: 'Only this account’s devices can open it.',
+        badge: const AppBadge(label: 'Alpha'),
+        value: _store.recordSealed,
+        onChanged: _preparingEncryption.value ? null : _setEncrypted,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          RecordComposerDisclosure(
-            key: const ValueKey('record-access'),
-            title: 'Access',
-            summary: _accessSummary == 'Private'
-                ? 'Private · only you'
-                : _accessSummary,
-            icon: AppIcons.group,
-            child: _buildAccessOptions(),
-          ),
-          if (!_isFileType &&
-              (Stores.keys.isAvailable || _store.recordSealed)) ...[
-            const AppDivider(),
-            RecordComposerDisclosure(
-              key: const ValueKey('record-encryption'),
-              title: 'Encryption',
-              summary: _store.recordSealed
-                  ? 'End-to-end · account devices only'
-                  : 'Standard · end-to-end off',
-              icon: AppIcons.shieldCheck,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  AppCheckRow(
-                    label: 'End-to-end encryption',
-                    subtitle: 'Encrypt the value on this device before upload.',
-                    badge: const AppBadge(label: 'Alpha'),
-                    value: _store.recordSealed,
-                    onChanged: _preparingEncryption.value
-                        ? null
-                        : _setEncrypted,
-                  ),
-                  AppSpacing.gapSm,
-                  const Text(
-                    'Only this account’s devices can read encrypted values. '
-                    'Other workspace accounts cannot decrypt them yet.',
-                  ).small.muted,
-                  if (_preparingEncryption.value) ...[
-                    AppSpacing.gapSm,
-                    const Text('Preparing encryption…').small.muted,
-                  ],
-                  if (_store.recordSealed) ...[
-                    AppSpacing.gapSm,
-                    SealedReadabilityNote(
-                      workspace: widget.authStore.activeWorkspace ?? '',
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-          const AppDivider(),
-          RecordComposerDisclosure(
-            key: const ValueKey('record-developer-options'),
-            title: 'Developer options',
-            summary: 'Key & API preview',
-            icon: AppIcons.code,
-            initiallyOpen: _store.recordKeyWarning != null,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [_buildKeyField(), AppSpacing.gapLg, _apiPreview()],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+      AppSpacing.gapSm,
+      const Text(
+        'Other workspace accounts cannot decrypt encrypted values yet.',
+      ).small.muted,
+      if (_preparingEncryption.value) ...[
+        AppSpacing.gapSm,
+        const Text('Preparing encryption…').small.muted,
+      ],
+      if (_store.recordSealed) ...[
+        AppSpacing.gapSm,
+        SealedReadabilityNote(
+          workspace: widget.authStore.activeWorkspace ?? '',
+        ),
+      ],
+    ],
+  );
 
   Widget _buildAccessOptions() {
     if (_isFileType) {
@@ -690,6 +735,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
 
   Widget _buildValueField() => RecordComposerField(
     label: 'Value',
+    explanation: 'Masking hides it on screen until it is revealed.',
     trailing: _maskToggle(),
     error: _store.recordTypeWarning,
     child: Column(
@@ -748,6 +794,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
             ),
           ),
         ],
+        AppSpacing.gapMd,
+        _buildMaskPreview(),
       ],
     ),
   );

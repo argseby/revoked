@@ -5,10 +5,12 @@ import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/feature.dart';
+import 'package:revoked_app/core/models/trust_verdict.dart';
+import 'package:revoked_app/core/design/app_colors.dart';
+import 'package:revoked_app/features/sealing/store/keys_store.dart';
 import 'package:revoked_app/core/state/display_preferences.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/widgets/app_card.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
@@ -65,38 +67,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Stores.invites.loadMembers(ws);
         Stores.templates.loadTemplates(ws);
       }
+      // Which templates the requests use, for the Templates card.
+      if (Stores.features.visible(Feature.requests)) {
+        Stores.requests.loadIfDue();
+      }
     });
   }
 
-  /// "3 members", or the topic's description while nothing is loaded.
-  String _count(int n, String one, String many, String otherwise) =>
-      n == 0 ? otherwise : '$n ${n == 1 ? one : many}';
+  /// "3 members", or [none] when there are none.
+  String _count(int n, String one, String many, String none) =>
+      n == 0 ? none : '$n ${n == 1 ? one : many}';
 
-  /// "1 tool connected · 2 sign-ins", leaving out whichever there are none of.
-  String _toolsSummary() {
+  /// "1 tool connected · 2 sign-ins", or that nothing is connected.
+  String _toolsStatus() {
     final tools = Stores.connections.connections.length;
     final signIns = Stores.signIns.services.length;
+    if (tools == 0 && signIns == 0) return 'Nothing connected';
     return [
-      if (tools > 0 || signIns == 0)
-        _count(
-          tools,
-          'tool connected',
-          'tools connected',
-          'No tools connected',
-        ),
+      if (tools > 0) _count(tools, 'tool connected', 'tools connected', ''),
       if (signIns > 0) _count(signIns, 'sign-in', 'sign-ins', ''),
     ].join(' · ');
   }
 
+  /// A topic's card: its title, a status where there is one worth stating,
+  /// and its description (or [description] in its place).
   _SettingsDestination _page(
     SettingsPage page,
-    IconData icon,
-    String subtitle,
-  ) {
+    IconData icon, {
+    String? status,
+    Color? statusColor,
+    String? description,
+  }) {
     return _SettingsDestination(
       icon: icon,
       title: page.title,
-      subtitle: subtitle,
+      status: status,
+      statusColor: statusColor,
+      subtitle: description ?? page.description,
       trailing: _stageBadges(page),
       onTap: () => goReturning(context, page.route),
     );
@@ -131,6 +138,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         .where((t) => !t.isBuiltin)
         .length;
     final verdict = Stores.settings.domainVerdict;
+    final scheme = Theme.of(context).colorScheme;
+    final activeWorkspace = Stores.settings.workspaces
+        .where((w) => w.id == auth.activeWorkspace)
+        .firstOrNull;
+    final usedTemplates = Stores.requests.requests
+        .map((r) => r.templateId)
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .length;
 
     final groups = <Widget>[
       const AppCollectionHeader(
@@ -144,28 +160,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _page(
             SettingsPage.appearance,
             AppIcons.brightnessAuto,
-            '${switch (Stores.theme.mode) {
-              ThemeMode.system => 'System theme',
-              ThemeMode.light => 'Light',
-              ThemeMode.dark => 'Dark',
-            }} · ${(DisplayPreferences.textScale * 100).round()}% text',
+            status:
+                '${switch (Stores.theme.mode) {
+                  ThemeMode.system => 'System theme',
+                  ThemeMode.light => 'Light theme',
+                  ThemeMode.dark => 'Dark theme',
+                }} · ${(DisplayPreferences.textScale * 100).round()}% text',
           ),
-          _page(SettingsPage.features, AppIcons.sliders, _featuresSummary()),
+          _page(
+            SettingsPage.features,
+            AppIcons.sliders,
+            status: _featuresStatus(),
+          ),
           _page(
             SettingsPage.passkeys,
             AppIcons.key,
-            _count(
+            status: _count(
               Stores.passkeys.passkeys.length,
-              'passkey',
-              'passkeys',
-              'No passkeys',
+              'passkey set up',
+              'passkeys set up',
+              'No passkeys yet',
             ),
           ),
           if (Stores.keys.isAvailable)
             _page(
               SettingsPage.encryption,
               AppIcons.lock,
-              'End-to-end encryption',
+              status: switch (Stores.keys.status) {
+                SealingStatus.ready => 'Ready on this device',
+                SealingStatus.notSetUp => 'Not set up',
+                _ => 'Needs attention on this device',
+              },
+              statusColor: switch (Stores.keys.status) {
+                SealingStatus.ready => scheme.success,
+                SealingStatus.notSetUp => null,
+                _ => scheme.warning,
+              },
             ),
         ],
       ),
@@ -175,27 +205,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _page(
             SettingsPage.workspaces,
             AppIcons.personWorkspace,
-            _count(
-              Stores.settings.workspaces.length,
-              'workspace',
-              'workspaces',
-              'Separate spaces for records and links',
-            ),
+            // The one in use says more than how many there are.
+            status: activeWorkspace == null
+                ? null
+                : 'Working in ${activeWorkspace.name}',
           ),
           _page(
             SettingsPage.members,
             AppIcons.person,
-            _count(
-              Stores.invites.members.length,
-              'member',
-              'members',
-              'Who has access',
-            ),
+            status: switch (Stores.invites.members.length) {
+              0 => null,
+              1 => 'Only you',
+              final n => '$n members',
+            },
           ),
           _page(
             SettingsPage.invites,
             AppIcons.personPlus,
-            _count(
+            status: _count(
               openInvites,
               'open invite',
               'open invites',
@@ -206,15 +233,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _page(
               SettingsPage.identities,
               AppIcons.personBoundingBox,
-              _count(
+              status: _count(
                 Stores.identities.identities.length,
                 'identity',
                 'identities',
-                'Verifiable identities',
+                'No identities yet',
               ),
             ),
           if (features.visible(Feature.tools))
-            _page(SettingsPage.connectedTools, AppIcons.plug, _toolsSummary()),
+            _page(
+              SettingsPage.connectedTools,
+              AppIcons.plug,
+              status: _toolsStatus(),
+            ),
         ],
       ),
       _SettingsCategory(
@@ -224,45 +255,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _page(
               SettingsPage.apiKeys,
               AppIcons.code,
-              _count(
+              status: _count(
                 Stores.apiKeys.apiKeys.length,
-                'key',
-                'keys',
-                'Programmatic access',
+                'API key',
+                'API keys',
+                'No API keys',
               ),
             ),
           if (features.visible(Feature.developer))
             _page(
               SettingsPage.webhooks,
               AppIcons.send,
-              _count(
+              status: _count(
                 Stores.webhooks.endpoints.length,
-                'webhook',
-                'webhooks',
-                'Event notifications over HTTP',
+                'endpoint',
+                'endpoints',
+                'No endpoints',
               ),
             ),
           if (features.visible(Feature.developer))
             _page(
               SettingsPage.mcp,
               AppIcons.stars,
-              'Setup for AI applications',
+              status: 'Setup guide for AI assistants',
             ),
           if (features.visible(Feature.requests))
             _page(
               SettingsPage.templates,
               AppIcons.cardList,
-              _count(
-                ownTemplates,
-                'custom template',
-                'custom templates',
-                'Reusable request forms',
-              ),
+              status: usedTemplates > 0
+                  ? '$usedTemplates used by requests'
+                  : _count(
+                      ownTemplates,
+                      'custom template',
+                      'custom templates',
+                      'Built-in templates only',
+                    ),
             ),
           _page(
             SettingsPage.domain,
             AppIcons.server,
-            verdict == null ? 'Domain verification' : verdict.domain,
+            status: _domainStatus(verdict),
+            statusColor: switch (verdict?.state) {
+              null => null,
+              TrustState.verified => scheme.success,
+              TrustState.dnsMissing || TrustState.unverified => scheme.warning,
+              TrustState.spoofed || TrustState.revoked => scheme.error,
+            },
           ),
         ],
       ),
@@ -361,16 +400,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _SettingsGridLayout(groups: groups);
   }
 
-  /// "Vault, Sharing and Requests", or what a fresh account is told.
-  String _featuresSummary() {
+  /// "All features enabled", "5 of 6 features enabled", or vault only.
+  String _featuresStatus() {
     final store = Stores.features;
-    final on = [
-      'Vault',
-      for (final f in store.ordered)
-        if (store.visible(f)) store.labelFor(f),
-    ];
-    if (on.length == 1) return 'Vault only';
-    return '${on.sublist(0, on.length - 1).join(', ')} and ${on.last}';
+    final total = store.ordered.length;
+    final on = store.ordered.where(store.visible).length;
+    if (on == 0) return 'Only the vault is shown';
+    if (on == total) return 'All features enabled';
+    return '$on of $total features enabled';
+  }
+
+  /// "Verified · example.com": how the check went, and for which domain.
+  String? _domainStatus(TrustVerdict? verdict) {
+    if (verdict == null) return null;
+    final state = switch (verdict.state) {
+      TrustState.verified => 'Verified',
+      TrustState.dnsMissing || TrustState.unverified => 'Not verified',
+      TrustState.spoofed || TrustState.revoked => 'Check failed',
+    };
+    return verdict.domain.isEmpty ? state : '$state · ${verdict.domain}';
   }
 
   String _host() {
@@ -501,6 +549,8 @@ class _SettingsDestination extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final String? status;
+  final Color? statusColor;
   final Widget? trailing;
   final VoidCallback onTap;
 
@@ -509,6 +559,8 @@ class _SettingsDestination extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.status,
+    this.statusColor,
     this.trailing,
   });
 
@@ -522,20 +574,22 @@ class _SettingsDestination extends StatelessWidget {
         child: AppCard(
           onTap: onTap,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // The title has the row to itself, beside its icon.
               Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.sm),
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHighest,
-                      borderRadius: AppRadius.allMd,
-                    ),
-                    child: Icon(icon, size: 20, color: scheme.onSurfaceVariant),
+                  Icon(icon, size: 20, color: scheme.onSurfaceVariant),
+                  AppSpacing.gapSm,
+                  Expanded(
+                    child: AppText(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ).bold,
                   ),
-                  const Spacer(),
-                  if (trailing != null) ...[trailing!, AppSpacing.gapXs],
+                  if (trailing != null) ...[AppSpacing.gapXs, trailing!],
+                  AppSpacing.gapXs,
                   Icon(
                     AppIcons.chevronRight,
                     size: 18,
@@ -543,10 +597,28 @@ class _SettingsDestination extends StatelessWidget {
                   ),
                 ],
               ),
-              AppSpacing.gapMd,
-              AppText(title).bold,
               AppSpacing.gapXxs,
-              AppText(subtitle).small.muted,
+              // Where it stands, on a line of its own; the line is kept
+              // while the status loads so cards keep one height.
+              DefaultTextStyle.merge(
+                style: TextStyle(
+                  color: statusColor ?? scheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+                child: Text(
+                  status ?? ' ',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ).small,
+              ),
+              AppSpacing.gapSm,
+              Divider(height: 1, color: scheme.outlineVariant),
+              AppSpacing.gapSm,
+              AppText(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ).small.muted,
             ],
           ),
         ),
@@ -589,35 +661,42 @@ class _SettingsGridLayout extends StatelessWidget {
         return height;
       }
 
-      var height = 0.0;
+      // One title line and at most two lines of description: the longest
+      // description decides whether every card takes the second line.
+      var lines = 1;
       for (final category in groups.whereType<_SettingsCategory>()) {
         for (final tile in category.children) {
-          final content =
-              textHeight(
-                tile.title,
-                const TextStyle(
-                  fontSize: AppTextSize.body,
-                  height: AppTextSize.bodyHeight,
-                  fontWeight: FontWeight.w600,
-                ),
-              ) +
-              textHeight(
-                tile.subtitle,
-                const TextStyle(
-                  fontSize: AppTextSize.small,
-                  height: AppTextSize.smallHeight,
-                  fontWeight: FontWeight.w400,
-                ),
-              );
-          height = math.max(height, content);
+          final single = textHeight(
+            'X',
+            const TextStyle(
+              fontSize: AppTextSize.small,
+              height: AppTextSize.smallHeight,
+            ),
+          );
+          final full = textHeight(
+            tile.subtitle,
+            const TextStyle(
+              fontSize: AppTextSize.small,
+              height: AppTextSize.smallHeight,
+            ),
+          );
+          if (full > single * 1.5) lines = 2;
         }
       }
-      // Padding, icon/badge row, and the two gaps between the copy.
-      height +=
+      final titleLine = math.max(
+        scaler.scale(AppTextSize.body) * AppTextSize.bodyHeight,
+        20.0,
+      );
+      final smallLine = scaler.scale(AppTextSize.small) * AppTextSize.smallHeight;
+      // Title, status, the divider with its gaps, then the description.
+      final height =
           AppSpacing.lg * 2 +
-          40 * math.max(1, scale) +
-          AppSpacing.md +
+          titleLine +
           AppSpacing.xxs +
+          smallLine +
+          AppSpacing.sm * 2 +
+          1 +
+          smallLine * lines +
           2;
       return _SettingsCardHeight(
         height: height.ceilToDouble(),

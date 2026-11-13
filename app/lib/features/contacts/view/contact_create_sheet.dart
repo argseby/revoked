@@ -3,19 +3,23 @@ import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
-import 'package:revoked_app/core/widgets/app_form_row.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
 
 /// Adds someone this workspace sends to and asks from.
 Future<void> openContactCreateSheet(BuildContext context) {
   Stores.contacts.clearForm();
-  return showAppSheet(context: context, builder: (_) => const _CreateSheet());
+  return showAppSheet(
+    context: context,
+    panelWidth: vaultComposerWidth,
+    builder: (_) => const _CreateSheet(),
+  );
 }
 
 class _CreateSheet extends StatelessWidget {
@@ -36,80 +40,93 @@ class _CreateSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = Stores.contacts;
     return Observer(
-      builder: (_) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl,
-          AppSpacing.xxs,
-          AppSpacing.xl,
-          AppSpacing.xl,
+      builder: (_) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: composerMaxHeight(context),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Add a contact').header,
-            AppSpacing.gapXxs,
-            const Text(
-              'Contacts receive records and requests. Only an email address '
-              'is required.',
-            ).muted.small,
-            AppSpacing.gapLg,
-            AppFormField(
-              label: 'Name',
-              inset: false,
-              child: AppTextField(
-                controller: store.name,
-                hint: 'Ada Lovelace',
-                autofocus: true,
-              ),
+            VaultComposerHeader(
+              title: 'Add a contact',
+              area: 'Contacts',
+              areaIcon: AppIcons.person,
+              subtitle:
+                  'Contacts receive records and requests. Only an email '
+                  'address is required.',
+              onClose: store.isSaving
+                  ? null
+                  : () => Navigator.of(context).pop(),
             ),
-            AppSpacing.gapSm,
-            AppFormField(
-              label: 'Email address',
-              inset: false,
-              child: AppTextField(
-                controller: store.email,
-                hint: 'ada@example.com',
-                keyboardType: TextInputType.emailAddress,
-              ),
-            ),
-            AppSpacing.gapSm,
-            AppFormField(
-              label: 'Server (optional)',
-              inset: false,
-              child: AppTextField(
-                controller: store.peerDomain,
-                hint: 'revoked.example.com',
-                mono: true,
-              ),
-            ),
-            AppSpacing.gapXs,
-            const Text(
-              'Only for contacts running their own Revoked server. Not '
-              'checked until the contact is verified.',
-            ).muted.small,
-            if (store.error != null) ...[
-              AppSpacing.gapSm,
-              AppErrorText(store.error!.description),
-            ],
-            AppSpacing.gapLg,
-            Row(
-              children: [
-                AppButton(
-                  label: 'Cancel',
-                  style: AppButtonStyle.accent,
-                  onTap: () => Navigator.of(context).pop(),
-                ),
-                AppSpacing.gapMd,
-                Expanded(
-                  child: AppButton(
-                    icon: AppIcons.personPlus,
-                    label: 'Add',
-                    busy: store.isSaving,
-                    onTap: store.canSave ? () => _create(context) : null,
+            const AppDivider(),
+            Flexible(
+              child: AppComposerSections(
+                enabled: !store.isSaving,
+                sections: [
+                  AppComposerSection(
+                    title: 'Contact',
+                    icon: AppIcons.person,
+                    children: [
+                      AppComposerField(
+                        label: 'Name',
+                        child: AppTextField(
+                          controller: store.name,
+                          hint: 'Ada Lovelace',
+                          autofocus: true,
+                        ),
+                      ),
+                      AppComposerField(
+                        label: 'Email address',
+                        explanation: 'Where records and requests are sent',
+                        child: AppTextField(
+                          controller: store.email,
+                          hint: 'ada@example.com',
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                      ),
+                    ],
                   ),
+                  AppComposerSection(
+                    title: 'Server',
+                    icon: AppIcons.globe,
+                    children: [
+                      AppComposerField(
+                        label: 'Server (optional)',
+                        explanation:
+                            'Only for contacts running their own Revoked '
+                            'server. Not checked until the contact is '
+                            'verified.',
+                        child: AppTextField(
+                          controller: store.peerDomain,
+                          hint: 'revoked.example.com',
+                          mono: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (store.error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xxl,
+                  AppSpacing.sm,
+                  AppSpacing.xxl,
+                  0,
                 ),
-              ],
+                child: AppErrorText(store.error!.description),
+              ),
+            const AppDivider(),
+            AppComposerFooter(
+              label: 'Add contact',
+              icon: AppIcons.personPlus,
+              busy: store.isSaving,
+              onSubmit: store.canSave ? () => _create(context) : null,
+              onCancel: store.isSaving
+                  ? null
+                  : () => Navigator.of(context).pop(),
             ),
           ],
         ),

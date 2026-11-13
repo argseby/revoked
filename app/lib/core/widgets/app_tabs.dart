@@ -69,10 +69,13 @@ class _AppTabsState extends State<AppTabs> {
             widget.tabs.length;
         // Use the space of this pane, including in sheets and split views.
         // Wide but short windows also leave the room to the page content.
+        // Descriptions show whenever each still fits in two lines at the
+        // card's width, however many tabs share the strip; only a strip too
+        // narrow or a pane too short for them drops them.
         final compact =
             stripWidth < AppSpacing.narrowWidth ||
             available.maxHeight < AppSpacing.narrowWidth ||
-            cardWidth < 240 * textScale;
+            !_descriptionsFit(context, cardWidth);
         return Observer(
           builder: (context) {
             final i = _selected.value.clamp(0, widget.tabs.length - 1);
@@ -146,6 +149,35 @@ class _AppTabsState extends State<AppTabs> {
         );
       },
     );
+  }
+}
+
+extension on _AppTabsState {
+  /// Whether every tab's description fits in two lines inside a card of
+  /// [cardWidth], beside the card's own padding.
+  bool _descriptionsFit(BuildContext context, double cardWidth) {
+    final width = cardWidth - AppSpacing.lg * 2;
+    if (width <= 0) return false;
+    final style = DefaultTextStyle.of(context).style.merge(
+      const TextStyle(
+        fontSize: AppTextSize.small,
+        height: AppTextSize.smallHeight,
+      ),
+    );
+    for (final tab in widget.tabs) {
+      final text = tab.description;
+      if (text == null) continue;
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 2,
+      )..layout(maxWidth: width);
+      final overflows = painter.didExceedMaxLines;
+      painter.dispose();
+      if (overflows) return false;
+    }
+    return true;
   }
 }
 
