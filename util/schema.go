@@ -213,6 +213,10 @@ type linkFields struct {
 	SealedKeyWraps string
 }
 
+// LinkSealedEntriesField is not stored: it is added to every link the API
+// returns, counting the encrypted entries the link carries.
+const LinkSealedEntriesField = "sealedEntries"
+
 type workspaceFields struct {
 	Name, Slug, Type, Created, Updated string
 	// DefaultAudience is who sees a new item of each area that names no

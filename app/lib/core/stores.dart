@@ -289,6 +289,8 @@ abstract final class Stores {
       passkeys.passkeys.clear();
       apiKeys.apiKeys.clear();
       reminders.reminders.clear();
+      settings.memberships.clear();
+      settings.workspaces.clear();
     });
   }
 }

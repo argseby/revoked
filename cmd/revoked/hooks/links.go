@@ -82,6 +82,10 @@ func BindLinkHooks(app core.App) {
 			// the owner UI. The public route reads the real hash from the DB
 			// record, never from this enriched copy.
 			maskStoredPassword(e.Record, util.Fields.Link.Password)
+			// A link keeps its key after its last encrypted entry is gone, so
+			// the key alone cannot tell a client whether its address needs it.
+			e.Record.WithCustomData(true)
+			e.Record.Set(util.LinkSealedEntriesField, services.CountLinkSeals(e.App, e.Record.Id))
 		}
 		return e.Next()
 	})

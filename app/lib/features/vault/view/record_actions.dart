@@ -107,11 +107,12 @@ class RecordActions {
     ];
   }
 
-  Future<void> seal(models.Record r) async {
+  /// Encrypts [r] after the confirmations it needs; true once it is.
+  Future<bool> seal(models.Record r) async {
     final ready = await ensureSealingReady(context, r.workspace);
-    if (!ready || !context.mounted) return;
+    if (!ready || !context.mounted) return false;
     var outcome = await Stores.vault.sealRecord(r.id);
-    if (!context.mounted) return;
+    if (!context.mounted) return outcome == SealOutcome.sealed;
     if (outcome == SealOutcome.linksAffected) {
       final go = await showAppDialog(
         context: context,
@@ -123,9 +124,9 @@ class RecordActions {
         confirmLabel: 'Encrypt',
         confirmIcon: AppIcons.lock,
       );
-      if (!go || !context.mounted) return;
+      if (!go || !context.mounted) return false;
       outcome = await Stores.vault.sealRecord(r.id, dropLinks: true);
-      if (!context.mounted) return;
+      if (!context.mounted) return outcome == SealOutcome.sealed;
     }
     if (outcome == SealOutcome.sealed) {
       await showAppDialog(
@@ -148,9 +149,11 @@ class RecordActions {
         subtitle: Stores.vault.errorMessage,
       );
     }
+    return outcome == SealOutcome.sealed;
   }
 
-  Future<void> unseal(models.Record r) async {
+  /// Stores [r] in plain text again once confirmed; true once it is.
+  Future<bool> unseal(models.Record r) async {
     final go = await showAppDialog(
       context: context,
       title: 'Stop encrypting this record?',
@@ -161,7 +164,7 @@ class RecordActions {
       confirmIcon: AppIcons.lock,
       destructive: true,
     );
-    if (!go || !context.mounted) return;
+    if (!go || !context.mounted) return false;
     final ok = await Stores.vault.unsealRecord(r.id);
     if (!ok && context.mounted) {
       AppToast.error(
@@ -170,6 +173,7 @@ class RecordActions {
         subtitle: Stores.vault.errorMessage,
       );
     }
+    return ok;
   }
 
   Future<void> download(models.Record r) async {

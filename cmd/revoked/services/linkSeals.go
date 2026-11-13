@@ -55,6 +55,12 @@ func LinkSealsOfLink(app core.App, linkID string) []*core.Record {
 	return rows
 }
 
+// CountLinkSeals counts the encrypted entries a link carries.
+func CountLinkSeals(app core.App, linkID string) int64 {
+	n, _ := app.CountRecords(util.Coll.LinkSeals, dbx.HashExp{util.Fields.LinkSeal.Link: linkID})
+	return n
+}
+
 // LinkIsLive reports whether a link can still be opened, now or once it is
 // resumed. Reading a status must not change it, so an end date that has passed
 // counts here even before a read has written it down.

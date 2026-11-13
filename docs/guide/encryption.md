@@ -18,6 +18,7 @@ device is lost, and nobody can reset it, not even the server operator.
 
 After that, a record is encrypted with the **End-to-end encrypted** toggle
 when it is created, or with **Encrypt end to end** on an existing record.
+**Edit** on a record offers the same choice as **Encrypt this value**.
 **Stop encrypting** makes the value readable to the server again.
 
 Aliases cannot be encrypted. Other members of the workspace can
@@ -60,7 +61,14 @@ live links. Plain entries on a mixed link continue to open independently.
 
 Encrypting an entry already on links preserves the links whose keys this
 device can open. A link getting its first encrypted entry gets an address
-key; copies sent earlier need the new complete address. Other links require
+key; copies sent earlier need the new complete address. A link whose last
+encrypted entry is removed or stops being encrypted is shared without the
+key. It keeps the key, and an encrypted entry added later brings the same
+key back into its address.
+
+**Web & API** formats leave encrypted entries out. The server holds only
+their ciphertext and never receives the address key, so a script fetching
+these addresses, for example with `curl`, cannot read them. Other links require
 confirmation before losing the entry, and their owners are notified. An
 alias or a server-created request/sign-in grant cannot carry the encryption.
 

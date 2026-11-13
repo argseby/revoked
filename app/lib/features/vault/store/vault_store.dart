@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show compute;
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/state/load_state.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
@@ -353,8 +354,31 @@ abstract class _VaultStore with Store {
   @observable
   bool isSubmittingEditRecord = false;
 
+  /// Who sees the record being edited, in the shape `VisibleToField` reads.
+  final Local<String> editRecordAudience = Local('private');
+  final Local<Set<String>> editRecordGroups = Local(const {});
+
+  /// Whether the record being edited is to be stored encrypted.
+  @observable
+  bool editRecordSealed = false;
+
+  /// Set while this device gets ready to encrypt, before the switch turns on.
+  @observable
+  bool isPreparingEditEncryption = false;
+
+  @action
+  void setEditRecordSealed(bool value) => editRecordSealed = value;
+
+  @action
+  void setPreparingEditEncryption(bool value) =>
+      isPreparingEditEncryption = value;
+
   @action
   void startRecordEdit(models.Record record) {
+    editRecordAudience.value = record.audienceKind;
+    editRecordGroups.value = record.audienceGroups.toSet();
+    editRecordSealed = record.sealed;
+    isPreparingEditEncryption = false;
     editRecordLabel.text = record.label;
     editRecordValue.text = record.value;
     editRecordFilename.text = record.displayName;

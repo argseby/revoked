@@ -18,7 +18,6 @@ import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
-import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
@@ -55,9 +54,9 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ShellSlots.title.claim(_title);
-      // Opened straight from a link, the list has not loaded anything yet.
-      if (Stores.shares.shares.isEmpty) Stores.shares.loadShares();
-      if (Stores.vault.records.isEmpty) Stores.vault.loadRecords();
+      // A change to a record elsewhere can change this link's address.
+      Stores.shares.loadIfDue();
+      Stores.vault.loadIfDue();
     });
   }
 
@@ -193,10 +192,10 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
                 slug: share.slug,
                 title: share.label,
                 isRequest: false,
-                apiTarget: _apiTarget(share),
+                apiTarget: shareApiTarget(share),
                 linkKey: Stores.shares.linkKeyText(share),
                 keyUnreadable:
-                    share.hasKey && Stores.shares.linkKeyText(share) == null,
+                    share.encrypted && Stores.shares.linkKeyText(share) == null,
               ),
             ),
             'paused' => AppButton(
@@ -527,7 +526,7 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     return AppDetailManage(
       actions: [
         if (_mine(share) &&
-            share.hasKey &&
+            share.encrypted &&
             (status == 'active' || status == 'paused'))
           AppButton(
             icon: AppIcons.key,
@@ -576,37 +575,6 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       _actions.revoke(share);
   Future<void> _confirmDelete(BuildContext context, Link share) =>
       _actions.delete(share);
-
-  /// Opens the Web & API access drawer for this share — pick a format and copy
-  /// a ready-to-use `/s/{slug}` endpoint. The data stays behind the same
-  /// revocation as everywhere else; this just exposes where to fetch it.
-  ApiAccessTarget _apiTarget(Link share) => ApiAccessTarget(
-    slug: share.slug,
-    title: share.label,
-    intro:
-        'This link\'s data is available in several formats, always up to '
-        'date.',
-    gated: share.hasPassword,
-    requireHandshake: share.requireHandshake,
-    keys: _sharedKeys(share),
-  );
-
-  /// The record keys this share exposes (direct records + records inside its
-  /// shared sections), resolved against the loaded vault for the key dropdown.
-  List<String> _sharedKeys(Link share) {
-    final vault = Stores.vault;
-    final ids = <String>{...share.records};
-    for (final secId in share.sections) {
-      for (final sec in vault.sections) {
-        if (sec.id == secId) ids.addAll(sec.records);
-      }
-    }
-    final keys = <String>[];
-    for (final r in vault.records) {
-      if (ids.contains(r.id) && !keys.contains(r.key)) keys.add(r.key);
-    }
-    return keys;
-  }
 }
 
 /// A section a link shares, heading the records it hands out through it.

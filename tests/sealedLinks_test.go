@@ -419,6 +419,28 @@ func TestUnsealingARecordEndsItsSeals(t *testing.T) {
 	entry.NotContainsKey("sealed")
 }
 
+// A link keeps its key once its last encrypted entry is gone, so clients read
+// sealedEntries to decide whether its address ends in the key.
+func TestALinkReportsTheEncryptedEntriesItCarries(t *testing.T) {
+	f, sealedID, _, _, linkID := newSealedLinkFixture(t)
+	entries := func() float64 {
+		return f.request("GET", "/api/collections/"+util.Coll.Links+"/records/"+linkID, f.party.token, nil).
+			Expect().Status(http.StatusOK).JSON().Object().Value(util.LinkSealedEntriesField).Number().Raw()
+	}
+	if n := entries(); n != 0 {
+		t.Fatalf("a plain link reported %v encrypted entries", n)
+	}
+	f.sealOnLink(linkID, sealedID, 1)
+	if n := entries(); n != 1 {
+		t.Fatalf("a link carrying one encrypted entry reported %v", n)
+	}
+	f.request("POST", "/api/sealed/records/"+sealedID+"/unseal", f.party.token,
+		f.unsealBody(sealedID, 1, "now plain")).Expect().Status(http.StatusOK)
+	if n := entries(); n != 0 {
+		t.Fatalf("a link whose entry stopped being encrypted reported %v", n)
+	}
+}
+
 func TestALinksKeyFollowsWhoSeesTheLink(t *testing.T) {
 	f, sealedID, _, _, linkID := newSealedLinkFixture(t)
 	f.sealOnLink(linkID, sealedID, 1)

@@ -99,7 +99,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
       title: flow.title,
       isRequest: flow.isRequest,
       linkKey: key,
-      keyUnreadable: (share?.hasKey ?? false) && key == null,
+      keyUnreadable: (share?.encrypted ?? false) && key == null,
     );
   }
 

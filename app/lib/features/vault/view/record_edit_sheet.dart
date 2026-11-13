@@ -8,17 +8,22 @@ import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
+import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_alert.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_upload_progress.dart';
+import 'package:revoked_app/features/sealing/view/sealing_section.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
+import 'package:revoked_app/features/vault/view/record_actions.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/view/record_value_input.dart';
 
@@ -51,6 +56,28 @@ void openRecordEditSheet(
           }
 
           final isFile = record.isFile;
+          // As the record's own Visibility and Encrypt actions offer them.
+          final offerAccess =
+              record.user == Stores.auth.userId &&
+              !isFile &&
+              !record.isAlias &&
+              record.requestedBy == null;
+          final offerEncryption =
+              (Stores.keys.isAvailable || record.sealed) && !record.isAlias;
+
+          Future<void> setEncrypted(bool on) async {
+            if (!on) {
+              store.setEditRecordSealed(false);
+              return;
+            }
+            store.setPreparingEditEncryption(true);
+            try {
+              final ready = await ensureSealingReady(ctx, record.workspace);
+              if (ready) store.setEditRecordSealed(true);
+            } finally {
+              store.setPreparingEditEncryption(false);
+            }
+          }
 
           return Observer(
             builder: (observerContext) {
@@ -248,6 +275,56 @@ void openRecordEditSheet(
                               inset: false,
                             ),
                           ],
+                          if (offerAccess) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            _fieldLabel(
+                              ctx,
+                              'Visible to',
+                              explanation: 'Who in this workspace can see it.',
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            VisibleToField(
+                              showLabel: false,
+                              value: store.editRecordAudience,
+                              groups: store.editRecordGroups,
+                              canPublish: Stores.settings.canPublishVault,
+                            ),
+                          ],
+                          if (offerEncryption) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            _fieldLabel(
+                              ctx,
+                              'End-to-end encryption',
+                              explanation: isFile
+                                  ? 'Encrypts the file and its name on this '
+                                        'device before upload.'
+                                  : 'Encrypts the value on this device before '
+                                        'upload.',
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            AppCheckRow(
+                              label: isFile
+                                  ? 'Encrypt this file'
+                                  : 'Encrypt this value',
+                              subtitle:
+                                  'Only this account’s devices can open it.',
+                              badge: const AppBadge(label: 'Alpha'),
+                              value: store.editRecordSealed,
+                              onChanged: store.isPreparingEditEncryption
+                                  ? null
+                                  : setEncrypted,
+                            ),
+                            if (store.isPreparingEditEncryption) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              const Text('Preparing encryption…').small.muted,
+                            ],
+                            if (store.editRecordSealed) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              SealedReadabilityNote(
+                                workspace: record.workspace,
+                              ),
+                            ],
+                          ],
                           const SizedBox(height: AppSpacing.xl),
                           if (store.errorMessage != null) ...[
                             AppAlert(
@@ -264,7 +341,7 @@ void openRecordEditSheet(
                               'the file sends the same fields as '
                               'multipart/form-data with a "file" part.',
                             ).muted.small
-                          else if (!record.sealed)
+                          else if (!record.sealed && !store.editRecordSealed)
                             ApiPreview(
                               spec: VaultStore.updateRecordSpec(record.id, {
                                 'value': store.editRecordValue.text.trim(),
@@ -317,7 +394,22 @@ void openRecordEditSheet(
                                 : () async {
                                     store.setSubmittingEditRecord(true);
 
-                                    final bool ok;
+                                    // Encryption changes first: its
+                                    // confirmations can still stop the save
+                                    // before anything is written.
+                                    if (store.editRecordSealed !=
+                                        record.sealed) {
+                                      final actions = RecordActions(ctx);
+                                      final changed = store.editRecordSealed
+                                          ? await actions.seal(record)
+                                          : await actions.unseal(record);
+                                      if (!changed) {
+                                        store.setSubmittingEditRecord(false);
+                                        return;
+                                      }
+                                    }
+
+                                    var ok = true;
                                     if (isFile) {
                                       final fields = {
                                         'filename': store
@@ -352,6 +444,12 @@ void openRecordEditSheet(
                                       });
                                     }
 
+                                    if (ok &&
+                                        offerAccess &&
+                                        Stores.settings.canPublishVault) {
+                                      ok = await _saveAudience(store, record);
+                                    }
+
                                     if (ok && ctx.mounted) {
                                       Navigator.of(sheetContext).pop();
                                       AppToast.success(
@@ -375,6 +473,26 @@ void openRecordEditSheet(
       );
     },
   );
+}
+
+/// Sends the audience chosen in the sheet, when it differs from the record's
+/// current one. Compared with the record as it is now: encrypting it first
+/// may already have changed who sees it.
+Future<bool> _saveAudience(VaultStore store, models.Record record) async {
+  final chosen = chosenAudience(
+    store.editRecordAudience,
+    store.editRecordGroups,
+  );
+  final current = store.visibleRecord(record.id) ?? record;
+  final sameGroups =
+      chosen.groups.length == current.audienceGroups.length &&
+      chosen.groups.toSet().containsAll(current.audienceGroups);
+  if (chosen.kind == current.audienceKind && sameGroups) return true;
+  return store.updateRecord(record.id, {
+    'audienceKind': chosen.kind,
+    'editing': chosen.kind == 'private' ? 'owner' : current.editing,
+    'audienceGroups': chosen.groups,
+  });
 }
 
 Widget _fieldLabel(

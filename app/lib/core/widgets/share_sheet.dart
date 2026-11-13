@@ -15,6 +15,7 @@ import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:revoked_app/core/widgets/app_divider.dart';
 import 'package:revoked_app/core/widgets/app_qr_code.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/vault/view/record_composer.dart';
 import 'package:share_plus/share_plus.dart';
@@ -130,56 +131,37 @@ class _ShareSheet extends StatelessWidget {
           ),
           const AppDivider(),
           Flexible(
-            fit: AppSpacing.isNarrow(context) ? FlexFit.loose : FlexFit.tight,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (keyNote != null)
-                    AppComposerCard(child: Text(keyNote!).muted.small),
-                  // The QR carries the web link: a phone camera opens it
-                  // without the app installed, which is the whole point of
-                  // pointing someone at a page.
-                  AppComposerCard(
-                    child: Center(
-                      child: AppQrCode(data: primaryUrl, size: 180),
-                    ),
-                  ),
-                  if (webUrl != null)
-                    _LinkRow(
-                      label: 'Web link',
-                      hint: 'Opens in any browser without the app.',
-                      url: webUrl!,
-                    ),
-                  _LinkRow(
-                    label: 'App link',
-                    hint: webUrl == null
-                        ? 'Requests are answered in the app, which verifies the server before any input.'
-                        : 'Opens in Revoked, which verifies the server first.',
-                    url: appUrl,
-                  ),
-                  if (invitation != null) _InvitationBox(text: invitation!),
-                  if (apiTarget != null)
-                    AppComposerCard(
-                      description: 'Access from scripts and spreadsheets.',
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: AppButton(
-                          icon: AppIcons.globe,
-                          label: 'Web & API',
-                          style: AppButtonStyle.accent,
-                          size: AppButtonSize.small,
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            showApiAccessSheet(context, target: apiTarget!);
-                          },
+            fit: apiTarget == null && AppSpacing.isNarrow(context)
+                ? FlexFit.loose
+                : FlexFit.tight,
+            // The addresses for scripts sit beside the link, not in a drawer
+            // of their own: opening one would close or cover this one.
+            child: apiTarget == null
+                ? _linkView(primaryUrl)
+                : AppTabs(
+                    inset: AppSpacing.xxl,
+                    tabs: [
+                      AppTab(
+                        label: 'Link',
+                        icon: AppIcons.link,
+                        view: _linkView(primaryUrl),
+                      ),
+                      AppTab(
+                        label: 'Web & API',
+                        icon: AppIcons.globe,
+                        view: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xxl,
+                            vertical: AppSpacing.lg,
+                          ),
+                          child: ApiAccessPanel(
+                            target: apiTarget!,
+                            showTitle: false,
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
+                    ],
+                  ),
           ),
           const AppDivider(),
           AppComposerFooter(
@@ -206,6 +188,39 @@ class _ShareSheet extends StatelessWidget {
               }
             },
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _linkView(String primaryUrl) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (keyNote != null)
+            AppComposerCard(child: Text(keyNote!).muted.small),
+          // The QR carries the web link: a phone camera opens it without the
+          // app installed, which is the whole point of pointing someone at a
+          // page.
+          AppComposerCard(
+            child: Center(child: AppQrCode(data: primaryUrl, size: 180)),
+          ),
+          if (webUrl != null)
+            _LinkRow(
+              label: 'Web link',
+              hint: 'Opens in any browser without the app.',
+              url: webUrl!,
+            ),
+          _LinkRow(
+            label: 'App link',
+            hint: webUrl == null
+                ? 'Requests are answered in the app, which verifies the server before any input.'
+                : 'Opens in Revoked, which verifies the server first.',
+            url: appUrl,
+          ),
+          if (invitation != null) _InvitationBox(text: invitation!),
         ],
       ),
     );

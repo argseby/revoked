@@ -88,6 +88,11 @@ class _AppShellState extends State<AppShell> {
       // workspace lets them do: the catalogue names the permission each
       // feature needs, and the roster says which of those they hold.
       Stores.features.loadIfDue();
+      // What this person may do in the workspace, such as publishing to its
+      // vault, gates the create and edit sheets on every screen.
+      if (Stores.auth.isAuthenticated) {
+        Stores.settings.loadWorkspaces(Stores.auth.userId);
+      }
       final ws = Stores.auth.activeWorkspace ?? '';
       if (ws.isNotEmpty && Stores.invites.members.isEmpty) {
         Stores.invites.loadMembers(ws);
