@@ -1,6 +1,5 @@
 import 'package:revoked_app/core/models/tool_client.dart';
-
-import 'dart:math';
+import 'package:revoked_app/core/utils/slug.dart';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -444,19 +443,6 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
     _selected.value = next;
   }
 
-  /// The slug is the only key to the recipient's page, so it comes from the
-  /// CSPRNG and is long enough that guessing one is hopeless.
-  static String _randomSlug([int length = 20]) {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final random = Random.secure();
-    return String.fromCharCodes(
-      Iterable.generate(
-        length,
-        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
-      ),
-    );
-  }
-
   /// A tool that names itself, is not connected yet, and asked to be.
   bool get _canConnect =>
       _proposal!.client.isNotEmpty &&
@@ -553,7 +539,7 @@ class _ShareProposalScreenState extends State<ShareProposalScreen> {
         !_plainSensitiveSelected &&
         (!_encryptedSelected || _encryptedApproved);
 
-    final slug = _randomSlug();
+    final slug = randomSlug();
     final identity = _sign.value ? Stores.identities.primaryIdentity : null;
     final ok = await Stores.shares.createShare(
       slug: slug,

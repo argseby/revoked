@@ -1,5 +1,4 @@
-import 'dart:math';
-
+import 'package:revoked_app/core/utils/slug.dart';
 import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:revoked_app/features/vault/view/record_composer.dart';
 
@@ -130,7 +129,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       final proposal = widget.proposal;
       final days = proposal?.days;
       _store.startRequestDraft(
-        slug: _randomSlug(6),
+        slug: randomSlug(),
         label: proposal?.label ?? '',
         expiresAt: days == null
             ? null
@@ -157,12 +156,6 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
         return;
       }
     }
-  }
-
-  String _randomSlug(int length) {
-    final r = Random();
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    return List.generate(length, (_) => chars[r.nextInt(chars.length)]).join();
   }
 
   Future<void> _validateSlug(String input) async {
@@ -315,9 +308,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   Widget _build(BuildContext context) {
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -546,7 +537,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
           style: AppButtonStyle.ghost,
           size: AppButtonSize.small,
           onTap: () async {
-            final s = _randomSlug(Random().nextInt(6) + 6);
+            final s = randomSlug();
             _store.draftSlug.text = s;
             await _validateSlug(s);
           },

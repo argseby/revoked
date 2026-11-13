@@ -2,6 +2,7 @@ package tests
 
 import (
 	"net/http"
+	"regexp"
 	"revoked/cmd/revoked/routes"
 	"revoked/tests/testutils"
 	"revoked/util"
@@ -670,5 +671,81 @@ func TestGrantEmailRefusesASenderNamedLikeADomain(t *testing.T) {
 	// blurs into the unquoted monospace domain row beneath it.
 	if !strings.Contains(mail.html, "\u201cTest Workspace\u201d") {
 		t.Error("the sender's name is not quoted as a claim")
+	}
+}
+
+// A slug is the only key to /s/{slug} and /api/public/*, so a share or request
+// created without one gets a server-minted slug with 128 bits from the CSPRNG.
+// A slug the client chose (a vanity address, or the SDK's 24 random chars) is
+// kept as sent.
+func TestServerMintsUnguessableSlugWhenNoneIsSent(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed to create random user: %v", err)
+	}
+	wsID := api.Get(util.Coll.Users, userID, token).Expect().
+		Status(http.StatusOK).JSON().Object().
+		Value(util.Fields.User.ActiveWorkspace).String().Raw()
+
+	identityID, _ := newIdentity(t, baseURL, token, "minted-slug-id", userID, wsID)
+
+	minted := regexp.MustCompile(`^[0-9a-f]{32}$`)
+	seen := map[string]bool{}
+	create := func(coll string, payload map[string]any) string {
+		return api.Create(coll, token, payload).Expect().
+			Status(http.StatusOK).JSON().Object().Value("slug").String().Raw()
+	}
+	link := func(slug string) map[string]any {
+		p := map[string]any{
+			util.Fields.Link.Label:     "Minted",
+			util.Fields.Link.Status:    util.StatusActive,
+			util.Fields.Link.User:      userID,
+			util.Fields.Link.Workspace: wsID,
+		}
+		if slug != "" {
+			p[util.Fields.Link.Slug] = slug
+		}
+		return p
+	}
+	request := func(slug string) map[string]any {
+		p := map[string]any{
+			util.Fields.Request.Label:     "Minted",
+			util.Fields.Request.Identity:  identityID,
+			util.Fields.Request.Status:    util.StatusActive,
+			util.Fields.Request.User:      userID,
+			util.Fields.Request.Workspace: wsID,
+		}
+		if slug != "" {
+			p[util.Fields.Request.Slug] = slug
+		}
+		return p
+	}
+
+	for i := 0; i < 3; i++ {
+		for _, slug := range []string{
+			create(util.Coll.Links, link("")),
+			create(util.Coll.Requests, request("")),
+		} {
+			if !minted.MatchString(slug) {
+				t.Fatalf("minted slug %q is not 32 hex chars", slug)
+			}
+			if seen[slug] {
+				t.Fatalf("minted slug %q repeated", slug)
+			}
+			seen[slug] = true
+		}
+	}
+
+	// The SDK's default and a vanity address are both kept as sent.
+	sdk := strings.ReplaceAll(uuid.New().String(), "-", "")[:24]
+	if got := create(util.Coll.Links, link(sdk)); got != sdk {
+		t.Fatalf("client slug %q came back as %q", sdk, got)
+	}
+	vanity := "my-cv-" + strings.ReplaceAll(uuid.New().String(), "-", "")[:6]
+	if got := create(util.Coll.Requests, request(vanity)); got != vanity {
+		t.Fatalf("vanity slug %q came back as %q", vanity, got)
 	}
 }
