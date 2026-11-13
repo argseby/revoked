@@ -28,6 +28,22 @@ var Errors = struct {
 	ValidationFieldRestricted     AppError
 	NotAuthorized                 AppError
 	NotAuthenticated              AppError
+	InvalidRequestBody            AppError
+	CallbackUrlRequired           AppError
+	RequestNotEditable            AppError
+	ChallengeScopeInvalid         AppError
+	ChallengeIdentityRequired     AppError
+	ConnectionNotFound            AppError
+	ConnectionDraftInvalid        AppError
+	ConnectionDraftNotFound       AppError
+	ConnectionDraftLimitReached   AppError
+	SignInNotFound                AppError
+	PasskeyNotFound               AppError
+	AttestationNotFound           AppError
+	LinkKeyNotFound               AppError
+	DavLinkProtected              AppError
+	DavReadOnly                   AppError
+	GrantBatchInvalid             AppError
 	FailedToCreateRecord          AppError
 	ForbiddenWorkspaceAccess      AppError
 	DuplicateValues               AppError
@@ -1068,6 +1084,70 @@ var Errors = struct {
 	WebhookDisabled: AppError{
 		ErrorCode: "webhook_disabled",
 		ErrorText: "This webhook is disabled.",
+	},
+	InvalidRequestBody: AppError{
+		ErrorCode: "invalid_request_body",
+		ErrorText: "The request body could not be read.",
+	},
+	CallbackUrlRequired: AppError{
+		ErrorCode: "callback_url_required",
+		ErrorText: "A callback URL is required.",
+	},
+	RequestNotEditable: AppError{
+		ErrorCode: "request_not_editable",
+		ErrorText: "This request can only be changed by its owner.",
+	},
+	ChallengeScopeInvalid: AppError{
+		ErrorCode: "challenge_scope_invalid",
+		ErrorText: "Unknown challenge scope.",
+	},
+	ChallengeIdentityRequired: AppError{
+		ErrorCode: "challenge_identity_required",
+		ErrorText: "The identityId query parameter is required.",
+	},
+	ConnectionNotFound: AppError{
+		ErrorCode: "connection_not_found",
+		ErrorText: "Connection not found.",
+	},
+	ConnectionDraftInvalid: AppError{
+		ErrorCode: "connection_draft_invalid",
+		ErrorText: "The draft values are invalid.",
+	},
+	ConnectionDraftNotFound: AppError{
+		ErrorCode: "connection_draft_not_found",
+		ErrorText: "Draft not found or expired.",
+	},
+	ConnectionDraftLimitReached: AppError{
+		ErrorCode: "connection_draft_limit_reached",
+		ErrorText: "Too many open drafts. More are accepted once the owner has answered.",
+	},
+	SignInNotFound: AppError{
+		ErrorCode: "sign_in_not_found",
+		ErrorText: "Sign-in not found.",
+	},
+	PasskeyNotFound: AppError{
+		ErrorCode: "passkey_not_found",
+		ErrorText: "Passkey not found.",
+	},
+	AttestationNotFound: AppError{
+		ErrorCode: "attestation_not_found",
+		ErrorText: "Attestation not found.",
+	},
+	LinkKeyNotFound: AppError{
+		ErrorCode: "link_key_not_found",
+		ErrorText: "This link has no shared value with that key.",
+	},
+	DavLinkProtected: AppError{
+		ErrorCode: "dav_link_protected",
+		ErrorText: "This link is protected and not available over CardDAV.",
+	},
+	DavReadOnly: AppError{
+		ErrorCode: "dav_read_only",
+		ErrorText: "This address book is read-only.",
+	},
+	GrantBatchInvalid: AppError{
+		ErrorCode: "grant_batch_invalid",
+		ErrorText: "The batch is empty or exceeds the per-request limit.",
 	},
 }
 

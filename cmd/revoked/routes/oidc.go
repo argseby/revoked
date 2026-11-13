@@ -224,7 +224,7 @@ func OIDCRoute(app core.App, root *server.RootKey) {
 				NewID bool `json:"newId"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			if err := services.DisconnectSignIn(app, row, body.NewID); err != nil {
 				return re.InternalServerError("Failed to disconnect the service", err)
@@ -239,11 +239,11 @@ func OIDCRoute(app core.App, root *server.RootKey) {
 // ownedSignIn finds the row named in the path for the person asking.
 func ownedSignIn(app core.App, re *core.RequestEvent) (*core.Record, error) {
 	if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-		return nil, re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+		return nil, appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
 	}
 	row, err := app.FindRecordById(util.Coll.SignIns, re.Request.PathValue("id"))
 	if err != nil || row == nil || row.GetString(util.Fields.SignIn.User) != re.Auth.Id {
-		return nil, re.NotFoundError("Sign-in not found", nil)
+		return nil, appErrorResponse(re, http.StatusNotFound, &util.Errors.SignInNotFound)
 	}
 	return row, nil
 }

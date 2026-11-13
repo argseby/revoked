@@ -459,7 +459,7 @@ func acceptRemoteAnswer(app core.App, root *server.RootKey, re *core.RequestEven
 
 	req, err := app.FindFirstRecordByFilter(util.Coll.Requests, "slug = {:slug}", dbx.Params{"slug": slug})
 	if err != nil || req == nil {
-		return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
+		return appErrorResponse(re, http.StatusNotFound, &util.Errors.RequestNotFound)
 	}
 	if appErr := services.RefreshRequestStatus(app, req); appErr != nil {
 		return resourceErrorResponse(re, appErr)
@@ -659,10 +659,10 @@ func resolveGrantBatch(app core.App, re *core.RequestEvent) error {
 		Grants []services.GrantReadItem `json:"grants"`
 	}
 	if err := re.BindBody(&body); err != nil || len(body.Grants) == 0 {
-		return re.BadRequestError("grants is required", nil)
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.GrantBatchInvalid)
 	}
 	if len(body.Grants) > services.MaxGrantReadBatch {
-		return re.BadRequestError("at most "+strconv.Itoa(services.MaxGrantReadBatch)+" grants per request", nil)
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.GrantBatchInvalid)
 	}
 	re.Response.Header().Set("Cache-Control", "no-store")
 	return re.JSON(http.StatusOK, map[string]any{"items": services.ReadGrants(app, body.Grants)})
@@ -680,7 +680,7 @@ func receiveGrantEvents(app core.App, root *server.RootKey, re *core.RequestEven
 	}
 	var signed server.SignedGrantEvents
 	if err := re.BindBody(&signed); err != nil {
-		return re.BadRequestError("invalid body", nil)
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 	}
 	claimed, err := signed.Body()
 	if err != nil {
@@ -700,7 +700,7 @@ func receiveGrantEvents(app core.App, root *server.RootKey, re *core.RequestEven
 		return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.GrantEventsUnverified)
 	}
 	if len(verified.Events) > maxGrantEventsPerBatch {
-		return re.BadRequestError("too many events in one batch", nil)
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.GrantBatchInvalid)
 	}
 	applied := services.ApplyGrantEvents(app, sender, verified.Events)
 	return re.JSON(http.StatusOK, map[string]any{"applied": applied})

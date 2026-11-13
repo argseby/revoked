@@ -71,3 +71,27 @@ func publicKeyFromAnyPem(keyPem string) (any, error) {
 	// Last resort: a public key under a non-standard block type.
 	return x509.ParsePKIXPublicKey(block.Bytes)
 }
+
+// Challenge signature algorithms, named by the key that makes them.
+const (
+	SignatureRSA   = "RSA-SHA256"
+	SignatureECDSA = "ECDSA-P256-SHA256"
+)
+
+// SignatureAlgorithm names how keyPem's holder signs a challenge, or "" when
+// the key is neither RSA nor ECDSA P-256.
+func SignatureAlgorithm(keyPem string) string {
+	key, err := publicKeyFromAnyPem(keyPem)
+	if err != nil {
+		return ""
+	}
+	switch k := key.(type) {
+	case *rsa.PublicKey:
+		return SignatureRSA
+	case *ecdsa.PublicKey:
+		if k.Curve.Params().Name == "P-256" {
+			return SignatureECDSA
+		}
+	}
+	return ""
+}
