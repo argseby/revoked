@@ -3,6 +3,7 @@ package routes
 import (
 	"bytes"
 	"crypto/rand"
+	_ "embed"
 	"encoding/base64"
 	"html/template"
 	"net"
@@ -28,6 +29,13 @@ const pageCSP = "default-src 'none'; " +
 	"connect-src 'self' https://cloudflare-dns.com https://dns.google; " +
 	"base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
+// qrCodeSource is the QR encoder a section view's code is drawn with. It is
+// written into the page under the same nonce as the page's own script rather
+// than served as a file, so the policy above stays as narrow as it is.
+//
+//go:embed qrcode.js
+var qrCodeSource string
+
 // pageData is everything the shell renders without spending a view.
 type pageData struct {
 	Slug             string
@@ -49,6 +57,7 @@ type pageData struct {
 	ViewCount        int
 	AppLink          template.URL
 	Nonce            string
+	QRCode           template.JS
 }
 
 func wantsHTML(accept string) bool {
@@ -123,6 +132,7 @@ func servePublicPage(app core.App, re *core.RequestEvent, root *server.RootKey, 
 		ViewCount:        link.GetInt(util.Fields.Link.ViewCount),
 		AppLink:          template.URL("revoked://s/" + origin + "/" + url.PathEscape(slug)),
 		Nonce:            nonce,
+		QRCode:           template.JS(qrCodeSource),
 	}
 	if id, err := app.FindRecordById(util.Coll.Identities, link.GetString(util.Fields.Link.Identity)); err == nil && id != nil {
 		data.SharerName = id.GetString(util.Fields.Identity.Name)
@@ -472,6 +482,105 @@ animation: rise .4s var(--ease) both;
 padding: 10px 12px; font-size: 14px; line-height: 1.45;
 border-left: 3px solid var(--control); background: var(--surface-subtle); color: var(--fg-muted);
 }
+/* Section views: a section drawn as the thing it describes, the way the app
+   draws it, with a switch back to its plain records. The accent is set per
+   view from a fixed list of names, so a view never brings its own colours. */
+.vw-seg {
+display: flex; gap: 4px; padding: 3px; margin: 0 0 10px;
+border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-subtle);
+}
+.vw-seg button {
+flex: 1 1 0; min-width: 0; min-height: 34px; padding: 0 10px;
+border: 0; border-radius: var(--radius-sm); background: none; color: var(--fg-muted);
+font-size: 13px; font-weight: 600; cursor: pointer;
+overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vw-seg button:hover { color: var(--fg); }
+.vw-seg button[aria-pressed="true"] { background: var(--card); color: var(--fg); box-shadow: 0 0 0 1px var(--border); }
+.vw { --accent: var(--primary); padding: 20px; }
+.vw-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.vw-head { display: flex; align-items: center; gap: 12px; }
+.vw-icon {
+width: 42px; height: 42px; flex: none; border-radius: var(--radius-md);
+display: flex; align-items: center; justify-content: center;
+color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.vw-title {
+font-size: 20px; font-weight: 650; line-height: 1.25; letter-spacing: -0.02em; overflow-wrap: anywhere;
+display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.vw-small { font-size: 13px; line-height: 1.4; color: var(--fg-muted); overflow-wrap: anywhere; white-space: pre-wrap; }
+.vw-body { font-size: 15px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.vw-line { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.vw-line svg { margin-top: 1px; }
+.vw-line .tx { flex: 1; min-width: 0; }
+.vw-warn-i { color: var(--warn); }
+.vw-next-i { color: var(--primary); }
+.vw-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.vw-badge {
+display: inline-flex; align-items: center; max-width: 100%; padding: 3px 10px;
+border-radius: var(--radius-md); font-size: 12px; font-weight: 600; line-height: 1.4;
+background: var(--surface-subtle); color: var(--fg-muted); overflow-wrap: anywhere;
+}
+.vw-badge.t-success { background: var(--ok-subtle); color: var(--ok); }
+.vw-badge.t-warning { background: var(--warn-subtle); color: var(--warn); }
+.vw-badge.t-danger { background: var(--bad-subtle); color: var(--bad); }
+.vw-badge.t-accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.vw-badge.t-muted { background: var(--surface-subtle); color: var(--fg-muted); }
+.vw-facts {
+display: grid; gap: 12px 16px;
+grid-template-columns: repeat(auto-fill, minmax(max(150px, calc((100% - 32px) / 3)), 1fr));
+}
+.vw-fact { min-width: 0; }
+.vw-fact-v { font-size: 15px; overflow-wrap: anywhere; white-space: pre-wrap; user-select: text; }
+.vw-fact-v.vw-mono { font-family: var(--font-mono); font-size: 14px; }
+.vw-secret-row { display: flex; align-items: center; gap: 6px; min-height: 40px; margin-top: 2px; }
+.vw-secret-v { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 15px; overflow-wrap: anywhere; }
+.vw-redact { display: block; width: 120px; max-width: 100%; height: 14px; border-radius: var(--radius-xs); background: var(--border); }
+.vw-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+/* Dark on white whatever the theme: a camera reads that best. */
+.vw-qr-code { background: #ffffff; padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border); line-height: 0; }
+.vw-qr-code svg { width: 160px; height: 160px; }
+.vw-qr-cover {
+width: 190px; height: 190px; border-radius: var(--radius-md);
+display: flex; align-items: center; justify-content: center;
+background: var(--surface-subtle); color: var(--fg-muted);
+}
+.vw-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.vw-btn {
+display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 36px; padding: 0 12px;
+border: 1px solid var(--control); border-radius: var(--radius-md);
+color: var(--fg); font-size: 14px; font-weight: 600;
+}
+.vw-btn:hover { background: var(--surface-subtle); text-decoration: none; }
+.vw-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-count { display: flex; align-items: center; gap: 10px; }
+.vw-count .tx { flex: 1; min-width: 0; }
+.vw-count .vw-badge { flex: none; }
+.vw-tone-danger { color: var(--bad); }
+.vw-tone-warning { color: var(--warn); }
+.vw-tone-muted { color: var(--fg-muted); }
+.vw-split-c { container-type: inline-size; }
+.vw-split { display: flex; flex-direction: column; gap: 20px; }
+.vw-split > .vw-side { align-self: center; max-width: 100%; }
+@container (min-width: 520px) {
+.vw-split { flex-direction: row; align-items: flex-start; }
+.vw-split > .vw-main { flex: 1 1 auto; }
+.vw-split > .vw-side { flex: none; width: 190px; align-self: flex-start; }
+}
+.vw-sched-w { overflow-x: auto; }
+.vw-sched { width: 100%; border-collapse: collapse; font-size: 14px; }
+.vw-sched th, .vw-sched td { padding: 8px 4px; border-bottom: 1px solid var(--border); text-align: center; vertical-align: middle; width: 52px; }
+.vw-sched th { font-size: 12px; font-weight: 500; color: var(--fg-muted); }
+.vw-sched .c0 { text-align: left; width: auto; }
+.vw-sched tr.vw-off td > * { opacity: .5; }
+.vw-name { display: block; font-weight: 650; overflow-wrap: anywhere; }
+.vw-hr { border: 0; border-top: 1px solid var(--border); }
+@media (max-width: 380px) {
+.vw { padding: 14px; }
+.vw-sched th, .vw-sched td { width: 44px; padding: 8px 2px; }
+.vw-sched .c0 { width: auto; }
+}
 [hidden] { display: none !important; }
 
 .toast {
@@ -616,6 +725,7 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 
 <div class="toast" id="toast" role="status" aria-live="polite"><i data-i="check" data-s="16"></i><span id="toast-t"></span></div>
 
+<script nonce="{{.Nonce}}">{{.QRCode}}</script>
 <script nonce="{{.Nonce}}">
 (function(){
 var slug={{.Slug}}, domain={{.Domain}}, pin={{.RootFingerprint}}, maxViews={{.MaxViews}}, viewCount={{.ViewCount}};
@@ -1662,6 +1772,691 @@ row.appendChild(d);
 return row;
 }
 
+// ---- Section views ---------------------------------------------------------
+// A section may carry a view: a layout written as data, in the format the app
+// draws (app/lib/features/vault/views). It never runs code and never loads
+// anything; every value it shows is one of the section's own shared records,
+// found by key, and nothing else. A view this page cannot read is passed over
+// and the section shows its records as it always has.
+var VIEW_STRINGS = {
+en: {
+'view.records': 'Records', 'view.switch': 'Show as',
+'view.locked': 'Encrypted and not opened here.', 'view.empty': 'Not filled in yet.',
+'view.show': function(l) { return 'Show ' + l; }, 'view.hide': function(l) { return 'Hide ' + l; },
+'view.qrCovered': 'Shows once the secret is revealed.', 'view.qrLabel': 'QR code',
+'view.today': 'Today',
+'view.inDays': function(n) { return 'In ' + n + (n === 1 ? ' day' : ' days'); },
+'view.overdue': function(n) { return n + (n === 1 ? ' day' : ' days') + ' overdue'; },
+'view.unnamed': 'Unnamed',
+'view.until': function(d) { return 'until ' + d; }, 'view.ended': 'ended',
+'view.next': function(what, when) { return 'Next: ' + what + ' ' + when; },
+'view.at': function(time, tomorrow, rel) { return 'at ' + time + (tomorrow ? ' tomorrow' : '') + ' (' + rel + ')'; },
+'view.inMin': function(n) { return 'in ' + n + ' min'; }, 'view.inHours': function(n) { return 'in ' + n + ' h'; },
+'view.refillNow': function(n) { return 'Refill ' + n + ' now: none left'; },
+'view.refillSoon': function(n, d) { return 'Refill ' + n + ' soon: about ' + d + (d === 1 ? ' day' : ' days') + ' left'; }
+},
+de: {
+'view.records': 'Einträge', 'view.switch': 'Anzeigen als',
+'view.locked': 'Verschlüsselt und hier nicht geöffnet.', 'view.empty': 'Noch nicht ausgefüllt.',
+'view.show': function(l) { return l + ' anzeigen'; }, 'view.hide': function(l) { return l + ' verbergen'; },
+'view.qrCovered': 'Erscheint, sobald das Geheimnis angezeigt wird.', 'view.qrLabel': 'QR-Code',
+'view.today': 'Heute',
+'view.inDays': function(n) { return 'In ' + n + (n === 1 ? ' Tag' : ' Tagen'); },
+'view.overdue': function(n) { return n + (n === 1 ? ' Tag' : ' Tage') + ' überfällig'; },
+'view.unnamed': 'Ohne Namen',
+'view.until': function(d) { return 'bis ' + d; }, 'view.ended': 'beendet',
+'view.next': function(what, when) { return 'Als Nächstes: ' + what + ' ' + when; },
+'view.at': function(time, tomorrow, rel) { return (tomorrow ? 'morgen ' : '') + 'um ' + time + ' (' + rel + ')'; },
+'view.inMin': function(n) { return 'in ' + n + ' Min.'; }, 'view.inHours': function(n) { return 'in ' + n + ' Std.'; },
+'view.refillNow': function(n) { return n + ' jetzt nachfüllen: nichts mehr übrig'; },
+'view.refillSoon': function(n, d) { return n + ' bald nachfüllen: noch etwa ' + d + (d === 1 ? ' Tag' : ' Tage'); }
+}
+};
+Object.keys(VIEW_STRINGS).forEach(function(l) {
+Object.keys(VIEW_STRINGS[l]).forEach(function(k) { STRINGS[l][k] = VIEW_STRINGS[l][k]; });
+});
+
+ICONS['wifi'] = '<path d="M12 20h.01M2 8.82a15 15 0 0 1 20 0M5 12.86a10 10 0 0 1 14 0M8.5 16.43a5 5 0 0 1 7 0"/>';
+ICONS['health'] = '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>';
+ICONS['car'] = '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>';
+ICONS['pill'] = '<path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/>';
+ICONS['key'] = '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>';
+ICONS['finance'] = '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>';
+ICONS['folder'] = '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>';
+ICONS['clock'] = '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>';
+ICONS['qr'] = '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM21 14v.01M14 21h.01M17 17h4v4h-4z"/>';
+ICONS['eye-off'] = '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20"/>';
+
+var VIEW_FORMAT = 1;
+// The names a view may use, mapped to this page's own icons and colours.
+var VIEW_ICONS = { wifi: 'wifi', health: 'health', car: 'car', medication: 'pill', person: 'user', phone: 'phone',
+calendar: 'calendar', key: 'key', server: 'server', finance: 'finance', folder: 'folder' };
+var VIEW_ACCENTS = { teal: '#0D9488', violet: '#7C3AED', red: 'var(--bad)', amber: 'var(--warn)', green: 'var(--ok)' };
+var VIEW_TONES = { success: 't-success', warning: 't-warning', danger: 't-danger', accent: 't-accent' };
+
+function own(o, k) { return o != null && Object.prototype.hasOwnProperty.call(o, k); }
+function vStr(j, k, fallback) { return own(j, k) && typeof j[k] === 'string' ? j[k] : (fallback || ''); }
+function vInt(j, k, fallback) { return own(j, k) && typeof j[k] === 'number' && Number.isInteger(j[k]) ? j[k] : fallback; }
+function vList(v) { return Array.isArray(v) ? v : []; }
+function isMap(v) { return v != null && typeof v === 'object' && !Array.isArray(v); }
+
+function parseCondition(j) {
+if (!isMap(j)) return null;
+var key = vStr(j, 'key');
+if (!key) return null;
+return { key: key, equals: own(j, 'is') && typeof j.is === 'string' ? j.is : null };
+}
+
+function parseBlocks(list) {
+var out = [];
+vList(list).forEach(function(j) {
+var b = isMap(j) ? parseBlock(j) : null;
+if (b) out.push(b);
+});
+return out;
+}
+
+// Null for a block type this page does not know: a newer view still shows
+// everything else it holds.
+function parseBlock(j) {
+var b = { type: j.type, when: parseCondition(j.when) };
+switch (j.type) {
+case 'header':
+b.eyebrow = vStr(j, 'eyebrow'); b.title = vStr(j, 'title'); b.subtitle = vStr(j, 'subtitle'); b.icon = vStr(j, 'icon', 'folder');
+return b;
+case 'text':
+b.text = vStr(j, 'text'); b.tone = vStr(j, 'tone', 'muted');
+return b;
+case 'badges':
+b.items = vList(j.items).filter(function(i) { return isMap(i) && typeof i.text === 'string'; }).map(function(i) {
+return { text: i.text, tone: typeof i.tone === 'string' ? i.tone : 'neutral', when: parseCondition(i.when) };
+});
+return b;
+case 'facts':
+b.items = vList(j.items).filter(function(i) { return isMap(i) && typeof i.label === 'string' && typeof i.value === 'string'; }).map(function(i) {
+return { label: i.label, value: i.value, mono: i.mono === true };
+});
+return b;
+case 'secret':
+b.key = vStr(j, 'key'); b.label = vStr(j, 'label');
+return b.key ? b : null;
+case 'qr':
+b.data = vStr(j, 'data'); b.revealWith = vStr(j, 'revealWith'); b.caption = vStr(j, 'caption');
+return b;
+case 'actions':
+b.items = vList(j.items).filter(function(i) { return isMap(i) && typeof i.label === 'string' && typeof i.key === 'string'; }).map(function(i) {
+return { label: i.label, key: i.key, kind: typeof i.kind === 'string' ? i.kind : 'url' };
+});
+return b;
+case 'countdown':
+b.key = vStr(j, 'key'); b.label = vStr(j, 'label'); b.warnDays = vInt(j, 'warnDays', 30);
+return b.key ? b : null;
+case 'split':
+b.main = parseBlocks(j.main); b.side = parseBlocks(j.side);
+return b;
+case 'schedule':
+b.group = vStr(j, 'group');
+if (!b.group) return null;
+b.heading = vStr(j, 'heading', 'Item'); b.label = vStr(j, 'label', 'name');
+b.detail = vStr(j, 'detail'); b.note = vStr(j, 'note'); b.until = vStr(j, 'until');
+b.columns = vList(j.columns).filter(function(c) { return isMap(c) && typeof c.field === 'string'; }).map(function(c) {
+return { field: c.field, label: typeof c.label === 'string' ? c.label : c.field, time: typeof c.time === 'string' ? c.time : '08:00' };
+});
+b.showNext = j.next === true;
+b.refillStock = isMap(j.refill) && typeof j.refill.stock === 'string' ? j.refill.stock : null;
+b.refillWarnDays = isMap(j.refill) ? vInt(j.refill, 'warnDays', 7) : 7;
+return b;
+case 'divider':
+return b;
+}
+return null;
+}
+
+// The same checks the app makes: a view of a newer format, or one without an
+// id, keys to match or a single block it can draw, is not a view.
+function parseView(j) {
+if (typeof j === 'string') { try { j = JSON.parse(j); } catch (e) { return null; } }
+if (!isMap(j)) return null;
+var version = j.version;
+if (typeof version !== 'number' || !Number.isInteger(version) || version < 1 || version > VIEW_FORMAT) return null;
+var id = vStr(j, 'id');
+if (!id || !Array.isArray(j.match) || !j.match.length) return null;
+var blocks = parseBlocks(j.blocks);
+if (!blocks.length) return null;
+return {
+id: id,
+name: vStr(j, 'name', id),
+accent: vStr(j, 'accent', 'blue'),
+match: j.match.filter(function(m) { return typeof m === 'string' && m !== ''; }),
+blocks: blocks
+};
+}
+
+// The records a view reads: this section's shared ones, by key, and nothing
+// else. A key names one record, so the first of a key is the one.
+function viewData(records) {
+var byKey = Object.create(null);
+records.forEach(function(r) { if (r && r.key && !(r.key in byKey)) byKey[r.key] = r; });
+function rec(k) { return k in byKey ? byKey[k] : null; }
+function value(k) {
+var r = rec(k);
+if (!r || r.locked || r.type === 'file' || r.value == null) return null;
+return String(r.value);
+}
+return {
+keys: Object.keys(byKey),
+value: value,
+has: function(k) { return (value(k) || '').trim() !== ''; },
+hidden: function(k) { var r = rec(k); return !!(r && r.format === 'hidden'); },
+locked: function(k) { var r = rec(k); return !!(r && r.locked); }
+};
+}
+
+// A view applies only when the share holds every key it asks for, so a share
+// of part of a section keeps its plain list rather than a card of gaps.
+function viewMatches(spec, d) {
+return spec.match.every(function(m) {
+if (m.indexOf('group:') === 0) {
+var prefix = m.slice(6) + '-';
+return d.keys.some(function(k) { return k.indexOf(prefix) === 0; });
+}
+return d.keys.indexOf(m) !== -1;
+});
+}
+
+function viewTest(d, c) {
+if (!c) return true;
+var v = (d.value(c.key) || '').trim();
+return c.equals == null ? v !== '' : v === c.equals;
+}
+
+var VIEW_PLACEHOLDER = /\{([a-z0-9_-]+)((?:\|[a-z]+)*)\}/g;
+
+function viewFilter(f, v) {
+switch (f) {
+case 'upper': return v.toUpperCase();
+case 'lower': return v.toLowerCase();
+case 'date': var day = parseDay(v); return day ? fmtDay(day) : v;
+// The escaping a Wi-Fi join code needs around its separators.
+case 'wifi': return v.replace(/[;,:"]/g, function(c) { return '\\' + c; });
+}
+return v;
+}
+
+// Fills {key} and {key|filter}. A hidden value reads as dots unless its key
+// is in revealed; one this page cannot read, as nothing.
+function viewFill(d, text, revealed) {
+return String(text).replace(VIEW_PLACEHOLDER, function(all, key, filters) {
+var v = d.value(key) || '';
+if (v !== '' && d.hidden(key) && !(revealed && revealed[key])) return '••••••';
+filters.split('|').slice(1).forEach(function(f) { v = viewFilter(f, v); });
+return v;
+});
+}
+
+// Whether every placeholder in text has a value: a line with gaps is left
+// out rather than shown half.
+function viewComplete(d, text) {
+var ok = true;
+String(text).replace(VIEW_PLACEHOLDER, function(all, key) {
+if (!d.has(key)) ok = false;
+return all;
+});
+return ok;
+}
+
+// A day as written in a record: a bare date is a day on the reader's own
+// calendar, anything with a time an instant.
+function parseDay(v) {
+var s = String(v == null ? '' : v).trim();
+var m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](.+))?$/.exec(s);
+if (!m) return null;
+var d = m[4] ? new Date(s.replace(' ', 'T')) : new Date(+m[1], +m[2] - 1, +m[3]);
+return isNaN(d) ? null : d;
+}
+function fmtDay(d) {
+try { return d.toLocaleDateString(locale(), { dateStyle: 'medium' }); } catch (e) { return d.toDateString(); }
+}
+function daysUntil(date, now) {
+var a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+var b = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+return Math.round((b - a) / 86400000);
+}
+function intOr(s, fallback) { return /^[+-]?\d+$/.test(s) ? parseInt(s, 10) : fallback; }
+
+// How much of a dose a schedule cell asks for: "1", "½", "1/2", "1,5".
+// Empty, "-" and "0" are none.
+var FRACTIONS = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3 };
+function scheduleAmount(raw) {
+var v = String(raw == null ? '' : raw).trim().replace(/,/g, '.');
+if (v === '' || v === '-' || v === '–') return 0;
+if (own(FRACTIONS, v)) return FRACTIONS[v];
+var slash = /^(\d+)\s*\/\s*(\d+)$/.exec(v);
+if (slash) { var dn = parseInt(slash[2], 10); return dn === 0 ? 0 : parseInt(slash[1], 10) / dn; }
+return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(v) ? Number(v) : 0;
+}
+
+// The members of a record group, in order: records keyed <group>-<n>-<field>
+// gathered by n. A member with no fields filled is left out.
+function viewGroup(d, name) {
+var re = new RegExp('^' + name.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&') + '-(\\d+)-([a-z0-9_-]+)$');
+var members = Object.create(null);
+d.keys.forEach(function(k) {
+var m = re.exec(k);
+if (!m) return;
+var v = (d.value(k) || '').trim();
+if (v === '') return;
+var i = parseInt(m[1], 10);
+if (!(i in members)) members[i] = Object.create(null);
+members[i][m[2]] = v;
+});
+return Object.keys(members).map(Number).sort(function(a, b) { return a - b; }).map(function(i) {
+return { index: i, fields: members[i] };
+});
+}
+function mf(m, field) { return field in m.fields ? m.fields[field] : ''; }
+
+function scheduleActive(m, b, now) {
+if (!b.until) return true;
+var end = parseDay(mf(m, b.until));
+return end == null || daysUntil(end, now) >= 0;
+}
+
+// The doses due next: the earliest time from now on, today or tomorrow, at
+// which any running member takes something.
+function nextDose(members, b, now) {
+var best = null;
+for (var day = 0; day < 2; day++) {
+b.columns.forEach(function(c) {
+var parts = c.time.split(':');
+var hour = intOr(parts[0], 8);
+var minute = parts.length > 1 ? intOr(parts[1], 0) : 0;
+var at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day, hour, minute);
+if (!(at > now)) return;
+var due = members.filter(function(m) { return scheduleActive(m, b, at) && scheduleAmount(mf(m, c.field)) > 0; });
+if (!due.length) return;
+if (!best || at < best.at) best = { at: at, members: due };
+});
+if (best) return best;
+}
+return best;
+}
+
+// Whole days the stock of a member lasts at its daily amount; null when
+// either is unknown.
+function daysOfStock(m, b) {
+if (b.refillStock == null) return null;
+var raw = mf(m, b.refillStock);
+var stock = scheduleAmount(raw);
+var daily = b.columns.reduce(function(sum, c) { return sum + scheduleAmount(mf(m, c.field)); }, 0);
+if (daily <= 0 || raw.trim() === '') return null;
+return Math.max(0, Math.floor(stock / daily));
+}
+
+// A QR code drawn as one SVG path, dark on white, from the encoder embedded
+// above this script. Null when the text does not fit a code.
+function qrNode(text) {
+if (typeof qrcode !== 'function') return null;
+var q;
+try {
+qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+q = qrcode(0, 'M');
+q.addData(text);
+q.make();
+} catch (e) { return null; }
+var n = q.getModuleCount(), path = '';
+for (var r = 0; r < n; r++) {
+for (var c = 0; c < n; c++) if (q.isDark(r, c)) path += 'M' + c + ' ' + r + 'h1v1h-1z';
+}
+var ns = 'http://www.w3.org/2000/svg';
+var s = document.createElementNS(ns, 'svg');
+s.setAttribute('viewBox', '0 0 ' + n + ' ' + n);
+s.setAttribute('shape-rendering', 'crispEdges');
+s.setAttribute('role', 'img');
+s.setAttribute('aria-label', t('view.qrLabel'));
+var p = document.createElementNS(ns, 'path');
+p.setAttribute('d', path);
+p.setAttribute('fill', '#000000');
+s.appendChild(p);
+var box = el('div', 'vw-qr-code');
+box.appendChild(s);
+return box;
+}
+
+function viewLine(icon, iconClass, text) {
+var row = el('div', 'vw-line');
+var ic = svg(icon, 16);
+ic.setAttribute('class', iconClass);
+row.appendChild(ic);
+row.appendChild(el('div', 'tx', text));
+return row;
+}
+
+function viewBlocks(ctx, blocks) {
+var col = el('div', 'vw-col');
+blocks.forEach(function(b) {
+if (!viewTest(ctx.d, b.when)) return;
+var node = viewBlock(ctx, b);
+if (node) col.appendChild(node);
+});
+return col;
+}
+
+function viewBlock(ctx, b) {
+switch (b.type) {
+case 'header': return viewHeader(ctx, b);
+case 'text': return viewText(ctx, b);
+case 'badges': return viewBadges(ctx, b);
+case 'facts': return viewFacts(ctx, b);
+case 'secret': return viewSecret(ctx, b);
+case 'qr': return viewQr(ctx, b);
+case 'actions': return viewActions(ctx, b);
+case 'countdown': return viewCountdown(ctx, b);
+case 'split': return viewSplit(ctx, b);
+case 'schedule': return viewSchedule(ctx, b);
+case 'divider': return el('hr', 'vw-hr');
+}
+return null;
+}
+
+function viewHeader(ctx, b) {
+var d = ctx.d;
+var row = el('div', 'vw-head');
+var ic = el('div', 'vw-icon');
+ic.appendChild(svg(own(VIEW_ICONS, b.icon) ? VIEW_ICONS[b.icon] : 'folder', 22));
+row.appendChild(ic);
+var tx = el('div', 'tx');
+var title = viewFill(d, b.title);
+var eyebrow = viewComplete(d, b.eyebrow) ? viewFill(d, b.eyebrow) : '';
+var subtitle = viewComplete(d, b.subtitle) ? viewFill(d, b.subtitle) : '';
+if (eyebrow.trim()) tx.appendChild(el('div', 'vw-small', eyebrow));
+tx.appendChild(el('div', 'vw-title', title.trim() ? title : ctx.spec.name));
+if (subtitle.trim()) tx.appendChild(el('div', 'vw-small', subtitle));
+row.appendChild(tx);
+return row;
+}
+
+function viewText(ctx, b) {
+if (!viewComplete(ctx.d, b.text)) return null;
+var text = viewFill(ctx.d, b.text);
+if (b.tone === 'warning') return viewLine('alert', 'vw-warn-i', text);
+return el('div', b.tone === 'body' ? 'vw-body' : 'vw-small', text);
+}
+
+function viewBadges(ctx, b) {
+var shown = b.items.filter(function(i) { return viewTest(ctx.d, i.when) && viewComplete(ctx.d, i.text); });
+if (!shown.length) return null;
+var wrap = el('div', 'vw-badges');
+shown.forEach(function(i) {
+wrap.appendChild(el('span', 'vw-badge' + (own(VIEW_TONES, i.tone) ? ' ' + VIEW_TONES[i.tone] : ''), viewFill(ctx.d, i.text)));
+});
+return wrap;
+}
+
+// Items whose text is empty once filled in are left out, so an unanswered
+// field leaves no gap.
+function viewFacts(ctx, b) {
+var items = b.items.filter(function(f) { return viewComplete(ctx.d, f.value); });
+if (!items.length) return null;
+var grid = el('div', 'vw-facts');
+items.forEach(function(f) {
+var cell = el('div', 'vw-fact');
+cell.appendChild(el('div', 'vw-small', f.label));
+cell.appendChild(el('div', 'vw-fact-v' + (f.mono ? ' vw-mono' : ''), viewFill(ctx.d, f.value)));
+grid.appendChild(cell);
+});
+return grid;
+}
+
+function viewSecret(ctx, b) {
+var d = ctx.d;
+var value = d.value(b.key);
+var label = b.label || b.key;
+var shown = !!ctx.revealed[b.key];
+var box = el('div', '');
+box.appendChild(el('div', 'vw-small', label));
+if (d.locked(b.key)) {
+box.appendChild(el('div', 'vw-small', t('view.locked')));
+} else if (value == null || value === '') {
+box.appendChild(el('div', 'vw-small', t('view.empty')));
+} else {
+var row = el('div', 'vw-secret-row');
+if (shown) row.appendChild(el('div', 'vw-secret-v', value));
+else {
+var hold = el('div', 'vw-secret-v');
+hold.appendChild(el('span', 'vw-redact'));
+row.appendChild(hold);
+}
+var toggle = iconButton(shown ? 'eye-off' : 'eye', t(shown ? 'view.hide' : 'view.show', label));
+toggle.setAttribute('aria-pressed', shown ? 'true' : 'false');
+toggle.setAttribute('data-vf', 'secret:' + b.key);
+toggle.addEventListener('click', function() { ctx.toggle(b.key, 'secret:' + b.key); });
+row.appendChild(toggle);
+row.appendChild(copyButton(value, label));
+box.appendChild(row);
+}
+return box;
+}
+
+// The code carries a secret, so it stays covered until that secret is shown.
+function viewQr(ctx, b) {
+if (!viewComplete(ctx.d, b.data)) return null;
+// A code never carries a hidden value as dots: it stays covered until every
+// hidden value it holds has been shown.
+var waits = b.revealWith !== '' ? [b.revealWith] : [];
+String(b.data).replace(VIEW_PLACEHOLDER, function(all, key) {
+if (ctx.d.hidden(key)) waits.push(key);
+return all;
+});
+var covered = waits.some(function(k) { return !ctx.revealed[k]; });
+var box = el('div', 'vw-qr');
+var code = covered ? null : qrNode(viewFill(ctx.d, b.data, ctx.revealed));
+if (!covered && !code) return null;
+if (covered) {
+var cover = el('div', 'vw-qr-cover');
+cover.appendChild(svg('qr', 48));
+box.appendChild(cover);
+} else box.appendChild(code);
+var caption = covered ? t('view.qrCovered') : b.caption;
+if (caption) box.appendChild(el('div', 'vw-small', caption));
+return box;
+}
+
+// Only links a person would expect to open: no scripts, no files.
+function viewActions(ctx, b) {
+var d = ctx.d;
+var wrap = el('div', 'vw-actions');
+b.items.forEach(function(a) {
+var v = (d.value(a.key) || '').trim();
+if (v === '' || d.hidden(a.key)) return;
+var icon, href = null;
+if (a.kind === 'tel') {
+icon = 'phone';
+href = 'tel:' + v.replace(/[^\d+]/g, '');
+} else if (a.kind === 'mail') {
+icon = 'mail';
+href = 'mailto:' + encodeURIComponent(v).replace(/%40/g, '@');
+} else {
+icon = 'external';
+try {
+var u = new URL(v);
+if (u.protocol === 'http:' || u.protocol === 'https:') href = u.href;
+} catch (e) {}
+}
+if (!href) return;
+var link = el('a', 'vw-btn');
+link.href = href;
+if (icon === 'external') { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+link.appendChild(svg(icon, 16));
+// "Call {insurer}" reads "Call" while the insurer is not filled in.
+var text = viewComplete(d, a.label) ? viewFill(d, a.label) : a.label.replace(/\s*\{[^}]*\}/g, '').trim();
+link.appendChild(el('span', '', text));
+wrap.appendChild(link);
+});
+return wrap.children.length ? wrap : null;
+}
+
+// Days until a date: a warning warnDays ahead, overdue once it has passed.
+function viewCountdown(ctx, b) {
+var date = parseDay(ctx.d.value(b.key));
+if (!date) return null;
+var days = daysUntil(date, new Date());
+var text, tone;
+if (days < 0) { text = t('view.overdue', -days); tone = 'danger'; }
+else if (days === 0) { text = t('view.today'); tone = 'warning'; }
+else if (days <= b.warnDays) { text = t('view.inDays', days); tone = 'warning'; }
+else { text = t('view.inDays', days); tone = 'muted'; }
+var row = el('div', 'vw-count');
+var ic = svg('calendar', 18);
+ic.setAttribute('class', 'vw-tone-' + tone);
+row.appendChild(ic);
+var tx = el('div', 'tx');
+tx.appendChild(el('div', 'vw-small', b.label));
+tx.appendChild(el('div', 'vw-body', fmtDay(date)));
+row.appendChild(tx);
+row.appendChild(el('span', 'vw-badge t-' + tone, text));
+return row;
+}
+
+// Two columns side by side when the card is wide enough, stacked otherwise.
+function viewSplit(ctx, b) {
+var c = el('div', 'vw-split-c');
+var split = el('div', 'vw-split');
+var main = viewBlocks(ctx, b.main);
+main.classList.add('vw-main');
+var side = viewBlocks(ctx, b.side);
+side.classList.add('vw-side');
+split.appendChild(main);
+split.appendChild(side);
+c.appendChild(split);
+return c;
+}
+
+function viewSchedule(ctx, b) {
+var members = viewGroup(ctx.d, b.group);
+if (!members.length) return null;
+var now = new Date();
+var box = el('div', 'vw-col');
+var scroll = el('div', 'vw-sched-w');
+var table = el('table', 'vw-sched');
+var head = el('tr');
+head.appendChild(el('th', 'c0', b.heading));
+b.columns.forEach(function(c) {
+var th = el('th', '', c.label);
+th.title = c.time;
+head.appendChild(th);
+});
+var thead = el('thead');
+thead.appendChild(head);
+table.appendChild(thead);
+var tbody = el('tbody');
+members.forEach(function(m) {
+var active = scheduleActive(m, b, now);
+var end = b.until ? parseDay(mf(m, b.until)) : null;
+var lines = [];
+if (b.detail && mf(m, b.detail)) lines.push(mf(m, b.detail));
+if (end) lines.push(active ? t('view.until', fmtDay(end)) : t('view.ended'));
+var tr = el('tr', active ? '' : 'vw-off');
+var first = el('td', 'c0');
+var who = el('div');
+who.appendChild(el('span', 'vw-name', mf(m, b.label) || t('view.unnamed')));
+if (lines.length) who.appendChild(el('div', 'vw-small', lines.join(' · ')));
+if (b.note && mf(m, b.note)) who.appendChild(el('div', 'vw-small', mf(m, b.note)));
+first.appendChild(who);
+tr.appendChild(first);
+b.columns.forEach(function(c) {
+var raw = mf(m, c.field);
+var td = el('td');
+td.appendChild(el('span', '', scheduleAmount(raw) > 0 ? raw.trim() : '–'));
+tr.appendChild(td);
+});
+tbody.appendChild(tr);
+});
+table.appendChild(tbody);
+scroll.appendChild(table);
+box.appendChild(scroll);
+
+var next = b.showNext ? nextDose(members, b, now) : null;
+if (next) {
+var what = next.members.map(function(m) {
+return [mf(m, b.label), b.detail ? mf(m, b.detail) : ''].filter(Boolean).join(' ');
+}).join(', ');
+var minutes = Math.trunc((next.at - now) / 60000);
+var time = String(next.at.getHours()).padStart(2, '0') + ':' + String(next.at.getMinutes()).padStart(2, '0');
+var rel = minutes < 60 ? t('view.inMin', minutes) : t('view.inHours', Math.round(minutes / 60));
+box.appendChild(viewLine('clock', 'vw-next-i', t('view.next', what, t('view.at', time, next.at.getDate() !== now.getDate(), rel))));
+}
+members.forEach(function(m) {
+if (!scheduleActive(m, b, now)) return;
+var left = daysOfStock(m, b);
+if (left == null || left > b.refillWarnDays) return;
+var name = mf(m, b.label);
+box.appendChild(viewLine('alert', 'vw-warn-i', left === 0 ? t('view.refillNow', name) : t('view.refillSoon', name, left)));
+});
+return box;
+}
+
+// One card, its blocks top to bottom. Showing a secret draws the card again,
+// as the code that carries it follows; focus stays on the button pressed.
+function viewCard(spec, d) {
+var card = el('div', 'card vw');
+card.style.setProperty('--accent', own(VIEW_ACCENTS, spec.accent) ? VIEW_ACCENTS[spec.accent] : 'var(--primary)');
+var revealed = Object.create(null);
+var ctx = { spec: spec, d: d, revealed: revealed, toggle: null };
+function draw(focus) {
+card.textContent = '';
+card.appendChild(viewBlocks(ctx, spec.blocks));
+if (!focus) return;
+Array.prototype.some.call(card.querySelectorAll('[data-vf]'), function(n) {
+if (n.getAttribute('data-vf') !== focus) return false;
+n.focus();
+return true;
+});
+}
+ctx.toggle = function(key, focus) {
+if (revealed[key]) delete revealed[key]; else revealed[key] = true;
+draw(focus);
+};
+draw(null);
+return card;
+}
+
+// Which side of the switch each section shows, kept while the page is open
+// so switching language redraws it the way it was left.
+var viewModes = Object.create(null);
+
+// Puts a section's view above its records with a switch between the two. The
+// view is shown first; the records stay one press away.
+function addSectionView(sec, s, records, index) {
+var spec = parseView(s.view);
+if (!spec || !records.length) return;
+var d = viewData(records);
+if (!viewMatches(spec, d)) return;
+var id = String(s.id || s.key || index);
+var card = viewCard(spec, d);
+var seg = el('div', 'vw-seg');
+seg.setAttribute('role', 'group');
+seg.setAttribute('aria-label', t('view.switch'));
+var asView = el('button', '', spec.name);
+var asList = el('button', '', t('view.records'));
+asView.type = asList.type = 'button';
+function set(mode) {
+viewModes[id] = mode;
+var v = mode !== 'records';
+asView.setAttribute('aria-pressed', v ? 'true' : 'false');
+asList.setAttribute('aria-pressed', v ? 'false' : 'true');
+card.hidden = !v;
+sec.card.hidden = v;
+}
+asView.addEventListener('click', function() { set('view'); });
+asList.addEventListener('click', function() { set('records'); });
+seg.appendChild(asView);
+seg.appendChild(asList);
+sec.insertBefore(seg, sec.card);
+sec.insertBefore(card, sec.card);
+set(viewModes[id] || 'view');
+}
+
 function render(data) {
 var out = document.getElementById('out');
 out.textContent = '';
@@ -1703,7 +2498,7 @@ sections.forEach(function(s) {
 });
 var looseRecords = remaining.filter(function(r) { return !inSections[r.id]; });
 
-sections.forEach(function(s) {
+sections.forEach(function(s, index) {
 var secRecords = (s.records || []).map(function(id) { return byId[id]; }).filter(Boolean);
 if (isApplication && !secRecords.length) return;
 var sec = makeSection(s.name || t('section'), secRecords.length, 'item');
@@ -1711,6 +2506,7 @@ if (!secRecords.length) {
 sec.card.appendChild(el('div', 'empty', t('sectionEmpty')));
 } else {
 secRecords.forEach(function(r) { sec.card.appendChild(renderRecordItem(r)); });
+addSectionView(sec, s, secRecords, index);
 }
 out.appendChild(sec);
 });

@@ -74,6 +74,81 @@
           }
         ]
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "company",
+      "name": "Company card",
+      "accent": "blue",
+      "match": [
+        "legal_name"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "finance",
+          "eyebrow": "Company & billing",
+          "title": "{legal_name}",
+          "subtitle": "{street}, {postal_code} {city}"
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "VAT ID",
+              "value": "{vat_id}",
+              "mono": true
+            },
+            {
+              "label": "Trade register",
+              "value": "{trade_register}"
+            },
+            {
+              "label": "Billing email",
+              "value": "{billing_email}"
+            },
+            {
+              "label": "Country",
+              "value": "{country}"
+            }
+          ]
+        },
+        {
+          "type": "divider",
+          "when": {
+            "key": "iban"
+          }
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Account holder",
+              "value": "{account_holder}"
+            },
+            {
+              "label": "IBAN",
+              "value": "{iban}",
+              "mono": true
+            },
+            {
+              "label": "BIC",
+              "value": "{bic}",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Email billing",
+              "key": "billing_email",
+              "kind": "mail"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

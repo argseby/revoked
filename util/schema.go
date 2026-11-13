@@ -187,6 +187,10 @@ type sectionFields struct {
 	// Only the owner changes them. Readers and Editors are worked out from
 	// them by services.Access and written by the server alone.
 	AudienceKind, AudienceGroups, Editing, Readers, Editors string
+	// View is the section's layout: a JSON description of how to show its
+	// records as one card (docs/guide/section-views.md). Empty shows the
+	// plain list.
+	View string
 }
 
 type groupFields struct {
@@ -647,6 +651,7 @@ var Fields = struct {
 		AudienceKind:   "audienceKind",
 		AudienceGroups: "audienceGroups",
 		Editing:        "editing",
+		View:           "view",
 		Readers:        "readers",
 		Editors:        "editors",
 	},

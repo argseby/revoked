@@ -69,6 +69,16 @@ Switching to **Visual** shows the same two fields. `required` is omitted for
 the optional phone number. Keys match the fields requested by an integration;
 labels supply their readable names.
 
+### A template's view {#view}
+
+A template can also carry a `"view"` beside `"records"`: a small layout that
+shows a section created from the template as the thing it describes, such
+as a Wi-Fi card with a code to scan, instead of a list of records. The view
+is edited in the **View** part of the template editor, with a preview, and
+is copied onto every section the template creates. Every built-in template
+ships with one. The format is described in
+[Section views](section-views.md).
+
 ### Who sees a template {#members}
 
 A new template is seen by every member of the workspace, who can ask with

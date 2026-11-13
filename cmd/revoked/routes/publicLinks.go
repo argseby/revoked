@@ -1,15 +1,19 @@
 package routes
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"revoked/cmd/revoked/server"
 	"revoked/cmd/revoked/services"
 	"revoked/util"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 // root is threaded in so the probe can publish this server's domain claim and
@@ -215,6 +219,20 @@ func withWatermark(link *core.Record, body map[string]any) map[string]any {
 // A record filed in several sections is shown in the first.
 func linkSections(app core.App, link *core.Record) []map[string]any {
 	sections := []map[string]any{}
+	views := templateViews(app, link)
+	granted := map[string]string{}
+	for _, rec := range services.LinkRecords(app, link) {
+		granted[rec.Id] = rec.GetString(util.Fields.Record.Key)
+	}
+	withView := func(entry map[string]any, sec *core.Record) map[string]any {
+		entry = withSectionView(entry, sec)
+		if _, ok := entry["view"]; !ok {
+			if view := matchTemplateView(views, sec, granted); view != nil {
+				entry["view"] = view
+			}
+		}
+		return entry
+	}
 	named := map[string]bool{}
 	placed := map[string]bool{}
 	for _, id := range link.GetStringSlice(util.Fields.Link.Sections) {
@@ -226,7 +244,7 @@ func linkSections(app core.App, link *core.Record) []map[string]any {
 		for _, rid := range rec.GetStringSlice(util.Fields.Section.Records) {
 			placed[rid] = true
 		}
-		sections = append(sections, sanitizeRecord(rec))
+		sections = append(sections, withView(sanitizeRecord(rec), rec))
 	}
 
 	position := map[string]int{}
@@ -273,18 +291,117 @@ func linkSections(app core.App, link *core.Record) []map[string]any {
 		if len(ids) == 0 {
 			continue
 		}
-		derived = append(derived, found{first: first, entry: map[string]any{
+		derived = append(derived, found{first: first, entry: withView(map[string]any{
 			"id":      sec.Id,
 			"key":     sec.GetString(util.Fields.Section.Key),
 			"name":    sec.GetString(util.Fields.Section.Name),
 			"records": ids,
-		}})
+		}, sec)})
 	}
 	sort.SliceStable(derived, func(i, j int) bool { return derived[i].first < derived[j].first })
 	for _, d := range derived {
 		sections = append(sections, d.entry)
 	}
 	return sections
+}
+
+// withSectionView adds the section's view, the layout its page draws over the
+// section's own records, when the section has one. A view is only a layout:
+// it names record keys but carries no values, so it reveals nothing the
+// records beside it do not already show. An unset view stays out, and the
+// page then shows the plain list as it always has.
+func withSectionView(entry map[string]any, sec *core.Record) map[string]any {
+	var raw []byte
+	switch v := sec.Get("view").(type) {
+	case types.JSONRaw:
+		raw = v
+	case []byte:
+		raw = v
+	}
+	trimmed := bytes.TrimSpace(raw)
+	switch string(trimmed) {
+	case "", "null", "{}", "[]", `""`:
+		return entry
+	}
+	entry["view"] = types.JSONRaw(trimmed)
+	return entry
+}
+
+// templateView is one template's view and the record keys it asks for.
+type templateView struct {
+	view  map[string]any
+	match []string
+}
+
+// templateViews loads the views of the templates the link's owner works with:
+// the built-in ones and those of the link's workspace. A section without a
+// view of its own borrows the one that fits it, as it does in the owner's
+// vault, so a section made before views existed still shows as its card.
+func templateViews(app core.App, link *core.Record) []templateView {
+	rows, err := app.FindRecordsByFilter(util.Coll.Templates,
+		"workspace = '' || workspace = {:ws}", "", 0, 0,
+		dbx.Params{"ws": link.GetString(util.Fields.Link.Workspace)})
+	if err != nil {
+		return nil
+	}
+	out := []templateView{}
+	for _, t := range rows {
+		var schema map[string]any
+		if err := json.Unmarshal([]byte(t.GetString(util.Fields.Template.Schema)), &schema); err != nil {
+			continue
+		}
+		view, ok := schema["view"].(map[string]any)
+		if !ok || services.ValidateSectionView(view) != nil {
+			continue
+		}
+		match := []string{}
+		for _, m := range view["match"].([]any) {
+			if key, ok := m.(string); ok {
+				match = append(match, key)
+			}
+		}
+		out = append(out, templateView{view: view, match: match})
+	}
+	// The most specific first: a view asking for more keys fits more exactly.
+	sort.SliceStable(out, func(i, j int) bool { return len(out[i].match) > len(out[j].match) })
+	return out
+}
+
+// matchTemplateView picks the first template view whose keys the section's
+// granted records all hold; a `group:<name>` entry asks for one record keyed
+// `<name>-…`. Only records the link grants count, so a view never points at
+// one the recipient cannot see.
+func matchTemplateView(views []templateView, sec *core.Record, granted map[string]string) map[string]any {
+	keys := map[string]bool{}
+	for _, id := range sec.GetStringSlice(util.Fields.Section.Records) {
+		if key, ok := granted[id]; ok {
+			keys[key] = true
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	for _, v := range views {
+		fits := true
+		for _, m := range v.match {
+			if group, ok := strings.CutPrefix(m, "group:"); ok {
+				found := false
+				for key := range keys {
+					if strings.HasPrefix(key, group+"-") {
+						found = true
+						break
+					}
+				}
+				fits = fits && found
+			} else {
+				fits = fits && keys[m]
+			}
+		}
+		if fits {
+			return v.view
+		}
+	}
+	return nil
 }
 
 // sanitizeRecord returns only public-safe fields from a section/record entity.

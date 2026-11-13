@@ -28,6 +28,65 @@
         "type": "url",
         "value": "http://192.168.0.1"
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "wifi",
+      "name": "Wi-Fi network",
+      "accent": "teal",
+      "match": [
+        "network_name",
+        "wifi_password"
+      ],
+      "blocks": [
+        {
+          "type": "split",
+          "main": [
+            {
+              "type": "header",
+              "icon": "wifi",
+              "eyebrow": "Wi-Fi network",
+              "title": "{network_name}"
+            },
+            {
+              "type": "badges",
+              "items": [
+                {
+                  "text": "Guest network",
+                  "tone": "accent",
+                  "when": {
+                    "key": "guest_network",
+                    "is": "true"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "secret",
+              "label": "Password",
+              "key": "wifi_password"
+            },
+            {
+              "type": "actions",
+              "items": [
+                {
+                  "label": "Router admin",
+                  "key": "router_admin",
+                  "kind": "url"
+                }
+              ]
+            }
+          ],
+          "side": [
+            {
+              "type": "qr",
+              "revealWith": "wifi_password",
+              "data": "WIFI:T:WPA;S:{network_name|wifi};P:{wifi_password|wifi};;",
+              "caption": "Scan with a phone camera to join."
+            }
+          ]
+        }
+      ]
+    }
   }
 }

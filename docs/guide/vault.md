@@ -91,6 +91,12 @@ Sections can be renamed, duplicated and shared as one. A shared section
 always reflects its current contents: a record added later becomes visible
 to everyone with the link.
 
+A section that describes one thing, such as a Wi-Fi network, a vehicle or a
+medication plan, can be shown as a card instead of a list: the network with
+a code to scan, the car with the days until its inspection. A switch next to
+the section title flips between the card and its records. Cards are
+described in [Section views](section-views.md).
+
 ### Who sees a section {#members}
 
 Records are otherwise seen only by the member who created them. **Visibility**

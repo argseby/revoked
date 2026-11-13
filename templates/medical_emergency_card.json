@@ -83,6 +83,103 @@
           }
         ]
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "emergency",
+      "name": "Emergency card",
+      "accent": "red",
+      "match": [
+        "blood_type"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "health",
+          "eyebrow": "Medical emergency card",
+          "title": "{full_name}"
+        },
+        {
+          "type": "badges",
+          "items": [
+            {
+              "text": "Organ donor",
+              "tone": "success",
+              "when": {
+                "key": "organ_donor",
+                "is": "true"
+              }
+            },
+            {
+              "text": "Blood type {blood_type}",
+              "tone": "danger",
+              "when": {
+                "key": "blood_type"
+              }
+            }
+          ]
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Allergies",
+              "value": "{allergies}"
+            },
+            {
+              "label": "Medications",
+              "value": "{medications}"
+            },
+            {
+              "label": "Insurance",
+              "value": "{insurance_provider}"
+            },
+            {
+              "label": "Insurance number",
+              "value": "{insurance_number}",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "divider",
+          "when": {
+            "key": "contact_name"
+          }
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Emergency contact",
+              "value": "{contact_name}"
+            },
+            {
+              "label": "Relation",
+              "value": "{contact_relation}"
+            },
+            {
+              "label": "Doctor",
+              "value": "{doctor_name}"
+            }
+          ]
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Call {contact_name}",
+              "key": "contact_phone",
+              "kind": "tel"
+            },
+            {
+              "label": "Call the doctor",
+              "key": "doctor_phone",
+              "kind": "tel"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

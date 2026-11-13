@@ -59,6 +59,58 @@
           }
         ]
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "vehicle",
+      "name": "Vehicle",
+      "accent": "blue",
+      "match": [
+        "license_plate"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "car",
+          "eyebrow": "{make_model}",
+          "title": "{license_plate|upper}"
+        },
+        {
+          "type": "countdown",
+          "label": "Next inspection",
+          "key": "inspection_due",
+          "warnDays": 45
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Vehicle identification number",
+              "value": "{vin}",
+              "mono": true
+            },
+            {
+              "label": "Insurer",
+              "value": "{insurer}"
+            },
+            {
+              "label": "Policy number",
+              "value": "{policy_number}",
+              "mono": true
+            }
+          ]
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Call {insurer}",
+              "key": "insurer_phone",
+              "kind": "tel"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

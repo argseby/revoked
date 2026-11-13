@@ -1,0 +1,215 @@
+{
+  "name": "Medication plan",
+  "description": "Who takes what and when: one plan per person, with the next dose and refills worked out from it.",
+  "schema": {
+    "records": [
+      {
+        "key": "patient_name",
+        "label": "Patient",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "prescriber",
+        "label": "Prescribed by",
+        "type": "text"
+      },
+      {
+        "key": "medication-1-name",
+        "label": "Medicine 1 · Name",
+        "type": "text"
+      },
+      {
+        "key": "medication-1-dose",
+        "label": "Medicine 1 · Dose",
+        "type": "text"
+      },
+      {
+        "key": "medication-1-morning",
+        "label": "Medicine 1 · Morning",
+        "type": "text",
+        "reason": "How many to take: 1, ½ or 1/2. Empty or – means none."
+      },
+      {
+        "key": "medication-1-noon",
+        "label": "Medicine 1 · Noon",
+        "type": "text"
+      },
+      {
+        "key": "medication-1-evening",
+        "label": "Medicine 1 · Evening",
+        "type": "text"
+      },
+      {
+        "key": "medication-1-night",
+        "label": "Medicine 1 · Night",
+        "type": "text"
+      },
+      {
+        "key": "medication-1-until",
+        "label": "Medicine 1 · Take until",
+        "type": "datetime",
+        "reason": "Leave empty for an ongoing medicine."
+      },
+      {
+        "key": "medication-1-stock",
+        "label": "Medicine 1 · Doses left",
+        "type": "number",
+        "reason": "Pills or doses at hand; the plan warns a week before they run out."
+      },
+      {
+        "key": "medication-1-note",
+        "label": "Medicine 1 · Note",
+        "type": "text"
+      },
+      {
+        "key": "medication-2-name",
+        "label": "Medicine 2 · Name",
+        "type": "text"
+      },
+      {
+        "key": "medication-2-dose",
+        "label": "Medicine 2 · Dose",
+        "type": "text"
+      },
+      {
+        "key": "medication-2-morning",
+        "label": "Medicine 2 · Morning",
+        "type": "text"
+      },
+      {
+        "key": "medication-2-noon",
+        "label": "Medicine 2 · Noon",
+        "type": "text"
+      },
+      {
+        "key": "medication-2-evening",
+        "label": "Medicine 2 · Evening",
+        "type": "text"
+      },
+      {
+        "key": "medication-2-night",
+        "label": "Medicine 2 · Night",
+        "type": "text"
+      },
+      {
+        "key": "medication-2-until",
+        "label": "Medicine 2 · Take until",
+        "type": "datetime"
+      },
+      {
+        "key": "medication-2-stock",
+        "label": "Medicine 2 · Doses left",
+        "type": "number"
+      },
+      {
+        "key": "medication-2-note",
+        "label": "Medicine 2 · Note",
+        "type": "text"
+      },
+      {
+        "key": "medication-3-name",
+        "label": "Medicine 3 · Name",
+        "type": "text"
+      },
+      {
+        "key": "medication-3-dose",
+        "label": "Medicine 3 · Dose",
+        "type": "text"
+      },
+      {
+        "key": "medication-3-morning",
+        "label": "Medicine 3 · Morning",
+        "type": "text"
+      },
+      {
+        "key": "medication-3-noon",
+        "label": "Medicine 3 · Noon",
+        "type": "text"
+      },
+      {
+        "key": "medication-3-evening",
+        "label": "Medicine 3 · Evening",
+        "type": "text"
+      },
+      {
+        "key": "medication-3-night",
+        "label": "Medicine 3 · Night",
+        "type": "text"
+      },
+      {
+        "key": "medication-3-until",
+        "label": "Medicine 3 · Take until",
+        "type": "datetime"
+      },
+      {
+        "key": "medication-3-stock",
+        "label": "Medicine 3 · Doses left",
+        "type": "number"
+      },
+      {
+        "key": "medication-3-note",
+        "label": "Medicine 3 · Note",
+        "type": "text"
+      }
+    ],
+    "view": {
+      "version": 1,
+      "id": "medication",
+      "name": "Medication plan",
+      "accent": "violet",
+      "match": [
+        "group:medication"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "medication",
+          "eyebrow": "Medication plan",
+          "title": "{patient_name}",
+          "subtitle": "Prescribed by {prescriber}"
+        },
+        {
+          "type": "schedule",
+          "group": "medication",
+          "heading": "Medicine",
+          "label": "name",
+          "detail": "dose",
+          "note": "note",
+          "until": "until",
+          "columns": [
+            {
+              "field": "morning",
+              "label": "Morn",
+              "time": "08:00"
+            },
+            {
+              "field": "noon",
+              "label": "Noon",
+              "time": "12:00"
+            },
+            {
+              "field": "evening",
+              "label": "Eve",
+              "time": "18:00"
+            },
+            {
+              "field": "night",
+              "label": "Night",
+              "time": "22:00"
+            }
+          ],
+          "next": true,
+          "refill": {
+            "stock": "stock",
+            "warnDays": 7
+          }
+        },
+        {
+          "type": "text",
+          "text": "Check with the doctor before changing a dose."
+        }
+      ]
+    }
+  }
+}

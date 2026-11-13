@@ -87,6 +87,67 @@
           }
         ]
       }
-    ]
+    ],
+    "view": {
+      "version": 1,
+      "id": "tenant",
+      "name": "Tenant profile",
+      "accent": "green",
+      "match": [
+        "move_in_date",
+        "full_name"
+      ],
+      "blocks": [
+        {
+          "type": "header",
+          "icon": "person",
+          "eyebrow": "Tenant application",
+          "title": "{full_name}",
+          "subtitle": "{occupation} at {employer}"
+        },
+        {
+          "type": "facts",
+          "items": [
+            {
+              "label": "Net income",
+              "value": "{net_income}"
+            },
+            {
+              "label": "Household",
+              "value": "{household_size} people"
+            },
+            {
+              "label": "Pets",
+              "value": "{pets}"
+            },
+            {
+              "label": "Current address",
+              "value": "{current_address}"
+            }
+          ]
+        },
+        {
+          "type": "countdown",
+          "label": "Move-in",
+          "key": "move_in_date",
+          "warnDays": 30
+        },
+        {
+          "type": "actions",
+          "items": [
+            {
+              "label": "Call",
+              "key": "phone",
+              "kind": "tel"
+            },
+            {
+              "label": "Email",
+              "key": "email",
+              "kind": "mail"
+            }
+          ]
+        }
+      ]
+    }
   }
 }
