@@ -46,13 +46,14 @@ func TestOpenAPICoversEveryCustomRoute(t *testing.T) {
 
 	// The reverse: the spec also carries PocketBase's own collection endpoints,
 	// which are not registered here, so only custom-looking paths are checked.
+	pocketBase := map[string]bool{"/api/health": true}
 	registeredSet := map[string]bool{}
 	for _, r := range registered {
 		registeredSet[normalizePath(r)] = true
 	}
 	var stale []string
 	for path := range documented {
-		if strings.HasPrefix(path, "/api/collections/") || strings.HasPrefix(path, "/api/files/") {
+		if strings.HasPrefix(path, "/api/collections/") || strings.HasPrefix(path, "/api/files/") || pocketBase[path] {
 			continue
 		}
 		if !registeredSet[path] {
