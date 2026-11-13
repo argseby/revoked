@@ -1,0 +1,21 @@
+# The bundled reverse proxy (docker compose --profile caddy up -d).
+#
+# Caddy obtains and renews the certificate for SITE_ADDRESS on its own, and
+# sets X-Forwarded-For to the client's address, which the API trusts
+# (TRUSTED_PROXY_HEADER). As the first hop it discards whatever a client sent
+# in that header, so nobody can claim another address.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	reverse_proxy api:{$API_PORT:3000} {
+		# The realtime channel is server-sent events: every message goes out
+		# as it is written instead of waiting for a buffer to fill.
+		flush_interval -1
+	}
+
+	# Uploads stream through to the API, which enforces FILE_MAX_SIZE and
+	# answers an oversized file with its own error.
+	request_body {
+		max_size 2GB
+	}
+}

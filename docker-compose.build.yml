@@ -1,0 +1,17 @@
+# revoked — build this checkout instead of running the release image.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# The image is tagged revoked:local, so it never takes the release image's
+# name: a later deploy with docker-compose.yml alone runs the published
+# release again. The version comes from REVOKED_VERSION, else the checkout's
+# git tags; a copy without .git and without it reports `dev`.
+
+services:
+  api:
+    image: revoked:local
+    pull_policy: build
+    build:
+      context: .
+      args:
+        REVOKED_VERSION: ${REVOKED_VERSION:-}

@@ -29,7 +29,7 @@ nav = [
       "installation/index.md",
       { "Publish your DNS record" = "installation/dns.md" },
       { ".env reference" = "installation/env.md" },
-      { "Put a reverse proxy in front" = "installation/reverse-proxy.md" },
+      { "Reverse proxy" = "installation/reverse-proxy.md" },
       { "Add people" = "installation/accounts.md" },
       { "Back up your server" = "installation/backups.md" },
       { "Day-to-day running" = "installation/operations.md" },

@@ -90,21 +90,25 @@ DOMAIN=localhost ALLOW_SIGNUPS=true go run ./cmd/revoked serve --http=127.0.0.1:
 
 ## Run your own server
 
-You run one Go binary with a built-in database, in a container, behind a reverse
-proxy that handles TLS. You need a domain and Docker with Compose.
+The server is one Go binary with a built-in database, run in a container. A
+domain and Docker with Compose are all it needs; no Docker network is created
+beforehand.
 
 ```bash
 git clone https://github.com/argseby/revoked && cd revoked
-docker network create proxy-network   # once, or reuse your proxy's network
 cp .env.example .env                  # set DOMAIN
-docker compose up -d
+docker compose --profile caddy up -d  # bundled Caddy with automatic HTTPS
 docker compose logs api               # prints the DNS record to publish
-curl http://localhost:3000/healthz    # answers on this machine only
 ```
 
-Then publish that DNS record, point your proxy at the container, add people and
-set up backups. [Set up a server](https://docs.revoked.link/installation/) walks
-you through it.
+![Public HTTPS reaches the revoked-api container through one of three proxies; the container answers on 127.0.0.1:3000 only, and the dashboard over an SSH tunnel only](docs/installation/install-paths.svg)
+
+The API answers on `127.0.0.1:3000` of the host only. Public HTTPS reaches it
+through the bundled Caddy, a proxy already running on the host, or a proxy in
+its own container on a Docker network it already has. The superuser dashboard
+answers over an SSH tunnel only. After that come the DNS record, accounts and
+backups: [Set up a server](https://docs.revoked.link/installation/) covers
+each step.
 
 ## Build on it
 

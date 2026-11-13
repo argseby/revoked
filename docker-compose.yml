@@ -1,24 +1,21 @@
 # revoked — API stack.
 #
-# Create the shared network once, or reuse the one your reverse proxy already
-# has, then bring it up:
-#
-#   docker network create proxy-network
 #   cp .env.example .env    # DOMAIN is required — the server refuses to boot without it
 #   docker compose up -d
 #   docker compose logs api # prints the _revoked TXT record to publish
 #
-# The API port is published on the host's loopback interface only, so the
-# server answers at http://localhost:3000 on this machine and nowhere else. A
-# port reachable at the machine's IP would skip whatever TLS the reverse proxy
-# terminates; the proxy reaches this container by name over PROXY_NETWORK
-# instead.
+# The API answers at http://127.0.0.1:3000 on this machine and nowhere else.
+# Public HTTPS reaches it one of three ways (docs/installation/reverse-proxy.md):
 #
-#   Nginx Proxy Manager: forward hostname ${CONTAINER_NAME}, port ${API_PORT},
-#   scheme http — with the NPM container attached to PROXY_NETWORK too.
+#   A  the bundled Caddy, with automatic HTTPS for DOMAIN:
+#        docker compose --profile caddy up -d
+#   B  a reverse proxy running on this host, forwarding to http://127.0.0.1:3000
+#   C  a reverse proxy in its own container (Nginx Proxy Manager, Traefik),
+#      on a Docker network it already has:
+#        docker compose -f docker-compose.yml -f docker-compose.network.yml up -d
 #
-# No reverse proxy on this host? `docker compose --profile proxy up -d` adds
-# the bundled nginx on :80.
+# The superuser dashboard (/_/) answers only requests that reach the container
+# directly, never through the proxy: over an SSH tunnel to port 3000.
 #
 # Variables are mapped explicitly rather than through `env_file:` so this works
 # unchanged under Portainer, which passes stack variables as environment and
@@ -26,18 +23,16 @@
 
 services:
   api:
-    # The release image, with its version stamped in. Pin a release
-    # (ghcr.io/argseby/revoked:v0.35.0) so an upgrade is a deliberate change of
-    # tag; a pinned tag not yet on the host is pulled on the next `up`.
-    # `docker compose up -d --build` builds this checkout under the same name
-    # instead. Set REVOKED_VERSION for source archives without .git metadata.
+    # The release image, with its version stamped in. This file never builds:
+    # a host that once built the checkout under this name kept that unstamped
+    # copy and reported `dev`. Builds from source go through
+    # docker-compose.build.yml. Pinning a release
+    # (ghcr.io/argseby/revoked:v0.35.0) makes an upgrade a deliberate change
+    # of tag.
     image: ${REVOKED_IMAGE:-ghcr.io/argseby/revoked:latest}
-    build:
-      context: .
-      # Empty: the build reads the release from the checkout's git tags. A
-      # stack deployed from a source archive without .git sets it here.
-      args:
-        REVOKED_VERSION: ${REVOKED_VERSION:-}
+    # Every `up` checks the registry, so :latest moves on a plain redeploy
+    # (Portainer included) and a stale local copy never shadows the release.
+    pull_policy: always
     container_name: ${CONTAINER_NAME:-revoked-api}
     restart: unless-stopped
     ports:
@@ -83,6 +78,8 @@ services:
       RATELIMIT_SUBMISSIONS: ${RATELIMIT_SUBMISSIONS:-60}
       RATELIMIT_GRANT_EMAILS: ${RATELIMIT_GRANT_EMAILS:-5}
       RATELIMIT_WORKSPACE_EMAILS: ${RATELIMIT_WORKSPACE_EMAILS:-30}
+      TRUSTED_PROXY_HEADER: ${TRUSTED_PROXY_HEADER:-X-Forwarded-For}
+      DASHBOARD_ACCESS: ${DASHBOARD_ACCESS:-local}
     command:
       - serve
       - --http=0.0.0.0:${API_PORT:-3000}
@@ -96,44 +93,36 @@ services:
       retries: 3
     volumes:
       - pb_data:/pb/pb_data
-    networks:
-      - default
-      - proxy
 
-  nginx:
-    profiles: [proxy]
-    image: nginx:1.29-alpine
+  # Path A: public HTTPS without a proxy of your own. Caddy obtains and renews
+  # the certificate for DOMAIN itself, so ports 80 and 443 must be reachable
+  # from the internet and DOMAIN must point at this machine.
+  caddy:
+    profiles: [caddy]
+    image: caddy:2.10-alpine
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     ports:
       - "${HTTP_PORT:-80}:80"
-      # Uncomment together with the TLS block in deploy/nginx/default.conf.template.
-      # - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
     environment:
-      # The nginx image renders /etc/nginx/templates/*.template with envsubst.
-      # The filter is essential: without it envsubst would also eat $host,
-      # $scheme and every other nginx variable in the file.
+      # The address Caddy serves and gets a certificate for. DOMAIN unless
+      # set: `localhost` serves a local test with Caddy's own certificate.
+      SITE_ADDRESS: ${SITE_ADDRESS:-${DOMAIN}}
       API_PORT: ${API_PORT:-3000}
-      NGINX_ENVSUBST_FILTER: API_PORT
     volumes:
-      - ./deploy/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
-      # Included by default.conf; nginx only auto-loads *.conf from conf.d, so
-      # this one is inert on its own.
-      - ./deploy/nginx/revoked_proxy.inc:/etc/nginx/conf.d/revoked_proxy.inc:ro
-      - certbot_webroot:/var/www/certbot
-      # - /etc/letsencrypt:/etc/letsencrypt:ro
-
-networks:
-  # Shared with the reverse proxy, and created outside this file so several
-  # stacks can sit on it.
-  proxy:
-    external: true
-    name: ${PROXY_NETWORK:-proxy-network}
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The certificates and the ACME account: kept, so a restart does not
+      # ask Let's Encrypt again.
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   # Losing this volume means losing the CA key, and every identity this server
   # ever issued stops verifying. Back it up.
   pb_data:
-  certbot_webroot:
+  caddy_data:
+  caddy_config:
