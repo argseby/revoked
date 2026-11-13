@@ -70,13 +70,17 @@ class KeyInputFormatter extends TextInputFormatter {
 /// `steuer_id_privat`. German umlauts are spelled out rather than dropped, so
 /// "Geburtsdatum Mütter" does not turn into `geburtsdatum_mtter`. The result
 /// avoids every key in [taken] by appending `_2`, `_3`, …; an empty or
-/// all-symbol label yields `record`.
-String keyFromLabel(String label, Iterable<String> taken) {
+/// all-symbol label yields [fallback].
+String keyFromLabel(
+  String label,
+  Iterable<String> taken, {
+  String fallback = 'record',
+}) {
   var base = _spellOut(label.trim().toLowerCase());
   base = base
       .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
       .replaceAll(RegExp(r'^_+|_+$'), '');
-  if (base.isEmpty) base = 'record';
+  if (base.isEmpty) base = fallback;
   if (base.length > 90) base = base.substring(0, 90);
 
   final used = taken.toSet();

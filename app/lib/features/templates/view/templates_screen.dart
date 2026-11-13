@@ -22,6 +22,7 @@ import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/app_select.dart';
 import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_text_field.dart';
+import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/templates/store/template_draft.dart';
@@ -295,10 +296,25 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
   /// records and no name are dropped; `sections` is always emitted (possibly
   /// empty) for shape stability, matching the existing default schema.
   Map<String, dynamic> _buildSchemaFromModel() {
-    final sections = _store.sections
-        .where((s) => s.nameCtrl.text.trim().isNotEmpty || s.fields.isNotEmpty)
-        .map((s) => s.toMap())
-        .toList();
+    final sectionKeys = <String>{};
+    final sections = [
+      for (final s in _store.sections)
+        if (s.nameCtrl.text.trim().isNotEmpty || s.fields.isNotEmpty)
+          _withKey(s.toMap(), s.nameCtrl.text, sectionKeys, 'section'),
+    ];
+    for (final s in sections) {
+      final taken = <String>{};
+      s['records'] = [
+        for (final r in s['records'] as List)
+          _withKey(
+            r as Map<String, dynamic>,
+            r['label'] as String,
+            taken,
+            'field',
+          ),
+      ];
+    }
+    final rootKeys = <String>{};
 
     return {
       ..._store.extraSchemaKeys,
@@ -307,10 +323,25 @@ class _TemplateEditorSheetState extends State<_TemplateEditorSheet> {
         for (final f in _store.rootFields)
           if (f.labelCtrl.text.trim().isNotEmpty ||
               f.keyCtrl.text.trim().isNotEmpty)
-            f.toMap(),
+            _withKey(f.toMap(), f.labelCtrl.text, rootKeys, 'field'),
       ],
       'sections': sections,
     };
+  }
+
+  /// A key left empty is made from the label, as a record's is.
+  static Map<String, dynamic> _withKey(
+    Map<String, dynamic> m,
+    String label,
+    Set<String> taken,
+    String fallback,
+  ) {
+    final typed = (m['key'] as String).trim();
+    final key = typed.isNotEmpty
+        ? typed
+        : keyFromLabel(label, taken, fallback: fallback);
+    taken.add(key);
+    return {...m, 'key': key};
   }
 
   void _switchMode(_TemplateEditMode next) {
@@ -860,11 +891,15 @@ class _FieldEditorCard extends StatelessWidget {
           ),
           AppSpacing.gapMd,
           AppFormField(
-            label: 'Key',
+            label: 'Key (optional)',
             inset: false,
             child: AppTextField(
               controller: field.keyCtrl,
-              hint: 'db_host',
+              hint: keyFromLabel(
+                field.labelCtrl.text,
+                const [],
+                fallback: 'field',
+              ),
               mono: true,
               onChanged: (_) => onChanged(),
             ),
@@ -957,7 +992,11 @@ class _SectionEditorCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           AppTextField(
             controller: section.keyCtrl,
-            hint: 'Section key (e.g. db)',
+            hint: keyFromLabel(
+              section.nameCtrl.text,
+              const [],
+              fallback: 'section',
+            ),
             mono: true,
             onChanged: (_) => onChanged(),
           ),
