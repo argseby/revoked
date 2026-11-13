@@ -177,3 +177,7 @@ coverage/
 
 # Local security assessment report — not for the public repo.
 /SECURITY_ASSESSMENT.md
+
+# Local scratch renders and generated documents.
+/tmp/
+/output/
