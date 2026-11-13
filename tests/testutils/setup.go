@@ -97,6 +97,18 @@ func SetupTestApp(t testing.TB) (string, *pocketbase.PocketBase) {
 			return e.Next()
 		})
 
+		if err := enableConformance(); err != nil {
+			t.Fatalf("Failed to load the OpenAPI spec: %v", err)
+		}
+		// The mux exists only once the rest of the chain has run.
+		testApp.OnServe().BindFunc(func(e *core.ServeEvent) error {
+			if err := e.Next(); err != nil {
+				return err
+			}
+			e.Server.Handler = specCheck.wrap(e.Server.Handler)
+			return nil
+		})
+
 		go func() {
 			if err := apis.Serve(testApp, apis.ServeConfig{
 				HttpAddr:        testAppURL,
