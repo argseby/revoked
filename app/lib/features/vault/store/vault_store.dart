@@ -98,6 +98,7 @@ class VaultStore extends _VaultStore with _$VaultStore {
     required String workspace,
     String audienceKind = '',
     List<String> audienceGroups = const [],
+    Map<String, dynamic>? view,
   }) {
     return ApiRequestSpec(
       method: 'POST',
@@ -111,6 +112,8 @@ class VaultStore extends _VaultStore with _$VaultStore {
         // Who sees it; empty leaves it to the workspace's default.
         if (audienceKind.isNotEmpty) 'audienceKind': audienceKind,
         if (audienceGroups.isNotEmpty) 'audienceGroups': audienceGroups,
+        // How it shows as one card; left out, it shows as a list.
+        'view': ?view,
       },
     );
   }
@@ -448,12 +451,15 @@ abstract class _VaultStore with Store {
     required String user,
     required String workspace,
     PendingUpload? file,
+    Map<String, dynamic>? view,
   }) async {
     errorMessage = null;
 
-    // An answered field is edited in place. The section is left alone: the
-    // record may have been in the vault before this template ever asked for
-    // it, and answering again is no reason to move it.
+    // An answered field is edited in place. A record already in a section
+    // stays there: it may have been in the vault before this template ever
+    // asked for it, and answering again is no reason to move it. One in no
+    // section yet is filed into the template's, so an answer whose section
+    // could not be made before gets its section on the next save.
     // Someone else's answer to one of your requests may share the key; it is
     // theirs, and answering a field never rewrites it.
     final existing = records
@@ -461,19 +467,33 @@ abstract class _VaultStore with Store {
         .toList();
     if (existing.isNotEmpty) {
       final id = existing.first.id;
-      if (file != null) {
-        return updateRecordFile(
-          id,
-          file,
-          fields: {'filename': file.name, 'label': label, 'format': format},
+      final ok = file != null
+          ? await updateRecordFile(
+              id,
+              file,
+              fields: {'filename': file.name, 'label': label, 'format': format},
+            )
+          : await updateRecord(id, {
+              'value': value,
+              'label': label,
+              'type': type,
+              'format': format,
+            });
+      if (!ok || sectionKey.isEmpty) return ok;
+      if (sections.any((s) => s.records.contains(id))) return true;
+      try {
+        return await _fileInSection(
+          recordId: id,
+          sectionKey: sectionKey,
+          sectionName: sectionName,
+          user: user,
+          workspace: workspace,
+          view: view,
         );
+      } catch (e) {
+        errorMessage = describeError(e);
+        return false;
       }
-      return updateRecord(id, {
-        'value': value,
-        'label': label,
-        'type': type,
-        'format': format,
-      });
     }
 
     try {
@@ -490,30 +510,53 @@ abstract class _VaultStore with Store {
       records.insert(0, record);
 
       if (sectionKey.isNotEmpty) {
-        final existing = sections.where((s) => s.key == sectionKey).toList();
-        if (existing.isEmpty) {
-          final section = await _createSection(
-            key: sectionKey,
-            name: sectionName.isEmpty ? sectionKey : sectionName,
-            records: [record.id],
-            user: user,
-            workspace: workspace,
-          );
-          sections.insert(0, section);
-        } else {
-          // Appended on the server, not written back from the list held
-          // here: one id in it that has since been deleted and the whole
-          // update is refused, leaving the answer in no section at all.
-          return await updateSection(existing.first.id, {
-            'records+': [record.id],
-          });
-        }
+        return await _fileInSection(
+          recordId: record.id,
+          sectionKey: sectionKey,
+          sectionName: sectionName,
+          user: user,
+          workspace: workspace,
+          view: view,
+        );
       }
       return true;
     } catch (e) {
       errorMessage = describeError(e);
       return false;
     }
+  }
+
+  /// Puts [recordId] in the section keyed [sectionKey], making the section
+  /// (as [sectionName], showing as [view]) when this workspace has none by
+  /// that key yet. A section made before it had a view gets [view] now.
+  Future<bool> _fileInSection({
+    required String recordId,
+    required String sectionKey,
+    required String sectionName,
+    required String user,
+    required String workspace,
+    Map<String, dynamic>? view,
+  }) async {
+    final existing = sections.where((s) => s.key == sectionKey).toList();
+    if (existing.isEmpty) {
+      final section = await _createSection(
+        key: sectionKey,
+        name: sectionName.isEmpty ? sectionKey : sectionName,
+        records: [recordId],
+        user: user,
+        workspace: workspace,
+        view: view,
+      );
+      sections.insert(0, section);
+      return true;
+    }
+    // Appended on the server, not written back from the list held here: one
+    // id in it that has since been deleted and the whole update is refused,
+    // leaving the answer in no section at all.
+    return updateSection(existing.first.id, {
+      'records+': [recordId],
+      if (view != null && existing.first.view == null) 'view': view,
+    });
   }
 
   @computed
@@ -861,9 +904,9 @@ abstract class _VaultStore with Store {
 
   static String _newRecordId() {
     const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    return Sealing.randomBytes(
-      15,
-    ).map((b) => alphabet[b % alphabet.length]).join();
+    return Sealing.randomBytes(15)
+        .map((b) => alphabet[b % alphabet.length])
+        .join();
   }
 
   /// Runs a sealed write, reloading the keys once if another device replaced
@@ -913,9 +956,8 @@ abstract class _VaultStore with Store {
       );
     });
     Stores.keys.noteWritten(id, version: 1, epoch: payload.keyEpoch);
-    return models.Record.fromJson(
-      data as Map<String, dynamic>,
-    ).withOpened(value: value, label: label, type: type, format: format);
+    return models.Record.fromJson(data as Map<String, dynamic>)
+        .withOpened(value: value, label: label, type: type, format: format);
   }
 
   /// The live links that carry an encrypted [record], each with the key to
@@ -1324,9 +1366,8 @@ abstract class _VaultStore with Store {
         current = _open(
           models.Record.fromJson(
             await _api.get(
-                  '/api/collections/${AppConfig.recordsCollection}/records/$id',
-                )
-                as Map<String, dynamic>,
+              '/api/collections/${AppConfig.recordsCollection}/records/$id',
+            ) as Map<String, dynamic>,
           ),
         );
       }
@@ -1396,6 +1437,7 @@ abstract class _VaultStore with Store {
     required String workspace,
     String audienceKind = '',
     List<String> audienceGroups = const [],
+    Map<String, dynamic>? view,
   }) async {
     isLoading = true;
     errorMessage = null;
@@ -1408,6 +1450,7 @@ abstract class _VaultStore with Store {
         workspace: workspace,
         audienceKind: audienceKind,
         audienceGroups: audienceGroups,
+        view: view,
       );
       sections.insert(0, section);
       return true;
@@ -1631,6 +1674,7 @@ abstract class _VaultStore with Store {
     required String workspace,
     String audienceKind = '',
     List<String> audienceGroups = const [],
+    Map<String, dynamic>? view,
   }) async {
     final spec = VaultStore.createSectionSpec(
       key: key,
@@ -1640,6 +1684,7 @@ abstract class _VaultStore with Store {
       workspace: workspace,
       audienceKind: audienceKind,
       audienceGroups: audienceGroups,
+      view: view,
     );
     final data = await _api.post(spec.path, body: spec.body);
     return Section.fromJson(data as Map<String, dynamic>);

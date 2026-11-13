@@ -49,6 +49,9 @@ import 'package:revoked_app/features/vault/store/vault_store.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/features/vault/tool_reach_confirm.dart';
 import 'package:revoked_app/features/vault/view/section_create_sheet.dart';
+import 'package:revoked_app/features/vault/view/section_views.dart';
+import 'package:revoked_app/features/vault/view/section_view_sheet.dart';
+import 'package:revoked_app/core/widgets/app_segmented.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/features/vault/view/vault_create_sheet.dart';
@@ -119,6 +122,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   /// The section selected in the library, preserved while searching.
   final Local<_Pane> _pane = Local(const _AllPane());
 
+  /// Sections switched from their card to the plain list of records.
+  final Local<Set<String>> _asRecords = Local(const {});
+
   @override
   void initState() {
     super.initState();
@@ -157,6 +163,11 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   void refresh() {
     Stores.vault.loadIfDue();
     Stores.shares.loadIfDue();
+    // Templates carry the views sections show as cards.
+    final workspace = Stores.auth.activeWorkspace ?? '';
+    if (workspace.isNotEmpty && Stores.templates.templates.isEmpty) {
+      Stores.templates.loadTemplates(workspace);
+    }
   }
 
   /// The way out of a mode the screen is held in — editing a section's records,
@@ -653,6 +664,24 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         ? 'Not in a section'
         : 'All items';
     final count = shared != null ? sharedShown.length : shown.length;
+    // A section that describes one thing opens as that thing; the switch
+    // beside its title goes back to the records it is made of.
+    final view = section != null
+        ? SectionView.of(
+            section,
+            store.records,
+            vault: store.records,
+            templates: Stores.templates.templates,
+          )
+        : shared != null
+        ? SectionView.of(
+            shared,
+            store.sharedRecords,
+            templates: Stores.templates.templates,
+          )
+        : null;
+    final viewSectionId = section?.id ?? shared?.id;
+    final showCard = view != null && !_asRecords.value.contains(viewSectionId);
     final sectionWidgets = <Widget>[
       for (final (s, _) in sections)
         _VaultSectionTile(
@@ -773,6 +802,33 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           ),
         ),
         if (section != null) ...?_sectionSource(context, section),
+        if (view != null) ...[
+          AppSpacing.gapMd,
+          AppSegmented<bool>(
+            key: const ValueKey('section-view-switch'),
+            value: showCard,
+            items: [
+              AppSegmentedItem(
+                value: true,
+                label: view.spec.name,
+                icon: AppIcons.dashboard,
+              ),
+              const AppSegmentedItem(
+                value: false,
+                label: 'Records',
+                icon: AppIcons.cardList,
+              ),
+            ],
+            onChanged: (card) => _asRecords.value = card
+                ? ({..._asRecords.value}..remove(viewSectionId))
+                : {..._asRecords.value, viewSectionId!},
+          ),
+        ],
+        if (showCard) ...[
+          AppSpacing.gapLg,
+          SectionViewCard(view: view),
+          AppSpacing.gapLg,
+        ],
         if (shared != null) ...[
           AppSpacing.gapSm,
           AppText(
@@ -781,29 +837,32 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                 : 'Shared by ${shared.ownerEmail ?? 'another member'}',
           ).small.muted,
         ],
-        AppSpacing.gapMd,
-        Divider(height: 1, color: scheme.outlineVariant),
-        if (count == 0)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
-            child: const AppText(
-              'No items match this view. Try another section or clear the filters.',
-            ).muted,
-          )
-        else if (shared != null)
-          for (final r in sharedShown) ...[
-            _sharedRow(context, shared, r),
-            Divider(height: 1, color: scheme.outlineVariant),
-          ]
-        else
-          for (final r in shown) ...[
-            _libraryRow(r, links: links[r.id]!),
-            Divider(height: 1, color: scheme.outlineVariant),
-          ],
-        AppSpacing.gapLg,
-        const AppText('Open an item to view its contents or manage access.')
-            .small
-            .muted,
+        // The card stands in for the list; the switch above brings it back.
+        if (!showCard) ...[
+          AppSpacing.gapMd,
+          Divider(height: 1, color: scheme.outlineVariant),
+          if (count == 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
+              child: const AppText(
+                'No items match this view. Try another section or clear the filters.',
+              ).muted,
+            )
+          else if (shared != null)
+            for (final r in sharedShown) ...[
+              _sharedRow(context, shared, r),
+              Divider(height: 1, color: scheme.outlineVariant),
+            ]
+          else
+            for (final r in shown) ...[
+              _libraryRow(r, links: links[r.id]!),
+              Divider(height: 1, color: scheme.outlineVariant),
+            ],
+          AppSpacing.gapLg,
+          const AppText('Open an item to view its contents or manage access.')
+              .small
+              .muted,
+        ],
       ],
     );
   }
@@ -1392,6 +1451,11 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             label: 'Visibility',
             onSelected: () => _openVisibility(context, section),
           ),
+        AppMenuItem(
+          icon: AppIcons.dashboard,
+          label: 'Section view',
+          onSelected: () => openSectionViewSheet(context, section),
+        ),
         AppMenuItem(
           icon: AppIcons.pen,
           label: 'Rename',

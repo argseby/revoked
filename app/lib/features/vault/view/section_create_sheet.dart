@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -17,6 +18,9 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/text_formatters.dart';
 import 'package:revoked_app/features/auth/store/auth_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
+import 'package:revoked_app/features/vault/view/section_views.dart';
+import 'package:revoked_app/features/vault/views/view_data.dart';
+import 'package:revoked_app/features/vault/views/view_editor.dart';
 
 /// Opens the rename drawer for an existing section.
 void openSectionRenameSheet({
@@ -74,6 +78,12 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
     Stores.settings.defaultAudienceFor('sections'),
   );
   final Local<Set<String>> _groups = Local(const {});
+
+  /// How the new section shows as a card; a duplicate starts from the
+  /// original's.
+  late final Local<Map<String, dynamic>?> _view = Local(
+    widget.initialSection?.view,
+  );
   ({String kind, List<String> groups}) get _audience => chosenAudience(
     _visibility,
     _groups,
@@ -137,6 +147,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
       workspace: widget.authStore.activeWorkspace ?? '',
       audienceKind: _audience.kind,
       audienceGroups: _audience.groups,
+      view: _view.value,
     );
 
     if (!mounted) return;
@@ -170,9 +181,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
     final isDup = widget.initialSection != null;
 
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         // The form fills its tab so the footer sits on the drawer's bottom
         // edge rather than floating above a gap.
@@ -181,32 +190,74 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
         children: [
           Flexible(
             fit: FlexFit.tight,
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              children: [
-                const AppFormSectionHeader('Details'),
-                _buildNameRow(),
-                _buildKeyRow(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.xl,
-                    AppSpacing.sm,
-                    AppSpacing.xl,
-                    0,
-                  ),
-                  child: VisibleToField(value: _visibility),
+            child: AppComposerSections(
+              enabled: !_store.isSubmittingSection,
+              sections: [
+                AppComposerSection(
+                  title: 'Section',
+                  icon: AppIcons.folder,
+                  children: [_buildNameRow(), _buildKeyRow()],
                 ),
-                ApiPreviewSection(
-                  spec: VaultStore.createSectionSpec(
-                    key: _store.sectionKey.text.trim(),
-                    name: _store.sectionName.text.trim(),
-                    records: widget.initialSection?.records ?? const [],
-                    user: widget.authStore.userId,
-                    workspace: widget.authStore.activeWorkspace ?? '',
-                    audienceKind: _audience.kind,
-                    audienceGroups: _audience.groups,
-                  ),
+                AppComposerSection(
+                  title: 'Access',
+                  icon: AppIcons.group,
+                  children: [
+                    AppComposerVisibility(
+                      field: VisibleToField(
+                        value: _visibility,
+                        groups: _groups,
+                        showLabel: false,
+                      ),
+                    ),
+                  ],
+                ),
+                AppComposerSection(
+                  title: 'View',
+                  icon: AppIcons.dashboard,
+                  children: [
+                    AppComposerCard(
+                      title: 'Section view',
+                      description:
+                          'Optional. How the section shows as one card; '
+                          'without one, it shows as a list of records.',
+                      child: ViewCodeEditor(
+                        initial: widget.initialSection?.view,
+                        data: ViewData(
+                          section: [
+                            for (final r in Stores.vault.records)
+                              if (widget.initialSection?.records.contains(
+                                    r.id,
+                                  ) ??
+                                  false)
+                                r,
+                          ],
+                          vault: Stores.vault.records,
+                        ),
+                        examples: viewExamples(Stores.templates.templates),
+                        onChanged: (view) => _view.value = view,
+                      ),
+                    ),
+                  ],
+                ),
+                AppComposerSection(
+                  title: 'Developer',
+                  icon: AppIcons.code,
+                  children: [
+                    AppComposerApiPreview(
+                      preview: ApiPreviewSection(
+                        embedded: true,
+                        spec: VaultStore.createSectionSpec(
+                          key: _store.sectionKey.text.trim(),
+                          name: _store.sectionName.text.trim(),
+                          records: widget.initialSection?.records ?? const [],
+                          user: widget.authStore.userId,
+                          workspace: widget.authStore.activeWorkspace ?? '',
+                          audienceKind: _audience.kind,
+                          audienceGroups: _audience.groups,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -223,15 +274,15 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
     );
   }
 
-  Widget _buildNameRow() => AppFormField(
+  Widget _buildNameRow() => AppComposerField(
     label: 'Name',
-    explanation: 'Display name for this section',
+    explanation: 'How this section is named in your vault.',
     child: AppTextField(controller: _store.sectionName, hint: 'My Section'),
   );
 
-  Widget _buildKeyRow() => AppFormField(
+  Widget _buildKeyRow() => AppComposerField(
     label: 'Key',
-    explanation: 'Identifier for links and templates',
+    explanation: 'Identifier for links and templates.',
     error: _store.sectionKeyWarning,
     action: _store.sectionSuggestedKey == null
         ? null
@@ -309,9 +360,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
     final name = _store.renameSectionName.text.trim();
 
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -327,7 +376,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               children: [
                 const AppFormSectionHeader('Details'),
-                AppFormField(
+                AppComposerField(
                   label: 'Name',
                   explanation: 'Display name for this section',
                   child: AppTextField(
