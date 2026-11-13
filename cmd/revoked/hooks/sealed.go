@@ -47,6 +47,16 @@ func BindSealedHooks(app core.App) {
 			if e.Record.GetString(f.Value) != "" {
 				return refuseSealedWrite(e, f.Value)
 			}
+			// An encrypted file's blob and its name inside the sealed value
+			// change together, through /api/sealed/records only. An upload
+			// here would put plaintext where the ciphertext was.
+			if len(e.Record.GetUnsavedFiles(f.File)) > 0 ||
+				e.Record.GetString(f.File) != original.GetString(f.File) {
+				return refuseSealedWrite(e, f.File)
+			}
+			if e.Record.GetString(f.Filename) != original.GetString(f.Filename) {
+				return refuseSealedWrite(e, f.Filename)
+			}
 			// The ciphertext is bound to the key, so a rename would make it
 			// unreadable.
 			if e.Record.GetString(f.Key) != original.GetString(f.Key) {
@@ -76,11 +86,24 @@ func validateSealedRecord(rec *core.Record) error {
 	if rec.GetString(f.SealedValue) == "" || rec.GetString(f.KeyWrap) == "" {
 		return util.AsFieldValidationError(f.SealedValue, util.Errors.SealedInvalid)
 	}
-	if rec.GetString(f.Type) == util.TypeFile {
-		return util.AsFieldValidationError(f.Type, util.Errors.SealedRecordUnsupported)
-	}
 	if rec.GetString(f.AliasOf) != "" {
 		return util.AsFieldValidationError(f.AliasOf, util.Errors.SealedRecordUnsupported)
+	}
+	return nil
+}
+
+// validateSealedFileTransition keeps a file's blob in step with its state: a
+// file that becomes encrypted, or stops being encrypted, always gets a new
+// blob in the same save. Otherwise a sealed record would keep serving the
+// plaintext it had, or an unsealed one the ciphertext.
+func validateSealedFileTransition(rec *core.Record) error {
+	f := util.Fields.Record
+	if rec.GetString(f.Type) != util.TypeFile || rec.IsNew() {
+		return nil
+	}
+	if services.IsSealed(rec) != services.IsSealed(rec.Original()) &&
+		len(rec.GetUnsavedFiles(f.File)) == 0 {
+		return util.AsFieldValidationError(f.File, util.Errors.SealedInvalid)
 	}
 	return nil
 }
@@ -125,6 +148,23 @@ func refuseNewSealedRecords(app core.App, link *core.Record) error {
 		}
 		if link.IsNew() || services.CurrentLinkSeal(app, link.Id, rec) == nil {
 			return util.AsFieldValidationError(f.Records, util.Errors.SealedRecordUnsupported)
+		}
+	}
+	return nil
+}
+
+// refuseStampedSealedFiles keeps encrypted files off links that stamp their
+// files: the server cannot read one to stamp it, and a stamped share must
+// never hand out an unstamped copy. Checked on every save, so turning the
+// stamp on for a link that already carries one is refused too.
+func refuseStampedSealedFiles(app core.App, link *core.Record) error {
+	f := util.Fields.Link
+	if !link.GetBool(f.Watermark) {
+		return nil
+	}
+	for _, id := range link.GetStringSlice(f.Records) {
+		if services.IsSealedFile(app, id) {
+			return util.AsFieldValidationError(f.Watermark, util.Errors.SealedFileWatermark)
 		}
 	}
 	return nil

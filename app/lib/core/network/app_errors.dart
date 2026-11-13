@@ -124,6 +124,7 @@ abstract class AppErrorCode {
   static const sealedLinksAffected = 'sealed_links_affected';
   static const sealedLinkSealsMissing = 'sealed_link_seals_missing';
   static const sealedLinkContent = 'sealed_link_content';
+  static const sealedFileWatermark = 'sealed_file_watermark';
 }
 
 /// A failure whose message was written for the reader, so it can be shown as is.
@@ -795,6 +796,13 @@ class AppErrorMessage {
           title: 'Not added to the link',
           description:
               'An encrypted record goes onto a link only from a device that can open it, and the first one only from the link\'s owner.',
+          code: e.code,
+        );
+      case AppErrorCode.sealedFileWatermark:
+        return AppErrorMessage(
+          title: 'Stamped shares hold no encrypted files',
+          description:
+              'The server stamps a share\'s files as they are downloaded and cannot read an encrypted file to do so.',
           code: e.code,
         );
       case AppErrorCode.remoteIdentityInvalid:

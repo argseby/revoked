@@ -249,16 +249,22 @@ void main() {
     expect(find.text('Open link or go to'), findsNothing);
   });
 
-  testWidgets('a rail window from 900 pixels keeps the search pill', (
+  testWidgets('a rail window from 900 pixels opens links from the rail', (
     tester,
   ) async {
-    // Pages that title themselves in the body keep the bar for their own
-    // controls; a page titled in the bar has room for the pill.
+    // The rail's command panel carries the link button, so a page titled in
+    // its body needs no top bar for it.
     final router = await signedIn(tester, size: const Size(900, 800));
     router.go(AppRoutes.settings);
     await tester.pumpAndSettle();
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.text('Open link or go to'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.byTooltip('Open link or go to'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a phone keeps search as an icon, not the pill', (tester) async {
@@ -658,10 +664,15 @@ void main() {
           ]);
       });
       await tester.pumpAndSettle();
+      // Issued comes first, as sending does in Shares and Requests, so the
+      // search reaches the issued list and leaves the held one alone.
+      await searchFor(tester, 'member');
+      await tester.pumpAndSettle();
+      expect(find.text('Membership'), findsOneWidget);
+      expect(find.text('employment'), findsNothing);
       await searchFor(tester, 'employ');
       await tester.pumpAndSettle();
-      expect(find.text('membership'), findsNothing);
-      expect(find.text('employment'), findsOneWidget);
+      expect(find.text('Membership'), findsNothing);
     });
 
     testWidgets('the other tab has its own search', (tester) async {

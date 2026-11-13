@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:revoked_app/core/models/audience.dart';
 
 import 'package:revoked_app/core/models/connection.dart';
@@ -62,6 +64,10 @@ class Record {
   /// encrypting it, or the server is passing off a value of its own.
   final bool unsealedElsewhere;
 
+  /// For an opened encrypted file: the key its blob opens with, from inside
+  /// the sealed value. Held on this device only; never sent anywhere.
+  final Uint8List? fileKey;
+
   Record({
     required this.id,
     required this.key,
@@ -87,6 +93,7 @@ class Record {
     this.keyWrap = '',
     this.opened = false,
     this.unsealedElsewhere = false,
+    this.fileKey,
     this.writtenBy = '',
     this.writtenByName = '',
     this.audienceKind = 'private',
@@ -153,6 +160,10 @@ class Record {
     String? format,
     bool? opened,
     bool? unsealedElsewhere,
+    String? filename,
+    String? mime,
+    int? size,
+    Uint8List? fileKey,
   }) => Record(
     id: id,
     key: key,
@@ -166,11 +177,11 @@ class Record {
     updated: updated,
     requestedBy: requestedBy,
     aliasOf: aliasOf,
-    filename: filename,
+    filename: filename ?? this.filename,
     file: file,
     contentHash: contentHash,
-    mime: mime,
-    size: size,
+    mime: mime ?? this.mime,
+    size: size ?? this.size,
     sealed: sealed,
     sealedValue: sealedValue,
     sealedVersion: sealedVersion,
@@ -178,6 +189,7 @@ class Record {
     keyWrap: keyWrap,
     opened: opened ?? this.opened,
     unsealedElsewhere: unsealedElsewhere ?? this.unsealedElsewhere,
+    fileKey: fileKey ?? this.fileKey,
     writtenBy: writtenBy,
     writtenByName: writtenByName,
     audienceKind: audienceKind,
@@ -188,18 +200,31 @@ class Record {
   /// This record as decrypted. The label, type and format come from inside the
   /// ciphertext: the copies on the row are for the server, which could swap them
   /// and show a real secret under the wrong name.
+  /// For an encrypted file, its name, media type, exact size and key come
+  /// from there too; the row only describes the blob.
   Record withOpened({
     required String value,
     required String label,
     required String type,
     required String format,
+    String? filename,
+    String? mime,
+    int? size,
+    Uint8List? fileKey,
   }) => _copy(
     value: value,
     label: label,
     type: type,
     format: format,
     opened: true,
+    filename: filename,
+    mime: mime,
+    size: size,
+    fileKey: fileKey,
   );
+
+  /// An encrypted file this device can open.
+  bool get isSealedFile => sealed && isFile && fileKey != null;
 
   Record markedUnsealedElsewhere(bool flag) => _copy(unsealedElsewhere: flag);
 

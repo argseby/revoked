@@ -191,6 +191,10 @@ func serveVaultFile(app core.App, re *core.RequestEvent) error {
 	if rec.GetString(util.Fields.Record.Type) != util.TypeFile || stored == "" {
 		return appErrorResponse(re, http.StatusNotFound, &util.Errors.RecordNotFound)
 	}
+	// Tools read nothing encrypted (design/e2ee-sharing.md §3.6).
+	if services.IsSealed(rec) {
+		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedRecordUnsupported)
+	}
 	fsys, err := app.NewFilesystem()
 	if err != nil {
 		return re.InternalServerError("Failed to open storage.", err)

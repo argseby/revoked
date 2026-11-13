@@ -490,3 +490,115 @@ func TestLinkReadVectorOpensInGo(t *testing.T) {
 		}
 	}
 }
+
+// TestFileVectorOpensInGo reads an encrypted file the way a link's viewer
+// does (design/e2ee-sharing.md §7.2), from the address key to the bytes, with
+// Go's own HKDF and AES-GCM rather than anything shared with the app.
+func TestFileVectorOpensInGo(t *testing.T) {
+	raw, err := os.ReadFile("../app/test/fixtures/sealing_file_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		LinkKey, Workspace string
+		Entry              struct {
+			ID, Key, SealedValue, ViewerWrap string
+			SealedVersion                    int
+		}
+		PlaintextSha256, Blob string
+		Small                 struct{ Text, Blob string }
+	}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+
+	linkKey, err := base64.RawURLEncoding.DecodeString(v.LinkKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyKey, err := hkdf.Expand(sha256.New, mustExtract(t, linkKey),
+		string(sealingContext("revoked-link-copy-v1", v.Entry.ID)), 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewer := openEnvelope(t, copyKey,
+		sealingContext("revoked-link-viewer-v1", v.Entry.ID, v.Entry.SealedVersion), v.Entry.ViewerWrap)
+	workspace := string(viewer[32:])
+	padded := openEnvelope(t, viewer[:32],
+		sealingContext("revoked-record-v1", workspace, v.Entry.ID, v.Entry.Key, v.Entry.SealedVersion),
+		v.Entry.SealedValue)
+	end := len(padded) - 1
+	for end > 0 && padded[end] == 0 {
+		end--
+	}
+	var content struct {
+		V, T string
+		X    struct {
+			N, M, K string
+			S       int
+		}
+	}
+	if err := json.Unmarshal(padded[:end], &content); err != nil {
+		t.Fatalf("content is not JSON: %v", err)
+	}
+	if content.V != "" || content.T != "file" || content.X.N == "" {
+		t.Fatalf("not a file descriptor: %+v", content)
+	}
+	fileKey, err := base64.RawURLEncoding.DecodeString(content.X.K)
+	if err != nil || len(fileKey) != 32 {
+		t.Fatalf("file key: %v", err)
+	}
+
+	open := func(blobText string, size int) []byte {
+		blob, err := base64.URLEncoding.DecodeString(blobText)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if blob[0] != 1 {
+			t.Fatalf("version %d", blob[0])
+		}
+		salt := blob[1:17]
+		segKey, err := hkdf.Expand(sha256.New, mustExtract(t, fileKey),
+			string(sealingContext("revoked-file-v1", workspace, v.Entry.ID, string(salt))), 32)
+		if err != nil {
+			t.Fatal(err)
+		}
+		block, _ := aes.NewCipher(segKey)
+		gcm, _ := cipher.NewGCM(block)
+		var plain []byte
+		rest := blob[17:]
+		for i := uint64(0); ; i++ {
+			n := min(len(rest), 65536+16)
+			last := n == len(rest)
+			nonce := make([]byte, 12)
+			binary.BigEndian.PutUint64(nonce[3:11], i)
+			if last {
+				nonce[11] = 1
+			}
+			seg, err := gcm.Open(nil, nonce, rest[:n], []byte{1})
+			if err != nil {
+				t.Fatalf("segment %d: %v", i, err)
+			}
+			plain = append(plain, seg...)
+			rest = rest[n:]
+			if last {
+				break
+			}
+		}
+		for _, b := range plain[size:] {
+			if b != 0 {
+				t.Fatal("padding is not zeros")
+			}
+		}
+		return plain[:size]
+	}
+
+	bytes := open(v.Blob, content.X.S)
+	sum := sha256.Sum256(bytes)
+	if hex.EncodeToString(sum[:]) != v.PlaintextSha256 {
+		t.Fatalf("file differs: %x", sum)
+	}
+	if got := string(open(v.Small.Blob, len(v.Small.Text))); got != v.Small.Text {
+		t.Fatalf("small file: %q", got)
+	}
+}

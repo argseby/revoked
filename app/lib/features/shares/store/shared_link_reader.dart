@@ -74,6 +74,29 @@ abstract final class SharedLinkReader {
   /// Set on an entry that was opened here.
   static const encryptedField = 'encrypted';
 
+  /// On an opened encrypted file: what its blob opens with, a
+  /// [SharedFileSeal]. Held in memory only, like the address key.
+  static const fileSealField = 'fileSeal';
+
+  /// Opens an encrypted file's blob, as fetched with its download token,
+  /// into the bytes its seal describes. Throws [SealingException] for a blob
+  /// that is not that file.
+  static Uint8List openFile(Map<String, dynamic> record, Uint8List blob) {
+    final seal = record[fileSealField];
+    final id = record['id'];
+    final size = record['size'];
+    if (seal is! SharedFileSeal || id is! String || size is! int) {
+      throw const SealingException('This file cannot be opened here.');
+    }
+    return SealedFile.open(
+      fileKey: seal.fileKey,
+      blob: blob,
+      workspace: seal.workspace,
+      record: id,
+      size: size,
+    );
+  }
+
   static const _served = [
     'sealed',
     'sealedValue',
@@ -109,7 +132,8 @@ abstract final class SharedLinkReader {
     ClosedEntry why,
   ) => {
     for (final e in entry.entries)
-      if (!_served.contains(e.key)) e.key: e.value,
+      // A closed file offers nothing to download.
+      if (!_served.contains(e.key) && e.key != 'downloadToken') e.key: e.value,
     closedField: why.name,
   };
 
@@ -161,6 +185,27 @@ abstract final class SharedLinkReader {
       );
       // Decrypted, but not a value with its label, type and format.
       if (content == null) return _closed(entry, ClosedEntry.damaged);
+      final file = content.file;
+      if (file != null) {
+        // The name, type and exact size from inside the seal; what the
+        // server states beside the blob describes only the blob.
+        return {
+          for (final e in entry.entries)
+            if (!_served.contains(e.key)) e.key: e.value,
+          'value': '',
+          'label': content.label,
+          'type': 'file',
+          'format': content.format,
+          'filename': file.name,
+          'mime': file.mime,
+          'size': file.size,
+          fileSealField: SharedFileSeal(
+            fileKey: file.fileKey,
+            workspace: seal.workspace,
+          ),
+          encryptedField: true,
+        };
+      }
       return {
         for (final e in entry.entries)
           if (!_served.contains(e.key)) e.key: e.value,
@@ -168,9 +213,7 @@ abstract final class SharedLinkReader {
         // The label, type and format that were encrypted with the value, not
         // the copies the server states beside the ciphertext.
         'label': content.label,
-        // An encrypted record is never a file; a type saying so would offer
-        // a download that does not exist.
-        'type': content.type == 'file' ? 'text' : content.type,
+        'type': content.type,
         'format': content.format,
         encryptedField: true,
       };
@@ -180,4 +223,13 @@ abstract final class SharedLinkReader {
       return _closed(entry, ClosedEntry.damaged);
     }
   }
+}
+
+/// What an encrypted file on a link opens with: its file key from inside the
+/// seal, and the workspace it is bound to.
+class SharedFileSeal {
+  final Uint8List fileKey;
+  final String workspace;
+
+  const SharedFileSeal({required this.fileKey, required this.workspace});
 }

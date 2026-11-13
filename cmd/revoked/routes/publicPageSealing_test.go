@@ -98,6 +98,44 @@ await closed(with_(function(e) { e.sealedValue = '***'; }), key, 'damaged', 'a v
 await closed(with_(function(e) { delete e.viewerWrap; }), key, 'damaged', 'no wrap');
 await closed(with_(function(e) { e.sealedVersion = '6'; }), key, 'damaged', 'a version that is not a number');
 
+// An encrypted file: its name, type and size from inside the seal, then its
+// blob opened segment by segment (design/e2ee-sharing.md §7.2).
+var file = fixture('sealing_file_vectors.json');
+var fileEntry = JSON.parse(JSON.stringify(file.entry));
+fileEntry.sealed = true; fileEntry.type = 'file'; fileEntry.label = 'stated by the server';
+fileEntry.size = 99; fileEntry.downloadToken = 'token';
+var fileKey = sealLinkKeyFrom('#k=' + file.linkKey);
+var f = (await sealOpenShare({ records: [fileEntry] }, fileKey)).records[0];
+same(f.locked, undefined, 'an opened file');
+same(f.type, 'file', 'a file stays a file');
+same(f.label, file.content.l, 'file label from inside the ciphertext');
+same(f.filename, file.content.x.n, 'file name from inside the ciphertext');
+same(f.mime, file.content.x.m, 'media type from inside the ciphertext');
+same(f.size, file.content.x.s, 'exact size from inside the ciphertext');
+same(f.downloadToken, 'token', 'the download token is kept');
+same(f.value, '', 'a file has no value');
+var blob = sealBytes(file.blob);
+same(blob.length, sealFileBlobLength(f.size), 'blob length');
+var bytes = await sealOpenFile(blob, { size: f.size, key: f.fileSeal.key }, f.fileSeal.workspace, f.id);
+same(hex(new Uint8Array(await sealSubtle.digest('SHA-256', bytes))), file.plaintextSha256, 'file bytes');
+var small = new TextEncoder().encode(file.small.text);
+same(new TextDecoder().decode(await sealOpenFile(sealBytes(file.small.blob), { size: small.length, key: f.fileSeal.key }, f.fileSeal.workspace, f.id)), file.small.text, 'a one-segment file');
+var seal_ = { size: f.size, key: f.fileSeal.key };
+await refused(sealOpenFile(blob, seal_, f.fileSeal.workspace, f.id + 'x'), 'a file of another record');
+await refused(sealOpenFile(blob, seal_, f.fileSeal.workspace + 'x', f.id), 'a file of another workspace');
+await refused(sealOpenFile(blob, { size: f.size, key: unhex(link.valueKey) }, f.fileSeal.workspace, f.id), 'a file under another key');
+var bad = blob.slice(); bad[blob.length - 100] ^= 1;
+await refused(sealOpenFile(bad, seal_, f.fileSeal.workspace, f.id), 'a changed file');
+bad = blob.slice(); bad[5] ^= 1;
+await refused(sealOpenFile(bad, seal_, f.fileSeal.workspace, f.id), 'a changed salt');
+await refused(sealOpenFile(blob.subarray(0, 17 + 65552), { size: 65536, key: f.fileSeal.key }, f.fileSeal.workspace, f.id), 'a file cut after a whole segment');
+var swapped = sealJoin([blob.subarray(0, 17), blob.subarray(17 + 65552), blob.subarray(17, 17 + 65552)]);
+await refused(sealOpenFile(swapped, seal_, f.fileSeal.workspace, f.id), 'reordered segments');
+await refused(sealOpenFile(blob, { size: f.size - 1, key: f.fileSeal.key }, f.fileSeal.workspace, f.id), 'a size that leaves data in the padding');
+var closedFile = (await sealOpenShare({ records: [fileEntry] }, null)).records[0];
+same(closedFile.locked, 'incomplete', 'a file without the key');
+same('fileSeal' in closedFile, false, 'a closed file carries no key');
+
 // A page without WebCrypto (plain http) says so instead of failing.
 sealSubtle = null;
 await closed(read.entry, key, 'insecure', 'no WebCrypto');

@@ -81,7 +81,7 @@ class RecordActions {
           label: 'Edit',
           onTap: () => openRecordEditSheet(context, store, r),
         ),
-      if (Stores.keys.isAvailable && !r.isFile && !r.isAlias && !r.isLocked)
+      if (Stores.keys.isAvailable && !r.isAlias && !r.isLocked)
         AppSheetAction(
           icon: AppIcons.lock,
           label: r.sealed ? 'Stop encrypting' : 'Encrypt end to end',
@@ -133,8 +133,10 @@ class RecordActions {
         title: 'Encrypted',
         message:
             'Links kept during encryption now require their complete address, including '
-            'the key after #. The server can no longer read this value. Its backups may still hold '
-            'the old value. Sensitive secrets should be rotated.',
+            'the key after #. The server can no longer read this '
+            '${r.isFile ? 'file' : 'value'}. Its backups may still hold the '
+            'old ${r.isFile ? 'file' : 'value'}. Sensitive secrets should be '
+            'rotated.',
         confirmLabel: 'OK',
         confirmIcon: AppIcons.check,
         cancelLabel: null,

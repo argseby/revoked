@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/files/pending_upload.dart';
 import 'package:revoked_app/core/state/load_state.dart';
@@ -8,6 +10,7 @@ import 'package:revoked_app/core/state/observable_text_controller.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/api/api_request_spec.dart';
 import 'package:revoked_app/core/config/app_config.dart';
+import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/crypto/sealing.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
@@ -847,8 +850,99 @@ abstract class _VaultStore with Store {
             label: content.label,
             type: content.type,
             format: content.format,
+            filename: content.file?.name,
+            mime: content.file?.mime,
+            size: content.file?.size,
+            fileKey: content.file?.fileKey,
           );
   }
+
+  /// AES-GCM runs in Dart here, so a large file is encrypted and opened away
+  /// from the thread that draws the screen.
+  static Future<Uint8List> _sealBlob(
+    Uint8List fileKey,
+    Uint8List bytes,
+    String workspace,
+    String record,
+  ) => compute(_sealBlobInBackground, (fileKey, bytes, workspace, record));
+
+  /// What an opened encrypted file's sealed value says about it.
+  static SealedFileInfo? _fileInfoOf(models.Record record) {
+    final key = record.fileKey;
+    if (!record.sealed || !record.isFile || key == null) return null;
+    return SealedFileInfo(
+      name: record.displayName,
+      mime: record.mime ?? 'application/octet-stream',
+      size: record.size,
+      fileKey: key,
+    );
+  }
+
+  /// A file's bytes, read whole for encryption. Encrypted files have a lower
+  /// cap than plain ones: they are encrypted in memory on this device.
+  static Future<Uint8List> _readForSealing(PendingUpload file) async {
+    if (file.size > SealedFile.maxLength) {
+      throw SealingException(
+        '${file.name} is ${formatBytes(file.size)}. Encrypted files can be up '
+        'to ${formatBytes(SealedFile.maxLength)}.',
+      );
+    }
+    final bytes = await file.readAll();
+    if (bytes.length > SealedFile.maxLength) {
+      throw const SealingException('This file is too large to encrypt.');
+    }
+    return bytes;
+  }
+
+  /// Sends a sealed write: as JSON, or for a file's new blob as multipart
+  /// with the same JSON in `meta` (design/e2ee-sharing.md §7.3).
+  Future<dynamic> _sendSealed(
+    String method,
+    String path,
+    Map<String, dynamic> body, {
+    Uint8List? blob,
+  }) async {
+    if (blob == null) {
+      return method == 'POST'
+          ? _api.post(path, body: body)
+          : _api.put(path, body: body);
+    }
+    final token = UploadCancelToken();
+    _beginUpload(token, blob.length);
+    try {
+      final send = method == 'POST' ? _api.postMultipart : _api.putMultipart;
+      return await send(
+        path,
+        fields: {'meta': jsonEncode(body)},
+        fileField: 'blob',
+        filename: 'encrypted.bin',
+        openFile: () => Stream.value(blob),
+        length: blob.length,
+        onProgress: _reportUploadProgress,
+        cancelToken: token,
+      );
+    } finally {
+      _endUpload();
+    }
+  }
+
+  models.Record _openedAs(
+    Map<String, dynamic> json, {
+    required String value,
+    required String label,
+    required String type,
+    required String format,
+    SealedFileInfo? file,
+  }) => models.Record.fromJson(json).withOpened(
+    value: value,
+    label: label,
+    type: type,
+    format: format,
+    filename: file?.name,
+    mime: file?.mime,
+    size: file?.size,
+    fileKey: file?.fileKey,
+  );
 
   /// Re-encrypts readable records still under a replaced key. A removed device
   /// kept that key, and could otherwise forge a new version of any record nobody
@@ -928,8 +1022,13 @@ abstract class _VaultStore with Store {
     required String type,
     required String format,
     required String workspace,
+    SealedFileInfo? file,
+    Uint8List? fileBytes,
   }) async {
     final id = _newRecordId();
+    final blob = file == null || fileBytes == null
+        ? null
+        : await _sealBlob(file.fileKey, fileBytes, workspace, id);
     late SealedPayload payload;
     final data = await _withFreshKeys(() {
       payload = Stores.keys.sealValue(
@@ -941,23 +1040,27 @@ abstract class _VaultStore with Store {
         label: label,
         type: type,
         format: format,
+        file: file,
       );
-      return _api.post(
-        '/api/sealed/records',
-        body: {
-          ...payload.toJson(),
-          'id': id,
-          'key': key,
-          'label': label,
-          'type': type,
-          'format': format,
-          'workspace': workspace,
-        },
-      );
+      return _sendSealed('POST', '/api/sealed/records', {
+        ...payload.toJson(),
+        'id': id,
+        'key': key,
+        'label': label,
+        'type': type,
+        'format': format,
+        'workspace': workspace,
+      }, blob: blob);
     });
     Stores.keys.noteWritten(id, version: 1, epoch: payload.keyEpoch);
-    return models.Record.fromJson(data as Map<String, dynamic>)
-        .withOpened(value: value, label: label, type: type, format: format);
+    return _openedAs(
+      data as Map<String, dynamic>,
+      value: value,
+      label: label,
+      type: type,
+      format: format,
+      file: file,
+    );
   }
 
   /// The live links that carry an encrypted [record], each with the key to
@@ -998,7 +1101,20 @@ abstract class _VaultStore with Store {
     String? type,
     String? format,
     bool dropLinks = false,
+    SealedFileInfo? file,
+    Uint8List? fileBytes,
   }) async {
+    // A file keeps its name, type, size and key across a rename; new content
+    // comes with a new key and its blob.
+    final fileInfo = file ?? _fileInfoOf(record);
+    final blob = fileInfo == null || fileBytes == null
+        ? null
+        : await _sealBlob(
+            fileInfo.fileKey,
+            fileBytes,
+            record.workspace,
+            record.id,
+          );
     final newLabel = label ?? record.label;
     final newType = type ?? record.type;
     final newFormat = format ?? record.format;
@@ -1018,6 +1134,7 @@ abstract class _VaultStore with Store {
         label: newLabel,
         type: newType,
         format: newFormat,
+        file: fileInfo,
       );
       // Each live link carrying the record moves to the new version in the
       // same request, or the server refuses the write: a link never shows a
@@ -1048,20 +1165,17 @@ abstract class _VaultStore with Store {
                 'device.',
               )),
       ];
-      return _api.put(
-        '/api/sealed/records/${record.id}',
-        body: {
-          ...payload.toJson(),
-          'expectedVersion': record.sealedVersion,
-          'dropLinks': dropLinks,
-          if (!record.sealed) 'carryLinks': true,
-          'key': record.key,
-          'label': newLabel,
-          'type': newType,
-          'format': newFormat,
-          if (seals.isNotEmpty) 'linkSeals': seals,
-        },
-      );
+      return _sendSealed('PUT', '/api/sealed/records/${record.id}', {
+        ...payload.toJson(),
+        'expectedVersion': record.sealedVersion,
+        'dropLinks': dropLinks,
+        if (!record.sealed) 'carryLinks': true,
+        'key': record.key,
+        'label': newLabel,
+        'type': newType,
+        'format': newFormat,
+        if (seals.isNotEmpty) 'linkSeals': seals,
+      }, blob: blob);
     });
     dynamic data;
     try {
@@ -1077,11 +1191,13 @@ abstract class _VaultStore with Store {
       version: version,
       epoch: payload.keyEpoch,
     );
-    return models.Record.fromJson(data as Map<String, dynamic>).withOpened(
+    return _openedAs(
+      data as Map<String, dynamic>,
       value: value,
       label: newLabel,
       type: newType,
       format: newFormat,
+      file: fileInfo,
     );
   }
 
@@ -1093,6 +1209,36 @@ abstract class _VaultStore with Store {
     final record = _byId(id);
     if (record == null || record.isLocked) return SealOutcome.failed;
     try {
+      if (record.isFile) {
+        // The plain file is read back, encrypted here and replaces itself.
+        final plain = await fetchRecordFileBytes(record);
+        if (plain == null) return SealOutcome.failed;
+        if (plain.length > SealedFile.maxLength) {
+          errorMessage =
+              'This file is ${formatBytes(plain.length)}. Encrypted files can '
+              'be up to ${formatBytes(SealedFile.maxLength)}.';
+          return SealOutcome.failed;
+        }
+        final name = record.displayName;
+        _replaceInList(
+          await _writeSealed(
+            record,
+            '',
+            dropLinks: dropLinks,
+            file: SealedFileInfo(
+              name: name,
+              mime: (record.mime?.isNotEmpty ?? false)
+                  ? record.mime!
+                  : PendingUpload.mimeForName(name),
+              size: plain.length,
+              fileKey: SealedFile.newFileKey(),
+            ),
+            fileBytes: plain,
+          ),
+        );
+        await Stores.shares.loadShares();
+        return SealOutcome.sealed;
+      }
       _replaceInList(
         await _writeSealed(record, record.value, dropLinks: dropLinks),
       );
@@ -1117,6 +1263,7 @@ abstract class _VaultStore with Store {
     final record = _byId(id);
     if (record == null || record.isLocked) return false;
     try {
+      if (record.isFile) return await _unsealFile(record);
       final data = await _api.post(
         '/api/sealed/records/$id/unseal',
         body: {
@@ -1136,6 +1283,48 @@ abstract class _VaultStore with Store {
       errorMessage = _friendlyError(e);
       return false;
     }
+  }
+
+  /// Puts an encrypted file back in plain form: opened here, sent back as the
+  /// file itself, and signed over its hash where a value would be signed.
+  Future<bool> _unsealFile(models.Record record) async {
+    final plain = await fetchRecordFileBytes(record);
+    if (plain == null) return false;
+    final hash = Sealing.sha256(plain)
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+    final name = record.displayName;
+    final token = UploadCancelToken();
+    _beginUpload(token, plain.length);
+    final dynamic data;
+    try {
+      data = await _api.postMultipart(
+        '/api/sealed/records/${record.id}/unseal',
+        fields: {
+          'meta': jsonEncode({
+            'expectedVersion': record.sealedVersion,
+            'value': '',
+            'filename': name,
+            ...Stores.keys.signUnseal(
+              record: record.id,
+              expectedVersion: record.sealedVersion,
+              value: 'file:$hash',
+            ),
+          }),
+        },
+        fileField: 'blob',
+        filename: name,
+        openFile: () => Stream.value(plain),
+        length: plain.length,
+        onProgress: _reportUploadProgress,
+        cancelToken: token,
+      );
+    } finally {
+      _endUpload();
+    }
+    await Stores.keys.acceptUnsealed(record.id);
+    _replaceInList(models.Record.fromJson(data as Map<String, dynamic>));
+    return true;
   }
 
   /// The person confirmed it was them who stopped encrypting this record.
@@ -1165,21 +1354,35 @@ abstract class _VaultStore with Store {
 
     if (sealed) {
       try {
+        final fileBytes = file == null ? null : await _readForSealing(file);
+        final fileInfo = file == null
+            ? null
+            : SealedFileInfo(
+                name: file.name,
+                mime: PendingUpload.mimeForName(file.name),
+                size: fileBytes!.length,
+                fileKey: SealedFile.newFileKey(),
+              );
         final existing = records
             .where((r) => r.key == key && r.requestedBy == null)
             .toList();
         if (existing.isEmpty) {
           var created = await _createSealed(
             key: key,
-            value: value,
+            value: file == null ? value : '',
             label: label,
-            type: type,
+            type: file == null ? type : 'file',
             format: format,
             workspace: workspace,
+            file: fileInfo,
+            fileBytes: fileBytes,
           );
           // An encrypted entry is made private through its own route, and
-          // widened right after; never the other way round.
-          if (audienceKind.isNotEmpty && audienceKind != 'private') {
+          // widened right after; never the other way round. A file stays
+          // with its owner: it has no member download path yet.
+          if (file == null &&
+              audienceKind.isNotEmpty &&
+              audienceKind != 'private') {
             final spec = VaultStore.updateRecordSpec(created.id, {
               'audienceKind': audienceKind,
               'audienceGroups': audienceGroups,
@@ -1204,13 +1407,19 @@ abstract class _VaultStore with Store {
         // Encrypted first and metadata after: the other order would write the
         // new value out in plaintext on the way. Links aren't dropped here. That
         // decision needs the warning on the record's own page.
+        if (current.isFile != (file != null)) {
+          errorMessage = 'A record named $key already exists as another type.';
+          return false;
+        }
         _replaceInList(
           await _writeSealed(
             current,
-            value,
+            file == null ? value : '',
             label: label,
-            type: type,
+            type: file == null ? type : 'file',
             format: format,
+            file: fileInfo,
+            fileBytes: fileBytes,
           ),
         );
         return true;
@@ -1304,6 +1513,40 @@ abstract class _VaultStore with Store {
   }) async {
     isLoading = true;
     errorMessage = null;
+    final current = _byId(id);
+    if (current != null && current.sealed) {
+      // New content of an encrypted file: a new key, encrypted here, the
+      // record's other fields carried inside the seal.
+      try {
+        if (current.isLocked) {
+          errorMessage = 'This record cannot be changed on this device.';
+          return false;
+        }
+        final bytes = await _readForSealing(file);
+        final name = fields['filename'] ?? current.displayName;
+        _replaceInList(
+          await _writeSealed(
+            current,
+            '',
+            label: fields['label'],
+            format: fields['format'],
+            file: SealedFileInfo(
+              name: name,
+              mime: PendingUpload.mimeForName(file.name),
+              size: bytes.length,
+              fileKey: SealedFile.newFileKey(),
+            ),
+            fileBytes: bytes,
+          ),
+        );
+        return true;
+      } catch (e) {
+        errorMessage = describeError(e);
+        return false;
+      } finally {
+        isLoading = false;
+      }
+    }
     final token = UploadCancelToken();
     _beginUpload(token, file.size);
     try {
@@ -1338,13 +1581,29 @@ abstract class _VaultStore with Store {
     if (filename == null || filename.isEmpty) return null;
     downloadingRecordIds.add(record.id);
     try {
+      if (record.sealed && record.fileKey == null) {
+        errorMessage =
+            'This file is encrypted and cannot be opened on this '
+            'device.';
+        return null;
+      }
       final tokenData = await _api.post('/api/files/token');
       final token = (tokenData as Map<String, dynamic>)['token'] as String;
-      return await _api.getPublicBytes(
+      final bytes = await _api.getPublicBytes(
         null,
         '/api/files/${AppConfig.recordsCollection}/${record.id}/$filename',
         queryParams: {'token': token},
       );
+      if (!record.sealed) return bytes;
+      // Opened only on this device. A blob that fails to open is refused
+      // outright; nothing partial is handed on.
+      return await compute(_openBlobInBackground, (
+        record.fileKey!,
+        bytes,
+        record.workspace,
+        record.id,
+        record.size,
+      ));
     } catch (e) {
       errorMessage = describeError(e);
       return null;
@@ -1373,7 +1632,13 @@ abstract class _VaultStore with Store {
       }
       var remaining = updates;
       if (current != null && current.sealed) {
-        const inCiphertext = {'value', 'label', 'type', 'format'};
+        final inCiphertext = {
+          'value',
+          'label',
+          'type',
+          'format',
+          if (current.isFile) 'filename',
+        };
         if (current.isLocked) {
           if (updates.keys.any(inCiphertext.contains)) {
             errorMessage = 'This record cannot be changed on this device.';
@@ -1384,10 +1649,15 @@ abstract class _VaultStore with Store {
           final label = updates['label'] as String? ?? current.label;
           final type = updates['type'] as String? ?? current.type;
           final format = updates['format'] as String? ?? current.format;
+          final info = _fileInfoOf(current);
+          final filename = updates['filename'] as String?;
+          final renamed =
+              info != null && filename != null && filename != info.name;
           if (value != current.value ||
               label != current.label ||
               type != current.type ||
-              format != current.format) {
+              format != current.format ||
+              renamed) {
             _replaceInList(
               await _writeSealed(
                 current,
@@ -1395,6 +1665,14 @@ abstract class _VaultStore with Store {
                 label: label,
                 type: type,
                 format: format,
+                file: renamed
+                    ? SealedFileInfo(
+                        name: filename,
+                        mime: info.mime,
+                        size: info.size,
+                        fileKey: info.fileKey,
+                      )
+                    : null,
               ),
             );
           }
@@ -1690,3 +1968,21 @@ abstract class _VaultStore with Store {
     return Section.fromJson(data as Map<String, dynamic>);
   }
 }
+
+Uint8List _sealBlobInBackground((Uint8List, Uint8List, String, String) args) =>
+    SealedFile.seal(
+      fileKey: args.$1,
+      bytes: args.$2,
+      workspace: args.$3,
+      record: args.$4,
+    );
+
+Uint8List _openBlobInBackground(
+  (Uint8List, Uint8List, String, String, int) args,
+) => SealedFile.open(
+  fileKey: args.$1,
+  blob: args.$2,
+  workspace: args.$3,
+  record: args.$4,
+  size: args.$5,
+);

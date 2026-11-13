@@ -1414,6 +1414,12 @@ paths:
         to it. The entry's `value` stays empty. A link serves it as ciphertext,
         and only once it holds a seal for it (`PUT /api/sealed/links/{id}`); it
         does not appear in short links, sign-in grants or request answers.
+
+        An encrypted file (`type: file`, alpha) is sent as
+        `multipart/form-data`: this JSON body in a `meta` field and the
+        encrypted blob in a `blob` file field. Its name, media type and size
+        travel inside `sealedValue`; the server stores the blob as
+        `encrypted.bin` and keeps no name, hash or media type of its own.
       security:
         - Session: []
       responses:
@@ -1449,6 +1455,10 @@ paths:
         stale record writer. Entry and seals are saved together. A write that leaves one
         of those links out is refused with `sealed_link_seals_missing` and the
         ids of the links it missed in `links`, and changes nothing.
+
+        For a file, the same body goes in a multipart `meta` field with the
+        encrypted blob in `blob`. Encrypting a plain file requires the blob;
+        renaming an encrypted file is a JSON write that keeps its blob.
       security:
         - Session: []
       parameters:
@@ -1564,6 +1574,11 @@ paths:
       description: |
         Experimental. The client decrypts the value and sends it back, signed by
         `deviceSeq`, a device on the caller's list.
+
+        For an encrypted file, the body goes in a multipart `meta` field with
+        an empty `value` and the stored `filename`, and the decrypted file in
+        `blob`. The device signs `file:` followed by the lowercase hex SHA-256
+        of that file, where it otherwise signs the value.
       security:
         - Session: []
       parameters:

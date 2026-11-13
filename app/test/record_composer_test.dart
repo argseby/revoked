@@ -117,7 +117,9 @@ void main() {
     await tester.tap(find.text('Yes'));
     await tester.pumpAndSettle();
     await pick(tester, 'File');
-    expect(find.text('Files are private to your account.'), findsNothing);
+    // Every section stays on one page, so a file says at once that its
+    // access stays private.
+    expect(find.text('Files are private to your account.'), findsOneWidget);
     final upload = PendingUpload(
       name: 'document.txt',
       size: 4,

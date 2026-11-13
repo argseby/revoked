@@ -1024,12 +1024,12 @@ func TestSealedRecordRules(t *testing.T) {
 	f := newSealedFixture(t)
 	f.enroll()
 
-	t.Run("a file cannot be sealed yet", func(t *testing.T) {
+	t.Run("a file is sealed only with its encrypted blob", func(t *testing.T) {
 		f.request("POST", "/api/sealed/records", f.party.token, sealedBody(1, map[string]any{
 			"id": newSealedID(), "key": "doc", "label": "doc", "type": util.TypeFile, "format": "default",
 			"workspace": f.party.workspace,
 		})).Expect().Status(http.StatusBadRequest).
-			JSON().Object().Value("code").IsEqual(util.Errors.SealedRecordUnsupported.ErrorCode)
+			JSON().Object().Value("code").IsEqual(util.Errors.SealedInvalid.ErrorCode)
 	})
 
 	t.Run("a malformed id or payload is refused", func(t *testing.T) {

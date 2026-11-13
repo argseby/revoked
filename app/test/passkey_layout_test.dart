@@ -347,13 +347,15 @@ void main() {
               matching: find.byType(Scrollable),
             )
             .first;
-        await tester.scrollUntilVisible(
-          find.text('Encryption'),
-          120,
-          scrollable: editor,
+        // The section's heading in the page; the rail beside it on a wide
+        // window names the section too.
+        final encryption = find.descendant(
+          of: find.byKey(const PageStorageKey('record-composer-editor')),
+          matching: find.text('Encryption'),
         );
+        await tester.scrollUntilVisible(encryption, 120, scrollable: editor);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Encryption'));
+        await tester.tap(encryption);
         await tester.pumpAndSettle();
         final note = find.text('Opens on your devices');
         await tester.scrollUntilVisible(note, 120, scrollable: editor);

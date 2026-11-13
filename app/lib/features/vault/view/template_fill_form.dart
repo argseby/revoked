@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/models/template.dart';
@@ -42,7 +43,7 @@ class _TemplateFillForm extends StatefulWidget {
 class _TemplateFillFormState extends State<_TemplateFillForm> {
   /// The template's values come first: answering them is what this form is
   /// for; the switch shows how the section will look.
-  bool _showView = false;
+  final _showView = Local(false);
 
   @override
   void initState() {
@@ -77,7 +78,7 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
     );
   }
 
-  bool _adding = false;
+  final _adding = Local(false);
 
   bool _hasSection(Template template) {
     final key = templateSectionKey(template);
@@ -96,7 +97,7 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
       Navigator.of(context).pop();
       return;
     }
-    setState(() => _adding = true);
+    _adding.value = true;
     final ok = await Stores.vault.createSection(
       key: templateSectionKey(template),
       name: template.name,
@@ -106,7 +107,7 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
       view: templateView(template),
     );
     if (!mounted) return;
-    setState(() => _adding = false);
+    _adding.value = false;
     if (!ok) {
       AppToast.error(
         context,
@@ -151,7 +152,7 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
               final done = AppButton(
                 icon: adds ? AppIcons.plus : AppIcons.check,
                 label: adds ? 'Create section' : 'Done',
-                busy: _adding,
+                busy: _adding.value,
                 onTap: template == null
                     ? () => Navigator.of(context).pop()
                     : () => _finish(template),
@@ -288,63 +289,67 @@ class _TemplateFillFormState extends State<_TemplateFillForm> {
       groups.putIfAbsent(f.group, () => []).add(f);
     }
     final preview = _preview(template, fields);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(child: Text(template.name).header),
-              AppSpacing.gapSm,
-              AppBadge(label: _progress(fields)),
-            ],
-          ),
-          AppSpacing.gapSm,
-          const Text('Each answer is saved to your vault as a record.')
-              .small
-              .muted,
-          AppSpacing.gapXl,
-          // How the section shows and the answers it is made of, one at a
-          // time: the switch moves between them.
-          if (preview != null) ...[
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: AppSegmented<bool>(
-                key: const ValueKey('template-fill-view-switch'),
-                value: _showView,
-                items: [
-                  AppSegmentedItem(
-                    value: true,
-                    label: preview.spec.name,
-                    icon: AppIcons.dashboard,
-                  ),
-                  const AppSegmentedItem(
-                    value: false,
-                    label: 'Values',
-                    icon: AppIcons.cardList,
-                  ),
-                ],
-                onChanged: (view) => setState(() => _showView = view),
-              ),
+    // Its own Observer: the view switch redraws this page wherever the
+    // layout around it builds it.
+    return Observer(
+      builder: (_) => SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.xxl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(template.name).header),
+                AppSpacing.gapSm,
+                AppBadge(label: _progress(fields)),
+              ],
             ),
-            AppSpacing.gapLg,
-          ],
-          if (preview != null && _showView)
-            preview.widget
-          else ...[
-            if (fields.isEmpty)
-              const Text('This template has no fields.').small.muted,
-            for (final entry in groups.entries)
-              AppListGroup(
-                title: entry.key.isEmpty ? 'Records' : entry.key,
-                trailing: const SizedBox.shrink(),
-                children: [
-                  for (final field in entry.value) _row(template, field),
-                ],
+            AppSpacing.gapSm,
+            const Text('Each answer is saved to your vault as a record.')
+                .small
+                .muted,
+            AppSpacing.gapXl,
+            // How the section shows and the answers it is made of, one at a
+            // time: the switch moves between them.
+            if (preview != null) ...[
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: AppSegmented<bool>(
+                  key: const ValueKey('template-fill-view-switch'),
+                  value: _showView.value,
+                  items: [
+                    AppSegmentedItem(
+                      value: true,
+                      label: preview.spec.name,
+                      icon: AppIcons.dashboard,
+                    ),
+                    const AppSegmentedItem(
+                      value: false,
+                      label: 'Values',
+                      icon: AppIcons.cardList,
+                    ),
+                  ],
+                  onChanged: (view) => _showView.value = view,
+                ),
               ),
+              AppSpacing.gapLg,
+            ],
+            if (preview != null && _showView.value)
+              preview.widget
+            else ...[
+              if (fields.isEmpty)
+                const Text('This template has no fields.').small.muted,
+              for (final entry in groups.entries)
+                AppListGroup(
+                  title: entry.key.isEmpty ? 'Records' : entry.key,
+                  trailing: const SizedBox.shrink(),
+                  children: [
+                    for (final field in entry.value) _row(template, field),
+                  ],
+                ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

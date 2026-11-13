@@ -20,9 +20,26 @@ After that, a record is encrypted with the **End-to-end encrypted** toggle
 when it is created, or with **Encrypt end to end** on an existing record.
 **Stop encrypting** makes the value readable to the server again.
 
-Files and aliases cannot be encrypted. Other members of the workspace can
+Aliases cannot be encrypted. Other members of the workspace can
 read encrypted records once they are [given access](#access). A share link
 can also give access without an account, as described below.
+
+## Encrypted files {#files}
+
+A file is encrypted the same way, with **Encrypt this file** when it is
+added or **Encrypt end to end** on an existing file. Its name and type are
+encrypted with it; the server stores the content as `encrypted.bin`, padded
+so that only its rough size shows. Renaming keeps the stored file, and
+replacing the content encrypts the new one under a new key. **Stop
+encrypting** uploads the file in plain form again.
+
+In this alpha:
+
+- Encrypted files can be up to 50 MB, since the app encrypts them in memory.
+- They are opened in the app only. Share links, the link page and connected
+  tools do not offer them yet; shares that stamp their files never will,
+  because the server cannot read a file to stamp it.
+- Members do not see each other's files, encrypted or not.
 
 ## Encrypted share links {#links}
 
@@ -174,8 +191,9 @@ record. Nobody can restore them, and the app says so.
 
 ## What stays readable to the server
 
-Only the value is encrypted. The server still sees each record's label,
-key and type, its sections, when it changed, and roughly how large it is.
+Only the value is encrypted, and for a file its content, name and media
+type. The server still sees each record's label, key and type, its
+sections, when it changed, and roughly how large it is.
 An encrypted record's value on the server is always empty. See
 [what the server can and can't see](../how-it-works/index.md#what-the-server-can-and-cant-see).
 

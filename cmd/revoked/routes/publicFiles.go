@@ -132,6 +132,19 @@ func PublicFilesRoute(app core.App) {
 			if err != nil || link == nil {
 				return re.NotFoundError(util.Errors.LinkNotFound.ErrorText, nil)
 			}
+			// An encrypted file is handed out as the blob it is. The reader
+			// opens it with the address key; the server has nothing to stamp.
+			if services.IsSealed(rec) {
+				if link.GetBool(util.Fields.Link.Watermark) {
+					return appErrorResponse(re, http.StatusUnsupportedMediaType, &util.Errors.SealedFileWatermark)
+				}
+				h := re.Response.Header()
+				h.Set("Content-Disposition", attachmentDisposition(util.SealedFileName))
+				h.Set("X-Content-Type-Options", "nosniff")
+				h.Set("Content-Type", "application/octet-stream")
+				h.Set("Cache-Control", "no-store")
+				return fsys.Serve(re.Response, re.Request, rec.BaseFilesPath()+"/"+filename, util.SealedFileName)
+			}
 			if link.GetBool(util.Fields.Link.Watermark) {
 				return serveWatermarked(re, fsys, rec.BaseFilesPath()+"/"+filename, downloadName,
 					services.WatermarkLine(link, time.Now()))

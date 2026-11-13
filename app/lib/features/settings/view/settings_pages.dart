@@ -14,6 +14,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -140,7 +141,6 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
     });
   }
 
-
   void _load() {
     final auth = Stores.auth;
     if (!auth.isAuthenticated) return;
@@ -198,11 +198,29 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
   Widget build(BuildContext context) {
     return AppPageBody(
       children: [
-        // The page names itself here, so the top bar carries no title.
-        AppCollectionHeader(
-          title: widget.page.title,
-          description: widget.page.description,
-          onBack: () => goBack(context, AppRoutes.settings),
+        // The page names itself here, so the top bar carries no title. On a
+        // wide window there is no top bar at all, so the page's own action
+        // ("New API key") stands beside its name; a phone keeps it as the
+        // floating button instead.
+        Observer(
+          builder: (context) {
+            final own = AppSpacing.isNarrow(context)
+                ? null
+                : subPageActionFor(AppRoutes.settingsPage(widget.page.slug));
+            return AppCollectionHeader(
+              title: widget.page.title,
+              description: widget.page.description,
+              onBack: () => goBack(context, AppRoutes.settings),
+              action: own == null
+                  ? null
+                  : AppButton(
+                      icon: own.icon,
+                      label: own.label,
+                      tooltip: own.label,
+                      onTap: () => own.start(context),
+                    ),
+            );
+          },
         ),
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),

@@ -16,6 +16,13 @@ func IsSealed(rec *core.Record) bool {
 	return rec != nil && rec.GetBool(util.Fields.Record.Sealed)
 }
 
+// IsSealedFile reports whether the record with this id is an end-to-end
+// encrypted file, whose blob this server can store and serve but not read.
+func IsSealedFile(app core.App, id string) bool {
+	rec, err := app.FindRecordById(util.Coll.Records, id)
+	return err == nil && IsSealed(rec) && rec.GetString(util.Fields.Record.Type) == util.TypeFile
+}
+
 // IsSealedThroughAlias reports whether a record, or the entry an alias reads
 // through, is sealed.
 func IsSealedThroughAlias(app core.App, rec *core.Record) bool {

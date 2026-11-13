@@ -18,6 +18,9 @@ func BindLinkHooks(app core.App) {
 		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
 			return err
 		}
+		if err := refuseStampedSealedFiles(e.App, e.Record); err != nil {
+			return err
+		}
 		if err := validateLinkContentOwner(e.App, e.Record, nil); err != nil {
 			return err
 		}
@@ -37,6 +40,9 @@ func BindLinkHooks(app core.App) {
 			return err
 		}
 		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
+			return err
+		}
+		if err := refuseStampedSealedFiles(e.App, e.Record); err != nil {
 			return err
 		}
 		if err := validateLinkContentOwner(e.App, e.Record, e.Record.Original()); err != nil {

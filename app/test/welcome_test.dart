@@ -177,6 +177,9 @@ void main() {
     await signIn(tester, 'Continue on this computer');
     expect(launched.single.queryParameters['mode'], 'signin');
     expect(find.text('Waiting for the browser'), findsOneWidget);
+    // Flutter checks its debug variables when the body ends, before any
+    // tear-down runs; the tear-down above covers a body that fails early.
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('right after sign-up, the name ends the trip', (tester) async {

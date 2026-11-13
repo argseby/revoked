@@ -16,6 +16,11 @@ const (
 	FileMaxStorageEnv = "FILE_MAX_STORAGE"
 )
 
+// SealedFileName is what an end-to-end encrypted file is stored and served
+// under. Its real name is inside its sealed value, so whatever a client
+// called the upload is never kept.
+const SealedFileName = "encrypted.bin"
+
 // CleanFilename normalizes a user-supplied file name to something safe to hand
 // back in a download. Path separators are the point: a name is a label, never a
 // location, and one that traverses would let a rename reach outside the record.

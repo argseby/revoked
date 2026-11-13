@@ -10,6 +10,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/hook"
 )
 
@@ -50,6 +51,9 @@ func BindRecordHooks(app core.App) {
 		if err := validateSealedRecord(e.Record); err != nil {
 			return err
 		}
+		if err := validateSealedFileTransition(e.Record); err != nil {
+			return err
+		}
 		if err := validateAliasRecord(app, e.Record); err != nil {
 			return err
 		}
@@ -87,6 +91,9 @@ func validateFileRecord(app core.App, rec *core.Record) error {
 		return util.AsFieldValidationError(util.Fields.Record.AliasOf, util.Errors.FileAliasUnsupported)
 	}
 	rec.Set(util.Fields.Record.Value, "")
+	if rec.GetBool(util.Fields.Record.Sealed) {
+		return validateSealedFile(app, rec, uploads)
+	}
 
 	if len(uploads) == 0 {
 		// A metadata-only update keeps the stored file and its hash; a file
@@ -155,6 +162,55 @@ func validateFileRecord(app core.App, rec *core.Record) error {
 		}
 	}
 	return validateFilename(rec)
+}
+
+// sealedBlobMin is the shortest blob an encrypted file can have: the version
+// byte, the salt, one padded kilobyte and its tag (design/e2ee-sharing.md
+// §7.2).
+const sealedBlobMin = 1 + 16 + 1024 + 16
+
+// validateSealedFile holds the server's side of an encrypted file: it counts
+// against the same limits, and keeps nothing it could have learned from the
+// content. Name, type and exact size are inside the sealed value.
+func validateSealedFile(app core.App, rec *core.Record, uploads []*filesystem.File) error {
+	f := util.Fields.Record
+	rec.Set(f.Filename, "")
+	rec.Set(f.ContentHash, "")
+	rec.Set(f.HashSalt, "")
+	rec.Set(f.Mime, "application/octet-stream")
+	if len(uploads) == 0 {
+		if rec.GetString(f.File) == "" {
+			return util.AsFieldValidationError(f.File, util.Errors.FileRequired)
+		}
+		return nil
+	}
+	blob := uploads[len(uploads)-1]
+	if blob.Size < sealedBlobMin {
+		return util.AsFieldValidationError(f.File, util.Errors.SealedInvalid)
+	}
+	if max := util.FileLimitBytes(util.FileMaxSizeEnv); max >= 0 && blob.Size > max {
+		return util.AsFieldValidationError(f.File, util.Errors.FileTooLarge)
+	}
+	if max := util.FileLimitBytes(util.FileMaxStorageEnv); max >= 0 {
+		used, err := workspaceFileBytes(app, rec)
+		if err != nil {
+			return err
+		}
+		if used+blob.Size > max {
+			return util.AsFieldValidationError(f.File, util.Errors.FileStorageExceeded)
+		}
+	}
+	r, err := blob.Reader.Open()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	version := make([]byte, 1)
+	if _, err := io.ReadFull(r, version); err != nil || version[0] != 1 {
+		return util.AsFieldValidationError(f.File, util.Errors.SealedInvalid)
+	}
+	rec.Set(f.Size, blob.Size)
+	return nil
 }
 
 // validateFilename normalizes an explicit rename. An empty name is only healed

@@ -138,6 +138,13 @@ func PublicLinksRoute(app core.App, root *server.RootKey) {
 			for _, rec := range granted {
 				if services.IsSealedThroughAlias(app, rec) {
 					if entry := sealedLinkEntry(app, link, rec); entry != nil {
+						// An encrypted file's blob follows the same claimed
+						// download as a plain one; only a current seal earns it.
+						if rec.GetString(util.Fields.Record.Type) == util.TypeFile && entry["unavailable"] == nil {
+							if token, tokenErr := issueDownloadToken(slug, rec.Id); tokenErr == nil {
+								entry["downloadToken"] = token
+							}
+						}
 						records = append(records, entry)
 					}
 					continue
@@ -427,6 +434,10 @@ func sealedLinkEntry(app core.App, link, rec *core.Record) map[string]any {
 	f := util.Fields.Record
 	entry := sanitizeRecord(rec)
 	delete(entry, f.Value)
+	// For a file, the name and type are inside the sealed value; what the
+	// server holds for them describes only the blob.
+	delete(entry, f.Mime)
+	delete(entry, f.Filename)
 	entry["sealed"] = true
 	if seal.GetInt(util.Fields.LinkSeal.Version) != rec.GetInt(f.SealedVersion) {
 		entry["unavailable"] = true

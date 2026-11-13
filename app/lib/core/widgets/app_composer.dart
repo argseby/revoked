@@ -50,44 +50,39 @@ class AppComposerCard extends StatelessWidget {
             ? Border.all(color: scheme.primary, width: 1.5)
             : Border.all(color: scheme.outlineVariant),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (hasHeading)
-              Row(
-                children: [
-                  Expanded(
-                    child: title == null
-                        ? const SizedBox.shrink()
-                        : !missing
-                        ? Semantics(header: true, child: AppText(title!).bold)
-                        // Wraps under a long title rather than squeezing a
-                        // trailing switch off the card.
-                        : Wrap(
-                            spacing: AppSpacing.sm,
-                            runSpacing: AppSpacing.xxs,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Semantics(
-                                header: true,
-                                child: AppText(title!).bold,
-                              ),
-                              const AppRequiredBadge(),
-                            ],
-                          ),
-                  ),
-                  if (trailing != null) ...[AppSpacing.gapSm, trailing!],
-                ],
-              ),
-            if (description != null) ...[
-              if (hasHeading) AppSpacing.gapXxs,
-              Text(description!).small.muted,
+      // Rows inside (switch rows are list tiles) paint their ink on the
+      // nearest Material; without one here the card's fill would hide it.
+      child: Material(
+        type: MaterialType.transparency,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (hasHeading)
+                Row(
+                  children: [
+                    Expanded(
+                      child: title == null
+                          ? const SizedBox.shrink()
+                          : _heading(),
+                    ),
+                    if (trailing != null) ...[
+                      AppSpacing.gapSm,
+                      // May narrow at small widths or large text, so a
+                      // control beside the title is not pushed off the card.
+                      Flexible(child: trailing!),
+                    ],
+                  ],
+                ),
+              if (description != null) ...[
+                if (hasHeading) AppSpacing.gapXxs,
+                Text(description!).small.muted,
+              ],
+              if (hasHeading || description != null) AppSpacing.gapMd,
+              child,
             ],
-            if (hasHeading || description != null) AppSpacing.gapMd,
-            child,
-          ],
+          ),
         ),
       ),
     );
@@ -98,6 +93,19 @@ class AppComposerCard extends StatelessWidget {
         vertical: AppSpacing.xs,
       ),
       child: card,
+    );
+  }
+
+  /// The title, followed by [AppRequiredBadge] while [missing]; the badge
+  /// wraps under a long title.
+  Widget _heading() {
+    final text = Semantics(header: true, child: AppText(title!).bold);
+    if (!missing) return text;
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xxs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [text, const AppRequiredBadge()],
     );
   }
 }
@@ -584,7 +592,8 @@ class AppComposerApiPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppComposerCard(
-    description: 'The same action as an API request, for scripts and '
+    description:
+        'The same action as an API request, for scripts and '
         'integrations.',
     child: preview,
   );

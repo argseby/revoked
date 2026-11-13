@@ -1,8 +1,12 @@
 package routes
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"regexp"
 	"slices"
@@ -12,7 +16,9 @@ import (
 	"revoked/util"
 
 	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/filesystem"
 )
 
 const (
@@ -177,19 +183,19 @@ func SealedRoute(app core.App) {
 				return nil
 			}
 			return createSealedRecord(app, re)
-		})
+		}).Bind(apis.BodyLimit(sealedBodyLimit()))
 		e.Router.PUT("/api/sealed/records/{id}", func(re *core.RequestEvent) error {
 			if !authorizeSealed(re) {
 				return nil
 			}
 			return writeSealedRecord(app, re)
-		})
+		}).Bind(apis.BodyLimit(sealedBodyLimit()))
 		e.Router.POST("/api/sealed/records/{id}/unseal", func(re *core.RequestEvent) error {
 			if !authorizeSealed(re) {
 				return nil
 			}
 			return unsealRecord(app, re)
-		})
+		}).Bind(apis.BodyLimit(sealedBodyLimit()))
 		e.Router.GET("/api/sealed/records/{id}/links", func(re *core.RequestEvent) error {
 			if !authorizeSealed(re) {
 				return nil
@@ -1078,6 +1084,68 @@ func startSealedEpoch(app core.App, re *core.RequestEvent) error {
 	return re.JSON(http.StatusOK, map[string]any{"ok": true, "epoch": body.Epoch})
 }
 
+// sealedBodyLimit lets an encrypted file through the sealed routes: the
+// operator's file limit plus room for the blob's overhead and the rest of
+// the form, or the size the app encrypts at most when there is no limit.
+func sealedBodyLimit() int64 {
+	const overhead = 1 << 20
+	if max := util.FileLimitBytes(util.FileMaxSizeEnv); max >= 0 {
+		return max + overhead
+	}
+	return 64<<20 + overhead
+}
+
+var errSealedBody = errors.New("not a sealed write")
+
+// bindSealedBody reads a sealed write. JSON as before, or multipart for a
+// file: the same JSON in `meta`, and the file in `blob`. An encrypted blob is
+// stored under a fixed name, so nothing the client called it is kept; a plain
+// file (`plain`, for Stop encrypting) keeps its name as any upload does.
+func bindSealedBody(re *core.RequestEvent, dst any, plain bool) (*filesystem.File, error) {
+	if !strings.HasPrefix(re.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		return nil, re.BindBody(dst)
+	}
+	if err := re.Request.ParseMultipartForm(32 << 20); err != nil {
+		return nil, err
+	}
+	metas := re.Request.MultipartForm.Value["meta"]
+	if len(metas) != 1 {
+		return nil, errSealedBody
+	}
+	if err := json.Unmarshal([]byte(metas[0]), dst); err != nil {
+		return nil, err
+	}
+	files, err := re.FindUploadedFiles("blob")
+	if err != nil || len(files) != 1 {
+		return nil, errSealedBody
+	}
+	blob := files[0]
+	if !plain {
+		suffix, err := util.GenerateToken(5)
+		if err != nil {
+			return nil, err
+		}
+		blob.OriginalName = util.SealedFileName
+		blob.Name = "encrypted_" + suffix + ".bin"
+	}
+	return blob, nil
+}
+
+// sealedFileHash is what a device signs to stop encrypting a file, in place
+// of the value it signs for anything else.
+func sealedFileHash(file *filesystem.File) (string, error) {
+	r, err := file.Reader.Open()
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return "", err
+	}
+	return "file:" + hex.EncodeToString(h.Sum(nil)), nil
+}
+
 // checkSealedWrite refuses a write under anything but the workspace's current
 // key, and while a new one is due: that is what stops a value being written
 // where a removed device or member can read it.
@@ -1128,11 +1196,10 @@ func createSealedRecord(app core.App, re *core.RequestEvent) error {
 		Format    string `json:"format"`
 		Workspace string `json:"workspace"`
 	}
-	if err := re.BindBody(&body); err != nil || !body.valid() || !sealedRecordID.MatchString(body.ID) {
+	blob, err := bindSealedBody(re, &body, false)
+	if err != nil || !body.valid() || !sealedRecordID.MatchString(body.ID) ||
+		(body.Type == util.TypeFile) != (blob != nil) {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
-	}
-	if body.Type == util.TypeFile {
-		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedRecordUnsupported)
 	}
 
 	spec, declared := util.AccessSpecFor(util.Coll.Records, util.ActionCreate)
@@ -1149,7 +1216,7 @@ func createSealedRecord(app core.App, re *core.RequestEvent) error {
 
 	f := util.Fields.Record
 	var saved *core.Record
-	err := app.RunInTransaction(func(tx core.App) error {
+	err = app.RunInTransaction(func(tx core.App) error {
 		if refusal := checkSealedWrite(tx, body.Workspace, re.Auth.Id, body.KeyEpoch); refusal != nil {
 			return refusal
 		}
@@ -1166,6 +1233,9 @@ func createSealedRecord(app core.App, re *core.RequestEvent) error {
 		rec.Set(f.User, re.Auth.Id)
 		rec.Set(f.Workspace, body.Workspace)
 		applySealed(rec, body.sealedPayload, 1)
+		if blob != nil {
+			rec.Set(f.File, blob)
+		}
 		if err := tx.Save(rec); err != nil {
 			return err
 		}
@@ -1225,7 +1295,8 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		// link carrying the record holds for it.
 		LinkSeals []recordLinkSealInput `json:"linkSeals"`
 	}
-	if err := re.BindBody(&body); err != nil || !body.valid() || body.ExpectedVersion < 0 ||
+	blob, err := bindSealedBody(re, &body, false)
+	if err != nil || !body.valid() || body.ExpectedVersion < 0 ||
 		len(body.LinkSeals) > services.MaxLinkSealsPerRecord {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
 	}
@@ -1248,8 +1319,15 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 		if err != nil {
 			return refuse(http.StatusNotFound, &util.Errors.RecordNotFound)
 		}
-		if rec.GetString(f.Type) == util.TypeFile || rec.GetString(f.AliasOf) != "" {
+		if rec.GetString(f.AliasOf) != "" {
 			return refuse(http.StatusBadRequest, &util.Errors.SealedRecordUnsupported)
+		}
+		// A file keeps being a file, and nothing else gains one. Encrypting a
+		// plain file replaces it: the plaintext must not stay behind the seal.
+		isFile := rec.GetString(f.Type) == util.TypeFile
+		if (blob != nil && !isFile) || (body.Type != "" && (body.Type == util.TypeFile) != isFile) ||
+			(isFile && !services.IsSealed(rec) && blob == nil) {
+			return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
 		}
 		// The ciphertext is bound to the key the client saw. A rename racing this
 		// write would otherwise leave a value nobody can open.
@@ -1283,6 +1361,9 @@ func writeSealedRecord(app core.App, re *core.RequestEvent) error {
 			dropped = services.LinksReadingRecord(tx, rec.Id)
 		}
 		applySealed(rec, body.sealedPayload, body.ExpectedVersion+1)
+		if blob != nil {
+			rec.Set(f.File, blob)
+		}
 		// These travel inside the ciphertext too, which is what clients believe.
 		// The copies here must land with it or the list shows yesterday's name.
 		if body.Label != "" {
@@ -1338,10 +1419,21 @@ func unsealRecord(app core.App, re *core.RequestEvent) error {
 		Value           string `json:"value"`
 		DeviceSeq       int    `json:"deviceSeq"`
 		Signature       string `json:"signature"`
+		// For a file: the name it is stored under again.
+		Filename string `json:"filename"`
 	}
-	if err := re.BindBody(&body); err != nil || body.ExpectedVersion < 1 ||
-		body.Value == "" || len([]rune(body.Value)) > util.MaxRecordValueLength {
+	// A file comes back as the plain file, and its device signs the file's
+	// hash where it would sign a value.
+	upload, err := bindSealedBody(re, &body, true)
+	if err != nil || body.ExpectedVersion < 1 || len([]rune(body.Value)) > util.MaxRecordValueLength ||
+		(upload == nil) == (body.Value == "") {
 		return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
+	}
+	signed := body.Value
+	if upload != nil {
+		if signed, err = sealedFileHash(upload); err != nil {
+			return appErrorResponse(re, http.StatusBadRequest, &util.Errors.SealedInvalid)
+		}
 	}
 
 	id := re.Request.PathValue("id")
@@ -1364,6 +1456,9 @@ func unsealRecord(app core.App, re *core.RequestEvent) error {
 		if !services.IsSealed(rec) || rec.GetInt(f.SealedVersion) != body.ExpectedVersion {
 			return refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
 		}
+		if (rec.GetString(f.Type) == util.TypeFile) != (upload != nil) {
+			return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
+		}
 		e := util.Fields.WorkspaceKeyEpoch
 		current := services.CurrentKeyEpoch(tx, rec.GetString(f.Workspace))
 		if current == nil || !services.HoldsWorkspaceKey(tx, rec.GetString(f.Workspace), re.Auth.Id, current.GetInt(e.Epoch)) {
@@ -1376,7 +1471,7 @@ func unsealRecord(app core.App, re *core.RequestEvent) error {
 		signature, ok := decodeSealed(body.Signature)
 		if !ok || !chain.IsLive(body.DeviceSeq) ||
 			!util.VerifySealedSignature(chain.Entry(body.DeviceSeq).SigningPublicKey,
-				util.SealedUnsealPayload(re.Auth.Id, id, body.ExpectedVersion, body.Value), signature) {
+				util.SealedUnsealPayload(re.Auth.Id, id, body.ExpectedVersion, signed), signature) {
 			return refuse(http.StatusForbidden, &util.Errors.SealedKeyMissing)
 		}
 		before = rec.PublicExport()
@@ -1386,6 +1481,10 @@ func unsealRecord(app core.App, re *core.RequestEvent) error {
 		rec.Set(f.SealedVersion, body.ExpectedVersion+1)
 		rec.Set(f.KeyEpoch, 0)
 		rec.Set(f.KeyWrap, "")
+		if upload != nil {
+			rec.Set(f.File, upload)
+			rec.Set(f.Filename, body.Filename)
+		}
 		if err := tx.Save(rec); err != nil {
 			return err
 		}

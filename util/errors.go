@@ -221,6 +221,7 @@ var Errors = struct {
 	SealedLinksAffected           AppError
 	SealedLinkSealsMissing        AppError
 	SealedLinkContent             AppError
+	SealedFileWatermark           AppError
 	WebhookNotFound               AppError
 	WebhookDeliveryNotFound       AppError
 	WebhookUrlInvalid             AppError
@@ -1039,6 +1040,10 @@ var Errors = struct {
 	SealedLinkContent: AppError{
 		ErrorCode: "sealed_link_content",
 		ErrorText: "A link can carry an encrypted entry only with a key for it, made by a device that can open the entry.",
+	},
+	SealedFileWatermark: AppError{
+		ErrorCode: "sealed_file_watermark",
+		ErrorText: "A share that stamps its files cannot carry an encrypted file: the server cannot read it to stamp it.",
 	},
 	WebhookNotFound: AppError{
 		ErrorCode: "webhook_not_found",

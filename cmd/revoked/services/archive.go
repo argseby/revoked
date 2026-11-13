@@ -23,12 +23,14 @@ func LinkFileRecords(app core.App, link *core.Record) []*core.Record {
 
 // FileRecords picks the records carrying an uploaded file out of ones already
 // loaded, so a caller that has just read a link's records does not read them a
-// second time to find out whether any of them is a file.
+// second time to find out whether any of them is a file. Encrypted files are
+// left out: the server cannot name or stamp them inside a zip, so readers
+// download them one by one.
 func FileRecords(records []*core.Record) []*core.Record {
 	var out []*core.Record
 	for _, rec := range records {
 		if rec == nil || rec.GetString(util.Fields.Record.Type) != util.TypeFile ||
-			rec.GetString(util.Fields.Record.File) == "" {
+			rec.GetString(util.Fields.Record.File) == "" || IsSealed(rec) {
 			continue
 		}
 		out = append(out, rec)

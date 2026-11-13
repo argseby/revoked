@@ -625,6 +625,181 @@ abstract final class SealedFormats {
   ]);
 }
 
+/// The content of an encrypted file (design/e2ee-sharing.md §7.2). The name,
+/// type, size and [fileKey] travel inside the record's sealed value; the blob
+/// holds only the bytes, in segments, so a rename keeps the blob and new
+/// content gets a new file key.
+///
+/// ```
+/// blob        0x01 ‖ salt[16] ‖ seg_0 ‖ … ‖ seg_n
+/// segment key HKDF(F, revoked-file-v1 [workspace, record, salt])
+/// seg_i       AES-256-GCM(segment key, BE88(i) ‖ last, 0x01, chunk_i)
+/// ```
+abstract final class SealedFile {
+  /// Plaintext bytes per segment; each segment adds a 16-byte tag.
+  static const int segmentLength = 65536;
+
+  /// The largest file the app encrypts. AES-GCM runs in Dart here, and the
+  /// whole file is held in memory once on its way in or out.
+  static const int maxLength = 50 * 1024 * 1024;
+
+  static const int _version = 1;
+  static const int _saltLength = 16;
+  static const int _tagLength = 16;
+  static const int _minPadded = 1024;
+
+  static Uint8List newFileKey() => Sealing.newSymmetricKey();
+
+  /// The length a file of [size] bytes is padded to before encryption: at
+  /// least 1 KiB, then Padmé, which reveals at most O(log log n) bits of the
+  /// size while adding no more than about 12 %.
+  static int paddedLength(int size) {
+    if (size < 0) throw ArgumentError.value(size, 'size');
+    if (size <= _minPadded) return _minPadded;
+    final e = size.bitLength - 1;
+    final s = e.bitLength;
+    final mask = (1 << (e - s)) - 1;
+    return (size + mask) & ~mask;
+  }
+
+  /// The length of the blob for a file of [size] bytes, which is all the
+  /// server learns about it.
+  static int blobLength(int size) {
+    final padded = paddedLength(size);
+    final segments = (padded + segmentLength - 1) ~/ segmentLength;
+    return 1 + _saltLength + padded + segments * _tagLength;
+  }
+
+  static Uint8List _segmentKey(
+    Uint8List fileKey,
+    String workspace,
+    String record,
+    Uint8List salt,
+  ) {
+    if (fileKey.length != Sealing.keyLength) {
+      throw const SealingException('This file\'s key is not usable.');
+    }
+    return Sealing.deriveKey(
+      fileKey,
+      Sealing.context('revoked-file-v1', [workspace, record, salt]),
+    );
+  }
+
+  static Uint8List _nonce(int index, bool last) {
+    final out = Uint8List(12);
+    var v = index;
+    for (var i = 10; i >= 0; i--) {
+      out[i] = v & 0xff;
+      v = v ~/ 256;
+    }
+    out[11] = last ? 1 : 0;
+    return out;
+  }
+
+  static final Uint8List _aad = Uint8List.fromList([_version]);
+
+  /// Encrypts [bytes] for one record. [salt] is for test vectors only.
+  static Uint8List seal({
+    required Uint8List fileKey,
+    required Uint8List bytes,
+    required String workspace,
+    required String record,
+    Uint8List? salt,
+  }) {
+    if (bytes.length > maxLength) {
+      throw const SealingException('This file is too large to encrypt.');
+    }
+    final useSalt = salt ?? Sealing.randomBytes(_saltLength);
+    if (useSalt.length != _saltLength) {
+      throw ArgumentError.value(salt, 'salt');
+    }
+    final key = _segmentKey(fileKey, workspace, record, useSalt);
+    final padded = Uint8List(paddedLength(bytes.length))..setAll(0, bytes);
+    final out = BytesBuilder(copy: false)
+      ..addByte(_version)
+      ..add(useSalt);
+    var index = 0;
+    var offset = 0;
+    while (true) {
+      final end = offset + segmentLength < padded.length
+          ? offset + segmentLength
+          : padded.length;
+      final last = end == padded.length;
+      out.add(
+        Sealing.gcmSeal(
+          key,
+          _nonce(index, last),
+          _aad,
+          Uint8List.sublistView(padded, offset, end),
+        ),
+      );
+      if (last) break;
+      offset = end;
+      index++;
+    }
+    return out.toBytes();
+  }
+
+  /// Opens a blob into the [size] bytes its sealed value states. A blob from
+  /// another record, workspace or content, a dropped, reordered or truncated
+  /// segment, and padding that is not zeros all fail.
+  static Uint8List open({
+    required Uint8List fileKey,
+    required Uint8List blob,
+    required String workspace,
+    required String record,
+    required int size,
+  }) {
+    if (size < 0 || size > maxLength) {
+      throw const SealingException('This file is too large to open.');
+    }
+    if (blob.length < 1 + _saltLength + _tagLength || blob[0] != _version) {
+      throw const SealingException(
+        'This file is in a format this app can\'t read.',
+      );
+    }
+    if (blob.length != blobLength(size)) {
+      throw const SealingException('This file is damaged or incomplete.');
+    }
+    final key = _segmentKey(
+      fileKey,
+      workspace,
+      record,
+      Uint8List.sublistView(blob, 1, 1 + _saltLength),
+    );
+    final padded = BytesBuilder(copy: false);
+    const sealedSegment = segmentLength + _tagLength;
+    var offset = 1 + _saltLength;
+    var index = 0;
+    while (true) {
+      final remaining = blob.length - offset;
+      final last = remaining <= sealedSegment;
+      final end = last ? blob.length : offset + sealedSegment;
+      padded.add(
+        Sealing.gcmOpen(
+          key,
+          _nonce(index, last),
+          _aad,
+          Uint8List.sublistView(blob, offset, end),
+        ),
+      );
+      if (last) break;
+      offset = end;
+      index++;
+    }
+    final plain = padded.toBytes();
+    if (plain.length != paddedLength(size)) {
+      throw const SealingException('This file is damaged or incomplete.');
+    }
+    for (var i = size; i < plain.length; i++) {
+      if (plain[i] != 0) {
+        throw const SealingException('This file is not padded correctly.');
+      }
+    }
+    return Uint8List.sublistView(plain, 0, size);
+  }
+}
+
 /// What a link's viewer is handed for one record: the key its current value
 /// opens with, and the workspace that value is bound to.
 class LinkViewerSeal {

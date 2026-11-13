@@ -74,29 +74,23 @@ void main() {
     find.ancestor(of: find.text(label), matching: find.byType(AppButton)),
   );
 
-  testWidgets('a record needs no key; it waits under Developer options', (
+  testWidgets('a record needs no key; it waits in the Developer section', (
     tester,
   ) async {
     await open(tester, openVaultCreateSheet);
 
-    expect(find.text('Record key'), findsNothing);
-    // Further down the sheet, below who sees the new entry.
-    await tester.scrollUntilVisible(
-      find.text('Developer options'),
-      200,
-      // The list builds lazily, so the scrollable is found from its first row.
-      scrollable: find
-          .ancestor(
-            of: find.text('Record type'),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
+    // The last section of the page, below who sees the new entry.
+    await tester.ensureVisible(find.text('Record key'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Developer options'));
-    await tester.pumpAndSettle();
-    expect(find.text('Record key'), findsOneWidget);
     expect(find.text('Defaults to record when empty.'), findsOneWidget);
+    final keyCard = find.ancestor(
+      of: find.text('Record key'),
+      matching: find.byType(AppComposerField),
+    );
+    expect(
+      find.descendant(of: keyCard, matching: find.text('Required')),
+      findsNothing,
+    );
   });
 
   void openRecord(BuildContext context) => openRecordCreateSheet(

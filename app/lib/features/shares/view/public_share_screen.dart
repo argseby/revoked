@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
@@ -874,12 +875,31 @@ class _SharedRecordRow extends StatelessWidget {
       return null;
     }
 
-    final bytes = await Stores.shares.downloadSharedFile(
+    var bytes = await Stores.shares.downloadSharedFile(
       origin: origin,
       slug: slug,
       recordId: recordId,
       token: token,
     );
+    // An encrypted file arrives as its blob and is opened here, with the key
+    // from the address, off the thread that draws the screen.
+    if (bytes != null &&
+        record[SharedLinkReader.fileSealField] is SharedFileSeal) {
+      try {
+        bytes = await compute(_openSharedFile, (record, bytes));
+        // Whatever failed, nothing partial is handed on.
+      } catch (_) {
+        if (context.mounted) {
+          AppToast.error(
+            context,
+            'This file could not be decrypted',
+            subtitle:
+                'What the server sent does not match the key in this address.',
+          );
+        }
+        return null;
+      }
+    }
     if (bytes == null && context.mounted) {
       // A stamped share refuses a file it cannot stamp; say that, not that
       // the token ran out.
@@ -1067,3 +1087,6 @@ class _SharedSectionState extends State<_SharedSection> {
     );
   }
 }
+
+Uint8List _openSharedFile((Map<String, dynamic>, Uint8List) args) =>
+    SharedLinkReader.openFile(args.$1, args.$2);
