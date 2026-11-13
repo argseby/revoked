@@ -157,6 +157,11 @@ class _AccountMenuState extends State<AccountMenu> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ).small,
+            Text(
+              'on ${Stores.serverSettings.savedLabel}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ).muted.small,
           ],
         );
         final items = _items(context, activeId);

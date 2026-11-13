@@ -122,6 +122,11 @@ class AccountButton extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ).small,
+              Text(
+                'on ${Stores.serverSettings.savedLabel}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ).muted.small,
             ],
           ),
           items: [
