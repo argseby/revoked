@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -129,7 +128,7 @@ func sendToContact(app core.App, re *core.RequestEvent, root *server.RootKey) er
 	if err != nil {
 		return re.InternalServerError("Link collection missing", nil)
 	}
-	slug, err := mintUniqueSlug(app, util.Coll.Links, "")
+	slug, err := services.MintUniqueSlug(app, util.Coll.Links, "")
 	if err != nil {
 		app.Logger().Error("Failed to mint contact share slug", "error", err)
 		return re.InternalServerError("Failed to create the share", nil)
@@ -207,7 +206,7 @@ func askContact(app core.App, re *core.RequestEvent, root *server.RootKey) error
 	if err != nil {
 		return re.InternalServerError("Request collection missing", nil)
 	}
-	slug, err := mintUniqueSlug(app, util.Coll.Requests, "")
+	slug, err := services.MintUniqueSlug(app, util.Coll.Requests, "")
 	if err != nil {
 		app.Logger().Error("Failed to mint contact request slug", "error", err)
 		return re.InternalServerError("Failed to create the request", nil)
@@ -572,27 +571,4 @@ func auditHandOver(app core.App, re *core.RequestEvent, h contactHandOver,
 			"refused": refused,
 		},
 	})
-}
-
-// mintUniqueSlug returns an unused capability slug for a collection. It fails
-// rather than falling back to anything derivable: the slug is the only thing
-// guarding what it names.
-func mintUniqueSlug(app core.App, collection, prefix string) (string, error) {
-	var lastErr error
-	for attempt := 0; attempt < 5; attempt++ {
-		token, err := util.GenerateToken(grantSlugBytes)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		slug := prefix + token
-		existing, _ := app.FindFirstRecordByFilter(collection, "slug = {:s}", map[string]any{"s": slug})
-		if existing == nil {
-			return slug, nil
-		}
-	}
-	if lastErr == nil {
-		lastErr = errors.New("exhausted slug attempts")
-	}
-	return "", lastErr
 }

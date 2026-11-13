@@ -1,5 +1,4 @@
-import 'dart:math';
-
+import 'package:revoked_app/core/utils/slug.dart';
 import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:revoked_app/features/vault/view/record_composer.dart';
 
@@ -85,18 +84,6 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
   ({String kind, List<String> groups}) get _audience =>
       chosenAudience(_visibility, _groups, canPublish: true);
 
-  String _generateRandomSlug() {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final random = Random();
-    final length = 6 + random.nextInt(7);
-    return String.fromCharCodes(
-      Iterable.generate(
-        length,
-        (_) => chars.codeUnitAt(random.nextInt(chars.length)),
-      ),
-    );
-  }
-
   @override
   void initState() {
     super.initState();
@@ -105,9 +92,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
       label: link != null
           ? (widget.editShare != null ? link.label : '${link.label} Copy')
           : '',
-      slug: widget.editShare != null
-          ? widget.editShare!.slug
-          : _generateRandomSlug(),
+      slug: widget.editShare != null ? widget.editShare!.slug : randomSlug(),
       maxViews: (link?.maxViews ?? 0) > 0 ? link!.maxViews.toString() : '',
       expiresAt: link?.expiresAt != null
           ? DateTime.tryParse(link!.expiresAt!)
@@ -486,7 +471,7 @@ class _ShareCreateFormState extends State<_ShareCreateForm> {
           tooltip: 'Generate a random address',
           showTooltip: false,
           onTap: () async {
-            final s = _generateRandomSlug();
+            final s = randomSlug();
             _store.draftSlug.text = s;
             await _validateSlug(s);
           },

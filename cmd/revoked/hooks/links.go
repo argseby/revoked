@@ -11,6 +11,14 @@ import (
 // BindLinkHooks bcrypt-hashes a link's plaintext password before save and keeps
 // the hash out of API responses; the public route verifies it server-side.
 func BindLinkHooks(app core.App) {
+	// Before the request's validation, which refuses a blank slug.
+	app.OnRecordCreateRequest(util.Coll.Links).BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := services.MintSlugWhenEmpty(e.App, e.Record, util.Fields.Link.Slug); err != nil {
+			return err
+		}
+		return e.Next()
+	})
+
 	app.OnRecordCreate(util.Coll.Links).BindFunc(func(e *core.RecordEvent) error {
 		if err := requireApplicationWatermark(e.Record); err != nil {
 			return err
