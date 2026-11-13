@@ -333,18 +333,23 @@ func TestVisibilityRules(t *testing.T) {
 		f.api.Get(util.Coll.Records, alias, f.readOnly.token).Expect().Status(http.StatusNotFound)
 	})
 
-	t.Run("a share holds only its creator's items", func(t *testing.T) {
+	t.Run("a share holds what its creator sees, never a colleague's private entry", func(t *testing.T) {
 		f := newVisibilityFixture(t)
 		f.setPermissions(t, f.member.id, util.PermVaultRead, util.PermVaultWrite, util.PermSharesManage)
 		rec := f.record(t, f.owner.token, f.owner.id, "wifi", "hunter2", nil)
 		sec := f.audienceSection(t, util.AudienceWorkspace, util.EditingAudience, nil, rec)
+		private := f.record(t, f.owner.token, f.owner.id, "pin", "1234",
+			map[string]any{util.Fields.Section.AudienceKind: util.AudiencePrivate})
 		l := util.Fields.Link
 		for _, body := range []map[string]any{
 			{l.Label: "x", l.Workspace: f.owner.workspace, l.Records: []string{rec}},
 			{l.Label: "y", l.Workspace: f.owner.workspace, l.Sections: []string{sec}},
 		} {
-			f.api.Create(util.Coll.Links, f.member.token, body).Expect().Status(http.StatusBadRequest)
+			f.api.Create(util.Coll.Links, f.member.token, body).Expect().Status(http.StatusOK)
 		}
+		f.api.Create(util.Coll.Links, f.member.token, map[string]any{
+			l.Label: "z", l.Workspace: f.owner.workspace, l.Records: []string{private},
+		}).Expect().Status(http.StatusBadRequest)
 	})
 }
 
