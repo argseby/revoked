@@ -1,0 +1,14 @@
+=== RUN   TestWhitepaperInFlightRevocation
+    whitepaper_inflight_test.go:68: barrier reached after active-state check; HTTP revocation acknowledged; persisted status confirmed revoked
+    whitepaper_inflight_test.go:82: overlapping production service read returned active plus value after revocation; fresh read returned revoked without values
+--- PASS: TestWhitepaperInFlightRevocation (1.22s)
+=== RUN   TestWhitepaperInFlightRevocation
+    whitepaper_inflight_test.go:68: barrier reached after active-state check; HTTP revocation acknowledged; persisted status confirmed revoked
+    whitepaper_inflight_test.go:82: overlapping production service read returned active plus value after revocation; fresh read returned revoked without values
+--- PASS: TestWhitepaperInFlightRevocation (0.11s)
+=== RUN   TestWhitepaperInFlightRevocation
+    whitepaper_inflight_test.go:68: barrier reached after active-state check; HTTP revocation acknowledged; persisted status confirmed revoked
+    whitepaper_inflight_test.go:82: overlapping production service read returned active plus value after revocation; fresh read returned revoked without values
+--- PASS: TestWhitepaperInFlightRevocation (0.15s)
+PASS
+ok  	revoked/tests	1.491s
