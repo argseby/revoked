@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
@@ -98,6 +99,7 @@ class RecordActions {
             initialRecord: r,
           ),
         ),
+      ...copyIdActions(context, id: r.id, key: r.key),
       AppSheetAction(
         icon: AppIcons.trash,
         label: 'Delete',

@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -359,6 +360,7 @@ class ApiKeyRow extends StatelessWidget {
         context: context,
         title: label,
         actions: [
+          ...copyIdActions(context, id: apiKey.id),
           AppSheetAction(
             icon: AppIcons.xCircle,
             label: 'Revoke key',

@@ -1,3 +1,4 @@
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
@@ -580,6 +581,8 @@ class _BookmarkRow extends StatelessWidget {
         label: 'Rename',
         onSelected: () => _rename(context),
       ),
+      for (final a in copyIdActions(context, id: bookmark.id))
+        AppMenuItem(icon: a.icon, label: a.label, onSelected: a.onTap),
       if (bookmark.sender.isNotEmpty)
         AppMenuItem(
           icon: AppIcons.shieldSlash,

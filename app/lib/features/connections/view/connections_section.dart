@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/utils/people.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
@@ -634,6 +635,7 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
             label: 'Open link',
             onTap: () => context.go(AppRoutes.shareDetailFor(link.id)),
           ),
+          ...copyIdActions(context, id: link.id),
           if (live)
             AppSheetAction(
               icon: AppIcons.linkSlash,

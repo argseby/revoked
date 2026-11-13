@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
@@ -298,6 +299,7 @@ class _HeldAttestationsState extends State<HeldAttestations> {
                     enabled: store.verdicts[c.id]?.isUnusable != true,
                     onTap: () => openAttestationShareSheet(context, c),
                   ),
+                  ...copyIdActions(context, id: c.id),
                   AppSheetAction(
                     icon: AppIcons.trash,
                     label: 'Remove attestation',
@@ -600,6 +602,7 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
           saveError: () => Stores.attestations.error?.description,
         ),
       ),
+    ...copyIdActions(context, id: a.id),
     AppSheetAction(
       icon: AppIcons.trash,
       label: 'Delete',

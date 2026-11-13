@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobx/mobx.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/models/sign_in_consent.dart';
@@ -425,6 +426,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
             label: 'Open link',
             onTap: () => context.go(AppRoutes.shareDetailFor(link.id)),
           ),
+          ...copyIdActions(context, id: link.id),
           if (live)
             AppSheetAction(
               icon: AppIcons.linkSlash,

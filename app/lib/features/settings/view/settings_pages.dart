@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -345,14 +346,7 @@ class _WorkspacesPage extends StatelessWidget {
               workspaceId: ws.id,
             ),
           ),
-        AppSheetAction(
-          icon: AppIcons.copy,
-          label: 'Copy ID',
-          onTap: () {
-            Clipboard.setData(ClipboardData(text: ws.id));
-            AppToast.success(context, 'Workspace ID copied');
-          },
-        ),
+        ...copyIdActions(context, id: ws.id),
         // The active workspace's groups; listing them is open to everyone.
         if (active)
           AppSheetAction(
@@ -527,7 +521,8 @@ class _MembersPage extends StatelessWidget {
             member: member,
           ),
         ),
-      if (store.canManageMembers || member.isSelf)
+      if (store.canManageMembers || member.isSelf) ...[
+        ...copyIdActions(context, id: member.id),
         AppSheetAction(
           icon: AppIcons.xCircle,
           label: member.isSelf ? 'Leave workspace' : 'Remove member',
@@ -537,6 +532,7 @@ class _MembersPage extends StatelessWidget {
           enabled: !member.isLastAdmin,
           onTap: () => _remove(context, member),
         ),
+      ],
     ];
     return AppListRow(
       icon: AppIcons.person,
@@ -653,6 +649,7 @@ class _InvitesPage extends StatelessWidget {
                     context: context,
                     title: invite.label.isEmpty ? 'Invite' : invite.label,
                     actions: [
+                      ...copyIdActions(context, id: invite.id),
                       AppSheetAction(
                         icon: AppIcons.xCircle,
                         label: 'Withdraw invite',
@@ -754,6 +751,7 @@ class _IdentitiesPage extends StatelessWidget {
             label: 'Replace',
             onTap: () => openIdentityReplaceSheet(context, id),
           ),
+        ...copyIdActions(context, id: id.id),
         // Revoking, not deleting, is the answer to a leaked key: the holder
         // of a copy keeps passing every check until this server says
         // otherwise, and it can only say so about an identity it still has a
@@ -922,6 +920,7 @@ class _TemplatesPage extends StatelessWidget {
                       saveError: () => Stores.templates.errorMessage,
                     ),
                   ),
+                ...copyIdActions(context, id: template.id),
                 AppSheetAction(
                   icon: AppIcons.trash,
                   label: 'Delete',

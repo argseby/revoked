@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
@@ -117,6 +118,7 @@ class ShareActions {
         onTap: () =>
             openShareCreateSheet(context: context, initialShare: share),
       ),
+    ...copyIdActions(context, id: share.id),
     if (editable) ...[
       if (mine(share) &&
           share.encrypted &&

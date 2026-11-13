@@ -2,6 +2,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/features/vault/view/record_actions.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
+import 'package:revoked_app/core/widgets/app_context_menu.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
@@ -681,6 +683,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           )
         : null;
     final viewSectionId = section?.id ?? shared?.id;
+    final keyed = [section, shared].nonNulls
+        .where((s) => s.id != VaultStore.sharedEntriesId && s.key.isNotEmpty)
+        .firstOrNull;
     final showCard = view != null && !_asRecords.value.contains(viewSectionId);
     final sectionWidgets = <Widget>[
       for (final (s, _) in sections)
@@ -696,6 +701,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           onTap: () => _pane.value = section?.id == s.id
               ? const _AllPane()
               : _SectionPane(s.id),
+          actions: () => _sectionActions(context, s),
         ),
       for (final s in store.sharedSections)
         _VaultSectionTile(
@@ -708,6 +714,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           onTap: () => _pane.value = shared?.id == s.id
               ? const _AllPane()
               : _SharedPane(s.id),
+          actions: () => _sharedSectionActions(context, s),
         ),
     ];
     return AppPageBody(
@@ -792,6 +799,13 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                       ],
                     ],
                   ),
+                  if (keyed != null) ...[
+                    AppSpacing.gapXxs,
+                    AppText(
+                      keyed.key,
+                      key: const ValueKey('vault-section-key'),
+                    ).small.muted.mono.selectable,
+                  ],
                   if (section != null && narrow) ...[
                     AppSpacing.gapXxs,
                     _sectionBadges(context, section),
@@ -1267,6 +1281,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               label: 'Edit value',
               onTap: () => _editSharedRecord(context, r, closeAfterSave: false),
             ),
+          ...copyIdActions(context, id: r.id, key: r.key),
         ],
       );
 
@@ -1414,9 +1429,79 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         saveError: () => Stores.vault.errorMessage,
       );
 
-  Widget _sectionMenu(BuildContext context, Section section) {
+  /// One of this person's sections' actions, for its ⋮ menu and its
+  /// context menu alike.
+  List<AppSheetAction> _sectionActions(BuildContext context, Section section) {
     final store = Stores.vault;
     final access = Stores.shares.linksForSection(section.id);
+    return [
+      AppSheetAction(
+        icon: AppIcons.plusSlashMinus,
+        label: 'Add or remove records',
+        onTap: () => store.editSection(section.id),
+      ),
+      if (section.isSignIn)
+        AppSheetAction(
+          icon: AppIcons.globe,
+          label: 'Open service',
+          onTap: () => _openSignInService(context, section),
+        ),
+      if (access.isNotEmpty)
+        AppSheetAction(
+          icon: AppIcons.share,
+          label: 'Who has access · ${access.length}',
+          onTap: () => _showVaultAccessSheet(
+            context,
+            title: _sectionName(section),
+            links: access,
+          ),
+        ),
+      if (!section.isRequested)
+        AppSheetAction(
+          icon: AppIcons.personWorkspace,
+          label: 'Visibility',
+          onTap: () => _openVisibility(context, section),
+        ),
+      AppSheetAction(
+        icon: AppIcons.dashboard,
+        label: 'Section view',
+        onTap: () => openSectionViewSheet(context, section),
+      ),
+      AppSheetAction(
+        icon: AppIcons.pen,
+        label: 'Rename',
+        onTap: () => openSectionRenameSheet(
+          context: context,
+          store: store,
+          section: section,
+        ),
+      ),
+      AppSheetAction(
+        icon: AppIcons.duplicate,
+        label: 'Duplicate',
+        onTap: () => openVaultCreateSheet(context, duplicateSection: section),
+      ),
+      ...copyIdActions(context, id: section.id, key: section.key),
+      AppSheetAction(
+        icon: AppIcons.trash,
+        label: 'Delete',
+        destructive: true,
+        onTap: () => _confirmDeleteSection(context, store, section.id),
+      ),
+    ];
+  }
+
+  /// A member's shared section is theirs to change; only its key and id are
+  /// on offer. The group of entries published on their own has neither.
+  List<AppSheetAction> _sharedSectionActions(
+    BuildContext context,
+    Section section,
+  ) => section.id == VaultStore.sharedEntriesId
+      ? const []
+      : copyIdActions(context, id: section.id, key: section.key);
+
+  Widget _sectionMenu(BuildContext context, Section section) {
+    final actions = _sectionActions(context, section);
     return AppMenuButton(
       icon: AppIcons.threeDotsVertical,
       tooltip: 'Section actions',
@@ -1424,60 +1509,15 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       size: AppButtonSize.normal,
       chevron: false,
       items: [
-        AppMenuItem(
-          icon: AppIcons.plusSlashMinus,
-          label: 'Add or remove records',
-          onSelected: () => store.editSection(section.id),
-        ),
-        if (section.isSignIn)
+        for (final (i, a) in actions.indexed) ...[
+          if (a.destructive && i > 0 && !actions[i - 1].destructive) null,
           AppMenuItem(
-            icon: AppIcons.globe,
-            label: 'Open service',
-            onSelected: () => _openSignInService(context, section),
+            icon: a.icon,
+            label: a.label,
+            destructive: a.destructive,
+            onSelected: a.onTap,
           ),
-        if (access.isNotEmpty)
-          AppMenuItem(
-            icon: AppIcons.share,
-            label: 'Who has access · ${access.length}',
-            onSelected: () => _showVaultAccessSheet(
-              context,
-              title: _sectionName(section),
-              links: access,
-            ),
-          ),
-        if (!section.isRequested)
-          AppMenuItem(
-            icon: AppIcons.personWorkspace,
-            label: 'Visibility',
-            onSelected: () => _openVisibility(context, section),
-          ),
-        AppMenuItem(
-          icon: AppIcons.dashboard,
-          label: 'Section view',
-          onSelected: () => openSectionViewSheet(context, section),
-        ),
-        AppMenuItem(
-          icon: AppIcons.pen,
-          label: 'Rename',
-          onSelected: () => openSectionRenameSheet(
-            context: context,
-            store: store,
-            section: section,
-          ),
-        ),
-        AppMenuItem(
-          icon: AppIcons.duplicate,
-          label: 'Duplicate',
-          onSelected: () =>
-              openVaultCreateSheet(context, duplicateSection: section),
-        ),
-        null,
-        AppMenuItem(
-          icon: AppIcons.trash,
-          label: 'Delete',
-          destructive: true,
-          onSelected: () => _confirmDeleteSection(context, store, section.id),
-        ),
+        ],
       ],
     );
   }
@@ -1863,6 +1903,9 @@ class _VaultSectionTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Built when the context menu opens, so permissions are current.
+  final List<AppSheetAction> Function() actions;
+
   const _VaultSectionTile({
     super.key,
     required this.icon,
@@ -1871,10 +1914,14 @@ class _VaultSectionTile extends StatelessWidget {
     required this.audience,
     required this.selected,
     required this.onTap,
+    required this.actions,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      AppContextMenu(title: title, actions: actions, child: _tile(context));
+
+  Widget _tile(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,

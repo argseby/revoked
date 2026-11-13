@@ -143,6 +143,8 @@ void main() {
       'Edit',
       'Encrypt end to end',
       'Duplicate',
+      'Copy key',
+      'Copy ID',
       'Delete',
     ]);
     await tester.longPress(find.text('Email'));
@@ -152,6 +154,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(copied, 'ada@example.com');
     expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('a record copies its key and its id', (tester) async {
+    await pump(tester);
+    for (final (label, value) in [('Copy key', 'email'), ('Copy ID', 'r1')]) {
+      await tester.longPress(find.text('Email'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text(label));
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+      expect(copied, value);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets(
@@ -171,6 +187,8 @@ void main() {
       await pump(tester);
       expect(labels(RecordActions(context).forRecord(record)), [
         'Visibility',
+        'Copy key',
+        'Copy ID',
         'Delete',
       ]);
     },
@@ -209,7 +227,7 @@ void main() {
       labels(
         ShareActions(context).forShare(link(status: 'revoked'), editable: true),
       ),
-      ['Visibility', 'Edit', 'Duplicate', 'Delete'],
+      ['Visibility', 'Edit', 'Duplicate', 'Copy ID', 'Delete'],
     );
   });
 
@@ -219,7 +237,7 @@ void main() {
     await pump(tester);
     final colleague = link(user: 'colleague');
     final readOnly = labels(await shareContextActions(context, colleague));
-    expect(readOnly, ['Share link', 'View as recipient']);
+    expect(readOnly, ['Share link', 'View as recipient', 'Copy ID']);
     mayEdit = true;
     final editable = labels(await shareContextActions(context, colleague));
     expect(editable, containsAll(['Edit', 'Pause', 'Revoke', 'Delete']));
@@ -237,6 +255,7 @@ void main() {
         'View responses',
         'View as sheet',
         'Share',
+        'Copy ID',
       ]);
       mayEdit = true;
       final editable = labels(await requestContextActions(context, colleague));
@@ -267,6 +286,7 @@ void main() {
       'Share',
       'Visibility',
       'Edit',
+      'Copy ID',
       'Revoke',
       'Delete',
     ]) {
