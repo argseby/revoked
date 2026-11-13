@@ -19,6 +19,7 @@ import 'package:revoked_app/core/widgets/app_focus_ring.dart';
 import 'package:revoked_app/core/widgets/app_key_hint.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/feature_notice.dart';
+import 'package:revoked_app/features/settings/view/settings_pages.dart';
 import 'package:revoked_app/features/shell/view/account_menu.dart';
 import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 import 'package:revoked_app/features/shell/utils/new_actions.dart';
@@ -147,9 +148,8 @@ class _AppShellState extends State<AppShell> {
 
   /// The screen's own title, or the place's name while it has none.
   Widget _title(String? root) {
-    final onNotifications = GoRouterState.of(
-      context,
-    ).uri.path.startsWith(AppRoutes.notifications);
+    final onNotifications = GoRouterState.of(context).uri.path
+        .startsWith(AppRoutes.notifications);
     final fallback = root != null
         ? _places.firstWhere((d) => d.route == root).label
         : onNotifications
@@ -202,6 +202,14 @@ class _AppShellState extends State<AppShell> {
       return true;
     }
     if (uri.path == AppRoutes.shared) {
+      return true;
+    }
+    // Settings and its topics name themselves above their groups.
+    final segments = uri.pathSegments;
+    if (uri.path == AppRoutes.settings ||
+        (segments.length == 2 &&
+            '/${segments.first}' == AppRoutes.settings &&
+            SettingsPage.fromSlug(segments[1]) != null)) {
       return true;
     }
     return uri.path == AppRoutes.vault &&
@@ -362,8 +370,6 @@ class _AppShellState extends State<AppShell> {
   }) {
     final scheme = Theme.of(context).colorScheme;
     final shown = _shownDestinations();
-    final width = MediaQuery.sizeOf(context).width;
-    final roomForSearchField = width >= _searchFieldMinWindow && !_titleInBody;
     // A page's own "New …" belongs to its list. A detail page has its own
     // actions, and the navigation's New is always at hand; only Shares keeps
     // its list beside the open link on a wide window.
@@ -385,6 +391,8 @@ class _AppShellState extends State<AppShell> {
         ? pageActionFor(path)
         : null;
     final listSearch = onList ? ShellSlots.search.toolbarFor(root) : null;
+    final onSettings =
+        path == AppRoutes.settings || path.startsWith('${AppRoutes.settings}/');
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -398,30 +406,35 @@ class _AppShellState extends State<AppShell> {
             )
           else
             NavigationRail(
-              selectedIndex: destination,
-              onDestinationSelected: _go,
+              // Settings follows the places as one more destination, so it
+              // looks and sits like them.
+              selectedIndex: onSettings ? shown.length : destination,
+              onDestinationSelected: (i) =>
+                  i == shown.length ? context.go(AppRoutes.settings) : _go(i),
               labelType: NavigationRailLabelType.all,
               // A phone on its side is this wide but too short for every place.
               scrollable: true,
+              // On the rail rather than in a top bar of their own, so the
+              // page starts at the top of the window.
               leading: Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: Column(
-                  children: [
-                    const AccountMenu(),
-                    AppSpacing.gapSm,
-                    // Outlined, so it never reads as the current place, which
-                    // the rail marks with a solid fill.
-                    AppButton(
-                      icon: AppIcons.plus,
-                      style: AppButtonStyle.accent,
-                      tooltip: 'Create something new (N)',
-                      onTap: () => _openNew(root),
-                    ),
-                  ],
+                padding: const EdgeInsets.only(
+                  top: AppSpacing.xs,
+                  bottom: AppSpacing.md,
+                ),
+                child: _RailCommandPanel(
+                  notificationsSelected: path == AppRoutes.notifications,
+                  onNew: () => _openNew(root),
                 ),
               ),
               destinations: [
-                for (final d in shown)
+                for (final d in [
+                  ...shown,
+                  const _Destination(
+                    AppRoutes.settings,
+                    AppIcons.personGear,
+                    'Settings',
+                  ),
+                ])
                   NavigationRailDestination(
                     icon: Icon(d.icon),
                     // The rail is as wide as its longest label, so a long
@@ -442,39 +455,21 @@ class _AppShellState extends State<AppShell> {
           VerticalDivider(width: 1, thickness: 1, color: scheme.outlineVariant),
           Expanded(
             child: Scaffold(
-              appBar: sidebar && _titleInBody
+              // Pages that name themselves need no bar: the sidebar or the
+              // rail carries search, the link field and notifications.
+              appBar: _titleInBody
                   ? null
                   : AppBar(
                       titleSpacing: AppSpacing.screenH(context),
                       title: _titleInBody ? null : _title(root),
                       actions: [
                         _slot(ShellSlots.action),
-                        if (!sidebar) const _NotificationBell(),
                         // The sidebar carries its own "Open link or go to", so it is not repeated.
                         // A mid-sized window keeps the bar's room for the title and
                         // the page's action, and searches from an icon.
                         // Beside a list's Search and filter a field would read as
                         // the list's own search, so it stays an icon there.
-                        if (!sidebar &&
-                            (!roomForSearchField || listSearch != null))
-                          AppButton(
-                            icon: AppIcons.link,
-                            style: AppButtonStyle.ghost,
-                            tooltip: 'Open link or go to',
-                            onTap: () => openLinkSearchSheet(context),
-                          ),
-                        if (!sidebar &&
-                            roomForSearchField &&
-                            listSearch == null)
-                          Padding(
-                            padding: EdgeInsets.only(left: AppSpacing.xs),
-                            child: SizedBox(
-                              // Shrinks on a narrow rail so the title keeps room.
-                              width: (MediaQuery.sizeOf(context).width * 0.3)
-                                  .clamp(160, _searchTriggerWidth),
-                              child: _SearchField(),
-                            ),
-                          ),
+                        // The rail has the link button, so no search field here.
                         // The list's search, filters and order, behind one button
                         // that opens them under it; an empty list keeps it too.
                         if (listSearch != null)
@@ -778,31 +773,6 @@ class _ConnectionSummary extends StatelessWidget {
   );
 }
 
-/// The narrowest window whose rail layout keeps the search field in the top
-/// bar; below it the field becomes an icon.
-const double _searchFieldMinWindow = 900;
-
-/// How much room the trigger takes in a top bar — enough for the hint, but
-/// not so much that it crowds the bar on a mid-sized window.
-const double _searchTriggerWidth = 240;
-
-/// Opens the "Open link or go to" drawer, which finds anything by name or
-/// opens a pasted link. `/` and Ctrl+K open it too. Searching within a list
-/// is that list's own toolbar.
-class _SearchField extends StatelessWidget {
-  const _SearchField();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSearchTrigger(
-      icon: AppIcons.link,
-      hint: 'Open link or go to',
-      onTap: () => openLinkSearchSheet(context),
-      trailing: const AppKeyHint('/'),
-    );
-  }
-}
-
 class _SidebarItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -924,6 +894,70 @@ class _NotificationBell extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// The rail's workspace controls in one surface, as the sidebar groups
+/// them: the account, then search and notifications, then New.
+class _RailCommandPanel extends StatelessWidget {
+  final bool notificationsSelected;
+  final VoidCallback onNew;
+
+  const _RailCommandPanel({
+    required this.notificationsSelected,
+    required this.onNew,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget divider() => Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: SizedBox(
+        width: AppSpacing.xl,
+        child: Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+      ),
+    );
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: 'Workspace controls',
+      child: Material(
+        color: scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.allLg,
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xxs),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: AppSpacing.xxs),
+                child: AccountMenu(),
+              ),
+              divider(),
+              AppButton(
+                icon: AppIcons.link,
+                style: AppButtonStyle.ghost,
+                tooltip: 'Open link or go to',
+                onTap: () => openLinkSearchSheet(context),
+              ),
+              AppSpacing.gapXxs,
+              _NotificationBell(selected: notificationsSelected),
+              divider(),
+              AppButton(
+                icon: AppIcons.plus,
+                tooltip: 'Create something new (N)',
+                onTap: onNew,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
