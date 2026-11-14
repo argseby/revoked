@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
+- Licensed under MPL-2.0 instead of GPL-3.0-only, so the package can be used
+  in applications under any licence.
 - A credential option that is present but empty, such as
   `apiKey: process.env.REVOKED_API_KEY` with the variable unset, is refused
   when the client is created instead of sending every call without a

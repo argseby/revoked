@@ -110,4 +110,5 @@ each release is tagged `sdk-js-v<version>`.
 
 ## License
 
-GPL-3.0-only.
+MPL-2.0. Changes to the files of this package are shared under the same
+licence; the code that uses it can be under any licence.

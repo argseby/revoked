@@ -1,8 +1,8 @@
 {
   "name": "@kiunke.dev/revoked",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript client for the Revoked API: shares, requests, vault, webhooks, identities and connected tools.",
-  "license": "GPL-3.0-only",
+  "license": "MPL-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/argseby/revoked.git",

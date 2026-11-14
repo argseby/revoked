@@ -83,3 +83,8 @@ flutter test
 ```bash
 flutter analyze
 ```
+
+## License
+
+MPL-2.0. Changes to the files of this package are shared under the same
+licence; the app that uses it can be under any licence.
