@@ -2625,6 +2625,7 @@ paths:
               required: [label]
               properties:
                 label: { type: string }
+                password: { type: string, description: Optional password; stored hashed. }
                 records: { type: array, items: { type: string } }
                 sections: { type: array, items: { type: string } }
                 expiresAt: { type: string, description: "Left out, the share does not expire." }
@@ -2672,6 +2673,94 @@ paths:
           description: The request as the tool sees it, with its `url`.
         "403":
           description: "`connection_not_permitted`, `connection_polled`, `template_not_owned`, `identity_required`, `identity_not_owned` or `identity_revoked`."
+  /api/connection/sections:
+    get:
+      tags: [Connections]
+      summary: Read the tool's section groups and their current entries
+      security:
+        - Connection: []
+      responses:
+        "200": { description: "Object containing sections and records, with current values. Only groups beneath the tool's enabled own-section grant." }
+        "401": { description: "Not connected." }
+        "403": { description: "Vault access or own-section grant unavailable." }
+        "429": { description: "Read rate limit exceeded." }
+    post:
+      tags: [Connections]
+      summary: Create a group inside the tool's own section grant
+      security:
+        - Connection: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, key]
+              properties:
+                name: { type: string, maxLength: 100 }
+                key: { type: string, pattern: '^[a-z0-9_]{1,55}$' }
+      responses:
+        "201": { description: "Section id, namespaced key suffix, name and empty records array." }
+        "400": { description: "Invalid section name or key." }
+        "401": { description: "Not connected." }
+        "403": { description: "Vault write or own-section grant unavailable." }
+        "429": { description: "Write rate limit exceeded." }
+  /api/connection/sections/{id}:
+    patch:
+      tags: [Connections]
+      summary: Rename a tool group or attach/detach entries written by the tool
+      security:
+        - Connection: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 100 }
+                records+: { type: array, items: { type: string } }
+                records-: { type: array, items: { type: string } }
+      responses:
+        "204": { description: "Updated." }
+        "400": { description: "Invalid section update." }
+        "401": { description: "Not connected." }
+        "403": { description: "Vault write not granted or a record was not written by this tool." }
+        "404": { description: "Not this tool's group." }
+        "429": { description: "Write rate limit exceeded." }
+  /api/connection/links/{id}:
+    patch:
+      tags: [Connections]
+      summary: Replace the explicit record grant on a share created by this tool
+      description: Sections provide layout only. Pass every intended record id explicitly. Needs shares:manage and current vault reach for each entry.
+      security:
+        - Connection: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                records: { type: array, items: { type: string } }
+                sections: { type: array, items: { type: string } }
+      responses:
+        "200": { description: "Updated link status, as on GET /api/connection." }
+        "400": { description: "Invalid update." }
+        "401": { description: "Not connected." }
+        "403": { description: "Share management not granted." }
+        "404": { description: "Not this tool's share or content is out of reach." }
+        "429": { description: "Write rate limit exceeded." }
   /api/vault:
     get:
       tags: [Vault]
@@ -2787,7 +2876,7 @@ paths:
       tags: [Vault]
       summary: Change a record it wrote
       description: |
-        Changes `label`, `format`, `value`, `filename` or the uploaded `file`
+        Changes `key`, `label`, non-file `type`, `format`, `value`, `filename` or the uploaded `file`
         of a record this key or tool wrote. A record the owner put in its
         section is read-only to it.
       security:

@@ -2,6 +2,7 @@ package services
 
 import (
 	"slices"
+	"strings"
 
 	"revoked/util"
 
@@ -88,6 +89,30 @@ func ApiKeyCredential(key *core.Record) Credential {
 	}
 }
 
+// ToolSectionPrefix namespaces a connection's groups under its own grant.
+func (c Credential) ToolSectionPrefix() string {
+	if c.Kind != CredentialConnection || c.Record == nil || c.Record.GetBool(util.Fields.Connection.SectionOff) {
+		return ""
+	}
+	parent := c.Record.GetString(util.Fields.Connection.Section)
+	if parent == "" {
+		return ""
+	}
+	return "tool_" + c.Id + "_" + parent + "_"
+}
+
+func (c Credential) CanWriteSection(app core.App, id string) bool {
+	if !c.WritesVault() {
+		return false
+	}
+	for _, section := range c.ReachedSections(app) {
+		if section.Id == id && (slices.Contains(c.Writable, id) || (c.ToolSectionPrefix() != "" && strings.HasPrefix(section.GetString(util.Fields.Section.Key), c.ToolSectionPrefix()) && section.GetString(util.Fields.Section.User) == c.User)) {
+			return true
+		}
+	}
+	return false
+}
+
 // Has reports whether the credential holds a scope.
 func (c Credential) Has(scope string) bool {
 	return slices.Contains(c.Scopes, scope)
@@ -130,13 +155,28 @@ func (c Credential) ReachedSections(app core.App) []*core.Record {
 		return nil
 	}
 	byId := map[string]*core.Record{}
+	ids := slices.Clone(c.Sections)
+	if prefix := c.ToolSectionPrefix(); prefix != "" {
+		parentPresent := slices.ContainsFunc(found, func(s *core.Record) bool {
+			return s.Id == c.Record.GetString(util.Fields.Connection.Section) && s.GetString(util.Fields.Section.User) == c.User && s.GetString(util.Fields.Section.Workspace) == c.Workspace
+		})
+		if parentPresent {
+			children, _ := app.FindRecordsByFilter(util.Coll.Sections, "workspace = {:ws} && user = {:user} && key ~ {:prefix}", "created", 0, 0, dbx.Params{"ws": c.Workspace, "user": c.User, "prefix": prefix})
+			for _, child := range children {
+				if strings.HasPrefix(child.GetString(util.Fields.Section.Key), prefix) && child.GetString(util.Fields.Section.RequestedBy) == "" && !slices.Contains(ids, child.Id) {
+					found = append(found, child)
+					ids = append(ids, child.Id)
+				}
+			}
+		}
+	}
 	for _, s := range found {
 		if s.GetString(util.Fields.Section.Workspace) == c.Workspace {
 			byId[s.Id] = s
 		}
 	}
 	out := []*core.Record{}
-	for _, id := range c.Sections {
+	for _, id := range ids {
 		if s, ok := byId[id]; ok {
 			out = append(out, s)
 		}

@@ -3,7 +3,6 @@ package routes
 import (
 	"errors"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -38,6 +37,7 @@ var vaultWriteLimiter = util.NewRateLimiter(util.LimitFromEnv("RATELIMIT_VAULT_W
 // Never an encrypted record, whose value this server cannot read.
 func VaultRoute(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		bindConnectionSections(e, app)
 		list := func(re *core.RequestEvent) error { return listVault(app, re) }
 		read := func(re *core.RequestEvent) error { return readVaultRecord(app, re) }
 		e.Router.GET("/api/vault", list)
@@ -326,7 +326,7 @@ func writeVaultRecord(app core.App, re *core.RequestEvent, target *vaultTarget) 
 		if id == "" {
 			id = c.Writable[0]
 		}
-		if !slices.Contains(c.Writable, id) {
+		if !c.CanWriteSection(app, id) {
 			return appErrorResponse(re, http.StatusForbidden, &util.Errors.VaultSectionNotWritable)
 		}
 		for _, s := range c.ReachedSections(app) {
@@ -363,6 +363,15 @@ func writeVaultRecord(app core.App, re *core.RequestEvent, target *vaultTarget) 
 	if target != nil {
 		rec = target.rec
 		old = rec.PublicExport()
+		if in.set["key"] {
+			rec.Set(f.Key, strings.TrimSpace(in.Key))
+		}
+		if in.set["type"] && rec.GetString(f.Type) != util.TypeFile {
+			if in.Type == util.TypeFile {
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
+			}
+			rec.Set(f.Type, in.Type)
+		}
 		if in.set["label"] {
 			rec.Set(f.Label, in.Label)
 		}
