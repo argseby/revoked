@@ -147,3 +147,22 @@ base64 -w0 revoked-release.jks   # paste into ANDROID_KEYSTORE_BASE64
 
 Windows builds are unsigned unless a certificate is set up, so SmartScreen warns
 on first run.
+
+## Licences and contributions
+
+| Path | Licence |
+|---|---|
+| Everything not listed below: the server, `app/`, `web/`, `docs/` | [AGPL-3.0-only](LICENSE) |
+| `packages/revoked_sign_in/`, `packages/revoked-js/` | [MPL-2.0](packages/revoked-js/LICENSE) |
+| `examples/` | [MPL-2.0](examples/LICENSE) |
+
+The packages and examples are MPL-2.0 so that they can be built into
+applications under any licence. The rest is AGPL-3.0: a modified version that
+is offered as a network service must publish its source.
+
+By submitting a contribution, the contributor confirms the right to submit it
+and grants the maintainer a perpetual, worldwide, royalty-free licence to use,
+modify and relicense it, including under terms other than the AGPL-3.0. The
+contribution itself remains available under the licence of the files it
+changes. This keeps a commercial licence possible alongside the open-source
+one.

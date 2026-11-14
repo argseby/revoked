@@ -21,7 +21,8 @@ info:
     account on this server — recipients of a share, responders to a request,
     verifiers walking the trust chain.
   license:
-    name: See repository
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
 servers:
   - url: https://{host}
     description: Your deployment

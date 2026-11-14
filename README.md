@@ -10,7 +10,7 @@ The client and server infrastructure for exchanging data.
 
 [Website](https://revoked.link) · [Docs](https://docs.revoked.link) · [Install the app](https://github.com/argseby/revoked/releases/latest) · [Developer API](https://docs.revoked.link/api/)
 
-[![License: ELv2](https://img.shields.io/badge/License-Elastic_v2-blue.svg)](https://www.elastic.co/licensing/elastic-license)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Status: Experimental](https://img.shields.io/badge/status-experimental-yellow)](#)
 [![Windows](https://img.shields.io/badge/Windows-0078D6?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0wIDBoMTEuNHYxMS40SDB6TTEyLjYgMEgyNHYxMS40SDEyLjZ6TTAgMTIuNmgxMS40VjI0SDB6TTEyLjYgMTIuNkgyNFYyNEgxMi42eiIvPjwvc3ZnPg==)](#)
 [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](#)
@@ -174,5 +174,8 @@ source, tests and how releases work. Planned work is on the
 
 ## Licence
 
-[Elastic License 2.0](LICENSE). Self-host it, build on it, don't sell it as a
-service.
+[AGPL-3.0-only](LICENSE). Anyone may run, change and host Revoked; a modified
+version offered as a service must publish its source. The SDK packages in
+`packages/` and the code in `examples/` are [MPL-2.0](examples/LICENSE), so they
+can be used in applications under any licence. Details and the terms for
+contributions are in [CONTRIBUTING.md](CONTRIBUTING.md#licences-and-contributions).

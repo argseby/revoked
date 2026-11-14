@@ -1,3 +1,8 @@
+## 0.1.3
+
+- Licensed under MPL-2.0 instead of GPL-3.0, so the package can be used in
+  apps under any licence.
+
 ## 0.1.2
 
 - Builds against `qr` 4: the QR code is created with `QrPayload.fromString`
