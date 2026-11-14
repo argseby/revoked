@@ -11,6 +11,28 @@ each of them, with the reason, in `coverage.json`.
 npm install @kiunke.dev/revoked
 ```
 
+## A first script
+
+An [API key](authentication.md#api-keys) with **Manage vault** for one
+section and **Manage shares** is enough to store a value and share it. Saved
+as `share.mjs` and run with `node --env-file=.env share.mjs`, where `.env`
+holds `REVOKED_API_KEY`:
+
+```js
+import { Revoked } from '@kiunke.dev/revoked';
+
+const revoked = new Revoked({ server: 'https://api.example.com', apiKey: process.env.REVOKED_API_KEY });
+
+const record = await revoked.vault.create({ key: 'wifi_password', label: 'Wi-Fi password', value: 'correct-horse' });
+const link = await revoked.links.create({ label: 'Wi-Fi for guests', records: [record.id], maxViews: 5 });
+
+console.log(revoked.links.url(link));
+```
+
+The printed address opens the share in a browser. Changing the record changes
+what the share shows on its next read; `revoked.links.revoke(link.id)` ends
+it.
+
 ## Credentials
 
 A client acts with at most one credential. Each credential travels in its own
@@ -41,7 +63,7 @@ as `workspace` when the client is created.
 ## Shares
 
 ```ts
-const record = await revoked.records.create({ key: 'shipping_address', label: 'Delivery address', value: 'Musterstraße 12, Berlin' });
+const record = await revoked.vault.create({ key: 'shipping_address', label: 'Delivery address', value: 'Musterstraße 12, Berlin' });
 const link = await revoked.links.create({ label: 'Delivery address', records: [record.id], maxViews: 3 });
 
 revoked.links.url(link);      // https://api.example.com/s/<slug>
@@ -61,6 +83,10 @@ const entries = await revoked.vault.list();
 const phone = await revoked.vault.find('phone');
 await revoked.vault.create({ key: 'now_playing', label: 'Now playing', value: 'Track 7', section: sectionId });
 ```
+
+`section` takes a section's id, which **Copy ID (API)** in the section's
+menu puts on the clipboard. Left out, the record goes into the key's first
+section.
 
 ## Opening a share
 
@@ -107,6 +133,64 @@ const answers = await revoked.requests.responses(request.id);
 Answering a request takes a session on the request's server
 (`revoked.public.requests.submit`). The answer becomes a grant in the
 responder's own workspace.
+
+## Example: collecting details and following the answer
+
+A shop asks a customer for delivery details, is told the moment they answer,
+reads the current values, and hears when the customer withdraws them. The API
+key needs **Manage requests**, **View requests**, **View identities** (the
+request asks as the workspace's primary identity) and **Manage webhooks**. `PUBLIC_URL` is an address the Revoked server can reach. A server
+started with `ALLOW_PRIVATE_CALLBACKS=true` also delivers to `localhost`.
+
+```ts
+import { createServer } from 'node:http';
+import { Revoked } from '@kiunke.dev/revoked';
+import { verifyWebhook } from '@kiunke.dev/revoked/webhooks';
+
+const revoked = new Revoked({ server: process.env.REVOKED_SERVER!, apiKey: process.env.REVOKED_API_KEY! });
+
+const request = await revoked.requests.create({ label: 'Delivery details', template: process.env.TEMPLATE_ID, maxResponses: 1 });
+console.log('Link for the customer:', revoked.requests.appLink(request));
+
+const endpoint = await revoked.webhooks.endpoints.create({
+  url: `${process.env.PUBLIC_URL}/hooks/revoked`,
+  events: ['response.submitted', 'response.changed', 'response.revoked'],
+});
+
+createServer(async (req, res) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let event;
+  try {
+    event = await verifyWebhook({
+      body: Buffer.concat(chunks).toString('utf8'),
+      signature: req.headers['revoked-signature'] as string | undefined,
+      secret: endpoint.secret,
+    });
+  } catch {
+    res.writeHead(400).end();
+    return;
+  }
+  res.writeHead(204).end();
+
+  switch (event.type) {
+    case 'response.submitted':
+    case 'response.changed': {
+      const [answer] = await revoked.requests.responses(request.id);
+      console.log(`${answer?.senderName} answered:`, answer?.data);
+      break;
+    }
+    case 'response.revoked':
+      console.log('The answer was withdrawn. Its values are no longer readable.');
+      break;
+  }
+}).listen(4000);
+```
+
+The answer is a living grant in the customer's own workspace. When they
+correct the address in their vault, `response.changed` arrives and
+`responses` returns the new value. When they revoke it, the values stop being
+readable. No copy is left behind.
 
 ## Webhooks
 

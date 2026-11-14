@@ -10,14 +10,71 @@ dependencies.
 npm install @kiunke.dev/revoked
 ```
 
-```ts
+## A first script
+
+An API key with **Manage vault** for one section and **Manage shares**:
+
+```js
 import { Revoked } from '@kiunke.dev/revoked';
 
 const revoked = new Revoked({ server: 'https://api.example.com', apiKey: process.env.REVOKED_API_KEY });
 
-const link = await revoked.links.create({ label: 'Delivery address', records: [recordId], maxViews: 3 });
+const record = await revoked.vault.create({ key: 'wifi_password', label: 'Wi-Fi password', value: 'correct-horse' });
+const link = await revoked.links.create({ label: 'Wi-Fi for guests', records: [record.id], maxViews: 5 });
 console.log(revoked.links.url(link));
 ```
+
+```bash
+node --env-file=.env share.mjs
+```
+
+Changing the record changes what the share shows on its next read.
+`revoked.links.revoke(link.id)` ends it.
+
+## Collecting details and following the answer
+
+A request asks someone for data. The answer stays theirs, as a living grant
+they can correct or withdraw. A webhook reports each change:
+
+```ts
+import { createServer } from 'node:http';
+import { Revoked } from '@kiunke.dev/revoked';
+import { verifyWebhook } from '@kiunke.dev/revoked/webhooks';
+
+const revoked = new Revoked({ server: process.env.REVOKED_SERVER!, apiKey: process.env.REVOKED_API_KEY! });
+
+const request = await revoked.requests.create({ label: 'Delivery details', maxResponses: 1 });
+console.log('Link for the customer:', revoked.requests.appLink(request));
+
+const endpoint = await revoked.webhooks.endpoints.create({
+  url: `${process.env.PUBLIC_URL}/hooks/revoked`,
+  events: ['response.submitted', 'response.changed', 'response.revoked'],
+});
+
+createServer(async (req, res) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(chunk as Buffer);
+  const event = await verifyWebhook({
+    body: Buffer.concat(chunks).toString('utf8'),
+    signature: req.headers['revoked-signature'] as string | undefined,
+    secret: endpoint.secret,
+  }).catch(() => undefined);
+  res.writeHead(event ? 204 : 400).end();
+
+  if (event?.type === 'response.submitted' || event?.type === 'response.changed') {
+    const [answer] = await revoked.requests.responses(request.id);
+    console.log(`${answer?.senderName} answered:`, answer?.data);
+  }
+  if (event?.type === 'response.revoked') console.log('The answer was withdrawn.');
+}).listen(4000);
+```
+
+The key needs **Manage requests**, **View requests**, **View identities** and
+**Manage webhooks**. The [guide](https://docs.revoked.link/api/sdk/) covers
+the rest: opening shares with a proven identity, encrypted shares, connected
+tools, the trust chain, errors and pagination.
+
+## Entry points
 
 | Import | Contents |
 |---|---|
@@ -28,8 +85,6 @@ console.log(revoked.links.url(link));
 | `@kiunke.dev/revoked/identity` | Local P-256 identity keys and challenge signatures |
 | `@kiunke.dev/revoked/trust` | DNS pin, server assertion, root signature and identity status checks |
 | `@kiunke.dev/revoked/sealed` | Opening end-to-end encrypted shares with the key from their address |
-
-Guide: [docs/api/sdk.md](https://github.com/argseby/revoked/blob/main/docs/api/sdk.md).
 
 `coverage.json` maps every operation in the server's OpenAPI document to the
 method that calls it, or names why it is left out. Writing end-to-end
