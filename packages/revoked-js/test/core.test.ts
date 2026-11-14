@@ -145,6 +145,15 @@ describe('Transport', () => {
   });
 });
 
+describe('client options', () => {
+  it('refuses a credential that is named but empty', () => {
+    expect(() => new Revoked({ server: SERVER, apiKey: undefined })).toThrow('`apiKey` is empty');
+    expect(() => new Revoked({ server: SERVER, apiKey: '  ' })).toThrow(TypeError);
+    expect(() => new Revoked({ server: SERVER, session: '' })).toThrow('`session` is empty');
+    expect(() => new Revoked({ server: SERVER })).not.toThrow();
+  });
+});
+
 describe('filters', () => {
   it('escapes quotes and backslashes so a value cannot end its literal', () => {
     expect(f`key = ${"a' || user != '"}`.expression).toBe("key = 'a\\' || user != \\''");

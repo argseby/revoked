@@ -31,25 +31,39 @@ interface CommonOptions {
 /** Exactly one credential, or none for public calls only. */
 export type RevokedOptions = CommonOptions &
   (
-    | { apiKey: string; connection?: never; session?: never }
-    | { connection: string; apiKey?: never; session?: never }
+    | {
+        /** Typed to take `process.env.…` directly; an empty value is refused when the client is created. */
+        apiKey: string | undefined;
+        connection?: never;
+        session?: never;
+      }
+    | { connection: string | undefined; apiKey?: never; session?: never }
     | {
         /** A session token for a signed-in person. Refreshed automatically when it expires. */
-        session: string;
+        session: string | undefined;
         onSessionRefresh?: (token: string) => void | Promise<void>;
         apiKey?: never;
         connection?: never;
       }
-    | { apiKey?: undefined; connection?: undefined; session?: undefined }
+    | { apiKey?: never; connection?: never; session?: never }
   );
 
+/** A credential named but empty would otherwise make every call anonymous, and fail later as a 401. */
+function present(name: string, value: string | undefined): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new TypeError(`\`${name}\` is empty. Pass the credential, or leave the option out for public calls only.`);
+  }
+  return value;
+}
+
 function credentialOf(options: RevokedOptions): Credential | undefined {
-  if (options.apiKey !== undefined) return { apiKey: options.apiKey };
-  if (options.connection !== undefined) return { connection: options.connection };
-  if (options.session !== undefined) {
+  if ('apiKey' in options) return { apiKey: present('apiKey', options.apiKey) };
+  if ('connection' in options) return { connection: present('connection', options.connection) };
+  if ('session' in options) {
+    const session = present('session', options.session);
     return 'onSessionRefresh' in options && options.onSessionRefresh
-      ? { session: options.session, onSessionRefresh: options.onSessionRefresh }
-      : { session: options.session };
+      ? { session, onSessionRefresh: options.onSessionRefresh }
+      : { session };
   }
   return undefined;
 }
