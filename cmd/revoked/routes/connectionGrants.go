@@ -449,8 +449,9 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 			view := connectionRequestView(req)
 			// Its own request, to pass on to whoever should answer it. Answering
 			// takes an account, so the link opens the app.
-			origin := strings.TrimSuffix(publicLinkURL(root.Domain(), ""), "/s/")
-			view["url"] = "revoked://r/" + url.QueryEscape(origin) + "/" + url.QueryEscape(slug)
+			// The app reads the middle segment as host[:port]; a scheme there
+			// makes the link unrecognizable.
+			view["url"] = "revoked://r/" + root.Domain() + "/" + url.PathEscape(slug)
 			return re.JSON(http.StatusCreated, view)
 		})
 		return e.Next()

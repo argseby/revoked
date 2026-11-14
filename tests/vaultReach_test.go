@@ -284,7 +284,7 @@ func TestAToolDoesWhatItsPermissionsAllow(t *testing.T) {
 		f.api.E.POST("/api/connection/requests").WithHeader(util.ConnectionHeader, direct).
 			WithJSON(map[string]any{"label": "RSVP", "maxResponses": 30, "identity": identity}).
 			Expect().Status(http.StatusCreated).JSON().Object().
-			Value("url").String().HasPrefix("revoked://r/")
+			Value("url").String().Match(`^revoked://r/[^/%:]+(:\d+)?/[A-Za-z0-9_-]+$`)
 	})
 
 	t.Run("without the permission it is refused", func(t *testing.T) {
