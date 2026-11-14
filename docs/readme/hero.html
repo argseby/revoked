@@ -1,0 +1,43 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="readme.css"><script src="theme.js"></script>
+<style>
+.hero{height:600px;padding:0 64px;display:grid;grid-template-columns:1fr 470px;gap:56px;align-items:center}
+.brand{display:flex;align-items:center;gap:12px;font-size:28px;font-weight:650;letter-spacing:-1px}
+h1{font-size:68px;margin:40px 0 24px}
+.lead{font-size:22px;line-height:1.5;max-width:600px}
+.meta{margin-top:30px}
+.vault{padding:24px;position:relative;top:0}
+.vault .value{font-size:30px;font-weight:600;letter-spacing:-.03em;margin:22px 0 22px;padding-bottom:22px;border-bottom:1px solid var(--line)}
+.access{display:grid;gap:16px;margin-top:14px}
+.access .name{font-size:18px;font-weight:600;line-height:1.2}
+.access .sub{font-size:15px;color:var(--secondary)}
+.revoked .name{color:var(--muted);text-decoration:line-through}
+.foot{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.icon{width:42px;height:42px;border-radius:10px;background:var(--invert);display:grid;place-items:center}
+.icon svg{width:22px;height:22px;stroke:var(--on-invert);fill:none;stroke-width:2}
+</style></head>
+<body>
+<div class="stage hero">
+  <div>
+    <div class="brand"><svg class="logo" viewBox="100 100 300 300"><rect x="100" y="100" width="300" height="44"/><rect x="140" y="185.33" width="220" height="44"/><rect x="100" y="270.67" width="300" height="44"/><rect x="180" y="356" width="140" height="44"/></svg>revoked</div>
+    <h1>Data infrastructure built on access, not copies.</h1>
+    <p class="lead">Addresses, documents and passwords stay in one vault. Everyone else gets a link instead of a copy. A change reaches every link at once. A revoked link stops working.</p>
+    <div class="eyebrow meta"><span class="sq"></span>Open source · Self-hosted · Experimental</div>
+  </div>
+  <div class="card vault">
+    <div class="row">
+      <div class="icon"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></div>
+      <div class="grow"><div style="font-weight:600;font-size:19px;line-height:1.2">Delivery address</div><div class="muted" style="font-size:15px">Mia’s vault</div></div>
+      <span class="pill wait">Updated today</span>
+    </div>
+    <div class="value">3 Harbour Road, Hamburg</div>
+    <div class="eyebrow">Access</div>
+    <div class="access">
+      <div class="row"><div class="avatar">S</div><div class="grow"><div class="name">shop.example</div><div class="sub">Reads the current value</div></div><span class="pill ok">Active</span></div>
+      <div class="row"><div class="avatar">A</div><div class="grow"><div class="name">acme.example</div><div class="sub">Employer · payroll</div></div><span class="pill ok">Active</span></div>
+      <div class="row revoked"><div class="avatar">G</div><div class="grow"><div class="name">old-gym.example</div><div class="sub">No longer a member</div></div><span class="pill bad">Revoked</span></div>
+    </div>
+    <div class="row foot"><span class="mono grow muted" style="font-size:16px">revoked.link/s/q8w2…</span><span class="btn">Copy link</span></div>
+  </div>
+</div>
+</body></html>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="readme.css"><script src="theme.js"></script>
+<style>
+.wrap{height:470px;padding:44px 56px;display:grid;grid-template-columns:290px 1fr;gap:40px;align-items:center}
+h2{font-size:42px;margin:0 0 18px}
+.wrap p{font-size:19px}
+table{width:100%;border-collapse:collapse;font-size:17px;white-space:nowrap}
+th{text-align:left;font-weight:600;font-size:15px;color:var(--secondary);padding:18px 22px 14px}
+th.link{color:var(--ink)}
+td{padding:18px 20px;border-top:1px solid var(--line);vertical-align:middle}
+td:first-child{font-weight:600}
+.x,.v{display:inline-flex;align-items:center;gap:10px}
+.x{color:var(--secondary)}
+.x::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}
+.v::before{content:"✓";color:var(--ok);font-weight:700;font-size:17px}
+.card{overflow:hidden}
+</style></head>
+<body>
+<div class="stage wrap">
+  <div>
+    <h2>A copy can’t be taken back.</h2>
+    <p>Email attachments, screenshots and database rows are copies. Once sent, they go out of date and stay wherever they landed.</p>
+  </div>
+  <div class="card">
+    <table>
+      <tr><th></th><th>A copy</th><th class="link">A Revoked link</th></tr>
+      <tr><td>The value changes</td><td><span class="x">Stays outdated</span></td><td><span class="v">Shows the new value</span></td></tr>
+      <tr><td>Access should end</td><td><span class="x">Deletion has to be requested</span></td><td><span class="v">Revoked at once</span></td></tr>
+      <tr><td>Who has it</td><td><span class="x">Unknown</span></td><td><span class="v">Listed, with views</span></td></tr>
+      <tr><td>A database leaks</td><td><span class="x">The data is out for good</span></td><td><span class="v">Links can be revoked</span></td></tr>
+    </table>
+  </div>
+</div>
+</body></html>
