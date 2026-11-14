@@ -194,13 +194,26 @@ export interface TemplateItem {
   format?: string;
   required?: boolean;
   reason?: string;
+}
+
+export interface TemplateSection {
+  key: string;
+  label?: string;
   records?: TemplateItem[];
+}
+
+/** A template's fields: records asked for on their own, and sections that group them. */
+export interface TemplateSchema {
+  records?: TemplateItem[];
+  sections?: TemplateSection[];
+  /** How a section created from the template is shown. */
+  view?: unknown;
 }
 
 export interface Template extends BaseRecord, AudienceFields {
   name: string;
   description: string;
-  schema: TemplateItem[];
+  schema: TemplateSchema;
   workspace: string;
   user: string;
 }
@@ -208,7 +221,7 @@ export interface Template extends BaseRecord, AudienceFields {
 export interface TemplateInput extends AudienceFields {
   name?: string;
   description?: string;
-  schema?: TemplateItem[];
+  schema?: TemplateSchema;
 }
 
 // ---------------------------------------------------------------- vault
@@ -663,7 +676,7 @@ export interface RequestPreview {
   requireHandshake: boolean;
   allowExtraFields: boolean;
   identityScope: Open<'any' | 'from_root'>;
-  template: TemplateItem[];
+  template: TemplateSchema;
   requester: Sharer;
   server: ServerClaim;
 }
