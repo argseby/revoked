@@ -59,9 +59,7 @@ class WorksWithChip extends StatelessWidget {
         final service = Stores.worksWith.forOrigin(origin);
         if (service == null) return const SizedBox.shrink();
         return Tooltip(
-          message: service.verified
-              ? 'Listed in Works with Revoked'
-              : 'Listed in Works with Revoked, not yet confirmed on its website',
+          message: service.verified ? 'Listed in Works with Revoked' : 'Listed in Works with Revoked, not yet confirmed on its website',
           child: Semantics(
             button: true,
             label: 'Works with Revoked: ${service.name}',

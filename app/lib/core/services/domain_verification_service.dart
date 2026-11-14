@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -60,10 +62,8 @@ class DomainVerificationService {
   final http.Client _http;
   final CryptoService _crypto;
 
-  DomainVerificationService({
-    http.Client? httpClient,
-    required this._crypto,
-  }) : _http = httpClient ?? http.Client();
+  DomainVerificationService({http.Client? httpClient, required this._crypto})
+    : _http = httpClient ?? http.Client();
 
   /// Verdicts already reached, by domain+fingerprint, surviving restarts.
   ///

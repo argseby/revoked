@@ -44,7 +44,7 @@ class ContactDeliveryStore {
   String get slug => request?.slug ?? share!.slug;
   String get title => request?.label ?? share!.label;
   String get workspace => request?.workspace ?? share!.workspace;
-  bool get encrypted => share?.hasKey ?? false;
+  bool get encrypted => share?.encrypted ?? false;
   bool get contextMatches =>
       Stores.auth.userId == owner &&
       Stores.auth.activeWorkspace == workspace &&
@@ -117,8 +117,7 @@ class ContactDeliveryStore {
           runInAction(
             () => results[contact.id] = ContactDeliveryResult(
               contact,
-              error:
-                  'The account, server or workspace changed. Open the saved item to send it.',
+              error: 'The account, server or workspace changed. Open the saved item to send it.',
             ),
           );
           continue;

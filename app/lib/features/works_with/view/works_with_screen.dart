@@ -285,10 +285,7 @@ class _ServiceGroup extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppListHeader(
-            title: title,
-            count: children.length,
-          ),
+          AppListHeader(title: title, count: children.length),
           LayoutBuilder(
             builder: (context, box) {
               final columns = box.maxWidth >= _twoColumnWidth ? maxColumns : 1;

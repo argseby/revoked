@@ -128,9 +128,18 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
     }
   }
 
+  String get _effectiveKey {
+    final typed = _store.sectionKey.text.trim();
+    if (typed.isNotEmpty) return typed;
+    return keyFromLabel(
+      _store.sectionName.text,
+      _store.sections.map((s) => s.key),
+      fallback: 'section',
+    );
+  }
+
   bool _canSubmit() =>
       _store.sectionName.text.trim().isNotEmpty &&
-      _store.sectionKey.text.trim().isNotEmpty &&
       _store.sectionKeyWarning == null;
 
   Future<void> _submit() async {
@@ -140,7 +149,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
 
     final isDup = widget.initialSection != null;
     final ok = await _store.createSection(
-      key: _store.sectionKey.text.trim(),
+      key: _effectiveKey,
       name: _store.sectionName.text.trim(),
       recordIds: widget.initialSection?.records ?? const [],
       user: widget.authStore.userId,
@@ -196,7 +205,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                 AppComposerSection(
                   title: 'Section',
                   icon: AppIcons.folder,
-                  children: [_buildNameRow(), _buildKeyRow()],
+                  children: [_buildNameRow()],
                 ),
                 AppComposerSection(
                   title: 'Access',
@@ -243,11 +252,12 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
                   title: 'Developer',
                   icon: AppIcons.code,
                   children: [
+                    _buildKeyRow(),
                     AppComposerApiPreview(
                       preview: ApiPreviewSection(
                         embedded: true,
                         spec: VaultStore.createSectionSpec(
-                          key: _store.sectionKey.text.trim(),
+                          key: _effectiveKey,
                           name: _store.sectionName.text.trim(),
                           records: widget.initialSection?.records ?? const [],
                           user: widget.authStore.userId,
@@ -277,13 +287,17 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
   Widget _buildNameRow() => AppComposerField(
     label: 'Name',
     explanation: 'How this section is named in your vault.',
+    missing: _store.sectionName.text.trim().isEmpty,
     child: AppTextField(controller: _store.sectionName, hint: 'My Section'),
   );
 
   Widget _buildKeyRow() => AppComposerField(
-    label: 'Key',
+    label: 'Section key',
     explanation: 'Identifier for links and templates.',
     error: _store.sectionKeyWarning,
+    note: _store.sectionKey.text.trim().isEmpty
+        ? 'Defaults to $_effectiveKey when empty.'
+        : null,
     action: _store.sectionSuggestedKey == null
         ? null
         : AppButton(
@@ -298,7 +312,7 @@ class _SectionCreateDrawerState extends State<_SectionCreateDrawer> {
           ),
     child: AppTextField(
       controller: _store.sectionKey,
-      hint: 'section_key',
+      hint: _effectiveKey,
       mono: true,
       inputFormatters: [KeyInputFormatter()],
       onChanged: _validateKey,
@@ -379,6 +393,7 @@ class _SectionRenameDrawerState extends State<_SectionRenameDrawer> {
                 AppComposerField(
                   label: 'Name',
                   explanation: 'Display name for this section',
+                  missing: name.isEmpty,
                   child: AppTextField(
                     controller: _store.renameSectionName,
                     hint: 'My Section',

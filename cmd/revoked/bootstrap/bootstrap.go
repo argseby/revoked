@@ -58,6 +58,7 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.AccountFeaturesRoute(app)
 	routes.WorkspaceMembersRoute(app)
 	routes.RequestGrantsRoute(app)
+	routes.MeRoute(app)
 	routes.ContactGrantsRoute(app, root)
 	routes.RemoteGrantsRoute(app, root)
 	routes.CallbackTestRoute(app)

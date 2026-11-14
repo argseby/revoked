@@ -1,0 +1,256 @@
+{
+  "$comment": "Every operation in docs/api/openapi.yaml, mapped to the SDK method that calls it or excluded with the reason. tests/sdkCoverage_test.go and test/coverage.test.ts keep it complete and true.",
+  "operations": {
+    "GET /.well-known/jwt-vc-issuer": {
+      "excluded": "SD-JWT VC issuer metadata, read by credential verifiers"
+    },
+    "GET /.well-known/openid-configuration": {
+      "excluded": "OpenID Connect; any OIDC client library, and later @revoked/sign-in"
+    },
+    "GET /api/2fa": {
+      "excluded": "two-factor settings, managed in the app"
+    },
+    "DELETE /api/2fa/totp": {
+      "excluded": "two-factor settings, managed in the app"
+    },
+    "POST /api/2fa/totp/confirm": {
+      "excluded": "two-factor settings, managed in the app"
+    },
+    "POST /api/2fa/totp/setup": {
+      "excluded": "two-factor settings, managed in the app"
+    },
+    "GET /api/access/{collection}/{id}": "client:access",
+    "DELETE /api/account": {
+      "excluded": "account deletion stays a deliberate act in the Revoked app"
+    },
+    "PUT /api/account/features": "client:setFeatures",
+    "POST /api/attestation-checks": "client:attestationChecks.start",
+    "POST /api/attestation-shares": "client:attestationShares.create",
+    "POST /api/attestation-shares/{id}/activate": "client:attestationShares.activate",
+    "POST /api/attestation-shares/{id}/revoke": "client:attestationShares.revoke",
+    "GET /api/attestations/offers/{token}": "client:public.attestations.offer",
+    "POST /api/attestations/offers/{token}/claim": {
+      "excluded": "server-to-server: the holder's server relays credentials.claim"
+    },
+    "POST /api/attestations/reissue": {
+      "excluded": "server-to-server: the holder's server relays credentials.reissue"
+    },
+    "GET /api/attestations/status": "client:public.attestations.statusList",
+    "POST /api/attestations/verify": "client:public.attestations.verify",
+    "GET /api/blocked-domains": "client:server.blockedDomains",
+    "GET /api/certificate": "client:server.certificate",
+    "GET /api/certificate/{id}": "client:server.identityCertificate",
+    "GET /api/challenges/{scope}/{slug}": "client:public.links.open",
+    "POST /api/collections/users/auth-refresh": {
+      "excluded": "called by the client itself when a session token expires"
+    },
+    "POST /api/collections/users/request-verification": {
+      "excluded": "account email verification, run by the app"
+    },
+    "GET /api/collections/{collection}/records": "client:links.list",
+    "POST /api/collections/{collection}/records": "client:links.create",
+    "DELETE /api/collections/{collection}/records/{id}": "client:links.delete",
+    "GET /api/collections/{collection}/records/{id}": "client:links.get",
+    "PATCH /api/collections/{collection}/records/{id}": "client:links.update",
+    "POST /api/connect/token": "connect:exchangeCode",
+    "DELETE /api/connection": "client:connection.disconnect",
+    "GET /api/connection": "client:connection.status",
+    "POST /api/connection/attestations/{id}/revoke": "client:connection.attestations.revoke",
+    "POST /api/connection/drafts": "client:connection.draft",
+    "POST /api/connection/links": "client:connection.links.create",
+    "POST /api/connection/links/{id}/revoke": "client:connection.links.revoke",
+    "POST /api/connection/requests": "client:connection.requests.create",
+    "POST /api/connection/requests/{id}/close": "client:connection.requests.close",
+    "GET /api/connection/vault": "client:vault.list",
+    "GET /api/connection/vault/{id}": "client:vault.get",
+    "POST /api/connections/authorize": {
+      "excluded": "the owner's consent, given in the Revoked app"
+    },
+    "DELETE /api/connections/drafts/{id}": "client:connections.discardDraft",
+    "GET /api/connections/drafts/{id}": "client:connections.draft",
+    "POST /api/connections/{id}/disconnect": "client:connections.disconnect",
+    "POST /api/connections/{id}/pause": "client:connections.pause",
+    "POST /api/connections/{id}/permissions": "client:connections.setPermissions",
+    "POST /api/connections/{id}/resume": "client:connections.resume",
+    "POST /api/contacts/{id}/ask": "client:contacts.ask",
+    "POST /api/contacts/{id}/deliver": "client:contacts.deliver",
+    "POST /api/contacts/{id}/send": "client:contacts.send",
+    "POST /api/credentials/claim": "client:credentials.claim",
+    "GET /api/credentials/{id}/reissue": "client:credentials.reissue",
+    "POST /api/credentials/{id}/reissue": "client:credentials.reissue",
+    "GET /api/credentials/{id}/status": "client:credentials.status",
+    "GET /api/features": "client:server.features",
+    "POST /api/files/token": "client:records.file",
+    "GET /api/files/{collection}/{id}/{filename}": "client:records.file",
+    "POST /api/grants/events": {
+      "excluded": "server-to-server, signed by the sender's root key"
+    },
+    "POST /api/grants/resolve": "client:grants.resolve",
+    "GET /api/groups": "client:groups.list",
+    "POST /api/groups": "client:groups.create",
+    "DELETE /api/groups/{id}": "client:groups.delete",
+    "PATCH /api/groups/{id}": "client:groups.rename",
+    "DELETE /api/groups/{id}/members/{user}": "client:groups.removeMember",
+    "PUT /api/groups/{id}/members/{user}": "client:groups.addMember",
+    "GET /api/health": {
+      "excluded": "PocketBase's own health check; server.health reads /healthz"
+    },
+    "GET /api/identities/{fingerprint}/status": "client:server.identityStatus",
+    "GET /api/links/{id}/archive": "client:links.archive",
+    "GET /api/me": "client:me",
+    "POST /api/passkeys/login/begin": {
+      "excluded": "passkey ceremony, run by the app and the /passkey page"
+    },
+    "POST /api/passkeys/login/finish": {
+      "excluded": "passkey ceremony, run by the app and the /passkey page"
+    },
+    "POST /api/passkeys/register/begin": {
+      "excluded": "passkey ceremony, run by the app and the /passkey page"
+    },
+    "POST /api/passkeys/register/email": {
+      "excluded": "passkey ceremony, run by the app and the /passkey page"
+    },
+    "POST /api/passkeys/register/finish": {
+      "excluded": "passkey ceremony, run by the app and the /passkey page"
+    },
+    "POST /api/passkeys/register/verify": {
+      "excluded": "passkey ceremony, run by the app and the /passkey page"
+    },
+    "POST /api/passkeys/tickets": {
+      "excluded": "passkey enrolment, run by the app"
+    },
+    "POST /api/passkeys/token": {
+      "excluded": "passkey ceremony, run by the app and the /passkey page"
+    },
+    "POST /api/passkeys/token/2fa": {
+      "excluded": "two-factor sign-in, run by the app"
+    },
+    "DELETE /api/passkeys/{id}": {
+      "excluded": "passkey management, done in the app"
+    },
+    "GET /api/permissions": "client:server.permissions",
+    "POST /api/public/attestation-checks/answer": "client:public.attestations.answerCheck",
+    "GET /api/public/attestation-checks/{id}": "client:public.attestations.check",
+    "GET /api/public/attestation-shares/{token}": "client:public.attestations.share",
+    "GET /api/public/invites/{token}": "client:public.invites.get",
+    "POST /api/public/invites/{token}": "client:public.invites.accept",
+    "GET /api/public/links/{slug}": "client:public.links.preview",
+    "POST /api/public/links/{slug}": "client:public.links.open",
+    "GET /api/public/links/{slug}/archive": "client:public.links.archive",
+    "GET /api/public/links/{slug}/files/{recordId}": "client:public.links.file",
+    "GET /api/public/requests/{slug}": "client:public.requests.preview",
+    "POST /api/public/requests/{slug}": "client:public.requests.submit",
+    "POST /api/public/requests/{slug}/remote": {
+      "excluded": "server-to-server: called by the responder's server for public.requests.submitRemote"
+    },
+    "POST /api/requests/callback-test": "client:requests.testCallback",
+    "POST /api/requests/remote": "client:public.requests.submitRemote",
+    "GET /api/requests/{id}/links": "client:requests.responses",
+    "POST /api/sealed/account/epochs": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "POST /api/sealed/devices": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "GET /api/sealed/links/{id}": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "PUT /api/sealed/links/{id}": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "POST /api/sealed/records": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "PUT /api/sealed/records/{id}": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "GET /api/sealed/records/{id}/links": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "POST /api/sealed/records/{id}/unseal": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "POST /api/sealed/reset": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "POST /api/sealed/sessions/revoke": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "GET /api/sealed/state": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "POST /api/sealed/workspaces/{id}/epochs": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "POST /api/sealed/workspaces/{id}/grants": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "GET /api/sealed/workspaces/{id}/members": {
+      "excluded": "end-to-end encrypted writes and devices wait for the protocol's cryptographic review (E2EE.md); reading sealed shares is in @kiunke.dev/revoked/sealed"
+    },
+    "GET /api/server": "client:server.info",
+    "GET /api/shared/vault": "client:records.shared",
+    "POST /api/sign-ins/{id}/disconnect": "client:signIns.disconnect",
+    "POST /api/sign-ins/{id}/pause": "client:signIns.pause",
+    "POST /api/sign-ins/{id}/resume": "client:signIns.resume",
+    "POST /api/stamp-preview": "client:links.stampPreview",
+    "GET /api/vault": "client:vault.list",
+    "POST /api/vault": "client:vault.create",
+    "DELETE /api/vault/{id}": "client:vault.delete",
+    "GET /api/vault/{id}": "client:vault.get",
+    "PATCH /api/vault/{id}": "client:vault.update",
+    "GET /api/vault/{id}/file": "client:vault.file",
+    "POST /api/verify-peer": "client:server.verifyPeer",
+    "GET /api/webhooks/deliveries": "client:webhooks.deliveries.list",
+    "GET /api/webhooks/deliveries/{id}": "client:webhooks.deliveries.get",
+    "POST /api/webhooks/deliveries/{id}/resend": "client:webhooks.deliveries.resend",
+    "GET /api/webhooks/endpoints": "client:webhooks.endpoints.list",
+    "POST /api/webhooks/endpoints": "client:webhooks.endpoints.create",
+    "DELETE /api/webhooks/endpoints/{id}": "client:webhooks.endpoints.delete",
+    "GET /api/webhooks/endpoints/{id}": "client:webhooks.endpoints.get",
+    "PATCH /api/webhooks/endpoints/{id}": "client:webhooks.endpoints.update",
+    "GET /api/webhooks/endpoints/{id}/metrics": "client:webhooks.endpoints.metrics",
+    "POST /api/webhooks/endpoints/{id}/replay": "client:webhooks.endpoints.replay",
+    "POST /api/webhooks/endpoints/{id}/rotate-secret": "client:webhooks.endpoints.rotateSecret",
+    "GET /api/webhooks/endpoints/{id}/secret": "client:webhooks.endpoints.secret",
+    "POST /api/webhooks/endpoints/{id}/test": "client:webhooks.endpoints.test",
+    "GET /api/webhooks/event-types": "client:webhooks.eventTypes",
+    "GET /api/webhooks/events": "client:webhooks.events.list",
+    "GET /api/workspaces/{id}/members": "client:members.overview",
+    "GET /app": {
+      "excluded": "HTML page"
+    },
+    "GET /dav/s/{slug}/": {
+      "excluded": "CardDAV, read by address-book clients rather than code"
+    },
+    "GET /healthz": "client:server.health",
+    "GET /oidc/authorize": {
+      "excluded": "OpenID Connect; any OIDC client library, and later @revoked/sign-in"
+    },
+    "POST /oidc/authorize/app": {
+      "excluded": "the person's consent, given in the Revoked app"
+    },
+    "POST /oidc/authorize/consent": {
+      "excluded": "the person's consent, given in the Revoked app"
+    },
+    "GET /oidc/jwks": {
+      "excluded": "OpenID Connect; any OIDC client library, and later @revoked/sign-in"
+    },
+    "POST /oidc/token": {
+      "excluded": "OpenID Connect; any OIDC client library, and later @revoked/sign-in"
+    },
+    "GET /oidc/userinfo": {
+      "excluded": "OpenID Connect; any OIDC client library, and later @revoked/sign-in"
+    },
+    "POST /oidc/userinfo": {
+      "excluded": "OpenID Connect; any OIDC client library, and later @revoked/sign-in"
+    },
+    "GET /p/{token}": {
+      "excluded": "HTML page; its JSON form is GET /api/public/attestation-shares/{token}"
+    },
+    "GET /passkey": {
+      "excluded": "HTML page of the passkey ceremony"
+    },
+    "GET /s/{slug}": "client:public.links.export"
+  }
+}

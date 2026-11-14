@@ -69,7 +69,9 @@ chunks.push(n, b);
 }
 addBytes(sealEncoder.encode(label));
 parts.forEach(function(p) {
-if (typeof p === 'number') {
+if (p instanceof Uint8Array) {
+addBytes(p);
+} else if (typeof p === 'number') {
 var n = new Uint8Array(8), view = new DataView(n.buffer);
 view.setUint32(0, Math.floor(p / 4294967296));
 view.setUint32(4, p % 4294967296);
@@ -136,13 +138,100 @@ return new TextDecoder('utf-8', { fatal: true }).decode(sealUnpad(padded));
 }
 
 // The value with its label, type and format: the ones that were encrypted
-// with it, not the copies the server states beside the ciphertext.
+// with it, not the copies the server states beside the ciphertext. A file
+// carries its name, media type, exact size and key there too, and no value.
 function sealContent(text) {
 var c = JSON.parse(text);
 if (!c || typeof c.v !== 'string' || typeof c.l !== 'string' || typeof c.t !== 'string' || typeof c.f !== 'string') {
 throw new Error('content');
 }
-return { value: c.v, label: c.l, type: c.t, format: c.f };
+var out = { value: c.v, label: c.l, type: c.t, format: c.f, file: null };
+if (c.t === 'file' || c.x !== undefined) {
+var x = c.x;
+var key = x && typeof x.k === 'string' ? sealBytes(x.k) : null;
+if (c.t !== 'file' || c.v !== '' || !x || typeof x.n !== 'string' || x.n === '' || typeof x.m !== 'string' ||
+!sealIsVersion(x.s) || x.s > SEAL_FILE_MAX || !key || key.length !== SEAL_KEY_LENGTH) {
+throw new Error('content');
+}
+out.file = { name: x.n, mime: x.m, size: x.s, key: key };
+}
+return out;
+}
+
+// ---- Encrypted files --------------------------------------------------------
+// A file's bytes travel apart from its sealed value, as a blob of 64 KiB
+// segments (design/e2ee-sharing.md §7.2):
+//   0x01, salt[16], then AES-256-GCM segments under
+//   HKDF(file key, revoked-file-v1 [workspace, record, salt]),
+//   nonce = segment number in 11 bytes, then 1 for the last segment, else 0.
+// The plaintext is padded with zeros to the length below; the sealed value
+// states the real size.
+var SEAL_FILE_SEGMENT = 65536;
+var SEAL_FILE_MAX = 50 * 1024 * 1024;
+
+function sealBitLength(n) { return n <= 0 ? 0 : 32 - Math.clz32(n); }
+
+function sealFilePadded(size) {
+if (size <= 1024) return 1024;
+var e = sealBitLength(size) - 1;
+var s = sealBitLength(e);
+var mask = Math.pow(2, e - s) - 1;
+return Math.ceil(size / (mask + 1)) * (mask + 1);
+}
+
+function sealFileBlobLength(size) {
+var padded = sealFilePadded(size);
+return 1 + 16 + padded + Math.ceil(padded / SEAL_FILE_SEGMENT) * 16;
+}
+
+// Opens an encrypted file's blob into its bytes, or rejects. A blob of
+// another record or content, a dropped, reordered or cut segment and padding
+// that is not zeros all fail; nothing partial is handed back.
+function sealOpenFile(blob, file, workspace, record) {
+if (!sealSubtle) return Promise.reject(new Error('insecure'));
+if (!(blob instanceof Uint8Array) || blob.length !== sealFileBlobLength(file.size) || blob[0] !== SEAL_FORMAT) {
+return Promise.reject(new Error('format'));
+}
+var salt = blob.subarray(1, 17);
+return sealSubtle.importKey('raw', file.key, 'HKDF', false, ['deriveBits']).then(function(key) {
+return sealSubtle.deriveBits({
+name: 'HKDF',
+hash: 'SHA-256',
+salt: new Uint8Array(0),
+info: sealContext('revoked-file-v1', [workspace, record, salt])
+}, key, SEAL_KEY_LENGTH * 8);
+}).then(function(bits) {
+return sealSubtle.importKey('raw', new Uint8Array(bits), { name: 'AES-GCM' }, false, ['decrypt']);
+}).then(function(key) {
+var sealedSegment = SEAL_FILE_SEGMENT + 16;
+var out = new Uint8Array(sealFilePadded(file.size));
+var at = 17, index = 0, written = 0;
+function next() {
+var last = blob.length - at <= sealedSegment;
+var end = last ? blob.length : at + sealedSegment;
+var nonce = new Uint8Array(12), view = new DataView(nonce.buffer);
+view.setUint32(3, Math.floor(index / 4294967296));
+view.setUint32(7, index % 4294967296);
+nonce[11] = last ? 1 : 0;
+return sealSubtle.decrypt({
+name: 'AES-GCM', iv: nonce, additionalData: new Uint8Array([SEAL_FORMAT]), tagLength: 128
+}, key, blob.subarray(at, end)).then(function(plain) {
+plain = new Uint8Array(plain);
+if (written + plain.length > out.length) throw new Error('length');
+out.set(plain, written);
+written += plain.length;
+if (last) return null;
+at = end;
+index++;
+return next();
+});
+}
+return next().then(function() {
+if (written !== out.length) throw new Error('length');
+for (var i = file.size; i < out.length; i++) if (out[i] !== 0) throw new Error('padding');
+return out.subarray(0, file.size);
+});
+});
 }
 
 // The key an address carries, or null: none, or not a whole one.
@@ -202,11 +291,19 @@ var content = sealContent(text);
 var out = sealCopy(r);
 out.value = content.value;
 out.label = content.label;
-// An encrypted record is never a file; a type saying so would offer a
-// download that does not exist.
-out.type = content.type === 'file' ? 'text' : content.type;
+out.type = content.type;
 out.format = content.format;
 out.encrypted = true;
+if (content.file) {
+// What the row shows comes from inside the seal; what is needed to open
+// the blob stays in memory beside it.
+out.filename = content.file.name;
+out.mime = content.file.mime;
+out.size = content.file.size;
+out.fileSeal = { key: content.file.key, workspace: seal.workspace };
+} else if (out.type === 'file') {
+throw new Error('content');
+}
 return out;
 }).catch(function() { return sealLocked(r, 'damaged'); });
 }, function() { return sealLocked(r, 'replaced'); });

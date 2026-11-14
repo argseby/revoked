@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/files/file_saver.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
@@ -81,7 +82,7 @@ class RecordActions {
           label: 'Edit',
           onTap: () => openRecordEditSheet(context, store, r),
         ),
-      if (Stores.keys.isAvailable && !r.isFile && !r.isAlias && !r.isLocked)
+      if (Stores.keys.isAvailable && !r.isAlias && !r.isLocked)
         AppSheetAction(
           icon: AppIcons.lock,
           label: r.sealed ? 'Stop encrypting' : 'Encrypt end to end',
@@ -98,6 +99,7 @@ class RecordActions {
             initialRecord: r,
           ),
         ),
+      copyIdAction(context, r.id),
       AppSheetAction(
         icon: AppIcons.trash,
         label: 'Delete',
@@ -107,11 +109,12 @@ class RecordActions {
     ];
   }
 
-  Future<void> seal(models.Record r) async {
+  /// Encrypts [r] after the confirmations it needs; true once it is.
+  Future<bool> seal(models.Record r) async {
     final ready = await ensureSealingReady(context, r.workspace);
-    if (!ready || !context.mounted) return;
+    if (!ready || !context.mounted) return false;
     var outcome = await Stores.vault.sealRecord(r.id);
-    if (!context.mounted) return;
+    if (!context.mounted) return outcome == SealOutcome.sealed;
     if (outcome == SealOutcome.linksAffected) {
       final go = await showAppDialog(
         context: context,
@@ -123,9 +126,9 @@ class RecordActions {
         confirmLabel: 'Encrypt',
         confirmIcon: AppIcons.lock,
       );
-      if (!go || !context.mounted) return;
+      if (!go || !context.mounted) return false;
       outcome = await Stores.vault.sealRecord(r.id, dropLinks: true);
-      if (!context.mounted) return;
+      if (!context.mounted) return outcome == SealOutcome.sealed;
     }
     if (outcome == SealOutcome.sealed) {
       await showAppDialog(
@@ -133,8 +136,10 @@ class RecordActions {
         title: 'Encrypted',
         message:
             'Links kept during encryption now require their complete address, including '
-            'the key after #. The server can no longer read this value. Its backups may still hold '
-            'the old value. Sensitive secrets should be rotated.',
+            'the key after #. The server can no longer read this '
+            '${r.isFile ? 'file' : 'value'}. Its backups may still hold the '
+            'old ${r.isFile ? 'file' : 'value'}. Sensitive secrets should be '
+            'rotated.',
         confirmLabel: 'OK',
         confirmIcon: AppIcons.check,
         cancelLabel: null,
@@ -146,9 +151,11 @@ class RecordActions {
         subtitle: Stores.vault.errorMessage,
       );
     }
+    return outcome == SealOutcome.sealed;
   }
 
-  Future<void> unseal(models.Record r) async {
+  /// Stores [r] in plain text again once confirmed; true once it is.
+  Future<bool> unseal(models.Record r) async {
     final go = await showAppDialog(
       context: context,
       title: 'Stop encrypting this record?',
@@ -159,7 +166,7 @@ class RecordActions {
       confirmIcon: AppIcons.lock,
       destructive: true,
     );
-    if (!go || !context.mounted) return;
+    if (!go || !context.mounted) return false;
     final ok = await Stores.vault.unsealRecord(r.id);
     if (!ok && context.mounted) {
       AppToast.error(
@@ -168,6 +175,7 @@ class RecordActions {
         subtitle: Stores.vault.errorMessage,
       );
     }
+    return ok;
   }
 
   Future<void> download(models.Record r) async {

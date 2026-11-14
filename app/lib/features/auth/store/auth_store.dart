@@ -34,9 +34,8 @@ Future<bool> openSignInPage(
   final android = (platform ?? defaultTargetPlatform) == TargetPlatform.android;
   final canTab =
       android &&
-      await (supports ?? supportsLaunchMode)(
-        LaunchMode.inAppBrowserView,
-      ).catchError((Object _) => false);
+      await (supports ?? supportsLaunchMode)(LaunchMode.inAppBrowserView)
+          .catchError((Object _) => false);
   final open = launch ?? ((Uri p, LaunchMode m) => launchUrl(p, mode: m));
   return open(
     page,
@@ -350,9 +349,9 @@ abstract class _AuthStore with Store {
   /// the session began. Left as it was when the server cannot say.
   Future<void> refreshTwoFactorRequirement() async {
     try {
-      final status = await TwoFactorApi(
-        _api,
-      ).status().timeout(const Duration(seconds: 10));
+      final status = await TwoFactorApi(_api)
+          .status()
+          .timeout(const Duration(seconds: 10));
       runInAction(() => twoFactorSetupRequired = status.setupRequired);
     } catch (_) {
       // Offline or an older server: nothing to enforce from here.

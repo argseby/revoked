@@ -20,3 +20,8 @@ the address through the viewer wrap to the authenticated value and metadata.
 Dart's share reader, Go's primitives and the actual page WebCrypto script
 (`TestPageScriptOpensTheVectors`, when Node is installed) open the same vector.
 The same rule applies: never regenerate it.
+
+`sealing_file_vectors.json` pins an encrypted file (design/e2ee-sharing.md
+§7.2): a link read through to a sealed value carrying the file descriptor, and
+two segmented blobs, one spanning two segments. `sealed_file_test.dart` and
+`TestFileVectorOpensInGo` open it. The same rule applies: never regenerate it.

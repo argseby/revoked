@@ -1,0 +1,17 @@
+export {
+  verifyServer,
+  verifySharer,
+  verifyServerAssertion,
+  verifyParentSignature,
+  verifyIdentityStatus,
+  dnsPin,
+  dohResolver,
+  fingerprintPem,
+  TrustError,
+  type ResolveTxt,
+  type TrustOptions,
+  type TrustState,
+  type TrustVerdict,
+  type ServerAssertionBody,
+  type IdentityStatusBody,
+} from './trust/index.js';

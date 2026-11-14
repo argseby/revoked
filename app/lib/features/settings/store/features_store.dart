@@ -155,12 +155,10 @@ abstract class _FeaturesStore with Store {
     isSaving = true;
     error = null;
     try {
-      final data =
-          await _api.put(
-                '/api/account/features',
-                body: {'features': keys.toList()},
-              )
-              as Map<String, dynamic>;
+      final data = await _api.put(
+        '/api/account/features',
+        body: {'features': keys.toList()},
+      ) as Map<String, dynamic>;
       final stored = ((data['features'] as List<dynamic>?) ?? const [])
           .map((e) => e.toString())
           .toList();

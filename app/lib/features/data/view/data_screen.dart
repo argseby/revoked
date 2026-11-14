@@ -454,9 +454,9 @@ class _DataScreenState extends State<DataScreen> {
                     color: scheme.surfaceContainerHighest,
                     borderRadius: AppRadius.allMd,
                   ),
-                  child: Text(
-                    item.value.isEmpty ? '—' : item.value,
-                  ).mono.selectable,
+                  child: Text(item.value.isEmpty ? '—' : item.value)
+                      .mono
+                      .selectable,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 _kv(context, 'Source', item.isVault ? 'Vault' : item.source),

@@ -267,9 +267,9 @@ class LinkSearchSheet extends StatelessWidget {
                   Icon(AppIcons.copy, size: 13, color: scheme.onSurfaceVariant),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
-                    child: const Text(
-                      'Link pasted from the clipboard',
-                    ).muted.small,
+                    child: const Text('Link pasted from the clipboard')
+                        .muted
+                        .small,
                   ),
                 ],
               ),

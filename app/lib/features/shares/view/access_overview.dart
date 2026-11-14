@@ -63,8 +63,7 @@ class _AccessOverviewState extends State<AccessOverview> with RefreshOnEntry {
           return AppEmptyState(
             icon: AppIcons.lock,
             title: 'No shared records',
-            subtitle:
-                'Shared records are listed here with everyone who can read them.',
+            subtitle: 'Shared records are listed here with everyone who can read them.',
             example: const AppEmptyExample(
               title: 'IBAN',
               detail: 'Landlord · Employer',

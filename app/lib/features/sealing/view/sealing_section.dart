@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
@@ -401,9 +402,9 @@ Future<void> _openAddAnotherDeviceSheet(BuildContext context) {
               ],
               if (fingerprint != null) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'The new device must show the same code: $fingerprint',
-                ).muted.small,
+                Text('The new device must show the same code: $fingerprint')
+                    .muted
+                    .small,
               ],
               if (keys.errorMessage != null) ...[
                 const SizedBox(height: AppSpacing.sm),

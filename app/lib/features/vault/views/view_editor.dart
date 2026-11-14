@@ -15,6 +15,7 @@ import 'package:revoked_app/core/widgets/app_text_field.dart';
 import 'package:revoked_app/features/vault/views/view_data.dart';
 import 'package:revoked_app/features/vault/views/view_renderer.dart';
 import 'package:revoked_app/features/vault/views/view_spec.dart';
+import 'package:revoked_app/core/state/observable_text_controller.dart';
 
 /// A view's code and, under it, the view itself drawn over [data] as it is
 /// typed. Empty code means no view: the section shows as a list.
@@ -46,7 +47,7 @@ String _pretty(Map<String, dynamic> json) =>
     const JsonEncoder.withIndent('  ').convert(json);
 
 class _ViewCodeEditorState extends State<ViewCodeEditor> {
-  late final _code = TextEditingController(
+  late final _code = ObservableTextController(
     text: widget.initial == null ? '' : _pretty(widget.initial!),
   );
   late final _spec = Local<ViewSpec?>(

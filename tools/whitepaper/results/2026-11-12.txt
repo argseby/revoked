@@ -1,0 +1,26 @@
+=== RUN   TestRemoteAnswerLivesOnTheRespondersServer
+=== RUN   TestRemoteAnswerLivesOnTheRespondersServer/the_requester_reads_the_current_value_from_the_responder's_server
+=== RUN   TestRemoteAnswerLivesOnTheRespondersServer/the_submission_callback_carries_the_values_once
+=== RUN   TestRemoteAnswerLivesOnTheRespondersServer/a_changed_entry_reaches_the_requester_as_an_event
+=== RUN   TestRemoteAnswerLivesOnTheRespondersServer/answering_again_updates_the_same_grant
+=== RUN   TestRemoteAnswerLivesOnTheRespondersServer/revoking_reaches_the_requester_and_drops_the_values
+--- PASS: TestRemoteAnswerLivesOnTheRespondersServer (1.37s)
+=== RUN   TestGrantReadsAreTokenBound
+=== RUN   TestGrantReadsAreTokenBound/a_wrong_token_reads_as_not_found
+=== RUN   TestGrantReadsAreTokenBound/a_batch_that_is_too_large_is_refused
+=== RUN   TestGrantReadsAreTokenBound/a_local_share_cannot_be_read_as_a_grant
+--- PASS: TestGrantReadsAreTokenBound (0.11s)
+=== RUN   TestMaxViewsIsEnforcedExactlyOnce
+--- PASS: TestMaxViewsIsEnforcedExactlyOnce (0.05s)
+=== RUN   TestWhitepaperCacheLifecycle
+    whitepaper_test.go:82: fresh cache: address A; origin calls=0 despite origin holding B
+    whitepaper_test.go:88: expired cache: address B; origin calls=1
+    whitepaper_test.go:99: revocation: cached B survives until invalidation; fresh read returns revoked without values
+    whitepaper_test.go:106: expired cache plus HTTP 503: unreachable without stale values
+    whitepaper_test.go:114: zero freshness: no cache reuse; origin contacted
+--- PASS: TestWhitepaperCacheLifecycle (0.00s)
+=== RUN   TestWhitepaperConcurrentViewCap
+    whitepaper_test.go:188: 32 concurrent readers, maxViews=1: success=1 rejected=31; latency all responses p50=38.831807ms p95=41.938532ms max=41.944572ms
+--- PASS: TestWhitepaperConcurrentViewCap (0.09s)
+PASS
+ok  	revoked/tests	1.626s

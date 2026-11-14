@@ -30,6 +30,25 @@ class PendingUpload {
     '.bmp',
   };
 
+  /// The media type a name suggests, for an encrypted file: the server never
+  /// sees its bytes to detect one, so the device states it inside the seal.
+  static String mimeForName(String name) {
+    final dot = name.lastIndexOf('.');
+    final ext = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+    return switch (ext) {
+      'pdf' => 'application/pdf',
+      'txt' => 'text/plain',
+      'csv' => 'text/csv',
+      'json' => 'application/json',
+      'png' => 'image/png',
+      'jpg' || 'jpeg' => 'image/jpeg',
+      'gif' => 'image/gif',
+      'webp' => 'image/webp',
+      'zip' => 'application/zip',
+      _ => 'application/octet-stream',
+    };
+  }
+
   bool get isImage {
     final lower = name.toLowerCase();
     return _imageExtensions.any(lower.endsWith);

@@ -206,7 +206,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
       title: _name(r),
       subtitle: '${r.key} · ${RecordTypeUtils.label(r.type)}',
       subtitleMono: true,
-      primaryAction: r.isFile
+      primaryAction: r.isFile && !r.isLocked
           ? AppButton(
               icon: AppIcons.eye,
               label: 'View',
@@ -229,7 +229,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
               },
             ),
       secondaryActions: [
-        if (r.isFile)
+        if (r.isFile && !r.isLocked)
           AppButton(
             icon: AppIcons.download,
             tooltip: 'Download',
@@ -277,7 +277,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
             style: AppButtonStyle.accent,
             onTap: () => openRecordEditSheet(context, store, r),
           ),
-        if (Stores.keys.isAvailable && !r.isFile && !r.isAlias && !r.isLocked)
+        if (Stores.keys.isAvailable && !r.isAlias && !r.isLocked)
           AppButton(
             icon: AppIcons.lock,
             tooltip: r.sealed ? 'Stop encrypting' : 'Encrypt end to end',
@@ -332,7 +332,15 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
         : null;
 
     final List<Widget> rows;
-    if (r.isFile) {
+    if (r.isFile && r.isLocked) {
+      // What the row holds describes only the encrypted blob.
+      rows = [
+        _ValueRow(
+          icon: AppIcons.fileEarmark,
+          text: 'Not readable on this device',
+        ),
+      ];
+    } else if (r.isFile) {
       final mime = (r.mime ?? '').split(';').first;
       rows = [
         _ValueRow(

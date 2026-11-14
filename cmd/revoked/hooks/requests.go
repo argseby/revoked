@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"revoked/cmd/revoked/services"
 	"revoked/util"
 
 	validation "github.com/pocketbase/ozzo-validation/v4"
@@ -11,6 +12,14 @@ import (
 // BindRequestHooks bcrypt-hashes a request's plaintext password before save,
 // validates its callback URL, and strips the hash from API responses.
 func BindRequestHooks(app core.App) {
+	// Before the request's validation, which refuses a blank slug.
+	app.OnRecordCreateRequest(util.Coll.Requests).BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := services.MintSlugWhenEmpty(e.App, e.Record, util.Fields.Request.Slug); err != nil {
+			return err
+		}
+		return e.Next()
+	})
+
 	app.OnRecordCreate(util.Coll.Requests).BindFunc(func(e *core.RecordEvent) error {
 		resolvePasswordWrite(e.Record, util.Fields.Request.Password)
 		if err := validateCallbackURLInPlace(e.Record); err != nil {

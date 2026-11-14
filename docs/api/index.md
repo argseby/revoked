@@ -40,6 +40,7 @@ slash. Credentials and IDs must come from that same server.
 |---|---|
 | See every way in, side by side | [Ways to connect](connect.md) |
 | Call the API from a script | [Authentication](authentication.md), then the [reference](reference/index.md) |
+| Call the API from JavaScript or TypeScript | [JavaScript SDK](sdk.md) |
 | Read or write vault data | [Records](reference/records.md) as a person, [Vault](reference/vault.md) as a key or tool |
 | Consume a share someone sent you | [Shares](reference/shares.md) |
 | Collect data from other people | [Requests](reference/requests.md), then [Callbacks](callbacks.md) |
@@ -83,6 +84,8 @@ Failures come back in one envelope:
 Key off `code`, never off `message` — the prose may be reworded, the code will
 not. Authorization failures name what was missing rather than returning a bare
 denial, so a 403 tells you which scope or grant you lack.
+
+Every code and its message is listed in [Error codes](errors.md).
 
 Error messages may echo values you sent, but never server-held state. That is
 deliberate: an error outlives the credential that produced it and ends up in

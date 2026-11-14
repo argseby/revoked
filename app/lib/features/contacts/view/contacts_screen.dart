@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_avatar.dart';
 
@@ -239,8 +240,8 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
     title: 'Your contacts',
     description: 'People you share with and ask for information.',
     action: AppButton(
-      icon: AppIcons.personPlus,
-      label: 'Add contact',
+      icon: AppIcons.plus,
+      label: 'New contact',
       onTap: () => openContactCreateSheet(context),
     ),
   );
@@ -322,6 +323,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
           saveError: () => Stores.contacts.error?.description,
         ),
       ),
+    copyIdAction(context, c.id),
     AppSheetAction(
       icon: AppIcons.trash,
       label: 'Remove',

@@ -81,6 +81,15 @@ class Link {
   /// records do not open.
   bool get hasKey => sealedKeyWraps.isNotEmpty;
 
+  /// How many encrypted entries the link carries, as the server counts them;
+  /// null from a server that does not say.
+  final int? sealedEntries;
+
+  /// Whether the link's address has to end in its key. A link keeps its key
+  /// after its last encrypted entry is gone, and gets the same key back when
+  /// one is added again.
+  bool get encrypted => hasKey && (sealedEntries ?? 1) > 0;
+
   Link({
     required this.id,
     required this.slug,
@@ -110,6 +119,7 @@ class Link {
     this.proposedBy = '',
     this.signInClient = '',
     this.sealedKeyWraps = const {},
+    this.sealedEntries,
   });
 
   /// Legacy alias used by older UI code. Prefer [viewCount].
@@ -194,6 +204,7 @@ class Link {
       sealedKeyWraps: json['sealedKeyWraps'] is Map
           ? Map<String, dynamic>.from(json['sealedKeyWraps'] as Map)
           : const {},
+      sealedEntries: (json['sealedEntries'] as num?)?.toInt(),
     );
   }
 
@@ -226,6 +237,7 @@ class Link {
     String? proposedBy,
     String? signInClient,
     Map<String, dynamic>? sealedKeyWraps,
+    int? sealedEntries,
   }) {
     return Link(
       id: id ?? this.id,
@@ -256,6 +268,7 @@ class Link {
       proposedBy: proposedBy ?? this.proposedBy,
       signInClient: signInClient ?? this.signInClient,
       sealedKeyWraps: sealedKeyWraps ?? this.sealedKeyWraps,
+      sealedEntries: sealedEntries ?? this.sealedEntries,
     );
   }
 }

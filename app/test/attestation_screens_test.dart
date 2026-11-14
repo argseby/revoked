@@ -393,12 +393,10 @@ void main() {
     );
     // The action stays in the header, disabled when issuing is unavailable.
     expect(find.textContaining('does not issue attestations'), findsOneWidget);
-    expect(find.text('Issue attestation'), findsOneWidget);
+    expect(find.text('New attestation'), findsOneWidget);
     expect(
       tester
-          .widget<AppButton>(
-            find.widgetWithText(AppButton, 'Issue attestation'),
-          )
+          .widget<AppButton>(find.widgetWithText(AppButton, 'New attestation'))
           .onTap,
       isNull,
     );

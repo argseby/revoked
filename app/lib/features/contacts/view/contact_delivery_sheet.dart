@@ -14,7 +14,9 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_avatar.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/features/vault/view/record_composer.dart';
+import 'package:revoked_app/core/widgets/app_divider.dart';
+import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
 import 'package:revoked_app/core/widgets/app_error_text.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
@@ -37,6 +39,7 @@ Future<void> openContactDeliverySheet(
   final workspace = request?.workspace ?? share!.workspace;
   await showAppSheet<void>(
     context: context,
+    panelWidth: vaultComposerWidth,
     builder: (_) => _ContactDeliverySheet(share: share, request: request),
   );
   if (!context.mounted ||
@@ -96,7 +99,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
       title: flow.title,
       isRequest: flow.isRequest,
       linkKey: key,
-      keyUnreadable: (share?.hasKey ?? false) && key == null,
+      keyUnreadable: (share?.encrypted ?? false) && key == null,
     );
   }
 
@@ -123,81 +126,74 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
       return PopScope(
         canPop: !busy,
         child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight:
-                MediaQuery.sizeOf(context).height *
-                (AppSpacing.isNarrow(context) ? 0.92 : 1),
-          ),
+          constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            // Fills the side panel, so the footer sits on its bottom edge.
+            mainAxisSize: AppSpacing.isNarrow(context)
+                ? MainAxisSize.min
+                : MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.sm,
-                  AppSpacing.xl,
-                  AppSpacing.lg,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: AppSpacing.sm,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        AppBadge(
-                          icon: AppIcons.checkCircle,
-                          label:
-                              '${flow.isRequest ? 'Request' : 'Share'} created',
-                        ),
-                        AppText('${step.index + 1} of 3').small.muted,
-                      ],
-                    ),
-                    AppSpacing.gapMd,
-                    AppText(heading).header,
-                    AppSpacing.gapSm,
-                    AppText(description).small.muted,
-                  ],
-                ),
+              VaultComposerHeader(
+                title: heading,
+                subtitle: description,
+                area: flow.isRequest ? 'Requests' : 'Shares',
+                areaIcon: flow.isRequest ? AppIcons.askFor : AppIcons.share,
+                crumb: 'Send',
+                onClose: busy ? null : () => Navigator.of(context).pop(),
               ),
+              const AppDivider(),
               Flexible(
+                fit: AppSpacing.isNarrow(context)
+                    ? FlexFit.loose
+                    : FlexFit.tight,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      AppCard(
-                        child: Row(
+                      AppComposerCard(
+                        trailing: AppText('${step.index + 1} of 3').small.muted,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              flow.isRequest ? AppIcons.askFor : AppIcons.link,
+                            AppBadge(
+                              icon: AppIcons.checkCircle,
+                              label:
+                                  '${flow.isRequest ? 'Request' : 'Share'} created',
                             ),
                             AppSpacing.gapMd,
-                            Expanded(
-                              child: AppText(
-                                flow.title.isEmpty
-                                    ? 'Untitled ${flow.kind}'
-                                    : flow.title,
-                              ).bold,
+                            Row(
+                              children: [
+                                Icon(
+                                  flow.isRequest
+                                      ? AppIcons.askFor
+                                      : AppIcons.link,
+                                ),
+                                AppSpacing.gapMd,
+                                Expanded(
+                                  child: AppText(
+                                    flow.title.isEmpty
+                                        ? 'Untitled ${flow.kind}'
+                                        : flow.title,
+                                  ).bold,
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      AppSpacing.gapLg,
                       if (step == ContactDeliveryStep.contacts)
                         ..._contacts(context)
                       else if (step == ContactDeliveryStep.review)
                         ..._review(context)
                       else
                         ..._results(context),
-                      AppSpacing.gapLg,
                     ],
                   ),
                 ),
               ),
+              const AppDivider(),
               _footer(context),
             ],
           ),
@@ -210,115 +206,129 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
     final contacts = flow.matchingContacts;
     final failure = Stores.contacts.loadState.error;
     return [
-      AppTextField(
-        controller: flow.query,
-        hint: 'Find a contact…',
-        leading: const Icon(AppIcons.search),
-      ),
-      AppSpacing.gapMd,
-      if (flow.loading) const AppText('Loading contacts…').small.muted,
-      if (failure != null) ...[
-        AppErrorText(failure),
-        AppButton(
-          label: 'Retry loading contacts',
-          icon: AppIcons.arrowClockwise,
-          style: AppButtonStyle.accent,
-          onTap: flow.loading
-              ? null
-              : () async {
-                  await Stores.contacts.load();
-                },
+      AppComposerCard(
+        trailing: AppText('${flow.selected.length} selected').small.muted,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppTextField(
+              controller: flow.query,
+              hint: 'Find a contact…',
+              leading: const Icon(AppIcons.search),
+            ),
+            AppSpacing.gapMd,
+            if (flow.loading) const AppText('Loading contacts…').small.muted,
+            if (failure != null) ...[
+              AppErrorText(failure),
+              AppButton(
+                label: 'Retry loading contacts',
+                icon: AppIcons.arrowClockwise,
+                style: AppButtonStyle.accent,
+                onTap: flow.loading
+                    ? null
+                    : () async {
+                        await Stores.contacts.load();
+                      },
+              ),
+            ],
+            if (contacts.isEmpty && !flow.loading && failure == null)
+              AppText(
+                flow.query.text.trim().isEmpty
+                    ? 'No contacts yet. Add someone to send this to.'
+                    : 'No contacts match your search.',
+              ).small.muted,
+            for (final contact in contacts)
+              AppCheckRow(
+                label: _name(contact),
+                subtitle: flow.routeFor(contact),
+                icon: contact.isHere ? AppIcons.person : AppIcons.envelope,
+                value: flow.selected.containsKey(contact.id),
+                onChanged: (_) => flow.toggle(contact),
+              ),
+            AppSpacing.gapSm,
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AppButton(
+                icon: AppIcons.plus,
+                label: 'New contact',
+                style: AppButtonStyle.ghost,
+                onTap: () => openContactCreateSheet(context),
+              ),
+            ),
+          ],
         ),
-      ],
-      if (contacts.isEmpty && !flow.loading && failure == null)
-        AppText(
-          flow.query.text.trim().isEmpty
-              ? 'No contacts yet. Add someone to send this to.'
-              : 'No contacts match your search.',
-        ).small.muted,
-      for (final contact in contacts)
-        AppCheckRow(
-          label: _name(contact),
-          subtitle: flow.routeFor(contact),
-          icon: contact.isHere ? AppIcons.person : AppIcons.envelope,
-          value: flow.selected.containsKey(contact.id),
-          onChanged: (_) => flow.toggle(contact),
-        ),
-      AppSpacing.gapSm,
-      AppButton(
-        icon: AppIcons.personPlus,
-        label: 'Add contact',
-        style: AppButtonStyle.ghost,
-        onTap: () => openContactCreateSheet(context),
       ),
     ];
   }
 
   List<Widget> _review(BuildContext context) => [
-    AppText(
-      flow.isRequest ? 'What you’re asking for' : 'What you’re sharing',
-    ).bold,
-    AppSpacing.gapSm,
-    if (flow.contentNames.isEmpty)
-      const AppText(
-        'Open the saved item to review its full contents.',
-      ).small.muted,
-    for (final name in flow.contentNames)
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        child: Row(
-          children: [
-            Icon(
-              flow.isRequest ? AppIcons.cardList : AppIcons.fileText,
-              size: 16,
+    AppComposerCard(
+      title: flow.isRequest ? 'What you’re asking for' : 'What you’re sharing',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (flow.contentNames.isEmpty)
+            const AppText('Open the saved item to review its full contents.')
+                .small
+                .muted,
+          for (final name in flow.contentNames)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+              child: Row(
+                children: [
+                  Icon(
+                    flow.isRequest ? AppIcons.cardList : AppIcons.fileText,
+                    size: 16,
+                  ),
+                  AppSpacing.gapSm,
+                  Expanded(child: AppText(name).small),
+                ],
+              ),
             ),
-            AppSpacing.gapSm,
-            Expanded(child: AppText(name).small),
-          ],
-        ),
+        ],
       ),
-    AppSpacing.gapLg,
-    Wrap(
-      spacing: AppSpacing.sm,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        AppText(
-          'To ${flow.recipients.length} ${flow.recipients.length == 1 ? 'contact' : 'contacts'}',
-        ).bold,
-        AppButton(
-          label: 'Change',
-          icon: AppIcons.pen,
-          size: AppButtonSize.small,
-          style: AppButtonStyle.ghost,
-          onTap: flow.changeRecipients,
-        ),
-      ],
     ),
-    for (final contact in flow.recipients) _recipient(contact),
-    AppSpacing.gapLg,
-    AppText(
-      flow.isRequest
-          ? 'Answers appear under this request.'
-          : 'Access stays linked to this share.',
-    ).small.muted,
-    if ((widget.request?.maxResponses ?? 0) > 0) ...[
-      AppSpacing.gapSm,
-      AppText(
-        'This request accepts up to ${widget.request!.maxResponses} responses in total across all recipients.',
-      ).small.muted,
-    ],
-    if ((widget.share?.maxViews ?? 0) > 0) ...[
-      AppSpacing.gapSm,
-      AppText(
-        'This share allows ${widget.share!.maxViews} views in total across all recipients.',
-      ).small.muted,
-    ],
-    if (flow.encrypted) ...[
-      AppSpacing.gapSm,
-      const AppText(
-        'This share is encrypted. Use “Share link” on the next step to deliver its key securely.',
-      ).small.muted,
-    ],
+    AppComposerCard(
+      title:
+          'To ${flow.recipients.length} ${flow.recipients.length == 1 ? 'contact' : 'contacts'}',
+      trailing: AppButton(
+        label: 'Change',
+        icon: AppIcons.pen,
+        size: AppButtonSize.small,
+        style: AppButtonStyle.ghost,
+        onTap: flow.changeRecipients,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final contact in flow.recipients) _recipient(contact),
+          AppSpacing.gapMd,
+          AppText(
+            flow.isRequest
+                ? 'Answers appear under this request.'
+                : 'Access stays linked to this share.',
+          ).small.muted,
+          if ((widget.request?.maxResponses ?? 0) > 0) ...[
+            AppSpacing.gapSm,
+            AppText(
+              'This request accepts up to ${widget.request!.maxResponses} responses in total across all recipients.',
+            ).small.muted,
+          ],
+          if ((widget.share?.maxViews ?? 0) > 0) ...[
+            AppSpacing.gapSm,
+            AppText(
+              'This share allows ${widget.share!.maxViews} views in total across all recipients.',
+            ).small.muted,
+          ],
+          if (flow.encrypted) ...[
+            AppSpacing.gapSm,
+            const AppText(
+              'This share is encrypted. Use “Share link” on the next step to deliver its key securely.',
+            ).small.muted,
+          ],
+        ],
+      ),
+    ),
   ];
 
   Widget _recipient(Contact contact) => AppListRow(
@@ -329,11 +339,13 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
   );
 
   List<Widget> _results(BuildContext context) => [
-    for (final contact in flow.recipients) ...[
-      _recipient(contact),
-      _outcome(context, contact),
-      const Divider(),
-    ],
+    for (final contact in flow.recipients)
+      AppComposerCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [_recipient(contact), _outcome(context, contact)],
+        ),
+      ),
   ];
 
   Widget _outcome(BuildContext context, Contact contact) {
@@ -400,26 +412,22 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
     );
   }
 
+  /// Laid out like [AppComposerFooter]: quieter actions first, the step's
+  /// primary action at the end, wrapping onto a second line when narrow.
   Widget _footer(BuildContext context) => Padding(
     padding: EdgeInsets.fromLTRB(
       AppSpacing.xl,
       AppSpacing.md,
       AppSpacing.xl,
-      AppSpacing.lg + MediaQuery.paddingOf(context).bottom,
+      AppSpacing.md + MediaQuery.paddingOf(context).bottom,
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    child: Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
       children: [
-        const Divider(),
-        AppSpacing.gapSm,
         if (flow.step == ContactDeliveryStep.contacts) ...[
-          AppText('${flow.selected.length} selected').small.muted,
-          AppSpacing.gapSm,
-          AppButton(
-            label: 'Review recipients',
-            icon: AppIcons.arrowRight,
-            onTap: flow.selected.isEmpty ? null : flow.review,
-          ),
           AppButton(
             label: 'Skip for now',
             style: AppButtonStyle.ghost,
@@ -431,19 +439,24 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
             style: AppButtonStyle.ghost,
             onTap: _shareManually,
           ),
-        ] else if (flow.step == ContactDeliveryStep.review) ...[
           AppButton(
-            label: flow.encrypted
-                ? 'Prepare manual delivery'
-                : 'Send to ${flow.recipients.length} ${flow.recipients.length == 1 ? 'contact' : 'contacts'}',
-            icon: AppIcons.send,
-            onTap: flow.recipients.isEmpty ? null : flow.send,
+            label: 'Review recipients',
+            trailingIcon: AppIcons.arrowRight,
+            onTap: flow.selected.isEmpty ? null : flow.review,
           ),
+        ] else if (flow.step == ContactDeliveryStep.review) ...[
           AppButton(
             label: 'Back',
             icon: AppIcons.arrowLeft,
             style: AppButtonStyle.ghost,
             onTap: flow.changeRecipients,
+          ),
+          AppButton(
+            label: flow.encrypted
+                ? 'Prepare manual delivery'
+                : 'Send to ${flow.recipients.length} ${flow.recipients.length == 1 ? 'contact' : 'contacts'}',
+            trailingIcon: AppIcons.send,
+            onTap: flow.recipients.isEmpty ? null : flow.send,
           ),
         ] else ...[
           if (flow.hasFailures)
@@ -455,7 +468,7 @@ class _ContactDeliverySheetState extends State<_ContactDeliverySheet> {
             ),
           AppButton(
             label: 'Done',
-            icon: AppIcons.check,
+            trailingIcon: AppIcons.check,
             busy: flow.busy,
             onTap: flow.busy ? null : () => Navigator.of(context).pop(),
           ),

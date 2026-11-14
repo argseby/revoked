@@ -532,7 +532,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         : 'Share information from your vault with others',
     action: AppButton(
       icon: AppIcons.plus,
-      label: 'Share items',
+      label: 'New link',
       onTap: () => openShareCreateSheet(context: context),
     ),
   );

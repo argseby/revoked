@@ -224,7 +224,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       user: widget.authStore.userId,
       workspace: widget.authStore.activeWorkspace ?? '',
       file: _isFileType ? _store.pickedFile : null,
-      sealed: !_isFileType && _store.recordSealed,
+      sealed: _store.recordSealed,
       audienceKind: _audience.kind,
       audienceGroups: _audience.groups,
     );
@@ -314,6 +314,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     _isFileType
                         ? RecordComposerField(
                             label: 'File',
+                            missing: _store.pickedFile == null,
                             explanation:
                                 'One file per record. Masking hides its '
                                 'name in lists.',
@@ -344,16 +345,17 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                     ),
                   ],
                 ),
-                if (!_isFileType &&
-                    (Stores.keys.isAvailable || _store.recordSealed))
+                if (Stores.keys.isAvailable || _store.recordSealed)
                   AppComposerSection(
                     title: 'Encryption',
                     icon: AppIcons.shieldCheck,
                     children: [
                       AppComposerCard(
                         title: 'End-to-end encryption',
-                        description:
-                            'Encrypts the value on this device before upload.',
+                        description: _isFileType
+                            ? 'Encrypts the file and its name on this device '
+                                  'before upload.'
+                            : 'Encrypts the value on this device before upload.',
                         child: _buildEncryption(),
                       ),
                     ],
@@ -391,7 +393,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                           child: Text(
                             '$_accessSummary · '
                             '${_store.recordFormat == 'hidden' ? 'Masked' : 'Visible'}'
-                            '${!_isFileType && _store.recordSealed ? ' · E2E' : ''}',
+                            '${_store.recordSealed ? ' · E2E' : ''}',
                           ).small.muted,
                         ),
                       ],
@@ -409,10 +411,8 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
                         AppSpacing.gapSm,
                         Flexible(
                           child: AppButton(
-                            trailingIcon: isDup
-                                ? AppIcons.copy
-                                : AppIcons.arrowRight,
-                            label: isDup ? 'Duplicate record' : 'Save record',
+                            icon: isDup ? AppIcons.copy : AppIcons.plus,
+                            label: isDup ? 'Duplicate record' : 'Create record',
                             busy: _store.isSubmittingRecord,
                             onTap: canSubmit ? _submit : null,
                           ),
@@ -462,6 +462,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   Widget _buildLabelField() => RecordComposerField(
     label: 'Label',
     explanation: 'How this record is named in your vault.',
+    missing: _store.recordLabel.text.trim().isEmpty,
     child: AppTextField(
       controller: _store.recordLabel,
       hint: 'e.g. Account IBAN',
@@ -605,12 +606,16 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          InkWell(
-            borderRadius: AppRadius.allMd,
-            onTap: () => _store.setRecordFormat(
-              _store.recordFormat == 'hidden' ? 'default' : 'hidden',
+          // Wraps rather than pushing the switch off the card at large
+          // text sizes.
+          Flexible(
+            child: InkWell(
+              borderRadius: AppRadius.allMd,
+              onTap: () => _store.setRecordFormat(
+                _store.recordFormat == 'hidden' ? 'default' : 'hidden',
+              ),
+              child: Text(_isFileType ? 'Mask name' : 'Mask value').small.muted,
             ),
-            child: Text(_isFileType ? 'Mask name' : 'Mask value').small.muted,
           ),
           AppSpacing.gapXs,
           AppSwitch(
@@ -628,15 +633,18 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       AppCheckRow(
-        label: 'Encrypt this value',
+        label: _isFileType ? 'Encrypt this file' : 'Encrypt this value',
         subtitle: 'Only this account’s devices can open it.',
         badge: const AppBadge(label: 'Alpha'),
         value: _store.recordSealed,
         onChanged: _preparingEncryption.value ? null : _setEncrypted,
       ),
       AppSpacing.gapSm,
-      const Text(
-        'Other workspace accounts cannot decrypt encrypted values yet.',
+      Text(
+        _isFileType
+            ? 'Encrypted files can be up to 50 MB, and are not stamped on '
+                  'shares.'
+            : 'Other workspace accounts cannot decrypt encrypted values yet.',
       ).small.muted,
       if (_preparingEncryption.value) ...[
         AppSpacing.gapSm,
@@ -736,6 +744,7 @@ class _RecordCreateDrawerState extends State<_RecordCreateDrawer> {
   Widget _buildValueField() => RecordComposerField(
     label: 'Value',
     explanation: 'Masking hides it on screen until it is revealed.',
+    missing: _store.recordValue.text.trim().isEmpty,
     trailing: _maskToggle(),
     error: _store.recordTypeWarning,
     child: Column(

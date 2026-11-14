@@ -100,7 +100,7 @@ void main() {
   }
 
   AppButton saveButton(WidgetTester tester) =>
-      tester.widget<AppButton>(find.widgetWithText(AppButton, 'Save record'));
+      tester.widget<AppButton>(find.widgetWithText(AppButton, 'Create record'));
 
   testWidgets('switching types retains separate drafts and file attachment', (
     tester,
@@ -117,7 +117,9 @@ void main() {
     await tester.tap(find.text('Yes'));
     await tester.pumpAndSettle();
     await pick(tester, 'File');
-    expect(find.text('Files are private to your account.'), findsNothing);
+    // Every section stays on one page, so a file says at once that its
+    // access stays private.
+    expect(find.text('Files are private to your account.'), findsOneWidget);
     final upload = PendingUpload(
       name: 'document.txt',
       size: 4,
@@ -156,7 +158,7 @@ void main() {
       await pick(tester, 'Record');
       expect(Stores.vault.recordValue.text, 'hello');
       expect(Stores.vault.recordFormat, 'hidden');
-      await tester.tap(find.text('Save record'));
+      await tester.tap(find.text('Create record'));
       await tester.pumpAndSettle();
       expect(writes, hasLength(1));
       expect(writes.single, containsPair('key', 'my_note'));

@@ -61,6 +61,7 @@ nav = [
   { "Developer API" = [
     "api/index.md",
     { "Ways to connect" = "api/connect.md" },
+    { "JavaScript SDK" = "api/sdk.md" },
     { "Authentication" = "api/authentication.md" },
     { "Building a tool" = "api/tools.md" },
     { "Encrypted links and saved keys" = "api/encrypted-links.md" },
@@ -70,6 +71,7 @@ nav = [
     { "Webhooks" = "api/webhooks.md" },
     { "Callbacks" = "api/callbacks.md" },
     { "Trust chain" = "api/trust-chain.md" },
+    { "Error codes" = "api/errors.md" },
     { "Reference" = [
       "api/reference/index.md",
       { "Records" = "api/reference/records.md" },

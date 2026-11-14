@@ -413,9 +413,8 @@ class ApiClient {
   }
 
   Future<dynamic> get(String path, {Map<String, String>? queryParams}) async {
-    final uri = Uri.parse(
-      '$baseUrl$path',
-    ).replace(queryParameters: queryParams);
+    final uri = Uri.parse('$baseUrl$path')
+        .replace(queryParameters: queryParams);
     final response = await _send(
       _httpClient.get(uri, headers: _buildHeaders()),
     );
@@ -428,9 +427,8 @@ class ApiClient {
     Map<String, String>? queryParams,
     Map<String, String>? headers,
   }) async {
-    final uri = Uri.parse(
-      '$baseUrl$path',
-    ).replace(queryParameters: queryParams);
+    final uri = Uri.parse('$baseUrl$path')
+        .replace(queryParameters: queryParams);
     final response = await _send(
       _httpClient.get(uri, headers: _buildHeaders(headers)),
     );
@@ -490,6 +488,27 @@ class ApiClient {
   );
 
   /// PATCH counterpart of [postMultipart], for replacing a record's file.
+  Future<dynamic> putMultipart(
+    String path, {
+    required Map<String, String> fields,
+    required String fileField,
+    required String filename,
+    required Stream<List<int>> Function() openFile,
+    required int length,
+    void Function(int sent, int total)? onProgress,
+    UploadCancelToken? cancelToken,
+  }) => _sendMultipart(
+    'PUT',
+    path,
+    fields: fields,
+    fileField: fileField,
+    filename: filename,
+    openFile: openFile,
+    length: length,
+    onProgress: onProgress,
+    cancelToken: cancelToken,
+  );
+
   Future<dynamic> patchMultipart(
     String path, {
     required Map<String, String> fields,

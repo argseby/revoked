@@ -155,6 +155,29 @@ abstract final class Sealing {
     );
   }
 
+  /// One AES-256-GCM operation under a nonce the caller is responsible for.
+  /// Only for formats that derive a fresh key per message and count their own
+  /// nonces, such as the segments of an encrypted file; everything else uses
+  /// [aeadSeal], which draws a random one.
+  static Uint8List gcmSeal(
+    Uint8List key,
+    Uint8List nonce,
+    Uint8List aad,
+    Uint8List plaintext,
+  ) => _aesGcm(true, key, nonce, aad, plaintext);
+
+  static Uint8List gcmOpen(
+    Uint8List key,
+    Uint8List nonce,
+    Uint8List aad,
+    Uint8List sealed,
+  ) {
+    if (sealed.length < _tagLength) {
+      throw const SealingException('This data is too short to open.');
+    }
+    return _aesGcm(false, key, nonce, aad, sealed);
+  }
+
   /// Unambiguous encoding of a context: a bare concatenation would let
   /// `("ab", "c")` and `("a", "bc")` authenticate as the same thing, so every
   /// string is length-prefixed and every int a fixed eight bytes.

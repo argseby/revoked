@@ -24,8 +24,6 @@ const (
 	// grantSlugPrefix marks a link as request-born; it encodes nothing about the
 	// request that minted it.
 	grantSlugPrefix = "g_"
-	// grantSlugBytes gives every request-born slug 128 bits of entropy.
-	grantSlugBytes = 16
 	// maxKeySuffixProbes bounds the key_1, key_2 … search in uniqueRecordKey.
 	maxKeySuffixProbes = 50
 )
@@ -47,7 +45,7 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 			slug := re.Request.PathValue("slug")
 			req, err := app.FindFirstRecordByFilter(util.Coll.Requests, "slug = {:slug}", map[string]any{"slug": slug})
 			if err != nil || req == nil {
-				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.RequestNotFound)
 			}
 			if appErr := services.RefreshRequestStatus(app, req); appErr != nil {
 				return resourceErrorResponse(re, appErr)
@@ -109,7 +107,7 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 
 			req, err := app.FindFirstRecordByFilter(util.Coll.Requests, "slug = {:slug}", map[string]any{"slug": slug})
 			if err != nil || req == nil {
-				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.RequestNotFound)
 			}
 
 			if appErr := services.RefreshRequestStatus(app, req); appErr != nil {
@@ -808,7 +806,7 @@ func uniqueRecordKey(app core.App, base, userId, workspace string) string {
 // returns an error rather than degrading to a derivable slug.
 func mintLinkSlug(app core.App, req *core.Record) (string, error) {
 	_ = req // the slug deliberately encodes nothing about the request
-	return mintUniqueSlug(app, util.Coll.Links, grantSlugPrefix)
+	return services.MintUniqueSlug(app, util.Coll.Links, grantSlugPrefix)
 }
 
 // requesterDisplayName names who issued a request, for the `requestedBy` stamp that

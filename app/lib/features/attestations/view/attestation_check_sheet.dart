@@ -143,7 +143,7 @@ class _Form extends StatelessWidget {
             AppSpacing.gapMd,
             Expanded(
               child: AppButton(
-                icon: AppIcons.qrCode,
+                icon: AppIcons.plus,
                 label: 'Create check',
                 busy: store.isCreating,
                 onTap: store.isCreating ? null : () => _create(context),
@@ -179,9 +179,9 @@ class _HandOver extends StatelessWidget {
         ).header,
         AppSpacing.gapXxs,
         if (answered)
-          const Text(
-            'Verified on arrival. Reflects the state at that time.',
-          ).muted.small
+          const Text('Verified on arrival. Reflects the state at that time.')
+              .muted
+              .small
         else if (waiting) ...[
           const Text(
             'Scanned with Revoked or opened as a link. Valid once, for ten '

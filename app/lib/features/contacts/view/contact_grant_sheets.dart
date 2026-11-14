@@ -155,6 +155,7 @@ class _SendSheet extends StatelessWidget {
         fields: [
           AppComposerField(
             label: 'Label',
+            missing: store.grantLabel.text.trim().isEmpty,
             child: AppTextField(
               controller: store.grantLabel,
               hint: 'Bank details',
@@ -162,6 +163,7 @@ class _SendSheet extends StatelessWidget {
             ),
           ),
           ShareContentsRow(
+            required: true,
             records: store.draftRecords,
             sections: store.draftSections,
             toggleRecord: store.toggleDraftRecord,
@@ -206,6 +208,7 @@ class _AskSheet extends StatelessWidget {
           fields: [
             AppComposerField(
               label: 'Title',
+              missing: store.grantLabel.text.trim().isEmpty,
               child: AppTextField(
                 controller: store.grantLabel,
                 hint: 'New address',
@@ -225,6 +228,7 @@ class _AskSheet extends StatelessWidget {
             ),
             AppComposerField(
               label: 'Your identity',
+              missing: (store.askIdentityId ?? '').isEmpty,
               child: IdentityPicker(
                 selectedId: store.askIdentityId,
                 onChanged: store.setAskIdentity,
@@ -263,9 +267,7 @@ class _ContactGrantLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(
-    constraints: BoxConstraints(
-      maxHeight: composerMaxHeight(context),
-    ),
+    constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
     child: Column(
       // Fills the side panel, so the footer sits on its bottom edge.
       mainAxisSize: AppSpacing.isNarrow(context)

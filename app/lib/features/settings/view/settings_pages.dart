@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/router/return_to.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -14,6 +15,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -140,7 +142,6 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
     });
   }
 
-
   void _load() {
     final auth = Stores.auth;
     if (!auth.isAuthenticated) return;
@@ -198,11 +199,29 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
   Widget build(BuildContext context) {
     return AppPageBody(
       children: [
-        // The page names itself here, so the top bar carries no title.
-        AppCollectionHeader(
-          title: widget.page.title,
-          description: widget.page.description,
-          onBack: () => goBack(context, AppRoutes.settings),
+        // The page names itself here, so the top bar carries no title. On a
+        // wide window there is no top bar at all, so the page's own action
+        // ("New API key") stands beside its name; a phone keeps it as the
+        // floating button instead.
+        Observer(
+          builder: (context) {
+            final own = AppSpacing.isNarrow(context)
+                ? null
+                : subPageActionFor(AppRoutes.settingsPage(widget.page.slug));
+            return AppCollectionHeader(
+              title: widget.page.title,
+              description: widget.page.description,
+              onBack: () => goBack(context, AppRoutes.settings),
+              action: own == null
+                  ? null
+                  : AppButton(
+                      icon: own.icon,
+                      label: own.label,
+                      tooltip: own.label,
+                      onTap: () => own.start(context),
+                    ),
+            );
+          },
         ),
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),
@@ -327,14 +346,7 @@ class _WorkspacesPage extends StatelessWidget {
               workspaceId: ws.id,
             ),
           ),
-        AppSheetAction(
-          icon: AppIcons.copy,
-          label: 'Copy ID',
-          onTap: () {
-            Clipboard.setData(ClipboardData(text: ws.id));
-            AppToast.success(context, 'Workspace ID copied');
-          },
-        ),
+        copyIdAction(context, ws.id),
         // The active workspace's groups; listing them is open to everyone.
         if (active)
           AppSheetAction(
@@ -509,7 +521,8 @@ class _MembersPage extends StatelessWidget {
             member: member,
           ),
         ),
-      if (store.canManageMembers || member.isSelf)
+      if (store.canManageMembers || member.isSelf) ...[
+        copyIdAction(context, member.id),
         AppSheetAction(
           icon: AppIcons.xCircle,
           label: member.isSelf ? 'Leave workspace' : 'Remove member',
@@ -519,6 +532,7 @@ class _MembersPage extends StatelessWidget {
           enabled: !member.isLastAdmin,
           onTap: () => _remove(context, member),
         ),
+      ],
     ];
     return AppListRow(
       icon: AppIcons.person,
@@ -635,6 +649,7 @@ class _InvitesPage extends StatelessWidget {
                     context: context,
                     title: invite.label.isEmpty ? 'Invite' : invite.label,
                     actions: [
+                      copyIdAction(context, invite.id),
                       AppSheetAction(
                         icon: AppIcons.xCircle,
                         label: 'Withdraw invite',
@@ -736,6 +751,7 @@ class _IdentitiesPage extends StatelessWidget {
             label: 'Replace',
             onTap: () => openIdentityReplaceSheet(context, id),
           ),
+        copyIdAction(context, id.id),
         // Revoking, not deleting, is the answer to a leaked key: the holder
         // of a copy keeps passing every check until this server says
         // otherwise, and it can only say so about an identity it still has a
@@ -904,6 +920,7 @@ class _TemplatesPage extends StatelessWidget {
                       saveError: () => Stores.templates.errorMessage,
                     ),
                   ),
+                copyIdAction(context, template.id),
                 AppSheetAction(
                   icon: AppIcons.trash,
                   label: 'Delete',
@@ -1095,9 +1112,9 @@ class _CreateWorkspaceSheetState extends State<_CreateWorkspaceSheet> {
         children: [
           const Text('New workspace').header,
           const SizedBox(height: AppSpacing.xs),
-          const Text(
-            'Separate records, members and keys by context.',
-          ).muted.small,
+          const Text('Separate records, members and keys by context.')
+              .muted
+              .small,
           const SizedBox(height: AppSpacing.lg),
           const Text('Name').small,
           const SizedBox(height: AppSpacing.xs),

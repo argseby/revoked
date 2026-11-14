@@ -164,9 +164,9 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                 children: [
                   const Text('New reminder').header,
                   const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    'For ${_name(widget.record)}. Private to this account.',
-                  ).muted.small,
+                  Text('For ${_name(widget.record)}. Private to this account.')
+                      .muted
+                      .small,
                 ],
               ),
             ),
@@ -279,6 +279,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
       AppSpacing.gapSm,
       AppFormField(
         label: 'Due date',
+        missing: due == null,
         child: AppPickerField(
           text: due == null ? 'Pick a date' : formatReminderDay(due),
           isPlaceholder: due == null,

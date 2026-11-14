@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/router/app_router.dart';
@@ -87,6 +88,9 @@ class RequestActions {
           editRequest: request,
         ),
       ),
+    ],
+    copyIdAction(context, request.id),
+    if (editable) ...[
       if (!isRequestClosed(request))
         AppSheetAction(
           icon: AppIcons.xCircle,

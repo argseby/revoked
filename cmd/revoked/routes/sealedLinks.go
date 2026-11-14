@@ -178,12 +178,15 @@ func writeSealedLink(app core.App, re *core.RequestEvent) error {
 			rec, err := tx.FindRecordById(util.Coll.Records, seal.Record)
 			// A record the caller cannot see reads like one that is not there.
 			if err != nil || rec == nil || rec.GetString(r.Workspace) != workspace ||
-				!services.IsSealed(rec) || rec.GetString(r.Type) == util.TypeFile || rec.GetString(r.AliasOf) != "" ||
+				!services.IsSealed(rec) || rec.GetString(r.AliasOf) != "" ||
 				(rec.GetString(r.User) != me && !services.CanSee(tx, me, rec)) {
 				return refuse(http.StatusBadRequest, &util.Errors.SealedLinkContent)
 			}
 			if rec.GetInt(r.SealedVersion) != seal.Version {
 				return refuse(http.StatusConflict, &util.Errors.SealedVersionConflict)
+			}
+			if rec.GetString(r.Type) == util.TypeFile && link.GetBool(f.Watermark) {
+				return refuse(http.StatusBadRequest, &util.Errors.SealedFileWatermark)
 			}
 			if !validLinkWraps(workspace, seal.ViewerWrap, seal.WriterWrap) {
 				return refuse(http.StatusBadRequest, &util.Errors.SealedInvalid)
@@ -407,6 +410,13 @@ func linkCanCarryRecord(app core.App, link *core.Record, id string) bool {
 	f := util.Fields.Link
 	if link.GetString(f.Request) != "" || link.GetString(f.SignInClient) != "" || link.GetString(f.RemoteDomain) != "" {
 		return false
+	}
+	// A stamped link cannot hand out a file it cannot read to stamp.
+	if link.GetBool(f.Watermark) {
+		if rec, err := app.FindRecordById(util.Coll.Records, id); err == nil &&
+			rec.GetString(util.Fields.Record.Type) == util.TypeFile {
+			return false
+		}
 	}
 	if slices.Contains(link.GetStringSlice(f.Records), id) {
 		return true

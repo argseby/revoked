@@ -19,10 +19,8 @@ abstract class _UpdatesStore with Store {
   final String? Function() _serverVersion;
 
   /// [_serverVersion] is what the signed-in server reports, read live.
-  _UpdatesStore({
-    http.Client? httpClient,
-    required this._serverVersion,
-  }) : _http = httpClient ?? http.Client();
+  _UpdatesStore({http.Client? httpClient, required this._serverVersion})
+    : _http = httpClient ?? http.Client();
 
   static const _interval = Duration(hours: 6);
 

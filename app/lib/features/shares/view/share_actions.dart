@@ -1,17 +1,48 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/router/held_link_keys.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
+import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/api_preview.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
+
+/// The Web & API tab of a share's drawer.
+ApiAccessTarget shareApiTarget(Link share) => ApiAccessTarget(
+  slug: share.slug,
+  title: share.label,
+  intro:
+      'This link\'s data is available in several formats, always up to date.',
+  gated: share.hasPassword,
+  requireHandshake: share.requireHandshake,
+  encrypted: share.encrypted,
+  keys: _plainKeys(share),
+);
+
+/// The keys of the records these addresses serve: the share's own and those
+/// of its sections, without the encrypted ones, which they leave out.
+List<String> _plainKeys(Link share) {
+  final vault = Stores.vault;
+  final ids = <String>{...share.records};
+  for (final section in vault.sections) {
+    if (share.sections.contains(section.id)) ids.addAll(section.records);
+  }
+  final keys = <String>[];
+  for (final r in vault.records) {
+    if (ids.contains(r.id) && !r.sealed && !keys.contains(r.key)) {
+      keys.add(r.key);
+    }
+  }
+  return keys;
+}
 
 /// Link mutations share their confirmation and key handling with the detail view.
 class ShareActions {
@@ -49,9 +80,10 @@ class ShareActions {
           slug: share.slug,
           title: share.label,
           isRequest: false,
+          apiTarget: shareApiTarget(share),
           linkKey: Stores.shares.linkKeyText(share),
           keyUnreadable:
-              share.hasKey && Stores.shares.linkKeyText(share) == null,
+              share.encrypted && Stores.shares.linkKeyText(share) == null,
         ),
       ),
       AppSheetAction(
@@ -86,9 +118,10 @@ class ShareActions {
         onTap: () =>
             openShareCreateSheet(context: context, initialShare: share),
       ),
+    copyIdAction(context, share.id),
     if (editable) ...[
       if (mine(share) &&
-          share.hasKey &&
+          share.encrypted &&
           (share.status == 'active' || share.status == 'paused'))
         AppSheetAction(
           icon: AppIcons.key,
@@ -153,6 +186,7 @@ class ShareActions {
       slug: updated.slug,
       title: updated.label,
       isRequest: false,
+      apiTarget: shareApiTarget(updated),
       linkKey: Stores.shares.linkKeyText(updated),
     );
   }

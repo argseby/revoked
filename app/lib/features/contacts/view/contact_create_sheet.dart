@@ -41,15 +41,13 @@ class _CreateSheet extends StatelessWidget {
     final store = Stores.contacts;
     return Observer(
       builder: (_) => ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: composerMaxHeight(context),
-        ),
+        constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             VaultComposerHeader(
-              title: 'Add a contact',
+              title: 'New contact',
               area: 'Contacts',
               areaIcon: AppIcons.person,
               subtitle:
@@ -70,6 +68,7 @@ class _CreateSheet extends StatelessWidget {
                     children: [
                       AppComposerField(
                         label: 'Name',
+                        missing: store.name.text.trim().isEmpty,
                         child: AppTextField(
                           controller: store.name,
                           hint: 'Ada Lovelace',
@@ -79,6 +78,11 @@ class _CreateSheet extends StatelessWidget {
                       AppComposerField(
                         label: 'Email address',
                         explanation: 'Where records and requests are sent',
+                        // A contact on its own server is reached there
+                        // instead, so either one is enough.
+                        missing:
+                            store.email.text.trim().isEmpty &&
+                            store.peerDomain.text.trim().isEmpty,
                         child: AppTextField(
                           controller: store.email,
                           hint: 'ada@example.com',
@@ -120,8 +124,8 @@ class _CreateSheet extends StatelessWidget {
               ),
             const AppDivider(),
             AppComposerFooter(
-              label: 'Add contact',
-              icon: AppIcons.personPlus,
+              label: 'Create contact',
+              icon: AppIcons.plus,
               busy: store.isSaving,
               onSubmit: store.canSave ? () => _create(context) : null,
               onCancel: store.isSaving

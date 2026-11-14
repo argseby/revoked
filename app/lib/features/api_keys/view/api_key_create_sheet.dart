@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/utils/dates.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -113,6 +114,7 @@ class ApiKeyCreateForm extends StatelessWidget {
                 child: AppTextField(
                   controller: store.draftLabel,
                   label: 'Key name',
+                  required: true,
                   hint: 'e.g. Production server',
                 ),
               ),
@@ -130,7 +132,10 @@ class ApiKeyCreateForm extends StatelessWidget {
                 ),
               ),
 
-              const AppFormSectionHeader('Permissions'),
+              AppFormSectionHeader(
+                'Permissions',
+                missing: store.draftScopes.isEmpty,
+              ),
               Observer(
                 builder: (_) {
                   final catalogue = _keyPermissions(Stores.invites.catalogue);
@@ -175,7 +180,10 @@ class ApiKeyCreateForm extends StatelessWidget {
                 },
               ),
               if (store.draftReachesVault) ...[
-                const AppFormSectionHeader('Sections'),
+                AppFormSectionHeader(
+                  'Sections',
+                  missing: store.draftSections.isEmpty,
+                ),
                 const _SectionPicker(),
               ],
               const SizedBox(height: AppSpacing.lg),
@@ -352,6 +360,7 @@ class ApiKeyRow extends StatelessWidget {
         context: context,
         title: label,
         actions: [
+          copyIdAction(context, apiKey.id),
           AppSheetAction(
             icon: AppIcons.xCircle,
             label: 'Revoke key',

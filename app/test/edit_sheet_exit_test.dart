@@ -63,20 +63,7 @@ void main() {
         authStore: Stores.auth,
       );
       await tester.pumpAndSettle();
-      // Further down the sheet, below who sees the new entry.
-      await tester.scrollUntilVisible(
-        find.text('Developer options'),
-        200,
-        scrollable: find
-            .ancestor(
-              of: find.text('Record type'),
-              matching: find.byType(Scrollable),
-            )
-            .first,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Developer options'));
-      await tester.pumpAndSettle();
+      // The Developer section, the last on the page.
       await tester.ensureVisible(find.text('Record key'));
       await tester.pumpAndSettle();
     }
@@ -93,7 +80,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(Stores.vault.recordKey.text, 'typed_key');
-      expect(find.text('Save record'), findsOneWidget);
+      expect(find.text('Create record'), findsOneWidget);
     });
   });
 }

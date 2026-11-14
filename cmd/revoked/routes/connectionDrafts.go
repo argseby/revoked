@@ -176,11 +176,11 @@ func ConnectionDraftsRoute(app core.App) {
 				Values map[string]string `json:"values"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid body", err)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			values, problem := draftValues(body.Values)
 			if problem != "" {
-				return re.BadRequestError(problem, nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.AppError{ErrorCode: util.Errors.ConnectionDraftInvalid.ErrorCode, ErrorText: problem})
 			}
 			expires := proposalDrafts.now().Add(draftTTL)
 			id, ok := proposalDrafts.put(&proposalDraft{
@@ -191,7 +191,7 @@ func ConnectionDraftsRoute(app core.App) {
 				expires:    expires,
 			})
 			if !ok {
-				return re.TooManyRequestsError("Too many open drafts; wait until the owner has answered", nil)
+				return appErrorResponse(re, http.StatusTooManyRequests, &util.Errors.ConnectionDraftLimitReached)
 			}
 			keys := make([]string, 0, len(values))
 			for k := range values {
@@ -206,7 +206,7 @@ func ConnectionDraftsRoute(app core.App) {
 
 		e.Router.GET("/api/connections/drafts/{id}", func(re *core.RequestEvent) error {
 			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-				return re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
 			}
 			id := re.Request.PathValue("id")
 			var d *proposalDraft
@@ -214,14 +214,14 @@ func ConnectionDraftsRoute(app core.App) {
 				d = proposalDrafts.get(id, re.Auth.Id)
 			}
 			if d == nil {
-				return re.NotFoundError("Draft not found or expired", nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.ConnectionDraftNotFound)
 			}
 			// A tool the owner paused or that expired suggests nothing.
 			conn, err := app.FindRecordById(util.Coll.Connections, d.connection)
 			if err != nil || conn == nil || conn.GetBool(util.Fields.Connection.Paused) ||
 				util.ConnectionExpired(conn.GetDateTime(util.Fields.Connection.ExpiresAt).Time()) {
 				proposalDrafts.drop(id, re.Auth.Id)
-				return re.NotFoundError("Draft not found or expired", nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.ConnectionDraftNotFound)
 			}
 			return re.JSON(http.StatusOK, map[string]any{
 				"id":         id,
@@ -234,7 +234,7 @@ func ConnectionDraftsRoute(app core.App) {
 
 		e.Router.DELETE("/api/connections/drafts/{id}", func(re *core.RequestEvent) error {
 			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-				return re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
 			}
 			// Discarding is idempotent: an expired draft is already gone.
 			proposalDrafts.drop(re.Request.PathValue("id"), re.Auth.Id)

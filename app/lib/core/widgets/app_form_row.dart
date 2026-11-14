@@ -114,6 +114,10 @@ class AppFormField extends StatelessWidget {
   /// already pads its fields.
   final bool inset;
 
+  /// A required field that is still empty: [AppRequiredBadge] beside the
+  /// label.
+  final bool missing;
+
   const AppFormField({
     super.key,
     required this.label,
@@ -123,6 +127,7 @@ class AppFormField extends StatelessWidget {
     this.note,
     this.action,
     this.inset = true,
+    this.missing = false,
   });
 
   @override
@@ -137,7 +142,16 @@ class AppFormField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label),
+          if (missing)
+            Row(
+              children: [
+                Flexible(child: Text(label)),
+                const SizedBox(width: AppSpacing.sm),
+                const AppRequiredBadge(),
+              ],
+            )
+          else
+            Text(label),
           if (explanation != null) ...[
             const SizedBox(height: AppSpacing.xxs),
             Text(explanation!).muted.small,
@@ -231,7 +245,12 @@ class AppFormToggleRow extends StatelessWidget {
 /// A small uppercase section label grouping rows within a create drawer.
 class AppFormSectionHeader extends StatelessWidget {
   final String text;
-  const AppFormSectionHeader(this.text, {super.key});
+
+  /// The rows under it hold a required choice that is still unmade:
+  /// [AppRequiredBadge] beside the header.
+  final bool missing;
+
+  const AppFormSectionHeader(this.text, {super.key, this.missing = false});
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +261,15 @@ class AppFormSectionHeader extends StatelessWidget {
         AppSpacing.xl,
         AppSpacing.xxs,
       ),
-      child: Text(text).small.bold.muted,
+      child: !missing
+          ? Text(text).small.bold.muted
+          : Row(
+              children: [
+                Flexible(child: Text(text).small.bold.muted),
+                const SizedBox(width: AppSpacing.sm),
+                const AppRequiredBadge(),
+              ],
+            ),
     );
   }
 }

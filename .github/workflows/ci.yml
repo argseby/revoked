@@ -52,11 +52,60 @@ jobs:
       - name: Works with Revoked entries
         run: go run ./cmd/works-with check
 
+      # TestJavaScriptSDK drives the SDK against the suite's server, and
+      # TestSDKGeneratedFilesCurrent keeps its generated catalogues current.
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/revoked-js/package-lock.json
+
+      - name: Install SDK dependencies
+        run: npm ci
+        working-directory: packages/revoked-js
+
       # The suite boots a real PocketBase instance on 127.0.0.1:5559 and drives
       # it over HTTP, so it needs no external services — but it does bind a
       # port, which is why it runs single-package-at-a-time (-p 1).
       - name: Test
         run: go test ./... -count=1 -p 1 -timeout 10m
+
+  js-sdk:
+    name: JavaScript SDK — check, test & package (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    defaults:
+      run:
+        working-directory: packages/revoked-js
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: packages/revoked-js/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # The published package must resolve for ESM, CJS and bundlers alike.
+      - name: Lint package
+        run: npm run lint:package
 
   flutter:
     name: Flutter — analyze

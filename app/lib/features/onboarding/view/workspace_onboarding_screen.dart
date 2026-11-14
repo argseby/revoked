@@ -235,9 +235,9 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
       ),
     ),
     AppSpacing.gapXxs,
-    const Text(
-      'Derived from the email address. It can be changed later.',
-    ).muted.small,
+    const Text('Derived from the email address. It can be changed later.')
+        .muted
+        .small,
     AppSpacing.gapLg,
     if (_renaming.value)
       AppFormField(
@@ -270,9 +270,9 @@ class _WorkspaceOnboardingScreenState extends State<WorkspaceOnboardingScreen> {
         ],
       ),
     AppSpacing.gapXxs,
-    const Text(
-      'The workspace holds the vault, links and requests.',
-    ).muted.small,
+    const Text('The workspace holds the vault, links and requests.')
+        .muted
+        .small,
     AppSpacing.gapXl,
     AppButton(
       icon: AppIcons.arrowRight,

@@ -204,29 +204,37 @@ class SealedContent {
   final String type;
   final String format;
 
+  /// For an encrypted file: its name, type, size and the key its blob opens
+  /// with (design/e2ee-sharing.md §7.2). [value] is then empty.
+  final SealedFileInfo? file;
+
   const SealedContent({
     required this.value,
     required this.label,
     required this.type,
     required this.format,
+    this.file,
   });
 
-  String encode() =>
-      jsonEncode({'v': value, 'l': label, 't': type, 'f': format});
+  String encode() => jsonEncode({
+    'v': value,
+    'l': label,
+    't': type,
+    'f': format,
+    if (file != null) 'x': file!.toJson(),
+  });
 
   factory SealedContent.decode(String text) {
-    final json = jsonDecode(text) as Map<String, dynamic>;
-    return SealedContent(
-      value: json['v'] as String,
-      label: json['l'] as String,
-      type: json['t'] as String,
-      format: json['f'] as String,
-    );
+    final content = tryDecode(text);
+    if (content == null) {
+      throw const FormatException('This is not a sealed value.');
+    }
+    return content;
   }
 
   /// The same for text this device did not write, such as what a link's
   /// address opened: null for anything that is not a value with its label,
-  /// type and format.
+  /// type and format, or a file with a complete descriptor.
   static SealedContent? tryDecode(String text) {
     final Object? json;
     try {
@@ -243,12 +251,58 @@ class SealedContent {
         format is! String) {
       return null;
     }
+    SealedFileInfo? file;
+    if (json.containsKey('x') || type == 'file') {
+      file = SealedFileInfo.tryParse(json['x']);
+      if (file == null || type != 'file' || value.isNotEmpty) return null;
+    }
     return SealedContent(
       value: value,
       label: label,
       type: type,
       format: format,
+      file: file,
     );
+  }
+}
+
+/// The part of an encrypted file's sealed value that describes its blob.
+class SealedFileInfo {
+  final String name;
+  final String mime;
+  final int size;
+  final Uint8List fileKey;
+
+  const SealedFileInfo({
+    required this.name,
+    required this.mime,
+    required this.size,
+    required this.fileKey,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'n': name,
+    'm': mime,
+    's': size,
+    'k': SealedFormats.linkKeyText(fileKey),
+  };
+
+  static SealedFileInfo? tryParse(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    final name = json['n'], mime = json['m'];
+    final size = json['s'], key = json['k'];
+    if (name is! String ||
+        name.isEmpty ||
+        mime is! String ||
+        size is! int ||
+        size < 0 ||
+        size > SealedFile.maxLength ||
+        key is! String) {
+      return null;
+    }
+    final fileKey = SealedFormats.parseLinkKey(key);
+    if (fileKey == null) return null;
+    return SealedFileInfo(name: name, mime: mime, size: size, fileKey: fileKey);
   }
 }
 
@@ -2069,9 +2123,8 @@ abstract class _KeysStore with Store {
       if (chain.live.any(
         (e) => _sameBytes(e.signingPublicKey, invite.signingPublicKey),
       )) {
-        deviceConfirmation = DeviceConfirmation.forEntry(
-          chain.entries.last,
-        ).encodeToString();
+        deviceConfirmation = DeviceConfirmation.forEntry(chain.entries.last)
+            .encodeToString();
         deviceCodeInput.clear();
         return true;
       }
@@ -2336,6 +2389,7 @@ abstract class _KeysStore with Store {
     String label = '',
     String type = 'text',
     String format = 'default',
+    SealedFileInfo? file,
   }) {
     final held = _workspaces[workspace];
     if (held == null || !held.writable || !_trusted) {
@@ -2354,6 +2408,7 @@ abstract class _KeysStore with Store {
           label: label,
           type: type,
           format: format,
+          file: file,
         ).encode(),
         workspace: workspace,
         record: record,

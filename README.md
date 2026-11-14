@@ -129,12 +129,33 @@ curl -X POST "https://$SERVER/api/grants/resolve" \
 
 Once it's revoked, the next read returns `"status": "revoked"` and no values.
 
+From JavaScript or TypeScript, the [SDK](https://docs.revoked.link/api/sdk/)
+does the same in a few lines, for Node, Deno, Bun and browsers:
+
+```bash
+npm install @kiunke.dev/revoked
+```
+
+```js
+import { Revoked } from '@kiunke.dev/revoked';
+
+const revoked = new Revoked({ server: 'https://api.example.com', apiKey: process.env.REVOKED_API_KEY });
+
+const record = await revoked.vault.create({ key: 'wifi_password', label: 'Wi-Fi password', value: 'correct-horse' });
+const link = await revoked.links.create({ label: 'Wi-Fi for guests', records: [record.id], maxViews: 5 });
+console.log(revoked.links.url(link));   // change the record and the share follows; revoke it and it stops
+```
+
 - [Labs](https://docs.revoked.link/labs/): learn each part by using it, with the
   result you should see at every step
 - [How it works](https://docs.revoked.link/how-it-works/), with a diagram of every
   flow
 - [Developer API](https://docs.revoked.link/api/), with an
   [OpenAPI file](docs/api/openapi.yaml)
+- [JavaScript SDK](https://docs.revoked.link/api/sdk/)
+  ([`@kiunke.dev/revoked`](https://www.npmjs.com/package/@kiunke.dev/revoked)):
+  shares, requests, the vault, webhooks, identities and connected tools,
+  typed, with examples
 - [Add sign-in to your service](https://docs.revoked.link/api/sign-in/), with a
   [drop-in button](examples/sign-in-button) and a
   [complete example shop](examples/sign-in-demo)

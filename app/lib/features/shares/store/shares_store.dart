@@ -531,9 +531,9 @@ abstract class _SharesStore with Store {
 
   /// What follows `#k=` in a link's address, or null: the link carries
   /// nothing encrypted, or its key does not open on this device. Check
-  /// [Link.hasKey] to tell the two apart.
+  /// [Link.encrypted] to tell the two apart.
   String? linkKeyText(Link link) {
-    if (!link.hasKey) return null;
+    if (!link.encrypted) return null;
     final key = Stores.keys.openLinkKey(
       link: link.id,
       workspace: link.workspace,

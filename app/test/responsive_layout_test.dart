@@ -156,6 +156,43 @@ void main() {
     });
   }
 
+  group('an open section', () {
+    for (final MapEntry(key: name, value: size) in sizes.entries) {
+      testWidgets('with its key and its options fits a $name', (tester) async {
+        final router = await signedIn(tester, size);
+        router.go(AppRoutes.vault);
+        await tester.pumpAndSettle();
+        runInAction(
+          () => Stores.vault.sections.add(
+            Section(
+              id: 'section00000long',
+              key: 'a_section_key_long_enough_to_need_the_whole_row',
+              name: 'A section with a name long enough to wrap',
+              records: const [],
+              user: 'u1',
+              workspace: 'w1',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final tile = find.byKey(
+          const ValueKey('vault-section-section00000long'),
+        );
+        await tester.ensureVisible(tile);
+        await tester.tap(tile);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('vault-section-key')), findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'open section');
+
+        await tester.ensureVisible(tile);
+        await tester.longPress(tile);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Copy ID (API)'));
+        expect(tester.takeException(), isNull, reason: 'section options');
+      });
+    }
+  });
+
   group('phone bottom bar', () {
     NavigationBar bar(WidgetTester tester) =>
         tester.widget<NavigationBar>(find.byType(NavigationBar));

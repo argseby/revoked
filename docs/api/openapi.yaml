@@ -182,7 +182,7 @@ paths:
                       builds without a stamp report `dev`.
                     examples: ["v0.22.0"]
                   fingerprint: { type: string, description: SHA-256 fingerprint of the root public key. }
-                  publicKey: { type: string, description: Root public key, PEM encoded. }
+                  publicKey: { type: string, description: "Root public key, PEM encoded." }
                   assertion: { type: object, description: A freshly signed statement of the above. }
                   txt:
                     type: object
@@ -232,6 +232,17 @@ paths:
                         description: |
                           Whether every account must sign in with an
                           authenticator app after its passkey (`REQUIRE_2FA`).
+                  signups:
+                    type: object
+                    description: Operator policy on new accounts.
+                    properties:
+                      open: { type: boolean, description: Whether anyone may make an account here. }
+                      verifyEmail: { type: boolean, description: Whether a new account confirms its address with a mailed code. }
+                  sealing:
+                    type: object
+                    description: What this server's API supports for end-to-end encrypted entries.
+                    properties:
+                      records: { type: boolean }
 
   /api/blocked-domains:
     get:
@@ -393,6 +404,7 @@ paths:
       description: |
         Asks this server to verify a peer domain end to end — DNS TXT, served
         root key, and the peer's own answer about the identity's standing.
+      security: []
       requestBody:
         required: true
         content:
@@ -434,12 +446,34 @@ paths:
           in: path
           required: true
           schema: { type: string }
+        - name: identityId
+          in: query
+          required: true
+          description: The identity that will sign the nonce. The nonce is bound to it.
+          schema: { type: string }
       responses:
         "200":
           description: A nonce to sign.
           content:
             application/json:
-              schema: { type: object }
+              schema:
+                type: object
+                required: [nonce, expiresAt]
+                properties:
+                  nonce: { type: string }
+                  expiresAt: { type: string, format: date-time }
+                  algorithm:
+                    type: string
+                    enum: [RSA-SHA256, ECDSA-P256-SHA256]
+                    description: |
+                      How the identity's key signs: PKCS#1 v1.5 or ASN.1 DER
+                      ECDSA, both over the SHA-256 of the nonce. Absent when
+                      the identity is not held on this server.
+        "400":
+          description: "`challenge_scope_invalid` or `challenge_identity_required`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /api/public/links/{slug}:
@@ -512,6 +546,13 @@ paths:
       responses:
         "200":
           description: The share's contents, and the view count after this read.
+          headers:
+            X-Handshake-Token:
+              description: |
+                Issued when a challenge signature was verified on first
+                contact. Sent back as `handshakeToken` on later reads by the
+                same identity, in place of a new signature.
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -579,10 +620,15 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: The file.
+          description: The file, with its own content type.
           content:
-            application/octet-stream:
+            "*/*":
               schema: { type: string, format: binary }
+        "415":
+          description: "`file_not_watermarkable`: the share stamps its files, and this type cannot carry a stamp."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
         "401":
           description: The token was missing, spent, or not for this file.
           content:
@@ -638,13 +684,106 @@ paths:
         and no client code. Content negotiation also serves machine formats —
         CSV, vCard and iCal — with ETag and conditional requests, which is what
         makes a share consumable by a spreadsheet or a calendar directly.
+
+        The format is chosen, first match wins, by:
+
+        1. a suffix on the slug: `.json`, `.csv`, `.txt`, `.vcf` or `.ics`
+           (`/s/abc123.csv`);
+        2. `raw`, which selects plain text;
+        3. the `Accept` header: `text/csv`, `text/calendar`, `text/vcard`,
+           `text/plain`, and `text/html` for the page;
+        4. JSON otherwise.
+
+        The page is served only without a suffix, `key` and `raw`. Every
+        machine format consumes a view, except a `304`. A share that requires
+        a proven identity is never served here (`handshake_required`); a
+        password-protected one takes `password`.
       security: []
       parameters:
         - $ref: "#/components/parameters/Slug"
+        - name: key
+          in: query
+          description: Serve this one value instead of the whole share.
+          schema: { type: string }
+        - name: raw
+          in: query
+          description: Any value selects plain text, unless the slug has a suffix.
+          schema: { type: string }
+        - name: password
+          in: query
+          description: The share's password, when it has one.
+          schema: { type: string }
       responses:
         "200":
-          description: The rendered share, in the negotiated format.
-        "404": { $ref: "#/components/responses/NotFound" }
+          description: The share, in the chosen format.
+          headers:
+            ETag: { schema: { type: string } }
+            Last-Modified: { schema: { type: string } }
+          content:
+            text/html:
+              schema: { type: string }
+            application/json:
+              schema:
+                type: object
+                description: |
+                  The whole share, or with `key` one value: `slug`, `key`,
+                  `value`, `updated_at` and `verified`.
+                properties:
+                  slug: { type: string }
+                  key: { type: string }
+                  value: { type: string }
+                  label: { type: string }
+                  purpose: { type: string }
+                  records: { type: array, items: { type: object } }
+                  sections: { type: array, items: { type: object } }
+                  updated_at: { type: string }
+                  verified: { type: boolean, description: Whether the share names an identity. }
+                  viewCount: { type: integer }
+                  watermark: { type: string }
+            text/csv:
+              schema: { type: string }
+            text/plain:
+              schema: { type: string }
+            text/vcard:
+              schema: { type: string }
+            text/calendar:
+              schema: { type: string }
+        "304":
+          description: Not modified since the `If-None-Match` ETag. Consumes no view.
+        "403":
+          description: |
+            Paused (`link_paused`), or gated: `handshake_required`,
+            `link_password_required` or `link_password_invalid`, with
+            `protected: true` and `requireHandshake` or `requiresPassword`.
+          content:
+            text/html:
+              schema: { type: string }
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+                  status: { type: integer }
+                  slug: { type: string }
+                  protected: { type: boolean }
+                  requireHandshake: { type: boolean }
+                  requiresPassword: { type: boolean }
+        "404":
+          description: "`link_not_found`, or `link_key_not_found` for a `key` the share does not hold."
+          content:
+            text/html:
+              schema: { type: string }
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "410":
+          description: Revoked, expired or out of views.
+          content:
+            text/html:
+              schema: { type: string }
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /dav/s/{slug}/:
     get:
@@ -682,19 +821,25 @@ paths:
               schema:
                 type: object
                 properties:
+                  requestId: { type: string }
+                  slug: { type: string }
                   label: { type: string }
                   status: { type: string }
                   requiresPassword: { type: boolean }
                   requiresIdentifier: { type: boolean }
                   requireHandshake: { type: boolean }
                   allowExtraFields: { type: boolean }
+                  identity: { type: string, description: "The id of the identity the request is made under, or empty." }
                   identityScope:
                     type: string
-                    enum: [any, from_root]
+                    enum: ["", any, from_root]
                     description: Which identities the request will accept.
                   template:
-                    type: array
-                    items: { $ref: "#/components/schemas/TemplateItem" }
+                    type: object
+                    description: What the request asks for, grouped as its template groups it.
+                    properties:
+                      records: { type: array, items: { type: object } }
+                      sections: { type: array, items: { type: object } }
                   requester: { $ref: "#/components/schemas/Sharer" }
                   server: { $ref: "#/components/schemas/ServerClaim" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -752,6 +897,13 @@ paths:
       responses:
         "200":
           description: The submission was recorded.
+          headers:
+            X-Handshake-Token:
+              description: |
+                Issued when a challenge signature was verified on first
+                contact. Sent back as `handshakeToken` on later submissions by
+                the same identity.
+              schema: { type: string }
           content:
             application/json:
               schema: { type: object }
@@ -1125,6 +1277,10 @@ paths:
         Open to the request's owner, and to members who see the request (its
         audience) and hold `responses:read`. Anyone else gets 404, or 403
         `missing_permission` inside the audience without that permission.
+
+        An API key stands in for the member who made it, inside its own
+        workspace: it needs `requests:read`, and `responses:read` unless that
+        member owns the request.
       security:
         - Session: []
         - ApiKey: []
@@ -1140,6 +1296,8 @@ paths:
             application/json:
               schema: { type: object }
         "401": { $ref: "#/components/responses/AppError" }
+        "403": { $ref: "#/components/responses/AppError" }
+        "404": { $ref: "#/components/responses/NotFound" }
 
   /api/shared/vault:
     get:
@@ -1414,6 +1572,12 @@ paths:
         to it. The entry's `value` stays empty. A link serves it as ciphertext,
         and only once it holds a seal for it (`PUT /api/sealed/links/{id}`); it
         does not appear in short links, sign-in grants or request answers.
+
+        An encrypted file (`type: file`, alpha) is sent as
+        `multipart/form-data`: this JSON body in a `meta` field and the
+        encrypted blob in a `blob` file field. Its name, media type and size
+        travel inside `sealedValue`; the server stores the blob as
+        `encrypted.bin` and keeps no name, hash or media type of its own.
       security:
         - Session: []
       responses:
@@ -1449,6 +1613,10 @@ paths:
         stale record writer. Entry and seals are saved together. A write that leaves one
         of those links out is refused with `sealed_link_seals_missing` and the
         ids of the links it missed in `links`, and changes nothing.
+
+        For a file, the same body goes in a multipart `meta` field with the
+        encrypted blob in `blob`. Encrypting a plain file requires the blob;
+        renaming an encrypted file is a JSON write that keeps its blob.
       security:
         - Session: []
       parameters:
@@ -1460,7 +1628,7 @@ paths:
         "200": { description: The saved entry. }
         "400": { description: "`sealed_invalid` or `sealed_record_unsupported`." }
         "403": { description: "`sealed_key_missing`." }
-        "404": { description: No such entry, or not one the caller may change. }
+        "404": { description: "No such entry, or not one the caller may change." }
         "409": { description: "`sealed_version_conflict`, `sealed_epoch_stale`, `sealed_links_affected` or `sealed_link_seals_missing`." }
   /api/sealed/records/{id}/links:
     get:
@@ -1488,7 +1656,7 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: "`record`, `version` and `links`." }
-        "404": { description: No such entry, or not one the caller may change. }
+        "404": { description: "No such entry, or not one the caller may change." }
   /api/sealed/links/{id}:
     get:
       tags: [Encrypted records]
@@ -1509,7 +1677,7 @@ paths:
           schema: { type: string }
       responses:
         "200": { description: "`link`, `keyWraps` and `seals`." }
-        "404": { description: No such link, or not one the caller sees. }
+        "404": { description: "No such link, or not one the caller sees." }
     put:
       tags: [Encrypted records]
       summary: Put encrypted entries on a link
@@ -1554,7 +1722,7 @@ paths:
         "200": { description: "`link`, its `records`, and the `seals` written." }
         "400": { description: "`sealed_invalid` (a malformed wrap, or a scope the link does not allow), `sealed_link_content` (not an encrypted entry the caller sees, or no owner's copy of the key) or `sealed_record_unsupported`." }
         "403": { description: "`sealed_key_missing`, or an owner's key wrap sent by someone else." }
-        "404": { description: No such link, or not one the caller may change. }
+        "404": { description: "No such link, or not one the caller may change." }
         "409": { description: "`sealed_version_conflict` (the entry changed first), `sealed_epoch_stale`, or `sealed_link_content` when the entry is on too many links." }
         "410": { description: The link is revoked or expired. }
   /api/sealed/records/{id}/unseal:
@@ -1564,6 +1732,11 @@ paths:
       description: |
         Experimental. The client decrypts the value and sends it back, signed by
         `deviceSeq`, a device on the caller's list.
+
+        For an encrypted file, the body goes in a multipart `meta` field with
+        an empty `value` and the stored `filename`, and the decrypted file in
+        `blob`. The device signs `file:` followed by the lowercase hex SHA-256
+        of that file, where it otherwise signs the value.
       security:
         - Session: []
       parameters:
@@ -1575,7 +1748,7 @@ paths:
         "200": { description: The saved entry. }
         "400": { description: "`sealed_invalid`." }
         "403": { description: "`sealed_key_missing`: no valid signature from a device on the list." }
-        "404": { description: No such entry, or not one the caller may change. }
+        "404": { description: "No such entry, or not one the caller may change." }
         "409": { description: "`sealed_version_conflict`." }
   /api/sealed/sessions/revoke:
     post:
@@ -2122,6 +2295,14 @@ paths:
                       id: { type: string }
                       clientName: { type: string }
                       expiresAt: { type: string, description: "When the connection lapses." }
+                      permissions: { type: array, items: { type: string }, description: The catalogue keys the tool holds in full. }
+                      vaultAccess: { type: string, enum: ["", read, write] }
+                      section: { type: string, description: "The tool's own section, if it has one." }
+                      sectionOff: { type: boolean, description: Whether the owner switched the tool's own section off. }
+                      sections: { type: array, items: { type: string }, description: Sections the owner added. }
+                      allowRevoke: { type: boolean }
+                      allowHandOver: { type: boolean }
+                      allowVaultRead: { type: boolean }
         "202":
           description: No code was sent, and the owner has not answered yet.
           content:
@@ -2177,6 +2358,7 @@ paths:
                     description: The catalogue keys the tool holds in full.
                   vaultAccess: { type: string, enum: ["", read, write] }
                   section: { type: string, description: "The tool's own section, if it has one." }
+                  sectionOff: { type: boolean, description: "Whether the owner switched the tool's own section off: it then neither reads nor writes there." }
                   sections:
                     type: array
                     items: { type: string }
@@ -2333,7 +2515,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string, description: 24 characters, a-z and 0-9. }
+                  id: { type: string, description: "24 characters, a-z and 0-9." }
                   expiresAt: { type: string, format: date-time }
         "400":
           description: The values are refused whole when any part is malformed.
@@ -2351,6 +2533,8 @@ paths:
         The values a connected tool suggested, for the proposal screen. Only
         the owner of the tool's connection reads them, and not while the
         connection is paused or expired.
+      security:
+        - Session: []
       parameters:
         - name: id
           in: path
@@ -2379,6 +2563,8 @@ paths:
       tags: [Connections]
       summary: Discard a tool's suggested values (the owner)
       description: Drops the draft once the proposal is created or declined. Succeeds when it is already gone.
+      security:
+        - Session: []
       parameters:
         - name: id
           in: path
@@ -2903,7 +3089,7 @@ paths:
                   items: { type: array, items: { type: object } }
                   privateCallbacks: { type: boolean }
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/endpoints:
     get:
       tags: [Webhooks]
@@ -2917,7 +3103,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
     post:
       tags: [Webhooks]
       summary: Create a webhook endpoint
@@ -2940,7 +3126,7 @@ paths:
         "201":
           description: The endpoint, with `secret`.
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/endpoints/{id}/metrics:
     get:
       tags: [Webhooks]
@@ -3003,7 +3189,7 @@ paths:
                         type: { type: string }
                         count: { type: integer }
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
         "404":
           description: Not an endpoint of this workspace.
   /api/webhooks/endpoints/{id}:
@@ -3021,7 +3207,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
     patch:
       tags: [Webhooks]
       summary: Change a webhook endpoint
@@ -3044,7 +3230,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
     delete:
       tags: [Webhooks]
       summary: Delete a webhook endpoint
@@ -3057,7 +3243,7 @@ paths:
         "204":
           description: Deleted.
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/endpoints/{id}/secret:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -3073,7 +3259,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/endpoints/{id}/rotate-secret:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -3089,7 +3275,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/endpoints/{id}/test:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -3112,7 +3298,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/endpoints/{id}/replay:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -3135,7 +3321,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/events:
     get:
       tags: [Webhooks]
@@ -3145,11 +3331,15 @@ paths:
       security:
         - Session: []
         - ApiKey: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: perPage, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: type, in: query, description: "An event type from `/api/webhooks/event-types`.", schema: { type: string } }
       responses:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/deliveries:
     get:
       tags: [Webhooks]
@@ -3159,11 +3349,18 @@ paths:
       security:
         - Session: []
         - ApiKey: []
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: perPage, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: endpoint, in: query, description: "An endpoint id.", schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, succeeded, failed] } }
+        - { name: type, in: query, description: "An event type.", schema: { type: string } }
+        - { name: event, in: query, description: "An event id.", schema: { type: string } }
       responses:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/deliveries/{id}:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -3179,7 +3376,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/webhooks/deliveries/{id}/resend:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string } }
@@ -3195,7 +3392,7 @@ paths:
         "200":
           description: OK
         "403":
-          description: The caller lacks Manage webhooks (`webhook:manage`).
+          description: The caller lacks Manage webhooks (`webhooks:manage`).
   /api/requests/callback-test:
     post:
       tags: [Grants]
@@ -3689,12 +3886,13 @@ paths:
           content:
             application/json:
               schema:
-                allOf:
-                  - { $ref: "#/components/schemas/AppError" }
-                  - type: object
-                    properties:
-                      challenge: { type: string }
-                      expiresAt: { type: string, format: date-time }
+                type: object
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+                  status: { type: integer }
+                  challenge: { type: string }
+                  expiresAt: { type: string, format: date-time }
         "429": { $ref: "#/components/responses/RateLimited" }
 
   /api/passkeys/token/2fa:
@@ -4045,6 +4243,8 @@ paths:
         A request that names its service correctly but cannot go on is
         answered with `redirect` alone: the refusal, in the standard form,
         for the app to send the browser to.
+      security:
+        - Session: []
       requestBody:
         required: true
         content:
@@ -4085,7 +4285,22 @@ paths:
                   nameSelected:
                     type: object
                     description: The option to start from, when there is one.
+                  returning:
+                    type: object
+                    description: |
+                      Present when the person signed in to this service before:
+                      `firstAt`, `lastAt`, the `scopes` and `links` granted then,
+                      and the `name` chosen.
+                  disconnected:
+                    type: object
+                    description: Present when the person disconnected this service; `at`, and `newId` when it gets a new identifier on return.
+                    properties:
+                      at: { type: string }
+                      newId: { type: boolean }
                   redirect: { type: string }
+                  paused:
+                    type: string
+                    description: With `redirect`, the sign-in the person paused for this service, which is why it was refused.
         "400": { $ref: "#/components/responses/AppError" }
         "401": { $ref: "#/components/responses/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
@@ -4112,6 +4327,8 @@ paths:
         or vault entries, checked to be their own. A vault entry is also shared
         under the key `name`, so the service can follow it. Leaving `name` out
         when the service asked for `profile` withdraws any name it had.
+      security:
+        - Session: []
       requestBody:
         required: true
         content:
@@ -4528,7 +4745,7 @@ paths:
                 presentation:
                   type: string
                   description: "`<issuer JWT>~<disclosure>~…~<key binding JWT>`"
-                audience: { type: string, description: The verifier as the presentation names it, e.g. its origin. }
+                audience: { type: string, description: "The verifier as the presentation names it, e.g. its origin." }
                 nonce: { type: string, description: The value the verifier chose for this occasion. }
       responses:
         "200":
@@ -4658,6 +4875,8 @@ paths:
         A check can be answered once, for ten minutes. `identityId` names
         the asker as the other person sees them; it must be one of the
         caller's own active identities. Requires a `users` session.
+      security:
+        - Session: []
       requestBody:
         required: true
         content:
@@ -4668,7 +4887,7 @@ paths:
                 type: { type: string, description: The kind of attestation asked for. Empty asks for any. }
                 issuers: { type: array, items: { type: string }, description: Attester domains accepted. }
                 claims: { type: array, items: { type: string }, description: Claims asked for. }
-                identityId: { type: string, description: The asker's identity, shown to the other person. }
+                identityId: { type: string, description: "The asker's identity, shown to the other person." }
                 connection: { type: string, description: "The connected tool whose proposal this check came from: one of the caller's own live connections. Lets the tool see the verdict." }
                 ref: { type: string, description: "The tool's own reference, up to 80 characters." }
       responses:
@@ -4762,6 +4981,8 @@ paths:
         presentation must be bound to; the link opens once
         `POST /api/attestation-shares/{id}/activate` receives one that
         verifies, within ten minutes. Requires a `users` session.
+      security:
+        - Session: []
       requestBody:
         required: true
         content:
@@ -4799,6 +5020,8 @@ paths:
         The answer carries the link; only a hash of its token is kept, so it
         is shown this once. A link is signed once: a second attempt gets
         `410`.
+      security:
+        - Session: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       requestBody:
@@ -4833,6 +5056,8 @@ paths:
       tags: [Attestations]
       summary: End a link
       description: Ends one of the caller's links. Whoever opens it afterwards gets `410`.
+      security:
+        - Session: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -4876,6 +5101,11 @@ paths:
                   type: { type: string }
                   claims: { type: object }
                   withheld: { type: integer }
+                  issuerState: { type: string, description: How the issuer's key was tied to its domain. }
+                  status: { type: string, enum: [valid, revoked, unknown] }
+                  issuedAt: { type: integer, description: Unix seconds. }
+                  expiresAt: { type: integer, description: Unix seconds; absent when the credential does not expire. }
+                  keyBound: { type: boolean, description: Always true; the key binding was checked when the link was made. }
                   holder: { type: object }
                   holderName: { type: string }
                   sharedAt: { type: string, format: date-time }
@@ -4957,6 +5187,12 @@ paths:
                   claims: { type: object, additionalProperties: true }
                   issuedAt: { type: string }
                   expiresAt: { type: string }
+                  user: { type: string }
+                  workspace: { type: string }
+                  collectionId: { type: string }
+                  collectionName: { type: string }
+                  created: { type: string }
+                  updated: { type: string }
         "400": { $ref: "#/components/responses/AppError" }
         "401": { $ref: "#/components/responses/AppError" }
         "403": { $ref: "#/components/responses/AppError" }
@@ -5032,7 +5268,7 @@ paths:
                 type: object
                 properties:
                   nonce: { type: string }
-                  expiresAt: { type: string, format: date-time }
+                  expiresAt: { type: string, description: "RFC 3339; empty when the issuer's server did not say." }
         "401": { $ref: "#/components/responses/AppError" }
         "403":
           description: |
@@ -5100,6 +5336,12 @@ paths:
                   claims: { type: object, additionalProperties: true }
                   issuedAt: { type: string }
                   expiresAt: { type: string }
+                  user: { type: string }
+                  workspace: { type: string }
+                  collectionId: { type: string }
+                  collectionName: { type: string }
+                  created: { type: string }
+                  updated: { type: string }
         "400": { $ref: "#/components/responses/AppError" }
         "401": { $ref: "#/components/responses/AppError" }
         "403": { $ref: "#/components/responses/AppError" }
@@ -5200,6 +5442,18 @@ paths:
       responses:
         "200":
           description: The created record.
+          headers:
+            X-Plain-Token:
+              description: |
+                `apiKeys` only: the key itself. It is stored hashed and shown
+                this once.
+              schema: { type: string }
+            X-Invite-Token:
+              description: "`invites` only: the token the invite link carries. Shown once."
+              schema: { type: string }
+            X-Attestation-Token:
+              description: "`attestations` only: the offer token the holder claims with. Shown once."
+              schema: { type: string }
           content:
             application/json:
               schema: { type: object }
@@ -5296,6 +5550,152 @@ paths:
                   token: { type: string }
         "401": { $ref: "#/components/responses/AppError" }
 
+  /api/me:
+    get:
+      tags: [Discovery]
+      summary: Who the credential acts as
+      description: |
+        Names the account, key or connected tool behind the credential, and
+        the workspace it acts in. A key or a tool names that workspace when it
+        creates records (`workspace` in the body), and learns it here.
+
+        The answer holds only what the credential carries itself, never the
+        token.
+      security:
+        - Session: []
+        - ApiKey: []
+        - Connection: []
+      responses:
+        "200":
+          description: The credential.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    title: User
+                    required: [kind, user, workspace, role]
+                    properties:
+                      kind: { type: string, const: user }
+                      user: { type: string }
+                      workspace: { type: string, description: The active workspace; empty when there is none. }
+                      role: { type: string, enum: [admin, member, ""], description: The role in that workspace. }
+                  - type: object
+                    title: ApiKey
+                    required: [kind, id, user, workspace, scopes, vaultAccess, sections, expiresAt]
+                    properties:
+                      kind: { type: string, const: apiKey }
+                      id: { type: string }
+                      user: { type: string, description: The member who made the key. }
+                      workspace: { type: string }
+                      scopes: { type: array, items: { type: string } }
+                      vaultAccess: { type: string, enum: [read, write, ""] }
+                      sections: { type: array, items: { type: string } }
+                      expiresAt: { type: string, description: "RFC 3339; empty when the key does not expire." }
+                  - type: object
+                    title: Connection
+                    required: [kind, id, workspace, clientId, expiresAt]
+                    properties:
+                      kind: { type: string, const: connection }
+                      id: { type: string }
+                      workspace: { type: string }
+                      clientId: { type: string, description: The tool's origin. }
+                      expiresAt: { type: string, description: RFC 3339. }
+        "401":
+          description: "`not_authenticated`, or a connection token that is not valid."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+        "403":
+          description: "`not_authorized` for a credential that is none of the three, or `connection_paused`."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AppError" }
+
+  /api/health:
+    get:
+      tags: [Discovery]
+      summary: PocketBase health check
+      description: Answers 200 while the server runs. `/healthz` is the same without a body.
+      security: []
+      responses:
+        "200":
+          description: Healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer }
+                  message: { type: string }
+                  data: { type: object }
+
+  /api/collections/users/auth-refresh:
+    post:
+      tags: [Records]
+      summary: Renew a session
+      description: |
+        PocketBase's own refresh: a new session token for the one sent, and
+        the account as it is now. Sign-in itself happens with a passkey
+        (`/api/passkeys/login/*`); password sign-in is switched off.
+      security:
+        - Session: []
+      responses:
+        "200":
+          description: A fresh token and the account record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, record]
+                properties:
+                  token: { type: string }
+                  record: { type: object }
+                  meta: { type: object }
+        "401": { $ref: "#/components/responses/AppError" }
+
+  /api/collections/users/request-verification:
+    post:
+      tags: [Records]
+      summary: Request a verification mail (switched off)
+      description: |
+        PocketBase's own route. Addresses are confirmed with a code at sign-up
+        (`/api/passkeys/register/email`), so this always answers `204`, as it
+        would for an unknown address, and sends nothing.
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+      responses:
+        "204": { description: Accepted; no mail is sent. }
+
+  /api/files/{collection}/{id}/{filename}:
+    get:
+      tags: [Records]
+      summary: Download a record's file
+      description: |
+        A file field's bytes. File fields are protected, so the request
+        carries a token from `POST /api/files/token` as `?token=`, and the
+        caller must be allowed to read the record.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Collection"
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: filename, in: path, required: true, description: "The stored file name, as the record’s file field holds it.", schema: { type: string } }
+        - { name: token, in: query, required: true, description: "A file token from `POST /api/files/token`.", schema: { type: string } }
+        - { name: download, in: query, description: "Any value asks for `Content-Disposition: attachment`.", schema: { type: string } }
+      responses:
+        "200":
+          description: The file.
+          content:
+            "*/*":
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     ApiKey:
@@ -5354,6 +5754,13 @@ components:
           - reminders
           - attestations
           - credentials
+          - users
+          - contacts
+          - contactBlocks
+          - signIns
+          - connections
+          - attestationChecks
+          - attestationShares
 
   responses:
     NotFound:
@@ -5370,6 +5777,10 @@ components:
       description: |
         Too many attempts. Password gates, probes and challenges are limited
         per client, so a slug cannot be brute-forced.
+      headers:
+        Retry-After:
+          description: Seconds to wait before trying again.
+          schema: { type: integer }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/AppError" }
@@ -5416,7 +5827,7 @@ components:
         state:
           type: string
           enum: [verified, unverified, dnsMissing, spoofed, revoked, expired, invalid]
-        reason: { type: string, description: The first reason the credential was held back, or what was verified. }
+        reason: { type: string, description: "The first reason the credential was held back, or what was verified." }
         issuer: { type: string, description: The attesting domain. }
         issuerState: { type: string, description: How the issuer's key was tied to its domain. }
         type: { type: string, description: The credential's `vct`. }
@@ -5452,6 +5863,13 @@ components:
         code: { type: string, examples: ["link_password_required"] }
         message: { type: string }
         status: { type: integer }
+        data:
+          type: object
+          description: |
+            Present on refusals PocketBase itself writes (collection rules,
+            field validation). Each key is a field, carrying its own `code`
+            and `message`; the top level then has no `code`.
+          additionalProperties: true
     Permission:
       type: object
       properties:
@@ -5528,7 +5946,7 @@ components:
         isLastAdmin:
           type: boolean
           description: Removing them would leave the workspace unadministrable.
-        joined: { type: string, format: date-time }
+        joined: { type: string, description: "When the member joined, as PocketBase stores dates." }
     ServerClaim:
       type: object
       description: What the serving domain claims about itself. Verify it against DNS.

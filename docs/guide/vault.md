@@ -129,7 +129,7 @@ shows how many members see the section and how many may change it.
 ### Who sees an entry {#entries}
 
 An entry can be made visible on its own, without a section: **Visible to**
-when it is created, or **Visibility** on its page later. **Workspace** suits
+when it is created, or **Visibility** or **Edit** on its page later. **Workspace** suits
 what the whole company relies on (its address, phone number or managing
 director), **Groups** what only some teams need. Every member who can read the
 vault then finds it under **Shared entries**, and can put it in their own

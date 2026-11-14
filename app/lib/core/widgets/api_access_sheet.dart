@@ -31,6 +31,10 @@ class ApiAccessTarget {
   /// won't resolve and the user must use the in-app path.
   final bool requireHandshake;
 
+  /// True when the link carries end-to-end encrypted entries, which these
+  /// addresses leave out: the server holds only their ciphertext.
+  final bool encrypted;
+
   /// Field/record keys available for the single-value endpoints. Drives the
   /// key dropdown; empty falls back to a free text input.
   final List<String> keys;
@@ -44,6 +48,7 @@ class ApiAccessTarget {
     required this.intro,
     this.gated = false,
     this.requireHandshake = false,
+    this.encrypted = false,
     this.keys = const [],
     this.presetKey,
   });
@@ -57,22 +62,41 @@ Future<void> showApiAccessSheet(
   return showAppSheet(
     context: context,
     dismissible: true,
-    builder: (_) => _ApiAccessSheet(target: target),
+    builder: (_) => SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.xxs,
+          AppSpacing.xl,
+          AppSpacing.xxl,
+        ),
+        child: ApiAccessPanel(target: target),
+      ),
+    ),
   );
 }
 
 enum _Format { api, csv, contacts, calendar }
 
-class _ApiAccessSheet extends StatefulWidget {
+/// The formats and addresses of [target], for a drawer of its own or a tab
+/// of the share drawer.
+class ApiAccessPanel extends StatefulWidget {
   final ApiAccessTarget target;
 
-  const _ApiAccessSheet({required this.target});
+  /// Off where a tab already names the panel.
+  final bool showTitle;
+
+  const ApiAccessPanel({
+    super.key,
+    required this.target,
+    this.showTitle = true,
+  });
 
   @override
-  State<_ApiAccessSheet> createState() => _ApiAccessSheetState();
+  State<ApiAccessPanel> createState() => _ApiAccessPanelState();
 }
 
-class _ApiAccessSheetState extends State<_ApiAccessSheet> {
+class _ApiAccessPanelState extends State<ApiAccessPanel> {
   final Local<_Format> _formatState = Local(_Format.api);
   late final Local<String?> _selectedKeyState = Local(widget.target.presetKey);
   final _passwordCtrl = ObservableTextController();
@@ -171,49 +195,56 @@ class _ApiAccessSheetState extends State<_ApiAccessSheet> {
 
   Widget _build(BuildContext context) {
     final t = widget.target;
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl,
-          AppSpacing.xxs,
-          AppSpacing.xl,
-          AppSpacing.xxl,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('Web & API access').header,
-            AppSpacing.gapXxs,
-            Text(t.intro).muted.small,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.showTitle) ...[
+          const Text('Web & API access').header,
+          AppSpacing.gapXxs,
+        ],
+        Text(t.intro).muted.small,
 
-            if (t.requireHandshake) ...[
-              AppSpacing.gapMd,
-              _Note(
-                icon: AppIcons.shieldLock,
-                text:
-                    'This link requires a verified identity, so these web '
-                    'addresses do not work. It can be shared in the app instead.',
-              ),
-            ],
+        if (t.requireHandshake) ...[
+          AppSpacing.gapMd,
+          _Note(
+            icon: AppIcons.shieldLock,
+            text:
+                'This link requires a verified identity, so these web '
+                'addresses do not work. It can be shared in the app instead.',
+          ),
+        ],
 
-            AppSpacing.gapXl,
-            const Text('Format').small,
-            AppSpacing.gapSm,
-            _formatBoxes(),
+        // The key at the end of the link never reaches the server, so the
+        // server has nothing to decrypt for a script; only a reader holding
+        // the key can.
+        if (t.encrypted) ...[
+          AppSpacing.gapMd,
+          _Note(
+            icon: AppIcons.lock,
+            text:
+                'Encrypted records are left out of these addresses. The '
+                'server holds only their ciphertext and never receives the '
+                'key. They open in a browser or in the app, with the whole '
+                'link.',
+          ),
+        ],
 
-            AppSpacing.gapXl,
-            _keySelector(),
-            if (t.gated) ...[AppSpacing.gapMd, _passwordField()],
+        AppSpacing.gapXl,
+        const Text('Format').small,
+        AppSpacing.gapSm,
+        _formatBoxes(),
 
-            AppSpacing.gapXl,
-            ..._endpoints().map((e) => ApiUrlTile(label: e.$1, url: e.$2)),
+        AppSpacing.gapXl,
+        _keySelector(),
+        if (t.gated) ...[AppSpacing.gapMd, _passwordField()],
 
-            AppSpacing.gapMd,
-            Text(_footnote()).muted.small,
-          ],
-        ),
-      ),
+        AppSpacing.gapXl,
+        ..._endpoints().map((e) => ApiUrlTile(label: e.$1, url: e.$2)),
+
+        AppSpacing.gapMd,
+        Text(_footnote()).muted.small,
+      ],
     );
   }
 

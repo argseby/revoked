@@ -118,3 +118,13 @@ class AppBadge extends StatelessWidget {
     );
   }
 }
+
+/// Beside the label of a field a form cannot be sent without, while that
+/// field is still empty. Every form marks its required fields with this.
+class AppRequiredBadge extends StatelessWidget {
+  const AppRequiredBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const AppBadge(label: 'Required', variant: AppBadgeVariant.primary);
+}

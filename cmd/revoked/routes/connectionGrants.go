@@ -246,7 +246,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 				Ref       string   `json:"ref"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			label := strings.TrimSpace(body.Label)
 			if label == "" {
@@ -272,7 +272,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 			if !ok {
 				return nil
 			}
-			slug, err := mintUniqueSlug(app, util.Coll.Links, "")
+			slug, err := services.MintUniqueSlug(app, util.Coll.Links, "")
 			if err != nil {
 				return re.InternalServerError("Failed to create the share", err)
 			}
@@ -333,7 +333,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 				Ref          string `json:"ref"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			label := strings.TrimSpace(body.Label)
 			if label == "" {
@@ -371,7 +371,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 			if !ok {
 				return nil
 			}
-			slug, err := mintUniqueSlug(app, util.Coll.Requests, "")
+			slug, err := services.MintUniqueSlug(app, util.Coll.Requests, "")
 			if err != nil {
 				return re.InternalServerError("Failed to create the request", err)
 			}

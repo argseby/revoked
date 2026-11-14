@@ -132,7 +132,9 @@ jobs:
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
-          java-version: "17"
+          # AGP 9's bundled lint calls Java 21 APIs (List.removeLast) and
+          # crashes in lintVitalAnalyzeRelease on a JDK 17 runtime.
+          java-version: "21"
           cache: gradle
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2

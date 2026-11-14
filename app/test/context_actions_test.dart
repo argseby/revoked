@@ -143,6 +143,7 @@ void main() {
       'Edit',
       'Encrypt end to end',
       'Duplicate',
+      'Copy ID (API)',
       'Delete',
     ]);
     await tester.longPress(find.text('Email'));
@@ -152,6 +153,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(copied, 'ada@example.com');
     expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('a record copies its id, not its key', (tester) async {
+    await pump(tester);
+    await tester.longPress(find.text('Email'));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy key'), findsNothing);
+    await tester.ensureVisible(find.text('Copy ID (API)'));
+    await tester.tap(find.text('Copy ID (API)'));
+    await tester.pumpAndSettle();
+    expect(copied, 'r1');
   });
 
   testWidgets(
@@ -171,6 +183,7 @@ void main() {
       await pump(tester);
       expect(labels(RecordActions(context).forRecord(record)), [
         'Visibility',
+        'Copy ID (API)',
         'Delete',
       ]);
     },
@@ -209,7 +222,7 @@ void main() {
       labels(
         ShareActions(context).forShare(link(status: 'revoked'), editable: true),
       ),
-      ['Visibility', 'Edit', 'Duplicate', 'Delete'],
+      ['Visibility', 'Edit', 'Duplicate', 'Copy ID (API)', 'Delete'],
     );
   });
 
@@ -219,7 +232,7 @@ void main() {
     await pump(tester);
     final colleague = link(user: 'colleague');
     final readOnly = labels(await shareContextActions(context, colleague));
-    expect(readOnly, ['Share link', 'View as recipient']);
+    expect(readOnly, ['Share link', 'View as recipient', 'Copy ID (API)']);
     mayEdit = true;
     final editable = labels(await shareContextActions(context, colleague));
     expect(editable, containsAll(['Edit', 'Pause', 'Revoke', 'Delete']));
@@ -237,6 +250,7 @@ void main() {
         'View responses',
         'View as sheet',
         'Share',
+        'Copy ID (API)',
       ]);
       mayEdit = true;
       final editable = labels(await requestContextActions(context, colleague));
@@ -267,6 +281,7 @@ void main() {
       'Share',
       'Visibility',
       'Edit',
+      'Copy ID (API)',
       'Revoke',
       'Delete',
     ]) {

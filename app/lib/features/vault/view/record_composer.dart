@@ -19,6 +19,9 @@ class VaultComposerHeader extends StatelessWidget {
   final String area;
   final IconData areaIcon;
 
+  /// After the area in the breadcrumb: what the drawer does there.
+  final String crumb;
+
   const VaultComposerHeader({
     super.key,
     required this.title,
@@ -26,6 +29,7 @@ class VaultComposerHeader extends StatelessWidget {
     required this.onClose,
     this.area = 'Vault',
     this.areaIcon = AppIcons.collection,
+    this.crumb = 'New',
   });
 
   @override
@@ -55,7 +59,7 @@ class VaultComposerHeader extends StatelessWidget {
                     ).small.muted,
                   ),
                   const Icon(AppIcons.chevronRight, size: 16),
-                  const Text('New').small.muted,
+                  Text(crumb).small.muted,
                 ],
               ),
               AppSpacing.gapMd,
@@ -168,6 +172,7 @@ class RecordComposerField extends StatelessWidget {
   final Widget? trailing;
   final String? error;
   final String? explanation;
+  final bool missing;
 
   const RecordComposerField({
     super.key,
@@ -176,6 +181,7 @@ class RecordComposerField extends StatelessWidget {
     this.trailing,
     this.error,
     this.explanation,
+    this.missing = false,
   });
 
   @override
@@ -184,6 +190,7 @@ class RecordComposerField extends StatelessWidget {
     explanation: explanation,
     trailing: trailing,
     error: error,
+    missing: missing,
     child: child,
   );
 }

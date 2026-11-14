@@ -86,11 +86,11 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.POST("/api/connections/authorize", func(re *core.RequestEvent) error {
 			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-				return re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+				return appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
 			}
 			workspace := re.Auth.GetString(util.Fields.User.ActiveWorkspace)
 			if workspace == "" {
-				return re.BadRequestError(util.Errors.InvalidActiveWorkspace.ErrorCode, nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidActiveWorkspace)
 			}
 
 			var body struct {
@@ -108,7 +108,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				Poll bool `json:"poll"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			origin, ok := util.NormalizeOrigin(body.ClientId)
 			if !ok {
@@ -243,7 +243,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				RedirectUri string `json:"redirectUri"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			invalid := func() error {
 				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.ConnectionGrantInvalid)
@@ -384,7 +384,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			}
 			link, err := app.FindRecordById(util.Coll.Links, re.Request.PathValue("id"))
 			if err != nil || link == nil || link.GetString(util.Fields.Link.Connection) != conn.Id {
-				return re.NotFoundError("Link not found", nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
 			}
 			if link.GetString(util.Fields.Link.Status) != util.StatusRevoked {
 				link.Set(util.Fields.Link.Status, util.StatusRevoked)
@@ -409,7 +409,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			f := util.Fields.Request
 			request, err := app.FindRecordById(util.Coll.Requests, re.Request.PathValue("id"))
 			if err != nil || request == nil || request.GetString(f.Connection) != conn.Id {
-				return re.NotFoundError("Request not found", nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.RequestNotFound)
 			}
 			if request.GetString(f.Status) != util.StatusRevoked {
 				request.Set(f.Status, util.StatusRevoked)
@@ -435,7 +435,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			f := util.Fields.Attestation
 			attestation, err := app.FindRecordById(util.Coll.Attestations, re.Request.PathValue("id"))
 			if err != nil || attestation == nil || attestation.GetString(f.Connection) != conn.Id {
-				return re.NotFoundError("Attestation not found", nil)
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.AttestationNotFound)
 			}
 			if attestation.GetString(f.Status) != util.StatusRevoked {
 				attestation.Set(f.Status, util.StatusRevoked)
@@ -456,7 +456,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 			}
 			var body connectionGrant
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			// The whole vault is granted only by connecting again, so the
 			// owner sees the tool's own request for it.
@@ -517,7 +517,7 @@ func ConnectionsRoute(app core.App, root *server.RootKey) {
 				RevokeLinks bool `json:"revokeLinks"`
 			}
 			if err := re.BindBody(&body); err != nil {
-				return re.BadRequestError("Invalid request body", nil)
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
 			}
 			if err := services.DisconnectConnection(app, conn, body.RevokeLinks); err != nil {
 				return re.InternalServerError("Failed to disconnect", err)
@@ -561,11 +561,11 @@ var errConnectionGrant = errors.New("connection grant refused")
 // ownedConnection finds the connection named in the path for the person asking.
 func ownedConnection(app core.App, re *core.RequestEvent) (*core.Record, error) {
 	if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-		return nil, re.UnauthorizedError(util.Errors.NotAuthenticated.ErrorCode, nil)
+		return nil, appErrorResponse(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
 	}
 	conn, err := app.FindRecordById(util.Coll.Connections, re.Request.PathValue("id"))
 	if err != nil || conn == nil || conn.GetString(util.Fields.Connection.User) != re.Auth.Id {
-		return nil, re.NotFoundError("Connection not found", nil)
+		return nil, appErrorResponse(re, http.StatusNotFound, &util.Errors.ConnectionNotFound)
 	}
 	return conn, nil
 }

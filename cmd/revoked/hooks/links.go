@@ -11,11 +11,22 @@ import (
 // BindLinkHooks bcrypt-hashes a link's plaintext password before save and keeps
 // the hash out of API responses; the public route verifies it server-side.
 func BindLinkHooks(app core.App) {
+	// Before the request's validation, which refuses a blank slug.
+	app.OnRecordCreateRequest(util.Coll.Links).BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := services.MintSlugWhenEmpty(e.App, e.Record, util.Fields.Link.Slug); err != nil {
+			return err
+		}
+		return e.Next()
+	})
+
 	app.OnRecordCreate(util.Coll.Links).BindFunc(func(e *core.RecordEvent) error {
 		if err := requireApplicationWatermark(e.Record); err != nil {
 			return err
 		}
 		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
+			return err
+		}
+		if err := refuseStampedSealedFiles(e.App, e.Record); err != nil {
 			return err
 		}
 		if err := validateLinkContentOwner(e.App, e.Record, nil); err != nil {
@@ -37,6 +48,9 @@ func BindLinkHooks(app core.App) {
 			return err
 		}
 		if err := refuseNewSealedRecords(e.App, e.Record); err != nil {
+			return err
+		}
+		if err := refuseStampedSealedFiles(e.App, e.Record); err != nil {
 			return err
 		}
 		if err := validateLinkContentOwner(e.App, e.Record, e.Record.Original()); err != nil {
@@ -76,6 +90,10 @@ func BindLinkHooks(app core.App) {
 			// the owner UI. The public route reads the real hash from the DB
 			// record, never from this enriched copy.
 			maskStoredPassword(e.Record, util.Fields.Link.Password)
+			// A link keeps its key after its last encrypted entry is gone, so
+			// the key alone cannot tell a client whether its address needs it.
+			e.Record.WithCustomData(true)
+			e.Record.Set(util.LinkSealedEntriesField, services.CountLinkSeals(e.App, e.Record.Id))
 		}
 		return e.Next()
 	})

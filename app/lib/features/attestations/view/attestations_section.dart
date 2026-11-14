@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 
@@ -242,14 +243,13 @@ class _HeldAttestationsState extends State<HeldAttestations> {
           title: 'Attestations about you',
           listTitle: 'Your attestations',
           action: AppButton(
-            icon: AppIcons.askFor,
-            label: 'Ask for attestation',
+            icon: AppIcons.plus,
+            label: 'New attestation request',
             onTap: () => openAskAttestationSheet(context),
           ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.credentials.isNotEmpty,
-          intro:
-              'Share and collect domain-level claims with others.',
+          intro: 'Share and collect domain-level claims with others.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(
@@ -280,9 +280,9 @@ class _HeldAttestationsState extends State<HeldAttestations> {
                 subtitleWidget: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'From ${c.issuer} · held by ${_identityName(c)}',
-                    ).muted.small,
+                    Text('From ${c.issuer} · held by ${_identityName(c)}')
+                        .muted
+                        .small,
                     if (c.disclosures.isNotEmpty)
                       Text(
                         [for (final d in c.disclosures) d.name].join(' · '),
@@ -299,6 +299,7 @@ class _HeldAttestationsState extends State<HeldAttestations> {
                     enabled: store.verdicts[c.id]?.isUnusable != true,
                     onTap: () => openAttestationShareSheet(context, c),
                   ),
+                  copyIdAction(context, c.id),
                   AppSheetAction(
                     icon: AppIcons.trash,
                     label: 'Remove attestation',
@@ -601,6 +602,7 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
           saveError: () => Stores.attestations.error?.description,
         ),
       ),
+    copyIdAction(context, a.id),
     AppSheetAction(
       icon: AppIcons.trash,
       label: 'Delete',
@@ -620,8 +622,8 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
           title: 'Attestations you issue',
           listTitle: 'Issued attestations',
           action: AppButton(
-            icon: AppIcons.attestation,
-            label: 'Issue attestation',
+            icon: AppIcons.plus,
+            label: 'New attestation',
             onTap: off ? null : () => showAttestationCreateSheet(context),
           ),
           toolbar: _tools.toolbar(searched),
@@ -766,14 +768,13 @@ class _CheckedAttestationsState extends State<CheckedAttestations> {
           title: 'Attestation checks',
           listTitle: 'Checks and answers',
           action: AppButton(
-            icon: AppIcons.shieldCheck,
-            label: 'Check attestation',
+            icon: AppIcons.plus,
+            label: 'New check',
             onTap: () => openAttestationCheckSheet(context),
           ),
           toolbar: _tools.toolbar(searched),
           hasAny: store.checks.isNotEmpty,
-          intro:
-              'Ask someone to show an attestation and review the verified answer.',
+          intro: 'Ask someone to show an attestation and review the verified answer.',
           state: store.loadState,
           onRetry: store.load,
           empty: AppEmptyState(

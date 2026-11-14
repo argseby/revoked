@@ -7,7 +7,7 @@ to the workspace, not to the member who added them.
 
 ## Adding a contact
 
-**New contact** on the **Contacts** page opens **Add a contact**:
+**New contact** on the **Contacts** page opens a sheet with these fields:
 
 | Field | Use |
 |---|---|

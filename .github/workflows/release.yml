@@ -27,7 +27,8 @@ jobs:
       - name: Get latest tag
         id: latest_tag
         run: |
-          TAG=$(git tag --sort=-v:refname | head -n 1)
+          # Server tags only: the JavaScript SDK tags its own releases sdk-js-v*.
+          TAG=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
           if [ -z "$TAG" ]; then
             TAG="v0.0.0"
           fi

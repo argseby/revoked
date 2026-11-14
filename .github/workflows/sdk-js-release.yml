@@ -1,0 +1,104 @@
+name: JavaScript SDK release
+
+# The SDK is versioned apart from the server: a server release need not touch
+# it, and an SDK fix need not wait for one. Its version comes from the
+# Conventional Commits that touched packages/revoked-js since its last tag.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - packages/revoked-js/**
+
+concurrency:
+  group: sdk-js-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  # npm trusted publishing: the registry accepts this workflow's OIDC token, so
+  # no npm token is stored, and the package carries a provenance statement.
+  id-token: write
+
+jobs:
+  publish:
+    name: Version, publish & tag
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/revoked-js
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: packages/revoked-js/package-lock.json
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          LATEST=$(git tag --list 'sdk-js-v*' --sort=-v:refname | head -n 1)
+          if [ -n "$LATEST" ]; then
+            RANGE="${LATEST}..HEAD"
+            CURRENT="${LATEST#sdk-js-v}"
+          else
+            RANGE="HEAD"
+            CURRENT=""
+          fi
+          COMMITS=$(git log $RANGE --pretty=format:"%s" -- .)
+
+          BUMP="none"
+          if echo "$COMMITS" | grep -qiE "^breaking(\(.+\))?!?:"; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qiE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          elif echo "$COMMITS" | grep -qiE "^fix(\(.+\))?:"; then
+            BUMP="patch"
+          fi
+
+          # The first release publishes the version in package.json as it stands.
+          if [ -z "$CURRENT" ]; then
+            NEXT=$(node -p "require('./package.json').version")
+            BUMP="initial"
+          else
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            case "$BUMP" in
+              # Kept in 0.x until the API is declared stable, as the server is.
+              major) if [ "$MAJOR" = "0" ]; then MINOR=$((MINOR + 1)); PATCH=0; else MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0; fi ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch) PATCH=$((PATCH + 1)) ;;
+            esac
+            NEXT="$MAJOR.$MINOR.$PATCH"
+          fi
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Bump: $BUMP -> $NEXT"
+
+      - name: Install dependencies
+        if: steps.bump.outputs.bump != 'none'
+        run: npm ci
+
+      - name: Set version
+        if: steps.bump.outputs.bump != 'none'
+        run: npm version "${{ steps.bump.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      # prepublishOnly type-checks, tests, builds and lints the package first.
+      - name: Publish
+        if: steps.bump.outputs.bump != 'none'
+        run: npm publish --provenance --access public
+
+      - name: Tag
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          TAG="sdk-js-v${{ steps.bump.outputs.version }}"
+          git tag "$TAG" -m "JavaScript SDK ${{ steps.bump.outputs.version }}"
+          git push origin "$TAG"

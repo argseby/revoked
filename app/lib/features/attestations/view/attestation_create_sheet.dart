@@ -93,15 +93,13 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
   Widget _build(BuildContext context) {
     final error = _store.createError;
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           VaultComposerHeader(
-            title: 'Issue an attestation',
+            title: 'New attestation',
             area: 'Attestations',
             areaIcon: AppIcons.attestation,
             subtitle:
@@ -157,6 +155,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
                     AppComposerField(
                       label: 'Kind',
                       explanation: 'What kind of statement this is',
+                      missing: _store.typeController.text.trim().isEmpty,
                       child: AppTextField(
                         controller: _store.typeController,
                         hint: 'membership',
@@ -252,7 +251,7 @@ class _AttestationCreateSheetState extends State<_AttestationCreateSheet> {
           const AppDivider(),
           AppComposerFooter(
             label: 'Create offer',
-            icon: AppIcons.arrowRight,
+            icon: AppIcons.plus,
             busy: _store.isCreating,
             onSubmit: _store.isCreating ? null : _submit,
             onCancel: _store.isCreating

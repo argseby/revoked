@@ -182,8 +182,7 @@ class _ShareContentsPickerState extends State<_ShareContentsPicker> {
           children: [
             AppCheckRow(
               label: 'Entire section',
-              subtitle:
-                  'All ${section.records.length} records it holds now.',
+              subtitle: 'All ${section.records.length} records it holds now.',
               icon: AppIcons.folder,
               value: widget.sections.contains(section.id),
               onChanged: (_) => widget.toggleSection(section.id),
@@ -207,9 +206,7 @@ class _ShareContentsPickerState extends State<_ShareContentsPicker> {
     }
     final picked = widget.records.length + widget.sections.length;
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -334,6 +331,9 @@ class ShareContentsRow extends StatelessWidget {
   /// Off inside a sheet that already pads its fields.
   final bool inset;
 
+  /// While nothing is picked, the row is marked as required.
+  final bool required;
+
   const ShareContentsRow({
     super.key,
     this.records,
@@ -341,6 +341,7 @@ class ShareContentsRow extends StatelessWidget {
     this.toggleRecord,
     this.toggleSection,
     this.inset = true,
+    this.required = false,
   });
 
   @override
@@ -351,9 +352,11 @@ class ShareContentsRow extends StatelessWidget {
           records: records,
           sections: sections,
         );
+        final missing = required && summary.isEmpty;
         return AppComposerField(
           label: 'What to share',
           inset: inset,
+          missing: missing,
           child: AppPickerField(
             leading: AppIcons.safe,
             text: summary.isEmpty ? 'Select from the vault' : summary,

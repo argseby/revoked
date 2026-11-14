@@ -168,8 +168,10 @@ group keeps its bookmarks.
 
 ## Export formats
 
-**Share link** on a share, then **Web & API**, provides its data in formats
-other applications read directly, always with the current values:
+**Share link** on a share, then the **Web & API** tab, provides its data in
+formats other applications read directly, always with the current values.
+[Encrypted entries](encryption.md#links) are left out, because the server
+cannot read them:
 
 | Format | Use |
 |---|---|
@@ -177,7 +179,7 @@ other applications read directly, always with the current values:
 | vCard (`.vcf`) | A one-time contact import. |
 | CardDAV | A contacts account that stays in sync with the vault. Only on shares without a password, because CardDAV cannot send one. |
 | iCalendar (`.ics`) / `webcal://` | Importing into a calendar, or subscribing so it stays current. |
-| cURL | A command for use in scripts. |
+| JSON (**API**) | Scripts, for example a `curl` command. Each value can also be fetched on its own, as JSON or raw text. |
 
 Clients that poll frequently download again only when a value has
 actually changed.

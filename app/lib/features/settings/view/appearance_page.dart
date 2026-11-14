@@ -68,8 +68,7 @@ class AppearancePage extends StatelessWidget {
             title: 'Motion',
             child: AppFormToggleRow(
               label: 'Reduce motion',
-              subtitle:
-                  'Disables fades and slides. Always on when the device requests reduced motion.',
+              subtitle: 'Disables fades and slides. Always on when the device requests reduced motion.',
               value: DisplayPreferences.reduceMotion,
               onChanged: DisplayPreferences.setReduceMotion,
               inset: false,
@@ -141,20 +140,20 @@ class _DatesAndTimes extends StatelessWidget {
       children: [
         const AppComposerSubLabel('Date format'),
         AppSelect<DateStyle>(
-            value: DateTimePreferences.dateStyle,
-            onChanged: (v) {
-              if (v != null) DateTimePreferences.setDateStyle(v);
-            },
-            items: [
-              AppSelectItem(
-                DateStyle.automatic,
-                Text(
-                  'Automatic · ${example(DateTimePreferences.automaticDateStyle)}',
-                ),
+          value: DateTimePreferences.dateStyle,
+          onChanged: (v) {
+            if (v != null) DateTimePreferences.setDateStyle(v);
+          },
+          items: [
+            AppSelectItem(
+              DateStyle.automatic,
+              Text(
+                'Automatic · ${example(DateTimePreferences.automaticDateStyle)}',
               ),
-              for (final style in DateStyle.values.skip(1))
-                AppSelectItem(style, Text(example(style))),
-            ],
+            ),
+            for (final style in DateStyle.values.skip(1))
+              AppSelectItem(style, Text(example(style))),
+          ],
         ),
         AppSpacing.gapLg,
         const AppComposerSubLabel('Clock'),
@@ -170,14 +169,14 @@ class _DatesAndTimes extends StatelessWidget {
         AppSpacing.gapLg,
         const AppComposerSubLabel('Time zone'),
         AppSelect<String>(
-            value: DateTimePreferences.timeZone?.name ?? _deviceZone,
-            onChanged: (v) =>
-                DateTimePreferences.setTimeZone(v == _deviceZone ? null : v),
-            items: [
-              AppSelectItem(_deviceZone, Text(deviceZone)),
-              for (final name in DateTimePreferences.timeZoneNames)
-                AppSelectItem(name, Text(name.replaceAll('_', ' '))),
-            ],
+          value: DateTimePreferences.timeZone?.name ?? _deviceZone,
+          onChanged: (v) =>
+              DateTimePreferences.setTimeZone(v == _deviceZone ? null : v),
+          items: [
+            AppSelectItem(_deviceZone, Text(deviceZone)),
+            for (final name in DateTimePreferences.timeZoneNames)
+              AppSelectItem(name, Text(name.replaceAll('_', ' '))),
+          ],
         ),
         AppSpacing.gapXs,
         Text('Current time: ${formatDayTime(now)}.').small.muted,

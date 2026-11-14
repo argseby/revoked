@@ -18,11 +18,29 @@ device is lost, and nobody can reset it, not even the server operator.
 
 After that, a record is encrypted with the **End-to-end encrypted** toggle
 when it is created, or with **Encrypt end to end** on an existing record.
+**Edit** on a record offers the same choice as **Encrypt this value**.
 **Stop encrypting** makes the value readable to the server again.
 
-Files and aliases cannot be encrypted. Other members of the workspace can
+Aliases cannot be encrypted. Other members of the workspace can
 read encrypted records once they are [given access](#access). A share link
 can also give access without an account, as described below.
+
+## Encrypted files {#files}
+
+A file is encrypted the same way, with **Encrypt this file** when it is
+added or **Encrypt end to end** on an existing file. Its name and type are
+encrypted with it; the server stores the content as `encrypted.bin`, padded
+so that only its rough size shows. Renaming keeps the stored file, and
+replacing the content encrypts the new one under a new key. **Stop
+encrypting** uploads the file in plain form again.
+
+In this alpha:
+
+- Encrypted files can be up to 50 MB, since the app encrypts them in memory.
+- They are opened in the app only. Share links, the link page and connected
+  tools do not offer them yet; shares that stamp their files never will,
+  because the server cannot read a file to stamp it.
+- Members do not see each other's files, encrypted or not.
 
 ## Encrypted share links {#links}
 
@@ -43,7 +61,14 @@ live links. Plain entries on a mixed link continue to open independently.
 
 Encrypting an entry already on links preserves the links whose keys this
 device can open. A link getting its first encrypted entry gets an address
-key; copies sent earlier need the new complete address. Other links require
+key; copies sent earlier need the new complete address. A link whose last
+encrypted entry is removed or stops being encrypted is shared without the
+key. It keeps the key, and an encrypted entry added later brings the same
+key back into its address.
+
+**Web & API** formats leave encrypted entries out. The server holds only
+their ciphertext and never receives the address key, so a script fetching
+these addresses, for example with `curl`, cannot read them. Other links require
 confirmation before losing the entry, and their owners are notified. An
 alias or a server-created request/sign-in grant cannot carry the encryption.
 
@@ -174,8 +199,9 @@ record. Nobody can restore them, and the app says so.
 
 ## What stays readable to the server
 
-Only the value is encrypted. The server still sees each record's label,
-key and type, its sections, when it changed, and roughly how large it is.
+Only the value is encrypted, and for a file its content, name and media
+type. The server still sees each record's label, key and type, its
+sections, when it changed, and roughly how large it is.
 An encrypted record's value on the server is always empty. See
 [what the server can and can't see](../how-it-works/index.md#what-the-server-can-and-cant-see).
 

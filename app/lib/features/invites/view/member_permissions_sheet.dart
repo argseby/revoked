@@ -166,12 +166,13 @@ class _MemberPermissionsSheetState extends State<_MemberPermissionsSheet> {
 
                   PermissionSections(
                     permissions: grantable,
-                    selected: (permission) => Stores.invites.memberDraft
-                        .contains(permission.key),
-                    onChanged: (change) => Stores.invites.toggleMemberPermission(
-                      change.permission.key,
-                      change.selected,
-                    ),
+                    selected: (permission) =>
+                        Stores.invites.memberDraft.contains(permission.key),
+                    onChanged: (change) =>
+                        Stores.invites.toggleMemberPermission(
+                          change.permission.key,
+                          change.selected,
+                        ),
                     showEmpty: true,
                   ),
 

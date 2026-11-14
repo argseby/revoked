@@ -74,6 +74,7 @@ class WebhookCreateForm extends StatelessWidget {
                 child: AppTextField(
                   controller: store.draftUrl,
                   label: 'Address',
+                  required: true,
                   hint: 'https://example.com/hooks/revoked',
                   keyboardType: TextInputType.url,
                   mono: true,
@@ -98,7 +99,10 @@ class WebhookCreateForm extends StatelessWidget {
                   hint: 'e.g. CRM sync',
                 ),
               ),
-              const AppFormSectionHeader('Events'),
+              AppFormSectionHeader(
+                'Events',
+                missing: !store.draftEverything && store.draftEvents.isEmpty,
+              ),
               AppFormToggleRow(
                 label: 'All events',
                 subtitle:

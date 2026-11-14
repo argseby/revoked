@@ -39,7 +39,7 @@ func OwnerFilesRoute(app core.App) {
 
 			rec := viewableRecord(app, info, util.Coll.Records, body.Record)
 			if rec == nil || rec.GetString(util.Fields.Record.Type) != util.TypeFile ||
-				rec.GetString(util.Fields.Record.File) == "" {
+				rec.GetString(util.Fields.Record.File) == "" || services.IsSealed(rec) {
 				return appErrorResponse(re, http.StatusNotFound, &util.Errors.RecordNotFound)
 			}
 

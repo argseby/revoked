@@ -1,5 +1,4 @@
-import 'dart:math';
-
+import 'package:revoked_app/core/utils/slug.dart';
 import 'package:revoked_app/core/widgets/app_composer.dart';
 import 'package:revoked_app/features/vault/view/record_composer.dart';
 
@@ -130,7 +129,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       final proposal = widget.proposal;
       final days = proposal?.days;
       _store.startRequestDraft(
-        slug: _randomSlug(6),
+        slug: randomSlug(),
         label: proposal?.label ?? '',
         expiresAt: days == null
             ? null
@@ -157,12 +156,6 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
         return;
       }
     }
-  }
-
-  String _randomSlug(int length) {
-    final r = Random();
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    return List.generate(length, (_) => chars[r.nextInt(chars.length)]).join();
   }
 
   Future<void> _validateSlug(String input) async {
@@ -315,9 +308,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
 
   Widget _build(BuildContext context) {
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: composerMaxHeight(context),
-      ),
+      constraints: BoxConstraints(maxHeight: composerMaxHeight(context)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -516,6 +507,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
   Widget _buildTitleRow() => AppComposerField(
     label: 'Title',
     explanation: 'The heading shown on the form.',
+    missing: _effectiveLabel.isEmpty,
     note: _store.draftLabel.text.trim().isEmpty && _effectiveLabel.isNotEmpty
         ? 'Defaults to $_effectiveLabel when empty.'
         : null,
@@ -531,6 +523,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
         'The last part of the link\'s web address. At least 6 characters.',
     error: _store.draftSlugWarning,
     note: _store.isCheckingSlug ? 'Checking…' : null,
+    missing: _store.draftSlug.text.trim().isEmpty,
     child: AppTextField(
       controller: _store.draftSlug,
       hint: 'intake-2024',
@@ -546,7 +539,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
           style: AppButtonStyle.ghost,
           size: AppButtonSize.small,
           onTap: () async {
-            final s = _randomSlug(Random().nextInt(6) + 6);
+            final s = randomSlug();
             _store.draftSlug.text = s;
             await _validateSlug(s);
           },
@@ -587,6 +580,13 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_store.draftIdentityId == null) ...[
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AppRequiredBadge(),
+            ),
+            AppSpacing.gapXs,
+          ],
           const Text(
             'The request is signed with this identity, so respondents can '
             'verify its origin.',
@@ -605,6 +605,7 @@ class _RequestCreateFormState extends State<_RequestCreateForm> {
     final name = _templateName();
     return AppComposerField(
       label: 'Template',
+      missing: !_asksSomething,
       note: name == null && _store.draftAllowExtraFields
           ? 'None — respondents add their own fields.'
           : null,

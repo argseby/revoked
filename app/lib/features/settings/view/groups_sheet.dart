@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -127,6 +128,7 @@ class _GroupsSheet extends StatelessWidget {
           label: 'Rename',
           onTap: () => _rename(context, g),
         ),
+        copyIdAction(context, g.id),
         AppSheetAction(
           icon: AppIcons.trash,
           label: 'Delete',

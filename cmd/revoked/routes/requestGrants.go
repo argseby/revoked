@@ -18,22 +18,9 @@ import (
 func RequestGrantsRoute(app core.App) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		e.Router.GET("/api/requests/{id}/links", func(re *core.RequestEvent) error {
-			if re.Auth == nil || re.Auth.Collection().Name != util.Coll.Users {
-				return re.UnauthorizedError("Authentication required", nil)
-			}
-			req, err := app.FindRecordById(util.Coll.Requests, re.Request.PathValue("id"))
-			if err != nil || req == nil {
-				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
-			}
-			// The answers follow the request (VISIBILITY.md): its owner, and the
-			// members who see it and may read collected data.
-			if req.GetString(util.FieldWorkspace) != re.Auth.GetString(util.Fields.User.ActiveWorkspace) ||
-				!services.CanSee(app, re.Auth.Id, req) {
-				return re.NotFoundError(util.Errors.RequestNotFound.ErrorText, nil)
-			}
-			if req.GetString(util.Fields.Request.User) != re.Auth.Id &&
-				!services.HoldsPermission(app, req.GetString(util.FieldWorkspace), re.Auth.Id, util.ScopeResponseRead) {
-				return appErrorResponse(re, http.StatusForbidden, &util.Errors.MissingPermission)
+			req, ok := readableRequest(app, re)
+			if !ok {
+				return nil
 			}
 
 			links, err := app.FindRecordsByFilter(
@@ -73,6 +60,44 @@ func RequestGrantsRoute(app core.App) {
 
 		return e.Next()
 	})
+}
+
+// readableRequest finds the request in the path for a caller who may read its
+// answers, or writes the refusal. The answers follow the request (VISIBILITY.md):
+// its owner, and those who see it and may read collected data. A key stands in
+// for the member who made it, within its own workspace and its own scopes.
+func readableRequest(app core.App, re *core.RequestEvent) (*core.Record, bool) {
+	if re.Auth == nil {
+		return nil, denyGate(re, http.StatusUnauthorized, &util.Errors.NotAuthenticated)
+	}
+	var workspace, user string
+	var mayReadAnswers func() bool
+	switch re.Auth.Collection().Name {
+	case util.Coll.Users:
+		workspace = re.Auth.GetString(util.Fields.User.ActiveWorkspace)
+		user = re.Auth.Id
+		mayReadAnswers = func() bool {
+			return services.HoldsPermission(app, workspace, user, util.ScopeResponseRead)
+		}
+	case util.Coll.ApiKeys:
+		key := services.ApiKeyCredential(re.Auth)
+		if !key.Has(util.ScopeRequestRead) {
+			return nil, denyGate(re, http.StatusForbidden, &util.Errors.MissingPermission)
+		}
+		workspace, user = key.Workspace, key.User
+		mayReadAnswers = func() bool { return key.Has(util.ScopeResponseRead) }
+	default:
+		return nil, denyGate(re, http.StatusForbidden, &util.Errors.NotAuthorized)
+	}
+	req, err := app.FindRecordById(util.Coll.Requests, re.Request.PathValue("id"))
+	if err != nil || req == nil || workspace == "" ||
+		req.GetString(util.FieldWorkspace) != workspace || !services.CanSee(app, user, req) {
+		return nil, denyGate(re, http.StatusNotFound, &util.Errors.RequestNotFound)
+	}
+	if req.GetString(util.Fields.Request.User) != user && !mayReadAnswers() {
+		return nil, denyGate(re, http.StatusForbidden, &util.Errors.MissingPermission)
+	}
+	return req, true
 }
 
 // resolveLinkPayload projects a link into the requester-facing shape, substituting

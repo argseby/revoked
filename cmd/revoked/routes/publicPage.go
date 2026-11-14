@@ -810,6 +810,8 @@ en: {
 'copyBlocked': 'Copying was blocked by the browser. The text can be selected and copied manually.',
 'view': function(n) { return 'View ' + n; }, 'save': function(n) { return 'Save ' + n; },
 'fileFailed': 'This file could not be loaded.',
+'fileSealedFailed': 'This encrypted file could not be decrypted with the key in this address.',
+'fileSealedExpired': 'This download was already used. Reloading the page allows another.',
 'count.item': function(n) { return n + (n === 1 ? ' item' : ' items'); },
 'count.file': function(n) { return n + (n === 1 ? ' file' : ' files'); },
 'downloadAll': 'Download all', 'preparing': 'Preparing…', 'downloaded': 'Downloaded',
@@ -898,6 +900,8 @@ de: {
 'copyBlocked': 'Der Browser hat das Kopieren blockiert. Der Text lässt sich markieren und manuell kopieren.',
 'view': function(n) { return n + ' anzeigen'; }, 'save': function(n) { return n + ' speichern'; },
 'fileFailed': 'Diese Datei konnte nicht geladen werden.',
+'fileSealedFailed': 'Diese verschlüsselte Datei ließ sich mit dem Schlüssel in dieser Adresse nicht entschlüsseln.',
+'fileSealedExpired': 'Dieser Download wurde bereits verwendet. Nach dem Neuladen der Seite ist ein weiterer möglich.',
 'count.item': function(n) { return n + (n === 1 ? ' Eintrag' : ' Einträge'); },
 'count.file': function(n) { return n + (n === 1 ? ' Datei' : ' Dateien'); },
 'downloadAll': 'Alle herunterladen', 'preparing': 'Wird vorbereitet…', 'downloaded': 'Heruntergeladen',
@@ -1456,9 +1460,15 @@ tx.appendChild(el('div', 'lb', label));
 if (r.key) tx.title = r.key;
 var acts = el('div', 'acts');
 
-if (r.type === 'file') {
+if (r.locked) {
+// Encrypted and not opened here: the row says why in place of a value, and
+// never shows an older one. Checked first, so a closed file offers nothing
+// to download.
+tx.appendChild(el('div', 'v muted', t('locked.' + (LOCKED[r.locked] ? r.locked : 'damaged'))));
+} else if (r.type === 'file') {
 tx.appendChild(el('div', 'v', (r.filename || t('file')) + ' · ' + fmtBytes(r.size || 0)));
-if (watermarkLine) acts.appendChild(stampedViewButton(r, item, acts));
+if (r.fileSeal) acts.appendChild(sealedFileButton(r, item, acts));
+else if (watermarkLine) acts.appendChild(stampedViewButton(r, item, acts));
 else {
 var dl = iconButton('download', t('download', label));
 dl.addEventListener('click', function() {
@@ -1469,10 +1479,6 @@ setTimeout(function() { dl.disabled = false; }, 2000);
 });
 acts.appendChild(dl);
 }
-} else if (r.locked) {
-// Encrypted and not opened here: the row says why in place of a value, and
-// never shows an older one.
-tx.appendChild(el('div', 'v muted', t('locked.' + (LOCKED[r.locked] ? r.locked : 'damaged'))));
 } else {
 var raw = r.value == null ? '' : String(r.value);
 var value = raw.trim();
@@ -1517,6 +1523,39 @@ var at = changed ? updated : created;
 if (!at) return '';
 var text = at.toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' });
 return t(changed ? 'stamp.updated' : 'stamp.created', text);
+}
+
+// An encrypted file is fetched once with its single-use token and opened
+// here, with the key from the address. It is saved under the name from inside
+// its seal and never rendered from this origin; after that, the opened copy
+// in memory serves another save.
+function sealedFileButton(r, item, acts) {
+var name = r.filename || t('file');
+var b = iconButton('download', t('download', r.label || name));
+b.addEventListener('click', function() {
+b.disabled = true;
+b.textContent = '';
+b.appendChild(el('span', 'spin'));
+b.lastChild.style.display = 'block';
+fetch(fileURL(r)).then(function(res) {
+if (!res.ok) throw new Error(res.status === 401 ? t('fileSealedExpired') : t('fileFailed'));
+return res.arrayBuffer();
+}).then(function(buf) {
+return sealOpenFile(new Uint8Array(buf), { size: r.size, key: r.fileSeal.key }, r.fileSeal.workspace, r.id)
+.catch(function() { throw new Error(t('fileSealedFailed')); });
+}).then(function(bytes) {
+var url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
+var save = iconLink('download', t('save', name), url, false);
+save.download = name;
+acts.replaceChild(save, b);
+save.click();
+toast(t('downloadStarted'));
+}).catch(function(err) {
+b.remove();
+item.appendChild(el('div', 'err', err.message));
+});
+});
+return b;
 }
 
 // A stamped file is fetched once: the one download token serves both the
@@ -2474,7 +2513,8 @@ if (closed[why]) out.appendChild(el('div', 'seal-note sec', t('locked.' + why + 
 });
 var hasRootFile = rootRecords.some(function(r) { return r.type === 'file'; });
 if (data.archiveToken && !(isApplication && hasRootFile)) {
-var files = rootRecords.filter(function(r) { return r.type === 'file'; }).length;
+// The server's zip holds plain files only; encrypted ones are saved one by one.
+var files = rootRecords.filter(function(r) { return r.type === 'file' && !r.encrypted && !r.locked; }).length;
 var archive = el('div', 'card sec');
 var bar = el('div', 'bar');
 var tile = el('div', 'tile tone-neutral');

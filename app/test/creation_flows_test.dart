@@ -9,7 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:revoked_app/core/models/record.dart' as models;
 import 'package:revoked_app/core/models/section.dart';
 import 'package:revoked_app/core/models/template.dart';
+import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/widgets/app_composer.dart';
+import 'package:revoked_app/core/widgets/share_sheet.dart';
+import 'package:revoked_app/features/contacts/view/contact_delivery_sheet.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/core/widgets/app_checkbox.dart';
@@ -200,6 +203,20 @@ void main() {
     'picker': (context) {
       openShareContentsPicker(context);
     },
+    'link': (context) => showShareSheet(
+      context: context,
+      slug: 'vendor-onboarding',
+      title: 'Vendor onboarding',
+      isRequest: false,
+    ),
+    'delivery': (context) => openContactDeliverySheet(
+      context,
+      share: Link.fromJson({
+        'id': 'l1',
+        'slug': 'vendor-onboarding',
+        'label': 'Vendor onboarding',
+      }),
+    ),
   };
   for (final flow in flows.entries) {
     for (final (size, scale) in [
