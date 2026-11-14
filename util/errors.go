@@ -78,6 +78,7 @@ var Errors = struct {
 	ContactNotFound               AppError
 	ContactNothingToSend          AppError
 	TemplateNotOwned              AppError
+	TemplateSchemaInvalid         AppError
 	IdentityRevoked               AppError
 	IdentityFingerprintInvalid    AppError
 	InviteInviterLostAccess       AppError
@@ -468,6 +469,10 @@ var Errors = struct {
 	TemplateNotOwned: AppError{
 		ErrorCode: "template_not_owned",
 		ErrorText: "The selected template does not belong to this workspace.",
+	},
+	TemplateSchemaInvalid: AppError{
+		ErrorCode: "template_schema_invalid",
+		ErrorText: "A template schema is an object with \"records\" and \"sections\", each a list of entries with a key.",
 	},
 	IdentityRevoked: AppError{
 		ErrorCode: "identity_revoked",

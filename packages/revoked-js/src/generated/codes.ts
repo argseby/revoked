@@ -199,6 +199,7 @@ export const ERROR_CODES = [
   'signature_invalid',
   'signups_disabled',
   'template_not_owned',
+  'template_schema_invalid',
   'two_factor_already_enabled',
   'two_factor_challenge_invalid',
   'two_factor_code_invalid',

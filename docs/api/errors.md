@@ -261,6 +261,7 @@ more than one status. A newer server can send a code missing from this list.
 | `signature_invalid` | The supplied challenge signature is invalid. |
 | `signups_disabled` | This server does not accept new registrations. |
 | `template_not_owned` | The selected template does not belong to this workspace. |
+| `template_schema_invalid` | A template schema is an object with "records" and "sections", each a list of entries with a key. |
 | `two_factor_already_enabled` | Two-factor authentication is already turned on for this account. |
 | `two_factor_challenge_invalid` | This sign-in has expired or was already completed. Signing in starts again with the passkey. |
 | `two_factor_code_invalid` | This code is not the one the authenticator app shows right now. |
