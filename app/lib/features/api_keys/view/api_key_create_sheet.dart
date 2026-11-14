@@ -360,7 +360,7 @@ class ApiKeyRow extends StatelessWidget {
         context: context,
         title: label,
         actions: [
-          ...copyIdActions(context, id: apiKey.id),
+          copyIdAction(context, apiKey.id),
           AppSheetAction(
             icon: AppIcons.xCircle,
             label: 'Revoke key',

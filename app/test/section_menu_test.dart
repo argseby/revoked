@@ -104,11 +104,10 @@ void main() {
 
   Finder tile(String id) => find.byKey(ValueKey('vault-section-$id'));
 
-  Future<void> copyFrom(
+  Future<void> copyId(
     WidgetTester tester,
-    String id,
-    String label, {
-    bool rightClick = true,
+    String id, {
+    required bool rightClick,
   }) async {
     if (rightClick) {
       await tester.tap(tile(id), buttons: kSecondaryButton);
@@ -116,39 +115,37 @@ void main() {
       await tester.longPress(tile(id));
     }
     await tester.pumpAndSettle();
-    await tester.tap(find.text(label));
+    expect(find.text('Copy key'), findsNothing);
+    await tester.tap(find.text('Copy ID (API)'));
     await tester.pumpAndSettle();
   }
 
-  testWidgets('a section\'s context menu copies its key and its id', (
-    tester,
-  ) async {
+  testWidgets('a section\'s context menu copies its id', (tester) async {
     await pump(tester);
     await tester.tap(tile('section0000mine'), buttons: kSecondaryButton);
     await tester.pumpAndSettle();
-    for (final label in ['Rename', 'Copy key', 'Copy ID', 'Delete']) {
+    for (final label in ['Rename', 'Copy ID (API)', 'Delete']) {
       expect(find.text(label), findsOneWidget);
     }
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
 
-    await copyFrom(tester, 'section0000mine', 'Copy key');
-    expect(copied, 'payroll');
-    await copyFrom(tester, 'section0000mine', 'Copy ID', rightClick: false);
+    await copyId(tester, 'section0000mine', rightClick: true);
+    expect(copied, 'section0000mine');
+    copied = null;
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    await copyId(tester, 'section0000mine', rightClick: false);
     expect(copied, 'section0000mine');
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a colleague\'s section offers only its key and id', (
-    tester,
-  ) async {
+  testWidgets('a colleague\'s section offers only its id', (tester) async {
     await pump(tester);
     await tester.longPress(tile('section000office'));
     await tester.pumpAndSettle();
-    expect(find.text('Copy key'), findsOneWidget);
-    expect(find.text('Copy ID'), findsOneWidget);
     expect(find.text('Delete'), findsNothing);
-    await tester.tap(find.text('Copy ID'));
+    await tester.tap(find.text('Copy ID (API)'));
     await tester.pumpAndSettle();
     expect(copied, 'section000office');
   });
@@ -167,8 +164,8 @@ void main() {
 
     await tester.tap(find.byTooltip('Section actions'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Copy key').last);
+    await tester.tap(find.text('Copy ID (API)').last);
     await tester.pumpAndSettle();
-    expect(copied, 'payroll');
+    expect(copied, 'section0000mine');
   });
 }

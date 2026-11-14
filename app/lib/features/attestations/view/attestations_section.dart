@@ -299,7 +299,7 @@ class _HeldAttestationsState extends State<HeldAttestations> {
                     enabled: store.verdicts[c.id]?.isUnusable != true,
                     onTap: () => openAttestationShareSheet(context, c),
                   ),
-                  ...copyIdActions(context, id: c.id),
+                  copyIdAction(context, c.id),
                   AppSheetAction(
                     icon: AppIcons.trash,
                     label: 'Remove attestation',
@@ -602,7 +602,7 @@ class _IssuedAttestationsState extends State<IssuedAttestations> {
           saveError: () => Stores.attestations.error?.description,
         ),
       ),
-    ...copyIdActions(context, id: a.id),
+    copyIdAction(context, a.id),
     AppSheetAction(
       icon: AppIcons.trash,
       label: 'Delete',

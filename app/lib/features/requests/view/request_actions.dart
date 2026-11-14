@@ -89,7 +89,7 @@ class RequestActions {
         ),
       ),
     ],
-    ...copyIdActions(context, id: request.id),
+    copyIdAction(context, request.id),
     if (editable) ...[
       if (!isRequestClosed(request))
         AppSheetAction(

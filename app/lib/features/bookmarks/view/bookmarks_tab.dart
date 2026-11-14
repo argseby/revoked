@@ -545,6 +545,7 @@ class _BookmarkRow extends StatelessWidget {
 
   List<AppMenuItem> _menuItems(BuildContext context) {
     final ownServer = Stores.api.isOwnOrigin(bookmark.origin);
+    final copyId = copyIdAction(context, bookmark.id);
     return [
       AppMenuItem(
         icon: AppIcons.copy,
@@ -581,8 +582,11 @@ class _BookmarkRow extends StatelessWidget {
         label: 'Rename',
         onSelected: () => _rename(context),
       ),
-      for (final a in copyIdActions(context, id: bookmark.id))
-        AppMenuItem(icon: a.icon, label: a.label, onSelected: a.onTap),
+      AppMenuItem(
+        icon: copyId.icon,
+        label: copyId.label,
+        onSelected: copyId.onTap,
+      ),
       if (bookmark.sender.isNotEmpty)
         AppMenuItem(
           icon: AppIcons.shieldSlash,

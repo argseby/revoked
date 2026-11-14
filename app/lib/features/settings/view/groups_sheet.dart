@@ -128,7 +128,7 @@ class _GroupsSheet extends StatelessWidget {
           label: 'Rename',
           onTap: () => _rename(context, g),
         ),
-        ...copyIdActions(context, id: g.id, key: g.key),
+        copyIdAction(context, g.id),
         AppSheetAction(
           icon: AppIcons.trash,
           label: 'Delete',

@@ -118,7 +118,7 @@ class ShareActions {
         onTap: () =>
             openShareCreateSheet(context: context, initialShare: share),
       ),
-    ...copyIdActions(context, id: share.id),
+    copyIdAction(context, share.id),
     if (editable) ...[
       if (mine(share) &&
           share.encrypted &&

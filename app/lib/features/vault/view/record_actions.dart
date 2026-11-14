@@ -99,7 +99,7 @@ class RecordActions {
             initialRecord: r,
           ),
         ),
-      ...copyIdActions(context, id: r.id, key: r.key),
+      copyIdAction(context, r.id),
       AppSheetAction(
         icon: AppIcons.trash,
         label: 'Delete',

@@ -1281,7 +1281,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
               label: 'Edit value',
               onTap: () => _editSharedRecord(context, r, closeAfterSave: false),
             ),
-          ...copyIdActions(context, id: r.id, key: r.key),
+          copyIdAction(context, r.id),
         ],
       );
 
@@ -1481,7 +1481,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         label: 'Duplicate',
         onTap: () => openVaultCreateSheet(context, duplicateSection: section),
       ),
-      ...copyIdActions(context, id: section.id, key: section.key),
+      copyIdAction(context, section.id),
       AppSheetAction(
         icon: AppIcons.trash,
         label: 'Delete',
@@ -1491,14 +1491,15 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     ];
   }
 
-  /// A member's shared section is theirs to change; only its key and id are
-  /// on offer. The group of entries published on their own has neither.
+  /// A member's shared section is theirs to change; only its id is on
+  /// offer. The group of entries published on their own has none.
   List<AppSheetAction> _sharedSectionActions(
     BuildContext context,
     Section section,
-  ) => section.id == VaultStore.sharedEntriesId
-      ? const []
-      : copyIdActions(context, id: section.id, key: section.key);
+  ) => [
+    if (section.id != VaultStore.sharedEntriesId)
+      copyIdAction(context, section.id),
+  ];
 
   Widget _sectionMenu(BuildContext context, Section section) {
     final actions = _sectionActions(context, section);

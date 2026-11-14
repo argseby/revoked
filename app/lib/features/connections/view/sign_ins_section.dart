@@ -426,7 +426,7 @@ class _SignInServicePageState extends State<SignInServicePage> {
             label: 'Open link',
             onTap: () => context.go(AppRoutes.shareDetailFor(link.id)),
           ),
-          ...copyIdActions(context, id: link.id),
+          copyIdAction(context, link.id),
           if (live)
             AppSheetAction(
               icon: AppIcons.linkSlash,

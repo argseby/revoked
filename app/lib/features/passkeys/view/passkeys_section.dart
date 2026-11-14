@@ -177,7 +177,7 @@ class _PasskeysSectionState extends State<PasskeysSection>
         context: context,
         title: p.title,
         actions: [
-          ...copyIdActions(context, id: p.id),
+          copyIdAction(context, p.id),
           AppSheetAction(
             icon: AppIcons.trash,
             label: only ? 'Remove (requires another passkey)' : 'Remove',

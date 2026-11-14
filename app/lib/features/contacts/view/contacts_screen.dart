@@ -323,7 +323,7 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
           saveError: () => Stores.contacts.error?.description,
         ),
       ),
-    ...copyIdActions(context, id: c.id),
+    copyIdAction(context, c.id),
     AppSheetAction(
       icon: AppIcons.trash,
       label: 'Remove',

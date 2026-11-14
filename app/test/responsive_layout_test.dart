@@ -187,8 +187,7 @@ void main() {
         await tester.ensureVisible(tile);
         await tester.longPress(tile);
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('Copy ID'));
-        expect(find.text('Copy key'), findsOneWidget);
+        await tester.ensureVisible(find.text('Copy ID (API)'));
         expect(tester.takeException(), isNull, reason: 'section options');
       });
     }
