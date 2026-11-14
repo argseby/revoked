@@ -228,6 +228,48 @@ func connectionGrantView(conn, token *core.Record) map[string]any {
 // owner saved does; the owner can pause, change or revoke them in the app.
 func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		e.Router.PATCH("/api/connection/links/{id}", func(re *core.RequestEvent) error {
+			token, conn, _, ok := connectionTokenFromRequest(app, re)
+			if !ok {
+				return nil
+			}
+			c := services.ConnectionCredential(conn, token)
+			if !c.Has(util.ScopeLinkUpdate) {
+				return appErrorResponse(re, http.StatusForbidden, &util.Errors.ConnectionNotPermitted)
+			}
+			if !allowRequest(re, vaultWriteLimiter, c.Id) {
+				return rateLimitedResponse(re)
+			}
+			link, err := app.FindRecordById(util.Coll.Links, re.Request.PathValue("id"))
+			if err != nil || link.GetString(util.Fields.Link.Connection) != conn.Id || link.GetString(util.Fields.Link.Workspace) != c.Workspace {
+				return appErrorResponse(re, http.StatusNotFound, &util.Errors.LinkNotFound)
+			}
+			var body struct {
+				Records  []string `json:"records"`
+				Sections []string `json:"sections"`
+			}
+			if err := re.BindBody(&body); err != nil {
+				return appErrorResponse(re, http.StatusBadRequest, &util.Errors.InvalidRequestBody)
+			}
+			for _, id := range body.Records {
+				rec, err := app.FindRecordById(util.Coll.Records, id)
+				if err != nil || !c.RecordInReach(app, rec) {
+					return appErrorResponse(re, http.StatusNotFound, &util.Errors.RecordNotFound)
+				}
+			}
+			for _, id := range body.Sections {
+				if !c.SectionInReach(app, id) {
+					return appErrorResponse(re, http.StatusNotFound, &util.Errors.RecordNotFound)
+				}
+			}
+			link.Set(util.Fields.Link.Records, body.Records)
+			link.Set(util.Fields.Link.Sections, body.Sections)
+			if err := app.Save(link); err != nil {
+				return re.BadRequestError("Could not update the share.", err)
+			}
+			auditConnection(app, re, conn, util.AuditActionUpdate, map[string]any{"link": link.Id})
+			return re.JSON(http.StatusOK, connectionLinkView(conn, link, root.Domain()))
+		})
 		e.Router.POST("/api/connection/links", func(re *core.RequestEvent) error {
 			token, conn, _, ok := connectionTokenFromRequest(app, re)
 			if !ok {
@@ -239,6 +281,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 			}
 			var body struct {
 				Label     string   `json:"label"`
+				Password  string   `json:"password"`
 				Records   []string `json:"records"`
 				Sections  []string `json:"sections"`
 				ExpiresAt string   `json:"expiresAt"`
@@ -288,6 +331,7 @@ func ConnectionCreateRoute(app core.App, root *server.RootKey) {
 			link.Set(util.Fields.Section.Editing, util.EditingOwner)
 			link.Set(lf.Slug, slug)
 			link.Set(lf.Label, label)
+			link.Set(lf.Password, body.Password)
 			link.Set(lf.User, c.User)
 			link.Set(lf.Workspace, c.Workspace)
 			link.Set(lf.Records, body.Records)
