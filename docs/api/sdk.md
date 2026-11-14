@@ -180,7 +180,8 @@ checks: `ValidationError`, `AuthenticationError`, `PermissionError`,
 `NetworkError` and `TimeoutError`.
 
 `code` is typed with every code the server sends. A newer server's code still
-passes through unchanged.
+passes through unchanged. [Error codes](errors.md) lists each one with its
+message.
 
 ## Lists, filters and retries
 

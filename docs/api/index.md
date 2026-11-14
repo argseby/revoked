@@ -84,6 +84,8 @@ Key off `code`, never off `message` — the prose may be reworded, the code will
 not. Authorization failures name what was missing rather than returning a bare
 denial, so a 403 tells you which scope or grant you lack.
 
+Every code and its message is listed in [Error codes](errors.md).
+
 Error messages may echo values you sent, but never server-held state. That is
 deliberate: an error outlives the credential that produced it and ends up in
 logs, tickets and screenshots read by people who hold no key.

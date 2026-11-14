@@ -18,3 +18,15 @@ func TestSDKGeneratedFilesCurrent(t *testing.T) {
 		}
 	}
 }
+
+func TestErrorDocsCurrent(t *testing.T) {
+	for path, want := range Docs() {
+		got, err := os.ReadFile(filepath.Join("..", "..", path))
+		if err != nil {
+			t.Fatalf("%s: %v (run `go run ./cmd/gen-sdk`)", path, err)
+		}
+		if string(got) != want {
+			t.Errorf("%s is stale: run `go run ./cmd/gen-sdk` from the repo root", path)
+		}
+	}
+}

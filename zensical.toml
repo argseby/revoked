@@ -71,6 +71,7 @@ nav = [
     { "Webhooks" = "api/webhooks.md" },
     { "Callbacks" = "api/callbacks.md" },
     { "Trust chain" = "api/trust-chain.md" },
+    { "Error codes" = "api/errors.md" },
     { "Reference" = [
       "api/reference/index.md",
       { "Records" = "api/reference/records.md" },
