@@ -148,6 +148,144 @@
       "verified": true,
       "status": "listed",
       "reviewed": "2026-11-09"
+    },
+    {
+      "slug": "packet",
+      "origin": "https://packet.revoked.link",
+      "name": "Packet",
+      "description": {
+        "en": "Documents and details bundled into one packet, with a separate link for each recipient. A changed entry changes behind every link, and one recipient or the whole packet can be revoked.",
+        "de": "Dokumente und Angaben in einem Paket, mit einem eigenen Link für jeden Empfänger. Ein geänderter Eintrag ändert sich hinter jedem Link, und ein Empfänger oder das ganze Paket kann widerrufen werden."
+      },
+      "operator": {
+        "name": "Revoked",
+        "security": "https://github.com/argseby/revoked/security"
+      },
+      "privacy_policy": "https://revoked.link/privacy",
+      "source": "https://github.com/argseby/packet",
+      "self_hostable": true,
+      "servers": [],
+      "languages": [
+        "en"
+      ],
+      "pricing": "free",
+      "categories": [
+        "work"
+      ],
+      "does": [
+        "share",
+        "connect"
+      ],
+      "proposes": {},
+      "permissions": [
+        {
+          "key": "section",
+          "reason": {
+            "en": "Each packet is kept as a section of its own.",
+            "de": "Jedes Paket wird als eigener Abschnitt geführt."
+          }
+        },
+        {
+          "key": "vault:read",
+          "reason": {
+            "en": "A packet's entries are shown while it is edited.",
+            "de": "Die Einträge eines Pakets werden beim Bearbeiten angezeigt."
+          }
+        },
+        {
+          "key": "vault:write",
+          "reason": {
+            "en": "Entries and files are added and changed in the packet's section.",
+            "de": "Einträge und Dateien werden im Abschnitt des Pakets angelegt und geändert."
+          }
+        },
+        {
+          "key": "shares:read",
+          "reason": {
+            "en": "Each recipient's link shows how often it was opened.",
+            "de": "Der Link jedes Empfängers zeigt, wie oft er geöffnet wurde."
+          }
+        },
+        {
+          "key": "shares:manage",
+          "reason": {
+            "en": "A link is created for each recipient and revoked on request.",
+            "de": "Für jeden Empfänger wird ein Link erstellt und auf Wunsch widerrufen."
+          }
+        }
+      ],
+      "stores": {
+        "en": "Nothing. Packet has no server of its own; its connection stays in the browser tab.",
+        "de": "Nichts. Packet hat keinen eigenen Server; seine Verbindung bleibt im Browser-Tab."
+      },
+      "built_by_revoked": true,
+      "verified": true,
+      "status": "listed",
+      "reviewed": "2026-11-15"
+    }
+  ],
+  "tools": [
+    {
+      "slug": "revoked-sign-in",
+      "name": "Continue with Revoked for Flutter",
+      "platform": "flutter",
+      "description": {
+        "en": "The Continue with Revoked button for Flutter apps, with the panel that shows the QR code and check code and waits for the approval in the Revoked app.",
+        "de": "Die Schaltfläche „Weiter mit Revoked“ für Flutter-Apps, mit dem Fenster, das QR-Code und Prüfcode zeigt und auf die Bestätigung in der Revoked-App wartet."
+      },
+      "install": "flutter pub add revoked_sign_in",
+      "registry": "https://pub.dev/packages/revoked_sign_in",
+      "docs": "https://docs.revoked.link/api/sign-in/",
+      "source": "https://github.com/argseby/revoked/tree/main/packages/revoked_sign_in",
+      "license": "MPL-2.0",
+      "does": [
+        "sign_in"
+      ],
+      "built_by_revoked": true,
+      "reviewed": "2026-11-15"
+    },
+    {
+      "slug": "revoked-js",
+      "name": "Revoked JavaScript SDK",
+      "platform": "npm",
+      "description": {
+        "en": "A typed client for the Revoked API on Node, Deno, Bun, edge runtimes and browsers, covering shares, requests, the vault, webhooks, identities and connected tools.",
+        "de": "Ein typisierter Client für die Revoked-API in Node, Deno, Bun, Edge-Laufzeiten und Browsern, für Freigaben, Anfragen, den Tresor, Webhooks, Identitäten und verbundene Werkzeuge."
+      },
+      "install": "npm install @kiunke.dev/revoked",
+      "registry": "https://www.npmjs.com/package/@kiunke.dev/revoked",
+      "docs": "https://docs.revoked.link/api/sdk/",
+      "source": "https://github.com/argseby/revoked/tree/main/packages/revoked-js",
+      "license": "MPL-2.0",
+      "does": [
+        "share",
+        "collect",
+        "prove",
+        "connect"
+      ],
+      "built_by_revoked": true,
+      "reviewed": "2026-11-15"
+    },
+    {
+      "slug": "revoked-mcp",
+      "name": "Revoked MCP server",
+      "platform": "mcp",
+      "description": {
+        "en": "Lets an AI assistant that supports MCP prepare shares, requests and attestations. Each action is confirmed in the Revoked app, and values stay out of the assistant unless reading is allowed.",
+        "de": "Lässt einen KI-Assistenten mit MCP-Unterstützung Freigaben, Anfragen und Bestätigungen vorbereiten. Jede Aktion wird in der Revoked-App bestätigt, und Werte bleiben dem Assistenten verborgen, solange Lesen nicht erlaubt ist."
+      },
+      "registry": "https://github.com/argseby/revoked/releases/latest",
+      "docs": "https://docs.revoked.link/guide/assistant/",
+      "source": "https://github.com/argseby/revoked/tree/main/cmd/revoked-mcp",
+      "license": "AGPL-3.0",
+      "does": [
+        "share",
+        "collect",
+        "prove",
+        "connect"
+      ],
+      "built_by_revoked": true,
+      "reviewed": "2026-11-15"
     }
   ]
 }

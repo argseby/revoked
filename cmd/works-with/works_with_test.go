@@ -163,7 +163,7 @@ func TestDuplicateOriginIsRefused(t *testing.T) {
 	}
 	write("example.yaml", validEntry)
 	write("copy.yaml", strings.Replace(validEntry, "slug: example", "slug: copy", 1))
-	_, problems := LoadEntries(dir, ParseBlocklist(""))
+	_, _, problems := LoadEntries(dir, ParseBlocklist(""))
 	if !strings.Contains(strings.Join(problems, "\n"), "already listed") {
 		t.Fatalf("want a duplicate-origin problem, got %v", problems)
 	}
@@ -267,14 +267,14 @@ func TestRepositoryEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, problems := LoadEntries(filepath.Join(root, "services"), ParseBlocklist(string(blocked)))
+	entries, tools, problems := LoadEntries(filepath.Join(root, "services"), ParseBlocklist(string(blocked)))
 	if len(problems) > 0 {
 		t.Fatalf("problems in services/:\n%s", strings.Join(problems, "\n"))
 	}
 	if len(entries) == 0 {
 		t.Fatal("services/ has no entries")
 	}
-	built, _ := Build(entries).Encode()
+	built, _ := Build(entries, tools...).Encode()
 	current, err := os.ReadFile(filepath.Join(root, "app", "assets", "works_with", "catalog.json"))
 	if err != nil || !bytes.Equal(built, current) {
 		t.Fatal("app/assets/works_with/catalog.json is out of date: run go run ./cmd/works-with build")
@@ -317,4 +317,91 @@ func TestBuiltByRevoked(t *testing.T) {
 	if !strings.Contains(string(out), `"verified": true`) {
 		t.Fatal("a service built by Revoked is verified in the catalog")
 	}
+}
+
+const validTool = `schema: 1
+kind: tool
+slug: example-sdk
+name: Example SDK
+platform: npm
+description:
+  en: An example client.
+  de: Ein Beispielclient.
+install: npm install example-sdk
+registry: https://www.npmjs.com/package/example-sdk
+source: https://github.com/example/sdk
+license: MIT
+maintainers: [example-dev]
+reviewed: 2026-11-15
+`
+
+func TestToolsLoadBesideServices(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"example.yaml":     validEntry,
+		"example-sdk.yaml": validTool,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, tools, problems := LoadEntries(dir, ParseBlocklist(""))
+	if len(problems) > 0 {
+		t.Fatalf("problems: %v", problems)
+	}
+	if len(entries) != 1 || len(tools) != 1 {
+		t.Fatalf("got %d services and %d tools, want 1 and 1", len(entries), len(tools))
+	}
+	out, _ := Build(entries, tools...).Encode()
+	if !strings.Contains(string(out), `"tools": [`) || !strings.Contains(string(out), `"does": []`) {
+		t.Fatalf("tools belong in their own array with no nulls:\n%s", out)
+	}
+	if strings.Contains(string(out), "maintainers") || strings.Contains(string(out), `"kind"`) {
+		t.Fatal("review-only fields stay out of the catalog")
+	}
+}
+
+func TestToolValidation(t *testing.T) {
+	if _, err := ParseTool([]byte(validTool + "orign: https://x.example\n")); err == nil {
+		t.Fatal("an unknown field in a tool must be refused")
+	}
+	cases := map[string]string{
+		"platform must be one of":                strings.Replace(validTool, "platform: npm", "platform: pip", 1),
+		"license must be one of":                 strings.Replace(validTool, "license: MIT", "license: WTFPL", 1),
+		`source "http://github.com/example/sdk"`: strings.Replace(validTool, "https://github.com/example/sdk", "http://github.com/example/sdk", 1),
+		"built_by_revoked is only for tools":     validTool + "built_by_revoked: true\n",
+		"must match the file name":               validTool,
+	}
+	for want, body := range cases {
+		tool, err := ParseTool([]byte(body))
+		if err != nil {
+			t.Fatalf("parse: %v", err)
+		}
+		slug := "example-sdk"
+		if want == "must match the file name" {
+			slug = "other"
+		}
+		if p := strings.Join(tool.Validate(slug), "\n"); !strings.Contains(p, want) {
+			t.Errorf("want a problem containing %q, got:\n%s", want, p)
+		}
+	}
+	if p := parseTool(t, validTool).Validate("example-sdk"); len(p) != 0 {
+		t.Fatalf("a valid tool has no problems, got %v", p)
+	}
+}
+
+func TestServiceRefusesUnknownKind(t *testing.T) {
+	e := parse(t, validEntry+"kind: plugin\n")
+	if p := strings.Join(e.Validate("example", ParseBlocklist("")), "\n"); !strings.Contains(p, "kind must be") {
+		t.Fatalf("an unknown kind must be refused, got:\n%s", p)
+	}
+}
+
+func parseTool(t *testing.T, yaml string) *Tool {
+	t.Helper()
+	tool, err := ParseTool([]byte(yaml))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	return tool
 }

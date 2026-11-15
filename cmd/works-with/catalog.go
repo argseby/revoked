@@ -14,20 +14,26 @@ import (
 // Catalog is what the app bundles and fetches: every reviewed entry, in a
 // stable order, with nothing that changes between builds of the same
 // entries, so CI can tell a stale copy from an up-to-date one.
+//
+// Tools sit beside the services rather than among them, so an app that knows
+// only services reads the same file unchanged.
 type Catalog struct {
 	Schema   int      `json:"schema"`
 	Services []*Entry `json:"services"`
+	Tools    []*Tool  `json:"tools"`
 }
 
 // LoadEntries reads and validates every services/*.yaml. It returns the
-// entries and every problem found, prefixed with the file it is in.
-func LoadEntries(dir string, blocked *Blocklist) ([]*Entry, []string) {
+// services, the tools and every problem found, prefixed with the file it is
+// in.
+func LoadEntries(dir string, blocked *Blocklist) ([]*Entry, []*Tool, []string) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
 	if err != nil {
-		return nil, []string{err.Error()}
+		return nil, nil, []string{err.Error()}
 	}
 	sort.Strings(files)
 	var entries []*Entry
+	var tools []*Tool
 	var problems []string
 	origins := map[string]string{}
 	for _, file := range files {
@@ -35,6 +41,18 @@ func LoadEntries(dir string, blocked *Blocklist) ([]*Entry, []string) {
 		data, err := os.ReadFile(file)
 		if err != nil {
 			problems = append(problems, fmt.Sprintf("%s: %v", name, err))
+			continue
+		}
+		if kind, err := kindOf(data); err == nil && kind == toolKind {
+			t, err := ParseTool(data)
+			if err != nil {
+				problems = append(problems, fmt.Sprintf("%s: %v", name, err))
+				continue
+			}
+			for _, p := range t.Validate(strings.TrimSuffix(name, ".yaml")) {
+				problems = append(problems, fmt.Sprintf("%s: %s", name, p))
+			}
+			tools = append(tools, t)
 			continue
 		}
 		e, err := ParseEntry(data)
@@ -51,12 +69,12 @@ func LoadEntries(dir string, blocked *Blocklist) ([]*Entry, []string) {
 		origins[e.Origin] = name
 		entries = append(entries, e)
 	}
-	return entries, problems
+	return entries, tools, problems
 }
 
 // Build orders the entries and fills defaults, so the JSON has no nulls and
 // the same entries always give the same bytes.
-func Build(entries []*Entry) *Catalog {
+func Build(entries []*Entry, tools ...*Tool) *Catalog {
 	out := make([]*Entry, 0, len(entries))
 	for _, e := range entries {
 		c := *e
@@ -86,7 +104,20 @@ func Build(entries []*Entry) *Catalog {
 		}
 		return out[i].Slug < out[j].Slug
 	})
-	return &Catalog{Schema: schemaVersion, Services: out}
+	outTools := make([]*Tool, 0, len(tools))
+	for _, t := range tools {
+		c := *t
+		c.Does = nonNil(c.Does)
+		outTools = append(outTools, &c)
+	}
+	sort.SliceStable(outTools, func(i, j int) bool {
+		a, b := strings.ToLower(outTools[i].Name), strings.ToLower(outTools[j].Name)
+		if a != b {
+			return a < b
+		}
+		return outTools[i].Slug < outTools[j].Slug
+	})
+	return &Catalog{Schema: schemaVersion, Services: out, Tools: outTools}
 }
 
 // Encode writes the catalog as indented JSON with a trailing newline.

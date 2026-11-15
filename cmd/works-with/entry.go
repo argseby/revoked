@@ -19,6 +19,7 @@ import (
 // (see proof.go) and never supplies a word of it.
 type Entry struct {
 	Schema         int          `yaml:"schema" json:"-"`
+	Kind           string       `yaml:"kind,omitempty" json:"-"`
 	Slug           string       `yaml:"slug" json:"slug"`
 	Origin         string       `yaml:"origin" json:"origin"`
 	Name           string       `yaml:"name" json:"name"`
@@ -80,6 +81,8 @@ type Permission struct {
 
 const schemaVersion = 1
 
+const serviceKind = "service"
+
 var (
 	slugPattern   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
 	originPattern = regexp.MustCompile(`^https://[a-z0-9.-]+(:[0-9]{1,5})?$`)
@@ -136,6 +139,9 @@ func (e *Entry) Validate(slug string, blocked *Blocklist) []string {
 
 	if e.Schema != schemaVersion {
 		add("schema must be %d", schemaVersion)
+	}
+	if e.Kind != "" && e.Kind != serviceKind {
+		add("kind must be %q or %q", serviceKind, toolKind)
 	}
 	if !slugPattern.MatchString(e.Slug) {
 		add("slug %q: lower-case letters, digits and dashes, 1–40 characters", e.Slug)

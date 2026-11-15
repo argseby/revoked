@@ -1,0 +1,19 @@
+# Works with Revoked entry for a developer tool: no origin of its own, listed
+# by where its code and releases live. The format is described in
+# services/README.md.
+schema: 1
+kind: tool
+slug: revoked-mcp
+name: Revoked MCP server
+platform: mcp
+description:
+  en: Lets an AI assistant that supports MCP prepare shares, requests and attestations. Each action is confirmed in the Revoked app, and values stay out of the assistant unless reading is allowed.
+  de: Lässt einen KI-Assistenten mit MCP-Unterstützung Freigaben, Anfragen und Bestätigungen vorbereiten. Jede Aktion wird in der Revoked-App bestätigt, und Werte bleiben dem Assistenten verborgen, solange Lesen nicht erlaubt ist.
+registry: https://github.com/argseby/revoked/releases/latest
+docs: https://docs.revoked.link/guide/assistant/
+source: https://github.com/argseby/revoked/tree/main/cmd/revoked-mcp
+license: AGPL-3.0
+does: [share, collect, prove, connect]
+maintainers: [argseby]
+built_by_revoked: true
+reviewed: 2026-11-15

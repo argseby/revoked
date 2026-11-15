@@ -57,8 +57,29 @@ Map<String, dynamic> _entry({
   'reviewed': '2026-11-09',
 };
 
-String _catalog(List<Map<String, dynamic>> services) =>
-    jsonEncode({'schema': 1, 'services': services});
+String _catalog(
+  List<Map<String, dynamic>> services, [
+  List<Map<String, dynamic>>? tools,
+]) => jsonEncode({'schema': 1, 'services': services, 'tools': ?tools});
+
+Map<String, dynamic> _tool({
+  String slug = 'example-sdk',
+  String name = 'Example SDK',
+  String platform = 'npm',
+}) => {
+  'slug': slug,
+  'name': name,
+  'platform': platform,
+  'description': {'en': 'A client library.', 'de': 'Eine Clientbibliothek.'},
+  'install': 'npm install example-sdk',
+  'registry': 'https://www.npmjs.com/package/example-sdk',
+  'docs': 'https://docs.example.org',
+  'source': 'https://github.com/example/sdk',
+  'license': 'MPL-2.0',
+  'does': ['share'],
+  'built_by_revoked': false,
+  'reviewed': '2026-11-15',
+};
 
 ConnectRequest _connect(Map<String, String> extra) => ConnectRequest.fromQuery({
   'client': 'https://tool.example.org',
@@ -78,11 +99,33 @@ void main() {
       final catalog = WorksWithCatalog.parse(body);
       expect(catalog, isNotNull);
       final slugs = catalog!.services.map((s) => s.slug);
-      expect(slugs, containsAll(['notfallkarte', 'mietunterlagen']));
+      expect(slugs, containsAll(['notfallkarte', 'mietunterlagen', 'packet']));
+      expect(catalog.tools.map((t) => t.slug), [
+        'revoked-sign-in',
+        'revoked-js',
+        'revoked-mcp',
+      ]);
+      expect(
+        catalog.tools.map((t) => t.platformLabel),
+        containsAll(['MCP server', 'npm package', 'Flutter package']),
+      );
       // Built by Revoked counts as verified without a proof file.
       for (final s in catalog.services.where((s) => s.builtByRevoked)) {
         expect(s.verified, isTrue, reason: s.slug);
       }
+    });
+
+    test('tools are read beside the services, and optional', () {
+      expect(WorksWithCatalog.parse(_catalog([_entry()]))!.tools, isEmpty);
+      final c = WorksWithCatalog.parse(
+        _catalog(
+          [_entry()],
+          [_tool(), _tool(slug: 'unnamed', name: ''), _tool(name: 'Duplicate')],
+        ),
+      )!;
+      expect(c.services.map((s) => s.slug), ['example']);
+      expect(c.tools.map((t) => t.name), ['Example SDK']);
+      expect(c.forOrigin('https://github.com'), isNull);
     });
 
     test('an unknown schema is refused, a bad entry is skipped', () {
@@ -232,25 +275,28 @@ void main() {
         ),
       );
       final catalog = WorksWithCatalog.parse(
-        _catalog([
-          _entry(),
-          _entry(
-            slug: 'card',
-            origin: 'https://card.revoked.link',
-            name: 'Card',
-            categories: ['health'],
-            builtByRevoked: true,
-          ),
-          _entry(
-            slug: 'game',
-            origin: 'https://game.example.org',
-            name: 'Game',
-            does: ['sign_in'],
-            categories: ['games'],
-            permissions: [],
-            keys: [],
-          ),
-        ]),
+        _catalog(
+          [
+            _entry(),
+            _entry(
+              slug: 'card',
+              origin: 'https://card.revoked.link',
+              name: 'Card',
+              categories: ['health'],
+              builtByRevoked: true,
+            ),
+            _entry(
+              slug: 'game',
+              origin: 'https://game.example.org',
+              name: 'Game',
+              does: ['sign_in'],
+              categories: ['games'],
+              permissions: [],
+              keys: [],
+            ),
+          ],
+          [_tool()],
+        ),
       )!;
       runInAction(() => Stores.worksWith.catalog = catalog);
     });
@@ -317,12 +363,37 @@ void main() {
       expect(find.text('Example'), findsOneWidget);
     });
 
+    testWidgets('developer tools follow the services', (tester) async {
+      await pump(tester, const WorksWithScreen());
+      final group = find.byKey(const ValueKey('works-with-tools'));
+      expect(group, findsOneWidget);
+      expect(find.text('Developer tools'), findsOneWidget);
+      expect(find.text('npm package'), findsOneWidget);
+      expect(find.text('npm install example-sdk'), findsOneWidget);
+      expect(find.byTooltip('Copy command'), findsOneWidget);
+      expect(find.text('Documentation'), findsOneWidget);
+      expect(
+        tester.getRect(find.text('Game')).top,
+        lessThan(tester.getRect(group).top),
+      );
+
+      await tester.enterText(find.byType(TextField).first, 'npm');
+      await tester.pumpAndSettle();
+      expect(find.text('Example SDK'), findsOneWidget);
+      expect(find.text('Game'), findsNothing);
+      expect(
+        find.text('No service matches the search or filters.'),
+        findsNothing,
+      );
+    });
+
     testWidgets('the cards fit a phone', (tester) async {
       await pump(tester, const WorksWithScreen());
       tester.view.physicalSize = const Size(720, 4800);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('Game'), findsOneWidget);
+      expect(find.text('Example SDK'), findsOneWidget);
     });
 
     testWidgets('the chip shows only for a listed address', (tester) async {
