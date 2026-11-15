@@ -1,5 +1,6 @@
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/features/shares/view/share_actions.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -75,12 +76,9 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   /// `workspace`, `group:<id>`); none ticked lets all through.
   final Local<Set<String>> _audiences = Local(const {});
 
-  /// Links opened in place to show what they expose.
-  final Local<Set<String>> _expanded = Local(const {});
+  static bool _open(String id) => Stores.folds.isOpen(TreeFold.links, id);
 
-  void _toggle(String id) => _expanded.value = _expanded.value.contains(id)
-      ? ({..._expanded.value}..remove(id))
-      : {..._expanded.value, id};
+  static void _toggle(String id) => Stores.folds.toggle(TreeFold.links, id);
 
   @override
   void initState() {
@@ -431,14 +429,11 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               selected: l.id == widget.selectedId,
               attention: linkAttention(l, now),
               showStatus: status || l.status != 'active',
-              expanded: _LinkContents.of(l).isEmpty
-                  ? null
-                  : _expanded.value.contains(l.id),
+              expanded: _LinkContents.of(l).isEmpty ? null : _open(l.id),
               onToggle: () => _toggle(l.id),
               onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
             ),
-            if (_expanded.value.contains(l.id))
-              ..._LinkContents.of(l).rows(context),
+            if (_open(l.id)) ..._LinkContents.of(l).rows(context),
           ],
         ];
 
@@ -457,9 +452,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
             key: ValueKey('links-by-${c.id}'),
             title: c.name,
             noun: 'links',
-            previewCount: links.any((l) => _expanded.value.contains(l.id))
-                ? 0
-                : 5,
+            previewCount: links.any((l) => _open(l.id)) ? 0 : 5,
             children: rowsOf(links, status: false),
           );
         }

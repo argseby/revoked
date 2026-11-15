@@ -191,6 +191,32 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('an opened link stays open when the list is opened again', (
+    tester,
+  ) async {
+    await _show(tester);
+    final contents = find.byKey(const ValueKey('link-record-email'));
+    expect(contents, findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('link-lease')),
+        matching: find.byTooltip('Expand'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(contents, findsOneWidget);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(Brightness.light),
+        home: const Scaffold(body: SharesScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(contents, findsOneWidget);
+  });
+
   testWidgets('revoked group expands and folds back even when filtered', (
     tester,
   ) async {

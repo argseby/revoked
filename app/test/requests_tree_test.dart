@@ -10,6 +10,7 @@ import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/template.dart';
 import 'package:revoked_app/core/models/user.dart';
+import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/theme/app_theme.dart';
 import 'package:revoked_app/features/requests/view/inbox_screen.dart';
@@ -146,4 +147,50 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('folds and opened requests stay when the list is opened again', (
+    tester,
+  ) async {
+    await _show(tester);
+    await tester.tap(find.byKey(const ValueKey('request-template-own/')));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('request-flat3b')),
+        matching: find.byTooltip('Expand'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('request-contact')), findsNothing);
+    expect(find.text('Mara'), findsOneWidget);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    runInAction(Stores.requests.responsesByRequest.clear);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(Brightness.light),
+        home: const Scaffold(body: InboxScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('request-contact')), findsNothing);
+    expect(find.text('Mara'), findsOneWidget);
+  });
+
+  test('a new store reads the folds saved on the device', () async {
+    SharedPreferences.setMockInitialValues({});
+    final first = TreeFoldsStore();
+    first.toggle(TreeFold.vaultSources, 'own');
+    first.toggle(TreeFold.links, 'lease');
+    await pumpEventQueue();
+
+    final second = TreeFoldsStore();
+    await second.load();
+    expect(second.isOpen(TreeFold.vaultSources, 'own'), isFalse);
+    expect(second.isOpen(TreeFold.links, 'lease'), isTrue);
+    expect(second.isOpen(TreeFold.links, 'other'), isFalse);
+    expect(second.isOpen(TreeFold.requestTemplates, 'any'), isTrue);
+
+    second.forget();
+    expect(second.isOpen(TreeFold.vaultSources, 'own'), isTrue);
+  });
 }

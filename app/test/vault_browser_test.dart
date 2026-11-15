@@ -368,6 +368,28 @@ void main() {
     expect(toolLoose, findsNothing);
   });
 
+  testWidgets('a folded source stays folded when the vault is opened again', (
+    tester,
+  ) async {
+    await _pump(tester);
+    final mine = find.byKey(const ValueKey('vault-section-section0000mine'));
+    expect(mine, findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('vault-source-own')));
+    await tester.pumpAndSettle();
+    expect(mine, findsNothing);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(Brightness.light),
+        home: const Scaffold(body: VaultScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('vault-source-own')), findsOneWidget);
+    expect(mine, findsNothing);
+  });
+
   testWidgets('on a phone a section opens under its own row', (tester) async {
     await _pump(tester, width: 375);
     expect(find.text('My PIN'), findsNothing);

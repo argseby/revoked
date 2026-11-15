@@ -1,3 +1,5 @@
+import 'package:revoked_app/core/state/tree_folds_store.dart';
+
 import 'dart:async';
 
 import 'package:http/http.dart' as http;
@@ -57,6 +59,7 @@ abstract final class Stores {
   static const WorkspaceContext workspaceContext = WorkspaceContext();
 
   static late ThemeStore theme;
+  static late TreeFoldsStore folds;
   static late AuthStore auth;
   static late KeysStore keys;
   static late MemberKeysStore memberKeys;
@@ -120,6 +123,8 @@ abstract final class Stores {
 
     theme = ThemeStore();
     await theme.load();
+    folds = TreeFoldsStore();
+    await folds.load().timeout(const Duration(seconds: 2), onTimeout: () {});
     // A link held while someone signed up in the browser, in case the system
     // closed the app meanwhile. Bounded like the cache above.
     await ResumeLocation.load().timeout(
@@ -292,5 +297,6 @@ abstract final class Stores {
       settings.memberships.clear();
       settings.workspaces.clear();
     });
+    folds.forget();
   }
 }

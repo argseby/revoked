@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/features/vault/view/record_actions.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
@@ -169,9 +170,6 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   /// The section selected in the library, preserved while searching. Null
   /// shows the whole list on a wide window and only the tree on a narrow one.
   final Local<_Pane?> _pane = Local(null);
-
-  /// Sources folded shut in the library's tree.
-  final Local<Set<String>> _collapsed = Local(const {});
 
   /// Sections switched from their card to the plain list of records.
   final Local<Set<String>> _asRecords = Local(const {});
@@ -917,7 +915,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     );
 
     for (final source in sources) {
-      final open = !_collapsed.value.contains(source.id);
+      final open = Stores.folds.isOpen(TreeFold.vaultSources, source.id);
       final count = source.members
           ? source.sections.fold(0, (n, s) => n + s.records.length)
           : source.loose.length +
@@ -932,9 +930,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
             '$count ${count == 1 ? 'item' : 'items'}',
           ].join(' · '),
           expanded: open,
-          onToggle: () => _collapsed.value = open
-              ? {..._collapsed.value, source.id}
-              : ({..._collapsed.value}..remove(source.id)),
+          onToggle: () => Stores.folds.toggle(TreeFold.vaultSources, source.id),
           contextActions: _sourceActions(context, source),
         ),
       );

@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/features/requests/view/request_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
@@ -52,18 +53,15 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
   /// `workspace`, `group:<id>`); none ticked lets all through.
   final Local<Set<String>> _audiences = Local(const {});
 
-  /// Requests opened in place to show their answers.
-  final Local<Set<String>> _expanded = Local(const {});
+  static bool _open(String id) => Stores.folds.isOpen(TreeFold.requests, id);
 
-  /// Templates folded shut, by creator and template.
-  final Local<Set<String>> _folded = Local(const {});
+  static void _toggle(String id) {
+    Stores.folds.toggle(TreeFold.requests, id);
+    if (_open(id)) _loadAnswers(id);
+  }
 
-  void _toggle(String id) {
-    if (_expanded.value.contains(id)) {
-      _expanded.value = {..._expanded.value}..remove(id);
-      return;
-    }
-    _expanded.value = {..._expanded.value, id};
+  /// A request left open shows its answers again on the way back.
+  static void _loadAnswers(String id) {
     if (!Stores.requests.responsesByRequest.containsKey(id)) {
       Stores.requests.loadResponses(id);
     }
@@ -109,7 +107,13 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
 
   @override
   void refresh() {
-    Stores.requests.loadIfDue();
+    Stores.requests.loadIfDue().then((_) {
+      final ids = {for (final r in Stores.requests.requests) r.id};
+      Stores.folds
+          .opened(TreeFold.requests)
+          .where(ids.contains)
+          .forEach(_loadAnswers);
+    });
     Stores.bookmarks.loadIfDue();
     // Requests are grouped under their template's and tool's names.
     final workspace = Stores.auth.activeWorkspace ?? '';
@@ -328,12 +332,11 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
               now: now,
               depth: depth,
               showStatus: status,
-              expanded: _expanded.value.contains(r.id),
+              expanded: _open(r.id),
               onToggle: () => _toggle(r.id),
               onTap: () => context.go(AppRoutes.requestDetailFor(r.id)),
             ),
-            if (_expanded.value.contains(r.id))
-              ..._answerRows(context, r, depth + 1),
+            if (_open(r.id)) ..._answerRows(context, r, depth + 1),
           ],
         ];
 
@@ -367,7 +370,10 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
                         in templates)
                       ...() {
                         final id = '${c.id}/$template';
-                        final open = !_folded.value.contains(id);
+                        final open = Stores.folds.isOpen(
+                          TreeFold.requestTemplates,
+                          id,
+                        );
                         return [
                           AppTreeRow(
                             key: ValueKey('request-template-$id'),
@@ -380,9 +386,10 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
                             subtitle:
                                 '${requests.length} ${requests.length == 1 ? 'request' : 'requests'}',
                             expanded: open,
-                            onToggle: () => _folded.value = open
-                                ? {..._folded.value, id}
-                                : ({..._folded.value}..remove(id)),
+                            onToggle: () => Stores.folds.toggle(
+                              TreeFold.requestTemplates,
+                              id,
+                            ),
                           ),
                           if (open)
                             ...rowsOf(requests, status: false, depth: 1),
