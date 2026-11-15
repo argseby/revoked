@@ -71,13 +71,12 @@ jobs:
       - name: Test
         run: go test ./... -count=1 -p 1 -timeout 10m
 
+  # tsdown and vitest no longer support Node 20, so the package is built and
+  # tested once on a current Node, and the built files are what each Node in
+  # `engines` runs below.
   js-sdk:
-    name: JavaScript SDK — check, test & package (Node ${{ matrix.node }})
+    name: JavaScript SDK — check, test & package
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: [20, 22, 24]
     defaults:
       run:
         working-directory: packages/revoked-js
@@ -88,7 +87,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
           cache: npm
           cache-dependency-path: packages/revoked-js/package-lock.json
 
@@ -107,6 +106,42 @@ jobs:
       # The published package must resolve for ESM, CJS and bundlers alike.
       - name: Lint package
         run: npm run lint:package
+
+      - name: Keep the build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: revoked-js-dist
+          path: packages/revoked-js/dist
+          retention-days: 1
+
+  js-sdk-runtime:
+    name: JavaScript SDK — runs on Node ${{ matrix.node }}
+    needs: js-sdk
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    defaults:
+      run:
+        working-directory: packages/revoked-js
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Fetch the build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: revoked-js-dist
+          path: packages/revoked-js/dist
+
+      - name: Run the package
+        run: node test/runtime.mjs
 
   flutter:
     name: Flutter — analyze
