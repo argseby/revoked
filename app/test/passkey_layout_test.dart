@@ -216,6 +216,19 @@ void main() {
     });
   }
 
+  // A phone opens the vault on its tree; the loose records open under their
+  // own row.
+  Future<void> openLoose(WidgetTester tester) async {
+    final loose = find.byKey(const ValueKey('vault-unsorted-own'));
+    final selected = find.byKey(
+      const ValueKey('vault-selected-section-header'),
+    );
+    if (selected.evaluate().isNotEmpty || loose.evaluate().isEmpty) return;
+    await tester.ensureVisible(loose);
+    await tester.tap(loose);
+    await tester.pumpAndSettle();
+  }
+
   for (final MapEntry(key: name, value: size) in sizes.entries) {
     testWidgets('a locked device is shown the way in, on a $name', (
       tester,
@@ -239,6 +252,7 @@ void main() {
       );
       expect(find.text('Add this device'), findsWidgets);
 
+      await openLoose(tester);
       expect(
         find.textContaining('Not readable on this device'),
         findsOneWidget,
@@ -319,6 +333,7 @@ void main() {
         await Stores.vault.loadRecords();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'vault');
+        await openLoose(tester);
         // The list names the record; its value shows on its own page.
         expect(find.text('SMTP password'), findsOneWidget);
         expect(find.textContaining('Not readable'), findsNothing);
