@@ -18,9 +18,9 @@ String _hex(List<int> b) =>
 Uint8List _bytes(String s) => Uint8List.fromList(utf8.encode(s));
 
 void main() {
-  final vectors =
-      jsonDecode(File('test/fixtures/sealing_vectors.json').readAsStringSync())
-          as Map<String, dynamic>;
+  final vectors = jsonDecode(
+    File('test/fixtures/sealing_vectors.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
   final hpkeKey = SealingKeyPair(
     privateKey: _unhex(vectors['privateKey'] as String),
     publicKey: _unhex(vectors['publicKey'] as String),
@@ -700,13 +700,9 @@ void main() {
     });
 
     test('matches the shared vectors, which Go checks too', () {
-      final v =
-          jsonDecode(
-                File(
-                  'test/fixtures/sealing_passkey_vectors.json',
-                ).readAsStringSync(),
-              )
-              as Map<String, dynamic>;
+      final v = jsonDecode(
+        File('test/fixtures/sealing_passkey_vectors.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
       Uint8List hex(String s) => Uint8List.fromList([
         for (var i = 0; i < s.length; i += 2)
           int.parse(s.substring(i, i + 2), radix: 16),
@@ -735,13 +731,9 @@ void main() {
   });
 
   group('a grant', () {
-    final v =
-        jsonDecode(
-              File(
-                'test/fixtures/sealing_grant_vectors.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, dynamic>;
+    final v = jsonDecode(
+      File('test/fixtures/sealing_grant_vectors.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     final recipient = SealingKeyPair(
       privateKey: _unhex(v['recipientHpkePrivateKey'] as String),
       publicKey: _unhex(v['recipientHpkePublicKey'] as String),
@@ -788,13 +780,9 @@ void main() {
   });
 
   group('a link', () {
-    final v =
-        jsonDecode(
-              File(
-                'test/fixtures/sealing_link_vectors.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, dynamic>;
+    final v = jsonDecode(
+      File('test/fixtures/sealing_link_vectors.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     final workspace = v['workspace'] as String;
     final link = v['link'] as String;
     final record = v['record'] as String;

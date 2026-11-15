@@ -51,9 +51,8 @@ void main() {
   });
 
   test('a domain pinning another key is spoofed', () async {
-    final verdict = await service(
-      pinned: 'b' * 64,
-    ).verifyServer(claimedDomain: 'example.com');
+    final verdict = await service(pinned: 'b' * 64)
+        .verifyServer(claimedDomain: 'example.com');
     expect(verdict.state, TrustState.spoofed);
   });
 

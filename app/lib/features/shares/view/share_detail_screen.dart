@@ -607,9 +607,9 @@ class _SharedSectionRow extends StatelessWidget {
             ),
           ),
           AppSpacing.gapMd,
-          AppText(
-            'Section · $count ${count == 1 ? 'record' : 'records'}',
-          ).small.muted,
+          AppText('Section · $count ${count == 1 ? 'record' : 'records'}')
+              .small
+              .muted,
         ],
       ),
     );

@@ -198,30 +198,28 @@ class _FakeServer {
     return http.Response('{}', 404);
   });
 
-  Map<String, dynamic> state() =>
-      jsonDecode(
-            jsonEncode({
-              'devices': devices,
-              'workspaces': [
-                if (epochs.isNotEmpty)
-                  {'workspace': _workspace, 'epochs': epochs, 'wraps': wraps},
-                if (otherEpochs.isNotEmpty)
-                  {
-                    'workspace': _otherWorkspace,
-                    'epochs': otherEpochs,
-                    'wraps': otherWraps,
-                  },
-              ],
-              'account': accountEpochs.isEmpty
-                  ? null
-                  : {
-                      'workspace': _accountScope,
-                      'epochs': accountEpochs,
-                      'wraps': accountWraps,
-                    },
-            }),
-          )
-          as Map<String, dynamic>;
+  Map<String, dynamic> state() => jsonDecode(
+    jsonEncode({
+      'devices': devices,
+      'workspaces': [
+        if (epochs.isNotEmpty)
+          {'workspace': _workspace, 'epochs': epochs, 'wraps': wraps},
+        if (otherEpochs.isNotEmpty)
+          {
+            'workspace': _otherWorkspace,
+            'epochs': otherEpochs,
+            'wraps': otherWraps,
+          },
+      ],
+      'account': accountEpochs.isEmpty
+          ? null
+          : {
+              'workspace': _accountScope,
+              'epochs': accountEpochs,
+              'wraps': accountWraps,
+            },
+    }),
+  ) as Map<String, dynamic>;
 
   static http.Response _json(Map<String, dynamic> body) =>
       http.Response(jsonEncode(body), 200);
@@ -504,13 +502,11 @@ void main() {
       expect(sent, isNot(contains(code)));
       expect(sent, isNot(contains(code.replaceAll('-', ''))));
 
-      final privateHalves =
-          jsonDecode(
-                storage.values.entries
-                    .firstWhere((e) => e.key.startsWith('sealed_device_'))
-                    .value,
-              )
-              as Map<String, dynamic>;
+      final privateHalves = jsonDecode(
+        storage.values.entries
+            .firstWhere((e) => e.key.startsWith('sealed_device_'))
+            .value,
+      ) as Map<String, dynamic>;
       expect(sent, isNot(contains(privateHalves['hpkePrivate'])));
       expect(sent, isNot(contains(privateHalves['signingPrivate'])));
     });

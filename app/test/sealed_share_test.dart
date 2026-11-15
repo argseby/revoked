@@ -213,9 +213,8 @@ class _Server {
         return _json({'items': links.values.toList()});
       }
     }
-    final recordLinks = RegExp(
-      r'^/api/sealed/records/([^/]+)/links$',
-    ).firstMatch(path);
+    final recordLinks = RegExp(r'^/api/sealed/records/([^/]+)/links$')
+        .firstMatch(path);
     if (recordLinks != null) {
       final id = recordLinks.group(1)!;
       if (!_isSealed(id)) {
@@ -249,9 +248,8 @@ class _Server {
         ],
       });
     }
-    final recordWrite = RegExp(
-      r'^/api/sealed/records/([^/]+)$',
-    ).firstMatch(path);
+    final recordWrite = RegExp(r'^/api/sealed/records/([^/]+)$')
+        .firstMatch(path);
     if (recordWrite != null && method == 'PUT') {
       final id = recordWrite.group(1)!;
       recordWrites.add(body);
