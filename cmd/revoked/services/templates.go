@@ -169,6 +169,59 @@ func ValidateSectionView(raw any) error {
 	return nil
 }
 
+// ValidateTemplateSchemaShape checks that a stored schema is one the server can
+// read back: a request built on an array, or on records without keys, reaches
+// the responder with no fields at all.
+func ValidateTemplateSchemaShape(raw string) error {
+	if raw == "" || raw == "null" {
+		return nil
+	}
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(raw), &schema); err != nil {
+		return fmt.Errorf("schema must be an object")
+	}
+	if err := keyedEntries(schema["records"]); err != nil {
+		return err
+	}
+	if schema["sections"] == nil {
+		return nil
+	}
+	sections, ok := schema["sections"].([]any)
+	if !ok {
+		return fmt.Errorf("sections must be an array")
+	}
+	for _, raw := range sections {
+		section, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("each section must be an object")
+		}
+		if err := keyedEntries(section["records"]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func keyedEntries(raw any) error {
+	if raw == nil {
+		return nil
+	}
+	entries, ok := raw.([]any)
+	if !ok {
+		return fmt.Errorf("records must be an array")
+	}
+	for _, entry := range entries {
+		record, ok := entry.(map[string]any)
+		if !ok {
+			return fmt.Errorf("each record must be an object")
+		}
+		if key, _ := record["key"].(string); key == "" {
+			return fmt.Errorf("a record is missing its key")
+		}
+	}
+	return nil
+}
+
 func validateTemplateRecords(raw any) (int, error) {
 	if raw == nil {
 		return 0, nil

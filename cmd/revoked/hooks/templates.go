@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"revoked/cmd/revoked/services"
+	"revoked/util"
 
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -16,4 +17,18 @@ func BindBuiltinTemplateSync(app core.App) {
 		}
 		return e.Next()
 	})
+}
+
+// BindTemplateHooks refuses a schema the request page could not read back.
+// Without it the template saves, and every request built on it reaches the
+// responder with nothing to fill in.
+func BindTemplateHooks(app core.App) {
+	check := func(e *core.RecordRequestEvent) error {
+		if err := services.ValidateTemplateSchemaShape(e.Record.GetString(util.Fields.Template.Schema)); err != nil {
+			return util.AsFieldValidationError(util.Fields.Template.Schema, util.Errors.TemplateSchemaInvalid)
+		}
+		return e.Next()
+	}
+	app.OnRecordCreateRequest(util.Coll.Templates).BindFunc(check)
+	app.OnRecordUpdateRequest(util.Coll.Templates).BindFunc(check)
 }

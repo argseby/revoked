@@ -259,7 +259,14 @@ describe('collections', () => {
   it('builds share and request addresses', () => {
     const revoked = new Revoked({ server: SERVER });
     expect(revoked.links.url({ slug: 'a b' })).toBe('https://id.example.com/s/a%20b');
-    expect(revoked.links.appLink({ slug: 'abc' })).toBe('revoked://s/https%3A%2F%2Fid.example.com/abc');
-    expect(revoked.requests.appLink({ slug: 'xyz' })).toBe('revoked://r/https%3A%2F%2Fid.example.com/xyz');
+    expect(revoked.links.appLink({ slug: 'abc' })).toBe('revoked://s/id.example.com/abc');
+    expect(revoked.requests.appLink({ slug: 'xyz' })).toBe('revoked://r/id.example.com/xyz');
+    expect(revoked.attestations.offerLink('t/1')).toBe('revoked://a/id.example.com/t%2F1');
+  });
+
+  it('names the server in app addresses as the app reads it: host and port, no scheme', () => {
+    const local = new Revoked({ server: 'http://localhost:3124' });
+    expect(local.requests.appLink({ slug: 'xyz' })).toBe('revoked://r/localhost:3124/xyz');
+    expect(local.links.appLink({ slug: 'abc' })).toBe('revoked://s/localhost:3124/abc');
   });
 });

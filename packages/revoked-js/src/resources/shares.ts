@@ -39,6 +39,14 @@ export async function download(
   };
 }
 
+/**
+ * A `revoked://<kind>/<host[:port]>/<token>` address. The app reads the middle
+ * segment as a bare host, so a scheme there makes the link unrecognizable.
+ */
+export function appLink(ctx: ClientContext, kind: 's' | 'r' | 'a', token: string): string {
+  return `revoked://${kind}/${ctx.transport.baseUrl.host}/${encodeURIComponent(token)}`;
+}
+
 /** Shares: living grants over vault records, resolved at read time. */
 export class Links extends Collection<Link, LinkInput> {
   constructor(ctx: ClientContext) {
@@ -56,7 +64,7 @@ export class Links extends Collection<Link, LinkInput> {
 
   /** The app address of a share, which opens it in the Revoked app. */
   appLink(link: Pick<Link, 'slug'>): string {
-    return `revoked://s/${encodeURIComponent(this.ctx.transport.baseUrl.origin)}/${encodeURIComponent(link.slug)}`;
+    return appLink(this.ctx, 's', link.slug);
   }
 
   pause(id: string, options?: CallOptions): Promise<Link> {
@@ -108,7 +116,7 @@ export class Requests extends Collection<RevokedRequest, RequestInput> {
 
   /** The app address to hand to whoever should answer. Answering takes an account. */
   appLink(request: Pick<RevokedRequest, 'slug'>): string {
-    return `revoked://r/${encodeURIComponent(this.ctx.transport.baseUrl.origin)}/${encodeURIComponent(request.slug)}`;
+    return appLink(this.ctx, 'r', request.slug);
   }
 
   pause(id: string, options?: CallOptions): Promise<RevokedRequest> {

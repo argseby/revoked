@@ -1,0 +1,62 @@
+{
+  "name": "@kiunke.dev/n8n-nodes-revoked",
+  "version": "0.1.0",
+  "description": "n8n nodes for Revoked: shares, requests and vault records, and a trigger on webhook events.",
+  "license": "MPL-2.0",
+  "author": {
+    "name": "argseby",
+    "url": "https://github.com/argseby"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/argseby/revoked.git",
+    "directory": "packages/n8n-nodes-revoked"
+  },
+  "homepage": "https://github.com/argseby/revoked/tree/main/packages/n8n-nodes-revoked",
+  "keywords": [
+    "n8n-community-node-package",
+    "revoked",
+    "secret-sharing"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "n8n-node build",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "lint:fix": "n8n-node lint --fix",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run check && npm test && npm run lint && npm run build"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": false,
+    "credentials": [
+      "dist/credentials/RevokedApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Revoked/Revoked.node.js",
+      "dist/nodes/RevokedTrigger/RevokedTrigger.node.js"
+    ]
+  },
+  "dependencies": {
+    "@kiunke.dev/revoked": "^0.1.1"
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "0.56.4",
+    "eslint": "9.29.0",
+    "n8n-workflow": "2.16.0",
+    "typescript": "5.9.3",
+    "vitest": "5.1.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

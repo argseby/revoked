@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 )
@@ -76,12 +77,13 @@ func normalizePath(p string) string {
 
 var routePattern = regexp.MustCompile(`e\.Router\.(?:GET|POST|PATCH|PUT|DELETE|HEAD|OPTIONS|Any)\("([^"]+)"`)
 
-var registrarPattern = regexp.MustCompile(`(?m)^func ([A-Z]\w*)\(`)
+var registrarPattern = regexp.MustCompile(`(?m)^func (\w+)\(`)
 
 // registeredRoutes returns the routes that are actually reachable: those
-// declared inside a registrar bootstrap binds. A registrar nobody calls
-// registers nothing, and counting its routes would have this test demand
-// documentation for endpoints that answer 404.
+// declared inside a registrar bootstrap binds, or inside an unexported helper
+// such a registrar calls. A registrar nobody calls registers nothing, and
+// counting its routes would have this test demand documentation for endpoints
+// that answer 404.
 func registeredRoutes(t *testing.T) []string {
 	t.Helper()
 	bootstrap, err := os.ReadFile(filepath.Join("..", "cmd", "revoked", "bootstrap", "bootstrap.go"))
@@ -106,12 +108,13 @@ func registeredRoutes(t *testing.T) []string {
 		"publicPage.go: BindPublicLinkRoutes": "superseded; pending delete-or-wire decision",
 	}
 
-	seen := map[string]bool{}
-	var out []string
-	var unbound []string
-
+	type registrar struct {
+		file, name, body string
+		routes           [][]string
+	}
+	var funcs []registrar
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
 		}
 		raw, err := os.ReadFile(filepath.Join(dir, entry.Name()))
@@ -122,27 +125,60 @@ func registeredRoutes(t *testing.T) []string {
 
 		starts := registrarPattern.FindAllStringSubmatchIndex(source, -1)
 		for i, loc := range starts {
-			name := source[loc[2]:loc[3]]
 			end := len(source)
 			if i+1 < len(starts) {
 				end = starts[i+1][0]
 			}
 			body := source[loc[0]:end]
-			routes := routePattern.FindAllStringSubmatch(body, -1)
-			if len(routes) == 0 {
+			funcs = append(funcs, registrar{
+				file:   entry.Name(),
+				name:   source[loc[2]:loc[3]],
+				body:   body,
+				routes: routePattern.FindAllStringSubmatch(body, -1),
+			})
+		}
+	}
+
+	reached := map[string]bool{}
+	for _, f := range funcs {
+		if strings.Contains(bound, "routes."+f.name+"(") {
+			reached[f.name] = true
+		}
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, f := range funcs {
+			if reached[f.name] || unicode.IsUpper(rune(f.name[0])) {
 				continue
 			}
-			if !strings.Contains(bound, "routes."+name+"(") {
-				if _, known := knownUnbound[entry.Name()+": "+name]; !known {
-					unbound = append(unbound, entry.Name()+": "+name)
+			call := regexp.MustCompile(`\b` + regexp.QuoteMeta(f.name) + `\(`)
+			for _, caller := range funcs {
+				if reached[caller.name] && caller.name != f.name && call.MatchString(caller.body) {
+					reached[f.name] = true
+					changed = true
+					break
 				}
-				continue
 			}
-			for _, match := range routes {
-				if !seen[match[1]] {
-					seen[match[1]] = true
-					out = append(out, match[1])
-				}
+		}
+	}
+
+	seen := map[string]bool{}
+	var out []string
+	var unbound []string
+	for _, f := range funcs {
+		if len(f.routes) == 0 {
+			continue
+		}
+		if !reached[f.name] {
+			if _, known := knownUnbound[f.file+": "+f.name]; !known {
+				unbound = append(unbound, f.file+": "+f.name)
+			}
+			continue
+		}
+		for _, match := range f.routes {
+			if !seen[match[1]] {
+				seen[match[1]] = true
+				out = append(out, match[1])
 			}
 		}
 	}

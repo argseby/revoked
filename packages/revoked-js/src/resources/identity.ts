@@ -14,6 +14,7 @@ import type {
   Identity,
 } from '../models.js';
 import { exportPublicKeyPem, signChallenge, type IdentityKey } from '../identity/keys.js';
+import { appLink } from './shares.js';
 
 export interface IdentityInput {
   name?: string;
@@ -70,7 +71,7 @@ export class Attestations extends Collection<Attestation, AttestationInput> {
 
   /** The app address of an offer, which the subject opens to accept it. */
   offerLink(offerToken: string): string {
-    return `revoked://a/${encodeURIComponent(this.ctx.transport.baseUrl.origin)}/${encodeURIComponent(offerToken)}`;
+    return appLink(this.ctx, 'a', offerToken);
   }
 
   revoke(id: string, reason?: string, options: CallOptions = {}): Promise<Attestation> {

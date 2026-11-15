@@ -1,0 +1,60 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="readme.css"><script src="theme.js"></script>
+<style>
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.tile{height:270px;padding:28px;display:flex;align-items:center;justify-content:center}
+.num{width:36px;height:36px;border-radius:50%;background:var(--invert);color:var(--on-invert);display:grid;place-items:center;font-size:16px;font-weight:600;margin:26px 0 16px}
+h3{font-size:30px;margin-bottom:10px}
+.step p{font-size:19px;line-height:1.5;padding-right:12px}
+.vault{width:100%;padding:8px 0;background:var(--invert);color:var(--on-invert);border-radius:14px;border:0}
+.vault .head{padding:10px 20px 12px;font-weight:600;font-size:17px}
+.vault .line{display:flex;justify-content:space-between;padding:11px 20px;border-top:1px solid color-mix(in srgb,var(--on-invert) 18%,transparent);font-size:16px}
+.vault .line span:first-child{opacity:.7}
+.vault .line span:last-child{font-weight:600}
+.link{padding:12px 18px;font-size:17px;display:inline-flex;gap:10px;align-items:center;border-radius:999px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:20px}
+.chips .chip{background:var(--card)}
+.change{width:100%;display:grid;gap:14px}
+.change .card{padding:16px 20px}
+.old{font-size:15px;color:var(--muted);text-decoration:line-through}
+.new{font-size:21px;font-weight:600;letter-spacing:-.02em}
+</style></head>
+<body>
+<div class="steps">
+  <div class="step">
+    <div class="stage tile">
+      <div class="vault">
+        <div class="head">Vault</div>
+        <div class="line"><span>Delivery address</span><span>3 Harbour Rd</span></div>
+        <div class="line"><span>IBAN</span><span>DE89 3704…</span></div>
+        <div class="line"><span>Wi-Fi password</span><span>••••••••</span></div>
+      </div>
+    </div>
+    <div class="num">1</div>
+    <h3>Store it once</h3>
+    <p>Data lives in one vault, on a server under the owner’s or operator’s control.</p>
+  </div>
+  <div class="step">
+    <div class="stage tile" style="flex-direction:column">
+      <div class="card link mono">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+        revoked.link/s/q8w2…</div>
+      <div class="chips"><span class="chip">shop.example</span><span class="chip">acme.example</span><span class="chip">A landlord</span></div>
+    </div>
+    <div class="num">2</div>
+    <h3>Share a link</h3>
+    <p>Recipients get a link, not a copy. Services can also request data or sign people in.</p>
+  </div>
+  <div class="step">
+    <div class="stage tile">
+      <div class="change">
+        <div class="card"><div class="muted" style="font-size:14px">Delivery address</div><div class="old">12 Linden Street, Berlin</div><div class="new">3 Harbour Road, Hamburg</div></div>
+        <div class="card row"><span class="grow" style="font-size:17px">old-gym.example</span><span class="pill bad">Revoked</span></div>
+      </div>
+    </div>
+    <div class="num">3</div>
+    <h3>Change or revoke</h3>
+    <p>A change appears behind every link at once. A revoked link returns nothing from then on.</p>
+  </div>
+</div>
+</body></html>

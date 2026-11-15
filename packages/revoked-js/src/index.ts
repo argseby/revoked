@@ -33,5 +33,6 @@ export type {
   ToolRequest,
   ToolAttestation,
   ToolCheck,
+  ToolSection,
 } from './resources/tools.js';
 export type { WebhookPageParams, WebhookEventListParams, WebhookDeliveryListParams } from './resources/webhooks.js';

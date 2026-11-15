@@ -90,6 +90,7 @@ abstract class AppErrorCode {
   static const contactNotFound = 'contact_not_found';
   static const contactNothingToSend = 'contact_nothing_to_send';
   static const templateNotOwned = 'template_not_owned';
+  static const templateSchemaInvalid = 'template_schema_invalid';
   static const fileNotWatermarkable = 'file_not_watermarkable';
   static const applicationNeedsWatermark = 'application_needs_watermark';
   static const recordNotFound = 'record_not_found';
@@ -622,6 +623,12 @@ class AppErrorMessage {
         return AppErrorMessage(
           title: 'Template not found',
           description: 'This template is not in this workspace. Select a workspace template or continue without one.',
+          code: e.code,
+        );
+      case AppErrorCode.templateSchemaInvalid:
+        return AppErrorMessage(
+          title: 'Template not saved',
+          description: 'The template fields could not be read. Each field requires a key.',
           code: e.code,
         );
       case AppErrorCode.identityRevoked:
