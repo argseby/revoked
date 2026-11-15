@@ -58,9 +58,13 @@
     "POST /api/connection/attestations/{id}/revoke": "client:connection.attestations.revoke",
     "POST /api/connection/drafts": "client:connection.draft",
     "POST /api/connection/links": "client:connection.links.create",
+    "PATCH /api/connection/links/{id}": "client:connection.links.update",
     "POST /api/connection/links/{id}/revoke": "client:connection.links.revoke",
     "POST /api/connection/requests": "client:connection.requests.create",
     "POST /api/connection/requests/{id}/close": "client:connection.requests.close",
+    "GET /api/connection/sections": "client:connection.sections.list",
+    "POST /api/connection/sections": "client:connection.sections.create",
+    "PATCH /api/connection/sections/{id}": "client:connection.sections.update",
     "GET /api/connection/vault": "client:vault.list",
     "GET /api/connection/vault/{id}": "client:vault.get",
     "POST /api/connections/authorize": {

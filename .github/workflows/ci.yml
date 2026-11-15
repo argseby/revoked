@@ -75,6 +75,7 @@ jobs:
     name: JavaScript SDK — check, test & package (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         node: [20, 22, 24]
     defaults:

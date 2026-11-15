@@ -89,9 +89,24 @@ jobs:
         if: steps.bump.outputs.bump != 'none'
         run: npm version "${{ steps.bump.outputs.version }}" --no-git-tag-version --allow-same-version
 
+      # A version already on the registry (published by hand, or by a run that
+      # failed before tagging) is tagged without publishing, so the next run
+      # bumps from it instead of retrying a publish npm will always refuse.
+      - name: Check registry
+        id: registry
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          if npm view "$NAME@${{ steps.bump.outputs.version }}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "$NAME@${{ steps.bump.outputs.version }} is already published; tagging only."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # prepublishOnly type-checks, tests, builds and lints the package first.
       - name: Publish
-        if: steps.bump.outputs.bump != 'none'
+        if: steps.bump.outputs.bump != 'none' && steps.registry.outputs.published != 'true'
         run: npm publish --provenance --access public
 
       - name: Tag

@@ -3,7 +3,7 @@ import { ReadableCollection } from '../core/collection.js';
 import type { ClientContext } from '../core/context.js';
 import { path } from '../core/context.js';
 import type { CallOptions } from '../core/transport.js';
-import type { Connection, LinkStatus, RequestStatus, SignIn } from '../models.js';
+import type { Connection, LinkStatus, RequestStatus, SignIn, VaultEntry } from '../models.js';
 
 export interface ConnectionPermissions {
   allowRevoke?: boolean;
@@ -172,6 +172,14 @@ export interface ConnectionStatus {
   checks: ToolCheck[];
 }
 
+/** A group inside the tool's own section. `key` is the tool's own, without the server's prefix. */
+export interface ToolSection {
+  id: string;
+  key: string;
+  name: string;
+  records: string[];
+}
+
 /** What a connected tool does with its own token (`connection` credential). */
 export class ToolConnection {
   readonly links: {
@@ -179,7 +187,20 @@ export class ToolConnection {
       input: { label: string; records?: string[]; sections?: string[]; expiresAt?: string | Date; maxViews?: number; ref?: string },
       options?: CallOptions,
     ) => Promise<ToolLink>;
+    /** Replaces the records and sections a share made by this tool grants. */
+    update: (id: string, input: { records?: string[]; sections?: string[] }, options?: CallOptions) => Promise<ToolLink>;
     revoke: (id: string, options?: CallOptions) => Promise<ToolLink>;
+  };
+  readonly sections: {
+    /** The groups inside the tool's own section, with the current values of their records. */
+    list: (options?: CallOptions) => Promise<{ sections: ToolSection[]; records: VaultEntry[] }>;
+    create: (input: { name: string; key: string }, options?: CallOptions) => Promise<ToolSection>;
+    /** Renames a group, or adds and removes records this tool wrote. */
+    update: (
+      id: string,
+      input: { name?: string; add?: string[]; remove?: string[] },
+      options?: CallOptions,
+    ) => Promise<void>;
   };
   readonly requests: {
     create: (
@@ -202,7 +223,31 @@ export class ToolConnection {
       });
     this.links = {
       create: (input, options) => post('api/connection/links', jsonBody(input), options),
+      update: (id, input, options = {}) =>
+        this.ctx.transport.request(path`api/connection/links/${id}`, {
+          method: 'PATCH',
+          body: jsonBody(input),
+          signal: options.signal,
+          idempotent: true,
+        }),
       revoke: (id, options) => post(path`api/connection/links/${id}/revoke`, undefined, options, true),
+    };
+    this.sections = {
+      list: (options = {}) => this.ctx.transport.request('api/connection/sections', { signal: options.signal }),
+      create: (input, options) => post('api/connection/sections', jsonBody(input), options),
+      update: async (id, input, options = {}) => {
+        const body: Record<string, unknown> = {};
+        if (input.name !== undefined) body.name = input.name;
+        if (input.add !== undefined) body['records+'] = input.add;
+        if (input.remove !== undefined) body['records-'] = input.remove;
+        await this.ctx.transport.request(path`api/connection/sections/${id}`, {
+          method: 'PATCH',
+          body,
+          responseType: 'none',
+          signal: options.signal,
+          idempotent: true,
+        });
+      },
     };
     this.requests = {
       create: (input, options) => post('api/connection/requests', jsonBody(input), options),
