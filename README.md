@@ -208,8 +208,9 @@ console.log(revoked.links.url(link));   // the share follows every change to the
 
 [CONTRIBUTING.md](CONTRIBUTING.md) covers the repository layout, running from
 source, tests and releases. Planned work is on the
-[roadmap](https://docs.revoked.link/roadmap/). The README images are rendered
-from [`docs/readme/`](docs/readme) with `node docs/readme/render.mjs`.
+[roadmap](https://docs.revoked.link/roadmap/). The README images, the
+website's films and the white paper live in
+[revoked-misc](https://github.com/argseby/revoked-misc).
 
 ## Licence
 

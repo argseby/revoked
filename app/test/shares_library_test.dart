@@ -136,6 +136,87 @@ void main() {
     expect(find.text('Employer HR'), findsNothing);
   });
 
+  testWidgets('live links group by creator and open to what they expose', (
+    tester,
+  ) async {
+    await _show(tester);
+    runInAction(
+      () => Stores.shares.shares.addAll([
+        Link(
+          id: 'answer',
+          slug: 'answer',
+          label: 'Onboarding answer',
+          status: 'active',
+          sections: [],
+          records: ['email'],
+          user: 'u',
+          workspace: 'w',
+          request: 'request00000001',
+        ),
+        Link(
+          id: 'tool',
+          slug: 'tool',
+          label: 'Flat 3B',
+          status: 'active',
+          sections: [],
+          records: ['gone'],
+          user: 'u',
+          workspace: 'w',
+          proposedBy: 'https://homes.example',
+        ),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    double top(String key) => tester.getRect(find.byKey(ValueKey(key))).top;
+    // Own, then the tool, then answers; what needs a look stays above.
+    expect(top('link-hr'), lessThan(top('links-by-own')));
+    expect(top('links-by-own'), lessThan(top('links-by-tool:homes.example')));
+    expect(
+      top('links-by-tool:homes.example'),
+      lessThan(top('links-by-answers')),
+    );
+    expect(find.text('homes.example'), findsOneWidget);
+    expect(find.text('Answers to requests'), findsOneWidget);
+
+    expect(find.byKey(const ValueKey('link-record-gone')), findsNothing);
+    final expand = find.descendant(
+      of: find.byKey(const ValueKey('link-tool')),
+      matching: find.byTooltip('Expand'),
+    );
+    await tester.tap(expand);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('link-record-gone')), findsOneWidget);
+    expect(find.text('No longer in the vault'), findsOneWidget);
+    expect(find.text('Single record'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an opened link stays open when the list is opened again', (
+    tester,
+  ) async {
+    await _show(tester);
+    final contents = find.byKey(const ValueKey('link-record-email'));
+    expect(contents, findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('link-lease')),
+        matching: find.byTooltip('Expand'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(contents, findsOneWidget);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(Brightness.light),
+        home: const Scaffold(body: SharesScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(contents, findsOneWidget);
+  });
+
   testWidgets('revoked group expands and folds back even when filtered', (
     tester,
   ) async {

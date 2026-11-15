@@ -163,25 +163,16 @@ void main() {
     ) async {
       await pumpRow(tester, Audience.private);
       expect(find.text('Private'), findsOneWidget);
-      expect(
-        tooltip('Private · visible to the owner only'),
-        findsOneWidget,
-      );
+      expect(tooltip('Private · visible to the owner only'), findsOneWidget);
 
       await pumpRow(tester, const Audience('workspace'));
       expect(find.text('Workspace'), findsOneWidget);
-      expect(
-        tooltip('Visible to the workspace · 3 people'),
-        findsOneWidget,
-      );
+      expect(tooltip('Visible to the workspace · 3 people'), findsOneWidget);
 
       await pumpRow(tester, const Audience('groups', ['hr', 'svc']));
       expect(find.text('HR'), findsOneWidget);
       expect(find.text('Service'), findsOneWidget);
-      expect(
-        tooltip('Visible to HR and Service · 3 people'),
-        findsOneWidget,
-      );
+      expect(tooltip('Visible to HR and Service · 3 people'), findsOneWidget);
     });
 
     testWidgets('more than two groups end in a count', (tester) async {
@@ -198,10 +189,7 @@ void main() {
     ) async {
       await pumpRow(tester, const Audience('workspace'), width: 390);
       expect(find.text('Workspace'), findsNothing);
-      expect(
-        tooltip('Visible to the workspace · 3 people'),
-        findsOneWidget,
-      );
+      expect(tooltip('Visible to the workspace · 3 people'), findsOneWidget);
     });
 
     testWidgets('a narrow list on a wide window shows only the icon', (
@@ -234,10 +222,7 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.text('HR'), findsNothing);
-      expect(
-        tooltip('Visible to HR and Service · 3 people'),
-        findsOneWidget,
-      );
+      expect(tooltip('Visible to HR and Service · 3 people'), findsOneWidget);
     });
 
     testWidgets('a workspace of one shows no Private tag', (tester) async {
@@ -259,6 +244,5 @@ void main() {
 
 /// `find.byTooltip` knows only Flutter's own Tooltip, and the tag's leaves
 /// the semantics to its label, so the message is matched on the widget.
-Finder tooltip(String message) => find.byWidgetPredicate(
-  (w) => w is Tooltip && w.message == message,
-);
+Finder tooltip(String message) =>
+    find.byWidgetPredicate((w) => w is Tooltip && w.message == message);

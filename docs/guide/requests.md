@@ -94,6 +94,11 @@ needed. Revoking it at the source revokes it for the requester as well.
 
 ## Responses {#reading-what-came-back}
 
+The list groups open requests by who created them, **Own requests** or a
+connected tool, and then by template. Requests with new responses stay at the
+top; closed requests are folded at the bottom. **Expand** on a request lists
+its responses, one per respondent, with the fields each answered.
+
 **View responses** on a request lists its responses, either as a **List**
 or as a **Sheet** with one row per respondent and one column per field.
 

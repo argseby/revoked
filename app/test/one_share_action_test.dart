@@ -11,12 +11,10 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final cards = {
     // A link's actions live on its detail page; the list only opens it.
-    'shares': File(
-      'lib/features/shares/view/share_detail_screen.dart',
-    ).readAsStringSync(),
-    'requests': File(
-      'lib/features/requests/view/request_detail_screen.dart',
-    ).readAsStringSync(),
+    'shares': File('lib/features/shares/view/share_detail_screen.dart')
+        .readAsStringSync(),
+    'requests': File('lib/features/requests/view/request_detail_screen.dart')
+        .readAsStringSync(),
   };
 
   test('link cards expose exactly one share action', () {

@@ -18,13 +18,9 @@ import 'package:revoked_app/features/shares/view/public_share_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  final vector =
-      jsonDecode(
-            File(
-              'test/fixtures/sealing_link_read_vectors.json',
-            ).readAsStringSync(),
-          )
-          as Map<String, dynamic>;
+  final vector = jsonDecode(
+    File('test/fixtures/sealing_link_read_vectors.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
   final keyText = vector['linkKey'] as String;
   final key = SealedFormats.parseLinkKey(keyText)!;
   final entry = vector['entry'] as Map<String, dynamic>;

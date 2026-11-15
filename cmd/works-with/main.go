@@ -42,14 +42,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
-	entries, problems := LoadEntries(*dir, ParseBlocklist(string(blockedText)))
+	entries, tools, problems := LoadEntries(*dir, ParseBlocklist(string(blockedText)))
 	if len(problems) > 0 {
 		for _, p := range problems {
 			fmt.Fprintln(stderr, p)
 		}
 		return 1
 	}
-	built, err := Build(entries).Encode()
+	built, err := Build(entries, tools...).Encode()
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
@@ -62,7 +62,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "%s is out of date: run go run ./cmd/works-with build\n", *out)
 			return 1
 		}
-		fmt.Fprintf(stdout, "%d entries, catalog up to date\n", len(entries))
+		fmt.Fprintf(stdout, "%d services and %d tools, catalog up to date\n", len(entries), len(tools))
 		return 0
 
 	case "build":
@@ -70,7 +70,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "wrote %s (%d entries)\n", *out, len(entries))
+		fmt.Fprintf(stdout, "wrote %s (%d services, %d tools)\n", *out, len(entries), len(tools))
 		return 0
 
 	case "online":

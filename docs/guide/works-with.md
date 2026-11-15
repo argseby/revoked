@@ -23,6 +23,14 @@ choice and also narrows by category, the access a service may ask for,
 where it runs, its languages and its listing mark. Services already
 connected are listed first and marked **Connected**.
 
+Below the services, **Developer tools** lists packages and programs that
+build on Revoked: the MCP server for AI assistants, the JavaScript SDK and the
+Flutter sign-in button. Each card names the platform and licence, shows the
+install command with a copy button, and links to the documentation, the
+package or releases, and the source. Tools have no page of their own and are
+searched by name and description; a filter that only services have, such as
+category or language, leaves them out.
+
 A service's page shows what it can see, the permissions it may ask for with
 the reason it gives, the records it proposes, who runs it, and links to its
 privacy policy, imprint, source code and security contact. **Open service**

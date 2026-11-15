@@ -47,9 +47,8 @@ void main() {
           MaterialApp(
             theme: AppTheme.build(brightness),
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(scale)),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(scale)),
               child: child!,
             ),
             home: Scaffold(body: page),
@@ -72,8 +71,7 @@ void main() {
         expect(
           heights.length,
           1,
-          reason:
-              'Every settings destination has the same height across categories.',
+          reason: 'Every settings destination has the same height across categories.',
         );
         expect(tester.takeException(), isNull);
       });

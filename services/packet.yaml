@@ -1,0 +1,47 @@
+# Works with Revoked entry. Everything the app and the website show about this
+# service comes from this file and is reviewed in a pull request. The format
+# is described in services/README.md.
+schema: 1
+slug: packet
+origin: https://packet.revoked.link
+name: Packet
+description:
+  en: Documents and details bundled into one packet, with a separate link for each recipient. A changed entry changes behind every link, and one recipient or the whole packet can be revoked.
+  de: Dokumente und Angaben in einem Paket, mit einem eigenen Link für jeden Empfänger. Ein geänderter Eintrag ändert sich hinter jedem Link, und ein Empfänger oder das ganze Paket kann widerrufen werden.
+operator:
+  name: Revoked
+  security: https://github.com/argseby/revoked/security
+privacy_policy: https://revoked.link/privacy
+source: https://github.com/argseby/packet
+self_hostable: true
+languages: [en]
+pricing: free
+categories: [work]
+does: [share, connect]
+permissions:
+  - key: section
+    reason:
+      en: Each packet is kept as a section of its own.
+      de: Jedes Paket wird als eigener Abschnitt geführt.
+  - key: vault:read
+    reason:
+      en: A packet's entries are shown while it is edited.
+      de: Die Einträge eines Pakets werden beim Bearbeiten angezeigt.
+  - key: vault:write
+    reason:
+      en: Entries and files are added and changed in the packet's section.
+      de: Einträge und Dateien werden im Abschnitt des Pakets angelegt und geändert.
+  - key: shares:read
+    reason:
+      en: Each recipient's link shows how often it was opened.
+      de: Der Link jedes Empfängers zeigt, wie oft er geöffnet wurde.
+  - key: shares:manage
+    reason:
+      en: A link is created for each recipient and revoked on request.
+      de: Für jeden Empfänger wird ein Link erstellt und auf Wunsch widerrufen.
+stores:
+  en: Nothing. Packet has no server of its own; its connection stays in the browser tab.
+  de: Nichts. Packet hat keinen eigenen Server; seine Verbindung bleibt im Browser-Tab.
+maintainers: [argseby]
+built_by_revoked: true
+reviewed: 2026-11-15

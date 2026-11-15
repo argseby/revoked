@@ -99,25 +99,24 @@ class _Server {
     if (path == '/api/sealed/state') {
       return _json(
         jsonDecode(
-              jsonEncode({
-                'devices': devices[caller] ?? [],
-                'workspaces': [
-                  for (final ws in members.keys)
-                    if (members[ws]!.containsKey(caller) &&
-                        (epochs[ws] ?? []).isNotEmpty)
-                      {
-                        'workspace': ws,
-                        'epochs': epochs[ws],
-                        'wraps': [
-                          for (final w in wraps)
-                            if (w['workspace'] == ws && w['user'] == caller) w,
-                        ],
-                      },
-                ],
-                'account': null,
-              }),
-            )
-            as Map<String, dynamic>,
+          jsonEncode({
+            'devices': devices[caller] ?? [],
+            'workspaces': [
+              for (final ws in members.keys)
+                if (members[ws]!.containsKey(caller) &&
+                    (epochs[ws] ?? []).isNotEmpty)
+                  {
+                    'workspace': ws,
+                    'epochs': epochs[ws],
+                    'wraps': [
+                      for (final w in wraps)
+                        if (w['workspace'] == ws && w['user'] == caller) w,
+                    ],
+                  },
+            ],
+            'account': null,
+          }),
+        ) as Map<String, dynamic>,
       );
     }
     final membersPath = RegExp(r'^/api/sealed/workspaces/([^/]+)/members$');

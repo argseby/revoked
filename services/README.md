@@ -32,6 +32,37 @@ go run ./cmd/works-with check
 go run ./cmd/works-with online -only <slug>
 ```
 
+## Developer tools
+
+Packages and programs that build on Revoked, such as an SDK or an MCP server,
+are listed under **Developer tools**. They have no address of their own, so
+they carry no origin, proof file, privacy policy or permissions, and the
+online check leaves them out. A tool is a file in the same folder with
+`kind: tool`:
+
+```yaml
+schema: 1
+kind: tool
+slug: example-sdk                   # the file name, without .yaml
+name: Example SDK                   # up to 40 characters
+platform: npm                       # mcp, npm or flutter
+description:                        # up to 280 characters each, both required
+  en: What the tool does, in one or two sentences.
+  de: Was das Werkzeug tut, in ein oder zwei Sätzen.
+install: npm install example-sdk    # optional, one command
+registry: https://www.npmjs.com/package/example-sdk   # optional
+docs: https://docs.example.org      # optional
+source: https://github.com/example/sdk
+license: MIT                        # AGPL-3.0, Apache-2.0, BSD-3-Clause, GPL-3.0, MIT or MPL-2.0
+does: [share]                       # optional: share, collect, prove, sign_in, connect
+maintainers: [github-account]
+built_by_revoked: false             # only for sources under github.com/argseby/
+reviewed: 2026-11-15
+```
+
+The catalog lists tools in their own `tools` array beside `services`, so an
+app that knows only services reads it unchanged.
+
 ## Verified and unverified
 
 A listing without a proof file is shown as **Unverified**: reviewed, but not

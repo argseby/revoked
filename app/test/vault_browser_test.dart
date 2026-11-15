@@ -31,6 +31,9 @@ class _Server {
   bool withSignIn = false;
   bool withRequest = false;
 
+  /// Adds a record a connected tool wrote, in no section.
+  bool withTool = false;
+
   Future<http.Response> handle(http.Request request) async {
     final path = request.url.path;
     if (path == '/api/collections/records/records') {
@@ -56,6 +59,19 @@ class _Server {
             'user': _me,
             'workspace': _workspace,
           },
+          if (withTool)
+            {
+              'id': 'record00000tool',
+              'key': 'meeting',
+              'value': 'notes',
+              'label': 'Meeting summary',
+              'type': 'text',
+              'format': 'default',
+              'user': _me,
+              'workspace': _workspace,
+              'writtenBy': 'conn0000claude1',
+              'writtenByName': 'Claude Desktop',
+            },
         ],
       });
     }
@@ -138,6 +154,7 @@ Future<_Server> _pump(
   WidgetTester tester, {
   bool withSignIn = false,
   bool withRequest = false,
+  bool withTool = false,
   double width = 1400,
   double textScale = 1,
 }) async {
@@ -145,7 +162,8 @@ Future<_Server> _pump(
   FlutterSecureStorage.setMockInitialValues({});
   final server = _Server()
     ..withSignIn = withSignIn
-    ..withRequest = withRequest;
+    ..withRequest = withRequest
+    ..withTool = withTool;
   await Stores.init(httpClient: MockClient(server.handle));
   runInAction(
     () => Stores.auth.currentUser = User.fromJson({
@@ -303,6 +321,92 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Read by Notfallkarte'), findsOneWidget);
+  });
+
+  testWidgets('the tree groups sections and loose records by their writer', (
+    tester,
+  ) async {
+    await _pump(tester, withTool: true);
+    runInAction(
+      () => Stores.connections.connections = ObservableList.of([
+        const Connection(
+          id: 'conn0000claude1',
+          clientId: 'https://claude.example',
+          clientName: 'Claude Desktop',
+          vaultAccess: 'write',
+          section: 'section0000mine',
+        ),
+      ]),
+    );
+    await tester.pumpAndSettle();
+    final own = find.byKey(const ValueKey('vault-source-own'));
+    final tool = find.byKey(const ValueKey('vault-source-conn0000claude1'));
+    final members = find.byKey(const ValueKey('vault-source-members'));
+    expect(own, findsOneWidget);
+    expect(tool, findsOneWidget);
+    expect(members, findsOneWidget);
+    double top(Finder f) => tester.getRect(f).top;
+    final mine = find.byKey(const ValueKey('vault-section-section0000mine'));
+    final toolLoose = find.byKey(
+      const ValueKey('vault-unsorted-conn0000claude1'),
+    );
+    final ownLoose = find.byKey(const ValueKey('vault-unsorted-own'));
+    // Own first, the tool's branch below it, the members' last.
+    expect(top(ownLoose), lessThan(top(tool)));
+    expect(top(tool), lessThan(top(mine)));
+    expect(top(mine), lessThan(top(toolLoose)));
+    expect(top(toolLoose), lessThan(top(members)));
+
+    await tester.tap(toolLoose);
+    await tester.pumpAndSettle();
+    expect(find.text('Meeting summary'), findsOneWidget);
+    expect(find.text('Loose note'), findsNothing);
+
+    await tester.tap(tool);
+    await tester.pumpAndSettle();
+    expect(mine, findsNothing);
+    expect(toolLoose, findsNothing);
+  });
+
+  testWidgets('a folded source stays folded when the vault is opened again', (
+    tester,
+  ) async {
+    await _pump(tester);
+    final mine = find.byKey(const ValueKey('vault-section-section0000mine'));
+    expect(mine, findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('vault-source-own')));
+    await tester.pumpAndSettle();
+    expect(mine, findsNothing);
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(Brightness.light),
+        home: const Scaffold(body: VaultScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('vault-source-own')), findsOneWidget);
+    expect(mine, findsNothing);
+  });
+
+  testWidgets('on a phone a section opens under its own row', (tester) async {
+    await _pump(tester, width: 375);
+    expect(find.text('My PIN'), findsNothing);
+    expect(find.text('Loose note'), findsNothing);
+    final mine = find.byKey(const ValueKey('vault-section-section0000mine'));
+    await tester.tap(mine);
+    await tester.pumpAndSettle();
+    final pin = find.text('My PIN');
+    expect(pin, findsOneWidget);
+    final next = find.byKey(const ValueKey('vault-unsorted-own'));
+    expect(tester.getRect(pin).top, greaterThan(tester.getRect(mine).bottom));
+    expect(tester.getRect(pin).bottom, lessThan(tester.getRect(next).top));
+
+    await tester.tap(mine);
+    await tester.pumpAndSettle();
+    expect(find.text('My PIN'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a section from a sign-in says so in the pane and title', (

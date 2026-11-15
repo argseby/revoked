@@ -1,0 +1,20 @@
+# Works with Revoked entry for a developer tool: no origin of its own, listed
+# by where its code and releases live. The format is described in
+# services/README.md.
+schema: 1
+kind: tool
+slug: revoked-js
+name: Revoked JavaScript SDK
+platform: npm
+description:
+  en: A typed client for the Revoked API on Node, Deno, Bun, edge runtimes and browsers, covering shares, requests, the vault, webhooks, identities and connected tools.
+  de: Ein typisierter Client für die Revoked-API in Node, Deno, Bun, Edge-Laufzeiten und Browsern, für Freigaben, Anfragen, den Tresor, Webhooks, Identitäten und verbundene Werkzeuge.
+install: npm install @kiunke.dev/revoked
+registry: https://www.npmjs.com/package/@kiunke.dev/revoked
+docs: https://docs.revoked.link/api/sdk/
+source: https://github.com/argseby/revoked/tree/main/packages/revoked-js
+license: MPL-2.0
+does: [share, collect, prove, connect]
+maintainers: [argseby]
+built_by_revoked: true
+reviewed: 2026-11-15

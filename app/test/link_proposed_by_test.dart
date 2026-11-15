@@ -26,17 +26,15 @@ void main() {
     expect(link.isFromTool, isTrue);
     expect(link.proposedByHost, 'notfallkarte.example');
     expect(
-      Link.fromJson(
-        json({'proposedBy': 'http://localhost:5173'}),
-      ).proposedByHost,
+      Link.fromJson(json({'proposedBy': 'http://localhost:5173'}))
+          .proposedByHost,
       'localhost:5173',
     );
   });
 
   test('the links list shows where a link came from', () {
-    final screen = File(
-      'lib/features/shares/view/shares_screen.dart',
-    ).readAsStringSync();
+    final screen = File('lib/features/shares/view/shares_screen.dart')
+        .readAsStringSync();
     expect(screen, contains('share.isFromTool'));
     expect(screen, contains('share.proposedByHost'));
   });

@@ -289,9 +289,8 @@ void main() {
           MaterialApp(
             theme: AppTheme.build(brightness),
             builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: const TextScaler.linear(1.75)),
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(1.75)),
               child: child!,
             ),
             home: Scaffold(

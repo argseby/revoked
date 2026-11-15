@@ -65,9 +65,9 @@ void main() {
       final dialog = tester.widget<AlertDialog>(find.byType(AlertDialog));
       final resolved =
           dialog.backgroundColor ??
-          Theme.of(
-            tester.element(find.byType(AlertDialog)),
-          ).dialogTheme.backgroundColor;
+          Theme.of(tester.element(find.byType(AlertDialog)))
+              .dialogTheme
+              .backgroundColor;
       expect(resolved, page);
     });
   }

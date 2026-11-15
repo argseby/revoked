@@ -10,15 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 /// TrustClaimBadge for inline claims) — the same fact must never read
 /// differently on two screens.
 void main() {
-  final request = File(
-    'lib/features/requests/view/public_request_screen.dart',
-  ).readAsStringSync();
-  final share = File(
-    'lib/features/shares/view/public_share_screen.dart',
-  ).readAsStringSync();
-  final linkSheet = File(
-    'lib/features/shell/view/link_search_sheet.dart',
-  ).readAsStringSync();
+  final request = File('lib/features/requests/view/public_request_screen.dart')
+      .readAsStringSync();
+  final share = File('lib/features/shares/view/public_share_screen.dart')
+      .readAsStringSync();
+  final linkSheet = File('lib/features/shell/view/link_search_sheet.dart')
+      .readAsStringSync();
   final panel = File('lib/core/widgets/trust_panel.dart').readAsStringSync();
 
   test('every trust surface renders through TrustPanel', () {
@@ -96,12 +93,10 @@ void main() {
   });
 
   test('inline domain claims go through TrustClaimText/Badge only', () {
-    final picker = File(
-      'lib/core/widgets/identity_picker.dart',
-    ).readAsStringSync();
-    final settings = File(
-      'lib/features/settings/view/settings_pages.dart',
-    ).readAsStringSync();
+    final picker = File('lib/core/widgets/identity_picker.dart')
+        .readAsStringSync();
+    final settings = File('lib/features/settings/view/settings_pages.dart')
+        .readAsStringSync();
     expect(picker, contains('TrustClaimText('));
     expect(settings, contains('TrustClaimBadge('));
     for (final (name, source) in [('picker', picker), ('settings', settings)]) {

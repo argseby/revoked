@@ -51,6 +51,8 @@ abstract class _WorksWithStore with Store {
 
   List<WorksWithService> get services => catalog.services;
 
+  List<WorksWithTool> get tools => catalog.tools;
+
   WorksWithService? forOrigin(String origin) => catalog.forOrigin(origin);
 
   WorksWithService? bySlug(String slug) => catalog.bySlug(slug);

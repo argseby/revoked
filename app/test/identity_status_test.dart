@@ -139,9 +139,9 @@ void main() {
     // change the answer — and it breaks the signature.
     test('refuses a payload rewritten to say active', () {
       final revoked = assertionFor('revoked');
-      final body =
-          jsonDecode(utf8.decode(revoked.signedBytes()!))
-              as Map<String, dynamic>;
+      final body = jsonDecode(
+        utf8.decode(revoked.signedBytes()!),
+      ) as Map<String, dynamic>;
       body['status'] = 'active';
 
       final forged = IdentityStatusAssertion(
