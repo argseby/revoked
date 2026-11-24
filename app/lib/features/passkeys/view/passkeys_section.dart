@@ -10,6 +10,7 @@ import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
@@ -140,10 +141,14 @@ class _PasskeysSectionState extends State<PasskeysSection>
                   child: AppListSkeleton(embedded: true),
                 )
               else if (store.passkeys.isEmpty)
-                AppDetailRow(
-                  icon: AppIcons.info,
-                  label: store.errorMessage ?? 'No passkeys',
-                )
+                if (store.errorMessage case final message?)
+                  AppDetailRow(icon: AppIcons.info, label: message)
+                else
+                  const AppEmptyState(
+                    icon: AppIcons.key,
+                    title: 'No passkeys',
+                    subtitle: 'Add a passkey to sign in on this device.',
+                  )
               else
                 for (final p in store.passkeys)
                   _row(p, only: store.passkeys.length == 1),

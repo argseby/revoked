@@ -35,6 +35,7 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/attestations/view/attestations_section.dart';
 import 'package:revoked_app/features/connections/view/access_summary.dart';
 import 'package:revoked_app/features/connections/view/day_label.dart';
+import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/features/connections/view/sign_ins_section.dart';
 import 'package:revoked_app/features/connections/view/tool_permissions.dart';
 import 'package:revoked_app/features/requests/view/request_groups.dart';
@@ -165,7 +166,8 @@ class ConnectionsList extends StatelessWidget {
     ];
     return [
       toolAccessSummary(c),
-      if (parts.isEmpty) 'No links yet' else ...parts,
+      if (store.detailsLoadState.hasLoaded)
+        if (parts.isEmpty) 'No links yet' else ...parts,
       'last used ${dayLabel(c.lastUsedAt)}',
     ].join(' · ');
   }
@@ -201,8 +203,8 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ShellSlots.title.claim(_title);
-      // Opened straight from a link, the list has not loaded anything yet.
-      if (Stores.connections.connections.isEmpty) Stores.connections.load();
+      // A connection summary may already be cached without its outputs.
+      Stores.connections.loadDetailsIfDue();
       // Permissions are named from the catalogue, sections from the vault.
       Stores.invites.loadCatalogue();
       Stores.vault.loadIfDue();
@@ -418,6 +420,9 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
         ),
       );
     }
+    if (store.isLoading && !store.detailsLoadState.hasLoaded) {
+      return const AppListSkeleton();
+    }
     final links = store.linksByConnection[connection.id] ?? const <Link>[];
     final requests =
         store.requestsByConnection[connection.id] ?? const <DataRequest>[];
@@ -537,19 +542,22 @@ class _ConnectedToolPageState extends State<ConnectedToolPage> {
                 _sectionName(section),
           ],
         ),
-        AppListGroup(
-          title: 'Links from ${connection.name}',
-          noun: 'links',
-          previewCount: 5,
-          children: links.isEmpty
-              ? const [
-                  AppDetailRow(
-                    icon: AppIcons.info,
-                    label: 'No links from this tool',
-                  ),
-                ]
-              : [for (final link in links) _linkRow(link)],
-        ),
+        if (store.detailsLoadState.error != null)
+          AppRefreshFailed(onRetry: store.load),
+        if (links.isNotEmpty || store.detailsLoadState.hasLoaded)
+          AppListGroup(
+            title: 'Links from ${connection.name}',
+            noun: 'links',
+            previewCount: 5,
+            children: links.isEmpty
+                ? const [
+                    AppDetailRow(
+                      icon: AppIcons.info,
+                      label: 'No links from this tool',
+                    ),
+                  ]
+                : [for (final link in links) _linkRow(link)],
+          ),
         if (requests.isNotEmpty)
           AppListGroup(
             title: 'Requests from ${connection.name}',

@@ -15,6 +15,7 @@ class AppTreeRow extends StatelessWidget {
   final int depth;
   final IconData icon;
   final String title;
+  final int titleMaxLines;
   final String? subtitle;
   final Widget? subtitleWidget;
   final Widget? trailing;
@@ -39,6 +40,7 @@ class AppTreeRow extends StatelessWidget {
     this.depth = 0,
     required this.icon,
     required this.title,
+    this.titleMaxLines = 1,
     this.subtitle,
     this.subtitleWidget,
     this.trailing,
@@ -55,50 +57,57 @@ class AppTreeRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final open = expanded;
-    final chevron = open == true ? AppIcons.chevronDown : AppIcons.chevronRight;
-    final fold = open == null
-        ? null
-        : onTap == null
-        ? Icon(
-            chevron,
-            size: 18,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          )
-        : AppButton(
-            icon: chevron,
-            tooltip: open ? 'Collapse' : 'Expand',
-            style: AppButtonStyle.accent,
-            size: AppButtonSize.small,
-            onTap: onToggle,
-          );
+    final arrowColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final arrow = switch ((open, onTap != null)) {
+      (null, true) when showChevron => SizedBox(
+        width: AppButton.smallExtent,
+        child: Icon(AppIcons.chevronRight, size: 16, color: arrowColor),
+      ),
+      (final bool isOpen, true) => AppButton(
+        icon: isOpen ? AppIcons.chevronUp : AppIcons.chevronDown,
+        tooltip: isOpen ? 'Collapse' : 'Expand',
+        style: AppButtonStyle.ghost,
+        size: AppButtonSize.small,
+        onTap: onToggle,
+      ),
+      (final bool isOpen, false) => Icon(
+        isOpen ? AppIcons.chevronDown : AppIcons.chevronRight,
+        size: 18,
+        color: arrowColor,
+      ),
+      _ => null,
+    };
     Widget row(Widget? end) => AppListRow(
       icon: icon,
       title: title,
+      titleMaxLines: titleMaxLines,
       subtitle: subtitle,
       subtitleWidget: subtitleWidget,
       trailing: end,
       audience: audience,
       accent: accent,
       selected: selected,
-      showChevron: showChevron && open == null,
+      showChevron: false,
       onTap: onTap ?? onToggle,
       contextActions: contextActions,
     );
     final t = trailing;
     return Padding(
       padding: EdgeInsets.only(left: AppSpacing.xl * depth),
-      child: t == null || fold == null
-          ? row(t ?? fold)
+      child: t == null || arrow == null
+          ? row(t ?? arrow)
           // Beside the fold button a badge gives way on a row too narrow
           // for both, as on a small phone with enlarged text.
           : LayoutBuilder(
               builder: (context, box) {
                 final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-                if (box.maxWidth / scale < 240) return row(fold);
+                if (open != null && box.maxWidth / scale < 240) {
+                  return row(arrow);
+                }
                 return row(
                   Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: [t, AppSpacing.gapXs, fold],
+                    children: [t, AppSpacing.gapXs, arrow],
                   ),
                 );
               },

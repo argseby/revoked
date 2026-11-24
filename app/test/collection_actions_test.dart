@@ -109,7 +109,7 @@ void main() {
     for (final status in ['empty', 'loading', 'error']) {
       for (final small in [true, false]) {
         testWidgets(
-          '${screen.name} keeps one header action when $status on ${small ? 'phone' : 'desktop'}',
+          '${screen.name} keeps one primary action when $status on ${small ? 'phone' : 'desktop'}',
           (tester) async {
             tester.view.physicalSize = small
                 ? const Size(320, 800)
@@ -144,14 +144,28 @@ void main() {
             }
             await tester.pumpAndSettle();
             final action = find.text(screen.action);
+            // A phone names these places in the top bar and floats their
+            // create button there, outside the page.
+            if (small && _floatsOnPhone.contains(screen.name)) {
+              expect(action, findsNothing);
+              expect(tester.takeException(), isNull);
+              return;
+            }
             expect(action, findsOneWidget);
-            expect(
-              find.ancestor(
-                of: action,
-                matching: find.byType(AppCollectionHeader),
-              ),
-              findsOneWidget,
-            );
+            if (screen.name == 'shares' || screen.name == 'requests') {
+              expect(
+                tester.getRect(action).bottom,
+                lessThan(tester.getRect(find.text('Sent')).top),
+              );
+            } else {
+              expect(
+                find.ancestor(
+                  of: action,
+                  matching: find.byType(AppCollectionHeader),
+                ),
+                findsOneWidget,
+              );
+            }
             expect(
               tester.getRect(action).bottom,
               lessThan(tester.view.physicalSize.height),
@@ -172,3 +186,12 @@ void main() {
     }
   }
 }
+
+const _floatsOnPhone = {
+  'vault',
+  'shares',
+  'requests',
+  'contacts',
+  'received shares',
+  'received requests',
+};

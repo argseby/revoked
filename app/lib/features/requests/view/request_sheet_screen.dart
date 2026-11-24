@@ -284,7 +284,7 @@ class _RequestSheetScreenState extends State<RequestSheetScreen> {
                 return const AppEmptyState(
                   icon: AppIcons.cardList,
                   title: 'No responses',
-                  subtitle: 'Each response appears here as a row.',
+                  subtitle: 'Responses appear here after someone submits this request.',
                 );
               }
               return Padding(

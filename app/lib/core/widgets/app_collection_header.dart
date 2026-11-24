@@ -12,6 +12,9 @@ class AppCollectionHeader extends StatelessWidget {
   final String? description;
   final Widget? action;
 
+  /// A destination's own title: large, and left to the top bar on a phone.
+  final bool prominent;
+
   /// A sub-page's way back, beside its title instead of in the top bar.
   final VoidCallback? onBack;
 
@@ -20,11 +23,12 @@ class AppCollectionHeader extends StatelessWidget {
     required this.title,
     this.description,
     this.action,
+    this.prominent = false,
     this.onBack,
   });
 
   Widget _title() {
-    final text = AppText(title).header;
+    final text = prominent ? AppText(title).title : AppText(title).header;
     if (onBack == null) return text;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -42,7 +46,15 @@ class AppCollectionHeader extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) {
+    // A phone names a destination in its top bar and floats its action.
+    if (prominent && AppSpacing.isNarrow(context)) {
+      return const SizedBox.shrink();
+    }
+    return _header();
+  }
+
+  Widget _header() => Padding(
     padding: const EdgeInsets.only(bottom: AppSpacing.md),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

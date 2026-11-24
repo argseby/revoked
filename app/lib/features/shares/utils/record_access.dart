@@ -116,8 +116,109 @@ List<RecordAccess> accessForRecord(
     }
   }
 
+  return _sortAccess(result.values);
+}
+
+/// Indexes the open-link relationships once for lists that show many records.
+class OpenRecordAccessIndex {
+  final _byCarrier = <String, List<RecordAccess>>{};
+  final _aliases = <String, Map<String, String>>{};
+  final _sealed = <String>{};
+  final _counts = <String, int>{};
+
+  OpenRecordAccessIndex({
+    required Iterable<Link> links,
+    required Iterable<Section> sections,
+    required Iterable<models.Record> records,
+  }) {
+    final byId = <String, (int, Section)>{
+      for (final (i, section) in sections.indexed) section.id: (i, section),
+    };
+    for (final record in records) {
+      if (record.sealed) _sealed.add(record.id);
+      if (record.aliasOf case final target? when target.isNotEmpty) {
+        (_aliases[target] ??= {})[record.id] = _recordName(record);
+      }
+    }
+
+    for (final link in links) {
+      if (link.status != 'active') continue;
+      final kind = accessKindOf(link);
+      final direct = link.records.toSet();
+      final directAccess = RecordAccess(link: link, kind: kind);
+      for (final id in direct) {
+        (_byCarrier[id] ??= []).add(directAccess);
+      }
+
+      // When multiple sections on the same link carry a record, use the
+      // first in vault order, as the single-record view does.
+      final linkedSections = [for (final id in link.sections) ?byId[id]]
+        ..sort((a, b) => a.$1.compareTo(b.$1));
+      for (final (_, section) in linkedSections) {
+        final access = RecordAccess(
+          link: link,
+          kind: kind,
+          viaSection: _sectionName(section),
+        );
+        for (final id in section.records) {
+          if (direct.add(id)) (_byCarrier[id] ??= []).add(access);
+        }
+      }
+    }
+  }
+
+  int countFor(String recordId) =>
+      _counts.putIfAbsent(recordId, () => _accessByLink(recordId).length);
+
+  Map<String, (RecordAccess, String?)> _accessByLink(String recordId) {
+    final encrypted = _sealed.contains(recordId);
+    final result = <String, (RecordAccess, String?)>{};
+    final carriers = <String, String?>{
+      recordId: null,
+      if (!encrypted) ...?_aliases[recordId],
+    };
+    for (final MapEntry(key: carrier, value: alias) in carriers.entries) {
+      for (final access in _byCarrier[carrier] ?? const <RecordAccess>[]) {
+        if (encrypted && access.viaSection != null) continue;
+        result.putIfAbsent(access.link.id, () => (access, alias));
+      }
+    }
+    return result;
+  }
+
+  List<(models.Record, List<RecordAccess>)> sharedRecords(
+    Iterable<models.Record> records,
+  ) {
+    final rows = <(models.Record, List<RecordAccess>)>[];
+    for (final record in records) {
+      if (record.isAlias) continue;
+      final access = _accessByLink(record.id);
+      if (access.isEmpty) continue;
+      rows.add((
+        record,
+        _sortAccess(
+          access.values.map((item) {
+            final (entry, alias) = item;
+            return alias == null
+                ? entry
+                : RecordAccess(
+                    link: entry.link,
+                    kind: entry.kind,
+                    viaSection: entry.viaSection,
+                    viaAlias: alias,
+                  );
+          }),
+        ),
+      ));
+    }
+    rows.sort((a, b) => b.$2.length.compareTo(a.$2.length));
+    return rows;
+  }
+}
+
+List<RecordAccess> _sortAccess(Iterable<RecordAccess> access) {
   // Open first, newest first; ties keep the order they were found in.
-  final found = result.values.toList();
+  final found = access.toList();
   final order = {for (final (i, a) in found.indexed) a.link.id: i};
   return found..sort((a, b) {
     if (a.isOpen != b.isOpen) return a.isOpen ? -1 : 1;
@@ -135,19 +236,9 @@ List<(models.Record, List<RecordAccess>)> openAccessByRecord({
   required Iterable<Section> sections,
   required Iterable<models.Record> records,
 }) {
-  final open = links.where((l) => l.status == 'active').toList();
-  final rows = <(models.Record, List<RecordAccess>)>[];
-  for (final r in records) {
-    // An alias is listed under the record whose value it forwards.
-    if (r.isAlias) continue;
-    final access = accessForRecord(
-      r.id,
-      links: open,
-      sections: sections,
-      records: records,
-    );
-    if (access.isNotEmpty) rows.add((r, access));
-  }
-  rows.sort((a, b) => b.$2.length.compareTo(a.$2.length));
-  return rows;
+  return OpenRecordAccessIndex(
+    links: links,
+    sections: sections,
+    records: records,
+  ).sharedRecords(records);
 }

@@ -56,10 +56,12 @@ workspace. See [Workspaces & members](workspaces.md).
 ## Navigation
 
 **New**, at the top of the sidebar, creates any item: a record, a file, a
-share link, a request, an attestation. On a phone it floats in the corner,
-and the bottom bar holds four destinations, with the rest under **More**
-beside **Settings**. Pages such as **API keys** or **Webhooks** create
-their items in place, without a drawer.
+share link, a request, an attestation. On a phone it is **Create something
+new** under **More**, and the bottom bar holds four destinations, with the
+rest under **More** beside **Settings**. Each page also has its own create
+button beside its title, such as **New link** or **New contact**. Pages such
+as **API keys** or **Webhooks** create their items in place, without a
+drawer.
 
 Only features enabled under **Settings → Features**, and permitted by the
 workspace, are shown. Enabling **Developer** there shows the API request

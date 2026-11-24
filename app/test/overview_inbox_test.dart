@@ -200,6 +200,34 @@ void main() {
   });
 
   group('recentItems', () {
+    test('groups responses by request before sorting and limiting rows', () {
+      final newest = now.subtract(const Duration(minutes: 2));
+      final items = recentItems(
+        records: const [],
+        sections: const [],
+        links: const [],
+        notifications: [
+          answer('old', 'r1', at: now.subtract(const Duration(days: 1))),
+          answer('new', 'r1', at: newest, read: true),
+          answer('other', 'r2', at: now.subtract(const Duration(minutes: 3))),
+          answer('unlinked1', '', at: now.subtract(const Duration(minutes: 4))),
+          answer('unlinked2', '', at: now.subtract(const Duration(minutes: 5))),
+        ],
+        requests: [request('r1', 'Payroll'), request('r2', 'Tenant details')],
+        limit: 4,
+      );
+
+      expect(items.map((item) => item.title), [
+        'Payroll',
+        'Tenant details',
+        'New response',
+        'New response',
+      ]);
+      expect(items.first.subtitle, '2 responses received');
+      expect(items.first.at.isAtSameMomentAs(newest), isTrue);
+      expect(items.first.route, AppRoutes.requestDetailFor('r1'));
+    });
+
     test('mixes records, links and answers newest first', () {
       final items = recentItems(
         records: [

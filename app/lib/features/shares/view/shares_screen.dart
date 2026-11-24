@@ -1,7 +1,6 @@
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/state/tree_folds_store.dart';
-import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/features/shares/view/share_actions.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -9,8 +8,12 @@ import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
+import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/features/shares/view/access_overview.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/models/link.dart';
@@ -35,7 +38,6 @@ import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
 
 class SharesScreen extends StatefulWidget {
@@ -121,7 +123,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     Stores.vault.loadIfDue();
     Stores.identities.loadIfDue();
     // A tool's links are grouped under the tool's own name.
-    if (Stores.connections.connections.isEmpty) Stores.connections.load();
+    Stores.connections.loadSummariesIfDue();
   }
 
   @override
@@ -132,22 +134,17 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
 
   @override
   Widget build(BuildContext context) {
-    // Access by record moved to the record pages and the Overview. The same
-    // two tabs as Requests: what this account gave, and what it was given.
+    // The same two tabs as Requests: what this account gave and received.
     return AppTabs(
+      title: 'Your sharing',
+      action: const PageActionButton(AppRoutes.shared),
       initialIndex: widget.initialTab,
       tabs: [
+        AppTab(label: 'Sent', icon: AppIcons.send, view: _sent(context)),
         AppTab(
-          label: 'Sent',
-          icon: AppIcons.send,
-          description: 'Links you shared with others.',
-          view: _sent(context),
-        ),
-        const AppTab(
           label: 'Received',
           icon: AppIcons.bookmark,
-          description: 'Items others shared with you.',
-          view: BookmarksTab(kind: BookmarkKind.share),
+          view: const BookmarksTab(kind: BookmarkKind.share, showHeader: false),
         ),
       ],
     );
@@ -222,6 +219,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     query: _table.query,
     onQueryChanged: _table.setQuery,
     searchHint: 'Search links',
+    searchFirst: true,
     sections: _filterSections,
     onClearFilters: _clearFilters,
     sort: () => _table.sortBy,
@@ -256,6 +254,10 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     for (final l in matches) {
       counts[linkGroup(l, now)] = counts[linkGroup(l, now)]! + 1;
     }
+    int countFor(LinkGroup group) =>
+        counts[group]! +
+        (group == LinkGroup.active ? counts[LinkGroup.attention]! : 0);
+    final canFilterMembers = Stores.shares.sharedShares.isNotEmpty;
     final people = groupByRecipient(links)
       ..sort(
         (a, b) =>
@@ -272,16 +274,15 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               : ({..._statuses.value}..remove(g));
         },
         items: [
-          for (final g in LinkGroup.values.where(
-            (g) => g != LinkGroup.attention,
-          ))
-            AppChecklistItem(
-              id: g.name,
-              label: _groupTitles[g]!,
-              count:
-                  counts[g]! +
-                  (g == LinkGroup.active ? counts[LinkGroup.attention]! : 0),
-            ),
+          for (final g in LinkGroup.values)
+            if (_statuses.value.contains(g) ||
+                (countFor(g) > 0 &&
+                    (countFor(g) < matches.length || canFilterMembers)))
+              AppChecklistItem(
+                id: g.name,
+                label: _groupTitles[g]!,
+                count: countFor(g),
+              ),
         ],
       ),
       if (people.isNotEmpty || _people.value.isNotEmpty)
@@ -339,17 +340,11 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     return Observer(
       builder: (_) {
         if (store.loadState.isFirstLoad && store.shares.isEmpty) {
-          return AppPageBody(
-            children: [
-              _collectionHeader(context),
-              const AppListSkeleton(embedded: true),
-            ],
-          );
+          return AppPageBody(children: [const AppListSkeleton(embedded: true)]);
         }
 
         // Nothing to list has nothing to search, so no Search and filter.
-        Widget bare(Widget child) =>
-            AppPageBody(children: [_collectionHeader(context), child]);
+        Widget bare(Widget child) => AppPageBody(children: [child]);
         if (store.shares.isEmpty &&
             store.sharedShares.isEmpty &&
             store.loadState.error != null) {
@@ -404,17 +399,20 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         final people = _people.value;
         final audiences = _audiences.value;
         final recipient = _singlePerson();
-        final matches = _table.filteredItems
-            .where(
-              (l) =>
-                  (statuses.isEmpty ||
-                      statuses.contains(linkGroup(l, now)) ||
-                      (statuses.contains(LinkGroup.active) &&
-                          linkGroup(l, now) == LinkGroup.attention)) &&
-                  (people.isEmpty || people.contains(_personKey(l.label))) &&
-                  audienceMatches(audiences, [_audienceOf(l)]),
-            )
-            .toList();
+        final matches = <Link>[];
+        for (final link in _table.filteredItems) {
+          if ((people.isNotEmpty && !people.contains(_personKey(link.label))) ||
+              !audienceMatches(audiences, [_audienceOf(link)])) {
+            continue;
+          }
+          final group = linkGroup(link, now);
+          if (statuses.isEmpty ||
+              statuses.contains(group) ||
+              (group == LinkGroup.attention &&
+                  statuses.contains(LinkGroup.active))) {
+            matches.add(link);
+          }
+        }
         final sharedShown = store.sharedShares
             .where((l) => audienceMatches(audiences, [_audienceOf(l)]))
             .toList();
@@ -428,7 +426,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               share: l,
               selected: l.id == widget.selectedId,
               attention: linkAttention(l, now),
-              showStatus: status || l.status != 'active',
+              showStatus: status,
               expanded: _LinkContents.of(l).isEmpty ? null : _open(l.id),
               onToggle: () => _toggle(l.id),
               onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
@@ -453,7 +451,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
             title: c.name,
             noun: 'links',
             previewCount: links.any((l) => _open(l.id)) ? 0 : 5,
-            children: rowsOf(links, status: false),
+            children: rowsOf(links, status: true),
           );
         }
 
@@ -497,7 +495,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
 
         return _sharingPage(
           context,
-          now: now,
           toolbar: _toolbar(),
           banners: [
             if (store.loadState.error != null)
@@ -558,40 +555,53 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     );
   }
 
-  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
-    title: widget.selectedId != null ? 'Your links' : 'Your sharing',
-    description: widget.selectedId != null
-        ? 'Choose a link to manage its access.'
-        : 'Share information from your vault with others',
-    action: AppButton(
-      icon: AppIcons.plus,
-      label: 'New link',
-      onTap: () => openShareCreateSheet(context: context),
+  /// The same links seen from the records they expose.
+  Widget _accessByRecord(BuildContext context) => AppCard(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    onTap: () => showAppSheet<void>(
+      context: context,
+      dismissible: true,
+      builder: (_) => const AccessOverview(),
+    ),
+    child: Row(
+      children: [
+        const Icon(AppIcons.lock, size: 20),
+        AppSpacing.gapMd,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppText('Access by record').bold,
+              AppText('Which links expose each record').small.muted,
+            ],
+          ),
+        ),
+        const Icon(AppIcons.chevronRight, size: 20),
+      ],
     ),
   );
 
   Widget _sharingPage(
     BuildContext context, {
-    required DateTime now,
     required AppListToolbar toolbar,
     required List<Widget> banners,
     required String? emptyMessage,
     required List<Widget> groups,
   }) {
     return AppPageBody(
-      bottomPadding: AppSpacing.gigantic,
       children: [
-        _collectionHeader(context),
         toolbar,
-        AppSpacing.gapXl,
+        AppSpacing.gapLg,
         for (final banner in banners) ...[banner, AppSpacing.gapLg],
         if (emptyMessage != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
-            child: AppText(emptyMessage).muted,
-          )
+          AppEmptyState.noMatches(title: emptyMessage)
         else
           ...groups,
+        AppSpacing.gapLg,
+        _accessByRecord(context),
       ],
     );
   }
@@ -627,6 +637,7 @@ class _LinkRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final attention = this.attention;
+    final contents = _contentsSummary();
 
     return AppTreeRow(
       key: ValueKey('link-${share.id}'),
@@ -638,15 +649,16 @@ class _LinkRow extends StatelessWidget {
           ? AppIcons.inboxFill
           : AppIcons.link,
       title: share.label.trim().isEmpty ? 'Unnamed link' : share.label,
+      titleMaxLines: 2,
       selected: selected,
       accent: attention != null ? theme.colorScheme.warning : null,
       subtitleWidget: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_contentsSummary().isNotEmpty)
+          if (contents.isNotEmpty)
             AppText(
-              _contentsSummary(),
+              contents,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ).small,
@@ -661,7 +673,7 @@ class _LinkRow extends StatelessWidget {
       trailing: attention != null
           ? AppBadge(label: attention.short, accent: theme.colorScheme.warning)
           : showStatus
-          ? StatusLabel(share.status)
+          ? StatusLabel(share.status, compact: share.status == 'active')
           : null,
       onTap: onTap,
       contextActions: () => shareContextActions(context, share),

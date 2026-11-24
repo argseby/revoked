@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/features/shares/view/share_actions.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:revoked_app/core/utils/dates.dart';
+import 'package:revoked_app/core/utils/deadline.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/core/models/section.dart';
@@ -13,21 +14,18 @@ import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/link.dart';
 import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/router/held_link_keys.dart';
-import 'package:revoked_app/core/crypto/sealed_formats.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
-import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
+import 'package:revoked_app/core/widgets/app_menu_button.dart';
 import 'package:revoked_app/core/widgets/app_detail.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
-import 'package:revoked_app/core/widgets/share_sheet.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_focus_ring.dart';
@@ -90,22 +88,6 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
   bool _mine(Link share) =>
       Stores.auth.userId.isEmpty || share.user == Stores.auth.userId;
 
-  void _openAccess(BuildContext context, Link share) => openAccessSheet(
-    context,
-    area: AccessArea.shares,
-    id: share.id,
-    name: share.label,
-    audienceKind: share.audienceKind,
-    editing: share.editing,
-    save: (kind, editing, groups) => Stores.shares.setShareAudience(
-      share.id,
-      kind: kind,
-      editing: editing,
-      groups: groups,
-    ),
-    saveError: () => Stores.shares.errorMessage,
-  );
-
   void _back() => context.go(AppRoutes.shared);
 
   /// Beside the list in a split there is nothing to go back to: the list
@@ -153,7 +135,6 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         return AppDetailPage(
           header: _header(context, share),
           sections: [
-            _summary(share),
             if (mine) ...[
               _contents(context, share),
               _manage(context, share),
@@ -185,18 +166,9 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
         ? null
         : switch (status) {
             'active' => AppButton(
-              icon: AppIcons.share,
-              label: 'Share link',
-              onTap: () => showShareSheet(
-                context: context,
-                slug: share.slug,
-                title: share.label,
-                isRequest: false,
-                apiTarget: shareApiTarget(share),
-                linkKey: Stores.shares.linkKeyText(share),
-                keyUnreadable:
-                    share.encrypted && Stores.shares.linkKeyText(share) == null,
-              ),
+              icon: AppIcons.copy,
+              label: 'Copy link',
+              onTap: () => _actions.copyLink(share),
             ),
             'paused' => AppButton(
               icon: AppIcons.play,
@@ -234,51 +206,51 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       // The slug is for whoever scripts against it; the label names it.
       subtitle: full ? share.slug : null,
       subtitleMono: true,
+      summary: _summary(share),
       primaryAction: primary,
       secondaryActions: [
-        if (status == 'active')
-          AppButton(
-            icon: AppIcons.eye,
-            tooltip: 'View as recipient',
-            style: AppButtonStyle.accent,
-            onTap: () {
-              final key = Stores.shares.linkKeyText(share);
-              HeldLinkKeys.hold(
-                slug: share.slug,
-                key: key == null ? null : SealedFormats.parseLinkKey(key),
-              );
-              context.push('/s/${share.slug}');
-            },
-          ),
-        if (mine) ...[
-          AppButton(
-            icon: AppIcons.personWorkspace,
-            tooltip: 'Visibility',
-            style: AppButtonStyle.accent,
-            onTap: () => _openAccess(context, share),
-          ),
-          AppButton(
-            icon: AppIcons.pencil,
-            tooltip: 'Edit',
-            style: AppButtonStyle.accent,
-            onTap: () =>
-                openShareCreateSheet(context: context, editShare: share),
-          ),
-          if (status == 'active' || status == 'paused')
-            AppButton(
-              icon: AppIcons.duplicate,
-              tooltip: 'Duplicate',
-              style: AppButtonStyle.accent,
-              onTap: () =>
-                  openShareCreateSheet(context: context, initialShare: share),
-            ),
-        ] else if (editable)
-          AppButton(
-            icon: AppIcons.pencil,
-            tooltip: 'Edit',
-            style: AppButtonStyle.accent,
-            onTap: () =>
-                openShareCreateSheet(context: context, editShare: share),
+        if (status == 'active' || mine || editable)
+          AppMenuButton(
+            icon: AppIcons.threeDots,
+            label: 'More',
+            tooltip: 'More share actions',
+            chevron: false,
+            items: [
+              if (status == 'active') ...[
+                AppMenuItem(
+                  icon: AppIcons.share,
+                  label: 'Share options',
+                  onSelected: () => _actions.shareLink(share),
+                ),
+                AppMenuItem(
+                  icon: AppIcons.eye,
+                  label: 'View as recipient',
+                  onSelected: () => _actions.viewAsRecipient(share),
+                ),
+              ],
+              if (mine)
+                AppMenuItem(
+                  icon: AppIcons.personWorkspace,
+                  label: 'Visibility',
+                  onSelected: () => _actions.visibility(share),
+                ),
+              if (editable)
+                AppMenuItem(
+                  icon: AppIcons.pencil,
+                  label: 'Edit',
+                  onSelected: () =>
+                      openShareCreateSheet(context: context, editShare: share),
+                ),
+              if (mine && (status == 'active' || status == 'paused'))
+                AppMenuItem(
+                  icon: AppIcons.duplicate,
+                  label: 'Duplicate',
+                  onSelected: () => openShareCreateSheet(
+                    context: context,
+                    initialShare: share,
+                  ),
+                ),
+            ],
           ),
       ],
     );
@@ -388,16 +360,15 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     );
   }
 
-  /// The link in one plain sentence: what it gives, and that it can be
-  /// stopped. Said first, for anyone who reads no further.
+  /// What the link gives and who can open it.
   Widget _summary(Link share) {
-    final n = share.records.length + share.sections.length;
-    final what = n == 0
-        ? 'nothing yet'
-        : share.sections.isEmpty
-        ? '${share.records.length} '
-              '${share.records.length == 1 ? 'record' : 'records'}'
-        : 'the records listed below';
+    final records = share.records.length;
+    final sections = share.sections.length;
+    final contents = sections > 0
+        ? '$sections ${sections == 1 ? 'section' : 'sections'} · Records listed below'
+        : records > 0
+        ? '$records ${records == 1 ? 'record' : 'records'}'
+        : 'Nothing selected';
     final requirements = [
       if (share.hasPassword) 'the password',
       if (share.identity?.isNotEmpty == true)
@@ -408,10 +379,13 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
     final audience = requirements.isEmpty
         ? 'Anyone with this link'
         : 'Viewers with this link and ${requirements.join(' and ')}';
+    final expiry = dayTimeOf(share.expiresAt);
     final sentence = switch (share.status) {
-      'active' =>
-        '$audience can see $what, always the latest '
-            'version. Access can be paused or revoked.',
+      'active' when isPastExpiry(share.expiresAt, DateTime.now()) =>
+        'This link has expired and can no longer be opened.',
+      'active' when share.maxViews > 0 && share.viewCount >= share.maxViews =>
+        'This link has used all its views and can no longer be opened.',
+      'active' => '$audience can open the link and view the latest values.',
       'paused' =>
         'This link is paused and cannot be opened until it is activated '
             'again.',
@@ -419,14 +393,18 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
       _ =>
         'This link is permanently revoked. A new link can be created from it.',
     };
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-      child: Text(sentence),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(sentence),
+        AppSpacing.gapXs,
+        AppText('Contents · $contents').small.muted,
+        AppText(expiry == null ? 'No expiry' : 'Expiry · $expiry').small.muted,
+      ],
     );
   }
 
   Widget _access(Link share) {
-    final expires = dayTimeOf(share.expiresAt);
     return AppListGroup(
       title: 'Protection',
       trailing: const SizedBox.shrink(),
@@ -435,11 +413,6 @@ class _ShareDetailScreenState extends State<ShareDetailScreen> {
           icon: AppIcons.lock,
           label: 'Password',
           value: share.hasPassword ? 'On' : 'Off',
-        ),
-        AppDetailRow(
-          icon: AppIcons.clock,
-          label: 'Expires',
-          value: expires ?? 'Never',
         ),
         AppDetailRow(
           icon: AppIcons.eye,

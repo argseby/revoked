@@ -1,4 +1,6 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/core/router/app_router.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/widgets/app_avatar.dart';
@@ -10,7 +12,6 @@ import 'package:revoked_app/core/state/refresh_on_entry.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/access_sheet.dart';
 import 'package:revoked_app/core/widgets/app_badge.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/core/widgets/app_dialog.dart';
 import 'package:revoked_app/core/widgets/app_edit_sheet.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
@@ -21,7 +22,6 @@ import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
-import 'package:revoked_app/features/contacts/view/contact_create_sheet.dart';
 import 'package:revoked_app/features/contacts/view/contact_grant_sheets.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
@@ -239,11 +239,8 @@ class _ContactsScreenState extends State<ContactsScreen> with RefreshOnEntry {
   Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
     title: 'Your contacts',
     description: 'People you share with and ask for information.',
-    action: AppButton(
-      icon: AppIcons.plus,
-      label: 'New contact',
-      onTap: () => openContactCreateSheet(context),
-    ),
+    prominent: true,
+    action: const PageActionButton(AppRoutes.contacts),
   );
 
   Widget _empty(BuildContext context) => AppEmptyState(

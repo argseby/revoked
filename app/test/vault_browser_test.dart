@@ -555,7 +555,18 @@ void main() {
           await tester.ensureVisible(_pane('Office'));
           await tester.tap(_pane('Office'));
           await tester.pumpAndSettle();
-          expect(find.text('Office Wi-Fi'), findsOneWidget);
+          final wifi = find.text('Office Wi-Fi');
+          await tester.scrollUntilVisible(
+            wifi,
+            100,
+            scrollable: find
+                .descendant(
+                  of: find.byType(CustomScrollView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          );
+          expect(wifi, findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );

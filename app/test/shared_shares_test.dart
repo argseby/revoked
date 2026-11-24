@@ -202,8 +202,10 @@ void main() {
 
     expect(find.text('Office access'), findsWidgets);
     expect(find.text('Shared by a member'), findsOneWidget);
-    expect(find.byTooltip('Edit'), findsNothing);
-    expect(find.byTooltip('Visibility'), findsNothing);
+    await tester.tap(find.byTooltip('More share actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit'), findsNothing);
+    expect(find.text('Visibility'), findsNothing);
     expect(find.text('Revoke'), findsNothing);
     expect(find.text('Delete'), findsNothing);
   });
@@ -218,8 +220,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Shared by a member'), findsNothing);
 
+    await tester.tap(find.byTooltip('More share actions'));
+    await tester.pumpAndSettle();
     await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('Visibility'));
+      await tester.tap(find.text('Visibility'));
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
@@ -269,10 +273,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Shared by a member'), findsOneWidget);
-    expect(find.byTooltip('Edit'), findsOneWidget);
     expect(find.text('Pause'), findsWidgets);
+    await tester.tap(find.byTooltip('More share actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit'), findsOneWidget);
     // Who sees it stays its owner's.
-    expect(find.byTooltip('Visibility'), findsNothing);
+    expect(find.text('Visibility'), findsNothing);
   });
 
   testWidgets('an own share is opened to a group', (tester) async {
@@ -281,8 +287,10 @@ void main() {
     await tester.runAsync(Stores.shares.loadShares);
     router.go(AppRoutes.shareDetailFor('share00000000mine'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More share actions'));
+    await tester.pumpAndSettle();
     await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('Visibility'));
+      await tester.tap(find.text('Visibility'));
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });

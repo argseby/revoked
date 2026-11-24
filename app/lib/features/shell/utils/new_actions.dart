@@ -1,7 +1,10 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
+import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
+import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/models/feature.dart';
 import 'package:revoked_app/core/router/app_router.dart';
 import 'package:revoked_app/core/stores.dart';
@@ -261,7 +264,7 @@ PageAction? pageActionFor(String path) {
   final ({NewKind kind, String label})? action = switch (AppRoutes.rootOf(
     path,
   )) {
-    AppRoutes.vault => (kind: NewKind.record, label: 'Add to vault'),
+    AppRoutes.vault => (kind: NewKind.record, label: 'New record'),
     AppRoutes.shared => (kind: NewKind.link, label: 'New link'),
     AppRoutes.requests => (kind: NewKind.request, label: 'New request'),
     AppRoutes.attestations => (
@@ -311,4 +314,27 @@ Future<void> startNew(BuildContext context, NewKind kind) async {
     case NewKind.service:
       context.go(AppRoutes.worksWith);
   }
+}
+
+/// The create button for the page at [path], beside its title. Every page
+/// builds it from [pageActionFor], so each one looks and reads the same. A
+/// phone floats it in the corner instead, so it is absent there.
+class PageActionButton extends StatelessWidget {
+  final String path;
+  const PageActionButton(this.path, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Observer(
+    builder: (context) {
+      final action = pageActionFor(path);
+      if (action == null || AppSpacing.isNarrow(context)) {
+        return const SizedBox.shrink();
+      }
+      return AppButton(
+        icon: action.icon,
+        label: action.label,
+        onTap: () => action.start(context),
+      );
+    },
+  );
 }

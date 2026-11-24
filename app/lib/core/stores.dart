@@ -39,6 +39,7 @@ import 'package:revoked_app/features/settings/store/features_store.dart';
 import 'package:revoked_app/features/settings/store/settings_store.dart';
 import 'package:revoked_app/features/settings/store/updates_store.dart';
 import 'package:revoked_app/features/shares/store/shares_store.dart';
+import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/features/shell/store/link_search_store.dart';
 import 'package:revoked_app/features/templates/store/templates_store.dart';
 import 'package:revoked_app/features/vault/store/vault_store.dart';
@@ -65,6 +66,7 @@ abstract final class Stores {
   static late MemberKeysStore memberKeys;
   static late VaultStore vault;
   static late SharesStore shares;
+  static late Computed<OpenRecordAccessIndex> openRecordAccess;
   static late BookmarksStore bookmarks;
   static late ConnectionsStore connections;
   static late SignInsStore signIns;
@@ -162,6 +164,13 @@ abstract final class Stores {
         runInAction(() => auth.twoFactorSetupRequired = true);
     vault = VaultStore(api);
     shares = SharesStore(api);
+    openRecordAccess = Computed(
+      () => OpenRecordAccessIndex(
+        links: shares.shares,
+        sections: vault.sections,
+        records: vault.records,
+      ),
+    );
     bookmarks = BookmarksStore(api);
     connections = ConnectionsStore(api);
     signIns = SignInsStore(api);
@@ -235,6 +244,8 @@ abstract final class Stores {
     signIns.loadState,
     features.loadState,
     webhooks.loadState,
+    connections.summaryLoadState,
+    connections.detailsLoadState,
   ];
 
   /// Makes every cached list fetch again the next time a screen asks for it.
@@ -277,6 +288,7 @@ abstract final class Stores {
       invites.invites.clear();
       invites.members.clear();
       webhooks.forget();
+      connections.forget();
     });
   }
 
@@ -286,11 +298,6 @@ abstract final class Stores {
     forgetWorkspaceData();
     runInAction(() {
       notifications.notifications.clear();
-      connections.connections.clear();
-      connections.linksByConnection.clear();
-      connections.requestsByConnection.clear();
-      connections.attestationsByConnection.clear();
-      connections.checksByConnection.clear();
       passkeys.passkeys.clear();
       apiKeys.apiKeys.clear();
       reminders.reminders.clear();

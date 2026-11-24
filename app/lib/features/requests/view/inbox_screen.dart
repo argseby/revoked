@@ -1,9 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/features/requests/view/request_actions.dart';
-import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/models/request_proposal.dart';
@@ -23,7 +23,6 @@ import 'package:revoked_app/core/widgets/app_status_badge.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/requests/view/request_groups.dart';
 import 'package:revoked_app/core/config/app_config.dart';
-import 'package:revoked_app/core/widgets/app_button.dart';
 import 'package:revoked_app/features/requests/view/request_create_sheet.dart';
 import 'package:revoked_app/core/widgets/app_tabs.dart';
 import 'package:revoked_app/core/state/local.dart';
@@ -120,7 +119,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     if (workspace.isNotEmpty && Stores.templates.templates.isEmpty) {
       Stores.templates.loadTemplates(workspace);
     }
-    if (Stores.connections.connections.isEmpty) Stores.connections.load();
+    Stores.connections.loadSummariesIfDue();
   }
 
   @override
@@ -129,39 +128,28 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
     // others ask of it. Answers to a request are on that request's page;
     // shares others gave are under Shares › Received.
     return AppTabs(
+      title: 'Your requests',
+      action: const PageActionButton(AppRoutes.requests),
       initialIndex: widget.initialTab,
       tabs: [
         AppTab(
           label: 'Sent',
           icon: AppIcons.send,
-          description: 'Requests you sent to others.',
           view: _yourRequests(context),
         ),
-        const AppTab(
+        AppTab(
           label: 'To answer',
           icon: AppIcons.askFor,
-          description: 'Requests others sent to you.',
-          view: BookmarksTab(kind: BookmarkKind.request),
+          view: const BookmarksTab(
+            kind: BookmarkKind.request,
+            showHeader: false,
+          ),
         ),
       ],
     );
   }
 
   /// Search, a Filter by where a request stands, and a Sort.
-  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
-    title: 'Your requests',
-    description: 'Request information from others in a structured way.',
-    action: AppButton(
-      icon: AppIcons.plus,
-      label: 'New request',
-      onTap: () => openRequestCreateSheet(
-        context: context,
-        store: Stores.requests,
-        authStore: Stores.auth,
-      ),
-    ),
-  );
-
   AppListToolbar _toolbar(Map<RequestGroup, int> counts) => AppListToolbar(
     key: const ValueKey('requests-toolbar'),
     totalCount: _table.filteredItems.length,
@@ -224,7 +212,6 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
           reqStore.loadState.isFirstLoad && reqStore.requests.isEmpty,
       skeleton: AppPageBody(
         children: [
-          _collectionHeader(context),
           AppListSkeleton(
             embedded: true,
             group: 'Open',
@@ -251,8 +238,7 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
       ),
       builder: (_) {
         // Nothing to list has nothing to search, so no Search and filter.
-        Widget bare(Widget child) =>
-            AppPageBody(children: [_collectionHeader(context), child]);
+        Widget bare(Widget child) => AppPageBody(children: [child]);
         if (reqStore.requests.isEmpty &&
             reqStore.sharedRequests.isEmpty &&
             reqStore.loadState.error != null) {
@@ -418,10 +404,6 @@ class _InboxScreenState extends State<InboxScreen> with RefreshOnEntry {
         return AppListPage(
           toolbar: _toolbar(counts),
           inlineToolbar: true,
-          filters: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [_collectionHeader(context)],
-          ),
           banners: [
             if (reqStore.loadState.error != null)
               AppRefreshFailed(onRetry: reqStore.loadRequests),

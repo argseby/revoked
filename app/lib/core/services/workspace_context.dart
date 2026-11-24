@@ -57,6 +57,7 @@ class WorkspaceContext {
       Stores.attestations.load(),
       Stores.attestationChecks.load(),
       Stores.signIns.load(),
+      Stores.connections.loadSummariesIfDue(),
       Stores.settings.loadWorkspaces(Stores.auth.userId),
       if (workspaceId.isNotEmpty) Stores.templates.loadTemplates(workspaceId),
       if (workspaceId.isNotEmpty) Stores.invites.load(workspaceId),

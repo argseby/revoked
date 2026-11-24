@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
 
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
@@ -65,11 +66,8 @@ class AppListPage extends StatelessWidget {
         if (filters != null) ...[filters!, AppSpacing.gapLg],
         if (inlineToolbar && toolbar != null) ...[toolbar, AppSpacing.gapLg],
         for (final b in banners) ...[b, AppSpacing.gapLg],
-        if (emptyMessage != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.xxl),
-            child: Center(child: AppText(emptyMessage!).muted),
-          )
+        if (emptyMessage case final message?)
+          AppEmptyState.noMatches(title: message)
         else
           ...groups,
       ],
@@ -190,6 +188,7 @@ class AppPageInset extends StatelessWidget {
 /// a list into a detail page keeps the edges still.
 class AppPageBody extends StatelessWidget {
   final List<Widget> children;
+  final List<Widget>? slivers;
 
   /// Centers a bounded flow on wide windows without affecting its text alignment.
   final bool centered;
@@ -203,12 +202,47 @@ class AppPageBody extends StatelessWidget {
     required this.children,
     this.centered = false,
     this.bottomPadding = AppSpacing.gigantic * 3,
-  });
+  }) : slivers = null;
+
+  /// A page with a large collection shares one viewport with its header.
+  const AppPageBody.slivers({
+    super.key,
+    required this.slivers,
+    this.bottomPadding = AppSpacing.gigantic * 3,
+  }) : children = const [],
+       centered = false;
 
   @override
   Widget build(BuildContext context) {
     final scrollbar = AppSpacing.scrollbarMargin(context);
     final inner = AppSpacing.screenH(context) - scrollbar;
+    final slivers = this.slivers;
+    if (slivers != null) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: scrollbar),
+        child: CustomScrollView(
+          slivers: [
+            SliverLayoutBuilder(
+              builder: (context, constraints) {
+                final excess =
+                    constraints.crossAxisExtent -
+                    2 * inner -
+                    AppSpacing.contentMaxWidth;
+                return SliverPadding(
+                  padding: EdgeInsetsDirectional.fromSTEB(
+                    inner,
+                    AppSpacing.md,
+                    inner + (excess > 0 ? excess : 0),
+                    bottomPadding,
+                  ).resolve(Directionality.of(context)),
+                  sliver: SliverMainAxisGroup(slivers: slivers),
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: scrollbar),

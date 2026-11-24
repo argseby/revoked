@@ -9,6 +9,7 @@ import 'package:revoked_app/core/models/request.dart';
 import 'package:revoked_app/core/network/api_client.dart';
 import 'package:revoked_app/core/network/app_errors.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/state/load_state.dart';
 
 part 'connections_store.g.dart';
 
@@ -63,19 +64,72 @@ abstract class _ConnectionsStore with Store {
   @observable
   bool revokeLinksOnDisconnect = false;
 
-  @action
-  Future<void> load() async {
-    isLoading = true;
-    errorMessage = null;
+  final summaryLoadState = LoadState();
+  final detailsLoadState = LoadState();
+  Future<void>? _summaryLoad;
+  final _loadDetailsAction = AsyncAction('ConnectionsStore.loadDetailsIfDue');
+
+  /// Only the connection names and permissions, without the tool's outputs.
+  Future<void> loadSummariesIfDue() async {
+    if (summaryLoadState.isDue || _summaryLoad != null) {
+      await _refreshSummaries();
+    }
+  }
+
+  Future<void> _refreshSummaries() {
+    if (_summaryLoad case final pending?) return pending;
+    final ticket = summaryLoadState.begin();
+    final pending = _loadSummaries(ticket);
+    _summaryLoad = pending;
+    return pending.whenComplete(() {
+      if (identical(_summaryLoad, pending)) _summaryLoad = null;
+    });
+  }
+
+  Future<void> _loadSummaries(int ticket) async {
     try {
       final data = await _api.get(
         _basePath,
         queryParams: {'sort': '-created', 'perPage': '100'},
       );
+      if (!summaryLoadState.isCurrent(ticket)) return;
       final items = (data['items'] as List<dynamic>?) ?? [];
-      final loaded = items
-          .map((e) => Connection.fromJson(e as Map<String, dynamic>))
-          .toList();
+      runInAction(() {
+        connections = ObservableList.of(
+          items.map((e) => Connection.fromJson(e as Map<String, dynamic>)),
+        );
+        summaryLoadState.succeed(ticket);
+      });
+    } catch (e) {
+      summaryLoadState.fail(ticket, describeError(e));
+    }
+  }
+
+  Future<void> loadDetailsIfDue() async {
+    if (detailsLoadState.isDue) {
+      await _loadDetailsAction.run(() => _loadDetails(refreshSummaries: false));
+    }
+  }
+
+  @action
+  Future<void> load() => _loadDetails(refreshSummaries: true);
+
+  Future<void> _loadDetails({required bool refreshSummaries}) async {
+    final ticket = detailsLoadState.begin();
+    isLoading = true;
+    errorMessage = null;
+    try {
+      // A fresh summary can also have arrived from Vault, Requests or Shares.
+      if (refreshSummaries || summaryLoadState.isDue || _summaryLoad != null) {
+        await _refreshSummaries();
+      }
+      if (!detailsLoadState.isCurrent(ticket)) return;
+      final summaryError = summaryLoadState.error;
+      if (summaryError != null) {
+        errorMessage = summaryError;
+        detailsLoadState.fail(ticket, summaryError);
+        return;
+      }
 
       final [links, requests, attestations, checks] = await Future.wait([
         _fromTools(AppConfig.linksCollection),
@@ -84,7 +138,7 @@ abstract class _ConnectionsStore with Store {
         _fromTools(AppConfig.attestationChecksCollection, optional: true),
       ]);
 
-      connections = ObservableList.of(loaded);
+      if (!detailsLoadState.isCurrent(ticket)) return;
       linksByConnection = ObservableMap.of(
         _byConnection(links, Link.fromJson, (l) => l.connection),
       );
@@ -97,11 +151,27 @@ abstract class _ConnectionsStore with Store {
       checksByConnection = ObservableMap.of(
         _byConnection(checks, AttestationCheck.fromJson, (c) => c.connection),
       );
+      detailsLoadState.succeed(ticket);
     } catch (e) {
+      if (!detailsLoadState.isCurrent(ticket)) return;
       errorMessage = describeError(e);
+      detailsLoadState.fail(ticket, errorMessage!);
     } finally {
-      isLoading = false;
+      if (detailsLoadState.isCurrent(ticket)) isLoading = false;
     }
+  }
+
+  void forget() {
+    summaryLoadState.reset();
+    detailsLoadState.reset();
+    _summaryLoad = null;
+    connections.clear();
+    linksByConnection.clear();
+    requestsByConnection.clear();
+    attestationsByConnection.clear();
+    checksByConnection.clear();
+    isLoading = false;
+    errorMessage = null;
   }
 
   /// The rows of [collection] that came from a tool. An [optional] one a

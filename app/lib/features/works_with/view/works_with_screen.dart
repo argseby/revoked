@@ -56,7 +56,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
     Stores.worksWith.refreshIfDue();
     // Which listed services are already connected, to mark and list them
     // first. Read from the stores the Connected tools page fills.
-    Stores.connections.load();
+    Stores.connections.loadSummariesIfDue();
     Stores.signIns.loadIfDue();
   }
 
@@ -207,10 +207,8 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
 
   Widget _build(BuildContext context) {
     final all = Stores.worksWith.services;
-    if (all.isEmpty) {
+    if (all.isEmpty && Stores.worksWith.tools.isEmpty) {
       return AppListPage(
-        toolbar: _toolbar(const []),
-        inlineToolbar: true,
         filters: const AppCollectionHeader(
           title: 'Works with Revoked',
           description: intro,
@@ -219,7 +217,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
           AppEmptyState(
             icon: AppIcons.worksWith,
             title: 'No services listed',
-            subtitle: intro,
+            subtitle: 'Services are listed here after review.',
             action: AppButton(
               icon: AppIcons.boxArrowUpRight,
               label: 'How services are listed',

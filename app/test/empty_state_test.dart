@@ -64,24 +64,26 @@ void main() {
     });
   }
 
-  testWidgets('without steps or an example it stays the short notice', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _host(
-        const AppEmptyState(
-          icon: AppIcons.linkSlash,
-          title: 'Link not found',
-          subtitle: 'It may have been deleted.',
-        ),
-      ),
-    );
+  testWidgets(
+    'simple and explaining empty states share the same heading layout',
+    (tester) async {
+      final rich = _explainer();
+      await tester.pumpWidget(_host(rich));
+      final richTitle = tester.getTopLeft(find.text(rich.title));
+      final richIcon = tester.getTopLeft(find.byIcon(rich.icon));
 
-    expect(find.byType(SingleChildScrollView), findsNothing);
-    expect(find.byType(AppEmptyExample), findsNothing);
-    expect(
-      tester.getCenter(find.text('Link not found')).dx,
-      moreOrLessEquals(400, epsilon: 1),
-    );
-  });
+      const simple = AppEmptyState(
+        icon: AppIcons.linkSlash,
+        title: 'Link not found',
+        subtitle: 'It may have been deleted.',
+      );
+      await tester.pumpWidget(_host(simple));
+
+      final simpleTitle = tester.getTopLeft(find.text(simple.title));
+      final simpleIcon = tester.getTopLeft(find.byIcon(simple.icon));
+      expect(simpleTitle - simpleIcon, richTitle - richIcon);
+      expect(find.byType(SingleChildScrollView), findsOneWidget);
+      expect(find.byType(AppEmptyExample), findsNothing);
+    },
+  );
 }

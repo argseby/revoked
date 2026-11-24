@@ -6,9 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
+import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
 import 'package:revoked_app/core/router/app_router.dart';
-import 'package:revoked_app/core/state/sheet_tracker.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/core/stores.dart';
 import 'package:revoked_app/core/widgets/app_bar_title.dart';
@@ -196,6 +196,10 @@ class _AppShellState extends State<AppShell> {
 
   bool get _titleInBody {
     final uri = GoRouterState.of(context).uri;
+    // A phone names these in the top bar; their create button floats.
+    if (AppSpacing.isNarrow(context) && _phoneTitled.contains(uri.path)) {
+      return false;
+    }
     if ([
       AppRoutes.overview,
       AppRoutes.requests,
@@ -205,7 +209,9 @@ class _AppShellState extends State<AppShell> {
     ].contains(uri.path)) {
       return true;
     }
-    if (uri.path == AppRoutes.shared) {
+    if (uri.path == AppRoutes.shared ||
+        (AppRoutes.rootOf(uri.path) == AppRoutes.shared &&
+            MediaQuery.sizeOf(context).width >= AppSpacing.wideWidth)) {
       return true;
     }
     // Settings and its topics name themselves above their groups.
@@ -221,6 +227,14 @@ class _AppShellState extends State<AppShell> {
         !uri.queryParameters.containsKey('editShareId') &&
         !uri.queryParameters.containsKey('shareFilterId');
   }
+
+  static const _phoneTitled = [
+    AppRoutes.overview,
+    AppRoutes.vault,
+    AppRoutes.shared,
+    AppRoutes.requests,
+    AppRoutes.contacts,
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -257,37 +271,20 @@ class _AppShellState extends State<AppShell> {
     // them in a sheet; an empty list keeps it too, so it never moves.
     final search = isSubPage ? null : ShellSlots.search.toolbarFor(root);
     return Scaffold(
-      floatingActionButtonLocation: .endFloat,
-      // Yields while any sheet is up, so it never overlaps a sheet's actions,
-      // and on a detail page, where it would sit on the page's own controls.
       floatingActionButton: Observer(
         builder: (_) {
-          // A sub-page with an action of its own shows it, Settings pages
-          // included, though Settings is no destination on a phone.
-          final own = subPageActionFor(path);
-          if ([
-                AppRoutes.overview,
-                AppRoutes.vault,
-                AppRoutes.shared,
-                AppRoutes.requests,
-                AppRoutes.contacts,
-                AppRoutes.attestations,
-                AppRoutes.worksWith,
-              ].contains(path) ||
+          // Yields while a sheet is up, so it never covers a sheet's actions.
+          final action = pageActionFor(path);
+          if (action == null ||
               SheetTracker.anyOpen ||
-              (own == null && (destination == null || isSubPage))) {
+              (path != root && subPageActionFor(path) == null)) {
             return const SizedBox.shrink();
           }
-          // The page's own action when it has one; the general New stays
-          // under More.
-          final action = pageActionFor(path);
           return FloatingActionButton.extended(
             heroTag: 'shell-new',
-            tooltip: action?.label ?? 'Create something new',
-            onPressed: () =>
-                action == null ? _openNew(root) : action.start(context),
-            icon: Icon(action?.icon ?? AppIcons.plus, size: 18),
-            label: Text(action?.label ?? 'New'),
+            onPressed: () => action.start(context),
+            icon: Icon(action.icon, size: 18),
+            label: Text(action.label),
           );
         },
       ),
@@ -381,19 +378,6 @@ class _AppShellState extends State<AppShell> {
         path == root ||
         subPageActionFor(path) != null ||
         (sidebar && root == AppRoutes.shared);
-    final pageAction =
-        onList &&
-            path != AppRoutes.vault &&
-            root != AppRoutes.shared &&
-            ![
-              AppRoutes.overview,
-              AppRoutes.requests,
-              AppRoutes.contacts,
-              AppRoutes.attestations,
-              AppRoutes.worksWith,
-            ].contains(path)
-        ? pageActionFor(path)
-        : null;
     final listSearch = onList ? ShellSlots.search.toolbarFor(root) : null;
     final onSettings =
         path == AppRoutes.settings || path.startsWith('${AppRoutes.settings}/');
@@ -465,7 +449,7 @@ class _AppShellState extends State<AppShell> {
                   ? null
                   : AppBar(
                       titleSpacing: AppSpacing.screenH(context),
-                      title: _titleInBody ? null : _title(root),
+                      title: _title(root),
                       actions: [
                         _slot(ShellSlots.action),
                         // The sidebar carries its own "Open link or go to", so it is not repeated.
@@ -480,19 +464,6 @@ class _AppShellState extends State<AppShell> {
                           Padding(
                             padding: const EdgeInsets.only(left: AppSpacing.xs),
                             child: listSearch.button(),
-                          ),
-                        if (pageAction case final action?)
-                          Padding(
-                            padding: const EdgeInsets.only(left: AppSpacing.xs),
-                            // Always labelled: an unlabelled "+" here read as the
-                            // rail's own New, which creates anything.
-                            child: AppButton(
-                              icon: action.icon,
-                              label: action.label,
-                              tooltip: action.label,
-                              size: AppButtonSize.small,
-                              onTap: () => action.start(context),
-                            ),
                           ),
                         SizedBox(width: AppSpacing.screenH(context)),
                       ],
@@ -601,7 +572,7 @@ class _SidebarCommandPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final newButton = AppButton(
+    final create = AppButton(
       icon: AppIcons.plus,
       label: 'New',
       size: AppButtonSize.small,
@@ -681,44 +652,30 @@ class _SidebarCommandPanel extends StatelessWidget {
                 border: Border(top: BorderSide(color: scheme.outlineVariant)),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                child: LayoutBuilder(
-                  builder: (context, box) {
-                    final stack =
-                        MediaQuery.textScalerOf(context).scale(16) > 22;
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Builder(
+                  builder: (context) {
                     final navigation = Row(
                       children: [
-                        if (home != null)
-                          Expanded(child: home)
-                        else
-                          const Spacer(),
-                        AppSpacing.gapXs,
+                        if (home case final home?) ...[
+                          Flexible(child: home),
+                          AppSpacing.gapXs,
+                        ],
                         bell,
                       ],
                     );
-                    if (stack) {
+                    // Large text has no room for all three on one line.
+                    if (MediaQuery.textScalerOf(context).scale(16) > 22) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [navigation, AppSpacing.gapSm, newButton],
+                        children: [navigation, AppSpacing.gapSm, create],
                       );
                     }
                     return Row(
                       children: [
                         Expanded(child: navigation),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.xs,
-                          ),
-                          child: SizedBox(
-                            height: AppSpacing.xl,
-                            child: VerticalDivider(
-                              width: 1,
-                              thickness: 1,
-                              color: scheme.outlineVariant,
-                            ),
-                          ),
-                        ),
-                        newButton,
+                        AppSpacing.gapSm,
+                        create,
                       ],
                     );
                   },

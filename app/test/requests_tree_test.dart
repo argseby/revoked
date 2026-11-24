@@ -85,6 +85,8 @@ Future<void> _show(WidgetTester tester, {double width = 1400}) async {
       request('contact', 'Emergency contact'),
       request('order', 'Order 2041', connection: 'conn00000packet'),
     ]);
+    final summaries = Stores.connections.summaryLoadState;
+    summaries.succeed(summaries.begin());
     Stores.requests.loadState.succeed(Stores.requests.loadState.begin());
   });
   tester.view.physicalSize = Size(width, 1400);

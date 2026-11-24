@@ -2,16 +2,14 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/spacing.dart';
-import 'package:revoked_app/core/design/text_styles.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/state/shell_slots.dart';
 import 'package:revoked_app/features/shares/view/shares_screen.dart';
 
 /// Shared on every width: the links list and the selected link.
 ///
-/// The overview uses the full window. Once a link is selected on a wide
-/// window, both stand side by side, keeping the list's search, filters and
-/// tab. Narrower, it is one or the
-/// other, as before: the list, or the link with a way back to it.
+/// Wide windows keep a stable list and detail layout across selections.
+/// Narrow windows show one pane at a time.
 ///
 /// [child] is the nested route's navigator — the selected link, or the
 /// [SharedPlaceholder] while none is.
@@ -53,7 +51,7 @@ class _SharedSplitState extends State<SharedSplit> {
       initialTab: widget.initialTab,
     );
 
-    if (wide && widget.selectedId != null) {
+    if (wide) {
       final scheme = Theme.of(context).colorScheme;
       return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -80,28 +78,10 @@ class SharedPlaceholder extends StatelessWidget {
   const SharedPlaceholder({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(AppIcons.link, size: 32, color: scheme.onSurfaceVariant),
-            AppSpacing.gapMd,
-            const AppText(
-              'No link selected',
-              textAlign: TextAlign.center,
-            ).header,
-            AppSpacing.gapXs,
-            const Text(
-              'Contents, protection and access history appear here.',
-              textAlign: TextAlign.center,
-            ).muted,
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const AppEmptyState(
+    icon: AppIcons.link,
+    title: 'Select a sent share',
+    subtitle:
+        'Review what the link shares, who can open it, and when it expires.',
+  );
 }

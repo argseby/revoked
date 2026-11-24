@@ -39,7 +39,16 @@ import 'package:revoked_app/features/shell/view/link_search_sheet.dart';
 class BookmarksTab extends StatefulWidget {
   final BookmarkKind kind;
 
-  const BookmarksTab({super.key, required this.kind});
+  /// False when the surrounding tabs supply the title and action.
+  final bool showHeader;
+
+  const BookmarksTab({super.key, required this.kind, this.showHeader = true});
+
+  static Widget openLinkAction(BuildContext context) => AppButton(
+    icon: AppIcons.link,
+    label: 'Open a link',
+    onTap: () => openLinkSearchSheet(context),
+  );
 
   @override
   State<BookmarksTab> createState() => _BookmarksTabState();
@@ -142,26 +151,21 @@ class _BookmarksTabState extends State<BookmarksTab> {
     }
   }
 
-  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
-    title: _asks ? 'Requests to answer' : 'Shared with you',
-    description: _asks
-        ? 'Information others have asked you to share.'
-        : 'Links from others, kept together for easy access.',
-    action: AppButton(
-      icon: AppIcons.link,
-      label: 'Open a link',
-      onTap: () => openLinkSearchSheet(context),
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     final store = Stores.bookmarks;
+    final header = widget.showHeader
+        ? AppCollectionHeader(
+            title: _asks ? 'Requests to answer' : 'Shared with you',
+            prominent: true,
+            action: BookmarksTab.openLinkAction(context),
+          )
+        : null;
     return AppLoadFade(
       loading: () => store.loadState.isFirstLoad && store.bookmarks.isEmpty,
       skeleton: AppPageBody(
         children: [
-          _collectionHeader(context),
+          ?header,
           AppListSkeleton(
             embedded: true,
             group: 'Saved',
@@ -195,8 +199,7 @@ class _BookmarksTabState extends State<BookmarksTab> {
       ),
       builder: (_) {
         // Nothing to list has nothing to search, so no Search and filter.
-        Widget bare(Widget child) =>
-            AppPageBody(children: [_collectionHeader(context), child]);
+        Widget bare(Widget child) => AppPageBody(children: [?header, child]);
         if (store.error != null && store.bookmarks.isEmpty) {
           return bare(
             AppLoadError(
@@ -216,8 +219,24 @@ class _BookmarksTabState extends State<BookmarksTab> {
               icon: AppIcons.askFor,
               title: 'Nothing to answer',
               subtitle:
-                  'Requests others send to this account, and ones saved from a '
-                  'link, wait here until they are answered from the vault.',
+                  'Requests you receive or save appear here. Open a request '
+                  'to see what the sender is asking for.',
+              example: const AppEmptyExample(
+                title: 'Tenant application',
+                detail: 'From a landlord',
+                badge: '4 fields',
+              ),
+              steps: const [
+                AppEmptyStep(
+                  'Open a request',
+                  'Use the link the sender gave you',
+                ),
+                AppEmptyStep(
+                  'Review the fields',
+                  'See what information is requested',
+                ),
+                AppEmptyStep('Respond', 'Choose what to share from your vault'),
+              ],
               learnMoreLabel: 'About requests',
               learnMoreUrl: '${AppConfig.docsUrl}/guide/requests/',
             ),
@@ -229,13 +248,23 @@ class _BookmarksTabState extends State<BookmarksTab> {
               icon: AppIcons.bookmark,
               title: 'Nothing received',
               subtitle:
-                  'Shares from others are kept here as shortcuts, not copies. '
-                  'Passwords and identity checks still apply, and revoked links '
-                  'stay closed.',
+                  'Links others share with you appear here. Opening a link '
+                  'shows the latest information while you have access.',
+              example: const AppEmptyExample(
+                title: 'Lease details',
+                detail: 'From a landlord',
+                badge: 'Shared link',
+              ),
               steps: const [
-                AppEmptyStep('Received link', 'Opened from a message'),
-                AppEmptyStep('Bookmark', 'Saved from the open link'),
-                AppEmptyStep('Bookmarks list', 'Optionally sorted into groups'),
+                AppEmptyStep(
+                  'Open a share',
+                  'Use the link the sender gave you',
+                ),
+                AppEmptyStep('Save the link', 'Bookmark it to find it again'),
+                AppEmptyStep(
+                  'Organize saved links',
+                  'Group related shares together',
+                ),
               ],
               learnMoreLabel: 'About bookmarks',
               learnMoreUrl:
@@ -294,7 +323,7 @@ class _BookmarksTabState extends State<BookmarksTab> {
           filters: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _collectionHeader(context),
+              ?header,
               Align(
                 alignment: Alignment.centerRight,
                 child: AppButton(

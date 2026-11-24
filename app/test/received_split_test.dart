@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:mobx/mobx.dart';
 import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/stores.dart';
+import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,13 +70,22 @@ void main() {
     expect(find.text('Pay slip'), findsNothing);
   });
 
-  testWidgets('with no requests, To answer says so', (tester) async {
-    runInAction(
-      () => Stores.bookmarks.bookmarks.removeWhere(
-        (b) => b.kind == BookmarkKind.request,
-      ),
-    );
-    await show(tester, BookmarkKind.request);
-    expect(find.text('Nothing to answer'), findsOneWidget);
-  });
+  for (final (kind, title, example) in [
+    (BookmarkKind.request, 'Nothing to answer', 'Tenant application'),
+    (BookmarkKind.share, 'Nothing received', 'Lease details'),
+  ]) {
+    testWidgets('empty ${kind.name} inbox explains the workflow', (
+      tester,
+    ) async {
+      runInAction(
+        () => Stores.bookmarks.bookmarks.removeWhere((b) => b.kind == kind),
+      );
+      await show(tester, kind);
+      expect(find.text(title), findsOneWidget);
+      final state = tester.widget<AppEmptyState>(find.byType(AppEmptyState));
+      expect(state.example?.title, example);
+      expect(state.steps, hasLength(3));
+      expect(find.text('Open a link'), findsOneWidget);
+    });
+  }
 }

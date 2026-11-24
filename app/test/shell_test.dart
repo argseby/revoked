@@ -59,7 +59,11 @@ void main() {
     });
   });
 
-  Future<GoRouter> signedIn(WidgetTester tester, {required Size size}) async {
+  Future<GoRouter> signedIn(
+    WidgetTester tester, {
+    required Size size,
+    http.Client? client,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -67,7 +71,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     await Stores.init(
-      httpClient: MockClient((_) async => http.Response('{}', 404)),
+      httpClient: client ?? MockClient((_) async => http.Response('{}', 404)),
     );
     runInAction(() => Stores.auth.currentUser = null);
     final router = AppRouter.create(Stores.auth);
@@ -105,6 +109,38 @@ void main() {
     final router = await signedIn(tester, size: const Size(400, 800));
     expect(location(router), AppRoutes.overview);
     expect(find.byType(OverviewScreen), findsOneWidget);
+  });
+
+  testWidgets('Home and Vault do not fetch connected tool outputs', (
+    tester,
+  ) async {
+    final requests = <Uri>[];
+    final router = await signedIn(
+      tester,
+      size: const Size(1280, 800),
+      client: MockClient((request) async {
+        requests.add(request.url);
+        return http.Response('{"items":[],"totalPages":1}', 200);
+      }),
+    );
+    int summaries() => requests
+        .where((uri) => uri.path.endsWith('/connections/records'))
+        .length;
+    int outputs() => requests
+        .where((uri) => uri.queryParameters['filter'] == 'connection != ""')
+        .length;
+    expect(summaries(), 0);
+    expect(outputs(), 0);
+
+    router.go(AppRoutes.vault);
+    await tester.pumpAndSettle();
+    expect(summaries(), 1);
+    expect(outputs(), 0);
+
+    router.go(AppRoutes.connectedTools);
+    await tester.pumpAndSettle();
+    expect(summaries(), 1);
+    expect(outputs(), 4);
   });
 
   testWidgets('old paths land on the same thing under the new names', (
@@ -158,24 +194,90 @@ void main() {
     expect(location(router), AppRoutes.vault);
   });
 
+  testWidgets('Shares and Requests use matching compact tabs below the title', (
+    tester,
+  ) async {
+    final router = await signedIn(tester, size: const Size(1280, 900));
+    final sent = find.widgetWithText(InkWell, 'Sent');
+
+    router.go(AppRoutes.shared);
+    await tester.pumpAndSettle();
+    final shareTab = tester.getRect(sent);
+    expect(
+      shareTab.top,
+      greaterThan(tester.getRect(find.text('Your sharing')).bottom),
+    );
+
+    router.go(AppRoutes.requests);
+    await tester.pumpAndSettle();
+    final requestTab = tester.getRect(sent);
+    expect(requestTab.height, shareTab.height);
+    expect(
+      requestTab.top,
+      greaterThan(tester.getRect(find.text('Your requests')).bottom),
+    );
+    expect(find.text('Requests you sent to others.'), findsNothing);
+
+    await tester.tap(find.text('To answer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your requests'), findsOneWidget);
+    expect(find.text('New request'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a phone names Shares and Requests in the top bar and floats their create button',
+    (tester) async {
+      final router = await signedIn(tester, size: const Size(375, 900));
+      final sent = find.widgetWithText(InkWell, 'Sent');
+      for (final (route, place, title, incoming, create) in [
+        (AppRoutes.shared, 'Shares', 'Your sharing', 'Received', 'New link'),
+        (
+          AppRoutes.requests,
+          'Requests',
+          'Your requests',
+          'To answer',
+          'New request',
+        ),
+      ]) {
+        router.go(route);
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(of: find.byType(AppBar), matching: find.text(place)),
+          findsOneWidget,
+        );
+        expect(find.text(title), findsNothing);
+        final fab = find.widgetWithText(FloatingActionButton, create);
+        expect(fab, findsOneWidget);
+        final before = tester.getRect(sent);
+
+        await tester.tap(find.text(incoming));
+        await tester.pumpAndSettle();
+        expect(tester.getRect(sent), before);
+        expect(fab, findsOneWidget);
+      }
+    },
+  );
+
   group('Shared split', () {
-    testWidgets('wide: full list first, then list beside the link', (
+    testWidgets('wide: list keeps its width when a link is selected', (
       tester,
     ) async {
       final router = await signedIn(tester, size: const Size(1280, 800));
       router.go(AppRoutes.shared);
       await tester.pumpAndSettle();
       expect(find.byType(SharesScreen), findsOneWidget);
-      expect(find.byType(SharedPlaceholder), findsNothing);
+      expect(find.byType(SharedPlaceholder), findsOneWidget);
+      final top = tester.getTopLeft(find.byType(SharesScreen)).dy;
       expect(
         tester.getSize(find.byType(SharesScreen)).width,
-        greaterThan(SharedSplit.listWidth),
+        SharedSplit.listWidth,
       );
 
       router.go(AppRoutes.shareDetailFor('l1'));
       await tester.pumpAndSettle();
       expect(find.byType(SharesScreen), findsOneWidget);
       expect(find.byType(ShareDetailScreen), findsOneWidget);
+      expect(tester.getTopLeft(find.byType(SharesScreen)).dy, top);
       expect(
         tester.getSize(find.byType(SharesScreen)).width,
         SharedSplit.listWidth,
@@ -319,17 +421,15 @@ void main() {
     expect(location(router), AppRoutes.vault);
   });
 
-  testWidgets('New sits in the sidebar, not the top bar, on every page', (
-    tester,
-  ) async {
+  testWidgets('New sits in the sidebar on every page', (tester) async {
     final router = await signedIn(tester, size: const Size(1200, 800));
     router.go(AppRoutes.settings);
     await tester.pumpAndSettle();
     // The button, not every "New": settings rows carry "New" badges too.
-    final newButton = find.widgetWithText(AppButton, 'New');
-    expect(newButton, findsOneWidget);
+    final create = find.widgetWithText(AppButton, 'New');
+    expect(create, findsOneWidget);
     expect(
-      find.descendant(of: find.byType(AppBar), matching: newButton),
+      find.descendant(of: find.byType(AppBar), matching: create),
       findsNothing,
     );
   });
@@ -417,7 +517,7 @@ void main() {
         expect(find.text('Search links'), findsOneWidget);
         expect(
           tester.getTopLeft(find.byType(TextField)).dy,
-          greaterThan(tester.getTopLeft(find.text('Your sharing')).dy),
+          greaterThan(tester.getTopLeft(find.text('Sent')).dy),
         );
         if (width >= 1024) expect(find.byType(AppBar), findsNothing);
         await tester.enterText(find.byType(TextField), 'bank');

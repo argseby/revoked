@@ -28,6 +28,9 @@ class AppTabs extends StatefulWidget {
   final List<AppTab> tabs;
   final String? title;
 
+  /// The page's create button, beside the title on every tab.
+  final Widget? action;
+
   /// Which tab opens first - lets a route deep-link into one.
   final int initialIndex;
 
@@ -39,6 +42,7 @@ class AppTabs extends StatefulWidget {
     super.key,
     required this.tabs,
     this.title,
+    this.action,
     this.initialIndex = 0,
     this.inset,
   });
@@ -73,6 +77,7 @@ class _AppTabsState extends State<AppTabs> {
         // card's width, however many tabs share the strip; only a strip too
         // narrow or a pane too short for them drops them.
         final compact =
+            !widget.tabs.any((tab) => tab.description != null) ||
             stripWidth < AppSpacing.narrowWidth ||
             available.maxHeight < AppSpacing.narrowWidth ||
             !_descriptionsFit(context, cardWidth);
@@ -85,54 +90,73 @@ class _AppTabsState extends State<AppTabs> {
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     inset,
-                    compact ? AppSpacing.sm : AppSpacing.lg,
+                    compact && widget.title == null
+                        ? AppSpacing.sm
+                        : AppSpacing.lg,
                     inset,
                     0,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (widget.title != null) ...[
-                        AppText(widget.title!).title,
-                        AppSpacing.gapXxl,
-                      ],
-                      ConstrainedBox(
-                        // As wide as the list under it, so the tabs and its
-                        // search line up edge to edge.
-                        constraints: const BoxConstraints(
-                          maxWidth: AppSpacing.contentMaxWidth,
-                        ),
-                        child: LayoutBuilder(
-                          builder: (context, box) {
-                            final gap = compact ? AppSpacing.sm : AppSpacing.md;
-                            final tabWidth =
-                                (box.maxWidth -
-                                    gap * (widget.tabs.length - 1)) /
-                                widget.tabs.length;
-                            final stackedIcon = tabWidth < 120 * textScale;
-                            return IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  for (final (k, t) in widget.tabs.indexed) ...[
-                                    if (k > 0) SizedBox(width: gap),
-                                    Expanded(
-                                      child: _ContextCard(
-                                        tab: t,
-                                        selected: i == k,
-                                        stackedIcon: stackedIcon,
-                                        compact: compact,
-                                        onTap: () => _selected.value = k,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: ConstrainedBox(
+                      // Match the list below, including the action alignment.
+                      constraints: const BoxConstraints(
+                        maxWidth: AppSpacing.contentMaxWidth,
                       ),
-                    ],
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // A phone names the page in its top bar.
+                          if (widget.title != null &&
+                              !AppSpacing.isNarrow(context)) ...[
+                            OverflowBar(
+                              alignment: MainAxisAlignment.spaceBetween,
+                              spacing: AppSpacing.sm,
+                              overflowSpacing: AppSpacing.sm,
+                              overflowAlignment: OverflowBarAlignment.start,
+                              children: [
+                                AppText(widget.title!).title,
+                                ?widget.action,
+                              ],
+                            ),
+                            AppSpacing.gapMd,
+                          ],
+                          LayoutBuilder(
+                            builder: (context, box) {
+                              final gap = compact
+                                  ? AppSpacing.sm
+                                  : AppSpacing.md;
+                              final tabWidth =
+                                  (box.maxWidth -
+                                      gap * (widget.tabs.length - 1)) /
+                                  widget.tabs.length;
+                              final stackedIcon = tabWidth < 120 * textScale;
+                              return IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (final (k, t)
+                                        in widget.tabs.indexed) ...[
+                                      if (k > 0) SizedBox(width: gap),
+                                      Expanded(
+                                        child: _ContextCard(
+                                          tab: t,
+                                          selected: i == k,
+                                          stackedIcon: stackedIcon,
+                                          compact: compact,
+                                          onTap: () => _selected.value = k,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 // Every page stays built, so a list keeps its scroll position
@@ -207,7 +231,7 @@ class _ContextCard extends StatelessWidget {
     );
     final icon = Icon(
       tab.icon,
-      size: 20,
+      size: compact ? 16 : 20,
       color: selected ? scheme.primary : scheme.onSurfaceVariant,
     );
     final label = AppText(tab.label).bold;
@@ -224,7 +248,12 @@ class _ContextCard extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: AppSpacing.minTarget),
             child: Padding(
-              padding: EdgeInsets.all(compact ? AppSpacing.md : AppSpacing.lg),
+              padding: compact
+                  ? const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.md,
+                    )
+                  : const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: compact
                     ? CrossAxisAlignment.center

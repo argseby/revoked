@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/widgets/copy_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
@@ -70,33 +71,52 @@ class ShareActions {
     saveError: () => Stores.shares.errorMessage,
   );
 
+  Future<void> shareLink(Link share) {
+    final key = Stores.shares.linkKeyText(share);
+    return showShareSheet(
+      context: context,
+      slug: share.slug,
+      title: share.label,
+      isRequest: false,
+      apiTarget: shareApiTarget(share),
+      linkKey: key,
+      keyUnreadable: share.encrypted && key == null,
+    );
+  }
+
+  Future<void> copyLink(Link share) async {
+    final key = Stores.shares.linkKeyText(share);
+    if (share.encrypted && key == null) {
+      // The sharing sheet explains which parts this address can open before
+      // the user chooses whether to pass it on.
+      await shareLink(share);
+      return;
+    }
+    final address = shareWebUrl(share.slug, linkKey: key);
+    await Clipboard.setData(ClipboardData(text: address));
+    if (context.mounted) AppToast.success(context, 'Copied link');
+  }
+
+  void viewAsRecipient(Link share) {
+    final key = Stores.shares.linkKeyText(share);
+    HeldLinkKeys.hold(
+      slug: share.slug,
+      key: key == null ? null : SealedFormats.parseLinkKey(key),
+    );
+    context.push('/s/${share.slug}');
+  }
+
   List<AppSheetAction> forShare(Link share, {required bool editable}) => [
     if (share.status == 'active') ...[
       AppSheetAction(
         icon: AppIcons.share,
         label: 'Share link',
-        onTap: () => showShareSheet(
-          context: context,
-          slug: share.slug,
-          title: share.label,
-          isRequest: false,
-          apiTarget: shareApiTarget(share),
-          linkKey: Stores.shares.linkKeyText(share),
-          keyUnreadable:
-              share.encrypted && Stores.shares.linkKeyText(share) == null,
-        ),
+        onTap: () => shareLink(share),
       ),
       AppSheetAction(
         icon: AppIcons.eye,
         label: 'View as recipient',
-        onTap: () {
-          final key = Stores.shares.linkKeyText(share);
-          HeldLinkKeys.hold(
-            slug: share.slug,
-            key: key == null ? null : SealedFormats.parseLinkKey(key),
-          );
-          context.push('/s/${share.slug}');
-        },
+        onTap: () => viewAsRecipient(share),
       ),
     ],
     if (mine(share))

@@ -223,8 +223,20 @@ void main() {
     final selected = find.byKey(
       const ValueKey('vault-selected-section-header'),
     );
-    if (selected.evaluate().isNotEmpty || loose.evaluate().isEmpty) return;
-    await tester.ensureVisible(loose);
+    if (selected.evaluate().isNotEmpty) return;
+    await tester.scrollUntilVisible(
+      loose,
+      100,
+      scrollable: find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    // Clear of the floating create button on a phone.
+    await Scrollable.ensureVisible(tester.element(loose), alignment: 0.3);
+    await tester.pumpAndSettle();
     await tester.tap(loose);
     await tester.pumpAndSettle();
   }
@@ -253,10 +265,18 @@ void main() {
       expect(find.text('Add this device'), findsWidgets);
 
       await openLoose(tester);
-      expect(
-        find.textContaining('Not readable on this device'),
-        findsOneWidget,
+      final inaccessible = find.textContaining('Not readable on this device');
+      await tester.scrollUntilVisible(
+        inaccessible,
+        100,
+        scrollable: find
+            .descendant(
+              of: find.byType(CustomScrollView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
+      expect(inaccessible, findsOneWidget);
 
       router.go(AppRoutes.recordDetailFor('record000000001'));
       await tester.pumpAndSettle();
@@ -335,7 +355,18 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'vault');
         await openLoose(tester);
         // The list names the record; its value shows on its own page.
-        expect(find.text('SMTP password'), findsOneWidget);
+        final password = find.text('SMTP password');
+        await tester.scrollUntilVisible(
+          password,
+          100,
+          scrollable: find
+              .descendant(
+                of: find.byType(CustomScrollView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        expect(password, findsOneWidget);
         expect(find.textContaining('Not readable'), findsNothing);
 
         router.go(AppRoutes.recordDetailFor('record000000001'));

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/features/vault/view/record_actions.dart';
@@ -12,7 +13,6 @@ import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/utils/value_kind.dart';
-import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -196,7 +196,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ShellSlots.action.claim(_primaryAction);
       // Which tool keeps or reads a section is said on the section itself.
-      if (Stores.connections.connections.isEmpty) Stores.connections.load();
+      Stores.connections.loadSummariesIfDue();
       Stores.shares.loadIfDue();
     });
   }
@@ -331,11 +331,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
     title: 'Your vault',
     description: 'Private and secure place for your information.',
-    action: AppButton(
-      icon: AppIcons.plus,
-      label: 'New record',
-      onTap: () => openVaultCreateSheet(context),
-    ),
+    prominent: true,
+    action: const PageActionButton(AppRoutes.vault),
   );
 
   Widget _body(BuildContext context) {
@@ -400,17 +397,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           if (s.id == store.editingSectionId) editingSection = s;
         }
 
-        // Use the same access rules as the detail page, including aliases
-        // and encrypted records that cannot be read through a section.
-        int linkCount(models.Record r) => accessForRecord(
-          r.id,
-          links: Stores.shares.shares,
-          sections: store.sections,
-          records: store.records,
-        ).where((access) => access.isOpen).length;
-
+        final access = Stores.openRecordAccess.value;
         final matches = _tableController.filteredItems;
-        final links = {for (final r in matches) r.id: linkCount(r)};
+        final links = {for (final r in matches) r.id: access.countFor(r.id)};
         final filters = _filters.value;
         bool kind(models.Record r) =>
             filters.isEmpty ||
@@ -424,7 +413,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
         var records = matches
             .where(
-              (r) => kind(r) && audienceMatches(audiences, _audiencesOf(r)),
+              (r) =>
+                  kind(r) &&
+                  (audiences.isEmpty ||
+                      audienceMatches(audiences, _audiencesOf(r))),
             )
             .toList();
 
@@ -688,26 +680,28 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         _tableController.query.trim().isNotEmpty ||
         _filters.value.isNotEmpty ||
         _audiences.value.isNotEmpty;
-    return AppPageBody(
-      bottomPadding: AppSpacing.gigantic,
-      children: [
-        _collectionHeader(context),
-        for (final banner in banners) ...[banner, AppSpacing.gapLg],
-        toolbar,
-        AppSpacing.gapXl,
-        // Layout runs outside the page's Observer, so the tree tracks its own
-        // folds and the detail its own switches.
-        LayoutBuilder(
-          builder: (context, box) => Observer(
+    return AppPageBody.slivers(
+      slivers: [
+        SliverList.list(
+          children: [
+            _collectionHeader(context),
+            for (final banner in banners) ...[banner, AppSpacing.gapLg],
+            toolbar,
+            AppSpacing.gapXl,
+          ],
+        ),
+        SliverLayoutBuilder(
+          builder: (context, constraints) => Observer(
             builder: (context) {
               final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-              final split = box.maxWidth / scale >= AppSpacing.narrowWidth;
-              // A narrow window opens nothing until a row is tapped, unless a
-              // search or filter asks for the matching records.
+              final width = constraints.crossAxisExtent;
+              final split = width / scale >= AppSpacing.narrowWidth;
+              // A narrow window opens nothing until the user selects a pane,
+              // unless a search or filter is already narrowing the records.
               final open =
                   pane ?? (split || narrowing ? const _AllPane() : null);
               final detail = open == null
-                  ? const <Widget>[]
+                  ? null
                   : _paneDetail(
                       context,
                       pane: open,
@@ -717,38 +711,46 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                       links: links,
                       sources: sources,
                     );
-              final tree = _tree(
+              final (tree, detailIndex) = _tree(
                 context,
                 sources: sources,
                 selected: open,
-                detail: split ? null : detail,
               );
               if (!split) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: tree,
+                return SliverMainAxisGroup(
+                  slivers: [
+                    SliverList.list(
+                      children: detail == null
+                          ? tree
+                          : tree.take(detailIndex).toList(),
+                    ),
+                    if (detail != null) ...[
+                      SliverPadding(
+                        padding: const EdgeInsets.only(
+                          top: AppSpacing.md,
+                          bottom: AppSpacing.xl,
+                        ),
+                        sliver: detail,
+                      ),
+                      SliverList.list(
+                        children: tree.skip(detailIndex).toList(),
+                      ),
+                    ],
+                  ],
                 );
               }
-              final treeWidth = (box.maxWidth * 0.36).clamp(
-                260 * scale,
-                340 * scale,
-              );
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: treeWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: tree,
-                    ),
+              final treeWidth = (width * 0.36).clamp(260 * scale, 340 * scale);
+              return SliverCrossAxisGroup(
+                slivers: [
+                  SliverConstrainedCrossAxis(
+                    maxExtent: treeWidth,
+                    sliver: SliverList.list(children: tree),
                   ),
-                  AppSpacing.gapXl,
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: detail,
+                  SliverPadding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: AppSpacing.xl,
                     ),
+                    sliver: detail!,
                   ),
                 ],
               );
@@ -858,33 +860,16 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     ];
   }
 
-  /// The tree's rows. With [detail] set, the selected pane's records follow
-  /// its own row; a pane without a row puts them on top.
-  List<Widget> _tree(
+  /// The tree rows and where the selected pane opens on narrow screens.
+  (List<Widget>, int) _tree(
     BuildContext context, {
     required List<_Source> sources,
     required _Pane? selected,
-    required List<Widget>? detail,
   }) {
     final rows = <Widget>[];
-    var placed = false;
+    var detailIndex = 1;
     void after(_Pane pane) {
-      if (detail == null || detail.isEmpty || selected != pane) return;
-      placed = true;
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            0,
-            AppSpacing.md,
-            0,
-            AppSpacing.xl,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: detail,
-          ),
-        ),
-      );
+      if (selected == pane) detailIndex = rows.length;
     }
 
     void select(_Pane pane) => _pane.value = _pane.value == pane ? null : pane;
@@ -996,16 +981,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         after(pane);
       }
     }
-    if (detail != null && detail.isNotEmpty && !placed && selected != null) {
-      rows.insertAll(1, [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: detail,
-        ),
-        AppSpacing.gapXl,
-      ]);
-    }
-    return rows;
+    return (rows, detailIndex);
   }
 
   /// A tool's or key's row opens its page from the context menu.
@@ -1026,7 +1002,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   }
 
   /// The selected pane: its title, where it came from, its card or records.
-  List<Widget> _paneDetail(
+  Widget _paneDetail(
     BuildContext context, {
     required _Pane pane,
     required Section? section,
@@ -1095,52 +1071,45 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         .where((s) => s.id != VaultStore.sharedEntriesId && s.key.isNotEmpty)
         .firstOrNull;
     final showCard = view != null && !_asRecords.value.contains(viewSectionId);
-    return [
+    final badges = section == null ? null : _sectionBadges(context, section);
+    final menu = section == null ? null : _sectionMenu(context, section);
+    final header = <Widget>[
       LayoutBuilder(
         key: const ValueKey('vault-selected-section-header'),
-        builder: (context, box) => Observer(
-          builder: (context) {
-            final narrow =
-                box.maxWidth < AppSpacing.narrowWidth ||
-                MediaQuery.textScalerOf(context).scale(16) > 24;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Wrap(
-                        spacing: AppSpacing.md,
-                        runSpacing: AppSpacing.sm,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          AppText('$title · $count').header,
-                          if (section != null && !narrow)
-                            _sectionBadges(context, section),
-                        ],
-                      ),
+        builder: (context, box) {
+          final narrow =
+              box.maxWidth < AppSpacing.narrowWidth ||
+              MediaQuery.textScalerOf(context).scale(16) > 24;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: AppSpacing.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        AppText('$title · $count').header,
+                        if (!narrow) ?badges,
+                      ],
                     ),
-                    if (section != null) ...[
-                      AppSpacing.gapSm,
-                      _sectionMenu(context, section),
-                    ],
-                  ],
-                ),
-                if (keyed != null) ...[
-                  AppSpacing.gapXxs,
-                  AppText(
-                    keyed.key,
-                    key: const ValueKey('vault-section-key'),
-                  ).small.muted.mono.selectable,
+                  ),
+                  if (menu != null) ...[AppSpacing.gapSm, menu],
                 ],
-                if (section != null && narrow) ...[
-                  AppSpacing.gapXxs,
-                  _sectionBadges(context, section),
-                ],
+              ),
+              if (keyed != null) ...[
+                AppSpacing.gapXxs,
+                AppText(
+                  keyed.key,
+                  key: const ValueKey('vault-section-key'),
+                ).small.muted.mono.selectable,
               ],
-            );
-          },
-        ),
+              if (badges != null && narrow) ...[AppSpacing.gapXxs, badges],
+            ],
+          );
+        },
       ),
       if (section != null) ...?_sectionSource(context, section),
       if (view != null) ...[
@@ -1186,24 +1155,44 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         AppSpacing.gapMd,
         Divider(height: 1, color: scheme.outlineVariant),
         if (count == 0)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
-            child: const AppText(
-              'No items match this view. Try another section or clear the filters.',
-            ).muted,
-          )
-        else if (shared != null)
-          for (final r in sharedShown) ...[
-            _sharedRow(context, shared, r),
-            Divider(height: 1, color: scheme.outlineVariant),
-          ]
-        else
-          for (final r in shown) ...[
-            _libraryRow(r, links: links[r.id]!),
-            Divider(height: 1, color: scheme.outlineVariant),
-          ],
+          if (_tableController.query.trim().isNotEmpty ||
+              _filters.value.isNotEmpty ||
+              audiences.isNotEmpty)
+            const AppEmptyState.noMatches()
+          else
+            const AppEmptyState(
+              icon: AppIcons.folder,
+              title: 'No records in this view',
+              subtitle: 'Choose another section to see its records.',
+            ),
       ],
     ];
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverList.list(children: header),
+        if (!showCard && count > 0)
+          SliverList.builder(
+            itemCount: count,
+            itemBuilder: (context, index) {
+              final record = shared == null ? shown[index] : sharedShown[index];
+              return Column(
+                key: ValueKey(record.id),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (shared != null)
+                    _sharedRow(context, shared, record)
+                  else
+                    Observer(
+                      builder: (_) =>
+                          _libraryRow(record, links: links[record.id]!),
+                    ),
+                  Divider(height: 1, color: scheme.outlineVariant),
+                ],
+              );
+            },
+          ),
+      ],
+    );
   }
 
   /// Metadata rather than values: browsing never exposes a saved secret.
