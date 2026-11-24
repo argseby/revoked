@@ -178,7 +178,16 @@ void main() {
         final tile = find.byKey(
           const ValueKey('vault-section-section00000long'),
         );
-        await tester.ensureVisible(tile);
+        await tester.scrollUntilVisible(
+          tile,
+          100,
+          scrollable: find
+              .descendant(
+                of: find.byType(CustomScrollView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
         await tester.tap(tile);
         await tester.pumpAndSettle();
         expect(find.byKey(const ValueKey('vault-section-key')), findsOneWidget);
@@ -571,7 +580,7 @@ void main() {
         final router = await signedIn(tester, entry.value);
         router.go(AppRoutes.apiKeys);
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('New API key'));
+        await tester.tap(find.text('New API key'));
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Custom'));
         await tester.tap(find.text('Custom'));

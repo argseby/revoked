@@ -25,7 +25,6 @@ import 'package:revoked_app/core/widgets/app_sheet.dart';
 import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/api_access_sheet.dart';
 import 'package:revoked_app/core/widgets/data_table/table_store.dart';
-import 'package:revoked_app/core/config/app_config.dart';
 
 /// Grant status for a connection.
 enum GrantStatus { live, revoked, vault }
@@ -347,27 +346,7 @@ class _DataScreenState extends State<DataScreen> {
                   return const AppEmptyState(
                     icon: AppIcons.cardList,
                     title: 'No responses',
-                    subtitle:
-                        'Responses to this request are listed here, grouped '
-                        'by sender.',
-                    steps: [
-                      AppEmptyStep(
-                        'Request link',
-                        'Shared as a link or QR code',
-                      ),
-                      AppEmptyStep(
-                        'Form',
-                        'Typed in, or filled from the responder\'s vault',
-                      ),
-                      AppEmptyStep(
-                        'Live answers',
-                        'Updated or withdrawn by the responder',
-                      ),
-                    ],
-                    learnMoreLabel: 'About responses',
-                    learnMoreUrl:
-                        '${AppConfig.docsUrl}/guide/requests/'
-                        '#reading-what-came-back',
+                    subtitle: 'Responses appear here after someone submits this request.',
                   );
                 }
                 return const AppEmptyState(

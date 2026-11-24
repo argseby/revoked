@@ -93,9 +93,8 @@ void main() {
     if (path == '/api/collections/credentials/records') {
       return json({'items': held.values.toList()});
     }
-    final reissue = RegExp(
-      r'^/api/credentials/([^/]+)/reissue$',
-    ).firstMatch(path);
+    final reissue = RegExp(r'^/api/credentials/([^/]+)/reissue$')
+        .firstMatch(path);
     if (reissue != null) {
       final id = reissue.group(1)!;
       if (request.method == 'GET') {

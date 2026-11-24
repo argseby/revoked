@@ -78,6 +78,9 @@ class AppListToolbar extends StatelessWidget {
   /// Sections promoted to quick filters; otherwise the first section.
   final List<String>? quickSections;
 
+  /// Puts the search and filter controls above the quick choices.
+  final bool searchFirst;
+
   /// The filters; empty where a list has nothing to filter by.
   final List<AppChecklistSection> Function() sections;
 
@@ -102,6 +105,7 @@ class AppListToolbar extends StatelessWidget {
     this.allLabel = 'All',
     this.isAllSelected,
     this.quickSections,
+    this.searchFirst = false,
     required this.sections,
     required this.onClearFilters,
     required this.sortOptions,
@@ -219,6 +223,7 @@ class AppListToolbar extends StatelessWidget {
         if (section.selected.contains(item.id)) selected.add(key);
       }
     }
+    if (values.isEmpty && all) return null;
     return AppFilterChips<String>(
       selected: '',
       selectedValues: selected,
@@ -260,8 +265,9 @@ class AppListToolbar extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (quick != null) ...[quick, AppSpacing.gapLg],
+          if (quick != null && !searchFirst) ...[quick, AppSpacing.gapLg],
           pill(),
+          if (quick != null && searchFirst) ...[AppSpacing.gapSm, quick],
           if (chips != null) ...[AppSpacing.gapSm, chips],
         ],
       );
@@ -518,7 +524,12 @@ class _FilterSortButtonState extends State<_FilterSortButton> {
   /// Changes apply immediately. Only the choices scroll, keeping the way
   /// back to the list and Reset reachable even with a long list or keyboard.
   Widget _panel(BuildContext context, VoidCallback close) {
-    final sections = _t.sections();
+    final sections = _t
+        .sections()
+        .where(
+          (section) => section.items.isNotEmpty || section.selected.isNotEmpty,
+        )
+        .toList();
     final active = _t._activeCount(withQuery: _withSearch);
     return Column(
       mainAxisSize: MainAxisSize.min,

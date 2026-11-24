@@ -728,7 +728,7 @@ class _RecordDetailScreenState extends State<RecordDetailScreen> {
   /// Opens the tool that wrote the record, or the API keys when a key did.
   Future<void> _openWriter(models.Record r) async {
     if (Stores.connections.connections.isEmpty) {
-      await Stores.connections.load();
+      await Stores.connections.loadSummariesIfDue();
     }
     if (!mounted) return;
     for (final c in Stores.connections.connections) {

@@ -21,11 +21,8 @@ class AppEmptyStep {
 
 /// What a screen shows while it has nothing to list.
 ///
-/// With only [icon], [title] and [subtitle] it is the short, centered notice
-/// used for "not found" pages. A first-run screen also passes [steps], an
-/// [example] and actions: someone who has never used the feature learns what
-/// it is for, sees what an entry looks like, and can start from right here
-/// instead of hunting for the + button.
+/// All empty views use the same icon tile, heading and reading width.
+/// Add an example, walkthrough or action when it helps someone get started.
 class AppEmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -64,44 +61,17 @@ class AppEmptyState extends StatelessWidget {
          'a docs link needs both its label and its url',
        );
 
-  bool get _explains => steps.isNotEmpty || example != null || notice != null;
+  /// A populated list whose current search or filters hide every row.
+  const AppEmptyState.noMatches({Key? key, String title = 'No matches'})
+    : this(
+        key: key,
+        icon: AppIcons.search,
+        title: title,
+        subtitle: 'Try a different search or clear the filters.',
+      );
 
   @override
   Widget build(BuildContext context) {
-    return _explains ? _explainer(context) : _notice(context);
-  }
-
-  Widget _notice(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 40,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            AppSpacing.gapMd,
-            Text(title),
-            AppSpacing.gapXxs,
-            Text(subtitle, textAlign: .center).muted.small,
-            if (action != null || secondaryAction != null) ...[
-              AppSpacing.gapLg,
-              _actions(alignment: WrapAlignment.center),
-            ],
-            if (learnMoreUrl != null) ...[
-              AppSpacing.gapSm,
-              _learnMore(context),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _explainer(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final content = ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 440),
@@ -137,7 +107,11 @@ class AppEmptyState extends StatelessWidget {
           ],
           if (action != null || secondaryAction != null) ...[
             AppSpacing.gapXl,
-            _actions(alignment: WrapAlignment.start),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [?action, ?secondaryAction],
+            ),
           ],
           if (learnMoreUrl != null) ...[AppSpacing.gapSm, _learnMore(context)],
         ],
@@ -170,15 +144,6 @@ class AppEmptyState extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  Widget _actions({required WrapAlignment alignment}) {
-    return Wrap(
-      alignment: alignment,
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [?action, ?secondaryAction],
     );
   }
 
@@ -277,8 +242,6 @@ class AppEmptyExample extends StatelessWidget {
                       if (detail != null) TextSpan(text: '  ·  $detail'),
                     ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: AppTextSize.small,
                     color: scheme.onSurfaceVariant,

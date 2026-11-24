@@ -181,7 +181,7 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
         Stores.identities.loadIdentities();
         Stores.settings.ensureDomainChecked();
       case SettingsPage.connectedTools:
-        Stores.connections.load();
+        Stores.connections.loadDetailsIfDue();
         Stores.signIns.loadIfDue();
         Stores.invites.loadCatalogue();
       case SettingsPage.apiKeys:
@@ -199,29 +199,15 @@ class _SettingsPageScreenState extends State<SettingsPageScreen> {
   Widget build(BuildContext context) {
     return AppPageBody(
       children: [
-        // The page names itself here, so the top bar carries no title. On a
-        // wide window there is no top bar at all, so the page's own action
-        // ("New API key") stands beside its name; a phone keeps it as the
-        // floating button instead.
-        Observer(
-          builder: (context) {
-            final own = AppSpacing.isNarrow(context)
-                ? null
-                : subPageActionFor(AppRoutes.settingsPage(widget.page.slug));
-            return AppCollectionHeader(
-              title: widget.page.title,
-              description: widget.page.description,
-              onBack: () => goBack(context, AppRoutes.settings),
-              action: own == null
-                  ? null
-                  : AppButton(
-                      icon: own.icon,
-                      label: own.label,
-                      tooltip: own.label,
-                      onTap: () => own.start(context),
-                    ),
-            );
-          },
+        AppCollectionHeader(
+          title: widget.page.title,
+          description: widget.page.description,
+          onBack: () => goBack(context, AppRoutes.settings),
+          action: PageActionButton(
+            widget.page == SettingsPage.templates
+                ? AppRoutes.templates
+                : AppRoutes.settingsPage(widget.page.slug),
+          ),
         ),
         switch (widget.page) {
           SettingsPage.appearance => const AppearancePage(),
@@ -401,7 +387,11 @@ class _WorkspacesPage extends StatelessWidget {
             if (settings.isLoading && settings.workspaces.isEmpty)
               const _LoadingRow()
             else if (settings.workspaces.isEmpty)
-              const AppDetailRow(icon: AppIcons.info, label: 'No workspaces.')
+              const AppEmptyState(
+                icon: AppIcons.personWorkspace,
+                title: 'No workspaces',
+                subtitle: 'Create a workspace or join one with an invite.',
+              )
             else
               for (final ws in settings.workspaces)
                 AppListRow(
@@ -482,6 +472,13 @@ class _MembersPage extends StatelessWidget {
             onRetry: _reload,
           );
         }
+        if (!store.isLoadingMembers && store.members.isEmpty) {
+          return const AppEmptyState(
+            icon: AppIcons.personWorkspace,
+            title: 'No other members',
+            subtitle: 'People who accept a workspace invite appear here.',
+          );
+        }
         final total = store.catalogue.length;
         return AppListGroup(
           title: 'Members',
@@ -489,11 +486,6 @@ class _MembersPage extends StatelessWidget {
           children: [
             if (store.isLoadingMembers && store.members.isEmpty)
               const _LoadingRow()
-            else if (store.members.isEmpty)
-              const AppDetailRow(
-                icon: AppIcons.info,
-                label: 'No other members.',
-              )
             else
               for (final member in store.members)
                 _memberRow(context, member, total),
@@ -940,6 +932,13 @@ class _TemplatesPage extends StatelessWidget {
         final builtins = store.templates.where((t) => t.isBuiltin).toList();
         final own = store.templates.where((t) => !t.isBuiltin).toList();
         final loading = store.isLoading && store.templates.isEmpty;
+        if (!loading && store.templates.isEmpty) {
+          return const AppEmptyState(
+            icon: AppIcons.fileText,
+            title: 'No templates',
+            subtitle: 'Create a template to reuse the same fields in future requests.',
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

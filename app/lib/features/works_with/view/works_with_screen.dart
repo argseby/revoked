@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:revoked_app/core/config/app_config.dart';
@@ -23,6 +24,7 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
+import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/features/works_with/view/works_with_chip.dart';
 
 /// Works with Revoked: the services and tools built on Revoked, as reviewed
@@ -54,7 +56,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
     Stores.worksWith.refreshIfDue();
     // Which listed services are already connected, to mark and list them
     // first. Read from the stores the Connected tools page fills.
-    Stores.connections.load();
+    Stores.connections.loadSummariesIfDue();
     Stores.signIns.loadIfDue();
   }
 
@@ -101,6 +103,29 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
           if (s.verified) 'verified',
           if (s.builtByRevoked) 'revoked',
         ]);
+  }
+
+  /// A tool has only what it does and whether Revoked built it; a filter on
+  /// anything a service alone has leaves the tools out.
+  bool _toolPasses(WorksWithTool t) {
+    final q = _query.value.trim().toLowerCase();
+    if (q.isNotEmpty && !q.split(RegExp(r'\s+')).every(t.searchText.contains)) {
+      return false;
+    }
+    const serviceOnly = [
+      _Section.category,
+      _Section.access,
+      _Section.runsOn,
+      _Section.language,
+    ];
+    if (serviceOnly.any((s) => _on(s).isNotEmpty)) return false;
+    final does = _on(_Section.does);
+    if (does.isNotEmpty && !t.does.any((k) => does.contains(k.key))) {
+      return false;
+    }
+    final mark = _on(_Section.mark);
+    if (mark.contains('verified')) return false;
+    return !mark.contains('revoked') || t.builtByRevoked;
   }
 
   List<WorksWithService> _sorted(List<WorksWithService> list) {
@@ -182,10 +207,8 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
 
   Widget _build(BuildContext context) {
     final all = Stores.worksWith.services;
-    if (all.isEmpty) {
+    if (all.isEmpty && Stores.worksWith.tools.isEmpty) {
       return AppListPage(
-        toolbar: _toolbar(const []),
-        inlineToolbar: true,
         filters: const AppCollectionHeader(
           title: 'Works with Revoked',
           description: intro,
@@ -194,7 +217,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
           AppEmptyState(
             icon: AppIcons.worksWith,
             title: 'No services listed',
-            subtitle: intro,
+            subtitle: 'Services are listed here after review.',
             action: AppButton(
               icon: AppIcons.boxArrowUpRight,
               label: 'How services are listed',
@@ -206,6 +229,8 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
     }
     final searched = all.where(_matchesQuery).toList();
     final shown = _sorted(searched.where(_passes).toList());
+    final tools = [...Stores.worksWith.tools.where(_toolPasses)]
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final connected = _connected;
     final mine = [
       for (final s in shown)
@@ -223,7 +248,7 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
         title: 'Works with Revoked',
         description: intro,
       ),
-      emptyMessage: shown.isEmpty
+      emptyMessage: shown.isEmpty && tools.isEmpty
           ? 'No service matches the search or filters.'
           : null,
       groups: [
@@ -244,6 +269,12 @@ class _WorksWithScreenState extends State<WorksWithScreen> {
             children: [
               for (final s in rest) _ServiceCard(s, onTap: () => _open(s)),
             ],
+          ),
+        if (tools.isNotEmpty)
+          _ServiceGroup(
+            key: const ValueKey('works-with-tools'),
+            title: 'Developer tools',
+            children: [for (final t in tools) _ToolCard(t)],
           ),
         _ListingNote(onTap: _openRepo),
       ],
@@ -270,6 +301,7 @@ class _ServiceGroup extends StatelessWidget {
   final List<Widget> children;
 
   const _ServiceGroup({
+    super.key,
     required this.title,
     required this.children,
     this.maxColumns = 2,
@@ -447,6 +479,137 @@ class _ServiceCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// One listed developer tool. It has no page of its own: its install command
+/// and where it lives are all there is to it.
+class _ToolCard extends StatelessWidget {
+  final WorksWithTool tool;
+
+  const _ToolCard(this.tool);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tool;
+    final scheme = Theme.of(context).colorScheme;
+    final description = t.description.text;
+    Widget link(String label, String url) => AppButton(
+      icon: AppIcons.boxArrowUpRight,
+      label: label,
+      style: AppButtonStyle.accent,
+      size: AppButtonSize.small,
+      onTap: () =>
+          launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+    );
+    return AppCard(
+      key: ValueKey('works-with-tool-${t.slug}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: AppRadius.allMd,
+                ),
+                child: Icon(
+                  switch (t.platform) {
+                    'mcp' => AppIcons.plug,
+                    'flutter' => AppIcons.phone,
+                    _ => AppIcons.code,
+                  },
+                  size: 20,
+                  color: scheme.onSurface,
+                ),
+              ),
+              AppSpacing.gapMd,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: AppSpacing.sm,
+                      runSpacing: AppSpacing.xxs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        AppText(t.name).bold,
+                        AppBadge(
+                          label: t.platformLabel,
+                          variant: AppBadgeVariant.sunken,
+                        ),
+                        if (t.builtByRevoked)
+                          const AppBadge(
+                            label: 'Built by Revoked',
+                            variant: AppBadgeVariant.outline,
+                          ),
+                      ],
+                    ),
+                    if (t.license.isNotEmpty)
+                      AppText(t.license).small.mono.muted,
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (description.isNotEmpty) ...[
+            AppSpacing.gapMd,
+            AppText(
+              description,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ).small.muted,
+          ],
+          if (t.install.isNotEmpty) ...[
+            AppSpacing.gapMd,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: AppRadius.allSm,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.only(left: AppSpacing.md),
+                child: Row(
+                  children: [
+                    Expanded(child: AppText(t.install).small.mono.selectable),
+                    AppButton(
+                      icon: AppIcons.copy,
+                      tooltip: 'Copy command',
+                      style: AppButtonStyle.accent,
+                      size: AppButtonSize.small,
+                      onTap: () async {
+                        await Clipboard.setData(ClipboardData(text: t.install));
+                        if (context.mounted) {
+                          AppToast.success(context, 'Command copied');
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const Spacer(),
+          AppSpacing.gapMd,
+          const AppDivider(),
+          AppSpacing.gapMd,
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              if (t.docs.isNotEmpty) link('Documentation', t.docs),
+              if (t.registry.isNotEmpty)
+                link(t.platform == 'mcp' ? 'Releases' : 'Package', t.registry),
+              if (t.source.isNotEmpty) link('Source', t.source),
+            ],
+          ),
+        ],
       ),
     );
   }

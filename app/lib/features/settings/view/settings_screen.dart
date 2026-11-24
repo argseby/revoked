@@ -57,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       Stores.passkeys.load();
       Stores.keys.ensureLoaded();
-      Stores.connections.load();
+      Stores.connections.loadSummariesIfDue();
       Stores.signIns.loadIfDue();
       Stores.credentials.load();
       Stores.serverSettings.loadServerVersion();

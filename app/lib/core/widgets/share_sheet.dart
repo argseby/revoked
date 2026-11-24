@@ -22,6 +22,12 @@ import 'package:share_plus/share_plus.dart';
 
 bool get _hasShareSheet => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
+/// The recipient's browser address, including the fragment for encrypted data.
+String shareWebUrl(String slug, {String? linkKey}) {
+  final fragment = linkKey == null ? '' : '#k=$linkKey';
+  return '${Stores.api.baseUrl}/s/$slug$fragment';
+}
+
 /// Everything one link can be handed over as. A share is one act with one
 /// button; which carrier the recipient needs — a URL, a scan, an API call — is
 /// a detail inside it, not three separate menu entries.
@@ -45,7 +51,7 @@ Future<void> showShareSheet({
   // A request collects data, so it has no browser page and gets no web link:
   // the one surface that accepts input is the app, which verifies the server
   // it is talking to before anything is typed.
-  final webUrl = isRequest ? null : '${Stores.api.baseUrl}/s/$slug$key';
+  final webUrl = isRequest ? null : shareWebUrl(slug, linkKey: linkKey);
   final appUrl = isRequest
       ? DeepLinks.request(slug, origin: origin)
       : '${DeepLinks.share(slug, origin: origin)}$key';

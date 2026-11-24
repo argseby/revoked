@@ -100,6 +100,13 @@ with a new address and the view count reset to zero.
 Badges on each share indicate its kind: password-protected, requiring a
 verified viewer, or answering a [request](requests.md).
 
+The list groups live links by who created them: **Own links**, one group
+per connected tool that proposed links, **Answers to requests** and
+**Sign-ins**. Links that expire or run out of views soon stay at the top under
+**Needs attention**; revoked and expired links are folded at the bottom.
+**Expand** on a link lists what it exposes. A **Whole section** also exposes
+records added to it later; a **Single record** exposes only that record.
+
 ## Recipient view
 
 A share is sent as a `revoked://` link or as a QR code. The QR code holds a

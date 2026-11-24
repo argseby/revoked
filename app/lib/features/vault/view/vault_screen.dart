@@ -1,16 +1,18 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
+import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/core/widgets/app_collection_header.dart';
 import 'package:revoked_app/features/vault/view/record_actions.dart';
 import 'package:revoked_app/core/widgets/app_options_sheet.dart';
 import 'package:revoked_app/core/widgets/copy_actions.dart';
-import 'package:revoked_app/core/widgets/app_context_menu.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:go_router/go_router.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/utils/value_kind.dart';
-import 'package:revoked_app/features/shares/utils/record_access.dart';
 import 'package:revoked_app/core/design/radius.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -30,6 +32,7 @@ import 'package:revoked_app/core/models/connection.dart';
 import 'package:revoked_app/core/utils/people.dart';
 import 'package:revoked_app/core/widgets/app_menu_button.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/app_tree_row.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
@@ -72,31 +75,74 @@ class VaultScreen extends StatefulWidget {
 /// through; several let through a record that is any of them.
 enum _VaultFilter { shared, files, hidden }
 
-/// Which section or item view is selected in the library.
+/// Which section or item view is selected in the library. Equal panes share
+/// an [id], so the tree can find the row a pane belongs to.
 sealed class _Pane {
   const _Pane();
+  String get id;
+
+  @override
+  bool operator ==(Object other) => other is _Pane && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 /// Every own record, in one list.
 class _AllPane extends _Pane {
   const _AllPane();
+  @override
+  String get id => 'all';
 }
 
 /// One of this person's sections.
 class _SectionPane extends _Pane {
-  final String id;
-  const _SectionPane(this.id);
+  final String section;
+  const _SectionPane(this.section);
+  @override
+  String get id => 'section:$section';
 }
 
 /// A section another member shared.
 class _SharedPane extends _Pane {
-  final String id;
-  const _SharedPane(this.id);
+  final String section;
+  const _SharedPane(this.section);
+  @override
+  String get id => 'shared:$section';
 }
 
-/// The own records no section holds.
+/// The own records no section holds: those one source wrote, or with a null
+/// [source] all of them.
 class _UnsortedPane extends _Pane {
-  const _UnsortedPane();
+  final String? source;
+  const _UnsortedPane([this.source]);
+  @override
+  String get id => 'unsorted:${source ?? '*'}';
+}
+
+/// Who wrote what a branch of the library holds: the owner, one connected
+/// tool or API key, or the members who shared sections.
+class _Source {
+  final String id;
+  final String name;
+  final String kind;
+  final IconData icon;
+  final List<Section> sections;
+  final List<models.Record> loose;
+  final bool members;
+
+  const _Source({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.icon,
+    required this.sections,
+    required this.loose,
+    this.members = false,
+  });
+
+  static const own = 'own';
+  static const shared = 'members';
 }
 
 class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
@@ -121,8 +167,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       if (s.records.contains(r.id)) _sectionAudience(s),
   ];
 
-  /// The section selected in the library, preserved while searching.
-  final Local<_Pane> _pane = Local(const _AllPane());
+  /// The section selected in the library, preserved while searching. Null
+  /// shows the whole list on a wide window and only the tree on a narrow one.
+  final Local<_Pane?> _pane = Local(null);
 
   /// Sections switched from their card to the plain list of records.
   final Local<Set<String>> _asRecords = Local(const {});
@@ -149,7 +196,7 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ShellSlots.action.claim(_primaryAction);
       // Which tool keeps or reads a section is said on the section itself.
-      if (Stores.connections.connections.isEmpty) Stores.connections.load();
+      Stores.connections.loadSummariesIfDue();
       Stores.shares.loadIfDue();
     });
   }
@@ -206,13 +253,13 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       key: const ValueKey('vault-toolbar'),
       totalCount: matches.length,
       allLabel: 'All items',
-      isAllSelected: () => _pane.value is _AllPane,
+      isAllSelected: () => _pane.value == null || _pane.value is _AllPane,
       quickSections: const ['View', 'Show'],
       query: _tableController.query,
       onQueryChanged: _tableController.setQuery,
       searchHint: 'Find an item',
       onClearFilters: () {
-        _pane.value = const _AllPane();
+        _pane.value = null;
         _filters.value = const {};
         _audiences.value = const {};
       },
@@ -220,9 +267,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         if (filed.isNotEmpty)
           AppChecklistSection(
             title: 'View',
-            selected: {if (_pane.value is _UnsortedPane) 'unfiled'},
+            selected: {if (_pane.value == const _UnsortedPane()) 'unfiled'},
             onToggle: (_, on) =>
-                _pane.value = on ? const _UnsortedPane() : const _AllPane(),
+                _pane.value = on ? const _UnsortedPane() : null,
             items: [
               AppChecklistItem(
                 id: 'unfiled',
@@ -284,11 +331,8 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
   Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
     title: 'Your vault',
     description: 'Private and secure place for your information.',
-    action: AppButton(
-      icon: AppIcons.plus,
-      label: 'New record',
-      onTap: () => openVaultCreateSheet(context),
-    ),
+    prominent: true,
+    action: const PageActionButton(AppRoutes.vault),
   );
 
   Widget _body(BuildContext context) {
@@ -353,17 +397,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
           if (s.id == store.editingSectionId) editingSection = s;
         }
 
-        // Use the same access rules as the detail page, including aliases
-        // and encrypted records that cannot be read through a section.
-        int linkCount(models.Record r) => accessForRecord(
-          r.id,
-          links: Stores.shares.shares,
-          sections: store.sections,
-          records: store.records,
-        ).where((access) => access.isOpen).length;
-
+        final access = Stores.openRecordAccess.value;
         final matches = _tableController.filteredItems;
-        final links = {for (final r in matches) r.id: linkCount(r)};
+        final links = {for (final r in matches) r.id: access.countFor(r.id)};
         final filters = _filters.value;
         bool kind(models.Record r) =>
             filters.isEmpty ||
@@ -377,7 +413,10 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
 
         var records = matches
             .where(
-              (r) => kind(r) && audienceMatches(audiences, _audiencesOf(r)),
+              (r) =>
+                  kind(r) &&
+                  (audiences.isEmpty ||
+                      audienceMatches(audiences, _audiencesOf(r))),
             )
             .toList();
 
@@ -613,7 +652,9 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
       (filters.contains(_VaultFilter.files) && r.isFile) ||
       (filters.contains(_VaultFilter.hidden) && r.isHidden);
 
-  /// A section library above one item list, at every window size.
+  /// The library: a tree of sources and their sections, and the selected
+  /// one's records — beside the tree on a wide window, under its own row on a
+  /// narrow one, so what was tapped opens where it was tapped.
   Widget _library(
     BuildContext context, {
     required List<models.Record> records,
@@ -622,29 +663,367 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
     required AppListToolbar toolbar,
   }) {
     final store = Stores.vault;
-    final scheme = Theme.of(context).colorScheme;
-    final audiences = _audiences.value;
+    final sources = _sources();
     var pane = _pane.value;
     Section? section;
     Section? shared;
     if (pane is _SectionPane) {
-      final id = pane.id;
+      final id = pane.section;
       section = store.sections.where((s) => s.id == id).firstOrNull;
-      if (section == null) pane = const _AllPane();
+      if (section == null) pane = null;
     } else if (pane is _SharedPane) {
-      final id = pane.id;
+      final id = pane.section;
       shared = store.sharedSections.where((s) => s.id == id).firstOrNull;
-      if (shared == null) pane = const _AllPane();
+      if (shared == null) pane = null;
     }
-    final filed = store.sections.expand((s) => s.records).toSet();
-    final sections = [
+    final narrowing =
+        _tableController.query.trim().isNotEmpty ||
+        _filters.value.isNotEmpty ||
+        _audiences.value.isNotEmpty;
+    return AppPageBody.slivers(
+      slivers: [
+        SliverList.list(
+          children: [
+            _collectionHeader(context),
+            for (final banner in banners) ...[banner, AppSpacing.gapLg],
+            toolbar,
+            AppSpacing.gapXl,
+          ],
+        ),
+        SliverLayoutBuilder(
+          builder: (context, constraints) => Observer(
+            builder: (context) {
+              final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
+              final width = constraints.crossAxisExtent;
+              final split = width / scale >= AppSpacing.narrowWidth;
+              // A narrow window opens nothing until the user selects a pane,
+              // unless a search or filter is already narrowing the records.
+              final open =
+                  pane ?? (split || narrowing ? const _AllPane() : null);
+              final detail = open == null
+                  ? null
+                  : _paneDetail(
+                      context,
+                      pane: open,
+                      section: section,
+                      shared: shared,
+                      records: records,
+                      links: links,
+                      sources: sources,
+                    );
+              final (tree, detailIndex) = _tree(
+                context,
+                sources: sources,
+                selected: open,
+              );
+              if (!split) {
+                return SliverMainAxisGroup(
+                  slivers: [
+                    SliverList.list(
+                      children: detail == null
+                          ? tree
+                          : tree.take(detailIndex).toList(),
+                    ),
+                    if (detail != null) ...[
+                      SliverPadding(
+                        padding: const EdgeInsets.only(
+                          top: AppSpacing.md,
+                          bottom: AppSpacing.xl,
+                        ),
+                        sliver: detail,
+                      ),
+                      SliverList.list(
+                        children: tree.skip(detailIndex).toList(),
+                      ),
+                    ],
+                  ],
+                );
+              }
+              final treeWidth = (width * 0.36).clamp(260 * scale, 340 * scale);
+              return SliverCrossAxisGroup(
+                slivers: [
+                  SliverConstrainedCrossAxis(
+                    maxExtent: treeWidth,
+                    sliver: SliverList.list(children: tree),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: AppSpacing.xl,
+                    ),
+                    sliver: detail!,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// What the vault holds, by who wrote it: the owner first, then each tool
+  /// or key, then the members' shared sections. A section belongs to the tool
+  /// that manages it, else to the one writer of all its records, else to the
+  /// owner; a record no section holds belongs to its writer.
+  List<_Source> _sources() {
+    final store = Stores.vault;
+    final byId = {for (final r in store.records) r.id: r};
+    String sourceOf(Section s) {
+      if (_managerOf(s) case final manager?) return manager.id;
+      final writers = {
+        for (final id in s.records)
+          if (byId[id] case final r?) r.writtenBy,
+      };
+      return writers.length == 1 && writers.first.isNotEmpty
+          ? writers.first
+          : _Source.own;
+    }
+
+    final sorted = [
       for (final s in store.sections) (s, const <models.Record>[]),
     ];
-    _sortSections(sections);
+    _sortSections(sorted);
+    final sections = <String, List<Section>>{};
+    for (final (s, _) in sorted) {
+      (sections[sourceOf(s)] ??= []).add(s);
+    }
+    final filed = store.sections.expand((s) => s.records).toSet();
+    final loose = <String, List<models.Record>>{};
+    for (final r in store.records) {
+      if (filed.contains(r.id)) continue;
+      (loose[r.writtenBy.isEmpty ? _Source.own : r.writtenBy] ??= []).add(r);
+    }
+
+    _Source writer(String id) {
+      for (final c in Stores.connections.connections) {
+        if (c.id == id) {
+          return _Source(
+            id: id,
+            name: c.name.isEmpty ? c.shortId : c.name,
+            kind: 'Connected tool',
+            icon: AppIcons.plug,
+            sections: sections[id] ?? const [],
+            loose: loose[id] ?? const [],
+          );
+        }
+      }
+      for (final k in Stores.apiKeys.apiKeys) {
+        if (k.id == id) {
+          return _Source(
+            id: id,
+            name: k.label.isEmpty ? Connection.shortIdOf(id) : k.label,
+            kind: 'API key',
+            icon: AppIcons.key,
+            sections: sections[id] ?? const [],
+            loose: loose[id] ?? const [],
+          );
+        }
+      }
+      final named = store.records
+          .where((r) => r.writtenBy == id)
+          .map((r) => r.writerName)
+          .firstOrNull;
+      return _Source(
+        id: id,
+        name: named ?? Connection.shortIdOf(id),
+        kind: 'Tool or key',
+        icon: AppIcons.plug,
+        sections: sections[id] ?? const [],
+        loose: loose[id] ?? const [],
+      );
+    }
+
+    final writers = [
+      for (final id in {...sections.keys, ...loose.keys})
+        if (id != _Source.own) writer(id),
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return [
+      _Source(
+        id: _Source.own,
+        name: 'Own records',
+        kind: '',
+        icon: AppIcons.person,
+        sections: sections[_Source.own] ?? const [],
+        loose: loose[_Source.own] ?? const [],
+      ),
+      ...writers,
+      if (store.sharedSections.isNotEmpty)
+        _Source(
+          id: _Source.shared,
+          name: 'Shared by members',
+          kind: 'Read-only',
+          icon: AppIcons.personWorkspace,
+          sections: store.sharedSections.toList(),
+          loose: const [],
+          members: true,
+        ),
+    ];
+  }
+
+  /// The tree rows and where the selected pane opens on narrow screens.
+  (List<Widget>, int) _tree(
+    BuildContext context, {
+    required List<_Source> sources,
+    required _Pane? selected,
+  }) {
+    final rows = <Widget>[];
+    var detailIndex = 1;
+    void after(_Pane pane) {
+      if (selected == pane) detailIndex = rows.length;
+    }
+
+    void select(_Pane pane) => _pane.value = _pane.value == pane ? null : pane;
+
+    rows.add(
+      Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+        child: Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.sm,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const AppText('Sections').bold,
+            AppButton(
+              label: 'New section',
+              emphasizeLabel: false,
+              icon: AppIcons.plus,
+              size: AppButtonSize.small,
+              style: AppButtonStyle.outline,
+              onTap: () => openVaultCreateSheet(
+                context,
+                initialTab: VaultCreateTab.section,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    for (final source in sources) {
+      final open = Stores.folds.isOpen(TreeFold.vaultSources, source.id);
+      final count = source.members
+          ? source.sections.fold(0, (n, s) => n + s.records.length)
+          : source.loose.length +
+                source.sections.fold(0, (n, s) => n + s.records.length);
+      rows.add(
+        AppTreeRow(
+          key: ValueKey('vault-source-${source.id}'),
+          icon: source.icon,
+          title: source.name,
+          subtitle: [
+            if (source.kind.isNotEmpty) source.kind,
+            '$count ${count == 1 ? 'item' : 'items'}',
+          ].join(' · '),
+          expanded: open,
+          onToggle: () => Stores.folds.toggle(TreeFold.vaultSources, source.id),
+          contextActions: _sourceActions(context, source),
+        ),
+      );
+      if (!open) continue;
+      if (source.id == _Source.own &&
+          source.sections.isEmpty &&
+          source.loose.isEmpty) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xxl,
+              AppSpacing.xs,
+              0,
+              AppSpacing.sm,
+            ),
+            child: const AppText('No sections').small.muted,
+          ),
+        );
+      }
+      for (final s in source.sections) {
+        final pane = source.members ? _SharedPane(s.id) : _SectionPane(s.id);
+        final origin = source.members ? null : _originOf(s);
+        rows.add(
+          AppTreeRow(
+            key: ValueKey('vault-section-${s.id}'),
+            depth: 1,
+            icon: origin?.icon ?? AppIcons.folder,
+            title: _sectionName(s),
+            subtitle: source.members
+                ? s.id == VaultStore.sharedEntriesId
+                      ? 'Published to the workspace'
+                      : 'Shared by ${s.ownerEmail ?? 'another member'}'
+                : origin?.label ??
+                      '${s.records.length} ${s.records.length == 1 ? 'item' : 'items'}',
+            audience: _sectionAudience(s).isPrivate
+                ? null
+                : AudienceTag(_sectionAudience(s), compact: true),
+            selected: selected == pane,
+            showChevron: false,
+            onTap: () => select(pane),
+            contextActions: () => source.members
+                ? _sharedSectionActions(context, s)
+                : _sectionActions(context, s),
+          ),
+        );
+        after(pane);
+      }
+      if (source.loose.isNotEmpty) {
+        final pane = _UnsortedPane(source.id);
+        rows.add(
+          AppTreeRow(
+            key: ValueKey('vault-unsorted-${source.id}'),
+            depth: 1,
+            icon: AppIcons.cardList,
+            title: 'Not in a section',
+            subtitle:
+                '${source.loose.length} ${source.loose.length == 1 ? 'item' : 'items'}',
+            selected: selected == pane,
+            showChevron: false,
+            onTap: () => select(pane),
+          ),
+        );
+        after(pane);
+      }
+    }
+    return (rows, detailIndex);
+  }
+
+  /// A tool's or key's row opens its page from the context menu.
+  FutureOr<List<AppSheetAction>> Function()? _sourceActions(
+    BuildContext context,
+    _Source source,
+  ) {
+    final tool = Stores.connections.connections.any((c) => c.id == source.id);
+    if (!tool) return null;
+    return () => [
+      AppSheetAction(
+        icon: AppIcons.plug,
+        label: 'Open tool',
+        onTap: () => context.go(AppRoutes.connectedToolFor(source.id)),
+      ),
+      copyIdAction(context, source.id),
+    ];
+  }
+
+  /// The selected pane: its title, where it came from, its card or records.
+  Widget _paneDetail(
+    BuildContext context, {
+    required _Pane pane,
+    required Section? section,
+    required Section? shared,
+    required List<models.Record> records,
+    required Map<String, int> links,
+    required List<_Source> sources,
+  }) {
+    final store = Stores.vault;
+    final scheme = Theme.of(context).colorScheme;
+    final audiences = _audiences.value;
+    final filed = store.sections.expand((s) => s.records).toSet();
+    final unsortedFrom = pane is _UnsortedPane ? pane.source : null;
     final shown = [
       for (final r in records)
         if (pane is _AllPane ||
-            (pane is _UnsortedPane && !filed.contains(r.id)) ||
+            (pane is _UnsortedPane &&
+                !filed.contains(r.id) &&
+                (unsortedFrom == null ||
+                    (r.writtenBy.isEmpty ? _Source.own : r.writtenBy) ==
+                        unsortedFrom)) ||
             (section != null && section.records.contains(r.id)))
           r,
     ];
@@ -658,12 +1037,17 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                 _tableController.matchesQuery(r))
               r,
     ];
+    final sourceName = unsortedFrom == null
+        ? null
+        : sources.where((s) => s.id == unsortedFrom).firstOrNull?.name;
     final title = section != null
         ? _sectionName(section)
         : shared != null
         ? _sectionName(shared)
         : pane is _UnsortedPane
-        ? 'Not in a section'
+        ? sourceName == null
+              ? 'Not in a section'
+              : '$sourceName · Not in a section'
         : 'All items';
     final count = shared != null ? sharedShown.length : shown.length;
     // A section that describes one thing opens as that thing; the switch
@@ -687,138 +1071,52 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
         .where((s) => s.id != VaultStore.sharedEntriesId && s.key.isNotEmpty)
         .firstOrNull;
     final showCard = view != null && !_asRecords.value.contains(viewSectionId);
-    final sectionWidgets = <Widget>[
-      for (final (s, _) in sections)
-        _VaultSectionTile(
-          key: ValueKey('vault-section-${s.id}'),
-          icon: _originOf(s)?.icon ?? AppIcons.folder,
-          title: _sectionName(s),
-          subtitle:
-              _originOf(s)?.label ??
-              '${s.records.length} ${s.records.length == 1 ? 'item' : 'items'}',
-          audience: _sectionAudience(s),
-          selected: section?.id == s.id,
-          onTap: () => _pane.value = section?.id == s.id
-              ? const _AllPane()
-              : _SectionPane(s.id),
-          actions: () => _sectionActions(context, s),
-        ),
-      for (final s in store.sharedSections)
-        _VaultSectionTile(
-          key: ValueKey('vault-section-${s.id}'),
-          icon: AppIcons.personWorkspace,
-          title: _sectionName(s),
-          subtitle: 'Shared by ${s.ownerEmail ?? 'another member'}',
-          audience: _sectionAudience(s),
-          selected: shared?.id == s.id,
-          onTap: () => _pane.value = shared?.id == s.id
-              ? const _AllPane()
-              : _SharedPane(s.id),
-          actions: () => _sharedSectionActions(context, s),
-        ),
-    ];
-    return AppPageBody(
-      bottomPadding: AppSpacing.gigantic,
-      children: [
-        _collectionHeader(context),
-        for (final banner in banners) ...[banner, AppSpacing.gapLg],
-        Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.sm,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            const AppText('Your sections').bold,
-            AppButton(
-              label: 'New section',
-              emphasizeLabel: false,
-              icon: AppIcons.plus,
-              size: AppButtonSize.small,
-              style: AppButtonStyle.outline,
-              onTap: () => openVaultCreateSheet(
-                context,
-                initialTab: VaultCreateTab.section,
-              ),
-            ),
-          ],
-        ),
-        AppSpacing.gapMd,
-        if (sectionWidgets.isNotEmpty)
-          LayoutBuilder(
-            builder: (context, box) {
-              final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-              final columns = (box.maxWidth / (220 * scale)).floor().clamp(
-                1,
-                3,
-              );
-              final width =
-                  (box.maxWidth - AppSpacing.md * (columns - 1)) / columns;
-              return Wrap(
-                spacing: AppSpacing.md,
-                runSpacing: AppSpacing.md,
+    final badges = section == null ? null : _sectionBadges(context, section);
+    final menu = section == null ? null : _sectionMenu(context, section);
+    final header = <Widget>[
+      LayoutBuilder(
+        key: const ValueKey('vault-selected-section-header'),
+        builder: (context, box) {
+          final narrow =
+              box.maxWidth < AppSpacing.narrowWidth ||
+              MediaQuery.textScalerOf(context).scale(16) > 24;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  for (final tile in sectionWidgets)
-                    SizedBox(width: width, child: tile),
-                ],
-              );
-            },
-          )
-        else
-          const AppText('Create a section to keep related items together.')
-              .small
-              .muted,
-        AppSpacing.gapXxl,
-        toolbar,
-        AppSpacing.gapXl,
-        LayoutBuilder(
-          key: const ValueKey('vault-selected-section-header'),
-          builder: (context, box) => Observer(
-            builder: (context) {
-              final narrow =
-                  box.maxWidth < AppSpacing.narrowWidth ||
-                  MediaQuery.textScalerOf(context).scale(16) > 24;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Wrap(
-                          spacing: AppSpacing.md,
-                          runSpacing: AppSpacing.sm,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            AppText('$title · $count').header,
-                            if (section != null && !narrow)
-                              _sectionBadges(context, section),
-                          ],
-                        ),
-                      ),
-                      if (section != null) ...[
-                        AppSpacing.gapSm,
-                        _sectionMenu(context, section),
+                  Expanded(
+                    child: Wrap(
+                      spacing: AppSpacing.md,
+                      runSpacing: AppSpacing.sm,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        AppText('$title · $count').header,
+                        if (!narrow) ?badges,
                       ],
-                    ],
+                    ),
                   ),
-                  if (keyed != null) ...[
-                    AppSpacing.gapXxs,
-                    AppText(
-                      keyed.key,
-                      key: const ValueKey('vault-section-key'),
-                    ).small.muted.mono.selectable,
-                  ],
-                  if (section != null && narrow) ...[
-                    AppSpacing.gapXxs,
-                    _sectionBadges(context, section),
-                  ],
+                  if (menu != null) ...[AppSpacing.gapSm, menu],
                 ],
-              );
-            },
-          ),
-        ),
-        if (section != null) ...?_sectionSource(context, section),
-        if (view != null) ...[
-          AppSpacing.gapMd,
-          AppSegmented<bool>(
+              ),
+              if (keyed != null) ...[
+                AppSpacing.gapXxs,
+                AppText(
+                  keyed.key,
+                  key: const ValueKey('vault-section-key'),
+                ).small.muted.mono.selectable,
+              ],
+              if (badges != null && narrow) ...[AppSpacing.gapXxs, badges],
+            ],
+          );
+        },
+      ),
+      if (section != null) ...?_sectionSource(context, section),
+      if (view != null) ...[
+        AppSpacing.gapMd,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AppSegmented<bool>(
             key: const ValueKey('section-view-switch'),
             value: showCard,
             items: [
@@ -837,46 +1135,62 @@ class _VaultScreenState extends State<VaultScreen> with RefreshOnEntry {
                 ? ({..._asRecords.value}..remove(viewSectionId))
                 : {..._asRecords.value, viewSectionId!},
           ),
-        ],
-        if (showCard) ...[
-          AppSpacing.gapLg,
-          SectionViewCard(view: view),
-          AppSpacing.gapLg,
-        ],
-        if (shared != null) ...[
-          AppSpacing.gapSm,
-          AppText(
-            shared.id == VaultStore.sharedEntriesId
-                ? 'Published to the workspace'
-                : 'Shared by ${shared.ownerEmail ?? 'another member'}',
-          ).small.muted,
-        ],
-        // The card stands in for the list; the switch above brings it back.
-        if (!showCard) ...[
-          AppSpacing.gapMd,
-          Divider(height: 1, color: scheme.outlineVariant),
-          if (count == 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
-              child: const AppText(
-                'No items match this view. Try another section or clear the filters.',
-              ).muted,
-            )
-          else if (shared != null)
-            for (final r in sharedShown) ...[
-              _sharedRow(context, shared, r),
-              Divider(height: 1, color: scheme.outlineVariant),
-            ]
+        ),
+      ],
+      if (showCard) ...[
+        AppSpacing.gapLg,
+        SectionViewCard(view: view),
+        AppSpacing.gapLg,
+      ],
+      if (shared != null) ...[
+        AppSpacing.gapSm,
+        AppText(
+          shared.id == VaultStore.sharedEntriesId
+              ? 'Published to the workspace'
+              : 'Shared by ${shared.ownerEmail ?? 'another member'}',
+        ).small.muted,
+      ],
+      // The card stands in for the list; the switch above brings it back.
+      if (!showCard) ...[
+        AppSpacing.gapMd,
+        Divider(height: 1, color: scheme.outlineVariant),
+        if (count == 0)
+          if (_tableController.query.trim().isNotEmpty ||
+              _filters.value.isNotEmpty ||
+              audiences.isNotEmpty)
+            const AppEmptyState.noMatches()
           else
-            for (final r in shown) ...[
-              _libraryRow(r, links: links[r.id]!),
-              Divider(height: 1, color: scheme.outlineVariant),
-            ],
-          AppSpacing.gapLg,
-          const AppText('Open an item to view its contents or manage access.')
-              .small
-              .muted,
-        ],
+            const AppEmptyState(
+              icon: AppIcons.folder,
+              title: 'No records in this view',
+              subtitle: 'Choose another section to see its records.',
+            ),
+      ],
+    ];
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverList.list(children: header),
+        if (!showCard && count > 0)
+          SliverList.builder(
+            itemCount: count,
+            itemBuilder: (context, index) {
+              final record = shared == null ? shown[index] : sharedShown[index];
+              return Column(
+                key: ValueKey(record.id),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (shared != null)
+                    _sharedRow(context, shared, record)
+                  else
+                    Observer(
+                      builder: (_) =>
+                          _libraryRow(record, links: links[record.id]!),
+                    ),
+                  Divider(height: 1, color: scheme.outlineVariant),
+                ],
+              );
+            },
+          ),
       ],
     );
   }
@@ -1887,104 +2201,6 @@ class _OriginBadge extends StatelessWidget {
                     ? AppBadgeVariant.outline
                     : AppBadgeVariant.primary,
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A section is a destination, visually distinct from an individual item.
-class _VaultSectionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Audience audience;
-  final bool selected;
-  final VoidCallback onTap;
-
-  /// Built when the context menu opens, so permissions are current.
-  final List<AppSheetAction> Function() actions;
-
-  const _VaultSectionTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.audience,
-    required this.selected,
-    required this.onTap,
-    required this.actions,
-  });
-
-  @override
-  Widget build(BuildContext context) =>
-      AppContextMenu(title: title, actions: actions, child: _tile(context));
-
-  Widget _tile(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: Material(
-        color: selected
-            ? scheme.secondaryContainer
-            : scheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.allMd,
-          side: BorderSide(
-            color: selected ? scheme.primary : scheme.outlineVariant,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainerHighest,
-                        borderRadius: AppRadius.allMd,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        child: Icon(
-                          icon,
-                          size: 22,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    if (!audience.isPrivate)
-                      AudienceTag(audience, compact: true),
-                    AppSpacing.gapSm,
-                    Icon(
-                      selected ? AppIcons.checkCircle : AppIcons.arrowRight,
-                      size: 18,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ],
-                ),
-                AppSpacing.gapLg,
-                AppText(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ).bold,
-                AppSpacing.gapXxs,
-                AppText(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ).small.muted,
-              ],
             ),
           ),
         ),

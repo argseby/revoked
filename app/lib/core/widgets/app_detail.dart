@@ -29,6 +29,9 @@ class AppDetailHeader extends StatelessWidget {
   /// [subtitle] is a slug or key and reads as one.
   final bool subtitleMono;
 
+  /// Key facts that should appear before the actions.
+  final Widget? summary;
+
   /// The page's main action, stretched to fill the row on a phone.
   final Widget? primaryAction;
 
@@ -44,6 +47,7 @@ class AppDetailHeader extends StatelessWidget {
     this.badges = const [],
     this.subtitle,
     this.subtitleMono = false,
+    this.summary,
     this.primaryAction,
     this.secondaryActions = const [],
   });
@@ -76,6 +80,7 @@ class AppDetailHeader extends StatelessWidget {
           ],
           AppText(title).header,
           if (hasSubtitle) ...[const SizedBox(height: AppSpacing.xxs), sub],
+          if (summary case final summary?) ...[AppSpacing.gapMd, summary],
           if (hasActions) ...[
             AppSpacing.gapLg,
             LayoutBuilder(builder: _actions),

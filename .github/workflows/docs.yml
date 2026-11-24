@@ -41,6 +41,45 @@ jobs:
         with:
           path: site
 
+  # The wiki is a generated copy of docs/: every page is rewritten on each run,
+  # so a change made in the wiki itself does not survive the next one.
+  wiki:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - run: python tools/docs/gen_api_reference.py
+      # GitHub creates a wiki's repository only when its first page is saved
+      # in the browser, so until then there is nothing to push to.
+      - name: Publish to the wiki
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          remote="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          if git ls-remote "$remote" >/dev/null 2>&1; then
+            git clone --quiet --depth 1 "$remote" wiki
+          else
+            echo "::notice title=No wiki yet::Save any page in the repository's Wiki tab once; the next docs change then publishes docs/ there."
+            mkdir wiki
+          fi
+          python tools/docs/gen_wiki.py wiki --strict
+          [ -d wiki/.git ] || exit 0
+          cd wiki
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The wiki is already current."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit --quiet -m "Sync from docs/ at ${GITHUB_SHA::7}"
+          git push --quiet origin HEAD
+
   deploy:
     needs: build
     runs-on: ubuntu-latest

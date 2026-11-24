@@ -1,0 +1,20 @@
+# Works with Revoked entry for a developer tool: no origin of its own, listed
+# by where its code and releases live. The format is described in
+# services/README.md.
+schema: 1
+kind: tool
+slug: revoked-sign-in
+name: Continue with Revoked for Flutter
+platform: flutter
+description:
+  en: The Continue with Revoked button for Flutter apps, with the panel that shows the QR code and check code and waits for the approval in the Revoked app.
+  de: Die Schaltfläche „Weiter mit Revoked“ für Flutter-Apps, mit dem Fenster, das QR-Code und Prüfcode zeigt und auf die Bestätigung in der Revoked-App wartet.
+install: flutter pub add revoked_sign_in
+registry: https://pub.dev/packages/revoked_sign_in
+docs: https://docs.revoked.link/api/sign-in/
+source: https://github.com/argseby/revoked/tree/main/packages/revoked_sign_in
+license: MPL-2.0
+does: [sign_in]
+maintainers: [argseby]
+built_by_revoked: true
+reviewed: 2026-11-15

@@ -74,7 +74,7 @@ class NotificationsPage extends StatelessWidget {
               ],
             ),
             if (store.errorMessage != null) AppErrorText(store.errorMessage!),
-            if (shown.isEmpty)
+            if (shown.isEmpty && store.errorMessage == null)
               AppEmptyState(
                 icon: AppIcons.bellSlash,
                 title: switch (store.filter) {
@@ -82,7 +82,14 @@ class NotificationsPage extends StatelessWidget {
                   NotificationFilter.unread => 'No unread notifications',
                   NotificationFilter.attention => 'Nothing needs attention',
                 },
-                subtitle: 'New notifications appear here.',
+                subtitle: switch (store.filter) {
+                  NotificationFilter.all =>
+                    'Updates, new responses and alerts appear here.',
+                  NotificationFilter.unread =>
+                    'You’ve read all your notifications.',
+                  NotificationFilter.attention =>
+                    'Alerts that need a decision appear here.',
+                },
               )
             else
               for (final (label, items) in groups)

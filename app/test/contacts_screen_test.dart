@@ -127,8 +127,9 @@ void main() {
     await Stores.crypto.storePrivateKey('i1', 'test-private-key');
   });
 
-  Future<void> open(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(900, 2400);
+  Future<void> open(WidgetTester tester, {bool wide = false}) async {
+    // A phone floats the create button outside the page.
+    tester.view.physicalSize = Size(wide ? 1800 : 900, 2400);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -144,7 +145,7 @@ void main() {
     tester,
   ) async {
     contacts = [];
-    await open(tester);
+    await open(tester, wide: true);
 
     expect(find.text('No contacts'), findsOneWidget);
     expect(find.text('New contact'), findsOneWidget);

@@ -91,6 +91,13 @@ Sections can be renamed, duplicated and shared as one. A shared section
 always reflects its current contents: a record added later becomes visible
 to everyone with the link.
 
+The vault lists sections by who wrote them. **Own records** holds the
+sections and records created in the app. Each connected tool and API key that
+wrote to the vault has a branch of its own, named after it, with the section
+it manages and the records it added. **Not in a section** under each branch
+holds the records that no section contains. On a phone, a section opens under
+its own row; on a wider window, its records appear beside the list.
+
 A section that describes one thing, such as a Wi-Fi network, a vehicle or a
 medication plan, can be shown as a card instead of a list: the network with
 a code to scan, the car with the days until its inspection. A switch next to
@@ -112,8 +119,8 @@ change it. With **Owner only**, they open its records read-only. With
 permission can change its records and the section itself. The sheet also
 shows how many members see the section and how many may change it.
 
-- Other members see the section below their own, marked **Shared by** its
-  owner.
+- Other members see the section under **Shared by members**, marked
+  **Shared by** its owner.
 - Only the section's owner can change who sees it, and only from the app: an
   API key or a connected tool cannot change who reads it.
 - Only records the owner created are shown. Files, aliases and answers to

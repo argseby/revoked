@@ -250,7 +250,8 @@ it proposed**, **section**.
    connect sheet and labels, and `revoked-mcp` tools to read and write its
    section. Tests in the style of `tests/connectionVault_test.go`.
 2. **Sections for API keys.** Pick sections when creating a key, use
-   `/api/vault`. Rewrite `examples/steam_now_playing.py` to use it.
+   `/api/vault`. Rewrite `examples/steam_now_playing.py` in
+   [revoked-misc](https://github.com/argseby/revoked-misc) to use it.
 3. **One permission list for connections.** `scopes` on the connect link.
    Fold `allowRevoke` and `allowHandOver` into permissions with a migration
    that converts existing connections. Let connections create shares and

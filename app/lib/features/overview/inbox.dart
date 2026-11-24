@@ -217,7 +217,7 @@ class RecentItem {
 }
 
 /// Records, links and answers mixed by when they last changed, newest first,
-/// at most [limit] of them.
+/// at most [limit] of them. Responses to the same request use one row.
 List<RecentItem> recentItems({
   required Iterable<models.Record> records,
   required Iterable<Section> sections,
@@ -283,18 +283,37 @@ List<RecentItem> recentItems({
 
   if (showAnswers) {
     final labels = {for (final r in requests) r.id: r.label};
-    for (final n in notifications) {
-      if (n.type != requestResponseType) continue;
-      final at = parseInstant(n.created);
+    final answers = <(String, String?), (DateTime, AppNotification, int)>{};
+    for (final notification in notifications) {
+      if (notification.type != requestResponseType) continue;
+      final at = parseInstant(notification.created);
       if (at == null) continue;
-      final id = n.refId ?? '';
+      final id = notification.refId ?? '';
+      // Without a request ID, unrelated responses cannot be grouped safely.
+      final key = (id, id.isEmpty ? notification.id : null);
+      final previous = answers[key];
+      if (previous == null) {
+        answers[key] = (at, notification, 1);
+      } else {
+        final (latestAt, latest, count) = previous;
+        answers[key] = at.isAfter(latestAt)
+            ? (at, notification, count + 1)
+            : (latestAt, latest, count + 1);
+      }
+    }
+    for (final MapEntry(key: (id, _), value: (latestAt, latest, count))
+        in answers.entries) {
       final label = labels[id] ?? '';
       candidates.add((
-        at,
+        latestAt,
         (at) => RecentItem(
           icon: AppIcons.inboxFill,
-          title: label.isNotEmpty ? label : n.title,
-          subtitle: n.read ? 'answer received' : 'new answer',
+          title: label.isNotEmpty ? label : latest.title,
+          subtitle: count > 1
+              ? '$count responses received'
+              : latest.read
+              ? 'answer received'
+              : 'new answer',
           at: at,
           route: id.isEmpty
               ? AppRoutes.requests

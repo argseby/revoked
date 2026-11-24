@@ -1,6 +1,6 @@
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:revoked_app/core/widgets/app_collection_header.dart';
+import 'package:revoked_app/core/state/tree_folds_store.dart';
 import 'package:revoked_app/features/shares/view/share_actions.dart';
 import 'package:revoked_app/core/design/spacing.dart';
 import 'package:revoked_app/core/design/text_styles.dart';
@@ -8,8 +8,12 @@ import 'package:revoked_app/core/models/bookmark.dart';
 import 'package:revoked_app/core/state/local.dart';
 import 'package:revoked_app/core/widgets/audience_tag.dart';
 import 'package:revoked_app/core/widgets/app_filter_menu.dart';
+import 'package:revoked_app/core/widgets/app_sheet.dart';
+import 'package:revoked_app/core/widgets/app_card.dart';
+import 'package:revoked_app/features/shares/view/access_overview.dart';
 import 'package:revoked_app/features/bookmarks/view/bookmarks_tab.dart';
 import 'package:go_router/go_router.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:revoked_app/core/design/app_icons.dart';
 import 'package:revoked_app/core/design/app_colors.dart';
 import 'package:revoked_app/core/models/link.dart';
@@ -22,7 +26,10 @@ import 'package:revoked_app/core/widgets/app_toast.dart';
 import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
-import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/app_tree_row.dart';
+import 'package:revoked_app/core/models/record.dart';
+import 'package:revoked_app/core/models/section.dart';
+import 'package:revoked_app/features/vault/utils/record_type_utils.dart';
 import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/core/widgets/app_status_badge.dart';
@@ -31,7 +38,6 @@ import 'package:revoked_app/core/widgets/data_table/table_store.dart';
 import 'package:revoked_app/features/shares/view/link_groups.dart';
 import 'package:revoked_app/core/config/app_config.dart';
 import 'package:revoked_app/core/widgets/app_button.dart';
-import 'package:revoked_app/features/shares/view/share_create_sheet.dart';
 import 'package:revoked_app/features/shares/utils/recipients.dart';
 
 class SharesScreen extends StatefulWidget {
@@ -71,6 +77,10 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
   /// Who sees a link, as the Filter's "Visible to" ticks it (`private`,
   /// `workspace`, `group:<id>`); none ticked lets all through.
   final Local<Set<String>> _audiences = Local(const {});
+
+  static bool _open(String id) => Stores.folds.isOpen(TreeFold.links, id);
+
+  static void _toggle(String id) => Stores.folds.toggle(TreeFold.links, id);
 
   @override
   void initState() {
@@ -112,6 +122,8 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     Stores.bookmarks.loadIfDue();
     Stores.vault.loadIfDue();
     Stores.identities.loadIfDue();
+    // A tool's links are grouped under the tool's own name.
+    Stores.connections.loadSummariesIfDue();
   }
 
   @override
@@ -122,22 +134,17 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
 
   @override
   Widget build(BuildContext context) {
-    // Access by record moved to the record pages and the Overview. The same
-    // two tabs as Requests: what this account gave, and what it was given.
+    // The same two tabs as Requests: what this account gave and received.
     return AppTabs(
+      title: 'Your sharing',
+      action: const PageActionButton(AppRoutes.shared),
       initialIndex: widget.initialTab,
       tabs: [
+        AppTab(label: 'Sent', icon: AppIcons.send, view: _sent(context)),
         AppTab(
-          label: 'Sent',
-          icon: AppIcons.send,
-          description: 'Links you shared with others.',
-          view: _sent(context),
-        ),
-        const AppTab(
           label: 'Received',
           icon: AppIcons.bookmark,
-          description: 'Items others shared with you.',
-          view: BookmarksTab(kind: BookmarkKind.share),
+          view: const BookmarksTab(kind: BookmarkKind.share, showHeader: false),
         ),
       ],
     );
@@ -212,6 +219,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     query: _table.query,
     onQueryChanged: _table.setQuery,
     searchHint: 'Search links',
+    searchFirst: true,
     sections: _filterSections,
     onClearFilters: _clearFilters,
     sort: () => _table.sortBy,
@@ -246,6 +254,10 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     for (final l in matches) {
       counts[linkGroup(l, now)] = counts[linkGroup(l, now)]! + 1;
     }
+    int countFor(LinkGroup group) =>
+        counts[group]! +
+        (group == LinkGroup.active ? counts[LinkGroup.attention]! : 0);
+    final canFilterMembers = Stores.shares.sharedShares.isNotEmpty;
     final people = groupByRecipient(links)
       ..sort(
         (a, b) =>
@@ -262,16 +274,15 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               : ({..._statuses.value}..remove(g));
         },
         items: [
-          for (final g in LinkGroup.values.where(
-            (g) => g != LinkGroup.attention,
-          ))
-            AppChecklistItem(
-              id: g.name,
-              label: _groupTitles[g]!,
-              count:
-                  counts[g]! +
-                  (g == LinkGroup.active ? counts[LinkGroup.attention]! : 0),
-            ),
+          for (final g in LinkGroup.values)
+            if (_statuses.value.contains(g) ||
+                (countFor(g) > 0 &&
+                    (countFor(g) < matches.length || canFilterMembers)))
+              AppChecklistItem(
+                id: g.name,
+                label: _groupTitles[g]!,
+                count: countFor(g),
+              ),
         ],
       ),
       if (people.isNotEmpty || _people.value.isNotEmpty)
@@ -329,17 +340,11 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     return Observer(
       builder: (_) {
         if (store.loadState.isFirstLoad && store.shares.isEmpty) {
-          return AppPageBody(
-            children: [
-              _collectionHeader(context),
-              const AppListSkeleton(embedded: true),
-            ],
-          );
+          return AppPageBody(children: [const AppListSkeleton(embedded: true)]);
         }
 
         // Nothing to list has nothing to search, so no Search and filter.
-        Widget bare(Widget child) =>
-            AppPageBody(children: [_collectionHeader(context), child]);
+        Widget bare(Widget child) => AppPageBody(children: [child]);
         if (store.shares.isEmpty &&
             store.sharedShares.isEmpty &&
             store.loadState.error != null) {
@@ -394,17 +399,20 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         final people = _people.value;
         final audiences = _audiences.value;
         final recipient = _singlePerson();
-        final matches = _table.filteredItems
-            .where(
-              (l) =>
-                  (statuses.isEmpty ||
-                      statuses.contains(linkGroup(l, now)) ||
-                      (statuses.contains(LinkGroup.active) &&
-                          linkGroup(l, now) == LinkGroup.attention)) &&
-                  (people.isEmpty || people.contains(_personKey(l.label))) &&
-                  audienceMatches(audiences, [_audienceOf(l)]),
-            )
-            .toList();
+        final matches = <Link>[];
+        for (final link in _table.filteredItems) {
+          if ((people.isNotEmpty && !people.contains(_personKey(link.label))) ||
+              !audienceMatches(audiences, [_audienceOf(link)])) {
+            continue;
+          }
+          final group = linkGroup(link, now);
+          if (statuses.isEmpty ||
+              statuses.contains(group) ||
+              (group == LinkGroup.attention &&
+                  statuses.contains(LinkGroup.active))) {
+            matches.add(link);
+          }
+        }
         final sharedShown = store.sharedShares
             .where((l) => audienceMatches(audiences, [_audienceOf(l)]))
             .toList();
@@ -412,6 +420,41 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
         for (final l in matches) {
           byGroup[linkGroup(l, now)]!.add(l);
         }
+        List<Widget> rowsOf(Iterable<Link> links, {required bool status}) => [
+          for (final l in links) ...[
+            _LinkRow(
+              share: l,
+              selected: l.id == widget.selectedId,
+              attention: linkAttention(l, now),
+              showStatus: status,
+              expanded: _LinkContents.of(l).isEmpty ? null : _open(l.id),
+              onToggle: () => _toggle(l.id),
+              onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
+            ),
+            if (_open(l.id)) ..._LinkContents.of(l).rows(context),
+          ],
+        ];
+
+        // Live links by who created them; what needs a look stays on top and
+        // what is finished stays folded at the bottom.
+        final byCreator = <_Creator, List<Link>>{};
+        for (final l in matches) {
+          final g = linkGroup(l, now);
+          if (g != LinkGroup.active && g != LinkGroup.paused) continue;
+          (byCreator[_Creator.of(l)] ??= []).add(l);
+        }
+        final creators = byCreator.keys.toList()..sort();
+        Widget creatorGroup(_Creator c) {
+          final links = byCreator[c]!;
+          return AppListGroup(
+            key: ValueKey('links-by-${c.id}'),
+            title: c.name,
+            noun: 'links',
+            previewCount: links.any((l) => _open(l.id)) ? 0 : 5,
+            children: rowsOf(links, status: true),
+          );
+        }
+
         // Each group says how many it holds, and the closed ones stay folded
         // until asked for, by the group or by ticking Closed in the Filter.
         Widget group(LinkGroup g, String title, {bool collapsed = false}) {
@@ -442,18 +485,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
                         : () => _deleteClosed(links),
                   )
                 : null,
-            children: [
-              for (final l in links)
-                _LinkRow(
-                  share: l,
-                  selected: l.id == widget.selectedId,
-                  attention: linkAttention(l, now),
-                  // The group already says active or paused; only the closed
-                  // one mixes revoked and expired.
-                  showStatus: g == LinkGroup.closed,
-                  onTap: () => context.go(AppRoutes.shareDetailFor(l.id)),
-                ),
-            ],
+            children: rowsOf(links, status: g == LinkGroup.closed),
           );
         }
 
@@ -463,7 +495,6 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
 
         return _sharingPage(
           context,
-          now: now,
           toolbar: _toolbar(),
           banners: [
             if (store.loadState.error != null)
@@ -494,8 +525,7 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
               : 'No links match the search or filters.',
           groups: [
             group(LinkGroup.attention, 'Needs attention'),
-            group(LinkGroup.active, 'Active'),
-            group(LinkGroup.paused, 'Paused'),
+            for (final c in creators) creatorGroup(c),
             group(
               LinkGroup.closed,
               'Revoked or expired',
@@ -525,40 +555,53 @@ class _SharesScreenState extends State<SharesScreen> with RefreshOnEntry {
     );
   }
 
-  Widget _collectionHeader(BuildContext context) => AppCollectionHeader(
-    title: widget.selectedId != null ? 'Your links' : 'Your sharing',
-    description: widget.selectedId != null
-        ? 'Choose a link to manage its access.'
-        : 'Share information from your vault with others',
-    action: AppButton(
-      icon: AppIcons.plus,
-      label: 'New link',
-      onTap: () => openShareCreateSheet(context: context),
+  /// The same links seen from the records they expose.
+  Widget _accessByRecord(BuildContext context) => AppCard(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.lg,
+      vertical: AppSpacing.md,
+    ),
+    onTap: () => showAppSheet<void>(
+      context: context,
+      dismissible: true,
+      builder: (_) => const AccessOverview(),
+    ),
+    child: Row(
+      children: [
+        const Icon(AppIcons.lock, size: 20),
+        AppSpacing.gapMd,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppText('Access by record').bold,
+              AppText('Which links expose each record').small.muted,
+            ],
+          ),
+        ),
+        const Icon(AppIcons.chevronRight, size: 20),
+      ],
     ),
   );
 
   Widget _sharingPage(
     BuildContext context, {
-    required DateTime now,
     required AppListToolbar toolbar,
     required List<Widget> banners,
     required String? emptyMessage,
     required List<Widget> groups,
   }) {
     return AppPageBody(
-      bottomPadding: AppSpacing.gigantic,
       children: [
-        _collectionHeader(context),
         toolbar,
-        AppSpacing.gapXl,
+        AppSpacing.gapLg,
         for (final banner in banners) ...[banner, AppSpacing.gapLg],
         if (emptyMessage != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.huge),
-            child: AppText(emptyMessage).muted,
-          )
+          AppEmptyState.noMatches(title: emptyMessage)
         else
           ...groups,
+        AppSpacing.gapLg,
+        _accessByRecord(context),
       ],
     );
   }
@@ -576,35 +619,46 @@ class _LinkRow extends StatelessWidget {
   /// Off inside a group named for the status, which would only repeat it.
   final bool showStatus;
 
+  /// Whether what it exposes shows below it; null when that is not known.
+  final bool? expanded;
+  final VoidCallback? onToggle;
+
   const _LinkRow({
     required this.share,
     required this.attention,
     required this.onTap,
     this.selected = false,
     this.showStatus = true,
+    this.expanded,
+    this.onToggle,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final attention = this.attention;
+    final contents = _contentsSummary();
 
-    return AppListRow(
+    return AppTreeRow(
+      key: ValueKey('link-${share.id}'),
+      expanded: expanded,
+      onToggle: onToggle,
       icon: share.isFromTool
           ? AppIcons.globe
           : share.isFromRequest
           ? AppIcons.inboxFill
           : AppIcons.link,
       title: share.label.trim().isEmpty ? 'Unnamed link' : share.label,
+      titleMaxLines: 2,
       selected: selected,
       accent: attention != null ? theme.colorScheme.warning : null,
       subtitleWidget: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_contentsSummary().isNotEmpty)
+          if (contents.isNotEmpty)
             AppText(
-              _contentsSummary(),
+              contents,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ).small,
@@ -619,7 +673,7 @@ class _LinkRow extends StatelessWidget {
       trailing: attention != null
           ? AppBadge(label: attention.short, accent: theme.colorScheme.warning)
           : showStatus
-          ? StatusLabel(share.status)
+          ? StatusLabel(share.status, compact: share.status == 'active')
           : null,
       onTap: onTap,
       contextActions: () => shareContextActions(context, share),
@@ -677,6 +731,104 @@ class _LinkRow extends StatelessWidget {
     );
     return parts.join(' · ');
   }
+}
+
+/// Who created a link, which is the group it sits in: the app, a connected
+/// tool, an answer to a request, or a sign-in at a service.
+class _Creator implements Comparable<_Creator> {
+  final String id;
+  final String name;
+  final int rank;
+
+  const _Creator(this.id, this.name, this.rank);
+
+  static _Creator of(Link l) {
+    if (l.signInClient.isNotEmpty) {
+      return const _Creator('signin', 'Sign-ins', 3);
+    }
+    if (l.isFromRequest) {
+      return const _Creator('answers', 'Answers to requests', 2);
+    }
+    if (l.isFromTool) {
+      final tool = Stores.connections.connections
+          .where((c) => c.id == l.connection && c.name.isNotEmpty)
+          .firstOrNull;
+      return _Creator(
+        'tool:${l.proposedByHost}',
+        tool?.name ?? l.proposedByHost,
+        1,
+      );
+    }
+    return const _Creator('own', 'Own links', 0);
+  }
+
+  @override
+  bool operator ==(Object other) => other is _Creator && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  int compareTo(_Creator other) => rank != other.rank
+      ? rank.compareTo(other.rank)
+      : name.toLowerCase().compareTo(other.name.toLowerCase());
+}
+
+/// What one of this person's links exposes: whole sections, which pass on
+/// what is added to them later, and single records.
+class _LinkContents {
+  final List<(String, Section?)> sections;
+  final List<(String, Record?)> records;
+
+  const _LinkContents(this.sections, this.records);
+
+  bool get isEmpty => sections.isEmpty && records.isEmpty;
+
+  /// Empty for a member's link, whose vault this person does not see.
+  static _LinkContents of(Link l) {
+    final own = Stores.auth.userId.isEmpty || l.user == Stores.auth.userId;
+    if (!own) return const _LinkContents([], []);
+    final vault = Stores.vault;
+    final sections = {for (final s in vault.sections) s.id: s};
+    final records = {for (final r in vault.records) r.id: r};
+    return _LinkContents(
+      [for (final id in l.sections) (id, sections[id])],
+      [for (final id in l.records) (id, records[id])],
+    );
+  }
+
+  List<Widget> rows(BuildContext context) => [
+    for (final (id, s) in sections)
+      AppTreeRow(
+        key: ValueKey('link-section-$id'),
+        depth: 1,
+        icon: AppIcons.folder,
+        title: s == null
+            ? 'No longer in the vault'
+            : s.name.isEmpty
+            ? s.key
+            : s.name,
+        subtitle: s == null
+            ? 'Whole section'
+            : 'Whole section · ${s.records.length} '
+                  '${s.records.length == 1 ? 'record' : 'records'}',
+      ),
+    for (final (id, r) in records)
+      AppTreeRow(
+        key: ValueKey('link-record-$id'),
+        depth: 1,
+        icon: r == null ? AppIcons.info : RecordTypeUtils.icon(r.type),
+        title: r == null
+            ? 'No longer in the vault'
+            : r.label.isEmpty
+            ? r.key
+            : r.label,
+        subtitle: 'Single record',
+        onTap: r == null
+            ? null
+            : () => context.go(AppRoutes.recordDetailFor(r.id)),
+      ),
+  ];
 }
 
 /// Access states are destinations: live links, reversible pauses, and history.

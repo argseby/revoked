@@ -291,13 +291,89 @@ class WorksWithService {
   ];
 }
 
+/// A developer tool listed in Works with Revoked: a package or program that
+/// builds on Revoked. It has no address of its own, so it is never matched
+/// against a connection or a proposal.
+class WorksWithTool {
+  final String slug;
+  final String name;
+
+  /// `mcp`, `npm` or `flutter`.
+  final String platform;
+  final LocalizedText description;
+
+  /// One command that installs it, or empty where there is none.
+  final String install;
+  final String registry;
+  final String docs;
+  final String source;
+  final String license;
+  final List<ServiceKind> does;
+  final bool builtByRevoked;
+  final String reviewed;
+
+  const WorksWithTool({
+    required this.slug,
+    required this.name,
+    required this.platform,
+    this.description = const LocalizedText(),
+    this.install = '',
+    this.registry = '',
+    this.docs = '',
+    this.source = '',
+    this.license = '',
+    this.does = const [],
+    this.builtByRevoked = false,
+    this.reviewed = '',
+  });
+
+  static WorksWithTool? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final slug = _line(raw['slug']);
+    final name = _line(raw['name']);
+    if (slug.isEmpty || name.isEmpty) return null;
+    return WorksWithTool(
+      slug: slug,
+      name: name,
+      platform: _line(raw['platform']),
+      description: LocalizedText.fromJson(raw['description']),
+      install: _line(raw['install']),
+      registry: _https(raw['registry']),
+      docs: _https(raw['docs']),
+      source: _https(raw['source']),
+      license: _line(raw['license']),
+      does: [for (final k in _strings(raw['does'])) ?ServiceKind.fromKey(k)],
+      builtByRevoked: raw['built_by_revoked'] == true,
+      reviewed: _line(raw['reviewed']),
+    );
+  }
+
+  /// What it is, as its badge names it.
+  String get platformLabel => switch (platform) {
+    'mcp' => 'MCP server',
+    'npm' => 'npm package',
+    'flutter' => 'Flutter package',
+    _ => 'Developer tool',
+  };
+
+  String get searchText => [
+    name,
+    platformLabel,
+    description.en,
+    description.de,
+    install,
+    for (final k in does) k.label,
+  ].join(' ').toLowerCase();
+}
+
 /// The whole list, as built from the repository by `cmd/works-with`.
 class WorksWithCatalog {
   static const schema = 1;
 
   final List<WorksWithService> services;
+  final List<WorksWithTool> tools;
 
-  const WorksWithCatalog(this.services);
+  const WorksWithCatalog(this.services, [this.tools = const []]);
 
   static const empty = WorksWithCatalog([]);
 
@@ -310,10 +386,19 @@ class WorksWithCatalog {
       final list = raw['services'];
       if (list is! List) return null;
       final seen = <String>{};
-      return WorksWithCatalog([
-        for (final s in list.map(WorksWithService.fromJson))
-          if (s != null && seen.add(s.origin)) s,
-      ]);
+      final slugs = <String>{};
+      final tools = raw['tools'];
+      return WorksWithCatalog(
+        [
+          for (final s in list.map(WorksWithService.fromJson))
+            if (s != null && seen.add(s.origin)) s,
+        ],
+        [
+          if (tools is List)
+            for (final t in tools.map(WorksWithTool.fromJson))
+              if (t != null && slugs.add(t.slug)) t,
+        ],
+      );
     } catch (_) {
       return null;
     }

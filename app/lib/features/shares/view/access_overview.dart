@@ -11,6 +11,7 @@ import 'package:revoked_app/core/widgets/app_empty_state.dart';
 import 'package:revoked_app/core/widgets/app_list_group.dart';
 import 'package:revoked_app/core/widgets/app_list_page.dart';
 import 'package:revoked_app/core/widgets/app_list_row.dart';
+import 'package:revoked_app/core/widgets/app_load_error.dart';
 import 'package:revoked_app/core/widgets/app_skeleton.dart';
 import 'package:revoked_app/features/shares/utils/record_access.dart';
 
@@ -18,8 +19,7 @@ import 'package:revoked_app/features/shares/utils/record_access.dart';
 /// read right now, with how many open links, request answers and tools
 /// reach it. A record opens its own page, which lists them and revokes them.
 ///
-/// Loads what it is built from when nothing is loaded yet, so it can stand on
-/// the Overview as well as under Shared.
+/// Opens from Shares and loads the lists needed to resolve access.
 class AccessOverview extends StatefulWidget {
   const AccessOverview({super.key});
 
@@ -54,11 +54,17 @@ class _AccessOverviewState extends State<AccessOverview> with RefreshOnEntry {
         ],
       ),
       builder: (context) {
-        final rows = openAccessByRecord(
-          links: shares.shares,
-          sections: vault.sections,
-          records: vault.records,
-        );
+        final failure = shares.loadState.error ?? vault.loadState.error;
+        if (failure != null) {
+          return AppLoadError(
+            title: 'Access could not be confirmed',
+            message: failure,
+            onRetry: () async {
+              await Future.wait([shares.loadShares(), vault.loadRecords()]);
+            },
+          );
+        }
+        final rows = Stores.openRecordAccess.value.sharedRecords(vault.records);
         if (rows.isEmpty) {
           return AppEmptyState(
             icon: AppIcons.lock,

@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:revoked_app/features/shell/utils/new_actions.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -162,7 +163,7 @@ void main() {
       (SettingsPage.apiKeys, 'New API key'),
       (SettingsPage.webhooks, 'New webhook'),
     ]) {
-      testWidgets('${page.title} creates from the top bar', (tester) async {
+      testWidgets('${page.title} creates from its header', (tester) async {
         tester.view.physicalSize = const Size(1280, 800);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
@@ -183,8 +184,12 @@ void main() {
         await tester.pumpAndSettle();
         router.go(page.route);
         await tester.pumpAndSettle();
-        expect(find.byTooltip(label), findsOneWidget);
-        await tester.tap(find.byTooltip(label));
+        final create = find.descendant(
+          of: find.byType(PageActionButton),
+          matching: find.text(label),
+        );
+        expect(create, findsOneWidget);
+        await tester.tap(create);
         await tester.pumpAndSettle();
         expect(find.text('Cancel'), findsWidgets);
       });

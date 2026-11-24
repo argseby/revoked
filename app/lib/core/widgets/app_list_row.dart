@@ -29,6 +29,9 @@ class AppListRow extends StatelessWidget {
 
   final String title;
 
+  /// Null lets the full title wrap across as many lines as needed.
+  final int? titleMaxLines;
+
   /// One sentence the reader acts on: "Expires in 2 days", "3 new responses".
   final String? subtitle;
 
@@ -62,6 +65,7 @@ class AppListRow extends StatelessWidget {
     this.icon,
     this.leading,
     required this.title,
+    this.titleMaxLines = 1,
     this.subtitle,
     this.subtitleWidget,
     this.trailing,
@@ -116,7 +120,13 @@ class AppListRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                AppText(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                AppText(
+                  title,
+                  maxLines: titleMaxLines,
+                  overflow: titleMaxLines == null
+                      ? null
+                      : TextOverflow.ellipsis,
+                ),
                 if (subtitleWidget != null)
                   subtitleWidget!
                 else if (hasSubtitle)

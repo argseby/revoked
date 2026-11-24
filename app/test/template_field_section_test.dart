@@ -7,13 +7,9 @@ import 'package:revoked_app/features/vault/view/template_field_fill.dart';
 
 void main() {
   test('an answer is filed where the template put its field', () {
-    final json =
-        jsonDecode(
-              File(
-                '../templates/medical_emergency_card.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, dynamic>;
+    final json = jsonDecode(
+      File('../templates/medical_emergency_card.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     final template = Template(
       id: 't',
       name: json['name'] as String,

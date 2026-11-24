@@ -29,38 +29,42 @@ class AppStatusBadge extends StatelessWidget {
 /// from red, and to a screen reader ("Status: Paused").
 class StatusLabel extends StatelessWidget {
   final String status;
+  final bool compact;
 
-  const StatusLabel(this.status, {super.key});
+  const StatusLabel(this.status, {super.key, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fg = StatusColors.foreground(theme, status);
     final label = StatusColors.displayLabel(status);
+    final icon = Icon(StatusColors.icon(status), size: 16, color: fg);
     return Semantics(
       label: 'Status: $label',
       excludeSemantics: true,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xxs,
-        ),
-        decoration: BoxDecoration(
-          color: StatusColors.background(theme, status),
-          borderRadius: AppRadius.allMd,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(StatusColors.icon(status), size: 16, color: fg),
-            AppSpacing.gapXs,
-            DefaultTextStyle.merge(
-              style: TextStyle(color: fg),
-              child: AppText(label).small.bold,
+      child: compact
+          ? Tooltip(message: label, child: icon)
+          : Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xxs,
+              ),
+              decoration: BoxDecoration(
+                color: StatusColors.background(theme, status),
+                borderRadius: AppRadius.allMd,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  icon,
+                  AppSpacing.gapXs,
+                  DefaultTextStyle.merge(
+                    style: TextStyle(color: fg),
+                    child: AppText(label).small.bold,
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }

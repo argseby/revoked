@@ -15,7 +15,6 @@ To use Revoked or run your own server, start at the
 | `examples/` | Working examples, such as the Corner Shop sign-in demo |
 | `deploy/`, `Dockerfile`, `docker-compose.yml` | Running it on a server |
 | `app/packaging/` | Desktop scheme registration and install helpers |
-| `video/` | The website's films, rendered with Remotion |
 
 [ARCHITECTURE.md](ARCHITECTURE.md) explains how it's built, and
 [E2EE.md](E2EE.md) covers end-to-end encryption.

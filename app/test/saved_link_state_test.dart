@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:revoked_app/core/crypto/sealed_formats.dart';
@@ -10,13 +11,9 @@ import 'package:revoked_app/features/shares/store/shared_link_reader.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final fixture =
-      jsonDecode(
-            File(
-              'test/fixtures/sealing_link_read_vectors.json',
-            ).readAsStringSync(),
-          )
-          as Map<String, dynamic>;
+  final fixture = jsonDecode(
+    File('test/fixtures/sealing_link_read_vectors.json').readAsStringSync(),
+  ) as Map<String, dynamic>;
   final key = SealedFormats.parseLinkKey(fixture['linkKey'] as String)!;
   final original = fixture['entry'] as Map<String, dynamic>;
   final copy = SealedFormats.linkCopyKey(
@@ -69,25 +66,22 @@ void main() {
     return (data['records'] as List).first as Map<String, dynamic>;
   }
 
-  test(
-    'saved share history survives a new reader and rejects rollback and same-version changes',
-    () async {
-      final state = SavedLinkState();
-      expect((await read(state, original))['value'], isNotNull);
-      final newer = entry(7, 'newer');
-      expect((await read(state, newer))['value'], 'newer');
-      for (final older in [
-        original,
-        entry(7, 'different'),
-        {...original, 'sealed': false, 'value': 'downgraded'},
-      ]) {
-        final result = await read(SavedLinkState(), older);
-        expect(result.containsKey('value'), isFalse);
-        expect(ClosedEntry.of(result), ClosedEntry.rollback);
-      }
-      expect((await read(SavedLinkState(), newer))['value'], 'newer');
-    },
-  );
+  test('saved share history survives a new reader and rejects rollback and same-version changes', () async {
+    final state = SavedLinkState();
+    expect((await read(state, original))['value'], isNotNull);
+    final newer = entry(7, 'newer');
+    expect((await read(state, newer))['value'], 'newer');
+    for (final older in [
+      original,
+      entry(7, 'different'),
+      {...original, 'sealed': false, 'value': 'downgraded'},
+    ]) {
+      final result = await read(SavedLinkState(), older);
+      expect(result.containsKey('value'), isFalse);
+      expect(ClosedEntry.of(result), ClosedEntry.rollback);
+    }
+    expect((await read(SavedLinkState(), newer))['value'], 'newer');
+  });
   test('duplicate record IDs never display a value or advance a pin', () async {
     final state = SavedLinkState();
     final served = {

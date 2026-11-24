@@ -72,16 +72,24 @@ void main() {
         sealed: true,
         opened: true,
       );
+      final links = [
+        link('direct', records: ['iban']),
+        link('section', sections: ['banking']),
+        link('alias', records: ['bank']),
+      ];
+      final index = OpenRecordAccessIndex(
+        records: [encrypted, alias],
+        sections: [banking],
+        links: links,
+      );
       final found = accessForRecord(
         'iban',
         records: [encrypted, alias],
         sections: [banking],
-        links: [
-          link('direct', records: ['iban']),
-          link('section', sections: ['banking']),
-          link('alias', records: ['bank']),
-        ],
+        links: links,
       );
+      expect(index.countFor('iban'), 1);
+      expect(index.countFor('bank'), 1);
       expect(found.map((a) => a.link.id), ['direct']);
     },
   );
@@ -139,6 +147,32 @@ void main() {
     );
     expect(rows.map((r) => r.$1.id), ['iban']);
     expect(rows.single.$2.length, 2);
+  });
+
+  test('the index preserves access order and direct and alias precedence', () {
+    final links = [
+      link('throughSection', sections: ['banking']),
+      link('throughAlias', records: ['bank']),
+      link('both', records: ['bank', 'iban'], sections: ['banking']),
+      link('paused', records: ['iban'], status: 'paused'),
+    ];
+    final index = OpenRecordAccessIndex(
+      records: records,
+      sections: [banking],
+      links: links,
+    );
+    final indexed = index.sharedRecords(records).single.$2;
+    final expected = accessForRecord(
+      'iban',
+      records: records,
+      sections: [banking],
+      links: links,
+    ).where((access) => access.isOpen);
+    expect(
+      indexed.map((entry) => (entry.link.id, entry.route)),
+      expected.map((entry) => (entry.link.id, entry.route)),
+    );
+    expect(index.countFor('iban'), 3);
   });
 
   test('a key is made from the label, spelled out and unique', () {
