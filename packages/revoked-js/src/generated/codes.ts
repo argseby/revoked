@@ -10,6 +10,7 @@ export const ERROR_CODES = [
   'api_key_not_permitted',
   'api_key_vault_scope',
   'application_needs_watermark',
+  'approval_invalid',
   'archive_empty',
   'attestation_check_closed',
   'attestation_check_invalid',

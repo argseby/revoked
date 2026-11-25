@@ -542,7 +542,10 @@ func TestOIDCRefusesBadRequests(t *testing.T) {
 
 // A sign-in is approved in the Revoked app, and the browser can only pass the
 // request on to it.
-func TestSignInIsApprovedOnlyInTheApp(t *testing.T) {
+// A sign-in is approved with proof from the person's device: an identity
+// signature from the app, or a passkey approval from the browser
+// (TestSignInApprovedInTheBrowser). A session alone approves nothing.
+func TestSignInNeedsADeviceProof(t *testing.T) {
 	baseURL, _ := testutils.SetupTestApp(t)
 	svc := newOIDCService(t, baseURL, "https://game.example")
 	person := newOIDCPerson(t, baseURL)
@@ -571,13 +574,15 @@ func TestSignInIsApprovedOnlyInTheApp(t *testing.T) {
 		}
 	})
 
-	t.Run("the page asks for no passkey and decides nothing", func(t *testing.T) {
+	t.Run("the page never opens the app by itself", func(t *testing.T) {
 		resp := svc.authorize(nil)
 		defer resp.Body.Close()
 		raw, _ := io.ReadAll(resp.Body)
-		for _, s := range []string{"/api/passkeys", "/oidc/authorize/consent", "navigator.credentials"} {
+		// A scheme link without the app installed fails, and the page cannot
+		// tell whether it is: opening the app is the person's click.
+		for _, s := range []string{"location.href = server.appLink", "location.replace(server.appLink"} {
 			if strings.Contains(string(raw), s) {
-				t.Fatalf("the page still reaches for %s", s)
+				t.Fatalf("the page opens the app on its own: %s", s)
 			}
 		}
 		r, err := http.Post(baseURL+"/oidc/authorize/session", "application/json", strings.NewReader(`{}`))

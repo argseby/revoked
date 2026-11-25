@@ -483,20 +483,19 @@ func enforceLinkHandshake(app core.App, link *core.Record, identityId, token, ch
 		return denyGate(re, http.StatusForbidden, &util.Errors.IdentityRevoked)
 	}
 
-	existing, err := app.FindFirstRecordByFilter(util.Coll.Handshakes,
+	existing, _ := app.FindFirstRecordByFilter(util.Coll.Handshakes,
 		"link = {:link} && identity = {:identity}",
 		map[string]any{"link": link.Id, "identity": identityId})
 
-	if err == nil && existing != nil {
-		if token == "" {
-			return denyGate(re, http.StatusUnauthorized, &util.Errors.HandshakeRequired)
-		}
-		if existing.GetString(util.Fields.Handshake.TokenHash) != util.HashToken(token) {
-			return denyGate(re, http.StatusUnauthorized, &util.Errors.HandshakeInvalid)
-		}
+	// Fast path: a matching stored token lets a return visit skip re-signing.
+	if existing != nil && token != "" &&
+		existing.GetString(util.Fields.Handshake.TokenHash) == util.HashToken(token) {
 		return true
 	}
 
+	// Otherwise a fresh signature is required, as for requests: a reader who
+	// lost the token (a reinstall, or a browser, which never keeps one) is not
+	// locked out for good by a handshake made earlier.
 	if challengeNonce == "" || challengeSignature == "" {
 		return denyGate(re, http.StatusUnauthorized, &util.Errors.ChallengeRequired)
 	}
@@ -513,15 +512,18 @@ func enforceLinkHandshake(app core.App, link *core.Record, identityId, token, ch
 	if err != nil {
 		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
 	}
-	col, err := app.FindCollectionByNameOrId(util.Coll.Handshakes)
-	if err != nil {
-		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
+	hs := existing
+	if hs == nil {
+		col, err := app.FindCollectionByNameOrId(util.Coll.Handshakes)
+		if err != nil {
+			return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)
+		}
+		hs = core.NewRecord(col)
+		hs.Set(util.Fields.Handshake.Link, link.Id)
+		hs.Set(util.Fields.Handshake.Identity, identityId)
+		hs.Set(util.Fields.Handshake.Workspace, link.GetString(util.Fields.Link.Workspace))
 	}
-	hs := core.NewRecord(col)
-	hs.Set(util.Fields.Handshake.Link, link.Id)
-	hs.Set(util.Fields.Handshake.Identity, identityId)
 	hs.Set(util.Fields.Handshake.TokenHash, util.HashToken(newToken))
-	hs.Set(util.Fields.Handshake.Workspace, link.GetString(util.Fields.Link.Workspace))
 	if err := app.Save(hs); err != nil {
 		app.Logger().Error("Failed to save handshake", "error", err)
 		return denyGate(re, http.StatusInternalServerError, &util.Errors.HandshakeFailed)

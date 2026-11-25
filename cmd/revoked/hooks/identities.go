@@ -1,6 +1,8 @@
 package hooks
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -16,6 +18,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/dbx"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
@@ -38,6 +41,17 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 		clientPubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
 			return err
+		}
+		// A passkey identity is one the browser page derives, which only ever
+		// makes P-256 keys: any other key under that kind was not made there.
+		switch e.Record.GetString(util.Fields.Identity.Kind) {
+		case "":
+		case util.IdentityKindPasskey:
+			if ec, ok := clientPubKey.(*ecdsa.PublicKey); !ok || ec.Curve != elliptic.P256() {
+				return apis.NewBadRequestError("A passkey identity is a P-256 key.", nil)
+			}
+		default:
+			return apis.NewBadRequestError("Unknown identity kind.", nil)
 		}
 
 		name := e.Record.GetString(util.Fields.Identity.Name)
@@ -136,6 +150,8 @@ func BindIdentitiesHooks(app core.App, root *server.RootKey) {
 	})
 
 	app.OnRecordUpdateRequest(util.Coll.Identities).BindFunc(func(e *core.RecordRequestEvent) error {
+		// What made the key is a fact of its creation.
+		e.Record.Set(util.Fields.Identity.Kind, e.Record.Original().GetString(util.Fields.Identity.Kind))
 		if err := applyRevocationTransition(app, e.Record); err != nil {
 			return err
 		}

@@ -699,6 +699,10 @@ paths:
         machine format consumes a view, except a `304`. A share that requires
         a proven identity is never served here (`handshake_required`); a
         password-protected one takes `password`.
+
+        On the page, a password-protected share shows a password field and
+        sends it in the body of `POST /api/public/links/{slug}`, under that
+        endpoint's rate limit. An identity-protected share links to the app.
       security: []
       parameters:
         - $ref: "#/components/parameters/Slug"
@@ -830,6 +834,7 @@ paths:
                   requiresIdentifier: { type: boolean }
                   requireHandshake: { type: boolean }
                   allowExtraFields: { type: boolean }
+                  expiresAt: { type: string, description: "When the request stops accepting answers, RFC 3339; empty when it does not expire." }
                   identity: { type: string, description: "The id of the identity the request is made under, or empty." }
                   identityScope:
                     type: string
@@ -3630,6 +3635,47 @@ paths:
           content:
             text/html: {}
 
+  /r/{slug}:
+    get:
+      tags: [Requests]
+      summary: Answer a request in a browser
+      description: |
+        The page a responder without the app answers a request on. It probes
+        `GET /api/public/requests/{slug}`, signs in or creates an account with
+        a passkey on the page itself, and submits to
+        `POST /api/public/requests/{slug}`. The session lives in the page for
+        one visit and is never stored. A request that requires a verified
+        identity or a file is answered in the app, which the page links to as
+        `revoked://r/…`.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html: {}
+        "404":
+          description: The slug is malformed.
+          content:
+            text/html: {}
+
+  /answers:
+    get:
+      tags: [Requests]
+      summary: Manage answers in a browser
+      description: |
+        Lists the answers the signed-in account gave to requests, with pause,
+        resume, revoke and editing of the values they grant. It signs in with
+        a passkey on the page and uses the `links` and `records` collection
+        endpoints under their usual rules.
+      security: []
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html: {}
+
   /app:
     get:
       tags: [Sign-in]
@@ -4265,12 +4311,16 @@ paths:
       tags: [OpenID Connect]
       summary: Authorization endpoint
       description: |
-        The page a service sends the browser to. It decides nothing: it
-        checks the request and opens the Revoked app with it, as a
-        `revoked://signin?…` link carrying the same parameters. The person
-        approves in the app (`/oidc/authorize/app`, then
-        `/oidc/authorize/consent`); there is no passkey prompt or consent
-        screen in the browser.
+        The page a service sends the browser to. It checks the request and
+        offers two ways to answer it. In the browser, the person signs in with
+        a passkey on the page, sees the consent screen
+        (`/oidc/authorize/app`), and approves with a second, user-verified
+        passkey assertion bound to the ticket (`/api/approvals/begin` and
+        `/finish`, then `/oidc/authorize/consent` with `approval`). Or the
+        page's `revoked://signin?…` link, carrying the same parameters, opens
+        the app, which approves with an identity signature. The page never
+        opens the app by itself. `revoked_identity` is granted only from the
+        app.
 
         `client_id` is the service's origin (`https://game.example`), and
         `redirect_uri` must lie on that origin. Until both check out, nothing
@@ -4395,6 +4445,126 @@ paths:
         "401": { $ref: "#/components/responses/AppError" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /api/approvals/begin:
+    post:
+      tags: [OpenID Connect]
+      summary: Start a passkey approval
+      description: |
+        Starts a WebAuthn assertion for the signed-in account's passkeys,
+        with user verification required. The challenge is
+        `SHA-256("revoked-approval-v1" ‖ purpose ‖ ticket ‖ nonce)`, each part
+        ended by a zero byte, so the assertion approves this ticket for this
+        purpose and nothing else.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, ticket]
+              properties:
+                purpose: { type: string, enum: [signin, connect] }
+                ticket: { type: string, description: "For `signin`, the ticket from `/oidc/authorize/app`." }
+      responses:
+        "200":
+          description: The ceremony.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session: { type: string }
+                  options: { type: object, description: "WebAuthn request options." }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /api/approvals/finish:
+    post:
+      tags: [OpenID Connect]
+      summary: Finish a passkey approval
+      description: |
+        Checks the assertion: one of the signed-in account's passkeys, with
+        the user-verified flag. The `approval` returned is good once, for the
+        ticket and purpose it was begun for, for two minutes.
+      security:
+        - Session: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [session, credential]
+              properties:
+                session: { type: string }
+                credential: { type: object, description: "The WebAuthn assertion, as JSON." }
+      responses:
+        "200":
+          description: The approval.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approval: { type: string }
+        "400": { $ref: "#/components/responses/AppError" }
+        "401": { $ref: "#/components/responses/AppError" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /s/{slug}/identity:
+    get:
+      tags: [Shares]
+      summary: Open an identity-protected share in a browser
+      description: |
+        For a share that requires a verified identity. The reader signs in
+        with a passkey of an account on this server, unlocks the identity
+        derived from that passkey (an identity of kind `passkey`, registered
+        the first time), signs the link's challenge
+        (`GET /api/challenges/link/{slug}`) and opens the share at
+        `POST /api/public/links/{slug}`. The derived key exists only in the
+        page for one visit. A share that requires no identity is sent on to
+        `/s/{slug}`.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Slug"
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html: {}
+        "404":
+          description: The slug is malformed.
+          content:
+            text/html: {}
+
+  /connect:
+    get:
+      tags: [Connections]
+      summary: Connect a tool in a browser
+      description: |
+        The `https://` form of `revoked://connect`, with the same parameters
+        and the same rules (`client`, `name`, `redirect`, `state`,
+        `challenge`, `vault`, `section`, `permissions`, the `*_reason`
+        parameters). The page shows what the tool asks for, signs in with a
+        passkey on the page, and posts the choice to
+        `POST /api/connections/authorize`. The answer goes back through
+        `redirect` in the same tab, with `state`, `status`, `server` and
+        `code`; the page never polls, so `poll` is accepted and ignored.
+        An invalid link is answered with `400` and connects nothing.
+      security: []
+      responses:
+        "200":
+          description: The page.
+          content:
+            text/html: {}
+        "400":
+          description: The link is invalid.
+          content:
+            text/html: {}
+
   /oidc/authorize/consent:
     post:
       tags: [OpenID Connect]
@@ -4404,7 +4574,10 @@ paths:
         An approval is signed with one of the person's active identities:
         `signature` is the identity key's signature over
         `revoked-oidc-consent:` followed by the ticket. The key never leaves
-        the device, so a session token alone approves nothing.
+        the device, so a session token alone approves nothing. A browser
+        sends `approval` instead, from `POST /api/approvals/finish` for
+        purpose `signin` and this ticket; such an approval never grants
+        `revoked_identity`.
 
         With `approve: true`, grants `openid` plus the listed scopes that
         were asked for, and gives the service a grant over the chosen
@@ -4429,8 +4602,9 @@ paths:
               properties:
                 ticket: { type: string }
                 approve: { type: boolean }
-                identityId: { type: string, description: "Required with `approve: true`." }
-                signature: { type: string, description: "Base64. Required with `approve: true`." }
+                identityId: { type: string, description: "With `approve: true`, unless `approval` is sent." }
+                signature: { type: string, description: "Base64. With `approve: true`, unless `approval` is sent." }
+                approval: { type: string, description: "A passkey approval for purpose `signin` and this ticket, in place of `identityId` and `signature`." }
                 scopes:
                   type: array
                   items: { type: string }

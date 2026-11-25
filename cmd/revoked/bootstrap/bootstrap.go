@@ -83,6 +83,8 @@ func Bind(app core.App, root *server.RootKey) {
 	routes.GroupsRoute(app)
 	routes.ConnectionCreateRoute(app, root)
 	routes.PasskeysRoute(app, root)
+	routes.BrowserFlowsRoute(app, root)
+	routes.ApprovalsRoute(app, root)
 	routes.TwoFactorRoute(app)
 	routes.AppPageRoute(app, root)
 	routes.OIDCRoute(app, root)

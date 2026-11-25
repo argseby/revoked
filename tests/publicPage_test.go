@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"revoked/cmd/revoked/routes"
 	"revoked/tests/testutils"
 	"revoked/util"
 
@@ -107,9 +108,10 @@ func TestPublicPageDoesNotDisplaceTheDataContract(t *testing.T) {
 		Header("Content-Type").Contains("application/json")
 }
 
-// A gated share hands off to the app instead of drawing a password box: a page
-// that accepts secrets is a page worth cloning.
-func TestPublicPageNeverAsksForInput(t *testing.T) {
+// An open share collects nothing. A password-protected one asks for the
+// password and nothing else (BROWSER.md §4.4); an identity-protected one hands
+// off to the app, which is the only client that can prove an identity.
+func TestPublicPageAsksOnlyForASharePassword(t *testing.T) {
 	baseURL, _ := testutils.SetupTestApp(t)
 	api := testutils.NewPBClient(t, baseURL)
 
@@ -122,28 +124,88 @@ func TestPublicPageNeverAsksForInput(t *testing.T) {
 	gated, _ := pageShare(t, baseURL, token, userID, wsID, map[string]any{
 		util.Fields.Link.Password: "gate-pass-page-9911",
 	})
+	handshake, _ := pageShare(t, baseURL, token, userID, wsID, map[string]any{
+		util.Fields.Link.RequireHandshake: true,
+	})
 	open, _ := pageShare(t, baseURL, token, userID, wsID, nil)
 
-	for _, slug := range []string{gated, open} {
-		body := api.E.GET("/s/"+slug).WithHeader("Accept", browserAccept).
-			Expect().Status(http.StatusOK).Body().Raw()
-		for _, forbidden := range []string{"<input", "<form", "<textarea", "type=\"password\""} {
-			if strings.Contains(strings.ToLower(body), forbidden) {
-				t.Fatalf("the public page must collect nothing, found %q", forbidden)
+	page := func(slug string) string {
+		return strings.ToLower(api.E.GET("/s/"+slug).WithHeader("Accept", browserAccept).
+			Expect().Status(http.StatusOK).Body().Raw())
+	}
+
+	for _, slug := range []string{open, handshake} {
+		body := page(slug)
+		for _, forbidden := range []string{"<input", "<form", "<textarea", `type="password"`} {
+			if strings.Contains(body, forbidden) {
+				t.Fatalf("a share without a password gate must collect nothing, found %q", forbidden)
 			}
 		}
 	}
 
-	gatedBody := api.E.GET("/s/"+gated).WithHeader("Accept", browserAccept).
-		Expect().Status(http.StatusOK).Body()
-	gatedBody.Contains("revoked://s/")
-	gatedBody.NotContains("page-canary-value-7f31")
-	// Trusting a domain only skips a click the browser could make; a gated
-	// share opens in the app, so there is nothing to skip.
-	gatedBody.NotContains(`id="remember"`)
+	body := page(gated)
+	if n := strings.Count(body, "<input"); n != 1 || !strings.Contains(body, `<input id="pw" type="password"`) {
+		t.Fatalf("a password-protected share asks for exactly one password, found %d inputs", n)
+	}
+	for _, forbidden := range []string{"<form", "<textarea", "page-canary-value-7f31"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("the password page holds %q", forbidden)
+		}
+	}
+	// The password travels in the POST body, never in an address.
+	if strings.Contains(body, "?password=") {
+		t.Fatalf("the password page puts the password in a URL")
+	}
+	if !strings.Contains(body, "revoked://s/") {
+		t.Fatalf("the password page still offers the app")
+	}
 
-	api.E.GET("/s/"+open).WithHeader("Accept", browserAccept).
-		Expect().Status(http.StatusOK).Body().Contains(`role="checkbox"`)
+	hs := page(handshake)
+	if !strings.Contains(hs, "revoked://s/") || strings.Contains(hs, `id="remember"`) {
+		t.Fatalf("an identity-protected share must hand off to the app and offer nothing to skip")
+	}
+
+	if !strings.Contains(page(open), `role="checkbox"`) {
+		t.Fatalf("an open share offers to remember the server")
+	}
+}
+
+// A password typed on the page unlocks through the endpoint the app uses,
+// under its rate limit: a wrong one is refused with the same code as for the
+// app, and a right one spends one view.
+func TestSharePasswordUnlocksThroughTheAppEndpoint(t *testing.T) {
+	baseURL, _ := testutils.SetupTestApp(t)
+	api := testutils.NewPBClient(t, baseURL)
+
+	userID, token, err := testutils.CreateRandomUser(baseURL)
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	wsID := activeWorkspaceOf(t, api, userID, token)
+	slug, linkID := pageShare(t, baseURL, token, userID, wsID, map[string]any{
+		util.Fields.Link.Password: "gate-pass-page-9911",
+	})
+
+	api.E.POST("/api/public/links/" + slug).WithJSON(map[string]any{"password": "wrong"}).
+		Expect().Status(http.StatusUnauthorized).JSON().Object().
+		Value("code").String().IsEqual(util.Errors.LinkPasswordInvalid.ErrorCode)
+	api.Get(util.Coll.Links, linkID, token).Expect().Status(http.StatusOK).
+		JSON().Object().Value(util.Fields.Link.ViewCount).Number().IsEqual(0)
+
+	api.E.POST("/api/public/links/" + slug).WithJSON(map[string]any{"password": "gate-pass-page-9911"}).
+		Expect().Status(http.StatusOK).Body().Contains("page-canary-value-7f31")
+	api.Get(util.Coll.Links, linkID, token).Expect().Status(http.StatusOK).
+		JSON().Object().Value(util.Fields.Link.ViewCount).Number().IsEqual(1)
+
+	// The budget the app's attempts spend is the page's too.
+	routes.ConfigureRateLimits(2, 0, 0)
+	t.Cleanup(func() { routes.ConfigureRateLimits(0, 0, 0) })
+	for i := 0; i < 2; i++ {
+		api.E.POST("/api/public/links/" + slug).WithJSON(map[string]any{"password": "wrong"}).
+			Expect().Status(http.StatusUnauthorized)
+	}
+	api.E.POST("/api/public/links/" + slug).WithJSON(map[string]any{"password": "wrong"}).
+		Expect().Status(http.StatusTooManyRequests)
 }
 
 // The page is a capability URL rendered as HTML: it must not be cached, must
