@@ -255,6 +255,24 @@
     "GET /passkey": {
       "excluded": "HTML page of the passkey ceremony"
     },
+    "GET /r/{slug}": {
+      "excluded": "HTML page; answering a request in a browser, through POST /api/public/requests/{slug}"
+    },
+    "GET /s/{slug}/identity": {
+      "excluded": "HTML page; opening an identity-protected share in a browser"
+    },
+    "GET /connect": {
+      "excluded": "HTML page; connecting a tool in a browser, through POST /api/connections/authorize"
+    },
+    "POST /api/approvals/begin": {
+      "excluded": "passkey ceremony, run by the browser sign-in page"
+    },
+    "POST /api/approvals/finish": {
+      "excluded": "passkey ceremony, run by the browser sign-in page"
+    },
+    "GET /answers": {
+      "excluded": "HTML page; managing answers in a browser, through the links and records collections"
+    },
     "GET /s/{slug}": "client:public.links.export"
   }
 }

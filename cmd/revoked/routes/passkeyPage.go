@@ -88,155 +88,7 @@ var passkeyPageTemplate = template.Must(template.New("passkey").Funcs(brandFuncs
 <link rel="icon" type="image/svg+xml" href="{{logoDark}}" media="(prefers-color-scheme: dark)">
 <title>Sign in · Revoked</title>
 <style>` + pageTokens + `
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-background: var(--bg);
-color: var(--fg);
-font-family: var(--font-sans);
-font-size: 16px;
-line-height: 1.45;
-min-height: 100vh;
--webkit-font-smoothing: antialiased;
--webkit-tap-highlight-color: transparent;
-}
-svg { display: block; flex: none; }
-button { font: inherit; }
-
-header {
-position: sticky;
-top: 0;
-z-index: 10;
-background: color-mix(in srgb, var(--bg) 85%, transparent);
--webkit-backdrop-filter: blur(12px);
-backdrop-filter: blur(12px);
-border-bottom: 1px solid var(--border);
-}
-.nav {
-max-width: 640px;
-margin: 0 auto;
-padding: 10px 16px;
-display: flex;
-align-items: center;
-justify-content: space-between;
-}
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; color: var(--fg); }
-.logo { width: 24px; height: 24px; border-radius: var(--radius-md); }
-.logo-dark { display: none; }
-html[data-theme="dark"] .logo-light { display: none; }
-html[data-theme="dark"] .logo-dark { display: block; }
-@media (prefers-color-scheme: dark) {
-html:not([data-theme="light"]) .logo-light { display: none; }
-html:not([data-theme="light"]) .logo-dark { display: block; }
-}
-.tools { display: flex; gap: 8px; }
-.theme, .lang {
-min-width: 38px; height: 38px; border-radius: var(--radius-md); border: 1px solid var(--control);
-background: var(--bg); color: var(--fg); cursor: pointer;
-display: inline-flex; align-items: center; justify-content: center;
-}
-.lang { padding: 0 10px; font-size: 13px; font-weight: 650; letter-spacing: .04em; }
-
-.steps { display: flex; flex-direction: column; gap: 8px; }
-.steps-t { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--fg-muted); }
-.steps-t img { width: 18px; height: 18px; border-radius: var(--radius-md); }
-.steps ol { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
-.steps li { height: 4px; border-radius: var(--radius-pill); background: var(--border); transition: background .3s; }
-.steps li.on { background: var(--primary); }
-
-main {
-max-width: 440px;
-margin: 0 auto;
-padding: 18px 16px calc(40px + env(safe-area-inset-bottom));
-display: flex;
-flex-direction: column;
-gap: 16px;
-}
-@media (min-width: 600px) { main { padding-top: 12vh; gap: 18px; } }
-
-.hero { display: flex; flex-direction: column; gap: 14px; }
-.hero-tile {
-width: 56px; height: 56px; border-radius: var(--radius-lg); flex: none;
-display: flex; align-items: center; justify-content: center;
-background: var(--surface-subtle); color: var(--fg);
-transition: background .3s, color .3s;
-}
-.hero-tile.ok { background: var(--ok-subtle); color: var(--ok); }
-.hero-tile.warn { background: var(--warn-subtle); color: var(--warn); }
-.hero-tile.bad { background: var(--bad-subtle); color: var(--bad); }
-.hero-tile:empty { display: none; }
-.hero-tile svg { animation: pop .3s var(--ease); }
-.hero h1 { font-size: 28px; font-weight: 650; line-height: 1.15; letter-spacing: -0.04em; }
-.lead { color: var(--fg-muted); font-size: 16px; line-height: 1.45; margin-top: 6px; overflow-wrap: anywhere; }
-.lead:empty { display: none; }
-
-.card {
-display: flex;
-flex-direction: column;
-gap: 12px;
-animation: rise .4s var(--ease) both;
-}
-
-.callout {
-display: flex; gap: 12px; align-items: flex-start;
-padding: 14px; border-radius: var(--radius-md);
-background: var(--bad-subtle); color: var(--bad);
-font-size: 14px; line-height: 1.45;
-}
-
-.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--fg-muted); }
-input {
-width: 100%; height: 50px; padding: 0 14px;
-font: inherit; font-size: 16px; font-weight: 400; color: var(--fg);
-background: var(--field); border: 1px solid var(--control); border-radius: var(--radius-md);
-transition: border-color .15s, box-shadow .15s;
-}
-input::placeholder { color: var(--fg-muted); opacity: .7; }
-input:focus { outline: none; border-color: var(--fg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fg) 15%, transparent); }
-#code { font-size: 22px; letter-spacing: .4em; font-variant-numeric: tabular-nums; text-align: center; }
-.quiet:disabled { cursor: default; opacity: .6; }
-
-.big, .quiet {
-width: 100%; min-height: 52px; border-radius: var(--radius-md);
-font-size: 16px; font-weight: 650;
-display: flex; align-items: center; justify-content: center; gap: 10px;
-padding: 12px 16px; text-align: center;
-cursor: pointer; text-decoration: none;
-transition: transform .12s var(--ease), filter .15s, background .15s;
-}
-.big { border: 0; background: var(--primary); color: var(--primary-fg); }
-.big:hover { filter: brightness(1.06); }
-.quiet { min-height: 48px; border: 1px solid var(--control); background: transparent; color: var(--fg); font-size: 15px; font-weight: 600; }
-.quiet:hover { background: var(--surface-subtle); }
-.big:active, .quiet:active { transform: scale(.985); }
-.big:disabled { cursor: progress; opacity: .75; }
-.big:focus-visible, .quiet:focus-visible, .theme:focus-visible, .lang:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; display: none; flex: none; }
-.big.loading .spin { display: block; }
-.big.loading .big-ic { display: none; }
-.big-logo { width: 24px; height: 24px; }
-
-.hint {
-display: flex; gap: 10px; align-items: flex-start;
-padding: 12px 14px; border-radius: var(--radius-md);
-background: var(--surface-subtle); color: var(--fg);
-font-size: 14px; line-height: 1.45;
-}
-.hint svg { margin-top: 1px; color: var(--fg-muted); }
-.fine { text-align: center; color: var(--fg-muted); font-size: 13px; line-height: 1.45; }
-/* The way to the other mode, while creating an account: a quiet text link
-   for a wrong tap, not a second choice beside the step being taken. */
-.quiet.link { min-height: 44px; border: 0; font-size: 14px; font-weight: 500; color: var(--fg-muted); text-decoration: underline; text-underline-offset: 3px; }
-.quiet.link:hover { background: transparent; color: var(--fg); }
-.fine:empty { display: none; }
-[hidden] { display: none !important; }
-
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-@keyframes pop { 0% { transform: scale(.5); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
-@media (prefers-reduced-motion: reduce) {
-*, *::before, *::after { animation: none !important; transition: none !important; }
-}
-</style>
+` + authPageStyle + `</style>
 </head>
 <body>
 
@@ -268,8 +120,8 @@ font-size: 14px; line-height: 1.45;
 
 <div class="card" id="card">
 <div id="error" class="callout" role="alert" hidden><i data-i="alert" data-s="20"></i><span id="error-t"></span></div>
-<label class="field" id="emailRow" hidden><span data-t="field.email">Email</span>
-<input id="email" type="email" autocomplete="username webauthn" placeholder="name@example.com">
+<label class="field" id="emailRow" hidden><span class="sr-only" data-t="field.email">Email</span>
+<input id="email" type="email" autocomplete="username webauthn" placeholder="Email address">
 </label>
 <label class="field" id="codeRow" hidden><span data-t="field.code">Confirmation code</span>
 <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
@@ -312,14 +164,10 @@ var STRINGS = {
     'signin.go': 'Sign in with passkey', 'signin.other': 'Create account',
     'signin.noPasskey': 'New passkeys are added through a link from the server operator.',
     'either.title': 'Sign in or create an account',
-    'either.lead': 'Revoked uses passkeys instead of passwords. A saved passkey is offered in the email field.',
+    'other.device': 'Passkey on another device', 'other.email': 'Use a different email address', 'field.emailPh': 'Email address',
+    'taken.lead': function (email) { return 'An account for ' + email + ' exists. It signs in with its passkey.'; },
+    'err.emailNeeded': 'An email address is needed for a new account.',
     'either.go': 'Continue',
-    'offer.title': 'Create an account?',
-    'offer.leadCode': function (email) { return 'No passkey was used. A new account for ' + email + ' starts with a confirmation code sent there.'; },
-    'offer.lead': function (email) { return 'No passkey was used. A new account for ' + email + ' gets a passkey on this device.'; },
-    'offer.go': 'Create account', 'offer.retry': 'Try a passkey again',
-    'offer.note': 'A passkey on a phone works through the QR code the browser offers.',
-    'err.noPasskeyEmail': 'No passkey was used. A passkey on a phone works through the QR code the browser offers. For a new account, an email address is needed first.',
     'err.noPasskeyClosed': 'No passkey was used. One on a phone works through the QR code the browser offers.',
     'err.unknownRemoved': 'This passkey belongs to an account that no longer exists. Your password manager was asked to remove it.',
     'err.unknownManual': 'This passkey belongs to an account that no longer exists. It can be deleted in your password manager.',
@@ -330,7 +178,7 @@ var STRINGS = {
     'code.title': 'Confirmation code',
     'code.lead': function (email) { return 'Sent to ' + email + '.'; },
     'code.go': 'Next',
-    'code.note': 'The code is valid for 10 minutes. Missing emails may be in the spam folder.',
+    'code.note': 'The code is valid for 10 minutes. An address that already has an account receives a note on signing in instead. Missing emails may be in the spam folder.',
     'code.resendIn': function (s) { return 'New code in ' + s + ' s'; },
     'code.resend': 'Send new code',
     'passkey.title': 'Save a passkey',
@@ -367,14 +215,10 @@ var STRINGS = {
     'signin.go': 'Mit Passkey anmelden', 'signin.other': 'Konto erstellen',
     'signin.noPasskey': 'Neue Passkeys werden über einen Link des Serverbetreibers hinzugefügt.',
     'either.title': 'Anmelden oder Konto erstellen',
-    'either.lead': 'Revoked nutzt Passkeys statt Passwörtern. Ein gespeicherter Passkey wird im E-Mail-Feld angeboten.',
+    'other.device': 'Passkey auf anderem Gerät', 'other.email': 'Andere E-Mail-Adresse verwenden', 'field.emailPh': 'E-Mail-Adresse',
+    'taken.lead': function (email) { return 'Für ' + email + ' existiert ein Konto. Die Anmeldung erfolgt mit dessen Passkey.'; },
+    'err.emailNeeded': 'Für ein neues Konto wird eine E-Mail-Adresse benötigt.',
     'either.go': 'Weiter',
-    'offer.title': 'Konto erstellen?',
-    'offer.leadCode': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' beginnt mit einem Bestätigungscode an diese Adresse.'; },
-    'offer.lead': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' erhält einen Passkey auf diesem Gerät.'; },
-    'offer.go': 'Konto erstellen', 'offer.retry': 'Passkey erneut versuchen',
-    'offer.note': 'Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
-    'err.noPasskeyEmail': 'Es wurde kein Passkey verwendet. Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet. Für ein neues Konto wird zuerst eine E-Mail-Adresse benötigt.',
     'err.noPasskeyClosed': 'Es wurde kein Passkey verwendet. Einer auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
     'err.unknownRemoved': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Der Passwort-Manager wurde gebeten, ihn zu entfernen.',
     'err.unknownManual': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Er kann im Passwort-Manager gelöscht werden.',
@@ -385,7 +229,7 @@ var STRINGS = {
     'code.title': 'Bestätigungscode',
     'code.lead': function (email) { return 'Gesendet an ' + email + '.'; },
     'code.go': 'Weiter',
-    'code.note': 'Der Code ist 10 Minuten gültig. Fehlende E-Mails können im Spam-Ordner liegen.',
+    'code.note': 'Der Code ist 10 Minuten gültig. Eine Adresse mit bestehendem Konto erhält stattdessen einen Hinweis zur Anmeldung. Fehlende E-Mails können im Spam-Ordner liegen.',
     'code.resendIn': function (s) { return 'Neuer Code in ' + s + ' s'; },
     'code.resend': 'Neuen Code senden',
     'passkey.title': 'Passkey speichern',
@@ -511,6 +355,7 @@ function applyLang() {
   Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (n) {
     n.textContent = t(n.getAttribute('data-t'));
   });
+  $('email').setAttribute('placeholder', t('field.emailPh'));
   $('lang-toggle').textContent = t('lang.label');
   $('lang-toggle').setAttribute('aria-label', t('lang.switch'));
   updateToggle();
@@ -529,14 +374,20 @@ function heading(title, lead, icon, tone) {
   $('lead').textContent = lead || '';
   document.title = title + ' · Revoked';
   var tile = $('tile');
-  tile.className = 'hero-tile' + (tone ? ' ' + tone : '');
+  tile.className = 'hero-tile';
   tile.textContent = '';
-  if (icon) tile.appendChild(svg(icon, 28));
+  // Only a state earns an icon, small and on the title's own line: an answer
+  // sent, a link gone. A key above "Sign in" says nothing the words do not.
+  if (icon && tone) {
+    var mark = svg(icon, 20);
+    mark.setAttribute('class', 'status-ic ' + tone);
+    $('title').insertBefore(mark, $('title').firstChild);
+  }
 }
 function action(label, icon) {
   $('go-t').textContent = label;
   $('go-ic').textContent = '';
-  $('go-ic').appendChild(svg(icon, 20));
+  $('go-ic').appendChild(svg(icon, 18));
 }
 // Where a new account is: the steps on this page only. The app drew the trip
 // here and back before it opened the page, so the name it asks afterwards is
@@ -599,21 +450,9 @@ function hint(key) {
   show($('hint'), noPlatformStore);
 }
 
-function decode(s) {
-  var b = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
-  var out = new Uint8Array(b.length);
-  for (var i = 0; i < b.length; i++) out[i] = b.charCodeAt(i);
-  return out.buffer;
-}
-function encode(buf) {
-  var bytes = new Uint8Array(buf), s = '';
-  for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+` + passkeyCeremonyScript + `
 // The PRF extension's output derives this person's encryption keys
-// (E2EE.md §6.8). It goes to the app and never to the server: it is taken out
-// of the extension results before they are sent, whatever the browser
-// serialises them as.
+// (E2EE.md §6.8). It goes to the app and never to the server.
 var PRF_SALT = new TextEncoder().encode('revoked-sealed-prf-v1');
 function withPrf(options) {
   options.extensions = Object.assign({}, options.extensions, { prf: { eval: { first: PRF_SALT } } });
@@ -624,104 +463,25 @@ function prfOf(c) {
   var first = ext && ext.prf && ext.prf.results && ext.prf.results.first;
   return first ? encode(first) : '';
 }
-function credentialJSON(c) {
-  var ext = Object.assign({}, c.getClientExtensionResults());
-  delete ext.prf;
-  var r = c.response, out = { clientDataJSON: encode(r.clientDataJSON) };
-  if (r.attestationObject) {
-    out.attestationObject = encode(r.attestationObject);
-    if (r.getTransports) out.transports = r.getTransports();
-  } else {
-    out.authenticatorData = encode(r.authenticatorData);
-    out.signature = encode(r.signature);
-    if (r.userHandle) out.userHandle = encode(r.userHandle);
-  }
-  return {
-    id: c.id, rawId: encode(c.rawId), type: c.type,
-    authenticatorAttachment: c.authenticatorAttachment || undefined,
-    clientExtensionResults: ext,
-    response: out
-  };
-}
-async function call(path, body) {
-  var res = await fetch(path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-  });
-  var data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    var err = new Error(serverMessage(data));
-    err.code = data.code || '';
-    throw err;
-  }
-  return data;
-}
-// Names a passkey after where it was made, so its owner can tell them apart.
-function deviceName() {
-  var ua = navigator.userAgent;
-  var os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
-    : /Mac OS X/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '';
-  var browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome'
-    : /Safari\//.test(ua) ? 'Safari' : '';
-  return [browser, os].filter(Boolean).join(' on ') || 'Passkey';
-}
 
 // extra carries the autofill's mediation and abort signal; the button asks
 // without them.
 async function signIn(extra) {
-  var begin = await call('/api/passkeys/login/begin', { challenge: pkce });
-  var options = begin.options.publicKey;
-  options.challenge = decode(options.challenge);
-  (options.allowCredentials || []).forEach(function (c) { c.id = decode(c.id); });
-  var credential = await navigator.credentials.get(Object.assign({ publicKey: withPrf(options) }, extra || {}));
-  var prf = prfOf(credential);
-  var rpId = options.rpId || location.hostname;
-  var result;
-  try {
-    result = await call('/api/passkeys/login/finish', { session: begin.session, credential: credentialJSON(credential) });
-  } catch (e) {
-    // A passkey left behind by a deleted account or a removed key: the
-    // password manager is told, where the browser can tell it, so the dead
-    // passkey stops being offered.
-    if (e && e.code === 'passkey_unknown') {
-      var told = await signal('signalUnknownCredential', { rpId: rpId, credentialId: credential.id });
-      throw new Error(t(told ? 'err.unknownRemoved' : 'err.unknownManual'));
-    }
-    throw e;
-  }
-  // The keys this account still has, and its address: a passkey removed in
-  // the app leaves the password manager as well, and a changed address shows.
-  var a = result.accepted;
-  if (a && a.userId) {
-    signal('signalAllAcceptedCredentials', { rpId: rpId, userId: a.userId, allAcceptedCredentialIds: a.credentials || [] });
-    if (a.name) signal('signalCurrentUserDetails', { rpId: rpId, userId: a.userId, name: a.name, displayName: a.name });
-  }
-  result.prf = prf;
-  return result;
-}
-// The WebAuthn Signal API, where the browser has it. Best effort: a browser
-// without it, or a password manager that declines, changes nothing here.
-async function signal(name, args) {
-  if (typeof PublicKeyCredential[name] !== 'function') return false;
-  try { await PublicKeyCredential[name](args); return true; } catch (e) { return false; }
+  var r = await passkeySignIn(pkce, withPrf, extra);
+  r.result.prf = prfOf(r.credential);
+  return r.result;
 }
 async function register() {
-  var body = { name: deviceName() };
+  var body = {};
   if (pkce) body.challenge = pkce;
   if (mode === 'enroll') body.ticket = ticket;
   else {
     body.email = $('email').value.trim();
     if (proof) body.proof = proof;
   }
-  var begin = await call('/api/passkeys/register/begin', body);
-  var options = begin.options.publicKey;
-  options.challenge = decode(options.challenge);
-  options.user.id = decode(options.user.id);
-  (options.excludeCredentials || []).forEach(function (c) { c.id = decode(c.id); });
-  var credential = await navigator.credentials.create({ publicKey: withPrf(options) });
-  var prf = prfOf(credential);
-  var result = await call('/api/passkeys/register/finish', { session: begin.session, credential: credentialJSON(credential) });
-  result.prf = prf;
-  return result;
+  var r = await passkeyRegister(body, withPrf);
+  r.result.prf = prfOf(r.credential);
+  return r.result;
 }
 
 // Set once the page has its answer, so nothing redraws over the result.
@@ -730,14 +490,15 @@ var done = false;
 // ---- Passkey autofill ----------------------------------------------------
 // While signing in, a passkey saved for this server is offered in the email
 // field's suggestions, so a returning person picks it there and is in: no
-// choosing between signing in and creating an account first. The button
-// still asks outright, for a passkey on another device. Only one request may
-// be open, so the autofill's is withdrawn before the button's starts.
+// choosing between signing in and creating an account first. A passkey on
+// another device is asked for by the quiet link. Only one request may be
+// open, so the autofill's is withdrawn before another starts.
 var autofill = null;
-// Set when Continue found no passkey and the address may be someone new.
-var offerCreate = false;
+// Set when the address typed already has an account. Only a server that does
+// not confirm addresses says so: there signup makes it public anyway.
+var taken = false;
 async function startAutofill() {
-  if (autofill || done || mode !== 'signin' || !pkce || offerCreate) return;
+  if (autofill || done || mode !== 'signin' || !pkce || taken) return;
   if (!PublicKeyCredential.isConditionalMediationAvailable) return;
   var available = false;
   try { available = await PublicKeyCredential.isConditionalMediationAvailable(); } catch (e) {}
@@ -898,26 +659,29 @@ function render() {
     show($('card'), false);
     return;
   }
-  hint('hint.signin');
-  if (server.signups && offerCreate) {
-    // The passkey prompt found nothing: the address typed may be someone new.
-    // Asked only now, so nobody is made to choose before they know.
-    var email = currentEmail();
-    heading(t('offer.title'), t(server.verifyEmail ? 'offer.leadCode' : 'offer.lead', email), 'user-plus');
-    action(t('offer.go'), 'arrow-right');
-    $('other').classList.add('link');
-    $('other').textContent = t('offer.retry');
+  // Continue saves a passkey for a new address, so the device asks where it
+  // goes; signing in, it asks where the passkey is.
+  hint(server.signups && !taken ? 'hint.save' : 'hint.signin');
+  $('other').classList.add('link');
+  if (server.signups && taken) {
+    show($('emailRow'), false);
+    heading(t('signin.title'), t('taken.lead', currentEmail()), 'key');
+    action(t('signin.go'), 'key');
+    $('other').textContent = t('other.email');
     show($('other'), true);
-    $('note').textContent = t('offer.note');
     return;
   }
   if (server.signups) {
-    // One way in. The field offers a saved passkey; Continue asks for one
-    // anywhere, a phone included, and only when none is used does the page
-    // offer a new account for the address. Nothing here asks the server
+    // One way in. The field offers a saved passkey and signs in from there.
+    // Continue with a typed address starts a new account: someone returning
+    // picks the suggestion, so a typed address is almost always someone new,
+    // and asking them for a passkey first only showed an empty prompt. A
+    // passkey on a phone is the quiet link. Nothing here asks the server
     // whether that address has an account.
-    heading(t('either.title'), t('either.lead'), 'key');
+    heading(t('either.title'), '', 'key');
     action(t('either.go'), 'arrow-right');
+    $('other').textContent = t('other.device');
+    show($('other'), true);
   } else {
     action(t('signin.go'), 'key');
     heading(t('signin.title'), t('signin.lead'), 'key');
@@ -927,10 +691,16 @@ function render() {
 }
 
 $('other').addEventListener('click', async function () {
-  // Offered a new account, the person may still have a passkey somewhere.
-  if (mode === 'signin' && offerCreate) {
-    offerCreate = false;
+  // A different address, after one that has an account.
+  if (mode === 'signin' && taken) {
+    taken = false;
     render();
+    $('email').focus();
+    return;
+  }
+  // A passkey on another device: the system sheet offers the QR code.
+  if (mode === 'signin' && server.signups) {
+    signInNow = true;
     $('go').click();
     return;
   }
@@ -939,6 +709,8 @@ $('other').addEventListener('click', async function () {
   mode = 'signin';
   render();
 });
+// Set for one press: sign in rather than start an account.
+var signInNow = false;
 var busy = false;
 $('go').addEventListener('click', async function () {
   if (busy) return;
@@ -947,10 +719,16 @@ $('go').addEventListener('click', async function () {
   $('go').disabled = true;
   $('go').classList.add('loading');
   try {
-    // The new account the page offered: from here it is the sign-up below.
-    if (mode === 'signin' && offerCreate) {
+    var wantSignIn = signInNow || taken || !server.signups;
+    signInNow = false;
+    // A typed address continued with: from here it is the sign-up below.
+    if (mode === 'signin' && !wantSignIn) {
+      if (!$('email').checkValidity() || !currentEmail()) {
+        fail(t('err.emailNeeded'));
+        $('email').focus();
+        return;
+      }
       await stopAutofill();
-      offerCreate = false;
       mode = 'signup';
       render();
     }
@@ -977,7 +755,14 @@ $('go').addEventListener('click', async function () {
   } catch (e) {
     // A proof that ran out sends the address back to be confirmed again, and
     // an address the server refused goes back to be changed.
-    if (e && (e.code === 'email_verification_required' || e.code === 'passkey_email_taken' || e.code === 'passkey_email_invalid')) {
+    if (e && e.code === 'passkey_email_taken') {
+      proof = ''; codeSentTo = ''; emailGiven = false;
+      mode = 'signin';
+      taken = true;
+      render();
+      return;
+    }
+    if (e && (e.code === 'email_verification_required' || e.code === 'passkey_email_invalid')) {
       proof = ''; codeSentTo = ''; emailGiven = false;
       render();
     }
@@ -985,13 +770,7 @@ $('go').addEventListener('click', async function () {
     // when signing in: there it is also what finding no passkey looks like,
     // and the way on is worth saying.
     if (e && e.name === 'NotAllowedError' && mode === 'signin') {
-      if (server.signups && currentEmail() && $('email').checkValidity()) {
-        offerCreate = true;
-        render();
-      } else {
-        fail(t(server.signups ? 'err.noPasskeyEmail' : 'err.noPasskeyClosed'));
-        if (server.signups) $('email').focus();
-      }
+      fail(t('err.noPasskeyClosed'));
     } else if (!e || e.name !== 'NotAllowedError') {
       fail((e && e.message) || t('err.generic'));
     }
@@ -1014,8 +793,8 @@ $('code').addEventListener('input', function () {
 });
 // A different address needs its own code.
 $('email').addEventListener('input', function () {
-  if (mode === 'signin' && offerCreate) {
-    if (!currentEmail()) offerCreate = false;
+  if (mode === 'signin' && taken) {
+    taken = false;
     render();
     return;
   }

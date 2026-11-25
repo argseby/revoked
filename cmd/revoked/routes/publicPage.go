@@ -386,6 +386,15 @@ transition: transform .12s var(--ease), filter .15s;
 .big.loading .spin { display: block; }
 .big.loading .big-ic { display: none; }
 .fine { text-align: center; color: var(--fg-muted); font-size: 12px; margin-top: 10px; }
+.pw { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.pw-t { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--fg-muted); }
+.pw input {
+width: 100%; height: 50px; padding: 0 14px;
+font: inherit; font-size: 16px; color: var(--fg);
+background: var(--field); border: 1px solid var(--control); border-radius: var(--radius-md);
+}
+.pw input:focus { outline: none; border-color: var(--fg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fg) 15%, transparent); }
+.pw-err { margin: -4px 0 12px; color: var(--bad); font-size: 14px; }
 .fine:empty { display: none; }
 
 /* A button, not an input: the page collects nothing. */
@@ -631,7 +640,7 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <span class="brand-t">Revoked</span>
 </a>
 <div class="nav-actions">
-{{if not (or .Gated .RequireHandshake)}}<a class="app-btn" href="{{.AppLink}}" title="Open in app" aria-label="Open in app" data-t-title="openInApp" data-t-aria="openInApp"><i data-i="external" data-s="16"></i><span class="app-btn-t" data-t="openInApp">Open in app</span></a>{{end}}
+{{if not .RequireHandshake}}<a class="app-btn" href="{{.AppLink}}" title="Open in app" aria-label="Open in app" data-t-title="openInApp" data-t-aria="openInApp"><i data-i="external" data-s="16"></i><span class="app-btn-t" data-t="openInApp">Open in app</span></a>{{end}}
 <button class="lang" type="button" id="lang-toggle">DE</button>
 <button class="theme" type="button" id="theme-toggle" aria-label="Toggle visual theme"></button>
 </div>
@@ -684,9 +693,10 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 </div>
 </section>
 
-{{if or .Gated .RequireHandshake}}
+{{if .RequireHandshake}}
 <div class="app-gate">
-<p><i data-i="lock" data-s="18"></i>{{if .RequireHandshake}}<span data-t="gate.handshake">Protected by a verified identity. It is confirmed only in the Revoked app, which checks the server first.</span>{{else}}<span data-t="gate.password">Protected by a password. The password is entered only in the Revoked app, which checks the server first.</span>{{end}}</p>
+<p><i data-i="lock" data-s="18"></i><span data-t="gate.handshake">Protected by a verified identity. It is confirmed in the Revoked app, which checks the server first, or in this browser with a passkey of an account on this server.</span></p>
+<a href="/s/{{.Slug}}/identity" class="quiet"><i data-i="key" data-s="16"></i><span data-t="gate.browser">Continue in browser</span></a>
 <a href="{{.AppLink}}" class="big"><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt=""><span data-t="gate.open">Open in the Revoked app</span></a>
 <a href="/app" class="quiet"><i data-i="download" data-s="16"></i><span data-t="gate.get">Get the app</span></a>
 </div>
@@ -697,6 +707,10 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 </div>
 
 <div class="gate" id="gate">
+{{if .Gated}}<label class="pw" for="pw"><span class="pw-t"><i data-i="lock" data-s="15"></i><span data-t="gate.pwLabel">Password</span></span>
+<input id="pw" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+</label>
+<div class="pw-err" id="pw-err" role="alert" hidden></div>{{end}}
 {{/* Held until the sender check has an answer, so nobody opens the data before
      the page could say whether to trust it. */}}
 <button class="big loading" id="reveal" disabled><span class="spin"></span><i class="big-ic" data-i="lock-open"></i><span id="reveal-t">Checking the server…</span></button>
@@ -719,7 +733,7 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <div class="foot-links">
 <a href="https://revoked.link" target="_blank" rel="noopener noreferrer">revoked.link</a>
 </div>
-{{if not (or .Gated .RequireHandshake)}}<div class="trusted" id="trusted" hidden><span data-t="trusted">{{.Domain}} is trusted in this browser.</span><button class="more" type="button" id="untrust" data-t="untrust">Stop trusting</button></div>{{end}}
+{{if not .RequireHandshake}}<div class="trusted" id="trusted" hidden><span data-t="trusted">{{.Domain}} is trusted in this browser.</span><button class="more" type="button" id="untrust" data-t="untrust">Stop trusting</button></div>{{end}}
 </div>
 </footer>
 
@@ -729,7 +743,7 @@ color: var(--fg); opacity: 0.1; font-size: 13px; font-weight: 600; white-space: 
 <script nonce="{{.Nonce}}">
 (function(){
 var slug={{.Slug}}, domain={{.Domain}}, pin={{.RootFingerprint}}, maxViews={{.MaxViews}}, viewCount={{.ViewCount}};
-var sharerName={{.SharerName}}, watermarked={{.Watermarked}};
+var sharerName={{.SharerName}}, watermarked={{.Watermarked}}, gated={{.Gated}};
 
 // ---- Language: English and German, as on the passkey page -----------------
 // Both catalogues are here: the page loads nothing but its own origin. The
@@ -754,9 +768,11 @@ en: {
 'note.unsigned': function() { return 'This link is not signed by a named person. Anyone with access to ' + domain + ' could have created it.'; },
 'note.reported': 'This name is reported by the server and cannot be confirmed by a browser. The Revoked app verifies the sender\'s signature.',
 'unconfirmed': 'Unconfirmed', 'unconfirmed.title': 'This name comes from a server that failed verification and cannot be relied on.',
-'gate.handshake': 'Protected by a verified identity. It is confirmed only in the Revoked app, which checks the server first.',
+'gate.handshake': 'Protected by a verified identity. It is confirmed in the Revoked app, which checks the server first, or in this browser with a passkey of an account on this server.', 'gate.browser': 'Continue in browser',
 'gate.password': 'Protected by a password. The password is entered only in the Revoked app, which checks the server first.',
 'gate.open': 'Open in the Revoked app', 'gate.get': 'Get the app',
+'gate.pwLabel': 'Password', 'gate.pwMissing': 'A password is required.',
+'gate.pwWrong': 'The password is incorrect.', 'gate.pwLimited': 'Too many attempts. Try again after a short wait.',
 'views': function(used) { return used + ' of ' + maxViews + ' views used'; },
 'watermarked': 'Watermarked files',
 'reveal.checking': 'Checking the server…', 'reveal.open': 'Open shared information', 'reveal.anyway': 'Open anyway',
@@ -844,9 +860,11 @@ de: {
 'note.unsigned': function() { return 'Dieser Link ist nicht von einer namentlich genannten Person signiert. Jede Person mit Zugang zu ' + domain + ' könnte ihn erstellt haben.'; },
 'note.reported': 'Dieser Name wird vom Server angegeben und kann von einem Browser nicht bestätigt werden. Die Revoked-App prüft die Signatur des Absenders.',
 'unconfirmed': 'Unbestätigt', 'unconfirmed.title': 'Dieser Name stammt von einem Server, der die Prüfung nicht bestanden hat, und ist nicht verlässlich.',
-'gate.handshake': 'Durch eine verifizierte Identität geschützt. Sie wird nur in der Revoked-App bestätigt, die zuvor den Server prüft.',
+'gate.handshake': 'Durch eine verifizierte Identität geschützt. Sie wird in der Revoked-App bestätigt, die zuvor den Server prüft, oder in diesem Browser mit einem Passkey eines Kontos auf diesem Server.', 'gate.browser': 'Im Browser fortfahren',
 'gate.password': 'Durch ein Passwort geschützt. Das Passwort wird nur in der Revoked-App eingegeben, die zuvor den Server prüft.',
 'gate.open': 'In der Revoked-App öffnen', 'gate.get': 'App laden',
+'gate.pwLabel': 'Passwort', 'gate.pwMissing': 'Ein Passwort ist erforderlich.',
+'gate.pwWrong': 'Das Passwort ist falsch.', 'gate.pwLimited': 'Zu viele Versuche. Nach kurzer Wartezeit erneut versuchen.',
 'views': function(used) { return used + ' von ' + maxViews + ' Aufrufen verbraucht'; },
 'watermarked': 'Dateien mit Wasserzeichen',
 'reveal.checking': 'Server wird geprüft…', 'reveal.open': 'Geteilte Informationen öffnen', 'reveal.anyway': 'Trotzdem öffnen',
@@ -949,6 +967,7 @@ var ICONS = {
 'briefcase': '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 13h20"/>',
 'alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4M12 17h.01"/>',
 'lock': '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+'key': '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
 'lock-open': '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
 'shield': '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
 'server': '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
@@ -1240,7 +1259,7 @@ if (clean && trusted && maxViews > 0 && !opening) {
 capState.capped = true;
 paintCap();
 }
-if (clean && trusted && maxViews === 0 && !autoOpened && !opening) {
+if (clean && trusted && maxViews === 0 && !gated && !autoOpened && !opening) {
 autoOpened = true;
 document.getElementById('reveal').click();
 }
@@ -2601,24 +2620,52 @@ keyAppLinks();
 if (resolved) showShare();
 });
 
+var pwInput = document.getElementById('pw');
+// A refused password leaves the gate standing: the reader corrects it and
+// tries again. Each attempt counts against the server's password budget.
+var pwErrKey = '';
+function pwError(key) {
+pwErrKey = key;
+var n = document.getElementById('pw-err');
+if (!n) return;
+n.textContent = key ? t(key) : '';
+n.hidden = !key;
+}
 var btn = document.getElementById('reveal');
 var opening = false;
+if (pwInput && btn) {
+pwInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' && !btn.disabled) btn.click(); });
+pwInput.addEventListener('input', function() { if (pwErrKey) pwError(''); });
+}
 if (btn) {
 btn.addEventListener('click', function() {
 if (opening) return;
+if (gated && !pwInput.value) { pwError('gate.pwMissing'); pwInput.focus(); return; }
 opening = true;
 if (remember && !remember.hidden && remember.getAttribute('aria-checked') === 'true') setTrusted(true);
+var keyBefore = revealKey;
 btn.disabled = true;
 btn.classList.add('loading');
 setReveal('reveal.opening');
 fetch('/api/public/links/' + encodeURIComponent(slug), {
 method: 'POST',
 headers: { 'content-type': 'application/json' },
-body: '{}'
+body: gated ? JSON.stringify({ password: pwInput.value }) : '{}'
 })
-.then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+.then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { return { ok: r.ok, status: r.status, body: j }; }); })
 .then(function(res) {
 var gate = document.getElementById('gate');
+var code = res.body && res.body.code;
+if (gated && !res.ok && (code === 'link_password_invalid' || code === 'link_password_required' || res.status === 429)) {
+opening = false;
+btn.disabled = false;
+btn.classList.remove('loading');
+setReveal(keyBefore);
+pwError(res.status === 429 ? 'gate.pwLimited' : code === 'link_password_required' ? 'gate.pwMissing' : 'gate.pwWrong');
+pwInput.select();
+pwInput.focus();
+return;
+}
 if (!res.ok) {
 gate.textContent = '';
 gate.appendChild(el('div', 'trust-note bad', (res.body && res.body.message) || t('linkGone')));
@@ -2671,6 +2718,7 @@ setDetails(!document.getElementById('sender').hidden);
 paintViews();
 paintCap();
 setReveal(revealKey);
+if (pwErrKey) pwError(pwErrKey);
 paintServer();
 if (resolved) showShare();
 }

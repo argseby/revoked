@@ -324,11 +324,13 @@ the service; it is separate from Revoked's OIDC access token.
 - Grant tokens remain on the backend. The grant endpoint must belong to the
   verified issuer before credentials are sent to it.
 
-## Approving in the app
+## Approving in the app or the browser
 
-A sign-in is approved in the person's Revoked app and nowhere else. There is
-no passkey prompt and no consent screen in the browser: the authorization
-endpoint only hands the request to the app.
+A sign-in is approved in the person's Revoked app, or on the authorization
+page in a browser. The browser page signs in with a passkey, shows the same
+consent screen, and asks for the passkey a second time to approve: a
+user-verified assertion bound to this one sign-in. A browser approval never
+shares `revoked_identity`, which stands for a key on the person's device.
 
 The app shows who is asking, as which account, and what the service would
 learn. An approval asks for the person's fingerprint, face or device PIN —
@@ -388,12 +390,12 @@ carries on.
 ### Through the authorization endpoint
 
 A client library that sends the browser to a known server's
-`authorization_endpoint` reaches a page that opens the app with the same
-request, as a `revoked://signin` link. The app answers on the server it is
-signed into; a service that expects a particular issuer compares `iss` with
-it. This only works when the app is on the same device, and the answer comes
-back through that device's default browser. Use the button above unless your
-library leaves you no choice.
+`authorization_endpoint` reaches the browser consent page, which also offers
+the same request to the app as a `revoked://signin` link. Approved in the
+browser, the answer comes back in the same tab. Approved in the app, it
+answers on the server the app is signed into, and comes back through the
+device's default browser; a service that expects a particular issuer compares
+`iss` with it.
 
 ### Without the app
 

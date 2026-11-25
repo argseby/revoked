@@ -254,12 +254,19 @@ type templateFields struct {
 	User string
 }
 
+// IdentityKindPasskey marks an identity whose private key is derived from a
+// passkey in a browser and never stored anywhere (BROWSER.md §4.8).
+const IdentityKindPasskey = "passkey"
+
 type identityFields struct {
 	Name, Certificate, PublicKey, PrivateKey, Fingerprint,
 	ParentSignature, DomainAtIssue, IsPrimary,
 	Status, RevokedAt, RevokedReason,
 	SealedKey, SealedKeyEpoch, SealedKeyScope,
 	User, Workspace, Created, Updated string
+	// Kind is "passkey" for an identity whose key a browser derives from a
+	// passkey (BROWSER.md §4.8), empty for one a device generated.
+	Kind string
 }
 
 type requestFields struct {
@@ -746,6 +753,7 @@ var Fields = struct {
 		Workspace:       "workspace",
 		Created:         "created",
 		Updated:         "updated",
+		Kind:            "kind",
 	},
 	IdentityRevocation: identityRevocationFields{
 		Fingerprint: "fingerprint",

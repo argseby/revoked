@@ -203,3 +203,52 @@ func (d *PasskeyDevice) Exchange(code, verifier string) (*PasskeySession, error)
 	}
 	return &PasskeySession{UserID: auth.Record.Id, Token: auth.Token, Created: auth.Meta.Created}, nil
 }
+
+// Approve runs the passkey approval ceremony for purpose and ticket with the
+// session token, the way the browser sign-in page does, and returns the
+// approval.
+func (d *PasskeyDevice) Approve(token, purpose, ticket string) (string, error) {
+	var begin passkeyBegin
+	if err := d.postAuth("/api/approvals/begin", token, map[string]any{"purpose": purpose, "ticket": ticket}, &begin); err != nil {
+		return "", err
+	}
+	options, err := virtualwebauthn.ParseAssertionOptions(string(begin.Options))
+	if err != nil {
+		return "", fmt.Errorf("approval options: %w", err)
+	}
+	response := virtualwebauthn.CreateAssertionResponse(d.rp, d.Authenticator, d.Credential, *options)
+	var finish struct {
+		Approval string `json:"approval"`
+	}
+	if err := d.postAuth("/api/approvals/finish", token, map[string]any{
+		"session": begin.Session, "credential": json.RawMessage(response),
+	}, &finish); err != nil {
+		return "", err
+	}
+	return finish.Approval, nil
+}
+
+func (d *PasskeyDevice) postAuth(path, token string, body any, out any) error {
+	data, _ := json.Marshal(body)
+	req, err := http.NewRequest("POST", d.baseURL+path, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", token)
+	req.Host = strings.TrimPrefix(d.rp.Origin, "http://")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		var refusal struct {
+			Code string `json:"code"`
+		}
+		_ = json.Unmarshal(raw, &refusal)
+		return &PasskeyError{Status: resp.StatusCode, Code: refusal.Code}
+	}
+	return json.Unmarshal(raw, out)
+}

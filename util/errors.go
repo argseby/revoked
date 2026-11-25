@@ -189,6 +189,7 @@ var Errors = struct {
 	OIDCNameInvalid               AppError
 	OIDCNameTooLong               AppError
 	OIDCSignInPaused              AppError
+	ApprovalInvalid               AppError
 	AttestationsDisabled          AppError
 	AttestationTypeInvalid        AppError
 	AttestationClaimsInvalid      AppError
@@ -865,6 +866,10 @@ var Errors = struct {
 	OIDCSignInPaused: AppError{
 		ErrorCode: "oidc_sign_in_paused",
 		ErrorText: "This service is paused. Signing in requires reactivating it.",
+	},
+	ApprovalInvalid: AppError{
+		ErrorCode: "approval_invalid",
+		ErrorText: "This approval has expired, was already used or was given for something else.",
 	},
 	AttestationsDisabled: AppError{
 		ErrorCode: "attestations_disabled",

@@ -78,6 +78,7 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 				"requireHandshake":   req.GetBool(util.Fields.Request.RequireHandshake),
 				"identityScope":      req.GetString(util.Fields.Request.IdentityScope),
 				"allowExtraFields":   req.GetBool(util.Fields.Request.AllowExtraFields),
+				"expiresAt":          iso(req.GetDateTime(util.Fields.Request.ExpiresAt).Time()),
 				"template": map[string]any{
 					"records":  records,
 					"sections": sections,
@@ -176,7 +177,8 @@ func PublicRequestsRoute(app core.App, root *server.RootKey) {
 			}
 			// The link lives in the responder's workspace so they can revoke it;
 			// the request's workspace is only a fallback to satisfy the required
-			// field, since signup always provisions an active workspace.
+			// field. Signup makes no workspace, so the app's first run and the
+			// browser request page create one before answering.
 			linkWorkspace := req.GetString(util.Fields.Request.Workspace)
 			if aw := re.Auth.GetString(util.Fields.User.ActiveWorkspace); aw != "" {
 				linkWorkspace = aw

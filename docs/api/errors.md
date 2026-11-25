@@ -72,6 +72,7 @@ more than one status. A newer server can send a code missing from this list.
 | `api_key_not_permitted` | This action requires a user session; API keys are not accepted. |
 | `api_key_vault_scope` | API keys reach the vault only through assigned sections. At least one section is required. |
 | `application_needs_watermark` | An application link must stamp its files. |
+| `approval_invalid` | This approval has expired, was already used or was given for something else. |
 | `archive_empty` | This share has no files that can be downloaded together. |
 | `attestation_check_closed` | This check was already answered or has expired. |
 | `attestation_check_invalid` | A check names a type without spaces, attesters as domains, and claims as names of letters, digits and underscores. |
