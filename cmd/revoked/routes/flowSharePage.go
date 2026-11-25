@@ -9,7 +9,7 @@ package routes
 // Values are listed plainly. Encrypted entries, which open with the link key
 // in the share page's address, stay with the share page and the app.
 const sharePageScript = `
-var probe = null, closedMessage = '', opened = null;
+var probe = null, closedMessage = '', opened = null, notFound = false;
 var pwInput = null;
 
 async function open() {
@@ -43,10 +43,17 @@ function recordEntry(r) {
 redraw = function () {
   var flow = $('flow');
   flow.textContent = '';
-  if (closedMessage) { heading(t('req.closed'), closedMessage, 'alert', 'warn'); return; }
+  if (closedMessage) {
+    show($('app-way'), false);
+    if (notFound) heading(t('sh.notFound'), t('req.notFoundLead'), 'alert', 'warn');
+    else heading(t('req.closed'), closedMessage, 'alert', 'warn');
+    return;
+  }
   if (!probe) return;
   var name = probe.sharer && probe.sharer.name;
-  heading(probe.label || t('sh.untitled'), name ? t('sh.from', name) : '', 'lock');
+  heading(probe.label || t('sh.untitled'), '');
+  eyebrow(name ? t('sh.eyebrow', name) : '');
+  if (!opened) flow.appendChild(metaLine([location.host, t('sh.needsIdentity')]));
   if (opened) {
     show($('app-way'), false);
     var records = opened.records || [];
@@ -87,7 +94,7 @@ async function afterSignIn() {
   try {
     var res = await fetch('/api/public/links/' + encodeURIComponent(server.slug));
     var data = await res.json().catch(function () { return {}; });
-    if (!res.ok) { closedMessage = serverMessage(data); redraw(); return; }
+    if (!res.ok) { closedMessage = serverMessage(data); notFound = res.status === 404; redraw(); return; }
     probe = data;
   } catch (e) {
     closedMessage = t('err.load');

@@ -120,8 +120,8 @@ var passkeyPageTemplate = template.Must(template.New("passkey").Funcs(brandFuncs
 
 <div class="card" id="card">
 <div id="error" class="callout" role="alert" hidden><i data-i="alert" data-s="20"></i><span id="error-t"></span></div>
-<label class="field" id="emailRow" hidden><span data-t="field.email">Email</span>
-<input id="email" type="email" autocomplete="username webauthn" placeholder="name@example.com">
+<label class="field" id="emailRow" hidden><span class="sr-only" data-t="field.email">Email</span>
+<input id="email" type="email" autocomplete="username webauthn" placeholder="Email address">
 </label>
 <label class="field" id="codeRow" hidden><span data-t="field.code">Confirmation code</span>
 <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
@@ -164,14 +164,10 @@ var STRINGS = {
     'signin.go': 'Sign in with passkey', 'signin.other': 'Create account',
     'signin.noPasskey': 'New passkeys are added through a link from the server operator.',
     'either.title': 'Sign in or create an account',
-    'either.lead': 'Revoked uses passkeys instead of passwords. A saved passkey is offered in the email field.',
+    'other.device': 'Passkey on another device', 'other.email': 'Use a different email address', 'field.emailPh': 'Email address',
+    'taken.lead': function (email) { return 'An account for ' + email + ' exists. It signs in with its passkey.'; },
+    'err.emailNeeded': 'An email address is needed for a new account.',
     'either.go': 'Continue',
-    'offer.title': 'Create an account?',
-    'offer.leadCode': function (email) { return 'No passkey was used. A new account for ' + email + ' starts with a confirmation code sent there.'; },
-    'offer.lead': function (email) { return 'No passkey was used. A new account for ' + email + ' gets a passkey on this device.'; },
-    'offer.go': 'Create account', 'offer.retry': 'Try a passkey again',
-    'offer.note': 'A passkey on a phone works through the QR code the browser offers.',
-    'err.noPasskeyEmail': 'No passkey was used. A passkey on a phone works through the QR code the browser offers. For a new account, an email address is needed first.',
     'err.noPasskeyClosed': 'No passkey was used. One on a phone works through the QR code the browser offers.',
     'err.unknownRemoved': 'This passkey belongs to an account that no longer exists. Your password manager was asked to remove it.',
     'err.unknownManual': 'This passkey belongs to an account that no longer exists. It can be deleted in your password manager.',
@@ -182,7 +178,7 @@ var STRINGS = {
     'code.title': 'Confirmation code',
     'code.lead': function (email) { return 'Sent to ' + email + '.'; },
     'code.go': 'Next',
-    'code.note': 'The code is valid for 10 minutes. Missing emails may be in the spam folder.',
+    'code.note': 'The code is valid for 10 minutes. An address that already has an account receives a note on signing in instead. Missing emails may be in the spam folder.',
     'code.resendIn': function (s) { return 'New code in ' + s + ' s'; },
     'code.resend': 'Send new code',
     'passkey.title': 'Save a passkey',
@@ -219,14 +215,10 @@ var STRINGS = {
     'signin.go': 'Mit Passkey anmelden', 'signin.other': 'Konto erstellen',
     'signin.noPasskey': 'Neue Passkeys werden über einen Link des Serverbetreibers hinzugefügt.',
     'either.title': 'Anmelden oder Konto erstellen',
-    'either.lead': 'Revoked nutzt Passkeys statt Passwörtern. Ein gespeicherter Passkey wird im E-Mail-Feld angeboten.',
+    'other.device': 'Passkey auf anderem Gerät', 'other.email': 'Andere E-Mail-Adresse verwenden', 'field.emailPh': 'E-Mail-Adresse',
+    'taken.lead': function (email) { return 'Für ' + email + ' existiert ein Konto. Die Anmeldung erfolgt mit dessen Passkey.'; },
+    'err.emailNeeded': 'Für ein neues Konto wird eine E-Mail-Adresse benötigt.',
     'either.go': 'Weiter',
-    'offer.title': 'Konto erstellen?',
-    'offer.leadCode': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' beginnt mit einem Bestätigungscode an diese Adresse.'; },
-    'offer.lead': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' erhält einen Passkey auf diesem Gerät.'; },
-    'offer.go': 'Konto erstellen', 'offer.retry': 'Passkey erneut versuchen',
-    'offer.note': 'Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
-    'err.noPasskeyEmail': 'Es wurde kein Passkey verwendet. Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet. Für ein neues Konto wird zuerst eine E-Mail-Adresse benötigt.',
     'err.noPasskeyClosed': 'Es wurde kein Passkey verwendet. Einer auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
     'err.unknownRemoved': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Der Passwort-Manager wurde gebeten, ihn zu entfernen.',
     'err.unknownManual': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Er kann im Passwort-Manager gelöscht werden.',
@@ -237,7 +229,7 @@ var STRINGS = {
     'code.title': 'Bestätigungscode',
     'code.lead': function (email) { return 'Gesendet an ' + email + '.'; },
     'code.go': 'Weiter',
-    'code.note': 'Der Code ist 10 Minuten gültig. Fehlende E-Mails können im Spam-Ordner liegen.',
+    'code.note': 'Der Code ist 10 Minuten gültig. Eine Adresse mit bestehendem Konto erhält stattdessen einen Hinweis zur Anmeldung. Fehlende E-Mails können im Spam-Ordner liegen.',
     'code.resendIn': function (s) { return 'Neuer Code in ' + s + ' s'; },
     'code.resend': 'Neuen Code senden',
     'passkey.title': 'Passkey speichern',
@@ -363,6 +355,7 @@ function applyLang() {
   Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (n) {
     n.textContent = t(n.getAttribute('data-t'));
   });
+  $('email').setAttribute('placeholder', t('field.emailPh'));
   $('lang-toggle').textContent = t('lang.label');
   $('lang-toggle').setAttribute('aria-label', t('lang.switch'));
   updateToggle();
@@ -381,14 +374,20 @@ function heading(title, lead, icon, tone) {
   $('lead').textContent = lead || '';
   document.title = title + ' · Revoked';
   var tile = $('tile');
-  tile.className = 'hero-tile' + (tone ? ' ' + tone : '');
+  tile.className = 'hero-tile';
   tile.textContent = '';
-  if (icon) tile.appendChild(svg(icon, 28));
+  // Only a state earns an icon, small and on the title's own line: an answer
+  // sent, a link gone. A key above "Sign in" says nothing the words do not.
+  if (icon && tone) {
+    var mark = svg(icon, 20);
+    mark.setAttribute('class', 'status-ic ' + tone);
+    $('title').insertBefore(mark, $('title').firstChild);
+  }
 }
 function action(label, icon) {
   $('go-t').textContent = label;
   $('go-ic').textContent = '';
-  $('go-ic').appendChild(svg(icon, 20));
+  $('go-ic').appendChild(svg(icon, 18));
 }
 // Where a new account is: the steps on this page only. The app drew the trip
 // here and back before it opened the page, so the name it asks afterwards is
@@ -491,14 +490,15 @@ var done = false;
 // ---- Passkey autofill ----------------------------------------------------
 // While signing in, a passkey saved for this server is offered in the email
 // field's suggestions, so a returning person picks it there and is in: no
-// choosing between signing in and creating an account first. The button
-// still asks outright, for a passkey on another device. Only one request may
-// be open, so the autofill's is withdrawn before the button's starts.
+// choosing between signing in and creating an account first. A passkey on
+// another device is asked for by the quiet link. Only one request may be
+// open, so the autofill's is withdrawn before another starts.
 var autofill = null;
-// Set when Continue found no passkey and the address may be someone new.
-var offerCreate = false;
+// Set when the address typed already has an account. Only a server that does
+// not confirm addresses says so: there signup makes it public anyway.
+var taken = false;
 async function startAutofill() {
-  if (autofill || done || mode !== 'signin' || !pkce || offerCreate) return;
+  if (autofill || done || mode !== 'signin' || !pkce || taken) return;
   if (!PublicKeyCredential.isConditionalMediationAvailable) return;
   var available = false;
   try { available = await PublicKeyCredential.isConditionalMediationAvailable(); } catch (e) {}
@@ -659,26 +659,29 @@ function render() {
     show($('card'), false);
     return;
   }
-  hint('hint.signin');
-  if (server.signups && offerCreate) {
-    // The passkey prompt found nothing: the address typed may be someone new.
-    // Asked only now, so nobody is made to choose before they know.
-    var email = currentEmail();
-    heading(t('offer.title'), t(server.verifyEmail ? 'offer.leadCode' : 'offer.lead', email), 'user-plus');
-    action(t('offer.go'), 'arrow-right');
-    $('other').classList.add('link');
-    $('other').textContent = t('offer.retry');
+  // Continue saves a passkey for a new address, so the device asks where it
+  // goes; signing in, it asks where the passkey is.
+  hint(server.signups && !taken ? 'hint.save' : 'hint.signin');
+  $('other').classList.add('link');
+  if (server.signups && taken) {
+    show($('emailRow'), false);
+    heading(t('signin.title'), t('taken.lead', currentEmail()), 'key');
+    action(t('signin.go'), 'key');
+    $('other').textContent = t('other.email');
     show($('other'), true);
-    $('note').textContent = t('offer.note');
     return;
   }
   if (server.signups) {
-    // One way in. The field offers a saved passkey; Continue asks for one
-    // anywhere, a phone included, and only when none is used does the page
-    // offer a new account for the address. Nothing here asks the server
+    // One way in. The field offers a saved passkey and signs in from there.
+    // Continue with a typed address starts a new account: someone returning
+    // picks the suggestion, so a typed address is almost always someone new,
+    // and asking them for a passkey first only showed an empty prompt. A
+    // passkey on a phone is the quiet link. Nothing here asks the server
     // whether that address has an account.
-    heading(t('either.title'), t('either.lead'), 'key');
+    heading(t('either.title'), '', 'key');
     action(t('either.go'), 'arrow-right');
+    $('other').textContent = t('other.device');
+    show($('other'), true);
   } else {
     action(t('signin.go'), 'key');
     heading(t('signin.title'), t('signin.lead'), 'key');
@@ -688,10 +691,16 @@ function render() {
 }
 
 $('other').addEventListener('click', async function () {
-  // Offered a new account, the person may still have a passkey somewhere.
-  if (mode === 'signin' && offerCreate) {
-    offerCreate = false;
+  // A different address, after one that has an account.
+  if (mode === 'signin' && taken) {
+    taken = false;
     render();
+    $('email').focus();
+    return;
+  }
+  // A passkey on another device: the system sheet offers the QR code.
+  if (mode === 'signin' && server.signups) {
+    signInNow = true;
     $('go').click();
     return;
   }
@@ -700,6 +709,8 @@ $('other').addEventListener('click', async function () {
   mode = 'signin';
   render();
 });
+// Set for one press: sign in rather than start an account.
+var signInNow = false;
 var busy = false;
 $('go').addEventListener('click', async function () {
   if (busy) return;
@@ -708,10 +719,16 @@ $('go').addEventListener('click', async function () {
   $('go').disabled = true;
   $('go').classList.add('loading');
   try {
-    // The new account the page offered: from here it is the sign-up below.
-    if (mode === 'signin' && offerCreate) {
+    var wantSignIn = signInNow || taken || !server.signups;
+    signInNow = false;
+    // A typed address continued with: from here it is the sign-up below.
+    if (mode === 'signin' && !wantSignIn) {
+      if (!$('email').checkValidity() || !currentEmail()) {
+        fail(t('err.emailNeeded'));
+        $('email').focus();
+        return;
+      }
       await stopAutofill();
-      offerCreate = false;
       mode = 'signup';
       render();
     }
@@ -738,7 +755,14 @@ $('go').addEventListener('click', async function () {
   } catch (e) {
     // A proof that ran out sends the address back to be confirmed again, and
     // an address the server refused goes back to be changed.
-    if (e && (e.code === 'email_verification_required' || e.code === 'passkey_email_taken' || e.code === 'passkey_email_invalid')) {
+    if (e && e.code === 'passkey_email_taken') {
+      proof = ''; codeSentTo = ''; emailGiven = false;
+      mode = 'signin';
+      taken = true;
+      render();
+      return;
+    }
+    if (e && (e.code === 'email_verification_required' || e.code === 'passkey_email_invalid')) {
       proof = ''; codeSentTo = ''; emailGiven = false;
       render();
     }
@@ -746,13 +770,7 @@ $('go').addEventListener('click', async function () {
     // when signing in: there it is also what finding no passkey looks like,
     // and the way on is worth saying.
     if (e && e.name === 'NotAllowedError' && mode === 'signin') {
-      if (server.signups && currentEmail() && $('email').checkValidity()) {
-        offerCreate = true;
-        render();
-      } else {
-        fail(t(server.signups ? 'err.noPasskeyEmail' : 'err.noPasskeyClosed'));
-        if (server.signups) $('email').focus();
-      }
+      fail(t('err.noPasskeyClosed'));
     } else if (!e || e.name !== 'NotAllowedError') {
       fail((e && e.message) || t('err.generic'));
     }
@@ -775,8 +793,8 @@ $('code').addEventListener('input', function () {
 });
 // A different address needs its own code.
 $('email').addEventListener('input', function () {
-  if (mode === 'signin' && offerCreate) {
-    if (!currentEmail()) offerCreate = false;
+  if (mode === 'signin' && taken) {
+    taken = false;
     render();
     return;
   }

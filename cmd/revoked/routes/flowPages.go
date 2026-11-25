@@ -132,7 +132,7 @@ var flowPageTemplate = template.Must(template.New("flow").Funcs(brandFuncs).Pars
 <title>Revoked</title>
 <style>` + pageTokens + authPageStyle + flowPageStyle + `</style>
 </head>
-<body>
+<body class="flow-body">
 
 <header>
 <div class="nav">
@@ -151,19 +151,22 @@ var flowPageTemplate = template.Must(template.New("flow").Funcs(brandFuncs).Pars
 <main>
 <div class="hero">
 <div class="hero-tile" id="tile"></div>
-<div><h1 id="title"></h1>
+<div><p class="eyebrow" id="eyebrow"></p><h1 id="title"></h1>
 <p class="lead" id="lead"></p></div>
 </div>
 
 <div id="error" class="callout" role="alert" hidden><i data-i="alert" data-s="20"></i><span id="error-t"></span></div>
 <div id="flow" class="flow"></div>
 
+</main>
+
+<div class="dock" id="dock">
 <div class="card" id="auth" hidden>
-<p class="section-t" id="auth-t"></p>
+<p class="dock-t" id="auth-t"></p>
 <div id="auth-error" class="callout" role="alert" hidden><i data-i="alert" data-s="20"></i><span id="auth-error-t"></span></div>
 <p class="fine left" id="auth-lead"></p>
-<label class="field" id="emailRow" hidden><span data-t="field.email">Email</span>
-<input id="email" type="email" autocomplete="username webauthn" placeholder="name@example.com">
+<label class="field" id="emailRow" hidden><span class="sr-only" data-t="field.email">Email</span>
+<input id="email" type="email" autocomplete="username webauthn" data-ph="field.emailPh" placeholder="Email address">
 </label>
 <label class="field" id="codeRow" hidden><span id="code-l" data-t="field.code">Code</span>
 <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
@@ -172,13 +175,21 @@ var flowPageTemplate = template.Must(template.New("flow").Funcs(brandFuncs).Pars
 <button id="resend" class="quiet" hidden></button>
 <button id="other" class="quiet link" hidden></button>
 <p id="auth-note" class="fine"></p>
+<div class="alt" id="alt" hidden>
+<button id="passkey" class="text-btn" type="button" data-t="auth.otherDevice">Passkey on another device</button>
+</div>
+<div class="app-choice" id="app-choice" hidden>
+<div class="or"><span data-t="auth.or">or</span></div>
+<a id="open-app-alt" class="quiet"><img class="logo logo-light app-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark app-logo" src="{{logoDark}}" alt=""><span data-t="app.open">Open in the Revoked app</span></a>
+<p class="fine" data-t="app.note">The app checks the server before anything is entered.</p>
+</div>
 </div>
 
 <div class="app-way" id="app-way" hidden>
-<a id="open-app" class="quiet"><img class="logo logo-light big-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark big-logo" src="{{logoDark}}" alt=""><span data-t="app.open">Open in the Revoked app</span></a>
+<a id="open-app" class="big"><img class="logo logo-light app-logo" src="{{logoLight}}" alt=""><img class="logo logo-dark app-logo" src="{{logoDark}}" alt=""><span data-t="app.open">Open in the Revoked app</span></a>
 <p class="fine" data-t="app.note">The app checks the server before anything is entered.</p>
 </div>
-</main>
+</div>
 
 <script nonce="{{.Nonce}}">
 (function () {
@@ -214,11 +225,16 @@ const flowPageStyle = `
 .callout.warn { background: var(--warn-subtle); color: var(--warn); }
 .callout.info { background: var(--surface-subtle); color: var(--fg); }
 .callout svg { margin-top: 1px; }
-.entry { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.entry { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); }
 .entry-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .entry-t { font-weight: 650; font-size: 15px; overflow-wrap: anywhere; min-width: 0; }
 .entry-reason { color: var(--fg-muted); font-size: 13px; }
-.value { padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-subtle); font-size: 15px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.value { padding: 11px 12px; border-radius: var(--radius-md); background: var(--surface-subtle); font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; }
+.form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.form-row-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.form-row-t { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.form-row-foot { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--fg-muted); }
+.form-row-foot .text-btn { font-size: 13px; }
 .value.muted { color: var(--fg-muted); }
 .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 600; background: var(--surface-subtle); color: var(--fg-muted); white-space: nowrap; }
 .pill.ok { background: var(--ok-subtle); color: var(--ok); }
@@ -226,19 +242,91 @@ const flowPageStyle = `
 .pill.bad { background: var(--bad-subtle); color: var(--bad); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .row > .quiet, .row > .big { flex: 1 1 140px; width: auto; }
-.small { min-height: 40px !important; font-size: 14px !important; padding: 8px 12px !important; }
+.small { min-height: 36px !important; font-size: 14px !important; padding: 6px 12px !important; }
 .quiet.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
 .text-btn { background: none; border: 0; padding: 0; color: var(--fg-muted); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; text-align: left; }
 .text-btn:hover { color: var(--fg); }
-.app-way { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.flow-body { display: flex; flex-direction: column; }
+.flow-body main { flex: 1 0 auto; width: 100%; padding-bottom: 24px; }
+@media (min-width: 600px) { .flow-body main { padding-top: 8vh; } }
+/* The way to act: sign-in, or the app. After what is asked, at the bottom
+   of a short page, so the page reads top to bottom and the account never
+   looks like one more question. Not pinned: it is tall enough to cover what
+   it follows. Gone once nothing in it is showing. */
+.dock {
+position: relative;
+width: 100%; margin: 0 auto;
+background: var(--bg); border-top: 1px solid var(--border);
+border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+display: flex; flex-direction: column; gap: 14px;
+}
+.dock:not(:has(> :not([hidden]))) { display: none; }
+/* On a wide screen the panel follows the content rather than the window's
+   bottom edge, which can be far away; it still sticks when the page scrolls. */
+@media (min-width: 600px) {
+.flow-body main { flex: 0 0 auto; padding-bottom: 8px; }
+.dock { position: static; width: calc(100% - 32px); max-width: 408px; padding: 24px 0 48px; border-radius: 0; background: transparent; }
+}
+
+.dock .card { animation: none; gap: 10px; }
+.dock-t { font-size: 16px; font-weight: 650; }
+.dock .fine.left:empty { display: none; }
+.app-way, .app-choice { display: flex; flex-direction: column; gap: 10px; }
+.app-way .fine, .app-choice .fine { text-align: center; margin: 0; font-size: 12px; }
+.app-logo { width: 18px; height: 18px; border-radius: var(--radius-sm); }
+.or { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--fg-muted); }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.alt { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 0; }
+.alt > * + *::before { content: "·"; display: inline-block; margin: 0 10px; text-decoration: none; color: var(--fg-muted); }
+.alt .text-btn { font-size: 13px; }
+.app-way .fine { text-align: left; }
+.eyebrow { font-size: 13px; font-weight: 600; color: var(--fg-muted); margin-bottom: 4px; }
+.eyebrow:empty { display: none; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; row-gap: 4px; font-size: 13px; color: var(--fg-muted); }
+.meta > * + *::before { content: "·"; margin: 0 8px; color: var(--fg-muted); }
+.meta .text-btn { font-size: 13px; }
+.meta > .text-btn::before { display: inline-block; text-decoration: none; }
+.asked { margin-top: 12px; }
+.asked { display: flex; flex-direction: column; }
+.asked-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.asked-h .section-t { font-size: 13px; color: var(--fg); }
+.asked-hint { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-muted); white-space: nowrap; }
+.asked-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.asked-row .entry-t { font-weight: 600; font-size: 15px; }
+.asked-row:last-child { border-bottom: 0; }
+.summary { border-top: 1px solid var(--border); margin-top: 0; }
+.summary .asked-row:last-child { border-bottom: 1px solid var(--border); }
+.summary-v { font-size: 15px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.summary-v.muted { color: var(--fg-muted); }
+.entry .summary { margin: 4px 0; }
+.entry .summary .asked-row:last-child { border-bottom: 0; }
+.edit-row { padding: 12px 0; border-bottom: 1px solid var(--border); margin: 0; }
+.flow > .asked-h { margin-top: 8px; }
+.flow > .asked-h + .asked, .flow > .asked-h + .form-row { margin-top: -6px; }
+.choices > :first-child { padding-top: 8px; }
+#passkey.loading .spin { display: block; }
+#passkey.loading .big-ic { display: none; }
+.tag { flex: none; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--surface-subtle); color: var(--fg-muted); }
+.locked { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.locked-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; }
+.locked-row + .locked-row { border-top: 1px solid var(--border); }
+.locked-row svg { color: var(--fg-muted); }
+.locked-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .check-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); cursor: pointer; }
 .check-row input { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--primary); }
 .check-row input:disabled + .check-t { opacity: .6; }
 .check-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-select { width: 100%; height: 46px; padding: 0 10px; font: inherit; font-size: 15px; color: var(--fg); background: var(--field); border: 1px solid var(--control); border-radius: var(--radius-md); }
+.choices .check-row { border: 0; border-radius: 0; border-bottom: 1px solid var(--border); padding: 12px 0; }
+.choices .check-row:last-child { border-bottom: 0; }
+.choices > .pick-row, .choices > .flow { padding: 12px 0; margin: 0; border-bottom: 1px solid var(--border); }
+.choices > :last-child { border-bottom: 0; }
+.choices > .flow .check-row { border: 0; padding: 0; }
+.check-reason { font-size: 13px; color: var(--fg-muted); font-style: italic; margin-top: 2px; overflow-wrap: anywhere; }
+select { width: 100%; height: 44px; padding: 0 10px; font: inherit; font-size: 15px; color: var(--fg); background: var(--field); border: 1px solid var(--control); border-radius: var(--radius-md); }
 .quote { padding: 10px 14px; border-left: 3px solid var(--border); color: var(--fg-muted); font-size: 14px; overflow-wrap: anywhere; }
 textarea {
-width: 100%; min-height: 50px; padding: 12px 14px; resize: vertical;
+width: 100%; min-height: 44px; padding: 10px 12px; resize: none; overflow: hidden; line-height: 1.4;
 font: inherit; font-size: 16px; color: var(--fg);
 background: var(--field); border: 1px solid var(--control); border-radius: var(--radius-md);
 }

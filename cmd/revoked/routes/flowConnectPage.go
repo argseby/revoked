@@ -24,15 +24,6 @@ function back(params) {
 
 function asks(key) { return (req.permissions || []).indexOf(key) >= 0; }
 
-function reason(key) {
-  var text = req.reasons && req.reasons[key];
-  if (!text) return null;
-  var q = el('div', 'quote');
-  q.appendChild(el('div', 'entry-reason', t('cn.why', req.name)));
-  q.appendChild(el('div', '', '“' + text + '”'));
-  return q;
-}
-
 function permissionsToSend() {
   var keys = [];
   (req.permissions || []).forEach(function (k) {
@@ -75,46 +66,47 @@ redraw = function () {
     heading(t('cn.problem'), t('cn.problemLead'), 'alert', 'bad');
     return;
   }
-  heading(t('cn.title', req.name), t('cn.lead', req.name, host), 'key');
-  var facts = el('div', 'facts');
-  [[t('cn.address'), req.client], [t('cn.name'), req.name + ' · ' + t('cn.nameNote')]].forEach(function (f) {
-    var row = el('div', 'fact');
-    row.appendChild(el('span', 'fact-k', f[0]));
-    row.appendChild(el('span', 'fact-v', f[1]));
-    facts.appendChild(row);
-  });
-  flow.appendChild(facts);
-  if (!session) return;
+  heading(t('cn.title', req.name), session ? '' : t('cn.lead', req.name, host));
+  eyebrow(t('cn.eyebrow'));
+  flow.appendChild(metaLine([req.client, t('cn.nameNote')]));
+  if (!session) {
+    var asked = [];
+    if (req.section) asked.push({ label: t('cn.section', req.name) });
+    (req.permissions || []).forEach(function (k) {
+      if (req.section && k.indexOf('vault:') === 0) return;
+      asked.push({ label: (catalogue[k] && catalogue[k].label) || k });
+    });
+    if (req.vault) asked.push({ label: t('cn.vault') });
+    if (asked.length) flow.appendChild(lockedList(asked, t('cn.actions')));
+    return;
+  }
 
-  flow.appendChild(el('p', 'section-t', t('cn.actions')));
-  if (req.section) {
-    rows.section = rows.section || checkRow(t('cn.section', req.name), t('cn.sectionNote'), true, false);
-    flow.appendChild(rows.section);
-    var rs = reason('section');
-    if (rs) flow.appendChild(rs);
+  // One list of choices; each reason sits under the choice it explains.
+  var head = el('div', 'asked-h');
+  head.appendChild(el('span', 'section-t', t('cn.actions')));
+  flow.appendChild(head);
+  var list = el('div', 'asked choices');
+  function add(key, make, reasonKey) {
+    rows[key] = rows[key] || make();
+    if (reasonKey && !rows[key].reasoned) {
+      var r = req.reasons && req.reasons[reasonKey];
+      if (r) rows[key].querySelector('.check-t').appendChild(el('span', 'check-reason', t('cn.why', req.name) + ': “' + r + '”'));
+      rows[key].reasoned = true;
+    }
+    list.appendChild(rows[key]);
   }
-  (req.permissions || []).forEach(function (k) {
-    if (req.section && k.indexOf('vault:') === 0) return;
+  if (req.section) add('section', function () { return checkRow(t('cn.section', req.name), t('cn.sectionNote'), true, false); }, 'section');
+  var perms = (req.permissions || []).filter(function (k) { return !(req.section && k.indexOf('vault:') === 0); });
+  perms.forEach(function (k, i) {
     var p = catalogue[k] || { label: k, description: '' };
-    rows.perms[k] = rows.perms[k] || checkRow(p.label, p.description, true, false);
-    flow.appendChild(rows.perms[k]);
+    if (!rows.perms[k]) rows.perms[k] = checkRow(p.label, p.description, true, false);
+    rows['perm:' + k] = rows.perms[k];
+    add('perm:' + k, function () { return rows.perms[k]; }, i === perms.length - 1 ? 'permissions' : '');
   });
-  var rp = reason('permissions');
-  if (rp) flow.appendChild(rp);
-  if (req.vault) {
-    rows.vault = rows.vault || checkRow(t('cn.vault'), t('cn.vaultNote'), false, false);
-    flow.appendChild(rows.vault);
-    var rv = reason('vault');
-    if (rv) flow.appendChild(rv);
-  }
-  rows.handOver = rows.handOver || checkRow(t('cn.handOver'), t('cn.handOverNote'), true, false);
-  flow.appendChild(rows.handOver);
-  var rl = reason('links');
-  if (rl) flow.appendChild(rl);
-  rows.revoke = rows.revoke || checkRow(t('cn.revoke'), t('cn.revokeNote'), true, false);
-  flow.appendChild(rows.revoke);
-  var rr = reason('revoke');
-  if (rr) flow.appendChild(rr);
+  if (req.vault) add('vault', function () { return checkRow(t('cn.vault'), t('cn.vaultNote'), false, false); }, 'vault');
+  add('handOver', function () { return checkRow(t('cn.handOver'), t('cn.handOverNote'), true, false); }, 'links');
+  add('revoke', function () { return checkRow(t('cn.revoke'), t('cn.revokeNote'), true, false); }, 'revoke');
+  flow.appendChild(list);
   flow.appendChild(el('p', 'fine left', t('cn.expiry')));
 
   var go = button('big', t('cn.connect'), null);
@@ -126,12 +118,17 @@ redraw = function () {
   flow.appendChild(signedInLine());
 };
 
+async function loadCatalogue() {
+  try {
+    var data = await (await fetch('/api/permissions')).json();
+    (data.permissions || []).forEach(function (p) { catalogue[p.key] = p; });
+  } catch (e) {}
+}
+
 async function afterSignIn() {
   try {
     await ensureWorkspace();
-    var res = await fetch('/api/permissions');
-    var data = await res.json();
-    (data.permissions || []).forEach(function (p) { catalogue[p.key] = p; });
+    if (!Object.keys(catalogue).length) await loadCatalogue();
   } catch (e) {
     fail((e && e.message) || t('err.load'));
   }
@@ -145,5 +142,8 @@ if (server.problem) {
   host = String(req.client).replace(/^https?:\/\//, '');
 }
 redraw();
-if (!server.problem) startSignIn('auth.leadAnswers', afterSignIn);
+if (!server.problem) {
+  loadCatalogue().then(function () { if (!session) redraw(); });
+  startSignIn('cn.auth', afterSignIn);
+}
 `

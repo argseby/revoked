@@ -40,43 +40,46 @@ async function saveValue(key, rec, input) {
 }
 
 function grantRow(l, key, id) {
-  var box = el('div', 'flow');
-  box.style.gap = '6px';
   var rec = byId[id], carrier = carrierOf(id);
-  var head = el('div', 'entry-h');
-  head.appendChild(el('span', 'section-t', (rec && rec.label) || key));
-  box.appendChild(head);
-  if (!carrier) { box.appendChild(el('div', 'value muted', t('ans.gone'))); return box; }
-  if (carrier.sealed) { box.appendChild(el('div', 'value muted', t('ans.sealed'))); return box; }
   var editKey = l.id + '/' + key;
-  var live = statusOf(l) !== 'revoked';
-  if (editing[editKey]) {
+  var label = labelOf(rec, key);
+  if (carrier && !carrier.sealed && editing[editKey]) {
+    var form = el('div', 'form-row edit-row');
+    form.appendChild(el('span', 'form-row-t', label));
     var input = editing[editKey];
-    box.appendChild(input);
-    box.appendChild(el('p', 'fine left', t('ans.editNote')));
-    var row = el('div', 'row');
+    form.appendChild(input);
+    form.appendChild(el('span', 'entry-reason', t('ans.editNote')));
+    var actions = el('div', 'row');
     var save = button('big small', t('ans.save'), null);
     save.addEventListener('click', busyWhile(save, function () { return saveValue(editKey, carrier, input); }));
-    row.appendChild(save);
-    row.appendChild(button('quiet small', t('ans.cancel'), function () { delete editing[editKey]; redraw(); }));
-    box.appendChild(row);
-    return box;
+    actions.appendChild(save);
+    actions.appendChild(button('quiet small', t('ans.cancel'), function () { delete editing[editKey]; redraw(); }));
+    form.appendChild(actions);
+    return form;
   }
-  box.appendChild(el('div', 'value', carrier.value || ''));
-  if (live && carrier.type !== 'file') {
+  var row = el('div', 'asked-row');
+  var text = el('span', 'locked-t');
+  text.appendChild(el('span', 'entry-reason', label));
+  if (!carrier) text.appendChild(el('span', 'summary-v muted', t('ans.gone')));
+  else if (carrier.sealed) text.appendChild(el('span', 'summary-v muted', t('ans.sealed')));
+  else text.appendChild(el('span', 'summary-v', carrier.value || ''));
+  row.appendChild(text);
+  if (carrier && !carrier.sealed && statusOf(l) !== 'revoked' && carrier.type !== 'file') {
     var edit = el('button', 'text-btn', t('ans.edit'));
     edit.type = 'button';
+    edit.setAttribute('aria-label', t('ans.edit') + ': ' + label);
     edit.addEventListener('click', function () {
       var input = el('textarea');
       input.rows = 1;
+      input.setAttribute('aria-label', label);
       input.value = carrier.value || '';
       editing[editKey] = input;
       redraw();
       input.focus();
     });
-    box.appendChild(edit);
+    row.appendChild(edit);
   }
-  return box;
+  return row;
 }
 
 function answerCard(l) {
@@ -91,7 +94,9 @@ function answerCard(l) {
   card.appendChild(el('p', 'entry-reason', meta.join(' · ')));
 
   var grants = l.grants || {};
-  Object.keys(grants).forEach(function (key) { card.appendChild(grantRow(l, key, grants[key])); });
+  var list = el('div', 'asked summary');
+  Object.keys(grants).forEach(function (key) { list.appendChild(grantRow(l, key, grants[key])); });
+  card.appendChild(list);
 
   if (status === 'revoked') return card;
   if (confirming[l.id]) {
@@ -119,12 +124,12 @@ function answerCard(l) {
 redraw = function () {
   var flow = $('flow');
   flow.textContent = '';
-  if (!session) { heading(t('ans.title'), t('ans.lead'), 'send'); return; }
+  if (!session) { heading(t('ans.title'), t('ans.lead')); return; }
   if (!links) return;
   if (!links.length) {
-    heading(t('ans.none'), t('ans.noneLead'), 'send');
+    heading(t('ans.none'), t('ans.noneLead'));
   } else {
-    heading(t('ans.title'), t('ans.lead'), 'send');
+    heading(t('ans.title'), t('ans.lead'));
     links.forEach(function (l) { flow.appendChild(answerCard(l)); });
   }
   flow.appendChild(signedInLine());

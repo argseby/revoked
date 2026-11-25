@@ -23,18 +23,21 @@ var STRINGS = {
     'theme.light': 'Switch to light theme', 'theme.dark': 'Switch to dark theme',
     'field.email': 'Email', 'field.code': 'Code', 'field.totp': 'Authenticator code',
     'app.open': 'Open in the Revoked app', 'app.note': 'The app checks the server before anything is entered.',
-    'auth.title': 'Account',
-    'auth.lead': 'Answers are kept in an account on this server, where they can be changed or revoked. Sign-in uses a passkey.',
-    'auth.leadAnswers': 'Sign-in uses a passkey. A saved passkey is offered in the email field.',
+    'auth.title.request': 'Sign in or create an account', 'auth.title.answers': 'Sign in',
+    'auth.title.signin': 'Sign in or create an account', 'auth.title.connect': 'Sign in or create an account', 'auth.title.share': 'Sign in or create an account',
+    'auth.lead': 'Answers stay in an account on this server, where they can be changed or revoked.',
+    'auth.leadAnswers': 'Answers belong to the account that gave them.',
     'auth.continue': 'Continue',
+    'auth.passkey': 'Sign in with passkey', 'auth.otherDevice': 'Passkey on another device',
+    'field.emailPh': 'Email address', 'auth.or': 'or',
+    'taken.lead': function (email) { return 'An account for ' + email + ' exists. It signs in with its passkey.'; },
+    'auth.otherEmail': 'Use a different email address',
+    'err.emailNeeded': 'An email address is needed for a new account.',
+    'cn.auth': 'The tool connects to an account on this server.',
     'auth.signin': 'Sign in with passkey',
-    'offer.leadCode': function (email) { return 'No passkey was used. A new account for ' + email + ' starts with a confirmation code sent there.'; },
-    'offer.lead': function (email) { return 'No passkey was used. A new account for ' + email + ' gets a passkey on this device.'; },
-    'offer.go': 'Create account', 'offer.retry': 'Try a passkey again',
-    'offer.note': 'A passkey on a phone works through the QR code the browser offers.',
     'code.lead': function (email) { return 'Confirmation code sent to ' + email + '.'; },
     'code.go': 'Next',
-    'code.note': 'The code is valid for 10 minutes. Missing emails may be in the spam folder.',
+    'code.note': 'The code is valid for 10 minutes. An address that already has an account receives a note on signing in instead. Missing emails may be in the spam folder.',
     'code.resendIn': function (s) { return 'New code in ' + s + ' s'; },
     'code.resend': 'Send new code',
     'save.lead': 'A passkey replaces the password and is unlocked with a fingerprint, face or PIN.',
@@ -48,7 +51,6 @@ var STRINGS = {
     'stop.setup': 'This server requires an authenticator app, which is set up in the Revoked app.',
     'err.codeFormat': 'The code consists of 6 digits.',
     'err.exists': 'This device already has a passkey for this account.',
-    'err.noPasskeyEmail': 'No passkey was used. A passkey on a phone works through the QR code the browser offers. For a new account, an email address is needed first.',
     'err.noPasskeyClosed': 'No passkey was used. One on a phone works through the QR code the browser offers.',
     'err.unknownRemoved': 'This passkey belongs to an account that no longer exists. The password manager was asked to remove it.',
     'err.unknownManual': 'This passkey belongs to an account that no longer exists. It can be deleted in the password manager.',
@@ -56,9 +58,17 @@ var STRINGS = {
     'err.load': 'The page could not be loaded.',
 
     'ws.default': 'Personal',
+    'asked.locked': 'Opens after sign-in',
+    'req.eyebrow': function (n) { return 'Request from ' + n; },
+    'req.expiresOn': function (d) { return 'Expires ' + d; },
+    'pin.trustedShort': 'Trusted in this browser',
+    'si.eyebrow': 'Sign in with Revoked',
+    'cn.eyebrow': 'Connection request',
+    'sh.eyebrow': function (n) { return 'Shared by ' + n; },
+    'sh.needsIdentity': 'Verified identity required',
     'sh.untitled': 'Shared items',
     'sh.from': function (n) { return 'From ' + n + ', as reported by the server.'; },
-    'sh.auth': 'Opening requires a verified identity of an account on this server. Sign-in uses a passkey.',
+    'sh.auth': 'Opening requires a verified identity of an account on this server.',
     'sh.password': 'Password', 'sh.open': 'Open shared information',
     'sh.sealed': 'Encrypted. Opened with the full link or in the Revoked app.',
     'sh.download': 'Download',
@@ -75,8 +85,8 @@ var STRINGS = {
     'id.unsupported': 'This browser cannot derive an identity. Identities are used in the Revoked app.',
     'id.revoked': 'The identity of this passkey was revoked.',
     'si.title': function (h) { return 'Sign in to ' + h; },
-    'si.lead': function (h) { return h + ' requests sign-in with Revoked. What it receives is chosen here or in the Revoked app.'; },
-    'si.auth': 'Sign-in uses a passkey. A saved passkey is offered in the email field.',
+    'si.lead': function (h) { return h + ' receives only what is allowed on the next screen.'; },
+    'si.auth': 'The service signs in with an account on this server.',
     'si.problem': 'Sign-in cannot continue',
     'si.problemLead': 'This service did not identify itself correctly. Sign-in was stopped and nothing was shared.',
     'si.account': 'Account',
@@ -84,18 +94,19 @@ var STRINGS = {
     'si.scope.profile': 'Name', 'si.scope.email': 'Email address', 'si.scope.revoked_identity': 'Verified identity',
     'si.identityNeeds': 'Shared once an identity of this passkey is in use.',
     'si.noName': 'No name',
-    'si.entries': 'Vault entries',
+    'si.entries': 'Vault entries', 'si.entry': 'Vault entry',
     'si.notShared': 'Not shared',
     'si.allow': 'Allow', 'si.decline': 'Decline',
-    'si.approveNote': 'Allowing asks for the passkey once more, unless the identity already signs.',
+    'si.approveNote': 'Allowing asks for the passkey again.',
+    'si.as': function (e) { return 'As ' + e; }, 'si.lastOn': function (d) { return 'Last signed in ' + d; },
     'si.paused': function (h) { return h + ' is paused for this account. It is reactivated in the Revoked app.'; },
     'si.back': 'Return to the service',
     'si.returning': function (d) { return 'Signed in here before, last on ' + d + '.'; },
     'cn.title': function (n) { return 'Connect ' + n; },
-    'cn.lead': function (n, h) { return n + ' at ' + h + ' requests a connection to this account.'; },
+    'cn.lead': function (n, h) { return 'It acts only with the permissions allowed on the next screen.'; },
     'cn.problem': 'Connection cannot continue',
     'cn.problemLead': 'This tool did not identify itself correctly. Nothing was connected.',
-    'cn.address': 'Address', 'cn.name': 'Name', 'cn.nameNote': 'Given by the tool',
+    'cn.address': 'Address', 'cn.name': 'Name', 'cn.nameNote': 'Name given by the tool',
     'cn.actions': 'Permissions',
     'cn.section': function (n) { return 'Keep records in “' + n + '”'; },
     'cn.sectionNote': 'A section named after the tool. It reads all records there and changes only its own.',
@@ -124,6 +135,8 @@ var STRINGS = {
     'req.manage': 'Manage answers',
     'req.missing': function (label) { return label + ' is required.'; },
     'req.closed': 'No longer available',
+    'req.notFound': 'Request not found', 'sh.notFound': 'Link not found',
+    'req.notFoundLead': 'The address may be incomplete. Only the sender can say whether it is meant to work.',
     'pin.trusted': function (d) { return d + ' is trusted in this browser.'; },
     'pin.changed': function (d) { return 'The server key of ' + d + ' differs from the one this browser remembered. The server may have been replaced.'; },
     'pin.trust': 'Trust in this browser', 'pin.untrust': 'Stop trusting',
@@ -149,18 +162,21 @@ var STRINGS = {
     'theme.light': 'Zum hellen Design wechseln', 'theme.dark': 'Zum dunklen Design wechseln',
     'field.email': 'E-Mail', 'field.code': 'Code', 'field.totp': 'Code aus der Authenticator-App',
     'app.open': 'In der Revoked-App öffnen', 'app.note': 'Die App prüft den Server, bevor etwas eingegeben wird.',
-    'auth.title': 'Konto',
-    'auth.lead': 'Antworten liegen in einem Konto auf diesem Server, wo sie geändert oder widerrufen werden können. Die Anmeldung erfolgt mit einem Passkey.',
-    'auth.leadAnswers': 'Die Anmeldung erfolgt mit einem Passkey. Ein gespeicherter Passkey wird im E-Mail-Feld angeboten.',
+    'auth.title.request': 'Anmelden oder Konto erstellen', 'auth.title.answers': 'Anmelden',
+    'auth.title.signin': 'Anmelden oder Konto erstellen', 'auth.title.connect': 'Anmelden oder Konto erstellen', 'auth.title.share': 'Anmelden oder Konto erstellen',
+    'auth.lead': 'Antworten bleiben in einem Konto auf diesem Server, wo sie geändert oder widerrufen werden können.',
+    'auth.leadAnswers': 'Antworten gehören zu dem Konto, das sie gegeben hat.',
     'auth.continue': 'Weiter',
+    'auth.passkey': 'Mit Passkey anmelden', 'auth.otherDevice': 'Passkey auf anderem Gerät',
+    'field.emailPh': 'E-Mail-Adresse', 'auth.or': 'oder',
+    'taken.lead': function (email) { return 'Für ' + email + ' existiert ein Konto. Die Anmeldung erfolgt mit dessen Passkey.'; },
+    'auth.otherEmail': 'Andere E-Mail-Adresse verwenden',
+    'err.emailNeeded': 'Für ein neues Konto wird eine E-Mail-Adresse benötigt.',
+    'cn.auth': 'Das Werkzeug verbindet sich mit einem Konto auf diesem Server.',
     'auth.signin': 'Mit Passkey anmelden',
-    'offer.leadCode': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' beginnt mit einem Bestätigungscode an diese Adresse.'; },
-    'offer.lead': function (email) { return 'Es wurde kein Passkey verwendet. Ein neues Konto für ' + email + ' erhält einen Passkey auf diesem Gerät.'; },
-    'offer.go': 'Konto erstellen', 'offer.retry': 'Passkey erneut versuchen',
-    'offer.note': 'Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
     'code.lead': function (email) { return 'Bestätigungscode gesendet an ' + email + '.'; },
     'code.go': 'Weiter',
-    'code.note': 'Der Code ist 10 Minuten gültig. Fehlende E-Mails können im Spam-Ordner liegen.',
+    'code.note': 'Der Code ist 10 Minuten gültig. Eine Adresse mit bestehendem Konto erhält stattdessen einen Hinweis zur Anmeldung. Fehlende E-Mails können im Spam-Ordner liegen.',
     'code.resendIn': function (s) { return 'Neuer Code in ' + s + ' s'; },
     'code.resend': 'Neuen Code senden',
     'save.lead': 'Ein Passkey ersetzt das Passwort und wird mit Fingerabdruck, Gesicht oder PIN entsperrt.',
@@ -174,7 +190,6 @@ var STRINGS = {
     'stop.setup': 'Dieser Server verlangt eine Authenticator-App, die in der Revoked-App eingerichtet wird.',
     'err.codeFormat': 'Der Code besteht aus 6 Ziffern.',
     'err.exists': 'Dieses Gerät hat bereits einen Passkey für dieses Konto.',
-    'err.noPasskeyEmail': 'Es wurde kein Passkey verwendet. Ein Passkey auf einem Handy funktioniert über den QR-Code, den der Browser anbietet. Für ein neues Konto wird zuerst eine E-Mail-Adresse benötigt.',
     'err.noPasskeyClosed': 'Es wurde kein Passkey verwendet. Einer auf einem Handy funktioniert über den QR-Code, den der Browser anbietet.',
     'err.unknownRemoved': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Der Passwort-Manager wurde gebeten, ihn zu entfernen.',
     'err.unknownManual': 'Dieser Passkey gehört zu einem Konto, das es nicht mehr gibt. Er kann im Passwort-Manager gelöscht werden.',
@@ -182,9 +197,17 @@ var STRINGS = {
     'err.load': 'Die Seite konnte nicht geladen werden.',
 
     'ws.default': 'Persönlich',
+    'asked.locked': 'Nach der Anmeldung',
+    'req.eyebrow': function (n) { return 'Anfrage von ' + n; },
+    'req.expiresOn': function (d) { return 'Läuft ab am ' + d; },
+    'pin.trustedShort': 'In diesem Browser vertraut',
+    'si.eyebrow': 'Anmelden mit Revoked',
+    'cn.eyebrow': 'Verbindungsanfrage',
+    'sh.eyebrow': function (n) { return 'Geteilt von ' + n; },
+    'sh.needsIdentity': 'Verifizierte Identität erforderlich',
     'sh.untitled': 'Geteilte Einträge',
     'sh.from': function (n) { return 'Von ' + n + ', laut Angabe des Servers.'; },
-    'sh.auth': 'Das Öffnen verlangt eine verifizierte Identität eines Kontos auf diesem Server. Die Anmeldung erfolgt mit einem Passkey.',
+    'sh.auth': 'Das Öffnen verlangt eine verifizierte Identität eines Kontos auf diesem Server.',
     'sh.password': 'Passwort', 'sh.open': 'Geteilte Informationen öffnen',
     'sh.sealed': 'Verschlüsselt. Wird mit dem vollständigen Link oder in der Revoked-App geöffnet.',
     'sh.download': 'Herunterladen',
@@ -201,8 +224,8 @@ var STRINGS = {
     'id.unsupported': 'Dieser Browser kann keine Identität ableiten. Identitäten werden in der Revoked-App verwendet.',
     'id.revoked': 'Die Identität dieses Passkeys wurde widerrufen.',
     'si.title': function (h) { return 'Bei ' + h + ' anmelden'; },
-    'si.lead': function (h) { return h + ' fordert eine Anmeldung mit Revoked an. Was der Dienst erhält, wird hier oder in der Revoked-App festgelegt.'; },
-    'si.auth': 'Die Anmeldung erfolgt mit einem Passkey. Ein gespeicherter Passkey wird im E-Mail-Feld angeboten.',
+    'si.lead': function (h) { return h + ' erhält nur, was auf dem nächsten Bildschirm erlaubt wird.'; },
+    'si.auth': 'Der Dienst meldet sich mit einem Konto auf diesem Server an.',
     'si.problem': 'Anmeldung nicht möglich',
     'si.problemLead': 'Dieser Dienst hat sich nicht korrekt ausgewiesen. Die Anmeldung wurde abgebrochen, es wurde nichts geteilt.',
     'si.account': 'Konto',
@@ -210,18 +233,19 @@ var STRINGS = {
     'si.scope.profile': 'Name', 'si.scope.email': 'E-Mail-Adresse', 'si.scope.revoked_identity': 'Verifizierte Identität',
     'si.identityNeeds': 'Wird geteilt, sobald eine Identität dieses Passkeys verwendet wird.',
     'si.noName': 'Kein Name',
-    'si.entries': 'Tresor-Einträge',
+    'si.entries': 'Tresor-Einträge', 'si.entry': 'Tresor-Eintrag',
     'si.notShared': 'Nicht geteilt',
     'si.allow': 'Erlauben', 'si.decline': 'Ablehnen',
-    'si.approveNote': 'Beim Erlauben wird der Passkey ein weiteres Mal abgefragt, sofern nicht bereits die Identität signiert.',
+    'si.approveNote': 'Beim Erlauben wird der Passkey erneut abgefragt.',
+    'si.as': function (e) { return 'Als ' + e; }, 'si.lastOn': function (d) { return 'Zuletzt angemeldet am ' + d; },
     'si.paused': function (h) { return h + ' ist für dieses Konto pausiert. Die Reaktivierung erfolgt in der Revoked-App.'; },
     'si.back': 'Zurück zum Dienst',
     'si.returning': function (d) { return 'Hier bereits angemeldet, zuletzt am ' + d + '.'; },
     'cn.title': function (n) { return n + ' verbinden'; },
-    'cn.lead': function (n, h) { return n + ' unter ' + h + ' fordert eine Verbindung mit diesem Konto an.'; },
+    'cn.lead': function (n, h) { return 'Es handelt nur mit den Berechtigungen, die auf dem nächsten Bildschirm erlaubt werden.'; },
     'cn.problem': 'Verbindung nicht möglich',
     'cn.problemLead': 'Dieses Werkzeug hat sich nicht korrekt ausgewiesen. Es wurde nichts verbunden.',
-    'cn.address': 'Adresse', 'cn.name': 'Name', 'cn.nameNote': 'Vom Werkzeug angegeben',
+    'cn.address': 'Adresse', 'cn.name': 'Name', 'cn.nameNote': 'Name vom Werkzeug angegeben',
     'cn.actions': 'Berechtigungen',
     'cn.section': function (n) { return 'Einträge in „' + n + '“ ablegen'; },
     'cn.sectionNote': 'Ein Bereich mit dem Namen des Werkzeugs. Es liest alle Einträge darin und ändert nur eigene.',
@@ -253,6 +277,8 @@ var STRINGS = {
     'req.manage': 'Antworten verwalten',
     'req.missing': function (label) { return label + ' ist erforderlich.'; },
     'req.closed': 'Nicht mehr verfügbar',
+    'req.notFound': 'Anfrage nicht gefunden', 'sh.notFound': 'Link nicht gefunden',
+    'req.notFoundLead': 'Die Adresse ist möglicherweise unvollständig. Nur der Absender kann sagen, ob sie funktionieren soll.',
     'pin.trusted': function (d) { return d + ' ist in diesem Browser als vertrauenswürdig gespeichert.'; },
     'pin.changed': function (d) { return 'Der Serverschlüssel von ' + d + ' weicht von dem ab, den dieser Browser gespeichert hat. Der Server wurde möglicherweise ersetzt.'; },
     'pin.trust': 'In diesem Browser vertrauen', 'pin.untrust': 'Nicht mehr vertrauen',
@@ -372,6 +398,12 @@ function applyLang() {
   Array.prototype.forEach.call(document.querySelectorAll('[data-t]'), function (n) {
     n.textContent = t(n.getAttribute('data-t'));
   });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ph]'), function (n) {
+    n.setAttribute('placeholder', t(n.getAttribute('data-ph')));
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-t-title]'), function (n) {
+    n.title = t(n.getAttribute('data-t-title'));
+  });
   $('lang-toggle').textContent = t('lang.label');
   $('lang-toggle').setAttribute('aria-label', t('lang.switch'));
   updateToggle();
@@ -386,15 +418,75 @@ $('lang-toggle').addEventListener('click', function () {
 applyLang();
 
 function heading(title, lead, icon, tone) {
+  eyebrow('');
   $('title').textContent = title;
   $('lead').textContent = lead || '';
   document.title = title + ' · Revoked';
   var tile = $('tile');
-  tile.className = 'hero-tile' + (tone ? ' ' + tone : '');
+  tile.className = 'hero-tile';
   tile.textContent = '';
-  if (icon) tile.appendChild(svg(icon, 28));
+  // Only a state earns an icon, small and on the title's own line: an answer
+  // sent, a link gone. A key above "Sign in" says nothing the words do not.
+  if (icon && tone) {
+    var mark = svg(icon, 20);
+    mark.setAttribute('class', 'status-ic ' + tone);
+    $('title').insertBefore(mark, $('title').firstChild);
+  }
 }
 function fail(message) { $('error-t').textContent = message; show($('error'), !!message); }
+// What a page asks for, shown before sign-in: one list under one hint that
+// it opens after signing in. Only what is optional says so.
+function lockedList(rows, title, noHint) {
+  var box = el('div', 'asked');
+  var head = el('div', 'asked-h');
+  head.appendChild(el('span', 'section-t', title));
+  if (!noHint) {
+    var hint = el('span', 'asked-hint');
+    hint.appendChild(svg('lock', 14));
+    hint.appendChild(el('span', '', t('asked.locked')));
+    head.appendChild(hint);
+  }
+  box.appendChild(head);
+  rows.forEach(function (r) {
+    var row = el('div', 'asked-row');
+    var text = el('span', 'locked-t');
+    text.appendChild(el('span', 'entry-t', r.label));
+    if (r.note) text.appendChild(el('span', 'entry-reason', r.note));
+    row.appendChild(text);
+    if (r.tag) row.appendChild(el('span', 'tag', r.tag));
+    box.appendChild(row);
+  });
+  return box;
+}
+// What was given, as a plain list: the label small, the value as read.
+function summaryList(rows) {
+  var box = el('div', 'asked summary');
+  rows.forEach(function (r) {
+    var row = el('div', 'asked-row');
+    var text = el('span', 'locked-t');
+    text.appendChild(el('span', 'entry-reason', r.label));
+    text.appendChild(el('span', 'summary-v', r.value));
+    row.appendChild(text);
+    if (r.tag) row.appendChild(el('span', 'tag', r.tag));
+    box.appendChild(row);
+  });
+  return box;
+}
+// A key reads as a label when the record has none: "emergency_phone" is
+// shown as "Emergency phone".
+function labelOf(rec, key) {
+  if (rec && rec.label && rec.label !== key) return rec.label;
+  var words = String(key).replace(/[_-]+/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// Small facts under the title, in one line: the address, an expiry.
+function metaLine(items) {
+  var line = el('div', 'meta');
+  items.forEach(function (i) { if (i) line.appendChild(typeof i === 'string' ? el('span', '', i) : i); });
+  return line;
+}
+function eyebrow(text) { $('eyebrow').textContent = text || ''; }
 function callout(tone, icon, text) {
   var n = el('div', 'callout ' + tone);
   n.appendChild(svg(icon, 20));
@@ -406,6 +498,7 @@ function button(cls, label, onClick) {
   b.type = 'button';
   b.appendChild(el('span', 'spin'));
   b.appendChild(el('span', '', label));
+  b.setAttribute('aria-label', label);
   b.addEventListener('click', onClick);
   return b;
 }
@@ -420,6 +513,7 @@ function busyWhile(b, work) {
 
 if (server.appLink) {
   $('open-app').href = server.appLink;
+  $('open-app-alt').href = server.appLink;
   show($('app-way'), true);
 }
 
@@ -467,7 +561,7 @@ function startSignIn(leadKey, onSignedIn, wantIdentity) {
   function action(label, icon) {
     $('go-t').textContent = label;
     $('go-ic').textContent = '';
-    $('go-ic').appendChild(svg(icon, 20));
+    $('go-ic').appendChild(svg(icon, 18));
   }
 
   if (!server.originOK) {
@@ -476,38 +570,51 @@ function startSignIn(leadKey, onSignedIn, wantIdentity) {
       return;
     }
     show($('auth'), true);
-    $('auth-t').textContent = t('auth.title');
+    $('auth-t').textContent = t('auth.title.' + server.page);
     authFail(t('stop.origin'));
     return;
   }
   if (!window.PublicKeyCredential || !window.crypto || !crypto.subtle) {
     show($('auth'), true);
-    $('auth-t').textContent = t('auth.title');
+    $('auth-t').textContent = t('auth.title.' + server.page);
     authFail(t('stop.browser'));
     return;
   }
 
+  // One way in, as on the sign-in page. A saved passkey is offered in the
+  // email field and signs in from there. An address typed and continued with
+  // starts a new account: someone returning picks the suggestion, so a typed
+  // address is almost always someone new, and asking them for a passkey
+  // first only showed an empty prompt. The server never says whether an
+  // address has an account where it confirms addresses (the owner gets a
+  // mail instead), so the page cannot ask either.
   function render() {
     show($('auth'), true);
-    $('auth-t').textContent = t('auth.title');
-    show($('emailRow'), state === 'either' || state === 'offer' || state === 'email');
+    // While the panel is up, the app is one of its quiet links.
+    show($('app-way'), false);
+    $('auth-t').textContent = t('auth.title.' + server.page);
+    var choosing = state === 'either';
+    show($('emailRow'), choosing || state === 'email');
     show($('codeRow'), state === 'code' || state === 'totp');
     show($('resend'), state === 'code');
-    show($('other'), state === 'offer');
+    show($('other'), state === 'code' || state === 'save' || state === 'email' || state === 'taken');
+    show($('alt'), choosing || state === 'email');
+    show($('passkey'), server.signups);
+    show($('app-choice'), !!server.appLink && (choosing || state === 'email'));
     show($('go'), true);
+    $('auth-lead').textContent = '';
     $('auth-note').textContent = '';
-    $('email').setAttribute('autocomplete', state === 'either' ? 'username webauthn' : 'email');
+    $('email').setAttribute('autocomplete', choosing ? 'username webauthn' : 'email');
     $('code').setAttribute('autocomplete', 'one-time-code');
     $('code-l').textContent = t(state === 'totp' ? 'field.totp' : 'field.code');
-    if (state === 'either') {
-      $('auth-lead').textContent = t(leadKey);
-      action(t(server.signups ? 'auth.continue' : 'auth.signin'), server.signups ? 'arrow-right' : 'key');
-      startAutofill();
-    } else if (state === 'offer') {
-      $('auth-lead').textContent = t(server.verifyEmail ? 'offer.leadCode' : 'offer.lead', currentEmail());
-      action(t('offer.go'), 'arrow-right');
-      $('other').textContent = t('offer.retry');
-      $('auth-note').textContent = t('offer.note');
+    $('other').textContent = t('auth.otherEmail');
+    if (choosing || state === 'email') {
+      if (server.signups) action(t('auth.continue'), 'arrow-right');
+      else action(t('auth.passkey'), 'key');
+      if (choosing) startAutofill();
+    } else if (state === 'taken') {
+      $('auth-lead').textContent = t('taken.lead', currentEmail());
+      action(t('auth.passkey'), 'key');
     } else if (state === 'code') {
       $('auth-lead').textContent = t('code.lead', codeSentTo);
       action(t('code.go'), 'arrow-right');
@@ -582,6 +689,9 @@ function startSignIn(leadKey, onSignedIn, wantIdentity) {
     session = { token: answer.token, user: answer.record };
     redrawAuth = function () {};
     show($('auth'), false);
+    show($('app-way'), false);
+    show($('alt'), false);
+    show($('app-choice'), false);
     onSignedIn();
   }
 
@@ -611,21 +721,64 @@ function startSignIn(leadKey, onSignedIn, wantIdentity) {
   }
 
   var busy = false;
-  $('go').addEventListener('click', async function () {
+  async function guarded(button, work) {
     if (busy || finished) return;
     busy = true;
     authFail('');
-    $('go').disabled = true;
-    $('go').classList.add('loading');
+    button.disabled = true;
+    button.classList.add('loading');
     try {
-      if (state === 'either') {
+      await work();
+    } catch (e) {
+      // Said only where the server does not confirm addresses: there an
+      // account for the address is already public through signup.
+      if (e && e.code === 'passkey_email_taken') {
+        proof = ''; codeSentTo = '';
+        state = 'taken';
+        render();
+        return;
+      }
+      if (e && (e.code === 'email_verification_required' || e.code === 'passkey_email_invalid')) {
+        proof = ''; codeSentTo = '';
+        state = 'email';
+        render();
+      }
+      if (e && e.code === 'two_factor_challenge_invalid') { state = 'either'; render(); }
+      if (e && e.name === 'InvalidStateError') authFail(t('err.exists'));
+      else if (e && e.name === 'NotAllowedError') {
+        if (button === $('passkey') || !server.signups || state === 'taken') authFail(t('err.noPasskeyClosed'));
+      } else authFail((e && e.message) || t('err.generic'));
+    } finally {
+      busy = false;
+      button.disabled = false;
+      button.classList.remove('loading');
+      if (!finished) startAutofill();
+    }
+  }
+  $('passkey').addEventListener('click', function () {
+    guarded($('passkey'), async function () {
+      await stopAutofill();
+      var pair = await pkcePair();
+      var r = await passkeySignIn(pair.challenge, prepare);
+      keepPrf(r.credential);
+      await redeem(r.result.code, pair.verifier);
+    });
+  });
+  $('go').addEventListener('click', function () {
+    guarded($('go'), async function () {
+      if ((state === 'either' && !server.signups) || state === 'taken') {
         await stopAutofill();
         var pair = await pkcePair();
         var r = await passkeySignIn(pair.challenge, prepare);
         keepPrf(r.credential);
         await redeem(r.result.code, pair.verifier);
-      } else if (state === 'offer' || state === 'email') {
-        if (!$('email').checkValidity() || !currentEmail()) { $('email').focus(); return; }
+      } else if (state === 'either' || state === 'email') {
+        if (!$('email').checkValidity() || !currentEmail()) {
+          authFail(t('err.emailNeeded'));
+          $('email').focus();
+          return;
+        }
+        await stopAutofill();
         if (server.verifyEmail) await sendCode();
         else { state = 'save'; render(); await register(); }
       } else if (state === 'code') {
@@ -641,37 +794,15 @@ function startSignIn(leadKey, onSignedIn, wantIdentity) {
         if (!/^[0-9]{6}$/.test(totp)) throw new Error(t('err.codeFormat'));
         signedIn(await call('/api/passkeys/token/2fa', { challenge: totpChallenge, code: totp }));
       }
-    } catch (e) {
-      if (e && (e.code === 'email_verification_required' || e.code === 'passkey_email_taken' || e.code === 'passkey_email_invalid')) {
-        proof = ''; codeSentTo = '';
-        state = 'email';
-        render();
-      }
-      if (e && e.code === 'two_factor_challenge_invalid') { state = 'either'; render(); }
-      if (e && e.name === 'NotAllowedError' && state === 'either') {
-        if (server.signups && currentEmail() && $('email').checkValidity()) {
-          state = 'offer';
-          render();
-        } else {
-          authFail(t(server.signups ? 'err.noPasskeyEmail' : 'err.noPasskeyClosed'));
-          if (server.signups) $('email').focus();
-        }
-      } else if (e && e.name === 'InvalidStateError') {
-        authFail(t('err.exists'));
-      } else if (!e || e.name !== 'NotAllowedError') {
-        authFail((e && e.message) || t('err.generic'));
-      }
-    } finally {
-      busy = false;
-      $('go').disabled = false;
-      $('go').classList.remove('loading');
-      if (!finished) startAutofill();
-    }
+    });
   });
   $('other').addEventListener('click', function () {
+    proof = ''; codeSentTo = '';
+    if (resendTimer) { clearInterval(resendTimer); resendTimer = null; }
     state = 'either';
+    authFail('');
     render();
-    $('go').click();
+    $('email').focus();
   });
   $('resend').addEventListener('click', async function () {
     authFail('');
@@ -684,9 +815,6 @@ function startSignIn(leadKey, onSignedIn, wantIdentity) {
     var digits = $('code').value.replace(/[^0-9]/g, '').slice(0, 6);
     if (digits !== $('code').value) $('code').value = digits;
     if (digits.length === 6) $('go').click();
-  });
-  $('email').addEventListener('input', function () {
-    if (state === 'offer' && !currentEmail()) { state = 'either'; render(); }
   });
   render();
 }

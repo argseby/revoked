@@ -10,7 +10,7 @@ package routes
 // reports, and whether this browser remembered a different server key for
 // that domain before (BROWSER.md §3.1).
 const requestPageScript = `
-var probe = null, closedMessage = '';
+var probe = null, closedMessage = '', notFound = false;
 var vault = [], byId = {}, existing = null;
 // key -> { mode: 'vault' | 'typed', record, input }
 var answers = {};
@@ -63,73 +63,61 @@ function vaultMatch(key) {
   return alias;
 }
 
-function factsBox() {
-  var box = el('div', 'facts');
-  function fact(k, v) {
-    var row = el('div', 'fact');
-    row.appendChild(el('span', 'fact-k', k));
-    row.appendChild(el('span', 'fact-v', v));
-    box.appendChild(row);
-  }
-  fact(t('req.server'), location.host);
-  fact(t('req.expires'), probe.expiresAt ? formatDate(probe.expiresAt) : t('req.never'));
-  return box;
-}
-function pinBox() {
+// The address as the address bar shows it, the expiry, and this browser's
+// memory of the server key. Never a verdict (BROWSER.md §3.1).
+function metaItems() {
+  var items = [location.host, probe.expiresAt ? t('req.expiresOn', formatDate(probe.expiresAt)) : t('req.never')];
   var claim = probe.server || {};
-  if (!claim.domain || !claim.rootFingerprint) return null;
-  var remembered = trustMap()[claim.domain];
-  var wrap = el('div', 'flow');
-  if (remembered && remembered !== String(claim.rootFingerprint)) {
-    wrap.appendChild(callout('warn', 'alert', t('pin.changed', claim.domain)));
-    return wrap;
+  if (claim.domain && claim.rootFingerprint) {
+    var remembered = trustMap()[claim.domain];
+    if (!remembered || remembered === String(claim.rootFingerprint)) {
+      var b = el('button', 'text-btn', t(remembered ? 'pin.untrust' : 'pin.trust'));
+      b.type = 'button';
+      b.addEventListener('click', function () { setTrusted(claim.domain, claim.rootFingerprint, !remembered); });
+      if (remembered) items.push(t('pin.trustedShort'));
+      items.push(b);
+    }
   }
-  var row = el('div', 'row');
-  var b;
-  if (remembered) {
-    row.appendChild(el('p', 'fine left', t('pin.trusted', claim.domain)));
-    b = el('button', 'text-btn', t('pin.untrust'));
-    b.addEventListener('click', function () { setTrusted(claim.domain, claim.rootFingerprint, false); });
-  } else {
-    b = el('button', 'text-btn', t('pin.trust'));
-    b.addEventListener('click', function () { setTrusted(claim.domain, claim.rootFingerprint, true); });
-  }
-  b.type = 'button';
-  row.appendChild(b);
-  wrap.appendChild(row);
-  return wrap;
+  return items;
+}
+function pinWarning() {
+  var claim = probe.server || {};
+  var remembered = claim.domain && trustMap()[claim.domain];
+  return remembered && remembered !== String(claim.rootFingerprint) ? callout('warn', 'alert', t('pin.changed', claim.domain)) : null;
 }
 
+// A field as a form row, in the same rhythm as the list before sign-in: the
+// label, what it is for, then the value from the vault or the input.
 function fieldEntry(f) {
-  var box = el('div', 'entry');
-  var head = el('div', 'entry-h');
-  head.appendChild(el('span', 'entry-t', f.label || f.key));
-  head.appendChild(el('span', 'pill', t(f.required ? 'req.required' : 'req.optional')));
+  var box = el('div', 'form-row');
+  var head = el('div', 'form-row-h');
+  head.appendChild(el('span', 'form-row-t', f.label || f.key));
+  if (!f.required) head.appendChild(el('span', 'tag', t('req.optional')));
   box.appendChild(head);
   if (f.reason) box.appendChild(el('p', 'entry-reason', f.reason));
   if (isFile(f)) {
-    box.appendChild(el('p', 'fine left', t('req.fileApp')));
+    box.appendChild(el('p', 'entry-reason', t('req.fileApp')));
     return box;
   }
   if (!session) return box;
   var a = answers[f.key];
+  var foot = el('div', 'form-row-foot');
   if (a.mode === 'vault') {
     box.appendChild(el('div', 'value', valueOf(a.record)));
-    var note = el('div', 'row');
-    var src = el('span', 'pill ok', t('req.fromVault'));
-    note.appendChild(src);
+    foot.appendChild(el('span', '', t('req.fromVault')));
     var other = el('button', 'text-btn', t('req.typeInstead'));
     other.type = 'button';
     other.addEventListener('click', function () { a.mode = 'typed'; redraw(); a.input.focus(); });
-    note.appendChild(other);
-    box.appendChild(note);
+    foot.appendChild(other);
+    box.appendChild(foot);
   } else {
     box.appendChild(a.input);
     if (a.record) {
       var back = el('button', 'text-btn', t('req.useVault'));
       back.type = 'button';
       back.addEventListener('click', function () { a.mode = 'vault'; redraw(); });
-      box.appendChild(back);
+      foot.appendChild(back);
+      box.appendChild(foot);
     }
   }
   return box;
@@ -143,10 +131,10 @@ function secretField(name, labelKey, type, hintKey) {
     input.autocomplete = 'off';
     secretInputs[name] = input;
   }
-  var label = el('label', 'field');
-  label.appendChild(el('span', '', t(labelKey)));
+  var label = el('label', 'form-row');
+  label.appendChild(el('span', 'form-row-t', t(labelKey)));
+  if (hintKey) label.appendChild(el('span', 'entry-reason', t(hintKey)));
   label.appendChild(secretInputs[name]);
-  if (hintKey) label.appendChild(el('span', 'fine left', t(hintKey)));
   return label;
 }
 
@@ -188,15 +176,10 @@ async function submit() {
 function renderSubmitted() {
   var flow = $('flow');
   heading(t(submitted.updated ? 'req.updated' : 'req.sent'), t('req.sentLead'), 'check', 'ok');
-  submitted.given.forEach(function (g) {
-    var box = el('div', 'entry');
-    var head = el('div', 'entry-h');
-    head.appendChild(el('span', 'entry-t', g.label));
-    head.appendChild(el('span', 'pill', t(g.from)));
-    box.appendChild(head);
-    box.appendChild(el('div', 'value', g.value));
-    flow.appendChild(box);
-  });
+  eyebrow(probe.label || '');
+  flow.appendChild(summaryList(submitted.given.map(function (g) {
+    return { label: g.label, value: g.value, tag: t(g.from) };
+  })));
   var manage = el('a', 'big');
   manage.href = '/answers';
   manage.appendChild(el('span', '', t('req.manage')));
@@ -208,15 +191,19 @@ redraw = function () {
   var flow = $('flow');
   flow.textContent = '';
   if (closedMessage) {
-    heading(t('req.closed'), closedMessage, 'alert', 'warn');
+    // Nothing is left to open, in the app or here.
+    show($('app-way'), false);
+    if (notFound) heading(t('req.notFound'), t('req.notFoundLead'), 'alert', 'warn');
+    else heading(t('req.closed'), closedMessage, 'alert', 'warn');
     return;
   }
   if (!probe) return;
   if (submitted) { renderSubmitted(); return; }
   var name = probe.requester && probe.requester.name;
-  heading(probe.label || t('req.untitled'), name ? t('req.from', name) : '', 'inbox');
-  flow.appendChild(factsBox());
-  var pin = pinBox();
+  heading(probe.label || t('req.untitled'), '');
+  eyebrow(name ? t('req.eyebrow', name) : '');
+  flow.appendChild(metaLine(metaItems()));
+  var pin = pinWarning();
   if (pin) flow.appendChild(pin);
 
   var only = appOnly();
@@ -225,8 +212,16 @@ redraw = function () {
   }
   var list = fields();
   if (list.length) {
-    flow.appendChild(el('p', 'section-t', t('req.fields')));
-    list.forEach(function (f) { flow.appendChild(fieldEntry(f)); });
+    if (!session) {
+      flow.appendChild(lockedList(list.map(function (f) {
+        return { label: f.label || f.key, note: isFile(f) ? t('req.fileApp') : f.reason, tag: f.required ? '' : t('req.optional') };
+      }), t('req.fields'), !!only));
+    } else {
+      var head = el('div', 'asked-h');
+      head.appendChild(el('span', 'section-t', t('req.fields')));
+      flow.appendChild(head);
+      list.forEach(function (f) { flow.appendChild(fieldEntry(f)); });
+    }
   }
   if (only || !session) return;
 
@@ -263,6 +258,9 @@ async function afterSignIn() {
     if (isFile(f)) return;
     var input = el('textarea');
     input.rows = 1;
+    input.setAttribute('aria-label', f.label || f.key);
+    // Grows with what is typed rather than showing a resize handle.
+    input.addEventListener('input', function () { input.style.height = 'auto'; input.style.height = input.scrollHeight + 2 + 'px'; });
     var rec = (grants[f.key] && usable(byId[grants[f.key]]) && byId[grants[f.key]]) || vaultMatch(f.key);
     answers[f.key] = { mode: rec ? 'vault' : 'typed', record: rec, input: input };
   });
@@ -275,6 +273,7 @@ async function afterSignIn() {
     var data = await res.json().catch(function () { return {}; });
     if (!res.ok) {
       closedMessage = serverMessage(data);
+      notFound = res.status === 404;
       redraw();
       return;
     }

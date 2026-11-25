@@ -27,8 +27,8 @@ function scopeRow(item) {
     return wrap;
   }
   if (item.scope === 'profile') {
-    var box = el('div', 'entry');
-    box.appendChild(el('span', 'entry-t', t('si.scope.profile')));
+    var box = el('label', 'form-row pick-row');
+    box.appendChild(el('span', 'form-row-t', t('si.scope.profile')));
     var opts = [{ value: '', label: t('si.noName') }];
     (consent.nameOptions || []).forEach(function (o) {
       opts.push({ value: o.kind + ':' + o.id, label: o.value + (o.label ? ' · ' + o.label : '') });
@@ -44,8 +44,8 @@ function scopeRow(item) {
 }
 
 function linkRow(item) {
-  var box = el('div', 'entry');
-  box.appendChild(el('span', 'entry-t', item.key));
+  var box = el('label', 'form-row pick-row');
+  box.appendChild(el('span', 'form-row-t', labelOf(null, item.key)));
   if (!controls.links[item.key]) {
     var opts = [{ value: '', label: t('si.notShared') }];
     var pick = '';
@@ -106,7 +106,8 @@ redraw = function () {
     heading(t('si.problem'), t('si.problemLead'), 'alert', 'bad');
     return;
   }
-  heading(t('si.title', host), t('si.lead', host), 'key');
+  heading(t('si.title', host), session ? '' : t('si.lead', host));
+  eyebrow(t('si.eyebrow'));
   if (pausedRedirect) {
     flow.appendChild(callout('warn', 'alert', t('si.paused', host)));
     var back = el('a', 'quiet');
@@ -115,24 +116,23 @@ redraw = function () {
     flow.appendChild(back);
     return;
   }
-  if (!consent) return;
-  var facts = el('div', 'facts');
-  var row = el('div', 'fact');
-  row.appendChild(el('span', 'fact-k', t('si.account')));
-  row.appendChild(el('span', 'fact-v', consent.account.email));
-  facts.appendChild(row);
-  flow.appendChild(facts);
-  if (consent.returning && consent.returning.lastAt) {
-    flow.appendChild(el('p', 'fine left', t('si.returning', formatDate(consent.returning.lastAt))));
+  if (!consent) {
+    if (!session) flow.appendChild(askedBeforeSignIn());
+    return;
   }
-  if ((consent.scopes || []).length) {
-    flow.appendChild(el('p', 'section-t', t('si.asks')));
-    consent.scopes.forEach(function (s) { flow.appendChild(scopeRow(s)); });
+  var meta = [t('si.as', consent.account.email)];
+  if (consent.returning && consent.returning.lastAt) meta.push(t('si.lastOn', formatDate(consent.returning.lastAt)));
+  flow.appendChild(metaLine(meta));
+  function section(title, items, render) {
+    var head = el('div', 'asked-h');
+    head.appendChild(el('span', 'section-t', title));
+    flow.appendChild(head);
+    var list = el('div', 'asked choices');
+    items.forEach(function (i) { list.appendChild(render(i)); });
+    flow.appendChild(list);
   }
-  if ((consent.links || []).length) {
-    flow.appendChild(el('p', 'section-t', t('si.entries')));
-    consent.links.forEach(function (l) { flow.appendChild(linkRow(l)); });
-  }
+  if ((consent.scopes || []).length) section(t('si.asks'), consent.scopes, scopeRow);
+  if ((consent.links || []).length) section(t('si.entries'), consent.links, linkRow);
   var allow = button('big', t('si.allow'), null);
   allow.addEventListener('click', busyWhile(allow, function () { return answer(true); }));
   flow.appendChild(allow);
@@ -142,6 +142,29 @@ redraw = function () {
   flow.appendChild(el('p', 'fine', t('si.approveNote')));
   flow.appendChild(signedInLine());
 };
+
+// What the service asks for, read from its request, shown locked until the
+// consent screen can show the person's own values.
+function askedBeforeSignIn() {
+  var p = (server.data && server.data.params) || {};
+  var rows = [];
+  String(p.scope || '').split(/\s+/).forEach(function (s) {
+    if (s === 'profile' || s === 'email' || s === 'revoked_identity') rows.push({ label: t('si.scope.' + s) });
+  });
+  try {
+    var claims = JSON.parse(p.claims || '{}');
+    var keys = [];
+    ['userinfo', 'id_token'].forEach(function (m) {
+      var c = claims[m] && claims[m].revoked_links;
+      ((c && c.values) || []).forEach(function (k) { if (keys.indexOf(k) < 0) keys.push(k); });
+    });
+    keys.forEach(function (k) { rows.push({ label: labelOf(null, k), note: t('si.entry') }); });
+  } catch (e) {}
+  var wrap = el('div', 'flow');
+  if (!rows.length) return wrap;
+  wrap.appendChild(lockedList(rows, t('si.asks')));
+  return wrap;
+}
 
 function asksIdentity() {
   return String((server.data && server.data.params && server.data.params.scope) || '').split(/\s+/).indexOf('revoked_identity') >= 0;
